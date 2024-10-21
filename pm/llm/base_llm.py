@@ -1,6 +1,6 @@
 from abc import ABC,abstractmethod
 from pydantic import BaseModel, Field, validator
-from typing import List, Union, Dict, Any, Optional
+from typing import List, Union, Dict, Any, Optional, Callable
 from enum import Enum
 import logging
 
@@ -71,7 +71,7 @@ class CommonCompSettings(BaseModel):
     max_tokens: int = Field(default=128)
     stop_words: str = Field(default_factory=str)
     seed: Optional[int] = Field(default=None)
-    temperature: Optional[int] = Field(default=None)
+    temperature: Optional[float] = Field(default=None)
     top_k: Optional[int] = Field(default=None)
     top_p: Optional[int] = Field(default=None)
     repeat_penalty: Optional[float] = Field(default=None)

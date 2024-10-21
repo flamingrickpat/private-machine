@@ -5,15 +5,12 @@ import streamlit as st
 from lancedb import LanceDBConnection
 
 from pm.database.db_model import User, Message, Conversation
+from pm.system import AgentState, make_completion
+from pm.config.config import read_config_file, MainConfig
 
 # Initialize the LanceDB database
-db = LanceDBConnection("./.lancedb")
-
-def make_completion(session_id, text, state):
-    return {
-        "title": "test convo",
-        "output": "lol"
-    }
+cfg = read_config_file("config.json")
+db = LanceDBConnection(cfg.db_path)
 
 # Initialize the database tables
 def init_db():
@@ -24,36 +21,45 @@ def init_db():
 def async_handle_llm(conversation_id: str, text: str):
     # Fetch the current agent state for the conversation
     convo_table = db.open_table(Conversation.table)
-    convo = convo_table.search().where(f"id='{conversation_id}'", prefilter=True).limit(1).to_pydantic(
+    convos = convo_table.search().where(f"id='{conversation_id}'", prefilter=True).limit(1).to_pydantic(
         model=Conversation)
 
-    if convo and convo[0].agent_state:
-        state = json.loads(convo[0].agent_state)
-    else:
-        state = None  # or your default state initialization
+    state = {"messages": []}
+    convo = convos[0]
+    if convo and convo.agent_state:
+        state = json.loads(convo.agent_state)
 
     # Make the completion
     try:
-        state = make_completion(convo[0].session_id, text, state)
+        state["title"] = "Conversation"
+        state["conversation_id"] = conversation_id
+        state["messages"] = []
+        msgs = fetch_messages(conversation_id)
+        for msg in msgs:
+            state["messages"].append({
+                "role": msg.role,
+                "content": msg.text
+            })
+        state = make_completion(state)
     except Exception as e:
         response_message = Message(
             id=str(uuid.uuid4()),
             conversation_id=conversation_id,
-            sender='LLM',
+            role='assistant',
             text=f"Exception: {repr(e)}"
         )
         db.open_table(Message.table).add([response_message])
 
     # Save the new state and the LLM response as a new message
-    convo[0].agent_state = json.dumps(state)
-    convo[0].title = state["title"]
-    convo_table.update(where=f"id = '{convo[0].id}'", values=convo[0].model_dump())
+    convo.agent_state = json.dumps(state)
+    convo.title = state["title"]
+    convo_table.update(where=f"id = '{convo.id}'", values=convo.model_dump())
 
     # Add the LLM response as a new message
     response_message = Message(
         id=str(uuid.uuid4()),
         conversation_id=conversation_id,
-        sender='LLM',
+        role='assistant',
         text=state['output']
     )
     db.open_table(Message.table).add([response_message])
@@ -100,7 +106,7 @@ def send_message(conversation_id: str, sender: str, text: str):
     message = Message(
         id=str(uuid.uuid4()),
         conversation_id=conversation_id,
-        sender=sender,
+        role=sender,
         text=text
     )
     db.open_table(Message.table).add([message])
@@ -143,18 +149,18 @@ def chat_ui():
         convo_id = st.session_state.get('current_conversation_id')
         if convo_id:
             convo = db.open_table(Conversation.table).search().where(f"id='{convo_id}'", prefilter=True).limit(
-                1).to_pydantic(model=Conversation)
-            st.header(f"{convo[0].title}")
+                1).to_pydantic(model=Conversation)[0]
+            st.header(f"{convo.title}")
             messages = fetch_messages(convo_id)
             for msg in messages:
-                if msg.sender == user.username:
+                if msg.role == "user":
                     st.success(f"You: {msg.text}")
                 else:
-                    st.info(f"{msg.sender}: {msg.text}")
+                    st.info(f"Companion: {msg.text}")
 
             new_message = st.text_input("Your message", key=f"new_msg_{convo_id}")
             if st.button("Send", key=f"send_{convo_id}"):
-                send_message(convo_id, user.username, new_message)
+                send_message(convo_id, "user", new_message)
                 st.rerun()
 
 

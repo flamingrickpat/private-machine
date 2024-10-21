@@ -145,7 +145,7 @@ class LlamaCppLlm(Llm):
 
     def _get_full_grammar(self, comp_settings: Union[CommonCompSettings, None,]) -> Optional[LlamaGrammar]:
         if comp_settings is not None and comp_settings.enforced_structure_gbnf:
-            from privatemachine.llm.gbnf_grammar import generate_gbnf_structure_grammar
+            from pm.llm.gbnf_grammar import generate_gbnf_structure_grammar
             tmp = generate_gbnf_structure_grammar(comp_settings.enforced_structure_gbnf)
             grammar = LlamaGrammar.from_string(tmp.gbnf, verbose=self.verbose)
             if grammar is None:
@@ -153,7 +153,7 @@ class LlamaCppLlm(Llm):
             return grammar
 
         if comp_settings is not None and comp_settings.tools_func is not None and len(comp_settings.tools_func) > 0:
-            from privatemachine.llm.gbnf_grammar import generate_gbnf_grammar
+            from pm.llm.gbnf_grammar import generate_gbnf_grammar
             tmp = generate_gbnf_grammar(comp_settings.tools_func)
             grammar = LlamaGrammar.from_string(tmp.gbnf, verbose=self.verbose)
             if grammar is None:
@@ -162,7 +162,7 @@ class LlamaCppLlm(Llm):
 
     def _get_func_block_grammar(self, comp_settings: Union[CommonCompSettings, None,]) -> Optional[LlamaGrammar]:
         if comp_settings is not None and comp_settings.tools_func_llama is not None and len(comp_settings.tools_func_llama) > 0:
-            from privatemachine.llm.gbnf_grammar import generate_gbnf_grammar
+            from pm.llm.gbnf_grammar import generate_gbnf_grammar
             tmp = generate_gbnf_grammar(comp_settings.tools_func_llama)
             grammar = LlamaGrammar.from_string(tmp.gbnf, verbose=self.verbose)
             if grammar is None:

@@ -1,0 +1,20 @@
+{
+    "model": {
+        "identifier": "model_main",
+        "path": "E:\\AI\\very_good_Hermes-2-Pro-Llama-3-Instruct-Merged-DPO-F16.gguf",
+        "bos_token": "<|begin_of_text|>",
+        "eos_token": "<|end_of_text|>",
+        "turn_system_token": "<|im_start|>system",
+        "turn_assistant_token": "<|im_start|>assistant",
+        "turn_user_token": "<|im_start|>user",
+        "eot_token": "<|im_end|>",
+        "context_size": 8196
+    },
+    "embedding_model": {
+        "identifier": "main",
+        "path": "Alibaba-NLP/gte-base-en-v1.5",
+        "context_size": 8196,
+        "output_dimension": 1024
+    },
+    "db_path": "./.lancedb"
+}

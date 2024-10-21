@@ -28,7 +28,7 @@ Conversation.table = "conversation"
 class Message(LanceModel):
     id: str
     conversation_id: str
-    sender: str
+    role: str
     text: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
