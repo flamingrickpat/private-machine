@@ -1,0 +1,427 @@
+import logging
+import random
+from typing import Union, Optional, List, Callable
+import gc
+import ctypes
+import contextlib
+import os
+from llama_cpp import Llama, llama_cpp, LlamaGrammar
+from llama_cpp import LogitsProcessorList
+from lmformatenforcer.integrations.llamacpp import build_llamacpp_logits_processor, \
+    build_token_enforcer_tokenizer_data
+from lmformatenforcer import JsonSchemaParser, RegexParser
+import tqdm
+
+from pm.llm.base_llm import (Llm, LlmModel, CommonCompSettings, CompletionResult, CompletionStopReason, ToolResult,
+                             ToolResultStatus, ToolResultList)
+from pm.utils.string_utils import list_ends_with, truncate_after_last_period, find_python_functions_in_text
+
+logger = logging.getLogger(__name__)
+
+default_settings = {
+    "n_ctx": 8192,
+    "n_gpu_layers": -1,
+    "type_k": 2,
+    "type_v": 2,
+    "flash_attn": True,
+    "n_batch": 512
+}
+
+def silent_decode(b: bytes) -> str:
+    return_val = ""
+    with contextlib.suppress(UnicodeDecodeError):
+        return_val = b.decode('utf-8')
+    return return_val
+
+
+def load_state_fast(self, state) -> None:
+    """
+    Don't copy anything since it doesn't change the output when on VRAM
+    """
+    assert self._ctx.ctx is not None
+    # Only filling in up to `n_tokens` and then zero-ing out the rest
+    self.scores[: state.n_tokens, :] = state.scores #.copy()
+    self.scores[state.n_tokens:, :] = 0.0
+    self.input_ids = state.input_ids #.copy()
+    self.n_tokens = state.n_tokens
+    state_size = state.llama_state_size
+    LLamaStateArrayType = ctypes.c_uint8 * state_size
+    llama_state = LLamaStateArrayType.from_buffer_copy(state.llama_state)
+
+    if llama_cpp.llama_set_state_data(self._ctx.ctx, llama_state) != state_size:
+        raise RuntimeError("Failed to set llama state data")
+
+class LlamaCppLlm(Llm):
+
+    def __init__(self, verbose: bool = False):
+        self.llama: Llama = None
+        self.identifier = ""
+        self.model_settings: LlmModel | None = None
+        self.state = None
+        self.settings = {}
+        self.use_gpu = True
+        self.termination_tokens = []
+        self.termination_tokens_string = []
+
+        self.bos_token: List[int] = []
+        self.eos_token: List[int] = []
+        self.eot_token: List[int] = []
+        self.eom_token: List[int] = []
+        self.turn_system_token: List[int] = []
+        self.turn_assistant_token: List[int] = []
+        self.turn_user_token: List[int] = []
+        self.turn_script_result_token: List[int] = []
+        self.call_script_token: List[int] = []
+        self.new_line_token: List[int] = []
+        self.verbose: bool = verbose
+
+    def set_model(self, settings: LlmModel):
+        if settings.identifier != self.identifier:
+            self.identifier = settings.identifier
+            self.model_settings = settings
+
+            self.state = None
+            self.settings = default_settings.copy()
+
+            if settings.context_size is not None:
+                self.settings["n_ctx"] = settings.context_size
+
+            self.use_gpu = self.settings["n_gpu_layers"] != 0
+
+            # probably shouldn't make a copy when it lives on vram
+            if self.use_gpu:
+                Llama.load_state = load_state_fast
+
+            self.llama = Llama(settings.path, verbose=self.verbose, **self.settings)
+
+            tmp = [settings.eos_token]
+            for st in tmp:
+                if st == "":
+                    continue
+                tokens = self._tokenize(st, special=True)
+                if len(tokens) != 1:
+                    raise Exception(f"Invalid termination token! Check specification for {st}")
+                self.termination_tokens.append(tokens[0])
+                self.termination_tokens_string.append(st)
+
+            self.new_line_token = self._tokenize("\n")
+            self._initialize_tokens()
+
+    def _initialize_tokens(self):
+        token_fields = [
+            'bos_token', 'eos_token', 'eot_token', 'eom_token',
+            'turn_system_token', 'turn_assistant_token', 'turn_user_token',
+            'turn_script_result_token', 'call_script_token'
+        ]
+
+        for field in token_fields:
+            setting_value = getattr(self.model_settings, field)
+            if setting_value is not None:
+                tokens = self.llama.tokenize(setting_value.encode(encoding="utf-8"), add_bos=False, special=True)
+                setattr(self, field, tokens)
+
+    def get_token_length(self, prompt: str):
+        tokens_long_prompt = self._tokenize(prompt, special=True)
+        return len(tokens_long_prompt)
+
+    def set_prompt_template(self, prompt: str):
+        self.reset()
+        tokens = self._tokenize(prompt, special=True)
+        self.llama.eval(tokens)
+        self.state = self.llama.save_state()
+
+    def reset(self):
+        self.llama.reset()
+        self.state = None
+        gc.collect()
+
+    def _tokenize(self, text: str, special: bool = True, add_bos: bool = False) -> List[int]:
+        return self.llama.tokenize(text.encode(encoding="utf-8"), special=special, add_bos=add_bos)
+
+    def _detokenize(self, tokens: Union[int, List[int]], special: bool = False) -> str:
+        if not isinstance(tokens, list):
+            tokens = [tokens]
+        return silent_decode(self.llama.tokenizer()._model.detokenize(tokens, special=special))
+
+    def _get_full_grammar(self, comp_settings: Union[CommonCompSettings, None,]) -> Optional[LlamaGrammar]:
+        if comp_settings is not None and comp_settings.enforced_structure_gbnf:
+            from privatemachine.llm.gbnf_grammar import generate_gbnf_structure_grammar
+            tmp = generate_gbnf_structure_grammar(comp_settings.enforced_structure_gbnf)
+            grammar = LlamaGrammar.from_string(tmp.gbnf, verbose=self.verbose)
+            if grammar is None:
+                raise Exception(f"Bad grammar: {tmp.gbnf}")
+            return grammar
+
+        if comp_settings is not None and comp_settings.tools_func is not None and len(comp_settings.tools_func) > 0:
+            from privatemachine.llm.gbnf_grammar import generate_gbnf_grammar
+            tmp = generate_gbnf_grammar(comp_settings.tools_func)
+            grammar = LlamaGrammar.from_string(tmp.gbnf, verbose=self.verbose)
+            if grammar is None:
+                raise Exception(f"Bad grammar: {tmp.gbnf}")
+            return grammar
+
+    def _get_func_block_grammar(self, comp_settings: Union[CommonCompSettings, None,]) -> Optional[LlamaGrammar]:
+        if comp_settings is not None and comp_settings.tools_func_llama is not None and len(comp_settings.tools_func_llama) > 0:
+            from privatemachine.llm.gbnf_grammar import generate_gbnf_grammar
+            tmp = generate_gbnf_grammar(comp_settings.tools_func_llama)
+            grammar = LlamaGrammar.from_string(tmp.gbnf, verbose=self.verbose)
+            if grammar is None:
+                raise Exception(f"Bad grammar: {tmp.gbnf}")
+            return grammar
+
+    def _get_logit_processor(self, comp_settings: Union[CommonCompSettings, None,]) -> Optional[LogitsProcessorList]:
+        if comp_settings is not None and comp_settings.enforced_structure_regex is not None:
+            tokenizer_data = build_token_enforcer_tokenizer_data(self.llama)
+            character_level_parser = RegexParser(comp_settings.enforced_structure_regex)
+            if character_level_parser:
+                logits_processors = LogitsProcessorList([build_llamacpp_logits_processor(tokenizer_data, character_level_parser)])
+                return logits_processors
+
+        if comp_settings is not None and comp_settings.tools_json is not None and len(comp_settings.tools_json) > 0:
+            if len(comp_settings.tools_json) > 1:
+                raise Exception("not supported yet")
+
+            os.environ["LMFE_STRICT_JSON_FIELD_ORDER"] = "1"
+            tokenizer_data = build_token_enforcer_tokenizer_data(self.llama)
+            schema = comp_settings.tools_json[0].schema()
+            logger.info(f"Using schema: {schema}")
+            character_level_parser = JsonSchemaParser(json_schema=schema)
+            character_level_parser.config.force_json_field_order = True
+
+            if character_level_parser:
+                logits_processors = LogitsProcessorList([build_llamacpp_logits_processor(tokenizer_data, character_level_parser)])
+                return logits_processors
+        return None
+                #output_prefix = comp_settings.tools_json[0].__name__ + "\n"
+                #output = self.llama(prompt, logits_processor=logits_processors, max_tokens=max_tokens)
+                #text: str = output['choices'][0]['text']
+                #result.full_text_raw = prompt + text
+                #result.output_raw = text
+                #result.output_sanitized = text
+                #return result
+
+    def completion(self,
+                   prompt: str,
+                   comp_settings: Union[CommonCompSettings, None,] = None,
+                   use_prompt_template: bool = False,
+                   script_delegate: Callable[[str], List[ToolResult]] = None,
+                   progress_delegate: Callable[[int, str], None] = None,
+                   show_progress: bool = False
+                   ) -> CompletionResult:
+        if use_prompt_template and self.state is None:
+            raise Exception("No saved state!")
+
+        inline_prompt = prompt.replace("\n", "\\n")
+        logger.info(f"Prompt: {inline_prompt}")
+
+        result = CompletionResult()
+        result.user_prompt_raw = prompt
+
+        base_settings = {
+            "top_k": 40,
+            "top_p": 0.95,
+            "temp": 0.9,
+            "repeat_penalty": 1.1,
+        }
+        max_tokens = 128
+        seed = random.getrandbits(32)
+        stop_words = []
+        if comp_settings is None:
+            comp_settings = CommonCompSettings()
+
+        if comp_settings.top_k is not None:
+            base_settings["top_k"] = comp_settings.top_k
+        if comp_settings.top_p is not None:
+            base_settings["top_p"] = comp_settings.top_p
+        if comp_settings.temperature is not None:
+            base_settings["temp"] = comp_settings.temperature
+        if comp_settings.repeat_penalty is not None:
+            base_settings["repeat_penalty"] = comp_settings.repeat_penalty
+        if comp_settings.seed is not None:
+            seed = comp_settings.seed
+        for sw in comp_settings.stop_words.split(";"):
+            if sw != "":
+                stop_words.append(sw)
+        if comp_settings.max_tokens is not None:
+            max_tokens = comp_settings.max_tokens
+
+        force_include_string = comp_settings.force_include_string
+
+        context_size = self.model_settings.context_size
+
+        grammar = self._get_full_grammar(comp_settings)
+        logits_processor = self._get_logit_processor(comp_settings)
+
+        self.llama.set_seed(seed)
+        prompt_tokens = self._tokenize(prompt)
+        reset = True
+        if use_prompt_template:
+            self.llama.load_state(self.state)
+            reset = False
+        else:
+            self.llama.reset()
+            self.llama.eval(prompt_tokens)
+
+        completion_tokens = []
+        script_tokens = []
+        cnt = len(prompt_tokens) + 1
+        new_cnt = 0
+        last_autodetect_func_position = 0
+
+        is_writing_code = False
+        temp_grammar = None
+
+        possible_func_names = []
+        if comp_settings is not None and comp_settings.tools_func_llama is not None and len(comp_settings.tools_func_llama) > 0:
+            possible_func_names.extend([x.__name__ for x in comp_settings.tools_func_llama])
+        if comp_settings is not None and comp_settings.tools_func is not None and len(comp_settings.tools_func) > 0:
+            possible_func_names.extend([x.__name__ for x in comp_settings.tools_func])
+
+        pbar = None
+        if show_progress:
+            pbar = tqdm.tqdm(total=max_tokens)
+            pbar.update(cnt)
+
+        while True:
+            if cnt > context_size:
+                result.stop_reason = CompletionStopReason.TokenLimit
+                break
+
+            if new_cnt >= max_tokens:
+                result.stop_reason = CompletionStopReason.MaxTokensGenerated
+                break
+
+            # make sure its iterable
+            def eval_append(tl):
+                nonlocal cnt
+                nonlocal pbar
+                nonlocal progress_delegate
+                nonlocal completion_tokens
+                nonlocal new_cnt
+
+                if not isinstance(tl, list):
+                    tl = [tl]
+
+                for ts in tl:
+                    cnt += 1
+                    new_cnt += 1
+                    if pbar is not None:
+                        pbar.update(1)
+                    self.llama.eval([ts])
+                    completion_tokens.append(ts)
+
+                    if progress_delegate is not None:
+                        progress_delegate(cnt, self._detokenize(ts, special=True))
+
+            # execute
+            def execute_script_block(script_block: str) -> bool:
+                nonlocal script_tokens
+                nonlocal is_writing_code
+                nonlocal last_autodetect_func_position
+                nonlocal cnt
+
+                if script_delegate is None:
+                    script_res_str = "Error: The scripting delegate is not set up!"
+                else:
+                    res: List[ToolResult] = script_delegate(script_block)
+                    for r in res:
+                        if r.status == ToolResultStatus.SuccessAndExit:
+                            result.stop_reason = CompletionStopReason.FunctionCalled
+
+                    tmp = ToolResultList()
+                    for r in res:
+                        tmp.results.append(r)
+                    script_res_str = tmp.model_dump_json(indent=2)
+
+                res_tokens = self._tokenize(script_res_str, special=False)
+                eval_append(token)
+                eval_append(self.new_line_token)
+                eval_append(self.turn_script_result_token)
+                eval_append(self.new_line_token)
+                eval_append(res_tokens)
+                eval_append(self.eot_token)
+
+                if result.stop_reason == CompletionStopReason.FunctionCalled:
+                    return True
+
+                eval_append(self.new_line_token)
+                eval_append(self.turn_assistant_token)
+
+                result.function_calls.append(script_block)
+                result.function_output.append(script_res_str)
+
+                script_tokens = []
+                is_writing_code = False
+                last_autodetect_func_position = cnt
+                return False
+
+            token = self.llama.sample(logits_processor=logits_processor, grammar=grammar if grammar is not None else temp_grammar, **base_settings,)
+
+            if token in self.eot_token and force_include_string is not None:
+                tmp = self._detokenize(completion_tokens, special=True)
+                if force_include_string not in tmp:
+                    force_tokens = self._tokenize(comp_settings.force_include_string, special=False)
+                    eval_append(force_tokens)
+                    force_include_string = None
+                    continue
+
+            if is_writing_code:
+                script_tokens.append(token)
+
+            if (token in self.eom_token or token in self.eot_token) and is_writing_code:
+                token = self.eom_token
+                temp_grammar = None
+
+                all_script = self._detokenize(script_tokens, special=False)
+                should_break = execute_script_block(all_script)
+                if should_break:
+                    break
+            else:
+                all_text = self._detokenize(completion_tokens, special=True)
+
+                if (comp_settings.stop_on_eom and list_ends_with(completion_tokens, self.eom_token)) or\
+                    (comp_settings.stop_on_eos and list_ends_with(completion_tokens, self.eos_token)) or\
+                    (comp_settings.stop_on_eot and list_ends_with(completion_tokens, self.eot_token)):
+                    result.stop_reason = CompletionStopReason.StopToken
+                    break
+
+                for sw in stop_words:
+                    if sw in all_text:
+                        result.stop_reason = CompletionStopReason.StopWord
+                        break
+
+                if token in self.call_script_token:
+                    is_writing_code = True
+                    temp_grammar = self._get_func_block_grammar(comp_settings)
+
+                eval_append(token)
+
+                if not is_writing_code and len(possible_func_names) > 0:
+                    new_slice = self._detokenize(completion_tokens[last_autodetect_func_position:], special=True)
+                    funcs = find_python_functions_in_text(new_slice, possible_func_names)
+                    if len(funcs) > 0:
+                        last_autodetect_func_position = cnt
+                        call_block = "\n".join(funcs)
+                        should_break = execute_script_block(call_block)
+                        if should_break:
+                            break
+
+        combined_tokens = prompt_tokens + completion_tokens
+        result.full_text_raw = self._detokenize(combined_tokens, special=True)
+        result.output_raw = self._detokenize(completion_tokens, special=True)
+        result.output_sanitized = self._detokenize(completion_tokens)
+
+        if result.stop_reason == CompletionStopReason.TokenLimit or result.stop_reason == CompletionStopReason.MaxTokensGenerated:
+            result.output_sanitized = truncate_after_last_period(result.output_sanitized)
+
+        for sw in stop_words:
+            result.output_sanitized = result.output_sanitized.split(sw)[0]
+        for sw in self.termination_tokens_string:
+            result.output_sanitized = result.output_sanitized.replace(sw, "")
+        result.output_sanitized = result.output_sanitized.strip()
+        result.output_sanitized_inline = result.output_sanitized.replace("\n", "\\n")
+
+        logger.info(result.full_text_raw)
+        result.parse_structure()
+
+        return result
