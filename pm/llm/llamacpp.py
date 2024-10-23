@@ -200,6 +200,15 @@ class LlamaCppLlm(Llm):
                 #result.output_sanitized = text
                 #return result
 
+
+    def completion_simple(self, prompt: str):
+        output = self.llama.create_completion(prompt, max_tokens=4096, temperature=self.model_settings.default_temperature,
+                                     repeat_penalty=self.model_settings.default_repeat_penalty,
+                                     top_k=self.model_settings.default_top_k,
+                                     top_p=self.model_settings.default_top_p, seed=1337)
+        return output["choices"][0]["text"]
+
+
     def completion(self,
                    prompt: str,
                    comp_settings: Union[CommonCompSettings, None,] = None,
@@ -218,10 +227,10 @@ class LlamaCppLlm(Llm):
         result.user_prompt_raw = prompt
 
         base_settings = {
-            "top_k": 40,
-            "top_p": 0.95,
-            "temp": 0.9,
-            "repeat_penalty": 1.1,
+            "top_k": self.model_settings.default_top_k,
+            "top_p": self.model_settings.default_top_p,
+            "temp": self.model_settings.default_temperature,
+            "repeat_penalty": self.model_settings.default_repeat_penalty
         }
         max_tokens = 128
         seed = random.getrandbits(32)
@@ -281,6 +290,9 @@ class LlamaCppLlm(Llm):
         if show_progress:
             pbar = tqdm.tqdm(total=max_tokens)
             pbar.update(cnt)
+
+        n_tokens = 0
+        sample_idx = n_tokens + len(prompt_tokens) - 1
 
         while True:
             if cnt > context_size:
@@ -355,7 +367,10 @@ class LlamaCppLlm(Llm):
                 last_autodetect_func_position = cnt
                 return False
 
-            token = self.llama.sample(logits_processor=logits_processor, grammar=grammar if grammar is not None else temp_grammar, **base_settings,)
+            token = self.llama.sample(logits_processor=logits_processor,
+                                      grammar=grammar if grammar is not None else temp_grammar,
+                                      idx=sample_idx, **base_settings)
+            sample_idx += 1
 
             if token in self.eot_token and force_include_string is not None:
                 tmp = self._detokenize(completion_tokens, special=True)

@@ -51,7 +51,11 @@ class LlmModel(BaseModel):
     turn_script_result_token: str = Field(default_factory=str)
     call_script_token: str = Field(default_factory=str)
     context_size: int = 4096
-    
+    default_temperature: float = Field(default=0.7)
+    default_top_k: int = Field(default=100)
+    default_top_p: float = Field(default=0.9)
+    default_repeat_penalty: float = Field(default=1.1)
+
     def get_tokens_for_tempalte(self):
         res = {
             "bos_token": self.bos_token,
@@ -73,7 +77,7 @@ class CommonCompSettings(BaseModel):
     seed: Optional[int] = Field(default=None)
     temperature: Optional[float] = Field(default=None)
     top_k: Optional[int] = Field(default=None)
-    top_p: Optional[int] = Field(default=None)
+    top_p: Optional[float] = Field(default=None)
     repeat_penalty: Optional[float] = Field(default=None)
     break_on_special_token: bool = Field(default=True)
     tools_func: List[Any] = Field(default_factory=list)
