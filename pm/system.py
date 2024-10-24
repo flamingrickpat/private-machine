@@ -11,15 +11,17 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import create_react_agent
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from jinja2 import Template
+from scripts.regsetup import description
 
 from pm.config.config import read_config_file
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, search_documentation, search_documentation_text, fetch_documentation
 from pm.database.db_model import Message
 from pm.llm.llm import chat_complete
+from pm.llm.tools_parser_local import PydanticToolsParserLocal
 from pm.rag.tools import hybrid_search_documentation, RagState, answer_user, add_document
 from pm.utils.misc_utils import get_key_from_value
 
@@ -34,6 +36,7 @@ class AgentState(TypedDict):
     messages: List[Dict[str, str]]
     current_user_assistant_chat: str
     current_knowledge: str
+    story_mode: bool
 
 
 def find_documents_agent(state: AgentState):
@@ -105,7 +108,7 @@ def find_documents_agent(state: AgentState):
     logger.info(f"current_knowledge: " + state["current_knowledge"])
 
 
-def make_completion(state: AgentState = None) -> AgentState:
+def main_agent(state: AgentState = None) -> AgentState:
     messages = []
     msgs = fetch_messages(state["conversation_id"])
     for msg in msgs:
@@ -126,7 +129,78 @@ def make_completion(state: AgentState = None) -> AgentState:
     state["status"] = 0
     return state
 
+def assistant_story_check(state: AgentState) -> AgentState:
+    class DecideModelMode(BaseModel):
+        """Decide what model mode to use next. Assistant or story mode."""
+        reason: str = Field(description="Few words you chose your option.")
+        story_mode: bool = Field(description="true for story mode, false for assistant mode")
 
+        def execute(self, s: AgentState):
+            logger.info("assistant_story_check")
+            logger.info(self.reason)
+            logger.info(self.story_mode)
+            s["story_mode"] = self.story_mode
+
+    schema = json.dumps(DecideModelMode.model_json_schema())
+
+    # add system prompt
+    messages = []
+    messages.append((
+        "system",
+        "Based on the last few messages of this chat between the user and the AI, decide if the AI should switch to assistant or story mode."
+        "Assistant mode is for API calls and story mode for natural conversation like between two people."
+        f"Decide by creating a valid JSON string, and ONLY a valid JSON string. This is your schema:\n"
+        f"{schema}"
+    ))
+
+    messages.append((
+        "user",
+        f"This is the current chat:"
+        f"\n### BEGIN CHAT\n"
+        f"{state['current_user_assistant_chat']}"
+        f"\n### END CHAT\n"
+        f"Decide by creating a valid JSON string, and ONLY a valid JSON string!"
+    ))
+
+
+    llm = controller.llm.get_langchain_model()
+    tools = [DecideModelMode]
+    llm_with_tools = llm.bind_tools(tools=tools)
+
+    full = llm_with_tools.invoke(messages)
+    calls = PydanticToolsParserLocal(tools=tools).invoke(full)
+    for call in calls:
+        call.execute(state)
+
+    return state
+
+
+def get_graph():
+    workflow = StateGraph(AgentState)
+    workflow.add_node("main_agent", main_agent)
+    workflow.add_node("assistant_story_check", assistant_story_check)
+
+
+    workflow.add_edge(START, "assistant_story_check")
+    workflow.add_edge("assistant_story_check", "main_agent")
+    workflow.add_edge("main_agent", END)
+
+    graph = workflow.compile()
+    return graph
+
+
+def make_completion(state: AgentState) -> AgentState:
+    messages = []
+    msgs = fetch_messages(state["conversation_id"])[-4:]
+    for msg in msgs:
+        messages.append((msg.role, msg.text))
+    messages.append(("user", state["input"]))
+    full_text = "\n".join(f"{tp[0]}: {tp[1]}" for tp in messages)
+    state["current_user_assistant_chat"] = full_text
+
+    graph = get_graph()
+    graph.invoke(state)
+    return state
 
 # level 0
 #workflow.add_edge(START, "start_transaction")

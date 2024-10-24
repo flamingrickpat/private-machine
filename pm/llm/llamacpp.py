@@ -55,6 +55,7 @@ def load_state_fast(self, state) -> None:
 class LlamaCppLlm(Llm):
 
     def __init__(self, verbose: bool = False):
+        self.tool_comp_settings = None
         self.llama: Llama = None
         self.identifier = ""
         self.model_settings: LlmModel | None = None
@@ -141,7 +142,7 @@ class LlamaCppLlm(Llm):
             top_k=base_settings["top_k"],
             verbose=False
         )
-        res.set_client(self.llama)
+        res.set_client(self)
         return res
 
     def _initialize_tokens(self):
