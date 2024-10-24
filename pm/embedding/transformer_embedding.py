@@ -47,6 +47,9 @@ class TransformerEmbedding(Embedding):
         embedding = outputs.last_hidden_state[:, 0]
         return embedding[0].cpu().numpy()
 
+    def get_embedding_scalar_float_list(self, text: str) -> List[float]:
+        return self.get_embedding_scalar(text).tolist()
+
     def get_embeddings(self, text_list: List[str]) -> np.ndarray:
         input_dict = self.tokenizer(text_list, max_length=self.context_size, padding=True, truncation=True, return_tensors='pt')
         inputs = {k: v.to(self.device) for k, v in input_dict.items()}
