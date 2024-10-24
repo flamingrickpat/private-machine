@@ -31,17 +31,13 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
 
     # Make the completion
     #try:
-    state["title"] = convo.title
-    state["conversation_id"] = conversation_id
-    state["messages"] = []
-
     state = make_completion(state)
     #except Exception as e:
     #    return -1, repr(e)
 
     # Save the new state and the LLM response as a new message
     convo.agent_state = json.dumps(state)
-    convo.title = state["title"]
+    convo.title = f"Conversation {convo.id}"
     convo_table.update(where=f"id = '{convo.id}'", values=convo.model_dump())
 
     if status == 0:

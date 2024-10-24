@@ -54,7 +54,7 @@ def fetch_conversations(user_id: str) -> List[Conversation]:
 
 def fetch_messages(conversation_id: str) -> List[Message]:
     return controller.db.open_table(Message.table).search().where(f"conversation_id='{conversation_id}'",
-                                                       prefilter=True).to_pydantic(model=Message)
+                                                       prefilter=True).limit(1000000).to_pydantic(model=Message)
 
 
 def fetch_documentation(guids: List[str]):

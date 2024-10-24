@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 class AgentState(TypedDict):
     next_agent: str
+    input: str
     output: str
     title: str
     conversation_id: str
@@ -147,7 +148,8 @@ def assistant_story_check(state: AgentState) -> AgentState:
     messages = []
     messages.append((
         "system",
-        "Based on the last few messages of this chat between the user and the AI, decide if the AI should switch to assistant or story mode."
+        "Based on the last few messages of this chat between the user and the AI, "
+        "decide if the AI should switch to assistant or story mode for the NEXT message!"
         "Assistant mode is for API calls and story mode for natural conversation like between two people."
         f"Decide by creating a valid JSON string, and ONLY a valid JSON string. This is your schema:\n"
         f"{schema}"
@@ -195,12 +197,12 @@ def make_completion(state: AgentState) -> AgentState:
     for msg in msgs:
         messages.append((msg.role, msg.text))
     messages.append(("user", state["input"]))
+
     full_text = "\n".join(f"{tp[0]}: {tp[1]}" for tp in messages)
     state["current_user_assistant_chat"] = full_text
 
     graph = get_graph()
-    graph.invoke(state)
-    return state
+    return graph.invoke(state)
 
 # level 0
 #workflow.add_edge(START, "start_transaction")
