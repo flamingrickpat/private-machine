@@ -92,7 +92,7 @@ def send_message(conversation_id: str, sender: str, text: str):
 
 
 def login_ui():
-    username = st.text_input("Username", "rick")
+    username = st.text_input("Username", "user")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
         user = login_user(username, password)

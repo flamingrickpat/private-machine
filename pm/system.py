@@ -18,7 +18,8 @@ from scripts.regsetup import description
 
 from pm.config.config import read_config_file
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, search_documentation, search_documentation_text, fetch_documentation
+from pm.database.db_helper import fetch_messages, search_documentation, search_documentation_text, fetch_documentation, \
+    fetch_messages_no_summary
 from pm.database.db_model import Message
 from pm.llm.llm import chat_complete
 from pm.llm.tools_parser_local import PydanticToolsParserLocal
@@ -38,6 +39,7 @@ class AgentState(TypedDict):
     current_user_assistant_chat: str
     current_knowledge: str
     story_mode: bool
+    task: List[str]
 
 
 def find_documents_agent(state: AgentState):
@@ -181,13 +183,27 @@ def get_graph():
     workflow = StateGraph(AgentState)
     workflow.add_node("main_agent", main_agent)
     workflow.add_node("assistant_story_check", assistant_story_check)
-
-
     workflow.add_edge(START, "assistant_story_check")
     workflow.add_edge("assistant_story_check", "main_agent")
     workflow.add_edge("main_agent", END)
-
     graph = workflow.compile()
+    #workflow.add_edge(START, "start_transaction")
+    #workflow.add_edge("start_transaction", "tasks_create")
+    #workflow.add_edge("tasks_create", "tasks_delegate")
+    #workflow.add_conditional_edges("tasks_delegate", task_delegate_func)
+    #workflow.add_edge("summarize", "tasks_delegate")
+    #workflow.add_edge("commit_transaction", END)
+    #workflow.add_edge("task_converse", "determine_complexity")
+    #workflow.add_edge("determine_complexity", "determine_conversation_mode")
+    #workflow.add_conditional_edges("determine_conversation_mode", lambda x: "story_mode" if x["story_mode"] else "assistant_mode")
+    #workflow.add_edge("story_mode", "story_mode_reframe_thought")
+    #workflow.add_edge("assistant_mode", "assistant_mode_reframe_thought")
+    #workflow.add_edge("story_mode_reframe_thought", "story_mode_generate")
+    #workflow.add_edge("assistant_mode_reframe_thought", "assistant_mode_generate")
+    #workflow.add_edge("story_mode_generate", "converse_output")
+    #workflow.add_edge("assistant_mode_generate", "converse_output")
+    #workflow.add_edge("converse_output", "tasks_delegate")
+
     return graph
 
 
@@ -204,11 +220,36 @@ def make_completion(state: AgentState) -> AgentState:
     graph = get_graph()
     return graph.invoke(state)
 
-# level 0
-#workflow.add_edge(START, "start_transaction")
-#workflow.add_edge("start_transaction", "tasks_create")
-#workflow.add_edge("tasks_create", "tasks_delegate")
-#workflow.add_conditional_edges("tasks_delegate", lambda state: state["next_agent"])
-#workflow.add_edge("summarize", "tasks_delegate")
-#workflow.add_edge("converse", "tasks_delegate")
-#workflow.add_edge("commit_transaction", END)
+
+def task_delegate_func(state: AgentState):
+    if "summarize" in state["task"]:
+        return "task_summarize"
+    elif "converse" in state["task"]:
+        return "task_converse"
+    else:
+        return "commit_transaction"
+
+# high level
+def start_transaction(state: AgentState):
+    return state
+
+def tasks_create(state: AgentState):
+    state["task"] = []
+    if state["input"] != "":
+        state["task"].append("task_converse")
+    if len(fetch_messages_no_summary(state["conversation_id"])) > 8:
+        state["task"].append("task_summarize")
+    if len(state["task"]) == 0:
+        state["task"].append("commit_transaction")
+
+def tasks_delegate(state: AgentState):
+    return state
+
+def summarize():
+    pass
+
+
+def commit_transaction(state: AgentState):
+    return state
+
+# converse

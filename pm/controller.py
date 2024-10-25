@@ -16,4 +16,8 @@ class Controller:
         self.embedder = TransformerEmbedding()
         self.embedder.set_model(self.config.embedding_model)
 
+    def start(self):
+        from pm.database.db_helper import init_db
+        init_db()
+
 controller = Controller()

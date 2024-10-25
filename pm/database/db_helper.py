@@ -1,7 +1,11 @@
 import uuid
 from typing import List
 import re
-from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster
+
+import pandas as pd
+from pydantic import BaseModel
+
+from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation
 from pm.controller import controller
 
 
@@ -12,6 +16,7 @@ def init_db():
     controller.db.create_table(Conversation.table, schema=Conversation, exist_ok=True)
     controller.db.create_table(MessageSummary.table, schema=MessageSummary, exist_ok=True)
     controller.db.create_table(ConceptualCluster.table, schema=ConceptualCluster, exist_ok=True)
+    controller.db.create_table(Relation.table, schema=Relation, exist_ok=True)
 
     try:
         controller.db.open_table(MessageSummary.table).create_fts_index("text")
@@ -35,9 +40,12 @@ def login_user(username: str, password: str) -> User:
         return new_user
 
 
-def start_conversation(user_id: str) -> Conversation:
+def start_conversation(user_id: str, override_id: str | None) -> Conversation:
+    if override_id is None:
+        override_id = str(uuid.uuid4())
+
     conversation = Conversation(
-        id=str(uuid.uuid4()),
+        id=override_id,
         user_id=user_id,
         title="New Chat",
         session_id=uuid.uuid4().hex
@@ -52,10 +60,55 @@ def fetch_conversations(user_id: str) -> List[Conversation]:
         model=Conversation)
 
 
-def fetch_messages(conversation_id: str) -> List[Message]:
-    return controller.db.open_table(Message.table).search().where(f"conversation_id='{conversation_id}'",
-                                                       prefilter=True).limit(1000000).to_pydantic(model=Message)
+def df_to_pydantic(df: pd.DataFrame, model: BaseModel) -> List[BaseModel]:
+    """
+    Convert a DataFrame to a list of Pydantic models.
 
+    Args:
+        df (pd.DataFrame): DataFrame containing data.
+        model (BaseModel): Pydantic model class to instantiate.
+
+    Returns:
+        List[BaseModel]: List of instantiated Pydantic models.
+    """
+    return [model(**row.to_dict()) for _, row in df.iterrows()]
+
+
+def fetch_messages(conversation_id: str) -> List[Message]:
+    tmp = sql_query("select * from message order by created_at asc")
+    return df_to_pydantic(tmp, Message)
+
+    #return controller.db.open_table(Message.table).search().where(f"conversation_id='{conversation_id}'",
+    #                                                   prefilter=True).limit(1000000).to_pydantic(model=Message)
+
+
+def sql_query(query: str):
+    import duckdb
+    user = controller.db.open_table(User.table).to_lance()
+    message = controller.db.open_table(Message.table).to_lance()
+    conversation = controller.db.open_table(Conversation.table).to_lance()
+    conceptual_cluster = controller.db.open_table(ConceptualCluster.table).to_lance()
+    message_summary = controller.db.open_table(MessageSummary.table).to_lance()
+    relation = controller.db.open_table(Relation.table).to_lance()
+    res = duckdb.query(query).to_df()
+    return res
+
+def fetch_messages_no_summary(conversation_id: str) -> List[Message]:
+    data = sql_query("select distinct m.id as id from message m join relation r on m.id = r.a "
+                     f"where r.rel_ab = 'summarized_by' and m.conversation_id = '{conversation_id}' "
+                     "order by m.created_at")
+    ids = []
+    for id in data["id"]:
+        ids.append(id)
+    return get_messages_by_id(ids)
+
+
+def get_messages_by_id(ids: List[str]) -> List[Message]:
+    res = []
+    for id in ids:
+        res.append(controller.db.open_table(Message.table).search().where(f"id='{id}'",
+                                                       prefilter=True).limit(1).to_pydantic(model=Message))
+    return res
 
 def fetch_documentation(guids: List[str]):
     res = []
