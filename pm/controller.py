@@ -15,9 +15,20 @@ class Controller:
         self.llm.set_model(self.config.model)
         self.embedder = TransformerEmbedding()
         self.embedder.set_model(self.config.embedding_model)
+        self.embedder_clustering = TransformerEmbedding()
+        self.embedder_clustering.set_model(self.config.embedding_model_clustering)
 
     def start(self):
         from pm.database.db_helper import init_db
         init_db()
+
+    def format_str(self, template: str) -> str:
+        values = {
+            "user_name": self.config.user_name,
+            "companion_name": self.config.companion_name
+        }
+        formatted_string = template.format(**values)
+        return formatted_string
+
 
 controller = Controller()

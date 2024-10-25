@@ -3,6 +3,7 @@ from typing import List
 import re
 
 import pandas as pd
+from lancedb.pydantic import LanceModel
 from pydantic import BaseModel
 
 from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation
@@ -60,6 +61,18 @@ def fetch_conversations(user_id: str) -> List[Conversation]:
         model=Conversation)
 
 
+def sql_query(query: str):
+    import duckdb
+    user = controller.db.open_table(User.table).to_lance()
+    message = controller.db.open_table(Message.table).to_lance()
+    conversation = controller.db.open_table(Conversation.table).to_lance()
+    conceptual_cluster = controller.db.open_table(ConceptualCluster.table).to_lance()
+    message_summary = controller.db.open_table(MessageSummary.table).to_lance()
+    relation = controller.db.open_table(Relation.table).to_lance()
+    res = duckdb.query(query).to_df()
+    return res
+
+
 def df_to_pydantic(df: pd.DataFrame, model: BaseModel) -> List[BaseModel]:
     """
     Convert a DataFrame to a list of Pydantic models.
@@ -75,32 +88,18 @@ def df_to_pydantic(df: pd.DataFrame, model: BaseModel) -> List[BaseModel]:
 
 
 def fetch_messages(conversation_id: str) -> List[Message]:
-    tmp = sql_query("select * from message order by created_at asc")
+    tmp = sql_query(f"select * from message where conversation_id='{conversation_id}' order by created_at asc")
     return df_to_pydantic(tmp, Message)
 
-    #return controller.db.open_table(Message.table).search().where(f"conversation_id='{conversation_id}'",
-    #                                                   prefilter=True).limit(1000000).to_pydantic(model=Message)
 
-
-def sql_query(query: str):
-    import duckdb
-    user = controller.db.open_table(User.table).to_lance()
-    message = controller.db.open_table(Message.table).to_lance()
-    conversation = controller.db.open_table(Conversation.table).to_lance()
-    conceptual_cluster = controller.db.open_table(ConceptualCluster.table).to_lance()
-    message_summary = controller.db.open_table(MessageSummary.table).to_lance()
-    relation = controller.db.open_table(Relation.table).to_lance()
-    res = duckdb.query(query).to_df()
-    return res
 
 def fetch_messages_no_summary(conversation_id: str) -> List[Message]:
-    data = sql_query("select distinct m.id as id from message m join relation r on m.id = r.a "
-                     f"where r.rel_ab = 'summarized_by' and m.conversation_id = '{conversation_id}' "
-                     "order by m.created_at")
-    ids = []
-    for id in data["id"]:
-        ids.append(id)
-    return get_messages_by_id(ids)
+    query = (f"select distinct m.* from message m "
+             f"where m.id not in (select a from relation where rel_ab = 'summarized_by') "
+             f"and m.conversation_id = '{conversation_id}' "
+             f"order by m.created_at")
+    tmp = sql_query(query)
+    return df_to_pydantic(tmp, Message)
 
 
 def get_messages_by_id(ids: List[str]) -> List[Message]:
@@ -109,6 +108,26 @@ def get_messages_by_id(ids: List[str]) -> List[Message]:
         res.append(controller.db.open_table(Message.table).search().where(f"id='{id}'",
                                                        prefilter=True).limit(1).to_pydantic(model=Message))
     return res
+
+def get_padded_subset(all_messages: List[Message], subset_messages: List[Message], padding: int = 10) -> List[Message]:
+    # Extract the IDs of the first and last messages in the subset
+    subset_start_id = subset_messages[0].id
+    subset_end_id = subset_messages[-1].id
+
+    # Find indices of the first and last subset messages in the full list
+    start_idx = next(i for i, msg in enumerate(all_messages) if msg.id == subset_start_id)
+    end_idx = next(i for i, msg in enumerate(all_messages) if msg.id == subset_end_id)
+
+    # Calculate the padded range
+    padded_start = max(0, start_idx - padding)
+    padded_end = min(len(all_messages), end_idx + padding + 1)
+
+    # Return the padded list of messages
+    return all_messages[padded_start:padded_end]
+
+def insert_object(obj: LanceModel):
+    tablename = obj.__class__.table
+    controller.db.open_table(tablename).add([obj])
 
 def fetch_documentation(guids: List[str]):
     res = []

@@ -33,6 +33,14 @@ class Message(LanceModel):
     text: str # content
     embedding: Vector(1024) # embedding
     tokens: int # rough token count
+
+    @property
+    def full_text(self):
+        from pm.controller import controller
+        return f"{controller.config.companion_name if self.role == 'assistant' else controller.config.user_name}: {self.text}"
+
+    class Config:
+        extra = "allow"
 Message.table = "Message"
 
 class MessageSummary(LanceModel):
@@ -47,6 +55,9 @@ class MessageSummary(LanceModel):
     text: str
     embedding: Vector(1024)
     tokens: int  # rough token count
+
+    class Config:
+        extra = "allow"
 MessageSummary.table = "MessageSummary"
 
 class ConceptualCluster(LanceModel):

@@ -11,7 +11,10 @@ from pm.embedding.base_embedding import EmbeddingModel
 class MainConfig(BaseModel):
     model: LlmModel
     embedding_model: EmbeddingModel
+    embedding_model_clustering: EmbeddingModel
     db_path: str = "./.lancedb/"
+    user_name: str
+    companion_name: str
 
 
 class ConfigError(Exception):
