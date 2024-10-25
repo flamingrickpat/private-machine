@@ -34,6 +34,14 @@ class Message(LanceModel):
     embedding: Vector(1024) # embedding
     tokens: int # rough token count
 
+    def __eq__(self, other):
+        if isinstance(other, Message):
+            return self.id == other.id
+        return False
+
+    def __hash__(self):
+        return hash(self.id)
+
     @property
     def full_text(self):
         from pm.controller import controller
@@ -56,6 +64,14 @@ class MessageSummary(LanceModel):
     embedding: Vector(1024)
     tokens: int  # rough token count
 
+    def __eq__(self, other):
+        if isinstance(other, MessageSummary):
+            return self.id == other.id
+        return False
+
+    def __hash__(self):
+        return hash(self.id)
+
     class Config:
         extra = "allow"
 MessageSummary.table = "MessageSummary"
@@ -76,6 +92,14 @@ class ConceptualCluster(LanceModel):
     gmm_mean: List[float]  # Mean of the GMM (1 x 1024)
     gmm_covariance: List[List[float]]  # Covariance matrix (1024 x 1024)
     gmm_weight: float  # Weight for the GMM (since we have 1 component)
+
+    def __eq__(self, other):
+        if isinstance(other, ConceptualCluster):
+            return self.id == other.id
+        return False
+
+    def __hash__(self):
+        return hash(self.id)
 ConceptualCluster.table = "ConceptualCluster"
 
 class Relation(LanceModel):

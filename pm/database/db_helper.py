@@ -102,6 +102,23 @@ def fetch_messages_no_summary(conversation_id: str) -> List[Message]:
     return df_to_pydantic(tmp, Message)
 
 
+def fetch_summaries(conversation_id: str, level: int) -> List[MessageSummary]:
+    tmp = sql_query(f"select * from message_summary "
+                    f"where conversation_id='{conversation_id}' "
+                    f"and level = {level} order by created_at asc")
+    return df_to_pydantic(tmp, MessageSummary)
+
+
+def fetch_summaries_no_summary(conversation_id: str, level: int) -> List[Message]:
+    query = (f"select distinct ms.* from message_summary ms "
+             f"where ms.id not in (select a from relation where rel_ab = 'summarized_by') "
+             f"and ms.conversation_id = '{conversation_id}' "
+             f"and ms.level = {level}"
+             f"order by ms.created_at")
+    tmp = sql_query(query)
+    return df_to_pydantic(tmp, MessageSummary)
+
+
 def get_messages_by_id(ids: List[str]) -> List[Message]:
     res = []
     for id in ids:
@@ -128,6 +145,7 @@ def get_padded_subset(all_messages: List[Message], subset_messages: List[Message
 def insert_object(obj: LanceModel):
     tablename = obj.__class__.table
     controller.db.open_table(tablename).add([obj])
+
 
 def fetch_documentation(guids: List[str]):
     res = []
