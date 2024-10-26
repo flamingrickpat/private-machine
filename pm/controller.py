@@ -12,7 +12,7 @@ class Controller:
         self.config = read_config_file("config.json")
         self.db = LanceDBConnection(self.config.db_path)
         setup_logger("main.log")
-        self.llm = LlamaCppLlm()
+        self.llm = LlamaCppLlm(verbose=True)
         self.llm.set_model(self.config.model)
         self.embedder = TransformerEmbedding()
         self.embedder.set_model(self.config.embedding_model)

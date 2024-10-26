@@ -136,11 +136,9 @@ def build_prompt(all_messages: List[Tuple['Message', float]],
     for item in sorted_all_messages:
         if isinstance(item, Message):
             msg = item
-            prompt_parts.append(f"{msg.role.capitalize()}: {msg.text}")
+            prompt_parts.append((msg.role, msg.text))
         elif isinstance(item, MessageSummary):
             summary = item
             level = summary.level
-            prompt_parts.append(f"\n[Summary Level {level}]\n{summary.text}\n")
-
-    prompt = "\n".join(prompt_parts)
-    return prompt
+            prompt_parts.append(("system", summary.text))
+    return prompt_parts

@@ -19,8 +19,9 @@ from scripts.regsetup import description
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.config.config import read_config_file
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, fetch_messages_no_summary
-from pm.database.db_model import Message
+from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations
+from pm.database.db_model import Message, MessageSummary
+from pm.database.load_messages import build_prompt
 from pm.llm.llm import chat_complete
 from pm.llm.tools_parser_local import PydanticToolsParserLocal
 from pm.rag.tools import hybrid_search_documentation, RagState, answer_user, add_document
@@ -109,6 +110,7 @@ def agent_search_memory(state: AgentState):
 
     state["current_knowledge"] = "\n".join(tmp)
     logger.info(f"current_knowledge: " + state["current_knowledge"])
+    return state
 
 def agent_assistant_story_check(state: AgentState) -> AgentState:
     class DecideModelMode(BaseModel):
@@ -168,18 +170,21 @@ def agent_tasks_create(state: AgentState):
         state["task"].append("task_summarize")
     if len(state["task"]) == 0:
         state["task"].append("commit_transaction")
+    return state
 
 def agent_tasks_delegate(state: AgentState):
     return state
 
 def agent_task_summarize(state: AgentState):
+    state["task"].remove("task_summarize")
     cluster_and_summarize(state["conversation_id"])
     high_level_summarize(state["conversation_id"])
+    return state
 
 
 
 def agent_determine_tools(state: AgentState):
-    pass
+    return state
 
 
 def agent_commit_transaction(state: AgentState):
@@ -188,6 +193,8 @@ def agent_commit_transaction(state: AgentState):
 # converse
 
 def agent_task_converse(state: AgentState):
+    state["task"].remove("task_converse")
+
     messages = []
     msgs = fetch_messages(state["conversation_id"])
     for msg in msgs:
@@ -195,6 +202,11 @@ def agent_task_converse(state: AgentState):
     messages.append(("user", state["input"]))
 
     full_text = "\n".join(f"{tp[0]}: {tp[1]}" for tp in messages)
+    query = full_text[-256:]
+    msgs = rank_table(state["conversation_id"], query, Message)
+    sums = rank_table(state["conversation_id"], query, MessageSummary)
+    rels = fetch_relations("main")
+    messages = build_prompt(msgs, sums, rels, full_token_allowance=4096)
 
     # add system prompt
     messages.insert(0, (
@@ -218,9 +230,9 @@ def agent_task_converse(state: AgentState):
 
 
 def task_delegate_func(state: AgentState):
-    if "summarize" in state["task"]:
+    if "task_summarize" in state["task"]:
         return "agent_task_summarize"
-    elif "converse" in state["task"]:
+    elif "task_converse" in state["task"]:
         return "agent_task_converse"
     else:
         return "agent_commit_transaction"
