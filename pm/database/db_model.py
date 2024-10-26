@@ -27,6 +27,7 @@ class Message(LanceModel):
     id: str # guid
     conversation_id: str # conversation guid
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    world_time: datetime = Field(default_factory=datetime.now)
 
     role: str # user or assistant
     public: bool # public or internal thought
@@ -47,10 +48,6 @@ class Message(LanceModel):
         from pm.controller import controller
         return f"{controller.config.companion_name if self.role == 'assistant' else controller.config.user_name}: {self.text}"
 
-    @property
-    def world_time(self):
-        return self.created_at
-
     class Config:
         extra = "allow"
 Message.table = "Message"
@@ -63,6 +60,9 @@ class MessageSummary(LanceModel):
     id: str = Field(default_factory=get_guid)
     conversation_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    world_time_begin: datetime = Field(default_factory=datetime.now)
+    world_time_end: datetime = Field(default_factory=datetime.now)
+
     level: int # 0 = topic messages with 1 message extra, > 0 = 4 summaries of lower level with 1 overlap on each side
     text: str
     embedding: Vector(1024)
@@ -78,8 +78,7 @@ class MessageSummary(LanceModel):
 
     @property
     def world_time(self):
-        from pm.database.db_helper import get_world_time_of_summary
-        return get_world_time_of_summary(self.id)
+        return self.world_time_begin
 
     class Config:
         extra = "allow"
