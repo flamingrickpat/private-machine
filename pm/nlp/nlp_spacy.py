@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import List
 
 import spacy
 from spacy.language import Language
@@ -27,10 +28,14 @@ class NlpSpacy(BaseNlp):
                 print("Do this: python -m spacy download en_core_web_trf")
                 exit(1)
 
-            self.nlp.add_pipe(
-                "fastcoref",
-                config={'model_architecture': 'LingMessCoref', 'model_path': 'biu-nlp/lingmess-coref', 'device': 'cuda:0' if use_cuda else 'cpu'}
-            )
+            try:
+                from fastcoref import spacy_component
+                self.nlp.add_pipe(
+                    "fastcoref",
+                    config={'model_architecture': 'LingMessCoref', 'model_path': 'biu-nlp/lingmess-coref', 'device': 'cuda:0' if use_cuda else 'cpu'}
+                )
+            except Exception as e:
+                logger.critical(repr(e))
 
     def get_doc(self, text: str) -> Doc:
         self.init_model()
@@ -63,6 +68,42 @@ class NlpSpacy(BaseNlp):
                 instructions.append(instruction)
 
         return '\n'.join(instructions)
+
+    def extract_keywords(self, text: str) -> List[str]:
+        """
+        Extracts keywords from a given text using spaCy's transformer-based model.
+
+        Args:
+            text (str): The text from which to extract keywords.
+
+        Returns:
+            List[str]: A list of extracted keywords.
+        """
+        # Process the text using the transformer model
+        self.init_model()
+        doc = self.nlp(text)
+
+        # Set for keywords to avoid duplicates
+        keywords = set()
+
+        # Extract noun chunks (noun phrases)
+        for chunk in doc.noun_chunks:
+            keywords.add(chunk.lemma_.lower())
+
+        # Extract named entities
+        for ent in doc.ents:
+            if ent.label_ not in ["CARDINAL", "ORDINAL", "QUANTITY"]:
+                keywords.add(ent.lemma_.lower())
+
+        # Additional filtering for important individual tokens
+        for token in doc:
+            # Filter tokens that are nouns, adjectives, or verbs (content words)
+            if token.pos_ in ["NOUN", "PROPN", "ADJ", "VERB"] and not token.is_stop:
+                keywords.add(token.lemma_.lower())
+
+        # Return as a sorted list
+        return list(keywords)
+
 
     def _convert_line(self, line, name):
         # Replace the AI's name with "I"

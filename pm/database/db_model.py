@@ -47,6 +47,10 @@ class Message(LanceModel):
         from pm.controller import controller
         return f"{controller.config.companion_name if self.role == 'assistant' else controller.config.user_name}: {self.text}"
 
+    @property
+    def world_time(self):
+        return self.created_at
+
     class Config:
         extra = "allow"
 Message.table = "Message"
@@ -71,6 +75,11 @@ class MessageSummary(LanceModel):
 
     def __hash__(self):
         return hash(self.id)
+
+    @property
+    def world_time(self):
+        from pm.database.db_helper import get_world_time_of_summary
+        return get_world_time_of_summary(self.id)
 
     class Config:
         extra = "allow"

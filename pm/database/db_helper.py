@@ -1,10 +1,11 @@
 import uuid
-from typing import List
+from typing import List, Type, Dict, Any, Tuple
 import re
 
 import pandas as pd
 from lancedb.pydantic import LanceModel
 from pydantic import BaseModel
+from pygments.lexers.srcinfo import keywords
 
 from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation
 from pm.controller import controller
@@ -18,6 +19,18 @@ def init_db():
     controller.db.create_table(MessageSummary.table, schema=MessageSummary, exist_ok=True)
     controller.db.create_table(ConceptualCluster.table, schema=ConceptualCluster, exist_ok=True)
     controller.db.create_table(Relation.table, schema=Relation, exist_ok=True)
+
+    try:
+        controller.db.open_table(Message.table).create_fts_index("text")
+    except Exception as e:
+        if "already exists" not in str(e):
+            raise e
+
+    try:
+        controller.db.open_table(ConceptualCluster.table).create_fts_index("text")
+    except Exception as e:
+        if "already exists" not in str(e):
+            raise e
 
     try:
         controller.db.open_table(MessageSummary.table).create_fts_index("text")
@@ -92,6 +105,10 @@ def fetch_messages(conversation_id: str) -> List[Message]:
     return df_to_pydantic(tmp, Message)
 
 
+def fetch_relations(conversation_id: str) -> List[Relation]:
+    tmp = sql_query(f"select * from relation")
+    return df_to_pydantic(tmp, Relation)
+
 
 def fetch_messages_no_summary(conversation_id: str) -> List[Message]:
     query = (f"select distinct m.* from message m "
@@ -146,35 +163,35 @@ def insert_object(obj: LanceModel):
     tablename = obj.__class__.table
     controller.db.open_table(tablename).add([obj])
 
+def rank_table(conversation_id: str, query: str, table: Type[LanceModel]) -> List[Tuple[LanceModel, float]]:
+    # _relevance_score
+    emb = controller.embedder.get_embedding_scalar(query)
+    keywords = " ".join(controller.nlp.extract_keywords(query))
 
-def fetch_documentation(guids: List[str]):
+    scores = (controller.db.open_table(table.table)
+                 .search(query_type="hybrid").vector(emb).text(keywords)
+                 .where(f"conversation_id = '{conversation_id}'", prefilter=True)
+                 .limit(10000)
+                 .to_list()
+                 )
+
+    data = controller.db.open_table(table.table).search().limit(100000).to_pydantic(table)
     res = []
-    for guid in guids:
-        doc = controller.db.open_table(Documentation.table).search().where(f"id='{guid}'",
-                                                       prefilter=True).to_pydantic(model=Documentation)[0]
-        res.append(doc)
+    for cur in data:
+        _id = cur.id
+        for score in scores:
+            if score["id"] == _id:
+                res.append((
+                    cur,
+                    score["_relevance_score"]
+                ))
+                break
     return res
 
-def search_documentation(query: str, max_size: int):
-    from stop_words import get_stop_words
-    cleaned_text = re.sub(r'[^a-zA-Z0-9]', '', query)
-    filtered_words = [word for word in cleaned_text.split() if word not in get_stop_words('english')]
-    search_string = " ".join(filtered_words)
+def get_world_time_of_summary(summary_id: str):
+    query = (f"select m.* from message m join relation r on m.id = r.a join message_summary ms on ms.id = r.b "
+             f"where ms.id = '{summary_id}' "
+             f"order by m.created_at limit 1")
 
-    emb = get_embedding(query)
-    doc_pages = (controller.db.open_table(Documentation.table)
-                 .search(query_type="hybrid").vector(emb).text(search_string)
-                 .limit(15).to_pydantic(Documentation))
-
-    token_cnt = 0
-    results = []
-    for page in doc_pages:
-        if page.tokens + token_cnt > max_size and len(results) > 0:
-            break
-        results.append(page)
-    return results
-
-
-def search_documentation_text(query: str, max_size: int) -> str:
-    results = search_documentation(query, max_size)
-    return "\n".join([x.text for x in results])
+    tmp = sql_query(query)
+    return df_to_pydantic(tmp, Message)[0].created_at

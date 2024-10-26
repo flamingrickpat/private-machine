@@ -4,6 +4,7 @@ from pm.config.config import read_config_file
 from pm.embedding.transformer_embedding import TransformerEmbedding
 from pm.llm.llamacpp import LlamaCppLlm
 from pm.log_utils import setup_logger
+from pm.nlp.nlp_spacy import NlpSpacy
 
 
 class Controller:
@@ -17,6 +18,7 @@ class Controller:
         self.embedder.set_model(self.config.embedding_model)
         self.embedder_clustering = TransformerEmbedding()
         self.embedder_clustering.set_model(self.config.embedding_model_clustering)
+        self.nlp = NlpSpacy()
 
     def start(self):
         from pm.database.db_helper import init_db
