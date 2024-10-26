@@ -16,10 +16,10 @@ from pydantic import BaseModel, Field
 from jinja2 import Template
 from scripts.regsetup import description
 
+from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.config.config import read_config_file
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, search_documentation, search_documentation_text, fetch_documentation, \
-    fetch_messages_no_summary
+from pm.database.db_helper import fetch_messages, fetch_messages_no_summary
 from pm.database.db_model import Message
 from pm.llm.llm import chat_complete
 from pm.llm.tools_parser_local import PydanticToolsParserLocal
@@ -42,7 +42,7 @@ class AgentState(TypedDict):
     task: List[str]
 
 
-def find_documents_agent(state: AgentState):
+def agent_search_memory(state: AgentState):
     # add system prompt
     messages = []
     messages.append((
@@ -110,33 +110,11 @@ def find_documents_agent(state: AgentState):
     state["current_knowledge"] = "\n".join(tmp)
     logger.info(f"current_knowledge: " + state["current_knowledge"])
 
-
-def main_agent(state: AgentState = None) -> AgentState:
-    messages = []
-    msgs = fetch_messages(state["conversation_id"])
-    for msg in msgs:
-        messages.append((msg.role, msg.text))
-    messages.append(("user", state["input"]))
-
-    full_text = "\n".join(f"{tp[0]}: {tp[1]}" for tp in messages)
-
-    # add system prompt
-    messages.insert(0, (
-            "system",
-            "You are a nice and helpful assistant."
-        ))
-
-    llm = controller.llm
-    ai_msg = chat_complete(llm, messages)
-    state["output"] = ai_msg.content
-    state["status"] = 0
-    return state
-
-def assistant_story_check(state: AgentState) -> AgentState:
+def agent_assistant_story_check(state: AgentState) -> AgentState:
     class DecideModelMode(BaseModel):
         """Decide what model mode to use next. Assistant or story mode."""
-        reason: str = Field(description="Few words you chose your option.")
-        story_mode: bool = Field(description="true for story mode, false for assistant mode")
+        reason: str = Field(description="Few words why you chose your option.")
+        story_mode: bool = Field(description="True for story mode, false for assistant mode")
 
         def execute(self, s: AgentState):
             logger.info("assistant_story_check")
@@ -178,22 +156,95 @@ def assistant_story_check(state: AgentState) -> AgentState:
 
     return state
 
+# high level
+def agent_start_transaction(state: AgentState):
+    return state
+
+def agent_tasks_create(state: AgentState):
+    state["task"] = []
+    if state["input"] != "":
+        state["task"].append("task_converse")
+    if len(fetch_messages_no_summary(state["conversation_id"])) > 16:
+        state["task"].append("task_summarize")
+    if len(state["task"]) == 0:
+        state["task"].append("commit_transaction")
+
+def agent_tasks_delegate(state: AgentState):
+    return state
+
+def agent_task_summarize(state: AgentState):
+    cluster_and_summarize(state["conversation_id"])
+    high_level_summarize(state["conversation_id"])
+
+
+
+def agent_determine_tools(state: AgentState):
+    pass
+
+
+def agent_commit_transaction(state: AgentState):
+    return state
+
+# converse
+
+def agent_task_converse(state: AgentState):
+    messages = []
+    msgs = fetch_messages(state["conversation_id"])
+    for msg in msgs:
+        messages.append((msg.role, msg.text))
+    messages.append(("user", state["input"]))
+
+    full_text = "\n".join(f"{tp[0]}: {tp[1]}" for tp in messages)
+
+    # add system prompt
+    messages.insert(0, (
+        "system",
+        "You are a nice and helpful assistant."
+    ))
+
+    llm = controller.llm
+    ai_msg = chat_complete(llm, messages)
+    state["output"] = ai_msg.content
+    state["status"] = 0
+    return state
+
+
+
+
+
+
+
+
+
+
+def task_delegate_func(state: AgentState):
+    if "summarize" in state["task"]:
+        return "agent_task_summarize"
+    elif "converse" in state["task"]:
+        return "agent_task_converse"
+    else:
+        return "agent_commit_transaction"
+
 
 def get_graph():
     workflow = StateGraph(AgentState)
-    workflow.add_node("main_agent", main_agent)
-    workflow.add_node("assistant_story_check", assistant_story_check)
-    workflow.add_edge(START, "assistant_story_check")
-    workflow.add_edge("assistant_story_check", "main_agent")
-    workflow.add_edge("main_agent", END)
-    graph = workflow.compile()
-    #workflow.add_edge(START, "start_transaction")
-    #workflow.add_edge("start_transaction", "tasks_create")
-    #workflow.add_edge("tasks_create", "tasks_delegate")
-    #workflow.add_conditional_edges("tasks_delegate", task_delegate_func)
-    #workflow.add_edge("summarize", "tasks_delegate")
-    #workflow.add_edge("commit_transaction", END)
-    #workflow.add_edge("task_converse", "determine_complexity")
+    workflow.add_node("agent_start_transaction", agent_start_transaction)
+    workflow.add_node("agent_tasks_create", agent_tasks_create)
+    workflow.add_node("agent_task_converse", agent_task_converse)
+    workflow.add_node("agent_tasks_delegate", agent_tasks_delegate)
+    workflow.add_node("agent_task_summarize", agent_task_summarize)
+    workflow.add_node("agent_determine_tools", agent_determine_tools)
+    workflow.add_node("agent_commit_transaction", agent_commit_transaction)
+
+
+
+    workflow.add_edge(START, "agent_start_transaction")
+    workflow.add_edge("agent_start_transaction", "agent_tasks_create")
+    workflow.add_edge("agent_tasks_create", "agent_tasks_delegate")
+    workflow.add_conditional_edges("agent_tasks_delegate", task_delegate_func)
+    workflow.add_edge("agent_task_summarize", "agent_tasks_delegate")
+    workflow.add_edge("agent_task_converse", "agent_tasks_delegate")
+    workflow.add_edge("agent_commit_transaction", END)
     #workflow.add_edge("determine_complexity", "determine_conversation_mode")
     #workflow.add_conditional_edges("determine_conversation_mode", lambda x: "story_mode" if x["story_mode"] else "assistant_mode")
     #workflow.add_edge("story_mode", "story_mode_reframe_thought")
@@ -203,6 +254,7 @@ def get_graph():
     #workflow.add_edge("story_mode_generate", "converse_output")
     #workflow.add_edge("assistant_mode_generate", "converse_output")
     #workflow.add_edge("converse_output", "tasks_delegate")
+    graph = workflow.compile()
 
     return graph
 
@@ -219,37 +271,3 @@ def make_completion(state: AgentState) -> AgentState:
 
     graph = get_graph()
     return graph.invoke(state)
-
-
-def task_delegate_func(state: AgentState):
-    if "summarize" in state["task"]:
-        return "task_summarize"
-    elif "converse" in state["task"]:
-        return "task_converse"
-    else:
-        return "commit_transaction"
-
-# high level
-def start_transaction(state: AgentState):
-    return state
-
-def tasks_create(state: AgentState):
-    state["task"] = []
-    if state["input"] != "":
-        state["task"].append("task_converse")
-    if len(fetch_messages_no_summary(state["conversation_id"])) > 8:
-        state["task"].append("task_summarize")
-    if len(state["task"]) == 0:
-        state["task"].append("commit_transaction")
-
-def tasks_delegate(state: AgentState):
-    return state
-
-def summarize():
-    pass
-
-
-def commit_transaction(state: AgentState):
-    return state
-
-# converse

@@ -3,8 +3,6 @@ import logging
 
 from pydantic import BaseModel, Field
 
-from pm.database.db_helper import search_documentation
-
 logger = logging.getLogger(__name__)
 
 class RagState(TypedDict):
