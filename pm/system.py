@@ -217,7 +217,7 @@ def agent_preprocess_input(state: AgentState):
 
     state["complexity"] = determine_complexity(msgs)
     state["available_tools"] = determine_tools(msgs)
-    state["completion_mode"] = CompletionModeResponseMode.Story.value, # determine_completion_mode(msgs).value
+    state["completion_mode"] = determine_completion_mode(msgs).value
     return state
 
 
@@ -244,10 +244,10 @@ def agent_completion_assistant(state: AgentState):
     prefix = ""
     if state["complexity"] > COMPLEX_THRESHOLD:
         prefix = "**This is complex, I should formulate a plan invisible to the user first here:"
-        messages.append((
-            "assistant",
-            prefix
-        ))
+    messages.append((
+        "assistant",
+        prefix
+    ))
 
     llm = controller.llm
     ai_msg = chat_complete(llm, messages)
@@ -263,6 +263,11 @@ def agent_completion_story(state: AgentState):
     rels = fetch_relations("main")
 
     messages = build_prompt(msgs, sums, rels, full_token_allowance=4096)
+    # add latest message
+    messages.append((
+        "user",
+        state["input"]
+    ))
     message_block = "\n".join([f"{controller.config.user_name if item[0] == 'user' else controller.config.companion_name}: {item[1]}" for item in messages])
 
     # add system prompt
@@ -287,10 +292,10 @@ def agent_completion_story(state: AgentState):
     prefix = ""
     if state["complexity"] > COMPLEX_THRESHOLD:
         prefix = f"{controller.config.companion_name} thinks: "
-        messages.append((
-            "assistant",
-            prefix
-        ))
+    messages.append((
+        "assistant",
+        prefix
+    ))
 
     llm = controller.llm
     llm_lc = llm.get_langchain_model()
