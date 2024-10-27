@@ -195,6 +195,11 @@ def agent_commit_transaction(state: AgentState):
 def agent_task_converse(state: AgentState):
     state["task"].remove("task_converse")
 
+    state["complexity"] = 0
+    state["available_tools"] = []
+    state["completion_mode"] = "assistant"
+
+
     messages = []
     msgs = fetch_messages(state["conversation_id"])
     for msg in msgs:

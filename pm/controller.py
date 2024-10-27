@@ -1,3 +1,5 @@
+from typing import Dict
+
 from lancedb import LanceDBConnection
 
 from pm.config.config import read_config_file
@@ -24,11 +26,12 @@ class Controller:
         from pm.database.db_helper import init_db
         init_db()
 
-    def format_str(self, template: str) -> str:
+    def format_str(self, template: str, extra: Dict) -> str:
         values = {
             "user_name": self.config.user_name,
             "companion_name": self.config.companion_name
         }
+        values.update(extra)
         formatted_string = template.format(**values)
         return formatted_string
 
