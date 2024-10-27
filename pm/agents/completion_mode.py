@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from pm.controller import controller
 from pm.database.db_model import Message
 from pm.llm.llm import chat_complete
+from pm.llm.tools_parser_local import PydanticToolsParserLocal
 
 sys_prompt = """You are a helpful assistant that determines if the AI should use assistant or story mode for the next model.
 Analyze the following chat log between two people, {user_name} and the AI {companion_name}. 
@@ -65,8 +66,11 @@ class CompletionModeResponse(BaseModel):
     reason: str = Field(description="One short sentence about your reasoning.")
     mode: CompletionModeResponseMode = Field(description="'story' for story mode, 'assistant' for assistant mode")
 
+    def execute(self, state):
+        state["mode"] = self.mode
+        return state
 
-def determine_completion_mode(messages: List[Message]) -> str:
+def determine_completion_mode(messages: List[Message]) -> CompletionModeResponseMode:
     message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages])
 
     messages = [(
@@ -77,24 +81,32 @@ def determine_completion_mode(messages: List[Message]) -> str:
         controller.format_str(example1_user)
     ), (
         "assistant",
-        controller.format_str(example1_assistant)
+        example1_assistant
     ), (
         "user",
         controller.format_str(example2_user)
     ), (
         "assistant",
-        controller.format_str(example2_assistant)
+        example2_assistant
     ), (
         "user",
         controller.format_str(example3_user)
     ), (
         "assistant",
-        controller.format_str(example3_assistant)
+        example3_assistant
     ), (
         "user",
         message_block
     )]
 
     llm = controller.llm
-    ai_msg = chat_complete(llm, messages)
-    return ai_msg.content
+    llm_with_tools = llm.get_langchain_model().bind_tools([CompletionModeResponse])
+
+    full = llm_with_tools.invoke(messages)
+    calls = PydanticToolsParserLocal(tools=[CompletionModeResponse]).invoke(full)
+
+    state = {}
+    for call in calls:
+        call.execute(state)
+
+    return state["mode"]

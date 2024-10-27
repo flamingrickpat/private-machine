@@ -15,7 +15,11 @@ from pydantic import BaseModel, Field
 
 from jinja2 import Template
 from scripts.regsetup import description
+from torch.utils.data.backward_compatibility import worker_init_fn
 
+from pm.agents.completion_mode import determine_completion_mode
+from pm.agents.determine_complexity import determine_complexity
+from pm.agents.tool_selection import determine_tools
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.config.config import read_config_file
 from pm.controller import controller
@@ -41,6 +45,9 @@ class AgentState(TypedDict):
     current_knowledge: str
     story_mode: bool
     task: List[str]
+    complexity: float
+    available_tools: List[str]
+    completion_mode: str
 
 
 def agent_search_memory(state: AgentState):
@@ -200,6 +207,15 @@ def agent_task_converse(state: AgentState):
     state["completion_mode"] = "assistant"
 
 
+def agent_preprocess_input(state: AgentState):
+    msgs = fetch_messages(state["conversation_id"])
+
+    state["complexity"] = determine_complexity(msgs)
+    state["available_tools"] = determine_tools(msgs)
+    state["completion_mode"] = determine_completion_mode(msgs).value
+
+
+def agent_completion_assistant(state: AgentState):
     messages = []
     msgs = fetch_messages(state["conversation_id"])
     for msg in msgs:
@@ -252,15 +268,17 @@ def get_graph():
     workflow.add_node("agent_task_summarize", agent_task_summarize)
     workflow.add_node("agent_determine_tools", agent_determine_tools)
     workflow.add_node("agent_commit_transaction", agent_commit_transaction)
-
-
+    workflow.add_node("agent_preprocess_input", agent_preprocess_input)
+    workflow.add_node("agent_completion_assistant", agent_completion_assistant)
 
     workflow.add_edge(START, "agent_start_transaction")
     workflow.add_edge("agent_start_transaction", "agent_tasks_create")
     workflow.add_edge("agent_tasks_create", "agent_tasks_delegate")
     workflow.add_conditional_edges("agent_tasks_delegate", task_delegate_func)
     workflow.add_edge("agent_task_summarize", "agent_tasks_delegate")
-    workflow.add_edge("agent_task_converse", "agent_tasks_delegate")
+    workflow.add_edge("agent_task_converse", "agent_preprocess_input")
+    workflow.add_edge("agent_preprocess_input", "agent_completion_assistant")
+    workflow.add_edge("agent_completion_assistant", "agent_tasks_delegate")
     workflow.add_edge("agent_commit_transaction", END)
     #workflow.add_edge("determine_complexity", "determine_conversation_mode")
     #workflow.add_conditional_edges("determine_conversation_mode", lambda x: "story_mode" if x["story_mode"] else "assistant_mode")

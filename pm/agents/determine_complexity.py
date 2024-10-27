@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from pm.controller import controller
 from pm.database.db_model import Message
 from pm.llm.llm import chat_complete
+from pm.llm.tools_parser_local import PydanticToolsParserLocal
 
 sys_prompt = """You are a helpful assistant that determines conversation complexity for the AI.
 Analyze the following chat log between two people, {user_name} and the AI {companion_name}. 
@@ -59,7 +60,11 @@ class ComplexityResponse(BaseModel):
     reason: str = Field(description="One short sentence about your reasoning.")
     complexity: float = Field(description="0 for very simple, 1 for very complex", ge=0, le=1)
 
-def determine_complexity(messages: List[Message]) -> str:
+    def execute(self, state):
+        state["complexity"] = self.complexity
+        return state
+
+def determine_complexity(messages: List[Message]) -> float:
     message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages])
 
     messages = [(
@@ -70,24 +75,32 @@ def determine_complexity(messages: List[Message]) -> str:
         controller.format_str(example1_user)
     ), (
         "assistant",
-        controller.format_str(example1_assistant)
+        example1_assistant
     ), (
         "user",
         controller.format_str(example2_user)
     ), (
         "assistant",
-        controller.format_str(example2_assistant)
+        example2_assistant
     ), (
         "user",
         controller.format_str(example3_user)
     ), (
         "assistant",
-        controller.format_str(example3_assistant)
+        example3_assistant
     ), (
         "user",
         message_block
     )]
 
     llm = controller.llm
-    ai_msg = chat_complete(llm, messages)
-    return ai_msg.content
+    llm_with_tools = llm.get_langchain_model().bind_tools([ComplexityResponse])
+
+    full = llm_with_tools.invoke(messages)
+    calls = PydanticToolsParserLocal(tools=[ComplexityResponse]).invoke(full)
+
+    state = {}
+    for call in calls:
+        call.execute(state)
+
+    return state["complexity"]
