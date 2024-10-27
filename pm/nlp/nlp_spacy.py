@@ -71,7 +71,8 @@ class NlpSpacy(BaseNlp):
 
     def extract_keywords(self, text: str) -> List[str]:
         """
-        Extracts keywords from a given text using spaCy's transformer-based model.
+        Extracts keywords from a given text using spaCy's transformer-based model,
+        filtering out any keywords containing non-letter characters.
 
         Args:
             text (str): The text from which to extract keywords.
@@ -88,22 +89,27 @@ class NlpSpacy(BaseNlp):
 
         # Extract noun chunks (noun phrases)
         for chunk in doc.noun_chunks:
-            keywords.add(chunk.lemma_.lower())
+            lemma = chunk.lemma_.lower()
+            if lemma.isalpha():  # Only add if the lemma contains letters only
+                keywords.add(lemma)
 
         # Extract named entities
         for ent in doc.ents:
             if ent.label_ not in ["CARDINAL", "ORDINAL", "QUANTITY"]:
-                keywords.add(ent.lemma_.lower())
+                lemma = ent.lemma_.lower()
+                if lemma.isalpha():  # Only add if the lemma contains letters only
+                    keywords.add(lemma)
 
         # Additional filtering for important individual tokens
         for token in doc:
             # Filter tokens that are nouns, adjectives, or verbs (content words)
             if token.pos_ in ["NOUN", "PROPN", "ADJ", "VERB"] and not token.is_stop:
-                keywords.add(token.lemma_.lower())
+                lemma = token.lemma_.lower()
+                if lemma.isalpha():  # Only add if the lemma contains letters only
+                    keywords.add(lemma)
 
         # Return as a sorted list
         return list(keywords)
-
 
     def _convert_line(self, line, name):
         # Replace the AI's name with "I"

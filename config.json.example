@@ -24,5 +24,7 @@
     },
     "db_path": "./.lancedb",
     "user_name": "John",
-    "companion_name": "Sam"
+    "companion_name": "Sam",
+    "character_card_assistant": "You are Sam, a nice and helpful assistant.",
+    "character_card_story": ""
 }

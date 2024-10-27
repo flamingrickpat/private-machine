@@ -22,6 +22,7 @@ from pm.agents.determine_complexity import determine_complexity
 from pm.agents.tool_selection import determine_tools
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.config.config import read_config_file
+from pm.consts import COMPLEX_THRESHOLD
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, \
     fetch_messages_as_string
@@ -230,7 +231,7 @@ def agent_completion_assistant(state: AgentState):
     # add system prompt
     messages.insert(0, (
         "system",
-        build_sys_prompt_conscious_assistant(state["complexity"] > 0.5, state["available_tools"])
+        build_sys_prompt_conscious_assistant(state["complexity"] > COMPLEX_THRESHOLD, state["available_tools"])
     ))
 
     # add latest message
@@ -239,9 +240,17 @@ def agent_completion_assistant(state: AgentState):
         state["input"]
     ))
 
+    prefix = ""
+    if state["complexity"] > COMPLEX_THRESHOLD:
+        prefix = "**Hmmm,"
+        messages.append((
+            "assistant",
+            prefix
+        ))
+
     llm = controller.llm
     ai_msg = chat_complete(llm, messages)
-    state["output"] = ai_msg.content
+    state["output"] = prefix + ai_msg.content
     state["status"] = 0
     return state
 

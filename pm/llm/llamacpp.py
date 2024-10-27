@@ -85,17 +85,17 @@ class LlamaCppLlm(Llm):
         for i, (role, message) in enumerate(prompt):
             if role == "system":
                 # Detokenize and append system token and message
-                raw_string += self._detokenize(self.turn_system_token, special=True) + message
+                raw_string += self._detokenize(self.turn_system_token, special=True) + "\n" + message
                 raw_string += self._detokenize(self.eot_token, special=True)
 
             elif role == "user":
                 # Detokenize and append user token and message
-                raw_string += self._detokenize(self.turn_user_token, special=True) + message
+                raw_string += self._detokenize(self.turn_user_token, special=True) + "\n" + message
                 raw_string += self._detokenize(self.eot_token, special=True)
 
             elif role == "assistant":
                 # Detokenize and append assistant token and message
-                raw_string += self._detokenize(self.turn_assistant_token, special=True) + message
+                raw_string += self._detokenize(self.turn_assistant_token, special=True) + "\n" + message
 
                 # Skip the new line after assistant if it's the last message for "seeding"
                 if i < len(prompt) - 1:
