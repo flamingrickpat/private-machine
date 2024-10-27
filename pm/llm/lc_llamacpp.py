@@ -47,7 +47,7 @@ from langchain_core.output_parsers.openai_tools import (
     parse_tool_call,
 )
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
-from langchain_core.runnables import Runnable, RunnableMap, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableMap, RunnablePassthrough, RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_core.utils.pydantic import is_basemodel_subclass
@@ -60,6 +60,7 @@ from typing_extensions import Self
 
 from pm.llm.base_llm import CommonCompSettings
 
+
 class ChatLlamaCppCustom(ChatLlamaCpp):
     llamacpp_llm: Any = Field(default=None)
     tools: Any = Field(default=None)
@@ -69,7 +70,8 @@ class ChatLlamaCppCustom(ChatLlamaCpp):
         return self
 
     def set_client(self, llamacppllm):
-        self.llamacpp_llm = llamacppllm
+        from pm.llm.llamacpp import LlamaCppLlm
+        self.llamacpp_llm: LlamaCppLlm = llamacppllm
         self.client = llamacppllm.llama
         self.tools = []
 
@@ -106,3 +108,18 @@ class ChatLlamaCppCustom(ChatLlamaCpp):
             params["logits_processor"] = logits_processor
 
         return params
+
+    def invoke(
+        self,
+        input: LanguageModelInput,
+        config: Optional[RunnableConfig] = None,
+        *,
+        stop: Optional[list[str]] = None,
+        **kwargs: Any,
+    ) -> BaseMessage:
+        comp_settings = CommonCompSettings(
+            tools_json=self.tools
+        )
+        response = self.llamacpp_llm.completion(prompt=self.llamacpp_llm.convert_langchain_to_raw_string(input),
+                                                comp_settings=comp_settings)
+        return AIMessage(content=response.output_sanitized)

@@ -40,7 +40,7 @@ def build_prompt(all_messages: List[Tuple['Message', float]],
                  pct_last_messages: float = 0.4,
                  pct_prev_last_message: float = 0.2,
                  group_size: int = 3,
-                 ) -> str:
+                 ) -> List[Tuple[str, str]]:
 
     orig_all_messages = copy.copy(all_messages)
     orig_all_summaries = copy.copy(all_level_summaries)

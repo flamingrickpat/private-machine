@@ -105,7 +105,7 @@ def determine_completion_mode(messages: List[Message]) -> CompletionModeResponse
     full = llm_with_tools.invoke(messages)
     calls = PydanticToolsParserLocal(tools=[CompletionModeResponse]).invoke(full)
 
-    state = {}
+    state = {"mode": CompletionModeResponseMode.Assistant}
     for call in calls:
         call.execute(state)
 

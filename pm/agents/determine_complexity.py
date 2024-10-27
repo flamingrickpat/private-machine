@@ -99,7 +99,7 @@ def determine_complexity(messages: List[Message]) -> float:
     full = llm_with_tools.invoke(messages)
     calls = PydanticToolsParserLocal(tools=[ComplexityResponse]).invoke(full)
 
-    state = {}
+    state = {"complexity": 0}
     for call in calls:
         call.execute(state)
 

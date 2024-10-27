@@ -23,11 +23,13 @@ from pm.agents.tool_selection import determine_tools
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.config.config import read_config_file
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations
+from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, \
+    fetch_messages_as_string
 from pm.database.db_model import Message, MessageSummary
 from pm.database.load_messages import build_prompt
 from pm.llm.llm import chat_complete
 from pm.llm.tools_parser_local import PydanticToolsParserLocal
+from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.rag.tools import hybrid_search_documentation, RagState, answer_user, add_document
 from pm.utils.misc_utils import get_key_from_value
 
@@ -48,6 +50,7 @@ class AgentState(TypedDict):
     complexity: float
     available_tools: List[str]
     completion_mode: str
+    status: int
 
 
 def agent_search_memory(state: AgentState):
@@ -205,7 +208,7 @@ def agent_task_converse(state: AgentState):
     state["complexity"] = 0
     state["available_tools"] = []
     state["completion_mode"] = "assistant"
-
+    return state
 
 def agent_preprocess_input(state: AgentState):
     msgs = fetch_messages(state["conversation_id"])
@@ -213,16 +216,11 @@ def agent_preprocess_input(state: AgentState):
     state["complexity"] = determine_complexity(msgs)
     state["available_tools"] = determine_tools(msgs)
     state["completion_mode"] = determine_completion_mode(msgs).value
+    return state
 
 
 def agent_completion_assistant(state: AgentState):
-    messages = []
-    msgs = fetch_messages(state["conversation_id"])
-    for msg in msgs:
-        messages.append((msg.role, msg.text))
-    messages.append(("user", state["input"]))
-
-    full_text = "\n".join(f"{tp[0]}: {tp[1]}" for tp in messages)
+    full_text = fetch_messages_as_string(state["conversation_id"])
     query = full_text[-256:]
     msgs = rank_table(state["conversation_id"], query, Message)
     sums = rank_table(state["conversation_id"], query, MessageSummary)
@@ -232,7 +230,13 @@ def agent_completion_assistant(state: AgentState):
     # add system prompt
     messages.insert(0, (
         "system",
-        "You are a nice and helpful assistant."
+        build_sys_prompt_conscious_assistant(state["complexity"] > 0.5, state["available_tools"])
+    ))
+
+    # add latest message
+    messages.append((
+        "user",
+        state["input"]
     ))
 
     llm = controller.llm
@@ -240,15 +244,6 @@ def agent_completion_assistant(state: AgentState):
     state["output"] = ai_msg.content
     state["status"] = 0
     return state
-
-
-
-
-
-
-
-
-
 
 def task_delegate_func(state: AgentState):
     if "task_summarize" in state["task"]:
@@ -300,9 +295,6 @@ def make_completion(state: AgentState) -> AgentState:
     for msg in msgs:
         messages.append((msg.role, msg.text))
     messages.append(("user", state["input"]))
-
-    full_text = "\n".join(f"{tp[0]}: {tp[1]}" for tp in messages)
-    state["current_user_assistant_chat"] = full_text
 
     graph = get_graph()
     return graph.invoke(state)

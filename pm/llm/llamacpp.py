@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Union, Optional, List, Callable
+from typing import Union, Optional, List, Callable, Tuple
 import gc
 import ctypes
 import contextlib
@@ -76,6 +76,44 @@ class LlamaCppLlm(Llm):
         self.call_script_token: List[int] = []
         self.new_line_token: List[int] = []
         self.verbose: bool = verbose
+
+    def convert_langchain_to_raw_string(self, prompt: List[Tuple[str, str]]) -> str:
+        raw_string = self._detokenize(self.bos_token, special=True)
+
+        # Loop through the prompt, processing each (role, message) tuple
+        last_role = ""
+        for i, (role, message) in enumerate(prompt):
+            if role == "system":
+                # Detokenize and append system token and message
+                raw_string += self._detokenize(self.turn_system_token, special=True) + message
+                raw_string += self._detokenize(self.eot_token, special=True)
+
+            elif role == "user":
+                # Detokenize and append user token and message
+                raw_string += self._detokenize(self.turn_user_token, special=True) + message
+                raw_string += self._detokenize(self.eot_token, special=True)
+
+            elif role == "assistant":
+                # Detokenize and append assistant token and message
+                raw_string += self._detokenize(self.turn_assistant_token, special=True) + message
+
+                # Skip the new line after assistant if it's the last message for "seeding"
+                if i < len(prompt) - 1:
+                    raw_string += self._detokenize(self.eot_token, special=True)
+
+            last_role = role
+            raw_string += "\n"
+
+        if last_role != "assistant":
+            raw_string += self._detokenize(self.turn_assistant_token, special=True)
+
+        raw_string = raw_string.strip()
+
+        # Verbose output for debugging purposes
+        if self.verbose:
+            print("Converted prompt to raw string:", raw_string)
+
+        return raw_string
 
     def set_model(self, settings: LlmModel):
         if settings.identifier != self.identifier:

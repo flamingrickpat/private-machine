@@ -15,6 +15,8 @@ class MainConfig(BaseModel):
     db_path: str = "./.lancedb/"
     user_name: str
     companion_name: str
+    character_card_assistant: str
+    character_card_story: str
 
 
 class ConfigError(Exception):

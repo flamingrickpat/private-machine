@@ -105,14 +105,9 @@ def fetch_messages(conversation_id: str) -> List[Message]:
     return df_to_pydantic(tmp, Message)
 
 def fetch_messages_as_string(conversation_id: str) -> str:
-    messages = []
-    msgs = fetch_messages(conversation_id)
-    for msg in msgs:
-        messages.append((msg.role, msg.text))
-    messages.append(("user", state["input"]))
-
-    full_text = "\n".join(f"{tp[0]}: {tp[1]}" for tp in messages)
-    query = full_text[-256:]
+    messages = fetch_messages(conversation_id)
+    message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages])
+    return message_block
 
 
 def fetch_relations(conversation_id: str) -> List[Relation]:
