@@ -47,7 +47,7 @@ def setup_logger(log_filename):
     logger.setLevel(logging.INFO)
 
     # Create file handler and set level to INFO
-    file_handler = logging.FileHandler(log_file_path, mode='a')
+    file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf8')
     file_handler.setLevel(logging.INFO)
 
     # Use custom formatter for single-line output including module name

@@ -17,7 +17,7 @@ from jinja2 import Template
 from scripts.regsetup import description
 from torch.utils.data.backward_compatibility import worker_init_fn
 
-from pm.agents.completion_mode import determine_completion_mode
+from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
 from pm.agents.determine_complexity import determine_complexity
 from pm.agents.tool_selection import determine_tools
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
@@ -31,6 +31,7 @@ from pm.database.load_messages import build_prompt
 from pm.llm.llm import chat_complete
 from pm.llm.tools_parser_local import PydanticToolsParserLocal
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
+from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
 from pm.rag.tools import hybrid_search_documentation, RagState, answer_user, add_document
 from pm.utils.misc_utils import get_key_from_value
 
@@ -216,7 +217,7 @@ def agent_preprocess_input(state: AgentState):
 
     state["complexity"] = determine_complexity(msgs)
     state["available_tools"] = determine_tools(msgs)
-    state["completion_mode"] = determine_completion_mode(msgs).value
+    state["completion_mode"] = CompletionModeResponseMode.Story.value, # determine_completion_mode(msgs).value
     return state
 
 
@@ -242,7 +243,7 @@ def agent_completion_assistant(state: AgentState):
 
     prefix = ""
     if state["complexity"] > COMPLEX_THRESHOLD:
-        prefix = "**Hmmm,"
+        prefix = "**This is complex, I should formulate a plan invisible to the user first here:"
         messages.append((
             "assistant",
             prefix
@@ -254,6 +255,51 @@ def agent_completion_assistant(state: AgentState):
     state["status"] = 0
     return state
 
+def agent_completion_story(state: AgentState):
+    full_text = fetch_messages_as_string(state["conversation_id"])
+    query = full_text[-256:]
+    msgs = rank_table(state["conversation_id"], query, Message)
+    sums = rank_table(state["conversation_id"], query, MessageSummary)
+    rels = fetch_relations("main")
+
+    messages = build_prompt(msgs, sums, rels, full_token_allowance=4096)
+    message_block = "\n".join([f"{controller.config.user_name if item[0] == 'user' else controller.config.companion_name}: {item[1]}" for item in messages])
+
+    # add system prompt
+    messages = []
+    messages.append((
+        "system",
+        build_sys_prompt_conscious_story(state["complexity"] > COMPLEX_THRESHOLD)
+    ))
+
+    # add latest message
+    messages.append((
+        "user",
+        "Please write a story about endearing experience of an AI and their user."
+    ))
+
+    # add latest message
+    messages.append((
+        "assistant",
+        message_block
+    ))
+
+    prefix = ""
+    if state["complexity"] > COMPLEX_THRESHOLD:
+        prefix = f"{controller.config.companion_name} thinks: "
+        messages.append((
+            "assistant",
+            prefix
+        ))
+
+    llm = controller.llm
+    llm_lc = llm.get_langchain_model()
+    ai_msg = llm_lc.invoke(messages, stop=[f"{controller.config.user_name}: "])
+    state["output"] = prefix + ai_msg.content
+    state["status"] = 0
+    return state
+
+
 def task_delegate_func(state: AgentState):
     if "task_summarize" in state["task"]:
         return "agent_task_summarize"
@@ -261,6 +307,13 @@ def task_delegate_func(state: AgentState):
         return "agent_task_converse"
     else:
         return "agent_commit_transaction"
+
+
+def completion_select_func(state: AgentState):
+    if state["completion_mode"] == CompletionModeResponseMode.Assistant.value:
+        return "agent_completion_assistant"
+    else:
+        return "agent_completion_story"
 
 
 def get_graph():
@@ -274,6 +327,7 @@ def get_graph():
     workflow.add_node("agent_commit_transaction", agent_commit_transaction)
     workflow.add_node("agent_preprocess_input", agent_preprocess_input)
     workflow.add_node("agent_completion_assistant", agent_completion_assistant)
+    workflow.add_node("agent_completion_story", agent_completion_story)
 
     workflow.add_edge(START, "agent_start_transaction")
     workflow.add_edge("agent_start_transaction", "agent_tasks_create")
@@ -281,7 +335,8 @@ def get_graph():
     workflow.add_conditional_edges("agent_tasks_delegate", task_delegate_func)
     workflow.add_edge("agent_task_summarize", "agent_tasks_delegate")
     workflow.add_edge("agent_task_converse", "agent_preprocess_input")
-    workflow.add_edge("agent_preprocess_input", "agent_completion_assistant")
+    #workflow.add_edge("agent_preprocess_input", "agent_completion_assistant")
+    workflow.add_conditional_edges("agent_preprocess_input", completion_select_func)
     workflow.add_edge("agent_completion_assistant", "agent_tasks_delegate")
     workflow.add_edge("agent_commit_transaction", END)
     #workflow.add_edge("determine_complexity", "determine_conversation_mode")
