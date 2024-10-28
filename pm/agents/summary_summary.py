@@ -7,7 +7,7 @@ sys_prompt = """Given the following summaries, create a single, concise summary 
 1. Maintain a neutral, third-person tone, focusing on the primary topic and shared details while avoiding minor specifics or inferred emotions. Use the following guidelines:
 2. Identify Core Themes and Overlap: Look for common topics, shared interests, or recurring themes across the summaries. Focus on these primary points while omitting minor or unique details that don’t appear consistently across the summaries.
 3. Maintain a Brief and Objective Style: Write in a clear, neutral tone, condensing the information without adding any interpretations or assumptions. Keep the summary concise, ideally within one to two sentences.
-Format for Final Summary: Your final summary should generalize the shared information across the summaries, giving an accurate and neutral overview that captures the central theme."""
+Format for Final Summary: Your final summary should generalize the shared information across the summaries, giving an accurate and neutral overview that captures the central theme. Never add your own thoughts to it, only words about the summary!"""
 
 example1_user = """
 {companion_name} and {user_name} connect over their shared interest in cats. {companion_name} admires {user_name}'s Siamese cats for their elegance, while {user_name} describes their unique personalities. They discuss their cats’ quirky habits, creating a lighthearted moment together.

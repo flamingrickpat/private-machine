@@ -1,6 +1,8 @@
+import json
 import logging
 import random
-from typing import Union, Optional, List, Callable, Tuple
+from typing import Union, Optional, List, Callable, Tuple, Dict
+import re
 import gc
 import ctypes
 import contextlib
@@ -27,6 +29,53 @@ default_settings = {
     "flash_attn": True,
     "n_batch": 512
 }
+
+
+def call_python_tools(funcs: str) -> List[Dict]:
+    # Extract function name and arguments
+    results: List[Dict] = []
+    functions = re.findall(r'(\w+\(.*?\))', funcs)
+    for function_string in functions:
+        logger.info(function_string)
+
+        func_name, args_str = function_string.strip().split('(', 1)
+        args_str = args_str.rstrip(')')
+
+        # Parse arguments
+        args = {}
+        if args_str:
+            for arg in args_str.split(','):
+                if arg.strip() == "item":
+                    continue
+
+                parts = arg.split('=')
+                if len(parts) == 1 and parts[0] == "item":
+                    continue
+                elif len(parts) >= 2:
+                    key = parts[0].strip()
+                    value = parts[1].strip().strip('"')  # Remove quotes if present
+                    args[key] = value
+
+        # Get the function from the registered functions dict
+        from pm.controller import controller
+        if func_name in controller.global_python_tools:
+            func = controller.global_python_tools[func_name]
+            # Call the function with unpacked arguments
+            if "item" in func.__code__.co_varnames:
+                args["item"] = None
+
+            logger.info(f"Calling {func.__name__} with args {args}")
+            try:
+                res = func(**args)
+            except Exception as e:
+                res = {"error": f"Function '{func_name}' raised '{e}'!"}
+
+            results.append(res)
+        else:
+            res = {"error": f"Function '{func_name}' is not registered"}
+            results.append(res)
+    return results
+
 
 def silent_decode(b: bytes) -> str:
     return_val = ""
@@ -161,6 +210,8 @@ class LlamaCppLlm(Llm):
         if comp_settings.repeat_penalty is not None:
             base_settings["repeat_penalty"] = comp_settings.repeat_penalty
 
+        base_settings["temp"] = 0
+
         res = ChatLlamaCppCustom(
             temperature=base_settings["temp"],
             name="model",
@@ -290,11 +341,12 @@ class LlamaCppLlm(Llm):
         return output["choices"][0]["text"]
 
 
+
     def completion(self,
                    prompt: str,
                    comp_settings: Union[CommonCompSettings, None,] = None,
                    use_prompt_template: bool = False,
-                   script_delegate: Callable[[str], List[ToolResult]] = None,
+                   script_delegate: Callable[[str], List[ToolResult]] = call_python_tools,
                    progress_delegate: Callable[[int, str], None] = None,
                    show_progress: bool = False
                    ) -> CompletionResult:
@@ -334,6 +386,8 @@ class LlamaCppLlm(Llm):
                 stop_words.append(sw)
         if comp_settings.max_tokens is not None:
             max_tokens = comp_settings.max_tokens
+
+        base_settings["temp"] = 0
 
         force_include_string = comp_settings.force_include_string
 
@@ -418,15 +472,8 @@ class LlamaCppLlm(Llm):
                 if script_delegate is None:
                     script_res_str = "Error: The scripting delegate is not set up!"
                 else:
-                    res: List[ToolResult] = script_delegate(script_block)
-                    for r in res:
-                        if r.status == ToolResultStatus.SuccessAndExit:
-                            result.stop_reason = CompletionStopReason.FunctionCalled
-
-                    tmp = ToolResultList()
-                    for r in res:
-                        tmp.results.append(r)
-                    script_res_str = tmp.model_dump_json(indent=2)
+                    res = script_delegate(script_block)
+                    script_res_str = json.dumps(res, indent=2)
 
                 res_tokens = self._tokenize(script_res_str, special=False)
                 eval_append(token)

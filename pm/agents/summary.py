@@ -10,7 +10,7 @@ Analyze the following chat log between two people, {user_name} and {companion_na
 2. Avoid Adding Emotions or Assumptions: Do not include personal feelings, inferred motivations, or assumed emotions. Limit the summary to only the information explicitly provided in the chat log.
 3. Use a Concise, Objective Style: The summary should be brief, clear, and to the point. Use professional, third-person language that would effectively replace the original chat log while preserving the main idea.
 4. Summary Format: Aim for two to three sentences that encapsulate the conversation’s main topics and any notable details shared by {user_name} and {companion_name}. Here’s an example of the style to follow:
-“{user_name} and {companion_name} discuss a shared interest, with {companion_name} complimenting something {user_name} shares, while {user_name} responds with specific traits or details. {companion_name} relates with an example of her own experience, leading to a shared moment around their mutual interest.”"""
+Never add your own thoughts to it, only words about the summary!"""
 
 example1_user = """
 {companion_name}: Hey there!  

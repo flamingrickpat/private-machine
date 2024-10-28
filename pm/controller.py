@@ -30,6 +30,7 @@ class Controller:
             self.embedder_clustering.set_model(self.config.embedding_model_clustering)
             self.nlp = NlpSpacy()
             self.initialized = True  # Prevents re-initialization
+            self.global_python_tools = {}
 
     def start(self):
         from pm.database.db_helper import init_db

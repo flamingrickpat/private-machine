@@ -1,6 +1,6 @@
 import random
 from datetime import datetime
-from typing import List, Type, Tuple
+from typing import List, Type, Tuple, Callable
 
 from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
@@ -43,6 +43,8 @@ from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
 from pm.prompts.prompt_subagent import prompt_subagent
 from pm.rag.tools import hybrid_search_documentation, RagState, answer_user, add_document
+from pm.tools.generate_documentation import create_header_functions, create_documentation_functions, \
+    create_documentation_json
 from pm.utils.misc_utils import get_key_from_value
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,7 @@ class Agent(BaseModel):
     goal: str
     task: str = Field(default_factory=str)
     tools: List[Type[BaseModel]] = Field(default_factory=list)
+    functions: List[Callable] = Field(default_factory=list)
     messages: List[AgentMessage] = Field(default_factory=list)
 
 
@@ -167,7 +170,7 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                 messages.insert(0, ("system", agent.system_prompt))
 
                 llm = controller.llm
-                llm_lc = llm.get_langchain_model().bind_tools(agent.tools)
+                llm_lc = llm.get_langchain_model().bind_tools(agent.tools, agent.functions)
                 ai_msg = llm_lc.invoke(messages)
 
                 calls = PydanticToolsParserLocal(tools=agent.tools).invoke(ai_msg)
@@ -229,17 +232,20 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
 
     # format prompts
     for agent in agents:
-        tool_schemas = "\n".join([json.dumps(t.model_json_schema()) for t in agent.tools])
         if agent.system_prompt == "":
             agent.system_prompt = prompt_subagent
 
-        agent.system_prompt = controller.format_str(agent.system_prompt, extra={
+        extra = {
             "context_data": context_data,
             "task": task,
             "description": agent.description,
-            "goal": agent.goal,
-            "tool_schemas": tool_schemas
-        })
+            "goal": agent.goal
+        }
+        extra.update(create_header_functions(agent.functions))
+        extra.update(create_documentation_functions(agent.functions))
+        extra.update(create_documentation_json(agent.tools))
+
+        agent.system_prompt = controller.format_str(agent.system_prompt, extra=extra)
         workflow.add_node(agent.name, lambda x: _execute_agent(x, agents))
         workflow.add_edge(agent.name, "router")
 

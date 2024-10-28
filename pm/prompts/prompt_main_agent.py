@@ -9,13 +9,7 @@ prompt_conscious_assistant_base = """{character_card}
 """
 
 tool_insert = """
-You may answer in natural language or call a a tool. The tool calls are in valid JSON, and valid JSON only! 
-If you do a JSON tool call, the next user response will be the result of that tool call.
-Here are the possible schemas:
-
-### BEGIN TOOL SCHEMAS
-{tool_schemas}
-### END TOOL SCHEMAS
+{insert_tools}
 """
 
 thought_insert = """

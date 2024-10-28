@@ -64,6 +64,7 @@ from pm.llm.base_llm import CommonCompSettings
 class ChatLlamaCppCustom(ChatLlamaCpp):
     llamacpp_llm: Any = Field(default=None)
     tools: Any = Field(default=None)
+    functions: Any = Field(default=None)
 
     @model_validator(mode="after")
     def validate_environment(self) -> Self:
@@ -78,12 +79,11 @@ class ChatLlamaCppCustom(ChatLlamaCpp):
     def bind_tools(
             self,
             tools: Sequence[Union[Dict[str, Any], Type[BaseModel], Callable, BaseTool]],
-            *,
-            tool_choice: Optional[Union[dict, bool, str]] = None,
-            **kwargs: Any,
+            functions: List[Callable]
     ) -> Runnable[LanguageModelInput, BaseMessage]:
         self.tools = tools
-        return super().bind_tools(tools=tools)
+        self.functions = functions
+        return self
 
     @property
     def _default_params(self) -> Dict[str, Any]:
@@ -119,23 +119,7 @@ class ChatLlamaCppCustom(ChatLlamaCpp):
     ) -> BaseMessage:
         comp_settings = CommonCompSettings(
             tools_json=self.tools,
-            max_tokens=1024,
-            stop_words=stop[0] if stop is not None and len(stop) > 0 else "teststringnevergonnahappen"
-        )
-        response = self.llamacpp_llm.completion(prompt=self.llamacpp_llm.convert_langchain_to_raw_string(input),
-                                                comp_settings=comp_settings)
-        return AIMessage(content=response.output_sanitized)
-
-    def invoke_optional(
-        self,
-        input: LanguageModelInput,
-        config: Optional[RunnableConfig] = None,
-        *,
-        stop: Optional[list[str]] = None,
-        **kwargs: Any,
-    ) -> BaseMessage:
-        comp_settings = CommonCompSettings(
-            tools_json_optional=self.tools,
+            tools_func_llama=self.functions,
             max_tokens=1024,
             stop_words=stop[0] if stop is not None and len(stop) > 0 else "teststringnevergonnahappen"
         )
