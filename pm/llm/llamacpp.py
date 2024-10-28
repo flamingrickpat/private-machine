@@ -108,10 +108,6 @@ class LlamaCppLlm(Llm):
             raw_string += self._detokenize(self.turn_assistant_token, special=True)
 
         raw_string = raw_string.strip()
-        print()
-        print(raw_string)
-        print()
-
         return raw_string
 
     def set_model(self, settings: LlmModel):
@@ -267,13 +263,23 @@ class LlamaCppLlm(Llm):
                 logits_processors = LogitsProcessorList([build_llamacpp_logits_processor(tokenizer_data, character_level_parser)])
                 return logits_processors
         return None
-                #output_prefix = comp_settings.tools_json[0].__name__ + "\n"
-                #output = self.llama(prompt, logits_processor=logits_processors, max_tokens=max_tokens)
-                #text: str = output['choices'][0]['text']
-                #result.full_text_raw = prompt + text
-                #result.output_raw = text
-                #result.output_sanitized = text
-                #return result
+
+    def _get_logit_processor_optional(self, comp_settings: Union[CommonCompSettings, None,]) -> Optional[LogitsProcessorList]:
+        if comp_settings is not None and comp_settings.tools_json_optional is not None and len(comp_settings.tools_json_optional) > 0:
+            if len(comp_settings.tools_json_optional) > 1:
+                raise Exception("not supported yet")
+
+            os.environ["LMFE_STRICT_JSON_FIELD_ORDER"] = "1"
+            tokenizer_data = build_token_enforcer_tokenizer_data(self.llama)
+            schema = comp_settings.tools_json_optional[0].schema()
+            logger.info(f"Using schema: {schema}")
+            character_level_parser = JsonSchemaParser(json_schema=schema)
+            character_level_parser.config.force_json_field_order = True
+
+            if character_level_parser:
+                logits_processors = LogitsProcessorList([build_llamacpp_logits_processor(tokenizer_data, character_level_parser)])
+                return logits_processors
+        return None
 
 
     def completion_simple(self, prompt: str):
@@ -354,6 +360,8 @@ class LlamaCppLlm(Llm):
 
         is_writing_code = False
         temp_grammar = None
+        is_writing_tool_call = False
+        tool_bracket_count = 0
 
         possible_func_names = []
         if comp_settings is not None and comp_settings.tools_func_llama is not None and len(comp_settings.tools_func_llama) > 0:
@@ -445,6 +453,22 @@ class LlamaCppLlm(Llm):
             token = self.llama.sample(logits_processor=logits_processor,
                                       grammar=grammar if grammar is not None else temp_grammar,
                                       idx=sample_idx, **base_settings)
+
+            detok_token = self._detokenize(token, special=False)
+            if not is_writing_tool_call and "{" in detok_token and len(comp_settings.tools_json_optional) > 0:
+                is_writing_tool_call = True
+                logits_processor = self._get_logit_processor_optional(comp_settings)
+                token = self.llama.sample(logits_processor=logits_processor,
+                                          grammar=grammar if grammar is not None else temp_grammar,
+                                          idx=sample_idx, **base_settings)
+
+            if is_writing_tool_call:
+                tool_bracket_count += detok_token.count("{")
+                tool_bracket_count -= detok_token.count("}")
+                if tool_bracket_count == 0:
+                    is_writing_tool_call = False
+                    logits_processor = None
+
             sample_idx += 1
 
             if token in self.eot_token and force_include_string is not None:

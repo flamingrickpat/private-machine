@@ -82,6 +82,7 @@ class CommonCompSettings(BaseModel):
     break_on_special_token: bool = Field(default=True)
     tools_func: List[Any] = Field(default_factory=list)
     tools_json: List[Any] = Field(default_factory=list)
+    tools_json_optional: List[Any] = Field(default_factory=list)
     tools_func_llama: List[Any] = Field(default_factory=list)
     stop_on_eos: bool = Field(default=True)
     stop_on_eot: bool = Field(default=True)

@@ -50,6 +50,8 @@ logger = logging.getLogger(__name__)
 
 class SubAgentState(TypedDict):
     next_agent: str
+    confidence: float
+    conclusion: str
 
 class AgentMessage(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
@@ -72,6 +74,8 @@ class Conclusion(BaseModel):
     conclusion: str
 
     def execute(self, state):
+        state["confidence"] = self.confidence
+        state["conclusion"] = self.conclusion
         return state
 
 
@@ -144,13 +148,11 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
             llm_lc = llm.get_langchain_model().bind_tools(agent.tools)
             ai_msg = llm_lc.invoke(messages)
 
-            print(ai_msg.content)
-
             calls = PydanticToolsParserLocal(tools=agent.tools).invoke(ai_msg)
             for call in calls:
                 funcstate = {}
-                tmp = call.execute(funcstate)
-                exit(1)
+                call.execute(funcstate)
+                state.update(funcstate)
 
             agent.messages.append(AgentMessage(
                 text=ai_msg.content,
@@ -160,6 +162,8 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
 
 
 def get_next_agent(state: SubAgentState):
+    if state["confidence"] > 0:
+        return END
     return state["next_agent"]
 
 
@@ -197,8 +201,9 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
     graph = workflow.compile()
 
     state = SubAgentState(
+        confidence=0,
         next_agent="initial"
     )
     state = graph.invoke(state, {"recursion_limit": 100})
-    print(state["next_agent"])
+    print(state)
 
