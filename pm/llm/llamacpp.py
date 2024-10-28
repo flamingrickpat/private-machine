@@ -210,8 +210,6 @@ class LlamaCppLlm(Llm):
         if comp_settings.repeat_penalty is not None:
             base_settings["repeat_penalty"] = comp_settings.repeat_penalty
 
-        base_settings["temp"] = 0
-
         res = ChatLlamaCppCustom(
             temperature=base_settings["temp"],
             name="model",
@@ -386,8 +384,6 @@ class LlamaCppLlm(Llm):
                 stop_words.append(sw)
         if comp_settings.max_tokens is not None:
             max_tokens = comp_settings.max_tokens
-
-        base_settings["temp"] = 0
 
         force_include_string = comp_settings.force_include_string
 

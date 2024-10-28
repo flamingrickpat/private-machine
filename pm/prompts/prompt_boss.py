@@ -14,4 +14,7 @@ This is the context to your task:
 
 Use this data to solve this task:
 {task}
+
+These agents are part of the group chat:
+{agent_list}
 """

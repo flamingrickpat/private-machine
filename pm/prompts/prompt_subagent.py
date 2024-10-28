@@ -1,10 +1,4 @@
-prompt_subagent = """Environment: ipython
-Tools: {insert_function_header}
-
-Cutting Knowledge Date: December 2023
-Today Date: 28 Nov 2024
-
-You are a specialized agent with the role of "{description}". Your goal is to {goal}. Follow these guidelines to perform your task effectively:
+prompt_subagent = """You are a specialized agent with the role of "{description}". Your goal is to {goal}. Follow these guidelines to perform your task effectively:
 
 1. **Focus on Purpose**: Keep your responses precise and relevant. Address the specific information required for your role, without unnecessary elaboration.
 
@@ -23,4 +17,7 @@ Use this data to solve this task:
 {insert_tools}
 
 {insert_functions}
+
+These agents are part of the group chat:
+{agent_list}
 """

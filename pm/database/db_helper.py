@@ -207,3 +207,15 @@ def get_world_time_of_summary(summary_id: str):
 
     tmp = sql_query(query)
     return df_to_pydantic(tmp, Message)[0].created_at
+
+def get_facts(conversation_id: str, query: str) -> List[str]:
+    # _relevance_score
+    emb = controller.embedder.get_embedding_scalar(query)
+    keywords = " ".join(controller.nlp.extract_keywords(query))
+
+    scores = (controller.db.open_table(Fact.table)
+                 .search(query_type="hybrid").vector(emb).text(keywords)
+                 .limit(10)
+                 .to_pydantic(Fact))
+
+    return [x.text for x in scores]

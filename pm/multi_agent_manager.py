@@ -198,11 +198,11 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                     call_string = "\n".join([json.dumps(x) for x in tool_res_list])
                     agent.messages.append(AgentMessage(
                         text=call_string,
-                        public=False,
+                        public=True,
                         from_tool=True
                     ))
-                else:
-                    break
+
+                break
 
     return state
 
@@ -230,6 +230,8 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
         )
     )
 
+    agent_list = ", ".join([x.name for x in agents])
+
     # format prompts
     for agent in agents:
         if agent.system_prompt == "":
@@ -239,7 +241,8 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
             "context_data": context_data,
             "task": task,
             "description": agent.description,
-            "goal": agent.goal
+            "goal": agent.goal,
+            "agent_list": agent_list
         }
         extra.update(create_header_functions(agent.functions))
         extra.update(create_documentation_functions(agent.functions))
