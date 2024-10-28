@@ -52,11 +52,13 @@ class SubAgentState(TypedDict):
     next_agent: str
     confidence: float
     conclusion: str
+    agent_idx: int
 
 class AgentMessage(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     text: str
     public: bool = Field(default=True)
+    from_tool: bool = Field(default=False)
 
 class Agent(BaseModel):
     name: str
@@ -76,7 +78,22 @@ class Conclusion(BaseModel):
     def execute(self, state):
         state["confidence"] = self.confidence
         state["conclusion"] = self.conclusion
-        return state
+        return {}
+
+class WaitForMoreInformation(BaseModel):
+    """How far have we come for finding a conclusion?"""
+    confidence: float
+
+    def execute(self, state):
+        pass
+
+
+class BossAgentChoice(BaseModel):
+    """Container for your possible choices."""
+    choice: Conclusion | WaitForMoreInformation
+
+    def execute(self, state):
+        self.choice.execute(state)
 
 
 def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, str]]:
@@ -88,7 +105,7 @@ def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, st
         for message in agent.messages:
             # Append each message with role, text, timestamp, and agent name if it's a user
             all_messages.append({
-                "role": role,
+                "role": "user" if message.from_tool else role,
                 "text": message.text if role == "assistant" else f"{agent.name}: {message.text}",
                 "created_at": message.created_at,
                 "is_private": not message.public if role == "user" else False
@@ -123,8 +140,12 @@ def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, st
 def _execute_router(state: SubAgentState, agents: List[Agent]):
     if state["next_agent"] == "initial":
         state["next_agent"] = agents[0].name
+        state["agent_idx"] = 1
     else:
-         state["next_agent"] = random.choice(agents).name
+        if state["agent_idx"] >= len(agents):
+            state["agent_idx"] = 0
+        state["next_agent"] = agents[state["agent_idx"]].name
+        state["agent_idx"] += 1
     return state
 
 
@@ -141,23 +162,45 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                 public=True
             ))
         else:
-            messages = compile_message(agents, agent)
-            messages.insert(0, ("system", agent.system_prompt))
+            while True:
+                messages = compile_message(agents, agent)
+                messages.insert(0, ("system", agent.system_prompt))
 
-            llm = controller.llm
-            llm_lc = llm.get_langchain_model().bind_tools(agent.tools)
-            ai_msg = llm_lc.invoke(messages)
+                llm = controller.llm
+                llm_lc = llm.get_langchain_model().bind_tools(agent.tools)
+                ai_msg = llm_lc.invoke(messages)
 
-            calls = PydanticToolsParserLocal(tools=agent.tools).invoke(ai_msg)
-            for call in calls:
-                funcstate = {}
-                call.execute(funcstate)
-                state.update(funcstate)
+                calls = PydanticToolsParserLocal(tools=agent.tools).invoke(ai_msg)
+                has_tool_call = False
+                tool_res_list = []
+                for call in calls:
+                    has_tool_call = True
+                    tool_state = {}
+                    tool_res_list.append(call.execute(tool_state))
+                    state.update(tool_state)
 
-            agent.messages.append(AgentMessage(
-                text=ai_msg.content,
-                public=True
-            ))
+                    if state["confidence"] > 0:
+                        return state
+
+                # run until something called
+                if len(agent.tools) > 0 and not has_tool_call:
+                    continue
+
+                agent.messages.append(AgentMessage(
+                    text=ai_msg.content,
+                    public=not has_tool_call
+                ))
+
+                if has_tool_call:
+                    call_string = "\n".join([json.dumps(x) for x in tool_res_list])
+                    agent.messages.append(AgentMessage(
+                        text=call_string,
+                        public=False,
+                        from_tool=True
+                    ))
+                else:
+                    break
+
     return state
 
 
@@ -179,7 +222,7 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
             goal="",
             system_prompt=controller.format_str(prompt_boss,
                                                 extra={"conclusion_schema": json.dumps(Conclusion.model_json_schema())}),
-            tools=[Conclusion],
+            tools=[BossAgentChoice],
             task=task
         )
     )
@@ -187,7 +230,10 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
     # format prompts
     for agent in agents:
         tool_schemas = "\n".join([json.dumps(t.model_json_schema()) for t in agent.tools])
-        agent.system_prompt = controller.format_str(prompt_subagent, extra={
+        if agent.system_prompt == "":
+            agent.system_prompt = prompt_subagent
+
+        agent.system_prompt = controller.format_str(agent.system_prompt, extra={
             "context_data": context_data,
             "task": task,
             "description": agent.description,

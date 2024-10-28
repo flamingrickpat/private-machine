@@ -1,5 +1,5 @@
 import duckdb
-from pm.database.db_model import User, Message, Conversation, ConceptualCluster, MessageSummary, Relation
+from pm.database.db_model import User, Message, Conversation, ConceptualCluster, MessageSummary, Relation, Fact
 from pm.controller import controller
 
 controller.start()
@@ -10,6 +10,7 @@ conversation = controller.db.open_table(Conversation.table).to_lance()
 conceptual_cluster = controller.db.open_table(ConceptualCluster.table).to_lance()
 message_summary = controller.db.open_table(MessageSummary.table).to_lance()
 relation = controller.db.open_table(Relation.table).to_lance()
+fact = controller.db.open_table(Fact.table).to_lance()
 
 print("ready...")
 while True:

@@ -535,7 +535,7 @@ class LlamaCppLlm(Llm):
         result.output_sanitized = result.output_sanitized.strip()
         result.output_sanitized_inline = result.output_sanitized.replace("\n", "\\n")
 
-        logger.info(result.full_text_raw)
+        logger.info(f"Output: {result.output_sanitized_inline}")
         result.parse_structure()
 
         return result

@@ -125,3 +125,20 @@ class ChatLlamaCppCustom(ChatLlamaCpp):
         response = self.llamacpp_llm.completion(prompt=self.llamacpp_llm.convert_langchain_to_raw_string(input),
                                                 comp_settings=comp_settings)
         return AIMessage(content=response.output_sanitized)
+
+    def invoke_optional(
+        self,
+        input: LanguageModelInput,
+        config: Optional[RunnableConfig] = None,
+        *,
+        stop: Optional[list[str]] = None,
+        **kwargs: Any,
+    ) -> BaseMessage:
+        comp_settings = CommonCompSettings(
+            tools_json_optional=self.tools,
+            max_tokens=1024,
+            stop_words=stop[0] if stop is not None and len(stop) > 0 else "teststringnevergonnahappen"
+        )
+        response = self.llamacpp_llm.completion(prompt=self.llamacpp_llm.convert_langchain_to_raw_string(input),
+                                                comp_settings=comp_settings)
+        return AIMessage(content=response.output_sanitized)
