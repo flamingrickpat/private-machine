@@ -110,6 +110,29 @@ class ConceptualCluster(LanceModel):
         return hash(self.id)
 ConceptualCluster.table = "ConceptualCluster"
 
+class Fact(LanceModel):
+    id: str # guid
+    conversation_id: str # conversation guid
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    world_time: datetime = Field(default_factory=datetime.now)
+
+    text: str # content
+    embedding: Vector(1024) # embedding
+    tokens: int # rough token count
+    category: str # can be either user, companion or environment
+
+    def __eq__(self, other):
+        if isinstance(other, Message):
+            return self.id == other.id
+        return False
+
+    def __hash__(self):
+        return hash(self.id)
+    class Config:
+        extra = "allow"
+Fact.table = "fact"
+
+
 class Relation(LanceModel):
     id: str = Field(default_factory=get_guid)
     a: str

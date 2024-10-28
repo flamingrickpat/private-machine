@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Dict
 
 from lancedb import LanceDBConnection
@@ -43,8 +44,10 @@ class Controller:
             "companion_name": self.config.companion_name
         }
         values.update(extra)
-        formatted_string = template.format(**values)
-        return formatted_string
+
+        #formatted_string = template.format(**values)
+        partial_output = template.format_map(defaultdict(lambda: "{MISSING}", values))
+        return partial_output
 
 
 controller = Controller()
