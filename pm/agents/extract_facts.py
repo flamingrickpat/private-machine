@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from pm.controller import controller
 from pm.database.db_model import Message
 from pm.llm.llm import chat_complete
+from pm.llm.tools_parser_local import PydanticToolsParserLocal
 
 sys_prompt = """You are a helpful assistant that extracts facts from a conversation.
 These facts are supposed to enable querying a vector store with keywords for information in a quick and efficient way.
@@ -99,7 +100,7 @@ class ExtractedFacts(BaseModel):
     facts: List[ExtractedFact] = Field(description="List of facts.")
 
 
-def summarize_messages_for_l0_summary(messages: List[Message]) -> str:
+def extract_facts_from_messages(messages: List[Message]) -> ExtractedFacts:
     message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages])
 
     messages = [(
@@ -128,6 +129,9 @@ def summarize_messages_for_l0_summary(messages: List[Message]) -> str:
         message_block
     )]
 
-    llm = controller.llm
-    ai_msg = chat_complete(llm, messages)
-    return ai_msg.content
+    llm = controller.llm.get_langchain_model().bind_tools(tools=[ExtractedFacts])
+    ai_msg = llm.invoke(messages)
+    calls = PydanticToolsParserLocal(tools=[ExtractedFacts]).invoke(ai_msg)
+    if isinstance(calls, list):
+        calls = calls[0]
+    return calls

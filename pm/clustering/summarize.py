@@ -3,12 +3,13 @@ import uuid
 
 import duckdb
 
+from pm.agents.extract_facts import extract_facts_from_messages
 from pm.agents.summary import summarize_messages_for_l0_summary
 from pm.agents.summary_summary import summarize_summary_for_ln_summary
 from pm.clustering.agg_clustering import get_agglomerative_clusters_as_dict, get_sliding_window_embedded_messages
 from pm.database.db_helper import fetch_messages_no_summary, fetch_messages, get_padded_subset, insert_object, \
     fetch_summaries, fetch_summaries_no_summary
-from pm.database.db_model import User, Message, Conversation, ConceptualCluster, MessageSummary, Relation
+from pm.database.db_model import User, Message, Conversation, ConceptualCluster, MessageSummary, Relation, Fact
 from pm.controller import controller
 from pm.utils.token_utils import quick_estimate_tokens
 
@@ -54,6 +55,19 @@ def cluster_and_summarize(conversation_id: str):
                     world_time_end=cur_cluster_list[-1].world_time
                 )
                 insert_object(cluster)
+
+                facts = extract_facts_from_messages(cur_cluster_list)
+                for fact in facts.facts:
+                    f = Fact(
+                        id=str(uuid.uuid4()),
+                        conversation_id=conversation_id,
+                        text=fact.fact,
+                        importance=fact.importance,
+                        embedding=controller.embedder.get_embedding_scalar_float_list(fact.fact),
+                        category=fact.category,
+                        tokens=quick_estimate_tokens(fact.fact),
+                    )
+                    insert_object(f)
 
                 for cluster_msg in cur_cluster_list:
                     rel = Relation(

@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Type
 
 from pydantic import BaseModel
 
 
 class PydanticToolsParserLocal:
-    def __init__(self, tools: List[BaseModel]):
+    def __init__(self, tools: List[Type[BaseModel]]):
         self.tools = tools
 
     def invoke(self, full_output):

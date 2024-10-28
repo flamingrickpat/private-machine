@@ -7,7 +7,7 @@ from lancedb.pydantic import LanceModel
 from pydantic import BaseModel
 from pygments.lexers.srcinfo import keywords
 
-from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation
+from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation, Fact
 from pm.controller import controller
 
 
@@ -19,6 +19,7 @@ def init_db():
     controller.db.create_table(MessageSummary.table, schema=MessageSummary, exist_ok=True)
     controller.db.create_table(ConceptualCluster.table, schema=ConceptualCluster, exist_ok=True)
     controller.db.create_table(Relation.table, schema=Relation, exist_ok=True)
+    controller.db.create_table(Fact.table, schema=Fact, exist_ok=True)
 
     try:
         controller.db.open_table(Message.table).create_fts_index("text")
@@ -34,6 +35,12 @@ def init_db():
 
     try:
         controller.db.open_table(MessageSummary.table).create_fts_index("text")
+    except Exception as e:
+        if "already exists" not in str(e):
+            raise e
+
+    try:
+        controller.db.open_table(Fact.table).create_fts_index("text")
     except Exception as e:
         if "already exists" not in str(e):
             raise e

@@ -117,6 +117,7 @@ class Fact(LanceModel):
     world_time: datetime = Field(default_factory=datetime.now)
 
     text: str # content
+    importance: float
     embedding: Vector(1024) # embedding
     tokens: int # rough token count
     category: str # can be either user, companion or environment
