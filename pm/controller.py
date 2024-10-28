@@ -45,9 +45,10 @@ class Controller:
         }
         values.update(extra)
 
-        #formatted_string = template.format(**values)
-        partial_output = template.format_map(defaultdict(lambda: "{MISSING}", values))
-        return partial_output
+        for k, v in values.items():
+            template = template.replace("{" + k + "}", v)
+
+        return template
 
 
 controller = Controller()

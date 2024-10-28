@@ -1,5 +1,6 @@
 import random
-from typing import List, Type
+from datetime import datetime
+from typing import List, Type, Tuple
 
 from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
@@ -21,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from jinja2 import Template
 from scripts.regsetup import description
+from spacy.symbols import agent
 from torch.utils.data.backward_compatibility import worker_init_fn
 
 from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
@@ -49,13 +51,19 @@ logger = logging.getLogger(__name__)
 class SubAgentState(TypedDict):
     next_agent: str
 
+class AgentMessage(BaseModel):
+    created_at: datetime = Field(default_factory=datetime.now)
+    text: str
+    public: bool = Field(default=True)
 
 class Agent(BaseModel):
     name: str
     system_prompt: str = Field(default_factory=str)
     description: str
     goal: str
+    task: str = Field(default_factory=str)
     tools: List[Type[BaseModel]] = Field(default_factory=list)
+    messages: List[AgentMessage] = Field(default_factory=list)
 
 
 class Conclusion(BaseModel):
@@ -63,25 +71,99 @@ class Conclusion(BaseModel):
     confidence: float
     conclusion: str
 
+    def execute(self, state):
+        return state
+
+
+def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, str]]:
+    # Collect all messages with their roles and agent names
+    all_messages = []
+
+    for agent in agents:
+        role = "assistant" if agent == cur_agent else "user"
+        for message in agent.messages:
+            # Append each message with role, text, timestamp, and agent name if it's a user
+            all_messages.append({
+                "role": role,
+                "text": message.text if role == "assistant" else f"{agent.name}: {message.text}",
+                "created_at": message.created_at,
+                "is_private": not message.public if role == "user" else False
+            })
+
+    # Sort messages by timestamp
+    all_messages.sort(key=lambda x: x["created_at"])
+
+    # Compile messages into alternating assistant/user blocks
+    compiled_messages = []
+    user_message_buffer = []  # Buffer for consecutive user messages
+
+    for msg in all_messages:
+        if msg["role"] == "assistant" and not msg["is_private"]:
+            # Flush user messages buffer before adding an assistant message
+            if user_message_buffer:
+                compiled_messages.append(("user", "\n".join(user_message_buffer)))
+                user_message_buffer = []
+            # Add the assistant message
+            compiled_messages.append((msg["role"], msg["text"]))
+        elif msg["role"] == "user":
+            # Add to user buffer if it's a public user message
+            if not msg["is_private"]:
+                user_message_buffer.append(msg["text"])
+
+    # Flush any remaining user messages
+    if user_message_buffer:
+        compiled_messages.append(("user", "\n".join(user_message_buffer)))
+
+    return compiled_messages
 
 def _execute_router(state: SubAgentState, agents: List[Agent]):
-    state["next_agent"] = random.choice(agents).name
+    if state["next_agent"] == "initial":
+        state["next_agent"] = agents[0].name
+    else:
+         state["next_agent"] = random.choice(agents).name
     return state
 
 
 def _execute_agent(state: SubAgentState, agents: List[Agent]):
     cur_agent = state["next_agent"]
-    for agent in agents:
-        if agent.name == cur_agent:
-            print(state["next_agent"])
+    agent = next(filter(lambda x: x.name == cur_agent, agents), None)
+    if not agent:
+        return state
+
+    if agent.name == cur_agent:
+        if cur_agent == "Boss Agent" and len(agent.messages) == 0:
+            agent.messages.append(AgentMessage(
+                text=f"Alright, our task is '{agent.task}'. Get to work!",
+                public=True
+            ))
+        else:
+            messages = compile_message(agents, agent)
+            messages.insert(0, ("system", agent.system_prompt))
+
+            llm = controller.llm
+            llm_lc = llm.get_langchain_model().bind_tools(agent.tools)
+            ai_msg = llm_lc.invoke(messages)
+
+            print(ai_msg.content)
+
+            calls = PydanticToolsParserLocal(tools=agent.tools).invoke(ai_msg)
+            for call in calls:
+                funcstate = {}
+                tmp = call.execute(funcstate)
+                exit(1)
+
+            agent.messages.append(AgentMessage(
+                text=ai_msg.content,
+                public=True
+            ))
     return state
 
 
+def get_next_agent(state: SubAgentState):
+    return state["next_agent"]
+
+
 def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) -> (str, float):
-    def get_next_agent(state: SubAgentState):
-        return state["next_agent"]
-
-
     workflow = StateGraph(SubAgentState)
     workflow.add_node("router", lambda x: _execute_router(x, agents))
     workflow.add_edge(START, "router")
@@ -93,24 +175,21 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
             goal="",
             system_prompt=controller.format_str(prompt_boss,
                                                 extra={"conclusion_schema": json.dumps(Conclusion.model_json_schema())}),
-            tools=[Conclusion]
+            tools=[Conclusion],
+            task=task
         )
     )
 
     # format prompts
     for agent in agents:
-        if agent.system_prompt == "":
-            tool_schemas = "\n".join([json.dumps(t.model_json_schema()) for t in agent.tools])
-            agent.system_prompt = controller.format_str(prompt_subagent, extra={
-                "context_data": context_data,
-                "task": task,
-                "description": agent.description,
-                "goal": agent.goal,
-                "tool_schemas": tool_schemas
-            })
-
-
-
+        tool_schemas = "\n".join([json.dumps(t.model_json_schema()) for t in agent.tools])
+        agent.system_prompt = controller.format_str(prompt_subagent, extra={
+            "context_data": context_data,
+            "task": task,
+            "description": agent.description,
+            "goal": agent.goal,
+            "tool_schemas": tool_schemas
+        })
         workflow.add_node(agent.name, lambda x: _execute_agent(x, agents))
         workflow.add_edge(agent.name, "router")
 
@@ -118,7 +197,7 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
     graph = workflow.compile()
 
     state = SubAgentState(
-        next_agent=agents[0].name
+        next_agent="initial"
     )
     state = graph.invoke(state, {"recursion_limit": 100})
     print(state["next_agent"])

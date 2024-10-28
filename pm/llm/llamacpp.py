@@ -108,10 +108,9 @@ class LlamaCppLlm(Llm):
             raw_string += self._detokenize(self.turn_assistant_token, special=True)
 
         raw_string = raw_string.strip()
-
-        # Verbose output for debugging purposes
-        if self.verbose:
-            print("Converted prompt to raw string:", raw_string)
+        print()
+        print(raw_string)
+        print()
 
         return raw_string
 
