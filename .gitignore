@@ -165,3 +165,4 @@ config.json
 #.idea/
 chatbot/
 /config.json.hermes
+/.idea

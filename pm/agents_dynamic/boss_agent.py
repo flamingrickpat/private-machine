@@ -1,3 +1,35 @@
+from pydantic import BaseModel
+
+
+class Conclusion(BaseModel):
+    """Final conclusion format."""
+    confidence: float
+    conclusion: str
+
+    def execute(self, state):
+        state["confidence"] = self.confidence
+        state["conclusion"] = self.conclusion
+
+        if self.confidence > 0.5:
+            state["finished"] = True
+            return {}
+        else:
+            return {"error": "Confidence not high enough, research more!"}
+
+class WaitForMoreInformation(BaseModel):
+    """How far have we come for finding a conclusion?"""
+    confidence: float
+
+    def execute(self, state):
+        pass
+
+class BossAgentChoice(BaseModel):
+    """Container for your possible choices."""
+    choice: Conclusion | WaitForMoreInformation
+
+    def execute(self, state):
+        self.choice.execute(state)
+
 prompt_boss = """You are the Boss Agent, overseeing a team of specialized agents tasked with answering user queries, generating responses, and gathering necessary information through tool usage and memory access. Your role is to:
 1. **Monitor and Guide**: Carefully observe the conversation among agents, noting any relevant insights or information that may contribute to an accurate conclusion. Ensure that the agents stay on topic and that their responses remain coherent and aligned with the user's goals.
 2. **Synthesize and Evaluate**: Regularly assess the information shared by each agent. Pay attention to tool outputs and messages labeled "private," as these may contain unique insights intended solely for you. Evaluate the relevance, accuracy, and confidence level of each agent's contributions to create a well-informed summary.

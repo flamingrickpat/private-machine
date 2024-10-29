@@ -7,7 +7,13 @@ import gc
 import ctypes
 import contextlib
 import os
-from llama_cpp import Llama, llama_cpp, LlamaGrammar
+
+try:
+    from llama_cpp import Llama, llama_cpp, LlamaGrammar
+except Exception as e:
+    print("Please download and install llama-cpp-python. I got mine from here: https://github.com/abetlen/llama-cpp-python/releases/tag/v0.2.90-cu124")
+    exit(1)
+
 from llama_cpp import LogitsProcessorList
 from lmformatenforcer.integrations.llamacpp import build_llamacpp_logits_processor, \
     build_token_enforcer_tokenizer_data
@@ -104,6 +110,7 @@ def load_state_fast(self, state) -> None:
 class LlamaCppLlm(Llm):
 
     def __init__(self, verbose: bool = False):
+        self.temporary_settings = None
         self.tool_comp_settings = None
         self.llama: Llama = None
         self.identifier = ""
@@ -160,6 +167,10 @@ class LlamaCppLlm(Llm):
         return raw_string
 
     def set_model(self, settings: LlmModel):
+        self.temporary_settings = settings
+
+    def _internal_set_model(self):
+        settings = self.temporary_settings
         if settings.identifier != self.identifier:
             self.identifier = settings.identifier
             self.model_settings = settings
@@ -348,6 +359,9 @@ class LlamaCppLlm(Llm):
                    progress_delegate: Callable[[int, str], None] = None,
                    show_progress: bool = False
                    ) -> CompletionResult:
+        # only load model when actually using completion
+        self._internal_set_model()
+
         if use_prompt_template and self.state is None:
             raise Exception("No saved state!")
 

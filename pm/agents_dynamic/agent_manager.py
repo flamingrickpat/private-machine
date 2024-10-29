@@ -38,10 +38,11 @@ from pm.database.db_model import Message, MessageSummary
 from pm.database.load_messages import build_prompt
 from pm.llm.llm import chat_complete
 from pm.llm.tools_parser_local import PydanticToolsParserLocal
-from pm.prompts.prompt_boss import prompt_boss
+from pm.agents_dynamic.boss_agent import prompt_boss, BossAgentChoice, Conclusion
+from pm.agents_dynamic.agent import Agent, AgentMessage
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
-from pm.prompts.prompt_subagent import prompt_subagent
+from pm.agents_dynamic.dynamic_subagent import prompt_subagent
 from pm.rag.tools import hybrid_search_documentation, RagState, answer_user, add_document
 from pm.tools.generate_documentation import create_header_functions, create_documentation_functions, \
     create_documentation_json
@@ -55,48 +56,7 @@ class SubAgentState(TypedDict):
     confidence: float
     conclusion: str
     agent_idx: int
-
-class AgentMessage(BaseModel):
-    created_at: datetime = Field(default_factory=datetime.now)
-    text: str
-    public: bool = Field(default=True)
-    from_tool: bool = Field(default=False)
-
-class Agent(BaseModel):
-    name: str
-    system_prompt: str = Field(default_factory=str)
-    description: str
-    goal: str
-    task: str = Field(default_factory=str)
-    tools: List[Type[BaseModel]] = Field(default_factory=list)
-    functions: List[Callable] = Field(default_factory=list)
-    messages: List[AgentMessage] = Field(default_factory=list)
-
-
-class Conclusion(BaseModel):
-    """Final conclusion format."""
-    confidence: float
-    conclusion: str
-
-    def execute(self, state):
-        state["confidence"] = self.confidence
-        state["conclusion"] = self.conclusion
-        return {}
-
-class WaitForMoreInformation(BaseModel):
-    """How far have we come for finding a conclusion?"""
-    confidence: float
-
-    def execute(self, state):
-        pass
-
-
-class BossAgentChoice(BaseModel):
-    """Container for your possible choices."""
-    choice: Conclusion | WaitForMoreInformation
-
-    def execute(self, state):
-        self.choice.execute(state)
+    finished: bool
 
 
 def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, str]]:
@@ -141,6 +101,9 @@ def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, st
     return compiled_messages
 
 def _execute_router(state: SubAgentState, agents: List[Agent]):
+    """
+    Iterate over agents in list and start again if the boss didn't finish already.
+    """
     if state["next_agent"] == "initial":
         state["next_agent"] = agents[0].name
         state["agent_idx"] = 1
@@ -153,6 +116,9 @@ def _execute_router(state: SubAgentState, agents: List[Agent]):
 
 
 def _execute_agent(state: SubAgentState, agents: List[Agent]):
+    """
+    Dynamically execute the current agent. They all follow the same pattern.
+    """
     cur_agent = state["next_agent"]
     agent = next(filter(lambda x: x.name == cur_agent, agents), None)
     if not agent:
@@ -160,41 +126,46 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
 
     if agent.name == cur_agent:
         if cur_agent == "Boss Agent" and len(agent.messages) == 0:
+            # initial message
             agent.messages.append(AgentMessage(
                 text=f"Alright, our task is '{agent.task}'. Get to work!",
                 public=True
             ))
         else:
+            # loop in case the tools don't work on the first tries
             while True:
                 messages = compile_message(agents, agent)
                 messages.insert(0, ("system", agent.system_prompt))
 
+                # bind tools and function
                 llm = controller.llm
                 llm_lc = llm.get_langchain_model().bind_tools(agent.tools, agent.functions)
                 ai_msg = llm_lc.invoke(messages)
 
+                # handle tools
+                tool_res_list = []  # contains the result dicts or lists
                 calls = PydanticToolsParserLocal(tools=agent.tools).invoke(ai_msg)
-                has_tool_call = False
-                tool_res_list = []
                 for call in calls:
-                    has_tool_call = True
-                    tool_state = {}
+                    tool_state = {}  # contains the state updates
                     tool_res_list.append(call.execute(tool_state))
                     state.update(tool_state)
 
-                    if state["confidence"] > 0:
+                    # boss agent has confidence in answer -> break out
+                    if state["finished"]:
                         return state
 
-                # run until something called
-                if len(agent.tools) > 0 and not has_tool_call:
+                # run until something called, in case the tool call got mangled
+                if len(agent.tools) > 0 and len(tool_res_list) == 0:
                     continue
 
+                # add text responses, make tool call private
                 agent.messages.append(AgentMessage(
                     text=ai_msg.content,
-                    public=not has_tool_call
+                    public=len(tool_res_list) == 0
                 ))
 
-                if has_tool_call:
+                # result of tool call will always be public
+                if len(tool_res_list) > 0:
                     call_string = "\n".join([json.dumps(x) for x in tool_res_list])
                     agent.messages.append(AgentMessage(
                         text=call_string,
@@ -208,7 +179,7 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
 
 
 def get_next_agent(state: SubAgentState):
-    if state["confidence"] > 0:
+    if state["finished"]:
         return END
     return state["next_agent"]
 
@@ -217,6 +188,7 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
     workflow = StateGraph(SubAgentState)
     workflow.add_node("router", lambda x: _execute_router(x, agents))
     workflow.add_edge(START, "router")
+
     # add boss
     agents.insert(0,
         Agent(
@@ -257,7 +229,8 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
 
     state = SubAgentState(
         confidence=0,
-        next_agent="initial"
+        next_agent="initial",
+        finished=False
     )
     state = graph.invoke(state, {"recursion_limit": 100})
     print(state)
