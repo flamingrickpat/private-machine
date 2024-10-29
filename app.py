@@ -109,6 +109,10 @@ def chat_ui():
     user = st.session_state['user']
     conversations = fetch_conversations(user.id)
 
+    if len(conversations) == 0:
+        start_conversation(user.id, override_id="main")
+        conversations = fetch_conversations(user.id)
+
     with st.sidebar:
         st.header("Conversations")
         for convo in conversations:
@@ -116,10 +120,10 @@ def chat_ui():
                 st.session_state['current_conversation_id'] = convo.id
                 st.rerun()
 
-        if st.button("Start New"):
-            convo_id = start_conversation(user.id).id
-            st.session_state['current_conversation_id'] = convo_id
-            st.rerun()
+        #if st.button("Start New"):
+        #    convo_id = start_conversation(user.id).id
+        #    st.session_state['current_conversation_id'] = convo_id
+        #    st.rerun()
 
     if 'current_conversation_id' in st.session_state:
         convo_id = st.session_state.get('current_conversation_id')

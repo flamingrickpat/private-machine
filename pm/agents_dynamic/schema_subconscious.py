@@ -23,6 +23,17 @@ class MemoryQuery(BaseModel):
 def get_plan_from_subconscious_agents(context: str, goal: str) -> str:
     agents = []
 
+    # Pessimistic Agent
+    agents.append(Agent(
+        name="Memory Agent",
+        description="Searches the memory database for relevant memory.",
+        goal="Find good memories by clever usage of query phrases. "
+             "Always consider the input of the other agents for more complex searches. "
+             "Don't repeat the same search over an over!",
+        tools=[MemoryQuery],
+        functions=[]
+    ))
+
     # Emotional Companion Agent
     agents.append(Agent(
         name="Emotional Companion Agent",
@@ -122,15 +133,6 @@ def get_plan_from_subconscious_agents(context: str, goal: str) -> str:
         functions=[]
     ))
 
-    # Privacy Guardian Agent
-    agents.append(Agent(
-        name="Privacy Guardian Agent",
-        description="Safeguards user privacy and data.",
-        goal="Protect user privacy by enforcing robust data security measures and guiding interactions to ensure sensitive information remains confidential. This agent educates users on data privacy and effortlessly shields personal data from being exposed or misused. It operates within ethical guidelines to maintain trust by monitoring conversational contexts for threats and vigilantly enforcing user privacy preferences, fostering a secure and confidential experience.",
-        tools=[],
-        functions=[]
-    ))
-
     # Execute the boss-worker chat with the agents
-    result = execute_boss_worker_chat(context, goal, agents, min_confidence=0.75)
+    result = execute_boss_worker_chat(context, goal, agents, min_confidence=0.66)
     return result["conclusion"]

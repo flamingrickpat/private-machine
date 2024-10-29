@@ -28,6 +28,7 @@ class SubAgentState(TypedDict):
     finished: bool
     routing: str
     required_confidence: float
+    routing_count: int
 
 class BossAgentChoice(BaseModel):
     """
@@ -97,10 +98,13 @@ def _execute_router(state: SubAgentState, agents: List[Agent]):
     """
     Iterate over agents in list and start again if the boss didn't finish already.
     """
+    state["routing_count"] += 1
+
     if state["finished"]:
         return state
 
-    if state["next_agent"] == "initial":
+    # start with boss agent or every 6 routes to make sure we don't run endlessly
+    if state["next_agent"] == "initial" or state["routing_count"] % 6 == 0:
         state["next_agent"] = agents[0].name
         state["agent_idx"] = 1
         return state
@@ -254,7 +258,8 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], 
         next_agent="initial",
         finished=False,
         routing="agentic",
-        required_confidence=min_confidence
+        required_confidence=min_confidence,
+        routing_count=0
     )
     state = graph.invoke(state, {"recursion_limit": 100})
     return state

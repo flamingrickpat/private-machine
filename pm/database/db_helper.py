@@ -61,14 +61,14 @@ def login_user(username: str, password: str) -> User:
         return new_user
 
 
-def start_conversation(user_id: str, override_id: str | None) -> Conversation:
+def start_conversation(user_id: str, override_id: str | None = None) -> Conversation:
     if override_id is None:
         override_id = str(uuid.uuid4())
 
     conversation = Conversation(
         id=override_id,
         user_id=user_id,
-        title="New Chat",
+        title="New Chat" if override_id is None else override_id.capitalize(),
         session_id=uuid.uuid4().hex
     )
     controller.db.open_table(Conversation.table).add([conversation])
@@ -176,6 +176,9 @@ def insert_object(obj: LanceModel):
     controller.db.open_table(tablename).add([obj])
 
 def rank_table(conversation_id: str, query: str, table: Type[LanceModel]) -> List[Tuple[LanceModel, float]]:
+    if query.strip() == "":
+        return []
+
     # _relevance_score
     emb = controller.embedder.get_embedding_scalar(query)
     keywords = " ".join(controller.nlp.extract_keywords(query))
@@ -208,14 +211,14 @@ def get_world_time_of_summary(summary_id: str):
     tmp = sql_query(query)
     return df_to_pydantic(tmp, Message)[0].created_at
 
-def get_facts(conversation_id: str, query: str) -> List[str]:
+def get_facts(conversation_id: str, query: str, limit: int = 10) -> List[str]:
     # _relevance_score
     emb = controller.embedder.get_embedding_scalar(query)
     keywords = " ".join(controller.nlp.extract_keywords(query))
 
     scores = (controller.db.open_table(Fact.table)
                  .search(query_type="hybrid").vector(emb).text(keywords)
-                 .limit(10)
+                 .limit(limit)
                  .to_pydantic(Fact))
 
     return [x.text for x in scores]

@@ -6,10 +6,17 @@ prompt_subagent = """You are a specialized agent with the role of "{description}
 
 3. **Prioritize Accuracy**: Ensure your outputs are well-informed and directly contribute to achieving the boss agent's goal for the conversation.
 
-This is the context to your task:
-{context_data}
+Here is some information about the AI companion, this will be helpful:
+### BEGIN CHARACTER DESCRIPTION
+{character_card_story}
+### END CHARACTER DESCRIPTION
 
-Use this data to solve this task:
+This is the current conversation, this is what you're focusing on! It's all about this conversation:
+### BEGIN CONVERSATION
+{context_data}
+### END CONVERSATION
+
+This is your task:
 {task}
 
 **Reminder**: Your role as the "{description}" is to {goal}. Use the available tools effectively, and aim for clarity and conciseness in every message.

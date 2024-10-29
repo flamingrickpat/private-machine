@@ -42,7 +42,9 @@ class Controller:
 
         values = {
             "user_name": self.config.user_name,
-            "companion_name": self.config.companion_name
+            "companion_name": self.config.companion_name,
+            "character_card_story": self.config.character_card_story,
+            "character_card_assistant": self.config.character_card_assistant
         }
         values.update(extra)
 

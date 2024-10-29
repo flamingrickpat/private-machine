@@ -42,5 +42,5 @@ def create_data(inpath, username, ainame):
 
 
 if __name__ == '__main__':
-    file_path = r"E:\Workspace\Repositories\pm2\more_synth_data.txt"
+    file_path = r"./synth_data/synth_data1.txt"
     create_data(file_path, username="Rick", ainame="Nova")

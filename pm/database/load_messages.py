@@ -57,10 +57,7 @@ def build_prompt(all_messages: List[Tuple['Message', float]],
         return tmp
 
     level0_summaries = len(list(filter(lambda x: x[0].level == 0, all_level_summaries)))
-    max_level = max([x[0].level for x in all_level_summaries])
-
-    # Example usage
-    multipliers = calculate_hierarchical_multipliers(n_0=level0_summaries, max_level=max_level + 1)
+    max_level = max([x[0].level for x in all_level_summaries]) if len(all_level_summaries) > 12 else -1
 
     # find messages for last message part with raw messages
     # delete them afterwards
@@ -94,40 +91,43 @@ def build_prompt(all_messages: List[Tuple['Message', float]],
     # add summaries
     sum_token_allowance = full_token_allowance - (int(full_token_allowance * pct_prev_last_message)
                                          + int(full_token_allowance * pct_last_messages))
-    history_messages = []
-    for level in range(max_level + 1):
-        level_allowance = sum_token_allowance * multipliers[level]
-        sorted_summaries = filter(lambda x : x.level == level,
-                                  [summary for summary, _ in sorted(all_level_summaries, key=lambda x: x[1], reverse=True)])
 
-        cur_tokens = 0
-        for summary in sorted_summaries:
-            if level == 0:
-                # check if more than 75% of the child messages are already in output
-                child_messages = get_immediate_children(summary.id)
-                exists_cnt = 0
-                for cm in child_messages:
-                    if cm in messages:
-                        exists_cnt += 1
+    # only do if there are some summaries
+    if max_level >= 0:
+        multipliers = calculate_hierarchical_multipliers(n_0=level0_summaries, max_level=max_level + 1)
+        for level in range(max_level + 1):
+            level_allowance = sum_token_allowance * multipliers[level]
+            sorted_summaries = filter(lambda x : x.level == level,
+                                      [summary for summary, _ in sorted(all_level_summaries, key=lambda x: x[1], reverse=True)])
 
-                if exists_cnt > int(len(child_messages) * 0.33):
-                    continue
-            else:
-                # check if 2 or 3 child summaries are already included
-                child_summaries = get_immediate_children(summary.id)
-                exists_cnt = 0
-                for cm in child_summaries:
-                    if cm in messages:
-                        exists_cnt += 1
+            cur_tokens = 0
+            for summary in sorted_summaries:
+                if level == 0:
+                    # check if more than 75% of the child messages are already in output
+                    child_messages = get_immediate_children(summary.id)
+                    exists_cnt = 0
+                    for cm in child_messages:
+                        if cm in messages:
+                            exists_cnt += 1
 
-                if exists_cnt >= 1:
-                    continue
+                    if exists_cnt > int(len(child_messages) * 0.33):
+                        continue
+                else:
+                    # check if 2 or 3 child summaries are already included
+                    child_summaries = get_immediate_children(summary.id)
+                    exists_cnt = 0
+                    for cm in child_summaries:
+                        if cm in messages:
+                            exists_cnt += 1
 
-            if cur_tokens + summary.tokens <= level_allowance:
-                messages.append(summary)
-                cur_tokens += summary.tokens
-            else:
-                break
+                    if exists_cnt >= 1:
+                        continue
+
+                if cur_tokens + summary.tokens <= level_allowance:
+                    messages.append(summary)
+                    cur_tokens += summary.tokens
+                else:
+                    break
 
     sorted_all_messages = [message for message in sorted(messages, key=lambda x: x.world_time, reverse=False)]
 

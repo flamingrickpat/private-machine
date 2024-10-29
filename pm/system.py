@@ -12,11 +12,6 @@ from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
-
-from jinja2 import Template
-from scripts.regsetup import description
-from torch.utils.data.backward_compatibility import worker_init_fn
-
 from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
 from pm.agents.determine_complexity import determine_complexity
 from pm.agents.rewrite_as_thought import rewrite_as_thought
@@ -175,7 +170,7 @@ def agent_completion_assistant(state: AgentState):
     prefix = ""
     if state["complexity"] > COMPLEX_THRESHOLD:
         plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
-        thought = rewrite_as_thought(plan, max_sentences=3)
+        thought = rewrite_as_thought(plan, max_sentences_in=3, max_sentences_out=2)
         prefix = f"**{thought}**\n"
 
     messages.append((
@@ -232,8 +227,8 @@ def agent_completion_story(state: AgentState):
             plan
         ))
 
-        thought = rewrite_as_thought(plan, max_sentences=3)
-        prefix = (f"{controller.config.companion_name} thinks: {thought}\n"
+        thought = rewrite_as_thought(plan, max_sentences_in=2, max_sentences_out=2)
+        prefix = (f"{controller.config.companion_name} thinks: {thought}I shouldn't think to long, now I'll respond to {controller.config.user_name}!\n\n"
                   f"{controller.config.companion_name}: ")
 
     messages.append((
