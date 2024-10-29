@@ -194,7 +194,7 @@ def agent_completion_story(state: AgentState):
     sums = rank_table(state["conversation_id"], query, MessageSummary)
     rels = fetch_relations("main")
 
-    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=4096, mode="story")
+    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=4096)
     # add latest message
     messages.append((
         "user",
