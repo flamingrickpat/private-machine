@@ -1,35 +1,3 @@
-import enum
-import json
-from typing import Optional
-
-from pydantic import BaseModel, Field
-
-
-class BossChoiceEnum(str, enum.Enum):
-    Wait = "wait"
-    Conclude = "conclude"
-
-
-class BossAgentChoice(BaseModel):
-    """
-    Report your currently recommended course of action.
-    Your supervisor will decide if the answer is satisfactory.
-    """
-    conclusion: str = Field(description="your recommended course of action")
-    confidence: float = Field(ge=0, le=1, description="how sure you are with your conclusion (from 0 to 1)")
-
-    def execute(self, state):
-        print(json.dumps(self.model_dump(), indent=2))
-        state["confidence"] = self.confidence
-        state["conclusion"] = self.conclusion
-
-        if self.confidence > 0.9:
-            state["finished"] = True
-            return {}
-        else:
-            return {"error": "Confidence not high enough, research more!"}
-
-
 prompt_boss = """You are the Boss Agent, overseeing a team of specialized agents tasked with answering user queries, generating responses, and gathering necessary information through tool usage and memory access. Your role is to:
 1. **Monitor and Guide**: Carefully observe the conversation among agents, noting any relevant insights or information that may contribute to an accurate conclusion. Ensure that the agents stay on topic and that their responses remain coherent and aligned with the user's goals.
 2. **Synthesize and Evaluate**: Regularly assess the information shared by each agent. Pay attention to tool outputs and messages labeled "private," as these may contain unique insights intended solely for you. Evaluate the relevance, accuracy, and confidence level of each agent's contributions to create a well-informed summary.

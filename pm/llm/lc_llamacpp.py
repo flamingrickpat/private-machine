@@ -79,9 +79,11 @@ class ChatLlamaCppCustom(ChatLlamaCpp):
     def bind_tools(
             self,
             tools: Sequence[Union[Dict[str, Any], Type[BaseModel], Callable, BaseTool]],
-            functions: List[Callable]
+            functions: List[Callable] = None
     ) -> Runnable[LanguageModelInput, BaseMessage]:
         self.tools = tools
+        if functions is None:
+            functions = []
         self.functions = functions
         return self
 

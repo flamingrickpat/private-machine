@@ -7,9 +7,12 @@ from typing import Literal, TypedDict, Dict, Any, List
 
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
+from pydantic import BaseModel, Field
+
+from pm.agents_dynamic.boss_agent import prompt_boss
+from pm.agents_dynamic.routing_agent import prompt_routing
 from pm.controller import controller
 from pm.llm.tools_parser_local import PydanticToolsParserLocal
-from pm.agents_dynamic.boss_agent import prompt_boss, BossAgentChoice
 from pm.agents_dynamic.agent import Agent, AgentMessage
 from pm.agents_dynamic.dynamic_subagent import prompt_subagent
 from pm.tools.generate_documentation import create_header_functions, create_documentation_functions, \
@@ -23,7 +26,27 @@ class SubAgentState(TypedDict):
     conclusion: str
     agent_idx: int
     finished: bool
+    routing: str
+    required_confidence: float
 
+class BossAgentChoice(BaseModel):
+    """
+    Report your currently recommended course of action.
+    Your supervisor will decide if the answer is satisfactory.
+    """
+    conclusion: str = Field(description="your recommended course of action")
+    confidence: float = Field(ge=0, le=1, description="how sure you are with your conclusion (from 0 to 1)")
+
+    def execute(self, state: SubAgentState):
+        print(json.dumps(self.model_dump(), indent=2))
+        state["confidence"] = self.confidence
+        state["conclusion"] = self.conclusion
+
+        if self.confidence > state["required_confidence"]:
+            state["finished"] = True
+            return {}
+        else:
+            return {"error": "Confidence not high enough, research more!"}
 
 def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, str]]:
     # Collect all messages with their roles and agent names
@@ -77,11 +100,38 @@ def _execute_router(state: SubAgentState, agents: List[Agent]):
     if state["next_agent"] == "initial":
         state["next_agent"] = agents[0].name
         state["agent_idx"] = 1
-    else:
+        return state
+
+    if state["routing"] == "round_robin":
         if state["agent_idx"] >= len(agents):
             state["agent_idx"] = 0
         state["next_agent"] = agents[state["agent_idx"]].name
         state["agent_idx"] += 1
+    elif state["routing"] == "agentic":
+        # create class dynamically
+        class RouteDecision(BaseModel):
+            agent_name: Literal[tuple(agent.name for agent in agents if agent.name != state["next_agent"])]
+
+            def execute(self, state: SubAgentState):
+                state["next_agent"] = self.agent_name
+
+        # not all messages
+        messages = compile_message(agents, None)[-6:]
+        extra = {
+            "agents_description": "\n".join([f"{x.name}: {x.description}" for x in agents]),
+            "agent_decision_schema": json.dumps(RouteDecision.model_json_schema())
+        }
+        messages.insert(0, ("system", controller.format_str(prompt_routing, extra=extra)))
+
+        # bind tools and function
+        llm = controller.llm
+        llm_lc = llm.get_langchain_model().bind_tools([RouteDecision])
+        ai_msg = llm_lc.invoke(messages)
+
+        # handle tools
+        calls = PydanticToolsParserLocal(tools=[RouteDecision]).invoke(ai_msg)
+        calls[0].execute(state)
+
     return state
 
 
@@ -116,9 +166,7 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                 tool_res_list = []  # contains the result dicts or lists
                 calls = PydanticToolsParserLocal(tools=agent.tools).invoke(ai_msg)
                 for call in calls:
-                    tool_state = {}  # contains the state updates
-                    tool_res_list.append(call.execute(tool_state))
-                    state.update(tool_state)
+                    tool_res_list.append(call.execute(state))
 
                     # boss agent has confidence in answer -> break out
                     if state["finished"]:
@@ -200,7 +248,9 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
     state = SubAgentState(
         confidence=0,
         next_agent="initial",
-        finished=False
+        finished=False,
+        routing="agentic",
+        required_confidence=0.8
     )
     state = graph.invoke(state, {"recursion_limit": 100})
     print(state)
