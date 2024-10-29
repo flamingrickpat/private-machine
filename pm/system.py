@@ -183,7 +183,7 @@ def agent_completion_assistant(state: AgentState):
     llm = controller.llm
     ai_msg = chat_complete(llm, messages)
     state["thought"] = thought
-    state["output"] = ai_msg.content.replace("Response:").strip()
+    state["output"] = ai_msg.content.replace("Response:", "").strip()
     state["status"] = 0
     return state
 
