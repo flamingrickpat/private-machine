@@ -51,8 +51,8 @@ class LlmModel(BaseModel):
     turn_script_result_token: str = Field(default_factory=str)
     call_script_token: str = Field(default_factory=str)
     context_size: int = 4096
-    default_temperature: float = Field(default=0.7)
-    default_top_k: int = Field(default=100)
+    default_temperature: float = Field(default=0.6)
+    default_top_k: int = Field(default=50)
     default_top_p: float = Field(default=0.9)
     default_repeat_penalty: float = Field(default=1.1)
 

@@ -1,55 +1,21 @@
 import random
 from datetime import datetime
 from typing import List, Type, Tuple, Callable
-
-from langgraph.graph import StateGraph
-from pydantic import BaseModel, Field
-
 import json
 import logging
-import uuid
 from typing import Literal, TypedDict, Dict, Any, List
 
-from lancedb import LanceDBConnection
-from langchain_core.messages import HumanMessage
-from langchain_core.output_parsers import PydanticToolsParser
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables.history import RunnableWithMessageHistory
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
-from langgraph.prebuilt import create_react_agent
-from pydantic import BaseModel, Field
-
-from jinja2 import Template
-from scripts.regsetup import description
-from spacy.symbols import agent
-from torch.utils.data.backward_compatibility import worker_init_fn
-
-from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
-from pm.agents.determine_complexity import determine_complexity
-from pm.agents.tool_selection import determine_tools
-from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
-from pm.config.config import read_config_file
-from pm.consts import COMPLEX_THRESHOLD
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, \
-    fetch_messages_as_string
-from pm.database.db_model import Message, MessageSummary
-from pm.database.load_messages import build_prompt
-from pm.llm.llm import chat_complete
 from pm.llm.tools_parser_local import PydanticToolsParserLocal
-from pm.agents_dynamic.boss_agent import prompt_boss, BossAgentChoice, Conclusion
+from pm.agents_dynamic.boss_agent import prompt_boss, BossAgentChoice
 from pm.agents_dynamic.agent import Agent, AgentMessage
-from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
-from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
 from pm.agents_dynamic.dynamic_subagent import prompt_subagent
-from pm.rag.tools import hybrid_search_documentation, RagState, answer_user, add_document
 from pm.tools.generate_documentation import create_header_functions, create_documentation_functions, \
     create_documentation_json
-from pm.utils.misc_utils import get_key_from_value
 
 logger = logging.getLogger(__name__)
-
 
 class SubAgentState(TypedDict):
     next_agent: str
@@ -71,32 +37,36 @@ def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, st
                 "role": "user" if message.from_tool else role,
                 "text": message.text if role == "assistant" else f"{agent.name}: {message.text}",
                 "created_at": message.created_at,
-                "is_private": not message.public if role == "user" else False
+                "is_private": False,  # not message.public if role == "user" else False
             })
 
     # Sort messages by timestamp
     all_messages.sort(key=lambda x: x["created_at"])
 
-    # Compile messages into alternating assistant/user blocks
+    # Compile messages by detecting role changes
     compiled_messages = []
-    user_message_buffer = []  # Buffer for consecutive user messages
+    role_message_buffer = []
+    current_role = None
 
     for msg in all_messages:
-        if msg["role"] == "assistant" and not msg["is_private"]:
-            # Flush user messages buffer before adding an assistant message
-            if user_message_buffer:
-                compiled_messages.append(("user", "\n".join(user_message_buffer)))
-                user_message_buffer = []
-            # Add the assistant message
-            compiled_messages.append((msg["role"], msg["text"]))
-        elif msg["role"] == "user":
-            # Add to user buffer if it's a public user message
-            if not msg["is_private"]:
-                user_message_buffer.append(msg["text"])
+        msg_role = msg["role"]
 
-    # Flush any remaining user messages
-    if user_message_buffer:
-        compiled_messages.append(("user", "\n".join(user_message_buffer)))
+        # Detect role change or buffer flush condition
+        if msg_role != current_role:
+            if role_message_buffer:
+                # Append the current buffer to compiled messages
+                compiled_messages.append((current_role, "\n".join(role_message_buffer)))
+                role_message_buffer = []
+
+            current_role = msg_role  # Update the current role
+
+        # Only add public messages to the buffer
+        if not msg["is_private"]:
+            role_message_buffer.append(msg["text"])
+
+    # Flush any remaining messages in the buffer
+    if role_message_buffer:
+        compiled_messages.append((current_role, "\n".join(role_message_buffer)))
 
     return compiled_messages
 
@@ -196,7 +166,7 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
             description="",
             goal="",
             system_prompt=controller.format_str(prompt_boss,
-                                                extra={"conclusion_schema": json.dumps(Conclusion.model_json_schema())}),
+                                                extra={"conclusion_schema": json.dumps(BossAgentChoice.model_json_schema())}),
             tools=[BossAgentChoice],
             task=task
         )

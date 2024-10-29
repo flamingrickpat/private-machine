@@ -203,6 +203,8 @@ class LlamaCppLlm(Llm):
             self._initialize_tokens()
 
     def get_langchain_model(self, comp_settings: Union[CommonCompSettings, None,] = None) -> ChatLlamaCppCustom:
+        self._internal_set_model()
+
         base_settings = {
             "top_k": self.model_settings.default_top_k,
             "top_p": self.model_settings.default_top_p,

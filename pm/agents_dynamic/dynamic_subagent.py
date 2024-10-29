@@ -20,4 +20,5 @@ Use this data to solve this task:
 
 These agents are part of the group chat:
 {agent_list}
+You can direct your attention to them if you'd like them to speak next!
 """
