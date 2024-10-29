@@ -1,1 +1,2 @@
 COMPLEX_THRESHOLD = 0.66
+THOUGHT_SEP = "<|thought_over|>"

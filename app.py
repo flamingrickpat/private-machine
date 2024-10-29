@@ -5,6 +5,7 @@ from typing import List
 import streamlit as st
 from lancedb import LanceDBConnection
 
+from pm.consts import THOUGHT_SEP
 from pm.database.db_model import User, Message, Conversation
 from pm.system import AgentState, make_completion
 from pm.config.config import read_config_file, MainConfig
@@ -42,7 +43,7 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
 
     if status == 0:
         # add user message
-        response_message = Message(
+        msg_user = Message(
             id=str(uuid.uuid4()),
             conversation_id=conversation_id,
             role='user',
@@ -51,11 +52,13 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
             embedding=controller.embedder.get_embedding_scalar_float_list(input),
             tokens=quick_estimate_tokens(input)
         )
-        controller.db.open_table(Message.table).add([response_message])
 
         # Add the LLM response as a new message
         output = state['output']
-        response_message = Message(
+        if state["thought"] != "":
+            output = state["thought"] + THOUGHT_SEP + output
+
+        msg_ai = Message(
             id=str(uuid.uuid4()),
             conversation_id=conversation_id,
             role='assistant',
@@ -64,7 +67,7 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
             embedding = controller.embedder.get_embedding_scalar_float_list(output),
             tokens = quick_estimate_tokens(output)
         )
-        controller.db.open_table(Message.table).add([response_message])
+        controller.db.open_table(Message.table).add([msg_user, msg_ai])
 
     return 0, ""
 
@@ -136,7 +139,12 @@ def chat_ui():
                 if msg.role == "user":
                     st.success(f"{msg.text}")
                 else:
-                    st.info(f"{msg.text}")
+                    message_text = msg.text
+                    if THOUGHT_SEP in message_text:
+                        parts = message_text.strip().split(THOUGHT_SEP)
+                        st.info(f"{parts[1].strip()}")
+                    else:
+                        st.info(f"{message_text}")
 
             new_message = st.text_input("Your message", key=f"new_msg_{convo_id}")
             if st.button("Send", key=f"send_{convo_id}"):

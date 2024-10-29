@@ -4,6 +4,7 @@ from typing import Dict
 from lancedb import LanceDBConnection
 
 from pm.config.config import read_config_file
+from pm.consts import THOUGHT_SEP
 from pm.embedding.transformer_embedding import TransformerEmbedding
 from pm.llm.llamacpp import LlamaCppLlm
 from pm.log_utils import setup_logger
@@ -53,5 +54,23 @@ class Controller:
 
         return template
 
+    def format_thought(self, message_text: str, story_mode: bool):
+        if THOUGHT_SEP in message_text:
+            parts = message_text.strip().split(THOUGHT_SEP)
+            if story_mode:
+                return self.get_thought_string_story(parts[0]) + parts[1]
+            else:
+                return self.get_thought_string_assistant(parts[0]) + parts[1]
+        else:
+            return message_text
+
+    def get_thought_string_story(self, thought: str) -> str:
+        return (f"{controller.config.companion_name} thinks: {thought}"
+                f"I shouldn't think to long, now I'll respond to {controller.config.user_name}!\n\n"
+                f"{controller.config.companion_name}: "
+                )
+
+    def get_thought_string_assistant(self, thought: str) -> str:
+        return f"**{thought}**\n"
 
 controller = Controller()

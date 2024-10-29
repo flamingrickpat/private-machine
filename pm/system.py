@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 class AgentState(TypedDict):
     next_agent: str
     input: str
+    thought: str
     output: str
     title: str
     conversation_id: str
@@ -153,7 +154,7 @@ def agent_completion_assistant(state: AgentState):
     msgs = rank_table(state["conversation_id"], query, Message)
     sums = rank_table(state["conversation_id"], query, MessageSummary)
     rels = fetch_relations("main")
-    messages = build_prompt(msgs, sums, rels, full_token_allowance=4096)
+    messages = build_prompt(False, msgs, sums, rels, full_token_allowance=4096)
 
     # add system prompt
     messages.insert(0, (
@@ -168,10 +169,11 @@ def agent_completion_assistant(state: AgentState):
     ))
 
     prefix = ""
+    thought = ""
     if state["complexity"] > COMPLEX_THRESHOLD:
         plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
         thought = rewrite_as_thought(plan, max_sentences_in=3, max_sentences_out=2)
-        prefix = f"**{thought}**\n"
+        prefix = controller.get_thought_string_assistant(thought)
 
     messages.append((
         "assistant",
@@ -180,7 +182,8 @@ def agent_completion_assistant(state: AgentState):
 
     llm = controller.llm
     ai_msg = chat_complete(llm, messages)
-    state["output"] = prefix + ai_msg.content
+    state["thought"] = thought
+    state["output"] = ai_msg.content.replace("Response:").strip()
     state["status"] = 0
     return state
 
@@ -191,7 +194,7 @@ def agent_completion_story(state: AgentState):
     sums = rank_table(state["conversation_id"], query, MessageSummary)
     rels = fetch_relations("main")
 
-    messages = build_prompt(msgs, sums, rels, full_token_allowance=4096)
+    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=4096, mode="story")
     # add latest message
     messages.append((
         "user",
@@ -219,6 +222,7 @@ def agent_completion_story(state: AgentState):
     ))
 
     prefix = ""
+    thought = ""
     if state["complexity"] > COMPLEX_THRESHOLD:
         plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
 
@@ -228,8 +232,7 @@ def agent_completion_story(state: AgentState):
         ))
 
         thought = rewrite_as_thought(plan, max_sentences_in=2, max_sentences_out=2)
-        prefix = (f"{controller.config.companion_name} thinks: {thought}I shouldn't think to long, now I'll respond to {controller.config.user_name}!\n\n"
-                  f"{controller.config.companion_name}: ")
+        prefix = controller.get_thought_string_story(thought)
 
     messages.append((
         "assistant",
@@ -238,8 +241,12 @@ def agent_completion_story(state: AgentState):
 
     llm = controller.llm
     llm_lc = llm.get_langchain_model()
-    ai_msg = llm_lc.invoke(messages, stop=[f"{controller.config.user_name}: "])
-    state["output"] = prefix + ai_msg.content
+    ai_msg = llm_lc.invoke(messages, stop=[f"{controller.config.user_name}:",
+                                           f"{controller.config.user_name} thinks:",
+                                           f"{controller.config.companion_name}:",
+                                           f"{controller.config.companion_name} thinks:"])
+    state["thought"] = thought
+    state["output"] = ai_msg.content
     state["status"] = 0
     return state
 

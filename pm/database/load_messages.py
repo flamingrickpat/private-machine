@@ -1,6 +1,7 @@
 import copy
 from typing import List, Union, Tuple
 
+from pm.controller import controller
 from pm.database.db_model import Message, MessageSummary, Relation
 
 from typing import List, Tuple, Set
@@ -33,7 +34,8 @@ def calculate_hierarchical_multipliers(n_0, max_level):
 
     return multipliers
 
-def build_prompt(all_messages: List[Tuple['Message', float]],
+def build_prompt(story_mode: bool,
+                 all_messages: List[Tuple['Message', float]],
                  all_level_summaries: List[Tuple['MessageSummary', float]],
                  all_relations: List['Relation'],
                  full_token_allowance: int = 4096,
@@ -41,7 +43,6 @@ def build_prompt(all_messages: List[Tuple['Message', float]],
                  pct_prev_last_message: float = 0.2,
                  group_size: int = 3,
                  ) -> List[Tuple[str, str]]:
-
     orig_all_messages = copy.copy(all_messages)
     orig_all_summaries = copy.copy(all_level_summaries)
 
@@ -136,7 +137,8 @@ def build_prompt(all_messages: List[Tuple['Message', float]],
     for item in sorted_all_messages:
         if isinstance(item, Message):
             msg = item
-            prompt_parts.append((msg.role, msg.text))
+            text = controller.format_thought(msg.text, story_mode)
+            prompt_parts.append((msg.role, text))
         elif isinstance(item, MessageSummary):
             summary = item
             level = summary.level

@@ -54,4 +54,4 @@ def rewrite_as_thought(instruction: str, max_sentences_in: int = 3, max_sentence
     ]
     ai_msg = chat_complete(llm, messages)
     full_thought = ai_msg.content
-    return ".".join(full_thought.split(".")[:max_sentences_out])
+    return ".".join(full_thought.split(".")[:max_sentences_out]) + ". "
