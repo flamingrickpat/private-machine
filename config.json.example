@@ -1,7 +1,7 @@
 {
     "model": {
         "identifier": "model_main",
-        "path": "E:/AI/Hermes-2-Pro-Llama-3-Instruct-Merged-DPO-F16.gguf",
+        "path": "/path/to/your/Hermes-2-Pro-Llama-3-Instruct-Merged-DPO-F16.gguf",
         "bos_token": "<|begin_of_text|>",
         "eos_token": "<|end_of_text|>",
         "turn_system_token": "<|im_start|>system",
@@ -26,5 +26,5 @@
     "user_name": "John",
     "companion_name": "Sam",
     "character_card_assistant": "You are Sam, a nice and helpful assistant.",
-    "character_card_story": ""
+    "character_card_story": "Sam is a nice and helpful assistant."
 }

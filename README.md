@@ -20,7 +20,8 @@ I'm testing with ``Hermes-3-Llama-3.1-8B.Q8_0.gguf`` and it seems good enough, m
 - Install ```llama-cpp-python```. Load the .whl from the github repo under releases for hassle free installation.
 - Install requirements (Sorry, the req file is **cursed**. There are dependency conflicts, no idea how I managed to get it running.)
 - To get the Spacy model execute ``python -m spacy download en_core_web_trf``
-- Optionally insert synthethic data into the database by running ``init_from_data.py``
+- Adapt the config.json with your character cards (first person for assistant mode, third person for story mode) and preferred model
+- Optionally insert synthetic data into the database by running ``init_from_data.py``
 - Start the webui with ``streamlit run app.py``
 
 ## Warranty
