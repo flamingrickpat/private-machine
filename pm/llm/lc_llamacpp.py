@@ -64,7 +64,6 @@ from pm.llm.base_llm import CommonCompSettings
 class ChatLlamaCppCustom(ChatLlamaCpp):
     llamacpp_llm: Any = Field(default=None)
     tools: Any = Field(default=None)
-    functions: Any = Field(default=None)
 
     @model_validator(mode="after")
     def validate_environment(self) -> Self:
@@ -77,14 +76,11 @@ class ChatLlamaCppCustom(ChatLlamaCpp):
         self.tools = []
 
     def bind_tools(
-            self,
-            tools: Sequence[Union[Dict[str, Any], Type[BaseModel], Callable, BaseTool]],
-            functions: List[Callable] = None
+        self,
+        tools: Sequence[Union[Dict[str, Any], Type[BaseModel], Callable, BaseTool]],
+        **kwargs: Any,
     ) -> Runnable[LanguageModelInput, BaseMessage]:
         self.tools = tools
-        if functions is None:
-            functions = []
-        self.functions = functions
         return self
 
     @property
@@ -121,7 +117,6 @@ class ChatLlamaCppCustom(ChatLlamaCpp):
     ) -> BaseMessage:
         comp_settings = CommonCompSettings(
             tools_json=self.tools,
-            tools_func_llama=self.functions,
             max_tokens=1024,
             stop_words=stop[0] if stop is not None and len(stop) > 0 else "teststringnevergonnahappen"
         )

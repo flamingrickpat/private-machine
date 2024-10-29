@@ -33,8 +33,10 @@ example_assistant_4 = "I wonder if postponing the discussion is the right choice
 example_user_5 = "Remember to smile."
 example_assistant_5 = "Smiling naturally fosters an inviting atmosphere. It’s intriguing how such a simple expression can convey warmth and openness, potentially altering the mood of an interaction entirely."
 
-def rewrite_as_thought(instruction: str) -> str:
-    formatted_prompt = controller.format_str(sys_prompt) + f"\nUser: {instruction}\nAssistant: "
+def rewrite_as_thought(instruction: str, max_sentences: int = 3) -> str:
+    instruction = ".".join(instruction.split(".")[:max_sentences])
+
+    formatted_prompt = controller.format_str(sys_prompt)
     llm = controller.llm
     messages = [
         ("system", formatted_prompt),

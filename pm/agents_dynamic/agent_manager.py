@@ -38,7 +38,7 @@ class BossAgentChoice(BaseModel):
     confidence: float = Field(ge=0, le=1, description="how sure you are with your conclusion (from 0 to 1)")
 
     def execute(self, state: SubAgentState):
-        print(json.dumps(self.model_dump(), indent=2))
+        logger.info(json.dumps(self.model_dump(), indent=2))
         state["confidence"] = self.confidence
         state["conclusion"] = self.conclusion
 
@@ -97,6 +97,9 @@ def _execute_router(state: SubAgentState, agents: List[Agent]):
     """
     Iterate over agents in list and start again if the boss didn't finish already.
     """
+    if state["finished"]:
+        return state
+
     if state["next_agent"] == "initial":
         state["next_agent"] = agents[0].name
         state["agent_idx"] = 1
@@ -113,6 +116,7 @@ def _execute_router(state: SubAgentState, agents: List[Agent]):
             agent_name: Literal[tuple(agent.name for agent in agents if agent.name != state["next_agent"])]
 
             def execute(self, state: SubAgentState):
+                logger.info(json.dumps(self.model_dump(), indent=2))
                 state["next_agent"] = self.agent_name
 
         # not all messages
@@ -159,7 +163,7 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
 
                 # bind tools and function
                 llm = controller.llm
-                llm_lc = llm.get_langchain_model().bind_tools(agent.tools, agent.functions)
+                llm_lc = llm.get_langchain_model().bind_tools(agent.tools)
                 ai_msg = llm_lc.invoke(messages)
 
                 # handle tools
@@ -202,7 +206,7 @@ def get_next_agent(state: SubAgentState):
     return state["next_agent"]
 
 
-def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) -> (str, float):
+def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], min_confidence: float = 0.5) -> (str, float):
     workflow = StateGraph(SubAgentState)
     workflow.add_node("router", lambda x: _execute_router(x, agents))
     workflow.add_edge(START, "router")
@@ -250,8 +254,7 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent]) 
         next_agent="initial",
         finished=False,
         routing="agentic",
-        required_confidence=0.8
+        required_confidence=min_confidence
     )
     state = graph.invoke(state, {"recursion_limit": 100})
-    print(state)
-
+    return state

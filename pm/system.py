@@ -19,7 +19,9 @@ from torch.utils.data.backward_compatibility import worker_init_fn
 
 from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
 from pm.agents.determine_complexity import determine_complexity
+from pm.agents.rewrite_as_thought import rewrite_as_thought
 from pm.agents.tool_selection import determine_tools
+from pm.agents_dynamic.schema_subconscious import get_plan_from_subconscious_agents
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.config.config import read_config_file
 from pm.consts import COMPLEX_THRESHOLD
@@ -53,76 +55,6 @@ class AgentState(TypedDict):
     available_tools: List[str]
     completion_mode: str
     status: int
-
-
-def agent_search_memory(state: AgentState):
-    # add system prompt
-    messages = []
-    messages.append((
-            "system",
-            "find information"
-        ))
-
-    messages.append((
-            "user",
-            f"{state['current_user_assistant_chat']}"
-        ))
-
-    llm = controller.llm.get_langchain_model()
-    tools = [hybrid_search_documentation, add_document, answer_user]
-    llm_with_tools = llm.bind_tools(tools=tools, tool_choice="required")
-
-    rag_state = RagState(
-        finished=False,
-        guid_id_map={},
-        status=False,
-        docs_temp=[],
-        docs_final=[],
-        current_id=1
-    )
-
-    while True:
-        logger.info(f"messages: " + str(messages))
-        full = llm_with_tools.invoke(messages)
-
-        messages.append((
-            "assistant",
-            "<tool_call_placeholder>" if len(full.content) == 0 else full.content
-        ))
-
-        buffer = []
-        calls = PydanticToolsParser(tools=tools).invoke(full)
-        for call in calls:
-            tmp = call.execute(rag_state)
-            buffer.append(tmp)
-
-        if len(buffer) == 0:
-            messages.append((
-                "user",
-                "must call function"
-            ))
-        else:
-            messages.append((
-                "user",
-                "\n".join(buffer)
-            ))
-
-        if rag_state["finished"]:
-            break
-
-    final_guids = []
-    for id in rag_state["docs_final"]:
-        guid = get_key_from_value(rag_state["guid_id_map"], id)
-        final_guids.append(guid)
-
-    final_docs = fetch_documentation(final_guids)
-    tmp = []
-    for doc in final_docs:
-        tmp.append(doc.text)
-
-    state["current_knowledge"] = "\n".join(tmp)
-    logger.info(f"current_knowledge: " + state["current_knowledge"])
-    return state
 
 def agent_assistant_story_check(state: AgentState) -> AgentState:
     class DecideModelMode(BaseModel):
@@ -194,7 +126,6 @@ def agent_task_summarize(state: AgentState):
     return state
 
 
-
 def agent_determine_tools(state: AgentState):
     return state
 
@@ -243,7 +174,10 @@ def agent_completion_assistant(state: AgentState):
 
     prefix = ""
     if state["complexity"] > COMPLEX_THRESHOLD:
-        prefix = "**This is complex, I should formulate a plan invisible to the user first here:"
+        plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
+        thought = rewrite_as_thought(plan, max_sentences=3)
+        prefix = f"**{thought}**\n"
+
     messages.append((
         "assistant",
         prefix
@@ -291,7 +225,17 @@ def agent_completion_story(state: AgentState):
 
     prefix = ""
     if state["complexity"] > COMPLEX_THRESHOLD:
-        prefix = f"{controller.config.companion_name} thinks: "
+        plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
+
+        messages.append((
+            "user",
+            plan
+        ))
+
+        thought = rewrite_as_thought(plan, max_sentences=3)
+        prefix = (f"{controller.config.companion_name} thinks: {thought}\n"
+                  f"{controller.config.companion_name}: ")
+
     messages.append((
         "assistant",
         prefix
