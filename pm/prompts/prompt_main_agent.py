@@ -31,5 +31,5 @@ def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[str
     if len(tool_list) > 0:
         map["tool_insert"] = get_json_schemas(tool_list)
 
-    prompt = prompt_conscious_assistant_base.format_map(map)
+    prompt = controller.format_str(prompt_conscious_assistant_base, extra=map)
     return prompt

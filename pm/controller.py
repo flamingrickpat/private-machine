@@ -49,8 +49,9 @@ class Controller:
         }
         values.update(extra)
 
-        for k, v in values.items():
-            template = template.replace("{" + k + "}", v)
+        for i in range(10):
+            for k, v in values.items():
+                template = template.replace("{" + k + "}", v)
 
         return template
 

@@ -32,5 +32,5 @@ def build_sys_prompt_conscious_story(use_thoughts: bool) -> str:
     if use_thoughts:
         map["thought_insert"] = thought_insert
 
-    prompt = prompt_conscious_assistant_base.format_map(map)
+    prompt = controller.format_str(prompt_conscious_assistant_base, extra=map)
     return prompt

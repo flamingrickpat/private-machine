@@ -395,9 +395,10 @@ class LlamaCppLlm(Llm):
             base_settings["repeat_penalty"] = comp_settings.repeat_penalty
         if comp_settings.seed is not None:
             seed = comp_settings.seed
-        for sw in comp_settings.stop_words.split(";"):
-            if sw != "":
-                stop_words.append(sw)
+        if comp_settings.stop_words:
+            for sw in comp_settings.stop_words:
+                if sw != "":
+                    stop_words.append(sw)
         if comp_settings.max_tokens is not None:
             max_tokens = comp_settings.max_tokens
 

@@ -115,10 +115,13 @@ class ChatLlamaCppCustom(ChatLlamaCpp):
         stop: Optional[list[str]] = None,
         **kwargs: Any,
     ) -> BaseMessage:
+        if stop is None:
+            stop = []
+
         comp_settings = CommonCompSettings(
             tools_json=self.tools,
             max_tokens=1024,
-            stop_words=stop[0] if stop is not None and len(stop) > 0 else "teststringnevergonnahappen"
+            stop_words=stop
         )
         response = self.llamacpp_llm.completion(prompt=self.llamacpp_llm.convert_langchain_to_raw_string(input),
                                                 comp_settings=comp_settings)

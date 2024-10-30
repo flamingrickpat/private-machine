@@ -166,3 +166,4 @@ config.json
 chatbot/
 /config.json.hermes
 /.idea
+/.lancedb

@@ -73,7 +73,7 @@ class LlmModel(BaseModel):
 
 class CommonCompSettings(BaseModel):
     max_tokens: int = Field(default=128)
-    stop_words: str = Field(default_factory=str)
+    stop_words: List[str] = Field(default_factory=list)
     seed: Optional[int] = Field(default=None)
     temperature: Optional[float] = Field(default=None)
     top_k: Optional[int] = Field(default=None)
