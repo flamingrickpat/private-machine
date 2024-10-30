@@ -2,6 +2,7 @@ import uuid
 import datetime
 
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
+from pm.consts import RECALC_SUMMARIES_MESSAGES
 from pm.controller import controller
 from pm.database.db_helper import start_conversation, login_user
 from pm.database.db_model import Message
@@ -17,7 +18,7 @@ def create_data(inpath, username, ainame):
         lines = file.readlines()
 
     cur_time = datetime.datetime.now() - datetime.timedelta(days=30)
-    for line in lines:
+    for cnt, line in enumerate(lines):
         if "#" in line:
             cur_topic = line
             cur_time += datetime.timedelta(hours=3)
@@ -37,8 +38,9 @@ def create_data(inpath, username, ainame):
             controller.db.open_table(Message.table).add([response_message])
             cur_time += datetime.timedelta(minutes=5)
 
-    cluster_and_summarize("main")
-    high_level_summarize("main")
+        if cnt % RECALC_SUMMARIES_MESSAGES:
+            cluster_and_summarize("main")
+            high_level_summarize("main")
 
 
 if __name__ == '__main__':

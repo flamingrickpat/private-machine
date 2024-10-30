@@ -58,10 +58,8 @@ def optimized_threshold_search(cosine_dist_matrix, target_clusters, initial_min=
     return labels, optimal_threshold
 
 def get_sliding_window_embedded_messages(messages: List[Message], base_window: int = 64) -> List[Message]:
-    model = SentenceTransformer('all-MiniLM-L6-v2', trust_remote_code=True)
     def get_embedding_scalar_float_list_temp(t: str):
-        return model.encode(t).tolist()
-        #return controller.embedder_clustering.get_embedding_scalar_float_list(t)
+        return controller.embedder_clustering.get_embedding_scalar_float_list(t)
 
     for i, msg in enumerate(messages):
         text_before = "\n".join(tmp.full_text for tmp in messages[0:i])

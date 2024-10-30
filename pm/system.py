@@ -19,7 +19,7 @@ from pm.agents.tool_selection import determine_tools
 from pm.agents_dynamic.schema_subconscious import get_plan_from_subconscious_agents
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.config.config import read_config_file
-from pm.consts import COMPLEX_THRESHOLD
+from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, \
     fetch_messages_as_string
@@ -106,7 +106,7 @@ def agent_tasks_create(state: AgentState):
     state["task"] = []
     if state["input"] != "":
         state["task"].append("task_converse")
-    if len(fetch_messages_no_summary(state["conversation_id"])) > 16:
+    if len(fetch_messages_no_summary(state["conversation_id"])) > RECALC_SUMMARIES_MESSAGES:
         state["task"].append("task_summarize")
     if len(state["task"]) == 0:
         state["task"].append("commit_transaction")

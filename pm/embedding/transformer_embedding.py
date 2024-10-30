@@ -44,8 +44,18 @@ class TransformerEmbedding(Embedding):
         with torch.no_grad():
             outputs = self.model(**inputs)
 
-        embedding = outputs.last_hidden_state[:, 0]
-        return embedding[0].cpu().numpy()
+        # Mean pooling over all tokens (excluding padding)
+        attention_mask = inputs['attention_mask']
+        output_hidden_state = outputs.last_hidden_state
+        mask = attention_mask.unsqueeze(-1).expand(output_hidden_state.size()).float()
+        sum_hidden_states = torch.sum(output_hidden_state * mask, dim=1)
+        sum_mask = torch.clamp(mask.sum(dim=1), min=1e-9)  # avoid division by zero
+        mean_pooled = sum_hidden_states / sum_mask
+
+        # Normalize the embedding
+        normalized_embedding = F.normalize(mean_pooled, p=2, dim=1)
+
+        return normalized_embedding[0].cpu().numpy()
 
     def get_embedding_scalar_float_list(self, text: str) -> List[float]:
         return self.get_embedding_scalar(text).tolist()

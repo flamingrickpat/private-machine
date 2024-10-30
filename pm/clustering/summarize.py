@@ -7,6 +7,7 @@ from pm.agents.extract_facts import extract_facts_from_messages
 from pm.agents.summary import summarize_messages_for_l0_summary
 from pm.agents.summary_summary import summarize_summary_for_ln_summary
 from pm.clustering.agg_clustering import get_agglomerative_clusters_as_dict, get_sliding_window_embedded_messages
+from pm.consts import SUMMARY_MIN_CHAT_LENGTH
 from pm.database.db_helper import fetch_messages_no_summary, fetch_messages, get_padded_subset, insert_object, \
     fetch_summaries, fetch_summaries_no_summary
 from pm.database.db_model import User, Message, Conversation, ConceptualCluster, MessageSummary, Relation, Fact
@@ -15,11 +16,14 @@ from pm.utils.token_utils import quick_estimate_tokens
 
 controller.start()
 
+
 def cluster_and_summarize(conversation_id: str):
     no_summary = fetch_messages_no_summary(conversation_id)
     all = fetch_messages(conversation_id)
+    if len(all) < SUMMARY_MIN_CHAT_LENGTH:
+        return
 
-    subset_plain = all[-256:]
+    subset_plain = all[-SUMMARY_MIN_CHAT_LENGTH:]
     subset = get_sliding_window_embedded_messages(subset_plain)
     clusters = get_agglomerative_clusters_as_dict(subset)
 

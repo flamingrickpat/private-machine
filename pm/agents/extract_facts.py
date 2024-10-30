@@ -1,6 +1,6 @@
 import enum
 import json
-from typing import List
+from typing import List, Literal
 
 from duckdb.duckdb import description
 from pydantic import BaseModel, Field
@@ -82,23 +82,20 @@ example3_assistant = """
 }
 """
 
-
-class FactCategory(str, enum.Enum):
-    User = "user"
-    AiCompanion = "ai_companion"
-    Relationship = "relationship"
-    Environment = "environment"
+categories = [controller.config.user_name.lower(),
+              controller.config.companion_name.lower(),
+              "environment"]
 
 class ExtractedFact(BaseModel):
     """Describes a fact."""
     fact: str = Field(description="text representation of the fact")
-    category: FactCategory = Field(description="fact can either be around the user or the {companion_name}, their relationship or their environment")
-    importance: float = Field(description="how important the fact is. small miniscule facts such as favorite dog breed are lower and important facts such as new job are higher. from 0 to 1.", ge=0, le=1)
+    category: Literal[tuple(categories)] = Field(description=f"category can be '{controller.config.user_name}', '{controller.config.companion_name}' or 'environment'")
+    importance: float = Field(description="how important the fact is. small miniscule facts such as favorite dog breed are lower and important facts such as new job are higher. from 0 to 1.",
+                              ge=0, le=1)
 
 class ExtractedFacts(BaseModel):
     """Container class for the facts."""
     facts: List[ExtractedFact] = Field(description="List of facts.")
-
 
 def extract_facts_from_messages(messages: List[Message]) -> ExtractedFacts:
     message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages])
@@ -130,8 +127,10 @@ def extract_facts_from_messages(messages: List[Message]) -> ExtractedFacts:
     )]
 
     llm = controller.llm.get_langchain_model().bind_tools(tools=[ExtractedFacts])
-    ai_msg = llm.invoke(messages)
-    calls = PydanticToolsParserLocal(tools=[ExtractedFacts]).invoke(ai_msg)
-    if isinstance(calls, list):
-        calls = calls[0]
+    while True:
+        ai_msg = llm.invoke(messages)
+        calls = PydanticToolsParserLocal(tools=[ExtractedFacts]).invoke(ai_msg)
+        if len(calls) > 0:
+            calls = calls[0]
+            break
     return calls
