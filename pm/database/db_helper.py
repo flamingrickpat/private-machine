@@ -1,14 +1,12 @@
 import uuid
-from typing import List, Type, Dict, Any, Tuple
-import re
+from typing import List, Type, Tuple
 
 import pandas as pd
 from lancedb.pydantic import LanceModel
 from pydantic import BaseModel
-from pygments.lexers.srcinfo import keywords
 
-from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation, Fact
 from pm.controller import controller
+from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation, Fact
 
 
 # Initialize the database tables

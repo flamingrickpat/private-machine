@@ -37,6 +37,13 @@ class PromptKeyword(str, Enum):
     StopCache = "<|stop_cache|>"
 
 
+class LlmPreset(str, Enum):
+    Fast = "fast"
+    Default = "default"
+    Good = "good"
+    Best = "best"
+
+
 class LlmModel(BaseModel):
     type: LlmType = Field(default=LlmType.LlamaCpp)
     identifier: str = Field(default_factory=str)

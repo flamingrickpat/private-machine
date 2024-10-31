@@ -1,14 +1,22 @@
 {
-    "model": {
-        "identifier": "model_main",
-        "path": "/path/to/your/Hermes-2-Pro-Llama-3-Instruct-Merged-DPO-F16.gguf",
-        "bos_token": "<|begin_of_text|>",
-        "eos_token": "<|end_of_text|>",
-        "turn_system_token": "<|im_start|>system",
-        "turn_assistant_token": "<|im_start|>assistant",
-        "turn_user_token": "<|im_start|>user",
-        "eot_token": "<|im_end|>",
-        "context_size": 8196
+    "models": [
+        {
+            "identifier": "model_main",
+            "path": "/path/to/your/Hermes-3-Llama-3.1-8B.Q8_0.gguf",
+            "bos_token": "<|begin_of_text|>",
+            "eos_token": "<|end_of_text|>",
+            "turn_system_token": "<|im_start|>system",
+            "turn_assistant_token": "<|im_start|>assistant",
+            "turn_user_token": "<|im_start|>user",
+            "eot_token": "<|im_end|>",
+            "context_size": 8196
+        }
+    ],
+    "model_map": {
+        "fast": "model_main",
+        "default": "model_main",
+        "good": "model_main",
+        "best": "model_main"
     },
     "embedding_model": {
         "identifier": "main",

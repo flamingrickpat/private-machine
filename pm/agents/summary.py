@@ -2,7 +2,7 @@ from typing import List
 
 from pm.controller import controller
 from pm.database.db_model import Message
-from pm.llm.llm import chat_complete
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 sys_prompt = """You are a helpful assistant that summarizes chatlogs for a compact, token-saving storage and later usage.
 Analyze the following chat log between two people, {user_name} and {companion_name}. Your task is to create a concise summary that captures the key points of their conversation, using a neutral tone and third-person narration. Follow these instructions to ensure clarity and accuracy:
@@ -45,6 +45,5 @@ def summarize_messages_for_l0_summary(messages: List[Message]) -> str:
         message_block
     )]
 
-    llm = controller.llm
-    ai_msg = chat_complete(llm, messages)
-    return ai_msg.content
+    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024))
+    return content

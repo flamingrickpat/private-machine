@@ -1,13 +1,11 @@
 import json
 from typing import List
 
-from duckdb.duckdb import description
 from pydantic import BaseModel, Field
 
 from pm.controller import controller
 from pm.database.db_model import Message
-from pm.llm.llm import chat_complete
-from pm.llm.tools_parser_local import PydanticToolsParserLocal
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 sys_prompt = """You are a helpful assistant that determines conversation complexity for the AI.
 Analyze the following chat log between two people, {user_name} and the AI {companion_name}. 
@@ -93,12 +91,7 @@ def determine_complexity(messages: List[Message]) -> float:
         message_block
     )]
 
-    llm = controller.llm
-    llm_with_tools = llm.get_langchain_model().bind_tools([ComplexityResponse])
-
-    full = llm_with_tools.invoke(messages)
-    calls = PydanticToolsParserLocal(tools=[ComplexityResponse]).invoke(full)
-
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=[ComplexityResponse])
     state = {"complexity": 0}
     for call in calls:
         call.execute(state)

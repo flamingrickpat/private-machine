@@ -1,11 +1,13 @@
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, List, Tuple, Type
 
 from lancedb import LanceDBConnection
+from pydantic import BaseModel
 
 from pm.config.config import read_config_file
 from pm.consts import THOUGHT_SEP
 from pm.embedding.transformer_embedding import TransformerEmbedding
+from pm.llm.base_llm import LlmPreset, CommonCompSettings, LlmType
 from pm.llm.llamacpp import LlamaCppLlm
 from pm.log_utils import setup_logger
 from pm.nlp.nlp_spacy import NlpSpacy
@@ -24,7 +26,6 @@ class Controller:
             self.db = LanceDBConnection(self.config.db_path)
             setup_logger("main.log")
             self.llm = LlamaCppLlm(verbose=False)
-            self.llm.set_model(self.config.model)
             self.embedder = TransformerEmbedding()
             self.embedder.set_model(self.config.embedding_model)
             self.embedder_clustering = TransformerEmbedding()
@@ -73,5 +74,46 @@ class Controller:
 
     def get_thought_string_assistant(self, thought: str) -> str:
         return f"**{thought}**\n"
+
+    def completion_tool(self,
+                        preset: LlmPreset,
+                        inp: List[Tuple[str, str]],
+                        comp_settings: CommonCompSettings | None = None,
+                        tools: List[Type[BaseModel]] = None
+                        ) -> (str, List[BaseModel]):
+        if comp_settings is None:
+            comp_settings = CommonCompSettings()
+
+        if tools is None:
+            tools = []
+
+        if len(tools) > 0:
+            comp_settings.tools_json += tools
+
+        model = self.config.get_model(preset)
+        if model.type == LlmType.LlamaCpp:
+            self.llm.set_model(model)
+            response = self.llm.completion(prompt=self.llm.convert_langchain_to_raw_string(inp), comp_settings=comp_settings)
+            content = response.output_sanitized
+
+            models = []
+            for tool in comp_settings.tools_json:
+                try:
+                    obj = tool.model_validate_json(content)
+                    models.append(obj)
+                    break
+                except:
+                    pass
+            return content, models
+        else:
+            raise Exception("not implemented")
+
+    def completion_text(self,
+                        preset: LlmPreset,
+                        inp: List[Tuple[str, str]],
+                        comp_settings: CommonCompSettings | None = None,
+                        ) -> (str, List[BaseModel]):
+        content, models = self.completion_tool(preset, inp, comp_settings)
+        return content
 
 controller = Controller()

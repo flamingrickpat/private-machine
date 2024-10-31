@@ -1,7 +1,7 @@
 from typing import List
 
 from pm.controller import controller
-from pm.llm.llm import chat_complete
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 sys_prompt = """Given the following summaries, create a single, concise summary that captures the essential points shared across them. 
 1. Maintain a neutral, third-person tone, focusing on the primary topic and shared details while avoiding minor specifics or inferred emotions. Use the following guidelines:
@@ -34,6 +34,5 @@ def summarize_summary_for_ln_summary(summary: str) -> str:
         summary
     )]
 
-    llm = controller.llm
-    ai_msg = chat_complete(llm, messages)
-    return ai_msg.content
+    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024))
+    return content

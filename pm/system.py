@@ -1,16 +1,9 @@
 import json
 import logging
-import uuid
-from typing import Literal, TypedDict, Dict, Any, List
+from typing import TypedDict, Dict, List
 
-from lancedb import LanceDBConnection
-from langchain_core.messages import HumanMessage
-from langchain_core.output_parsers import PydanticToolsParser
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables.history import RunnableWithMessageHistory
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
-from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
 from pm.agents.determine_complexity import determine_complexity
@@ -18,19 +11,15 @@ from pm.agents.rewrite_as_thought import rewrite_as_thought
 from pm.agents.tool_selection import determine_tools
 from pm.agents_dynamic.schema_subconscious import get_plan_from_subconscious_agents
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
-from pm.config.config import read_config_file
 from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, \
     fetch_messages_as_string
 from pm.database.db_model import Message, MessageSummary
 from pm.database.load_messages import build_prompt
-from pm.llm.llm import chat_complete
-from pm.llm.tools_parser_local import PydanticToolsParserLocal
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
-from pm.rag.tools import hybrid_search_documentation, RagState, answer_user, add_document
-from pm.utils.misc_utils import get_key_from_value
 
 logger = logging.getLogger(__name__)
 
@@ -67,32 +56,23 @@ def agent_assistant_story_check(state: AgentState) -> AgentState:
     schema = json.dumps(DecideModelMode.model_json_schema())
 
     # add system prompt
-    messages = []
-    messages.append((
+    messages = [(
         "system",
         "Based on the last few messages of this chat between the user and the AI, "
         "decide if the AI should switch to assistant or story mode for the NEXT message!"
         "Assistant mode is for API calls and story mode for natural conversation like between two people."
         f"Decide by creating a valid JSON string, and ONLY a valid JSON string. This is your schema:\n"
         f"{schema}"
-    ))
-
-    messages.append((
+    ), (
         "user",
         f"This is the current chat:"
         f"\n### BEGIN CHAT\n"
         f"{state['current_user_assistant_chat']}"
         f"\n### END CHAT\n"
         f"Decide by creating a valid JSON string, and ONLY a valid JSON string!"
-    ))
+    )]
 
-
-    llm = controller.llm.get_langchain_model()
-    tools = [DecideModelMode]
-    llm_with_tools = llm.bind_tools(tools=tools)
-
-    full = llm_with_tools.invoke(messages)
-    calls = PydanticToolsParserLocal(tools=tools).invoke(full)
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=[DecideModelMode])
     for call in calls:
         call.execute(state)
 
@@ -180,10 +160,9 @@ def agent_completion_assistant(state: AgentState):
         prefix
     ))
 
-    llm = controller.llm
-    ai_msg = chat_complete(llm, messages)
+    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024))
     state["thought"] = thought
-    state["output"] = ai_msg.content.replace("Response:", "").strip()
+    state["output"] = content.replace("Response:", "").strip()
     state["status"] = 0
     return state
 
@@ -203,23 +182,20 @@ def agent_completion_story(state: AgentState):
     message_block = "\n".join([f"{controller.config.user_name if item[0] == 'user' else controller.config.companion_name}: {item[1]}" for item in messages])
 
     # add system prompt
-    messages = []
-    messages.append((
+    messages = [(
         "system",
         build_sys_prompt_conscious_story(state["complexity"] > COMPLEX_THRESHOLD)
-    ))
-
-    # add latest message
-    messages.append((
+    ), (
         "user",
         "Please write a story about endearing experience of an AI and their user."
-    ))
-
-    # add latest message
-    messages.append((
+    ), (
         "assistant",
         message_block
-    ))
+    )]
+
+    # add latest message
+
+    # add latest message
 
     prefix = ""
     thought = ""
@@ -239,14 +215,13 @@ def agent_completion_story(state: AgentState):
         prefix
     ))
 
-    llm = controller.llm
-    llm_lc = llm.get_langchain_model()
-    ai_msg = llm_lc.invoke(messages, stop=[f"{controller.config.user_name}:",
-                                           f"{controller.config.user_name} thinks:",
-                                           f"{controller.config.companion_name}:",
-                                           f"{controller.config.companion_name} thinks:"])
+    sws = [f"{controller.config.user_name}:",
+           f"{controller.config.user_name} thinks:",
+           f"{controller.config.companion_name}:",
+           f"{controller.config.companion_name} thinks:"]
+    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws))
     state["thought"] = thought
-    state["output"] = ai_msg.content
+    state["output"] = content
     state["status"] = 0
     return state
 

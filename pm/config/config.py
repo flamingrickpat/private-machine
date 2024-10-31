@@ -1,15 +1,16 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 import json
 import re
 
 from pydantic import BaseModel, Field, ValidationError
 
-from pm.llm.base_llm import LlmModel
+from pm.llm.base_llm import LlmModel, LlmPreset
 from pm.embedding.base_embedding import EmbeddingModel
 
 class MainConfig(BaseModel):
-    model: LlmModel
+    models: List[LlmModel]
+    model_map: Dict[LlmPreset, str]
     embedding_model: EmbeddingModel
     embedding_model_clustering: EmbeddingModel
     db_path: str = "./.lancedb/"
@@ -18,6 +19,11 @@ class MainConfig(BaseModel):
     character_card_assistant: str
     character_card_story: str
 
+    def get_model(self, preset: LlmPreset) -> LlmModel:
+        for model in self.models:
+            if model.identifier == self.model_map[preset.value]:
+                return model
+        raise Exception("model not configured")
 
 class ConfigError(Exception):
     """Custom exception for configuration errors."""

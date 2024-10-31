@@ -2,13 +2,11 @@ import enum
 import json
 from typing import List
 
-from duckdb.duckdb import description
 from pydantic import BaseModel, Field
 
 from pm.controller import controller
 from pm.database.db_model import Message
-from pm.llm.llm import chat_complete
-from pm.llm.tools_parser_local import PydanticToolsParserLocal
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 sys_prompt = """You are a helpful assistant that determines if the AI should use assistant or story mode for the next model.
 Analyze the following chat log between two people, {user_name} and the AI {companion_name}. 
@@ -99,13 +97,8 @@ def determine_completion_mode(messages: List[Message]) -> CompletionModeResponse
         message_block
     )]
 
-    llm = controller.llm
-    llm_with_tools = llm.get_langchain_model().bind_tools([CompletionModeResponse])
-
-    full = llm_with_tools.invoke(messages)
-    calls = PydanticToolsParserLocal(tools=[CompletionModeResponse]).invoke(full)
-
     state = {"mode": CompletionModeResponseMode.Assistant}
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=[CompletionModeResponse])
     for call in calls:
         call.execute(state)
 

@@ -1,20 +1,18 @@
-import random
-from datetime import datetime
-from typing import List, Type, Tuple, Callable
 import json
 import logging
-from typing import Literal, TypedDict, Dict, Any, List
+from typing import Literal, TypedDict, List
+from typing import Tuple
 
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 
+from pm.agents_dynamic.agent import Agent, AgentMessage
 from pm.agents_dynamic.boss_agent import prompt_boss
+from pm.agents_dynamic.dynamic_subagent import prompt_subagent
 from pm.agents_dynamic.routing_agent import prompt_routing
 from pm.controller import controller
-from pm.llm.tools_parser_local import PydanticToolsParserLocal
-from pm.agents_dynamic.agent import Agent, AgentMessage
-from pm.agents_dynamic.dynamic_subagent import prompt_subagent
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.tools.generate_documentation import create_header_functions, create_documentation_functions, \
     create_documentation_json
 
@@ -131,14 +129,12 @@ def _execute_router(state: SubAgentState, agents: List[Agent]):
         }
         messages.insert(0, ("system", controller.format_str(prompt_routing, extra=extra)))
 
-        # bind tools and function
-        llm = controller.llm
-        llm_lc = llm.get_langchain_model().bind_tools([RouteDecision])
-        ai_msg = llm_lc.invoke(messages)
-
         # handle tools
-        calls = PydanticToolsParserLocal(tools=[RouteDecision]).invoke(ai_msg)
-        calls[0].execute(state)
+        while True:
+            _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=[RouteDecision])
+            if len(calls) > 0:
+                calls[0].execute(state)
+                break
 
     return state
 
@@ -165,14 +161,8 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                 messages = compile_message(agents, agent)
                 messages.insert(0, ("system", agent.system_prompt))
 
-                # bind tools and function
-                llm = controller.llm
-                llm_lc = llm.get_langchain_model().bind_tools(agent.tools)
-                ai_msg = llm_lc.invoke(messages)
-
-                # handle tools
-                tool_res_list = []  # contains the result dicts or lists
-                calls = PydanticToolsParserLocal(tools=agent.tools).invoke(ai_msg)
+                tool_res_list = []
+                content, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=agent.tools)
                 for call in calls:
                     tool_res_list.append(call.execute(state))
 
@@ -186,7 +176,7 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
 
                 # add text responses, make tool call private
                 agent.messages.append(AgentMessage(
-                    text=ai_msg.content,
+                    text=content,
                     public=len(tool_res_list) == 0
                 ))
 

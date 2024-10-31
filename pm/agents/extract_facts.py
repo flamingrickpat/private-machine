@@ -1,14 +1,11 @@
-import enum
 import json
 from typing import List, Literal
 
-from duckdb.duckdb import description
 from pydantic import BaseModel, Field
 
 from pm.controller import controller
 from pm.database.db_model import Message
-from pm.llm.llm import chat_complete
-from pm.llm.tools_parser_local import PydanticToolsParserLocal
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 sys_prompt = """You are a helpful assistant that extracts facts from a conversation.
 These facts are supposed to enable querying a vector store with keywords for information in a quick and efficient way.
@@ -125,11 +122,8 @@ def extract_facts_from_messages(messages: List[Message]) -> ExtractedFacts:
         "user",
         message_block
     )]
-
-    llm = controller.llm.get_langchain_model().bind_tools(tools=[ExtractedFacts])
     while True:
-        ai_msg = llm.invoke(messages)
-        calls = PydanticToolsParserLocal(tools=[ExtractedFacts]).invoke(ai_msg)
+        _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=[ExtractedFacts])
         if len(calls) > 0:
             calls = calls[0]
             break

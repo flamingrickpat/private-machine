@@ -23,7 +23,6 @@ import tqdm
 from pm.llm.base_llm import (Llm, LlmModel, CommonCompSettings, CompletionResult, CompletionStopReason, ToolResult,
                              ToolResultStatus, ToolResultList)
 from pm.utils.string_utils import list_ends_with, truncate_after_last_period, find_python_functions_in_text
-from pm.llm.lc_llamacpp import ChatLlamaCppCustom
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +133,7 @@ class LlamaCppLlm(Llm):
         self.verbose: bool = verbose
 
     def convert_langchain_to_raw_string(self, prompt: List[Tuple[str, str]]) -> str:
+        self._internal_set_model()
         raw_string = self._detokenize(self.bos_token, special=True)
 
         # Loop through the prompt, processing each (role, message) tuple
@@ -201,44 +201,6 @@ class LlamaCppLlm(Llm):
 
             self.new_line_token = self._tokenize("\n")
             self._initialize_tokens()
-
-    def get_langchain_model(self, comp_settings: Union[CommonCompSettings, None,] = None) -> ChatLlamaCppCustom:
-        self._internal_set_model()
-
-        base_settings = {
-            "top_k": self.model_settings.default_top_k,
-            "top_p": self.model_settings.default_top_p,
-            "temp": self.model_settings.default_temperature,
-            "repeat_penalty": self.model_settings.default_repeat_penalty
-        }
-        if comp_settings is None:
-            comp_settings = CommonCompSettings()
-
-        if comp_settings.top_k is not None:
-            base_settings["top_k"] = comp_settings.top_k
-        if comp_settings.top_p is not None:
-            base_settings["top_p"] = comp_settings.top_p
-        if comp_settings.temperature is not None:
-            base_settings["temp"] = comp_settings.temperature
-        if comp_settings.repeat_penalty is not None:
-            base_settings["repeat_penalty"] = comp_settings.repeat_penalty
-
-        res = ChatLlamaCppCustom(
-            temperature=base_settings["temp"],
-            name="model",
-            model_path="C:/model.gguf",
-            n_ctx=self.model_settings.context_size,
-            n_gpu_layers=-1,
-            n_batch=512,
-            max_tokens=comp_settings.max_tokens,
-            n_threads=1,
-            repeat_penalty=base_settings["repeat_penalty"],
-            top_p=base_settings["top_p"],
-            top_k=base_settings["top_k"],
-            verbose=False
-        )
-        res.set_client(self)
-        return res
 
     def _initialize_tokens(self):
         token_fields = [

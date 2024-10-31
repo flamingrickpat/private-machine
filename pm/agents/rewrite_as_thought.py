@@ -1,7 +1,5 @@
-from typing import List
 from pm.controller import controller
-from pm.database.db_model import Message
-from pm.llm.llm import chat_complete
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 sys_prompt = """
 You are an introspective thinker who interprets directives into detailed internal thoughts. Analyze the instruction provided to you that may be explicit ("Nova should say...") or implicit (direct phrasing). Your task is to convert these instructions into an internal thought process, articulated in first-person narration. Follow these guidelines to ensure thoughtful and reflective interpretation:
@@ -37,7 +35,6 @@ def rewrite_as_thought(instruction: str, max_sentences_in: int = 3, max_sentence
     instruction = ".".join(instruction.split(".")[:max_sentences_in])
 
     formatted_prompt = controller.format_str(sys_prompt)
-    llm = controller.llm
     messages = [
         ("system", formatted_prompt),
         ("user", example_user_1),
@@ -52,6 +49,5 @@ def rewrite_as_thought(instruction: str, max_sentences_in: int = 3, max_sentence
         ("assistant", example_assistant_5),
         ("user", instruction)
     ]
-    ai_msg = chat_complete(llm, messages)
-    full_thought = ai_msg.content
+    full_thought = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024))
     return ".".join(full_thought.split(".")[:max_sentences_out]) + ". "

@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field
 
 from pm.controller import controller
 from pm.database.db_model import Message
-from pm.llm.llm import chat_complete
-from pm.llm.tools_parser_local import PydanticToolsParserLocal
+
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.tools.common import tools_list, tool_docs
 
 # Define tool functions with Pydantic models and simple logging for execution
@@ -99,11 +99,7 @@ def determine_tools(messages: List[Message]) -> List[str]:
         message_block
     )]
 
-    llm = controller.llm
-    llm_with_tools = llm.get_langchain_model().bind_tools([ToolResponse])
-
-    full = llm_with_tools.invoke(messages)
-    calls = PydanticToolsParserLocal(tools=[ToolResponse]).invoke(full)
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=[ToolResponse])
 
     state = {"tool_names": []}
     for call in calls:
