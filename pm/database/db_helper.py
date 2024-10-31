@@ -5,8 +5,10 @@ import pandas as pd
 from lancedb.pydantic import LanceModel
 from pydantic import BaseModel
 
+from pm.consts import INIT_MESSAGE
 from pm.controller import controller
 from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation, Fact
+from pm.utils.token_utils import quick_estimate_tokens
 
 
 # Initialize the database tables
@@ -70,6 +72,19 @@ def start_conversation(user_id: str, override_id: str | None = None) -> Conversa
         session_id=uuid.uuid4().hex
     )
     controller.db.open_table(Conversation.table).add([conversation])
+
+    init_message = controller.format_str(INIT_MESSAGE)
+    msg_init = Message(
+        id=str(uuid.uuid4()),
+        conversation_id=override_id,
+        role='system',
+        text=init_message,
+        public=True,
+        embedding=controller.embedder.get_embedding_scalar_float_list(init_message),
+        tokens=quick_estimate_tokens(init_message)
+    )
+    controller.db.open_table(Message.table).add([msg_init])
+
     return conversation
 
 

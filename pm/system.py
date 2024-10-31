@@ -9,9 +9,11 @@ from pm.agents.completion_mode import determine_completion_mode, CompletionModeR
 from pm.agents.determine_complexity import determine_complexity
 from pm.agents.rewrite_as_thought import rewrite_as_thought
 from pm.agents.tool_selection import determine_tools
+from pm.agents.validate_response import validate_response
+from pm.agents.validate_thought import validate_thought
 from pm.agents_dynamic.schema_subconscious import get_plan_from_subconscious_agents
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
-from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES
+from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, \
     fetch_messages_as_string
@@ -27,6 +29,7 @@ logger = logging.getLogger(__name__)
 class AgentState(TypedDict):
     next_agent: str
     input: str
+    plan: str
     thought: str
     output: str
     title: str
@@ -125,8 +128,27 @@ def agent_preprocess_input(state: AgentState):
     state["complexity"] = determine_complexity(msgs)
     state["available_tools"] = determine_tools(msgs)
     state["completion_mode"] = determine_completion_mode(msgs).value
+    state["thought"] = ""
+
     return state
 
+def agent_generate_thought(state: AgentState):
+    full_text = fetch_messages_as_string(state["conversation_id"])
+    query = full_text[-256:]
+
+    plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
+    state["plan"] = plan
+    while True:
+        thought = rewrite_as_thought(plan, max_sentences_in=4, max_sentences_out=4)
+        validness = validate_thought(thought)
+        if validness > THOUGHT_VALIDNESS_MIN:
+            state["thought"] = thought
+            break
+
+    return state
+
+def agent_completion(state: AgentState):
+    return state
 
 def agent_completion_assistant(state: AgentState):
     full_text = fetch_messages_as_string(state["conversation_id"])
@@ -150,9 +172,8 @@ def agent_completion_assistant(state: AgentState):
 
     prefix = ""
     thought = ""
-    if state["complexity"] > COMPLEX_THRESHOLD:
-        plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
-        thought = rewrite_as_thought(plan, max_sentences_in=3, max_sentences_out=2)
+    if state["thought"] != "":
+        thought = state["thought"]
         prefix = controller.get_thought_string_assistant(thought)
 
     messages.append((
@@ -160,10 +181,14 @@ def agent_completion_assistant(state: AgentState):
         prefix
     ))
 
-    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024))
-    state["thought"] = thought
-    state["output"] = content.replace("Response:", "").strip()
-    state["status"] = 0
+    while True:
+        content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024)).replace("Response:", "").strip()
+        validness = validate_response(content)
+        if validness > RESPONSE_VALIDNESS_MIN:
+            state["output"] = content
+            state["status"] = 0
+            break
+
     return state
 
 def agent_completion_story(state: AgentState):
@@ -194,20 +219,15 @@ def agent_completion_story(state: AgentState):
     )]
 
     # add latest message
-
-    # add latest message
-
     prefix = ""
     thought = ""
-    if state["complexity"] > COMPLEX_THRESHOLD:
-        plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
-
+    if state["thought"] != "":
+        plan = state["plan"]
         messages.append((
             "user",
             plan
         ))
-
-        thought = rewrite_as_thought(plan, max_sentences_in=2, max_sentences_out=2)
+        thought = state["thought"]
         prefix = controller.get_thought_string_story(thought)
 
     messages.append((
@@ -219,10 +239,13 @@ def agent_completion_story(state: AgentState):
            f"{controller.config.user_name} thinks:",
            f"{controller.config.companion_name}:",
            f"{controller.config.companion_name} thinks:"]
-    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws))
-    state["thought"] = thought
-    state["output"] = content
-    state["status"] = 0
+    while True:
+        content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws))
+        validness = validate_response(content)
+        if validness > RESPONSE_VALIDNESS_MIN:
+            state["output"] = content
+            state["status"] = 0
+            break
     return state
 
 
@@ -233,6 +256,13 @@ def task_delegate_func(state: AgentState):
         return "agent_task_converse"
     else:
         return "agent_commit_transaction"
+
+
+def complexity_switch_func(state: AgentState):
+    if state["complexity"] > COMPLEX_THRESHOLD:
+        return "agent_generate_thought"
+    else:
+        return "agent_completion"
 
 
 def completion_select_func(state: AgentState):
@@ -255,6 +285,9 @@ def get_graph():
     workflow.add_node("agent_completion_assistant", agent_completion_assistant)
     workflow.add_node("agent_completion_story", agent_completion_story)
 
+    workflow.add_node("agent_generate_thought", agent_generate_thought)
+    workflow.add_node("agent_completion", agent_completion)
+
     workflow.add_edge(START, "agent_start_transaction")
     workflow.add_edge("agent_start_transaction", "agent_tasks_create")
     workflow.add_edge("agent_tasks_create", "agent_tasks_delegate")
@@ -262,7 +295,10 @@ def get_graph():
     workflow.add_edge("agent_task_summarize", "agent_tasks_delegate")
     workflow.add_edge("agent_task_converse", "agent_preprocess_input")
     #workflow.add_edge("agent_preprocess_input", "agent_completion_assistant")
-    workflow.add_conditional_edges("agent_preprocess_input", completion_select_func)
+    workflow.add_conditional_edges("agent_preprocess_input", complexity_switch_func)
+    workflow.add_edge("agent_generate_thought", "agent_completion")
+
+    workflow.add_conditional_edges("agent_completion", completion_select_func)
     workflow.add_edge("agent_completion_assistant", "agent_tasks_delegate")
     workflow.add_edge("agent_commit_transaction", END)
     #workflow.add_edge("determine_complexity", "determine_conversation_mode")
