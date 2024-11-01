@@ -13,6 +13,7 @@ I'm testing with ``Hermes-3-Llama-3.1-8B.Q8_0.gguf`` and it seems good enough, m
 - **Subconscious Agents**: A team of agents with langchain discuss what the best response would be for the AI companion. They may search the LanceDB memory and fact storage.
 - **Internal Thought**: The output of the agents is converted to first-person thought and injected into the prompt before the final response to the user.
 - **Assistant and story mode**: Seamlessly switches between assistant and RP mode. For either enhanced tool calling or more realistic and in-depth conversation.
+- **Error Correction**: Agents handle and discard hallucinations and plain garbage.
 
 ## Installation
 - Make venv with Python 3.11
@@ -23,6 +24,9 @@ I'm testing with ``Hermes-3-Llama-3.1-8B.Q8_0.gguf`` and it seems good enough, m
 - Adapt the config.json with your character cards (first person for assistant mode, third person for story mode) and preferred model
 - Optionally insert synthetic data into the database by running ``init_from_data.py``
 - Start the webui with ``streamlit run app.py``
+
+## Cognitive Architecture
+![graph](./cognitive_architecture_v1.drawio.png)
 
 ## Warranty
 NO WARRANTY
