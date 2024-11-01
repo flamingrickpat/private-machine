@@ -34,5 +34,5 @@ def summarize_summary_for_ln_summary(summary: str) -> str:
         summary
     )]
 
-    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024))
+    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.4))
     return content

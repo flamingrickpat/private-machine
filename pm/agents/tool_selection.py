@@ -99,7 +99,7 @@ def determine_tools(messages: List[Message]) -> List[str]:
         message_block
     )]
 
-    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=[ToolResponse])
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.1), tools=[ToolResponse])
 
     state = {"tool_names": []}
     for call in calls:

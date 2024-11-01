@@ -45,5 +45,5 @@ def summarize_messages_for_l0_summary(messages: List[Message]) -> str:
         message_block
     )]
 
-    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024))
+    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.4))
     return content

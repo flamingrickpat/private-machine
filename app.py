@@ -7,7 +7,7 @@ from lancedb import LanceDBConnection
 
 from pm.consts import THOUGHT_SEP
 from pm.database.db_model import User, Message, Conversation
-from pm.system import AgentState, make_completion
+from pm.architecture.system import AgentState, make_completion
 from pm.config.config import read_config_file, MainConfig
 from pm.controller import controller
 from pm.database.db_helper import init_db, login_user, start_conversation, fetch_conversations, fetch_messages

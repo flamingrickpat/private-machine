@@ -109,7 +109,7 @@ def validate_response(response: str) -> float:
     ]
 
     # Call the LLM for response validation
-    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=[ResponseValidation])
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0), tools=[ResponseValidation])
     state = {"validness": 0}
     for call in calls:
         call.execute(state)

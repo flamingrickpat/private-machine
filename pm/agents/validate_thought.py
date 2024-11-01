@@ -2,6 +2,7 @@ import json
 from typing import List
 
 from pydantic import BaseModel, Field
+from sympy.physics.units import temperature
 
 from pm.controller import controller
 from pm.database.db_model import Message
@@ -155,7 +156,7 @@ def validate_thought(thought: str) -> float:
     ]
 
     # Call the LLM for thought validation
-    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=[ThoughtValidation])
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0), tools=[ThoughtValidation])
     state = {"validness": 0}
     for call in calls:
         call.execute(state)
