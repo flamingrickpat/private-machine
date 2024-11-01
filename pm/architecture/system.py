@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from pm.architecture.state import AgentState
 from pm.architecture.system_response import add_response_system_to_graph
+from pm.architecture.system_thought import add_thought_system_to_graph
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN
 from pm.controller import controller
@@ -18,8 +19,10 @@ def agent_start_transaction(state: AgentState):
 
 def agent_tasks_create(state: AgentState):
     state["task"] = []
-    if state["input"] != "":
+    if state["input"].strip() != "":
         state["task"].append("task_converse")
+    if state["input"].strip() == "":
+        state["task"].append("task_think")
     if len(fetch_messages_no_summary(state["conversation_id"])) > RECALC_SUMMARIES_MESSAGES:
         state["task"].append("task_summarize")
     if len(state["task"]) == 0:
@@ -45,11 +48,19 @@ def agent_task_converse_start(state: AgentState):
 def agent_task_converse_end(state: AgentState):
     return state
 
+def agent_task_think_start(state: AgentState):
+    return state
+
+def agent_task_think_end(state: AgentState):
+    return state
+
 def task_delegate_func(state: AgentState):
     if "task_summarize" in state["task"]:
         return "agent_task_summarize"
     elif "task_converse" in state["task"]:
         return "agent_task_converse_start"
+    elif "task_think" in state["task"]:
+        return "agent_task_think_start"
     else:
         return "agent_commit_transaction"
 
@@ -66,6 +77,9 @@ def get_graph():
     workflow.add_node("agent_task_converse_start", agent_task_converse_start)
     workflow.add_node("agent_task_converse_end", agent_task_converse_end)
 
+    workflow.add_node("agent_task_think_start", agent_task_think_start)
+    workflow.add_node("agent_task_think_end", agent_task_think_end)
+
     workflow.add_node("agent_commit_transaction", agent_commit_transaction)
 
     # edges
@@ -79,7 +93,7 @@ def get_graph():
 
     # response system
     add_response_system_to_graph(workflow, "agent_task_converse_start", "agent_task_converse_end")
-
+    add_thought_system_to_graph(workflow, "agent_task_think_start", "agent_task_think_end")
     graph = workflow.compile()
 
     return graph

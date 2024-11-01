@@ -18,6 +18,7 @@ class MainConfig(BaseModel):
     companion_name: str
     character_card_assistant: str
     character_card_story: str
+    initial_character_memory: List[str] = Field(default_factory=list)
 
     def get_model(self, preset: LlmPreset) -> LlmModel:
         for model in self.models:

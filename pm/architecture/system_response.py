@@ -1,7 +1,9 @@
 import json
 import logging
 from typing import TypedDict, Dict, List
+
 from langgraph.graph import StateGraph
+
 from pm.agents.assistant_story_check import assistant_story_check
 from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
 from pm.agents.determine_complexity import determine_complexity
@@ -10,7 +12,7 @@ from pm.agents.tool_selection import determine_tools
 from pm.agents.validate_response import validate_response
 from pm.agents.validate_thought import validate_thought
 from pm.agents_dynamic.schema_subconscious import get_plan_from_subconscious_agents
-from pm.architecture.system import AgentState
+from pm.architecture.state import AgentState
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN
 from pm.controller import controller

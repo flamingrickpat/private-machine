@@ -222,7 +222,7 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], 
 
     # format prompts
     for agent in agents:
-        if agent.system_prompt == "":
+        if agent.system_prompt is None:
             agent.system_prompt = prompt_subagent
 
         extra = {

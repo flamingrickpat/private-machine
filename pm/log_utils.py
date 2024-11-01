@@ -5,16 +5,20 @@ from logging import Filter
 
 class SingleLineFormatter(logging.Formatter):
     """
-    Custom formatter to replace newlines in log messages with literal \n and align module names.
+    Custom formatter to replace newlines in log messages with literal \n
+    and indent subsequent lines to align with the beginning of the first line.
     """
 
     def format(self, record):
         # Call the default formatter to get the message
         original_message = super().format(record)
 
-        # Replace all newlines with the literal string '\n'
-        single_line_message = original_message.replace('\n', '\\n')
-        return single_line_message
+        # Determine the initial indentation based on the prefix (up to the message content)
+        initial_indent = ' ' * (len(self.formatTime(record)) + 3 + 15 + 3 + len(record.levelname) + 3)  # Adjust width as per format
+
+        # Replace all newlines with \n and indent subsequent lines
+        formatted_message = original_message.replace('\n', f'\n{initial_indent}')
+        return formatted_message
 
 
 class NoHttpRequestFilter(Filter):

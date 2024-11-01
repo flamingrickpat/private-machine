@@ -85,6 +85,18 @@ def start_conversation(user_id: str, override_id: str | None = None) -> Conversa
     )
     controller.db.open_table(Message.table).add([msg_init])
 
+    for memory in controller.config.initial_character_memory:
+        f = Fact(
+            id=str(uuid.uuid4()),
+            conversation_id="main",
+            text=memory,
+            importance=0.5,
+            embedding=controller.embedder.get_embedding_scalar_float_list(memory),
+            category=controller.config.user_name.lower(),
+            tokens=quick_estimate_tokens(memory),
+        )
+        insert_object(f)
+
     return conversation
 
 

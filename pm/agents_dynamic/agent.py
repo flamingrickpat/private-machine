@@ -12,9 +12,9 @@ class AgentMessage(BaseModel):
 
 class Agent(BaseModel):
     name: str
-    system_prompt: str = Field(default_factory=str)
+    system_prompt: str | None = Field(default=None)
     description: str
-    goal: str
+    goal: str = Field(default_factory=str)
     task: str = Field(default_factory=str)
     tools: List[Type[BaseModel]] = Field(default_factory=list)
     functions: List[Callable] = Field(default_factory=list)

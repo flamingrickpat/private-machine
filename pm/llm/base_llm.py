@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field, validator
 from typing import List, Union, Dict, Any, Optional, Callable
 from enum import Enum
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,13 @@ class LlmModel(BaseModel):
         }
         return res
 
+    def insert_newlines_after_special_tokens(self, text: str) -> str:
+        tokens = self.get_tokens_for_tempalte()
+        for token_name, token in tokens.items():
+            if token:  # Only if the token is set
+                # Use regex to replace the token with itself followed by a newline
+                text = re.sub(re.escape(token), f"{token}\n", text)
+        return text
 
 class CommonCompSettings(BaseModel):
     max_tokens: int = Field(default=128)

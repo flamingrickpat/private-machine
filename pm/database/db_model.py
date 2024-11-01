@@ -28,12 +28,12 @@ class Message(LanceModel):
     conversation_id: str # conversation guid
     created_at: datetime = Field(default_factory=datetime.utcnow)
     world_time: datetime = Field(default_factory=datetime.now)
-
     role: str # user or assistant
     public: bool # public or internal thought
     text: str # content
     embedding: Vector(1024) # embedding
     tokens: int # rough token count
+    interlocus: int = Field(default=1) # -1 = purely internal, 0 = internal thought about conversation, 1 = message
 
     def __eq__(self, other):
         if isinstance(other, Message):
