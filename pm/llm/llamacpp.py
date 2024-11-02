@@ -279,7 +279,7 @@ class LlamaCppLlm(Llm):
             os.environ["LMFE_STRICT_JSON_FIELD_ORDER"] = "1"
             tokenizer_data = build_token_enforcer_tokenizer_data(self.llama)
             schema = comp_settings.tools_json[0].schema()
-            #logger.info(f"Using schema: {schema}")
+            logger.info(f"Using schema: {schema}")
             character_level_parser = JsonSchemaParser(json_schema=schema)
             character_level_parser.config.force_json_field_order = True
 
@@ -296,7 +296,7 @@ class LlamaCppLlm(Llm):
             os.environ["LMFE_STRICT_JSON_FIELD_ORDER"] = "1"
             tokenizer_data = build_token_enforcer_tokenizer_data(self.llama)
             schema = comp_settings.tools_json_optional[0].schema()
-            #logger.info(f"Using schema: {schema}")
+            logger.info(f"Using schema: {schema}")
             character_level_parser = JsonSchemaParser(json_schema=schema)
             character_level_parser.config.force_json_field_order = True
 
@@ -328,9 +328,6 @@ class LlamaCppLlm(Llm):
 
         if use_prompt_template and self.state is None:
             raise Exception("No saved state!")
-
-        inline_prompt = prompt.replace("\n", "\\n")
-        #logger.info(f"Prompt: {inline_prompt}")
 
         result = CompletionResult()
         result.user_prompt_raw = prompt
@@ -557,8 +554,7 @@ class LlamaCppLlm(Llm):
         result.output_sanitized = result.output_sanitized.strip()
         result.output_sanitized_inline = result.output_sanitized.replace("\n", "\\n")
 
-        logger.info(self.model_settings.insert_newlines_after_special_tokens(result.output_raw))
-        #logger.info(f"Output: {result.output_sanitized_inline}")
+        logger.info(self.model_settings.insert_newlines_after_special_tokens(result.full_text_raw))
         result.parse_structure()
 
         return result

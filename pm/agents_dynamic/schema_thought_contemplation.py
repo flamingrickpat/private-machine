@@ -7,6 +7,7 @@ from pm.agents.generate_thought_aspects import PersonalityAspects
 from pm.controller import controller
 from pm.database.db_helper import get_facts
 from pm.agents_dynamic.agent_manager import Agent, execute_boss_worker_chat
+from pm.llm.base_llm import CommonCompSettings
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ def thought_contemplation_dialog(context: str, goal: str, aspects: PersonalityAs
                    f"{aspects.aspects[i].perspective}"
                    f"These are your core qualities:"
                    f"{aspects.aspects[i].core_quality}"
-                   f"Discuss with these aspect of yourself another aspect of yourself.")
+                   f"Discuss with these aspect of yourself another aspect of yourself. Please keep your responses short and concise.")
 
         # Pessimistic Agent
         agents.append(Agent(
@@ -39,9 +40,13 @@ def thought_contemplation_dialog(context: str, goal: str, aspects: PersonalityAs
             description=f"{controller.config.companion_name} - {aspects.aspects[i].title}",
             system_prompt=prompt,
             tools=[],
-            functions=[]
+            functions=[],
+            comp_settings=CommonCompSettings(
+                temperature=0.7,
+                max_tokens=128
+            )
         ))
 
     # Execute the boss-worker chat with the agents
-    result = execute_boss_worker_chat(context, goal, agents, min_confidence=0.95)
+    result = execute_boss_worker_chat(context, goal, agents, min_confidence=0.85)
     return result["conclusion"]

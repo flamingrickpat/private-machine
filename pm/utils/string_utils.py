@@ -55,3 +55,15 @@ class StringConstant(metaclass=StringConstantMeta):
         elif isinstance(item, tuple) and len(item) == 2:
             return cls.add(*item)
         raise ValueError("Invalid item format")
+
+
+def truncate_to_last_full_sentence(text):
+    # Find the position of the last full stop
+    last_period_index = text.rfind('.')
+
+    # If there's no period in the text, return the entire text
+    if last_period_index == -1:
+        return text
+
+    # Return the text up to and including the last full stop
+    return text[:last_period_index + 1]

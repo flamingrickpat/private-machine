@@ -144,7 +144,7 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
     Dynamically execute the current agent. They all follow the same pattern.
     """
     cur_agent = state["next_agent"]
-    agent = next(filter(lambda x: x.name == cur_agent, agents), None)
+    agent: Agent = next(filter(lambda x: x.name == cur_agent, agents), None)
     if not agent:
         return state
 
@@ -161,8 +161,10 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                 messages = compile_message(agents, agent)
                 messages.insert(0, ("system", agent.system_prompt))
 
+                comp_settings = agent.comp_settings if agent.comp_settings else CommonCompSettings(max_tokens=1024)
+
                 tool_res_list = []
-                content, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024), tools=agent.tools)
+                content, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=comp_settings, tools=agent.tools)
                 for call in calls:
                     tool_res_list.append(call.execute(state))
 

@@ -3,6 +3,8 @@ from typing import List, Type, Callable
 
 from pydantic import BaseModel, Field
 
+from pm.llm.base_llm import CommonCompSettings
+
 
 class AgentMessage(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
@@ -19,3 +21,4 @@ class Agent(BaseModel):
     tools: List[Type[BaseModel]] = Field(default_factory=list)
     functions: List[Callable] = Field(default_factory=list)
     messages: List[AgentMessage] = Field(default_factory=list)
+    comp_settings: CommonCompSettings | None = Field(default=None)
