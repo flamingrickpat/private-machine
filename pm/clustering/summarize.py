@@ -47,9 +47,7 @@ def cluster_and_summarize(conversation_id: str):
 
             if do_summarize:
                 summary = summarize_messages_for_l0_summary(cur_cluster_list)
-                summary_id = str(uuid.uuid4())
                 cluster = MessageSummary(
-                    id=summary_id,
                     conversation_id=conversation_id,
                     level=0,
                     text=summary,
@@ -58,12 +56,12 @@ def cluster_and_summarize(conversation_id: str):
                     world_time_begin=cur_cluster_list[0].world_time - datetime.timedelta(seconds=1),
                     world_time_end=cur_cluster_list[-1].world_time
                 )
+                summary_id = cluster.id
                 insert_object(cluster)
 
                 facts = extract_facts_from_messages(cur_cluster_list)
                 for fact in facts.facts:
                     f = Fact(
-                        id=str(uuid.uuid4()),
                         conversation_id=conversation_id,
                         text=fact.fact,
                         importance=fact.importance,
@@ -115,9 +113,7 @@ def high_level_summarize(conversation_id: str):
                 summary = summarize_summary_for_ln_summary(block)
                 cur_cnt += 1
 
-                summary_id = str(uuid.uuid4())
                 cluster = MessageSummary(
-                    id=summary_id,
                     conversation_id=conversation_id,
                     level=cur_level,
                     text=summary,
@@ -126,6 +122,7 @@ def high_level_summarize(conversation_id: str):
                     world_time_begin=cur_summaries[0].world_time - datetime.timedelta(seconds=1),
                     world_time_end=cur_summaries[-1].world_time
                 )
+                summary_id = cluster.id
                 insert_object(cluster)
 
                 for cur_sum in cur_summaries:

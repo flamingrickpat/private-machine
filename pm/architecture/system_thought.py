@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 def agent_generate_int_thoughts(state: AgentState):
     sysmsg = "The user hasn't responded yet, entering autonomous thinking mode..."
     msg_init = Message(
-        id=str(uuid.uuid4()),
         conversation_id=state["conversation_id"],
         role='system',
         text=sysmsg,

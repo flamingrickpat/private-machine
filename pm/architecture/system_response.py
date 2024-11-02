@@ -55,7 +55,7 @@ def agent_generate_thought(state: AgentState):
     plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
     state["plan"] = plan
     while True:
-        thought = rewrite_as_thought(plan, max_sentences_in=4, max_sentences_out=4)
+        thought = rewrite_as_thought(f"{query}\n{plan}", max_sentences_in=4, max_sentences_out=4)
         validness = validate_thought(thought)
         if validness > THOUGHT_VALIDNESS_MIN:
             state["thought"] = thought
@@ -99,7 +99,7 @@ def agent_completion_assistant(state: AgentState):
 
     while True:
         content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024)).replace("Response:", "").strip()
-        validness = validate_response(content)
+        validness = validate_response(f"{query}\n{content}")
         if validness > RESPONSE_VALIDNESS_MIN:
             state["output"] = content
             state["status"] = 0
@@ -157,7 +157,7 @@ def agent_completion_story(state: AgentState):
            f"{controller.config.companion_name} thinks:"]
     while True:
         content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws))
-        validness = validate_response(content)
+        validness = validate_response(f"{query}\n{content}")
         if validness > RESPONSE_VALIDNESS_MIN:
             state["output"] = content
             state["status"] = 0

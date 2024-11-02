@@ -9,13 +9,13 @@ def get_guid():
     return str(uuid.uuid4())
 
 class User(LanceModel):
-    id: str
+    id: str = Field(default_factory=get_guid)
     username: str
     password: str
 User.table = "User"
 
 class Conversation(LanceModel):
-    id: str
+    id: str = Field(default_factory=get_guid)
     title: str = Field(default_factory=str)
     user_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -24,7 +24,7 @@ class Conversation(LanceModel):
 Conversation.table = "Conversation"
 
 class Message(LanceModel):
-    id: str # guid
+    id: str = Field(default_factory=get_guid)
     conversation_id: str # conversation guid
     created_at: datetime = Field(default_factory=datetime.utcnow)
     world_time: datetime = Field(default_factory=datetime.now)
@@ -111,7 +111,7 @@ class ConceptualCluster(LanceModel):
 ConceptualCluster.table = "ConceptualCluster"
 
 class Fact(LanceModel):
-    id: str # guid
+    id: str = Field(default_factory=get_guid)
     conversation_id: str # conversation guid
     created_at: datetime = Field(default_factory=datetime.utcnow)
     world_time: datetime = Field(default_factory=datetime.now)

@@ -53,7 +53,6 @@ def login_user(username: str, password: str) -> User:
         return user[0]
     else:
         new_user = User(
-            id=str(uuid.uuid4()),
             username=username,
             password=password
         )
@@ -75,7 +74,6 @@ def start_conversation(user_id: str, override_id: str | None = None) -> Conversa
 
     init_message = controller.format_str(INIT_MESSAGE)
     msg_init = Message(
-        id=str(uuid.uuid4()),
         conversation_id=override_id,
         role='system',
         text=init_message,
@@ -87,7 +85,6 @@ def start_conversation(user_id: str, override_id: str | None = None) -> Conversa
 
     for memory in controller.config.initial_character_memory:
         f = Fact(
-            id=str(uuid.uuid4()),
             conversation_id="main",
             text=memory,
             importance=0.5,
