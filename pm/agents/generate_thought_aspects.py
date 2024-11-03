@@ -83,7 +83,7 @@ class PersonalityAspect(BaseModel):
 
 class PersonalityAspects(BaseModel):
     """Container class for two personality aspects."""
-    aspects: List[PersonalityAspect] = Field(description="List of two contrasting personality aspects.")
+    aspects: List[PersonalityAspect] = Field(description="List of two contrasting personality aspects. Must be exactly 2 aspects, not more!")
 
 def generate_personality_aspects(character_card: str, thought: str) -> PersonalityAspects:
     input_data = f"Character Card: {character_card}\nThought: {thought}"
@@ -110,5 +110,5 @@ def generate_personality_aspects(character_card: str, thought: str) -> Personali
 
     while True:
         _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.6), tools=[PersonalityAspects])
-        if len(calls) > 0 and len(calls[0].aspects) == 2:
+        if len(calls) > 0 and len(calls[0].aspects) >= 2:
             return calls[0]

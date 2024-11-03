@@ -135,24 +135,50 @@ class LlamaCppLlm(Llm):
         self.new_line_token: List[int] = []
         self.verbose: bool = verbose
 
-    def convert_langchain_to_raw_string(self, prompt: List[Tuple[str, str]], join_same_role: bool = True) -> str:
+    def convert_langchain_to_raw_string(self, prompt: List[Tuple[str, str]], comp_settings: CommonCompSettings, join_same_role: bool = True) -> str:
         self._internal_set_model()
+        context_size = self.model_settings.context_size
+        max_generation_tokens = comp_settings.max_tokens
+
         raw_string = self._detokenize(self.bos_token, special=True)
 
+        # Add the system prompt without modification
         last_role = ""
         accumulated_message = ""
+        effective_prompt = []
+        total_token_count = 0
 
+        # Process each part of the prompt
         for i, (role, message) in enumerate(prompt):
+            if role == "system":
+                # Add system token directly to the raw_string
+                raw_string += self._detokenize(self.turn_system_token, special=True) + "\n" + message.strip() + self._detokenize(self.eot_token, special=True) + "\n"
+            else:
+                # Tokenize the message and calculate its token count
+                message_tokens = self._tokenize(message, special=False)
+                effective_prompt.append((role, message_tokens))
+                total_token_count += len(message_tokens)
+
+        # Calculate the max allowed tokens for the effective prompt (excluding system prompt)
+        max_allowed_tokens = context_size - max_generation_tokens - len(self._tokenize(raw_string, special=True))
+
+        # Trim messages from the start if the effective prompt exceeds the max allowed tokens
+        while total_token_count > max_allowed_tokens and effective_prompt:
+            removed_role, removed_tokens = effective_prompt.pop(0)
+            total_token_count -= len(removed_tokens)
+
+        # Reassemble the prompt from the trimmed effective prompt list
+        for role, message_tokens in effective_prompt:
+            message = self._detokenize(message_tokens, special=False)
+
             if role != last_role or not join_same_role:
-                # Append accumulated message for the previous role if switching roles
                 if accumulated_message:
+                    # Append accumulated message for the previous role if switching roles
                     raw_string += accumulated_message.strip() + self._detokenize(self.eot_token, special=True) + "\n"
                     accumulated_message = ""
 
-                # Determine the token to use based on the role
-                if role == "system":
-                    raw_string += self._detokenize(self.turn_system_token, special=True) + "\n"
-                elif role == "user":
+                # Add the appropriate role token
+                if role == "user":
                     raw_string += self._detokenize(self.turn_user_token, special=True) + "\n"
                 elif role == "assistant":
                     raw_string += self._detokenize(self.turn_assistant_token, special=True) + "\n"
@@ -171,8 +197,7 @@ class LlamaCppLlm(Llm):
         if last_role != "assistant":
             raw_string += self._detokenize(self.turn_assistant_token, special=True)
 
-        raw_string = raw_string.strip()
-        return raw_string
+        return raw_string.strip()
 
     def set_model(self, settings: LlmModel):
         self.temporary_settings = settings
@@ -379,9 +404,10 @@ class LlamaCppLlm(Llm):
             grammar = LlamaGrammar.from_string(gbnf_grammar, verbose=self.verbose)
 
         # ban that pesky eos token
+        eos_token = self._tokenize(self.model_settings.eos_token, special=True)[0]
         logits_processor = None #self._get_logit_processor(comp_settings)
         logit_bias = {
-            "128001": 0 - float("inf")
+            str(eos_token): 0 - float("inf")
         }
         logit_bias_map = {int(k): float(v) for k, v in logit_bias.items()}
 

@@ -99,8 +99,12 @@ class Controller:
         model = self.config.get_model(preset)
         if model.type == LlmType.LlamaCpp:
             self.llm.set_model(model)
-            response = self.llm.completion(prompt=self.llm.convert_langchain_to_raw_string(inp), comp_settings=comp_settings)
+            response = self.llm.completion(prompt=self.llm.convert_langchain_to_raw_string(inp, comp_settings), comp_settings=comp_settings)
             content = response.output_sanitized
+
+            if len(comp_settings.tools_json) > 0:
+                from json_repair import repair_json
+                content = repair_json(content)
 
             models = []
             for tool in comp_settings.tools_json:
