@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from pm.consts import INIT_MESSAGE
 from pm.controller import controller
-from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation, Fact, Transaction
+from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation, Fact, Transaction, MessageInterlocus
 from pm.utils.token_utils import quick_estimate_tokens
 
 
@@ -68,7 +68,7 @@ def start_conversation(user_id: str, override_id: str | None = None) -> Conversa
     conversation = Conversation(
         id=override_id,
         user_id=user_id,
-        title="New Chat" if override_id is None else override_id.capitalize(),
+        title=controller.config.companion_name,
         session_id=uuid.uuid4().hex
     )
     controller.db.open_table(Conversation.table).add([conversation])
@@ -80,7 +80,8 @@ def start_conversation(user_id: str, override_id: str | None = None) -> Conversa
         text=init_message,
         public=True,
         embedding=controller.embedder.get_embedding_scalar_float_list(init_message),
-        tokens=quick_estimate_tokens(init_message)
+        tokens=quick_estimate_tokens(init_message),
+        interlocus=MessageInterlocus.MessageSystemInst
     )
     controller.db.open_table(Message.table).add([msg_init])
 
@@ -194,9 +195,11 @@ def get_padded_subset(all_messages: List[Message], subset_messages: List[Message
     # Return the padded list of messages
     return all_messages[padded_start:padded_end]
 
-def insert_object(obj: LanceModel):
+def insert_object(obj: LanceModel | List[LanceModel]):
     tablename = obj.__class__.table
-    controller.db.open_table(tablename).add([obj])
+    if not isinstance(obj, list):
+        obj = [obj]
+    controller.db.open_table(tablename).add(obj)
 
 def rank_table(conversation_id: str, query: str, table: Type[LanceModel]) -> List[Tuple[LanceModel, float]]:
     if query.strip() == "":

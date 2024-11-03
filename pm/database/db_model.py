@@ -1,3 +1,4 @@
+import enum
 import uuid
 
 from lancedb.pydantic import Vector, LanceModel
@@ -31,6 +32,16 @@ class Conversation(LanceModel):
     agent_state: str = Field(default_factory=str)
 Conversation.table = "Conversation"
 
+class MessageInterlocus(enum.IntEnum):
+    AutoThoughtSystemInst = -20
+    AutoThoughtToolCall = -11
+    AutoThought = -10
+    Undefined = 0
+    MessageSystemInst = 5
+    MessageToolCall = 9
+    MessageThought = 10
+    MessageResponse = 20
+
 class Message(LanceModel):
     id: str = Field(default_factory=get_guid)
     conversation_id: str # conversation guid
@@ -41,7 +52,7 @@ class Message(LanceModel):
     text: str # content
     embedding: Vector(1024) # embedding
     tokens: int # rough token count
-    interlocus: int = Field(default=1) # -1 = purely internal, 0 = internal thought about conversation, 1 = message
+    interlocus: int # -10 = purely internal, 10 = internal thought about conversation, 20 = message
 
     def __eq__(self, other):
         if isinstance(other, Message):

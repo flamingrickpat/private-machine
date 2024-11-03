@@ -4,8 +4,8 @@ import datetime
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.consts import RECALC_SUMMARIES_MESSAGES
 from pm.controller import controller
-from pm.database.db_helper import start_conversation, login_user
-from pm.database.db_model import Message
+from pm.database.db_helper import start_conversation, login_user, insert_object
+from pm.database.db_model import Message, MessageInterlocus
 from pm.utils.token_utils import quick_estimate_tokens
 
 controller.start()
@@ -32,9 +32,10 @@ def create_data(inpath, username, ainame):
                 text=inp,
                 embedding=controller.embedder.get_embedding_scalar_float_list(inp),
                 tokens=quick_estimate_tokens(inp),
-                world_time=cur_time
+                world_time=cur_time,
+                interlocus=MessageInterlocus.Message
             )
-            controller.db.open_table(Message.table).add([response_message])
+            insert_object(response_message)
             cur_time += datetime.timedelta(minutes=5)
 
         if cnt % RECALC_SUMMARIES_MESSAGES:

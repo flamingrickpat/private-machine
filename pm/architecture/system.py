@@ -11,8 +11,8 @@ from pm.architecture.system_thought import add_thought_system_to_graph
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN, THOUGHT_SEP
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, fetch_messages_no_summary
-from pm.database.db_model import Message
+from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, insert_object
+from pm.database.db_model import Message, MessageInterlocus
 from pm.database.transactions import start_transaction, rollback_transaction, commit_transaction
 from pm.utils.token_utils import quick_estimate_tokens
 
@@ -30,27 +30,39 @@ def agent_start_transaction(state: AgentState):
         public=True,
         text=input,
         embedding=controller.embedder.get_embedding_scalar_float_list(input),
-        tokens=quick_estimate_tokens(input)
+        tokens=quick_estimate_tokens(input),
+        interlocus=MessageInterlocus.MessageResponse
     )
-    controller.db.open_table(Message.table).add([msg_user])
-
+    insert_object(msg_user)
 
     return state
 
 def agent_commit_transaction(state: AgentState):
-    output = state['output']
     if state["thought"] != "":
-        output = state["thought"] + THOUGHT_SEP + output
+        thought = state["thought"]
+        thoguht_ai = Message(
+            conversation_id=state["conversation_id"],
+            role='assistant',
+            text=thought,
+            public=True,
+            embedding=controller.embedder.get_embedding_scalar_float_list(thought),
+            tokens=quick_estimate_tokens(thought),
+            interlocus=MessageInterlocus.MessageThought
+        )
+        insert_object(thoguht_ai)
 
-    msg_ai = Message(
-        conversation_id=state["conversation_id"],
-        role='assistant',
-        text=output,
-        public=True,
-        embedding=controller.embedder.get_embedding_scalar_float_list(output),
-        tokens=quick_estimate_tokens(output)
-    )
-    controller.db.open_table(Message.table).add([msg_ai])
+    if state['output'] != "":
+        output = state['output']
+        msg_ai = Message(
+            conversation_id=state["conversation_id"],
+            role='assistant',
+            text=output,
+            public=True,
+            embedding=controller.embedder.get_embedding_scalar_float_list(output),
+            tokens=quick_estimate_tokens(output),
+            interlocus=MessageInterlocus.MessageResponse
+        )
+        insert_object(msg_ai)
 
     commit_transaction()
     return state

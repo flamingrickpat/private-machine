@@ -20,8 +20,8 @@ from pm.architecture.state import AgentState
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, get_facts
-from pm.database.db_model import Message, MessageSummary
+from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, get_facts, insert_object
+from pm.database.db_model import Message, MessageSummary, MessageInterlocus
 from pm.database.load_messages import build_prompt
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
@@ -39,9 +39,10 @@ def agent_generate_int_thoughts(state: AgentState):
         text=sysmsg,
         public=True,
         embedding=controller.embedder.get_embedding_scalar_float_list(sysmsg),
-        tokens=quick_estimate_tokens(sysmsg)
+        tokens=quick_estimate_tokens(sysmsg),
+        interlocus=MessageInterlocus.AutoThoughtSystemInst
     )
-    controller.db.open_table(Message.table).add([msg_init])
+    insert_object(msg_init)
 
     user_memory = "No memory yet!"
     full_text = fetch_messages_as_string(state["conversation_id"])
