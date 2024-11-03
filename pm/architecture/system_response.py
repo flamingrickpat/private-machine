@@ -149,8 +149,7 @@ def agent_completion_story(state: AgentState):
     )]
 
     # add latest message
-    prefix = ""
-    thought = ""
+    prefix = f"\n{controller.config.companion_name}:"
     if state["thought"] != "":
         plan = state["plan"]
         messages.append((
@@ -158,7 +157,7 @@ def agent_completion_story(state: AgentState):
             plan
         ))
         thought = state["thought"]
-        prefix = controller.get_thought_string_story(thought)
+        prefix = controller.get_thought_string_story(thought) + prefix
 
     messages.append((
         "assistant",

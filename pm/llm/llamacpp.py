@@ -1,6 +1,7 @@
 import json
 import logging
 import random
+from datetime import datetime
 from typing import Union, Optional, List, Callable, Tuple, Dict
 import re
 import gc
@@ -372,6 +373,7 @@ class LlamaCppLlm(Llm):
             "repeat_penalty": self.model_settings.default_repeat_penalty
         }
         max_tokens = 128
+        random.seed(str(datetime.utcnow()))
         seed = random.getrandbits(32)
         stop_words = []
         if comp_settings is None:
@@ -579,10 +581,15 @@ class LlamaCppLlm(Llm):
                     result.stop_reason = CompletionStopReason.StopToken
                     break
 
+                sw_break = False
                 for sw in stop_words:
                     if sw in all_text:
                         result.stop_reason = CompletionStopReason.StopWord
+                        sw_break = True
                         break
+
+                if sw_break:
+                    break
 
                 if token in self.call_script_token:
                     is_writing_code = True
@@ -609,7 +616,7 @@ class LlamaCppLlm(Llm):
             result.output_sanitized = truncate_after_last_period(result.output_sanitized)
 
         for sw in stop_words:
-            result.output_sanitized = result.output_sanitized.split(sw)[0]
+            result.output_sanitized = result.output_sanitized.replace(sw, "")
         for sw in self.termination_tokens_string:
             result.output_sanitized = result.output_sanitized.replace(sw, "")
         result.output_sanitized = result.output_sanitized.strip()
