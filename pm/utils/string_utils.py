@@ -56,3 +56,38 @@ class StringConstant(metaclass=StringConstantMeta):
             return cls.add(*item)
         raise ValueError("Invalid item format")
 
+
+def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int = 3, n_words: int = 128) -> str:
+    # Split the conversation string into individual lines (messages)
+    lines = conversation.strip().splitlines()
+
+    # Reverse the lines to process from the most recent message
+    lines = lines[::-1]
+
+    selected_lines = []
+    word_count = 0
+
+    for line in lines:
+        # Split the message part of the line into words
+        message_part = line.split(": ", 1)[1] if ": " in line else ""
+        words_in_message = message_part.split()
+        message_word_count = len(words_in_message)
+
+        # Check if adding this message exceeds the word limit
+        if word_count + message_word_count > n_words and len(selected_lines) >= n_messages:
+            break
+
+        # Update the word count and add the line
+        word_count += message_word_count
+        selected_lines.append(line)
+
+        # Stop if we reach the message count limit
+        if len(selected_lines) >= n_messages:
+            break
+
+    # Reverse again to keep the order from oldest to newest in the selection
+    selected_lines = selected_lines[::-1]
+
+    # Join the selected lines into the final text block format
+    message_block = "\n".join(selected_lines)
+    return message_block

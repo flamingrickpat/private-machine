@@ -7,12 +7,13 @@ from pydantic import BaseModel
 
 from pm.consts import INIT_MESSAGE
 from pm.controller import controller
-from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation, Fact
+from pm.database.db_model import User, Message, Conversation, MessageSummary, ConceptualCluster, Relation, Fact, Transaction
 from pm.utils.token_utils import quick_estimate_tokens
 
 
 # Initialize the database tables
 def init_db():
+    controller.db.create_table(Transaction.table, schema=Transaction, exist_ok=True)
     controller.db.create_table(User.table, schema=User, exist_ok=True)
     controller.db.create_table(Message.table, schema=Message, exist_ok=True)
     controller.db.create_table(Conversation.table, schema=Conversation, exist_ok=True)

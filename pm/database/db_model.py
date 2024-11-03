@@ -8,8 +8,16 @@ from pydantic import BaseModel, Field
 def get_guid():
     return str(uuid.uuid4())
 
+# Transaction Table to store the start time of each transaction
+class Transaction(LanceModel):
+    id: str = Field(default_factory=get_guid)
+    created_at: datetime = Field(default_factory=datetime.utcnow)  # Timestamp of when the transaction started
+    state: str = "active"  # 'active' or 'completed'
+Transaction.table = "Transaction"
+
 class User(LanceModel):
     id: str = Field(default_factory=get_guid)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
     username: str
     password: str
 User.table = "User"
@@ -136,6 +144,7 @@ Fact.table = "fact"
 
 class Relation(LanceModel):
     id: str = Field(default_factory=get_guid)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
     a: str
     b: str
     rel_ab: str

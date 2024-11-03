@@ -8,6 +8,8 @@ import ctypes
 import contextlib
 import os
 
+from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation
+
 try:
     from llama_cpp import Llama, llama_cpp, LlamaGrammar
 except Exception as e:
@@ -132,34 +134,39 @@ class LlamaCppLlm(Llm):
         self.new_line_token: List[int] = []
         self.verbose: bool = verbose
 
-    def convert_langchain_to_raw_string(self, prompt: List[Tuple[str, str]]) -> str:
+    def convert_langchain_to_raw_string(self, prompt: List[Tuple[str, str]], join_same_role: bool = False) -> str:
         self._internal_set_model()
         raw_string = self._detokenize(self.bos_token, special=True)
 
-        # Loop through the prompt, processing each (role, message) tuple
         last_role = ""
+        accumulated_message = ""
+
         for i, (role, message) in enumerate(prompt):
-            if role == "system":
-                # Detokenize and append system token and message
-                raw_string += self._detokenize(self.turn_system_token, special=True) + "\n" + message
-                raw_string += self._detokenize(self.eot_token, special=True)
+            if role != last_role or not join_same_role:
+                # Append accumulated message for the previous role if switching roles
+                if accumulated_message:
+                    raw_string += accumulated_message.strip() + self._detokenize(self.eot_token, special=True) + "\n"
+                    accumulated_message = ""
 
-            elif role == "user":
-                # Detokenize and append user token and message
-                raw_string += self._detokenize(self.turn_user_token, special=True) + "\n" + message
-                raw_string += self._detokenize(self.eot_token, special=True)
+                # Determine the token to use based on the role
+                if role == "system":
+                    raw_string += self._detokenize(self.turn_system_token, special=True) + "\n"
+                elif role == "user":
+                    raw_string += self._detokenize(self.turn_user_token, special=True) + "\n"
+                elif role == "assistant":
+                    raw_string += self._detokenize(self.turn_assistant_token, special=True) + "\n"
 
-            elif role == "assistant":
-                # Detokenize and append assistant token and message
-                raw_string += self._detokenize(self.turn_assistant_token, special=True) + "\n" + message
-
-                # Skip the new line after assistant if it's the last message for "seeding"
-                if i < len(prompt) - 1:
-                    raw_string += self._detokenize(self.eot_token, special=True)
-
+            # Accumulate messages if joining the same role's turns
+            accumulated_message += message + "\n" if join_same_role else message
             last_role = role
-            raw_string += "\n"
 
+        # Append any remaining message from the last role
+        if accumulated_message:
+            raw_string += accumulated_message.strip()
+            if last_role != "assistant":
+                raw_string += self._detokenize(self.eot_token, special=True)
+
+        # Add assistant token at the end if the last role wasn't assistant
         if last_role != "assistant":
             raw_string += self._detokenize(self.turn_assistant_token, special=True)
 
@@ -365,8 +372,11 @@ class LlamaCppLlm(Llm):
 
         context_size = self.model_settings.context_size
 
-        grammar = self._get_full_grammar(comp_settings)
-        logits_processor = self._get_logit_processor(comp_settings)
+        grammar = None
+        if comp_settings.tools_json and len(comp_settings.tools_json) > 0:
+            gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation(comp_settings.tools_json)
+            grammar = LlamaGrammar.from_string(gbnf_grammar, verbose=self.verbose)
+        logits_processor = None #self._get_logit_processor(comp_settings)
 
         self.llama.set_seed(seed)
         prompt_tokens = self._tokenize(prompt)

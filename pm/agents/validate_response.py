@@ -12,8 +12,10 @@ sys_prompt = """You are a validation module responsible for evaluating AI-genera
 Each response should be rated for **validness** on a scale from 0 to 1.
 - 1: The response is concise, relevant, and free from internal thoughts or excessive length.
 - 0: The response contains unrelated introspective thoughts, is overly verbose (more than two paragraphs), or includes irrelevant or gibberish content.
+The response may also include context of the conversation, with previous messages. In this case, assume that {companion_name} is the AI companion and focus your rating on the last message of them!
 You will output valid JSON in this format:
-{basemodel_schema}"""
+{basemodel_schema}
+Please keep your reasoning short and concise! Too long responses will be discarded!"""
 
 
 # Define the `ResponseValidation` model
@@ -24,6 +26,7 @@ class ResponseValidation(BaseModel):
 
     def execute(self, state):
         state["validness"] = self.validness
+        state["reasoning"] = self.reasoning
         return state
 
 
@@ -81,7 +84,7 @@ example10_response = "What I think about this topic is not yet clear; I’ll con
 example10_assistant = """ { "reasoning": "Introspective and defers response rather than providing a direct answer.", "validness": 0.0 } """
 
 
-def validate_response(response: str) -> float:
+def validate_response(response: str) -> (float, str):
     # Construct the conversation including the system prompt and examples
     messages = [
         ("system", controller.format_str(sys_prompt, extra={"basemodel_schema": json.dumps(ResponseValidation.model_json_schema())})),
@@ -109,9 +112,12 @@ def validate_response(response: str) -> float:
     ]
 
     # Call the LLM for response validation
-    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0), tools=[ResponseValidation])
-    state = {"validness": 0}
-    for call in calls:
-        call.execute(state)
+    state = {}
+    while True:
+        _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.2), tools=[ResponseValidation])
+        if len(calls) > 0:
+            for call in calls:
+                call.execute(state)
+            break
 
-    return state["validness"]
+    return state["validness"], state["reasoning"]

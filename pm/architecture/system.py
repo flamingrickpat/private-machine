@@ -1,4 +1,6 @@
 import logging
+import time
+
 from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
@@ -7,14 +9,50 @@ from pm.architecture.state import AgentState
 from pm.architecture.system_response import add_response_system_to_graph
 from pm.architecture.system_thought import add_thought_system_to_graph
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
-from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN
+from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN, THOUGHT_SEP
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary
+from pm.database.db_model import Message
+from pm.database.transactions import start_transaction, rollback_transaction, commit_transaction
+from pm.utils.token_utils import quick_estimate_tokens
 
 logger = logging.getLogger(__name__)
 
 # high level
 def agent_start_transaction(state: AgentState):
+    rollback_transaction()
+    start_transaction()
+
+    input = state["input"]
+    msg_user = Message(
+        conversation_id=state["conversation_id"],
+        role='user',
+        public=True,
+        text=input,
+        embedding=controller.embedder.get_embedding_scalar_float_list(input),
+        tokens=quick_estimate_tokens(input)
+    )
+    controller.db.open_table(Message.table).add([msg_user])
+
+
+    return state
+
+def agent_commit_transaction(state: AgentState):
+    output = state['output']
+    if state["thought"] != "":
+        output = state["thought"] + THOUGHT_SEP + output
+
+    msg_ai = Message(
+        conversation_id=state["conversation_id"],
+        role='assistant',
+        text=output,
+        public=True,
+        embedding=controller.embedder.get_embedding_scalar_float_list(output),
+        tokens=quick_estimate_tokens(output)
+    )
+    controller.db.open_table(Message.table).add([msg_ai])
+
+    commit_transaction()
     return state
 
 def agent_tasks_create(state: AgentState):
@@ -36,9 +74,6 @@ def agent_task_summarize(state: AgentState):
     state["task"].remove("task_summarize")
     cluster_and_summarize(state["conversation_id"])
     high_level_summarize(state["conversation_id"])
-    return state
-
-def agent_commit_transaction(state: AgentState):
     return state
 
 def agent_task_converse_start(state: AgentState):

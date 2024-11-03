@@ -26,6 +26,7 @@ from pm.database.load_messages import build_prompt
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
+from pm.utils.string_utils import get_last_n_messages_or_words_from_string
 from pm.utils.token_utils import quick_estimate_tokens
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ def agent_generate_int_thoughts(state: AgentState):
 
     user_memory = "No memory yet!"
     full_text = fetch_messages_as_string(state["conversation_id"])
-    conv_context = full_text[-256:]
+    conv_context = get_last_n_messages_or_words_from_string(full_text)
     ai_memory = "\n".join(get_facts(state["conversation_id"], conv_context))
     thought = generate_thoughts(f"Generate a thought for {controller.config.companion_name}!", controller.config.character_card_story, conv_context, ai_memory, user_memory)
     state["thought"] = thought
@@ -55,7 +56,7 @@ def agent_generate_int_thoughts(state: AgentState):
 
 def agent_generate_aspects(state: AgentState):
     full_text = fetch_messages_as_string(state["conversation_id"])
-    conv_context = full_text[-256:]
+    conv_context = get_last_n_messages_or_words_from_string(full_text)
 
     aspects = generate_personality_aspects(controller.config.character_card_story, state["thought"])
     conclusion = thought_contemplation_dialog(conv_context, "Reach a conclusion on this thought.", aspects)

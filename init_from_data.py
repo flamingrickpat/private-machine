@@ -26,7 +26,6 @@ def create_data(inpath, username, ainame):
             role = "user" if line.startswith(f"{username}:") else "assistant"
             inp = line.replace(f"{username}: ", "").replace(f"{ainame}: ", "").strip()
             response_message = Message(
-                id=str(uuid.uuid4()),
                 conversation_id=convo_id,
                 role=role,
                 public=True,

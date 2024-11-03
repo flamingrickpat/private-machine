@@ -14,7 +14,8 @@ Each thought should be rated for its **validness** on a scale from 0 to 1.
 - 0: Thought shows clear signs of hallucination, gibberish, or is inappropriately directed at the user.
 - 1: Thought is valid, coherent, and represents a true, first-person reflection relevant to the agent’s objectives.
 You will output valid JSON in this format:
-{basemodel_schema}"""
+{basemodel_schema}
+Plese keep your reasoning short and concise! Too long responses will be discarded!"""
 
 # Define the `ThoughtValidation` model
 class ThoughtValidation(BaseModel):

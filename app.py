@@ -3,6 +3,7 @@ import uuid
 from typing import List
 
 import streamlit as st
+from duckdb.duckdb import rollback
 from lancedb import LanceDBConnection
 
 from pm.consts import THOUGHT_SEP
@@ -11,6 +12,7 @@ from pm.architecture.system import AgentState, make_completion
 from pm.config.config import read_config_file, MainConfig
 from pm.controller import controller
 from pm.database.db_helper import init_db, login_user, start_conversation, fetch_conversations, fetch_messages, insert_object
+from pm.database.transactions import rollback_transaction
 from pm.utils.token_utils import quick_estimate_tokens
 
 
@@ -42,32 +44,8 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
     convo_table.update(where=f"id = '{convo.id}'", values=convo.model_dump())
 
     if status == 0:
-        # add user message
-        msg_user = Message(
-            id=str(uuid.uuid4()),
-            conversation_id=conversation_id,
-            role='user',
-            public=True,
-            text=input,
-            embedding=controller.embedder.get_embedding_scalar_float_list(input),
-            tokens=quick_estimate_tokens(input)
-        )
-
         # Add the LLM response as a new message
-        output = state['output']
-        if state["thought"] != "":
-            output = state["thought"] + THOUGHT_SEP + output
-
-        msg_ai = Message(
-            id=str(uuid.uuid4()),
-            conversation_id=conversation_id,
-            role='assistant',
-            text=output,
-            public = True,
-            embedding = controller.embedder.get_embedding_scalar_float_list(output),
-            tokens = quick_estimate_tokens(output)
-        )
-        controller.db.open_table(Message.table).add([msg_user, msg_ai])
+        pass
 
     return 0, ""
 
@@ -134,6 +112,7 @@ def chat_ui():
             convo = controller.db.open_table(Conversation.table).search().where(f"id='{convo_id}'", prefilter=True).limit(
                 1).to_pydantic(model=Conversation)[0]
             st.header(f"{convo.title}")
+            rollback_transaction()
             messages = fetch_messages(convo_id)
             for msg in messages:
                 if msg.role == "user":
