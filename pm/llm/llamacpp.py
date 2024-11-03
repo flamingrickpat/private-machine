@@ -8,6 +8,7 @@ import ctypes
 import contextlib
 import os
 
+import numpy as np
 from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation
 
 try:
@@ -134,7 +135,7 @@ class LlamaCppLlm(Llm):
         self.new_line_token: List[int] = []
         self.verbose: bool = verbose
 
-    def convert_langchain_to_raw_string(self, prompt: List[Tuple[str, str]], join_same_role: bool = False) -> str:
+    def convert_langchain_to_raw_string(self, prompt: List[Tuple[str, str]], join_same_role: bool = True) -> str:
         self._internal_set_model()
         raw_string = self._detokenize(self.bos_token, special=True)
 
@@ -376,8 +377,32 @@ class LlamaCppLlm(Llm):
         if comp_settings.tools_json and len(comp_settings.tools_json) > 0:
             gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation(comp_settings.tools_json)
             grammar = LlamaGrammar.from_string(gbnf_grammar, verbose=self.verbose)
-        logits_processor = None #self._get_logit_processor(comp_settings)
 
+        # ban that pesky eos token
+        logits_processor = None #self._get_logit_processor(comp_settings)
+        logit_bias = {
+            "128001": 0 - float("inf")
+        }
+        logit_bias_map = {int(k): float(v) for k, v in logit_bias.items()}
+
+        def logit_bias_processor(
+            input_ids,
+            scores,
+        ):
+            new_scores = np.copy(
+                scores
+            )  # Does it make sense to copy the whole array or can we just overwrite the original one?
+            for input_id, score in logit_bias_map.items():
+                new_scores[input_id] = score + scores[input_id]
+            return new_scores
+
+        _logit_bias_processor = LogitsProcessorList([logit_bias_processor])
+        if logits_processor is None:
+            logits_processor = _logit_bias_processor
+        else:
+            logits_processor = logits_processor.extend(_logit_bias_processor)
+
+        # set seed
         self.llama.set_seed(seed)
         prompt_tokens = self._tokenize(prompt)
         reset = True

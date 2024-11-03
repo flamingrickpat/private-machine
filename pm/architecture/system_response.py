@@ -23,7 +23,7 @@ from pm.database.load_messages import build_prompt
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
-from pm.utils.string_utils import get_last_n_messages_or_words_from_string
+from pm.utils.string_utils import get_last_n_messages_or_words_from_string, get_text_after_keyword
 
 logger = logging.getLogger(__name__)
 
@@ -82,28 +82,25 @@ def agent_completion_assistant(state: AgentState):
         build_sys_prompt_conscious_assistant(state["complexity"] > COMPLEX_THRESHOLD, state["available_tools"])
     ))
 
-    # add latest message
-    messages.append((
-        "user",
-        state["input"]
-    ))
-
-    prefix = ""
-    thought = ""
     if state["thought"] != "":
         thought = state["thought"]
-        prefix = controller.get_thought_string_assistant(thought)
+        prefix = controller.get_thought_string_assistant(thought) + "\n" + controller.get_response_string_assistant("")
+    else:
+        prefix = controller.get_response_string_assistant("")
 
     messages.append((
         "assistant",
         prefix
     ))
 
+    sws = [f"Response:",
+           f"Thought:"]
     feedback = []
     regen_count = 0
     regens = []
     while True:
-        content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024)).replace("Response:", "").strip()
+        content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws)).strip()
+        content = get_text_after_keyword(prefix + content, controller.get_response_string_assistant(""))
         if content == "":
             continue
         validness, reason = validate_response(f"{query}\n{content}")
@@ -137,11 +134,6 @@ def agent_completion_story(state: AgentState):
     rels = fetch_relations("main")
 
     messages = build_prompt(True, msgs, sums, rels, full_token_allowance=4096)
-    # add latest message
-    messages.append((
-        "user",
-        state["input"]
-    ))
     message_block = "\n".join([f"{controller.config.user_name if item[0] == 'user' else controller.config.companion_name}: {item[1]}" for item in messages])
 
     # add system prompt

@@ -60,9 +60,9 @@ class Controller:
         if THOUGHT_SEP in message_text:
             parts = message_text.strip().split(THOUGHT_SEP)
             if story_mode:
-                return self.get_thought_string_story(parts[0]) + parts[1]
+                return self.get_thought_string_story(parts[0]) + self.get_response_string_story(parts[1])
             else:
-                return self.get_thought_string_assistant(parts[0]) + parts[1]
+                return self.get_thought_string_assistant(parts[0]) + self.get_response_string_assistant(parts[1])
         else:
             return message_text
 
@@ -73,7 +73,13 @@ class Controller:
                 )
 
     def get_thought_string_assistant(self, thought: str) -> str:
-        return f"**{thought}**\n"
+        return f"Thought: {thought}"
+
+    def get_response_string_story(self, response: str) -> str:
+        return f"{controller.config.companion_name}: {response}"
+
+    def get_response_string_assistant(self, response: str) -> str:
+        return f"Response: {response}"
 
     def completion_tool(self,
                         preset: LlmPreset,

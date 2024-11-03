@@ -1,5 +1,6 @@
 import json
 import logging
+from enum import Enum
 from typing import Literal, TypedDict, List
 from typing import Tuple
 
@@ -92,6 +93,30 @@ def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, st
 
     return compiled_messages
 
+# Dynamically create Enum of agent names
+def create_agent_enum(agents, state):
+    return Enum(
+        "AgentName",
+        {agent.name: agent.name for agent in agents if agent.name != state["next_agent"]}
+    )
+
+# Dynamically create RouteDecision class using Enum for agent names
+def create_route_decision_class(agent_enum):
+    class RouteDecision(BaseModel):
+        agent_name: agent_enum  # Use Enum instead of Litera
+
+        # Override dict to handle enum as string
+        def model_dump(self, **kwargs):
+            base_dict = super().model_dump(**kwargs)
+            base_dict["agent_name"] = str(base_dict["agent_name"])  # Convert enum to string
+            return base_dict
+
+        def execute(self, state: SubAgentState):
+            logger.info(json.dumps(self.model_dump(), indent=2))
+            state["next_agent"] = self.agent_name.value
+
+    return RouteDecision
+
 def _execute_router(state: SubAgentState, agents: List[Agent]):
     """
     Iterate over agents in list and start again if the boss didn't finish already.
@@ -113,13 +138,8 @@ def _execute_router(state: SubAgentState, agents: List[Agent]):
         state["next_agent"] = agents[state["agent_idx"]].name
         state["agent_idx"] += 1
     elif state["routing"] == "agentic":
-        # create class dynamically
-        class RouteDecision(BaseModel):
-            agent_name: Literal[tuple(agent.name for agent in agents if agent.name != state["next_agent"])]
-
-            def execute(self, state: SubAgentState):
-                logger.info(json.dumps(self.model_dump(), indent=2))
-                state["next_agent"] = self.agent_name
+        AgentNameEnum = create_agent_enum(agents, state)
+        RouteDecision = create_route_decision_class(AgentNameEnum)
 
         # not all messages
         messages = compile_message(agents, None)[-6:]

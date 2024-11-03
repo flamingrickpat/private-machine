@@ -105,4 +105,4 @@ def determine_tools(messages: List[Message]) -> List[str]:
     for call in calls:
         call.execute(state)
 
-    return state["tool_names"]
+    return [] #x for x in state["tool_names"] if x != ""]

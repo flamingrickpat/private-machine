@@ -91,3 +91,15 @@ def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int 
     # Join the selected lines into the final text block format
     message_block = "\n".join(selected_lines)
     return message_block
+
+
+def get_text_after_keyword(text: str, keyword: str) -> str:
+    # Find the position of the keyword in the text
+    keyword_position = text.find(keyword)
+
+    # If the keyword is found, return the text after it
+    if keyword_position != -1:
+        return text[keyword_position + len(keyword):].strip()
+
+    # If the keyword is not found, return the whole string
+    return text
