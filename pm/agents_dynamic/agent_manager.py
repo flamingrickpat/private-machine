@@ -9,7 +9,9 @@ from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 
+from pm.agents.convert_subagent_conversation_to_thought import convert_subagent_conversation_to_thought
 from pm.agents.convert_subcon_to_con_thought import generate_restructured_thought
+from pm.agents.validate_thought import validate_thought
 from pm.agents_dynamic.agent import Agent, AgentMessage
 from pm.agents_dynamic.boss_agent import prompt_boss
 from pm.agents_dynamic.dynamic_subagent import prompt_subagent
@@ -179,6 +181,7 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
             # initial message
             agent.messages.append(AgentMessage(
                 text=f"Alright, our task is '{agent.task}'. Get to work!",
+                name=agent.name,
                 public=True
             ))
         else:
@@ -205,6 +208,7 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                 # add text responses, make tool call private
                 agent.messages.append(AgentMessage(
                     text=content,
+                    name=agent.name,
                     public=len(tool_res_list) == 0
                 ))
 
@@ -213,25 +217,10 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                     call_string = "\n".join([json.dumps(x) for x in tool_res_list])
                     agent.messages.append(AgentMessage(
                         text=call_string,
+                        name=agent.name,
                         public=True,
                         from_tool=True
                     ))
-                elif state["convert_to_memory"]:
-                    res = generate_restructured_thought(agent.description, content)
-                    content_clean = re.sub(r"[^a-zA-Z0-9\s'!?.,]", "", content)
-                    if res.validness >= 0.5:
-                        msg_ai = Message(
-                            conversation_id="main",
-                            role='assistant',
-                            text=content_clean,
-                            public=True,
-                            embedding=controller.embedder.get_embedding_scalar_float_list(content_clean),
-                            tokens=quick_estimate_tokens(content_clean),
-                            interlocus=MessageInterlocus.MessageThought
-                        )
-                        insert_object(msg_ai)
-                    else:
-                        continue
 
                 break
 
@@ -244,7 +233,14 @@ def get_next_agent(state: SubAgentState):
     return state["next_agent"]
 
 
-def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], min_confidence: float = 0.5, convert_to_memory: bool = False) -> (str, float):
+class BossWorkerChatResult(BaseModel):
+    confidence: float
+    conclusion: str
+    agent_messages: List[AgentMessage]
+    as_internal_thought: str
+
+
+def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], min_confidence: float = 0.5, convert_to_memory: bool = False) -> BossWorkerChatResult:
     workflow = StateGraph(SubAgentState)
     workflow.add_node("router", lambda x: _execute_router(x, agents))
     workflow.add_edge(START, "router")
@@ -297,4 +293,22 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], 
         convert_to_memory=convert_to_memory
     )
     state = graph.invoke(state, {"recursion_limit": 100})
-    return state
+
+    msgs = []
+    for agent in agents:
+        msgs += [x for x in agent.messages if x.public]
+    msgs.sort(key=lambda x : x.created_at)
+
+    thought_block = "\n".join(f"{msg.name}: {msg.text}" for msg in msgs)
+    while True:
+        internal_thought = convert_subagent_conversation_to_thought(thought_block)
+        if validate_thought(internal_thought) > 0.6:
+            break
+
+    res = BossWorkerChatResult(
+        confidence=state["confidence"],
+        conclusion=state["conclusion"],
+        agent_messages=msgs,
+        as_internal_thought=internal_thought,
+    )
+    return res

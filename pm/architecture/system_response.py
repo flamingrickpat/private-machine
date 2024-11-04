@@ -17,13 +17,14 @@ from pm.architecture.state import AgentState
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN, MAX_REGENERATE_COUNT
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string
-from pm.database.db_model import Message, MessageSummary
+from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, insert_object
+from pm.database.db_model import Message, MessageSummary, MessageInterlocus
 from pm.database.load_messages import build_prompt
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
 from pm.utils.string_utils import get_last_n_messages_or_words_from_string, get_text_after_keyword
+from pm.utils.token_utils import quick_estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,21 @@ def agent_generate_thought(state: AgentState):
     full_text = fetch_messages_as_string(state["conversation_id"])
     query = get_last_n_messages_or_words_from_string(full_text)
 
-    plan = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
+    res = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
+
+    thought = res.as_internal_thought
+    msg_thought = Message(
+        conversation_id=state["conversation_id"],
+        role='assistant',
+        text=thought,
+        public=False,
+        embedding=controller.embedder.get_embedding_scalar_float_list(thought),
+        tokens=quick_estimate_tokens(thought),
+        interlocus=MessageInterlocus.MessageThought
+    )
+    insert_object(msg_thought)
+
+    plan = res.conclusion
     state["plan"] = plan
     while True:
         thought = rewrite_as_thought(f"{query}\n{plan}", max_sentences_in=4, max_sentences_out=4)
@@ -152,10 +167,10 @@ def agent_completion_story(state: AgentState):
     prefix = f"\n{controller.config.companion_name}:"
     if state["thought"] != "":
         plan = state["plan"]
-        messages.append((
-            "user",
-            plan
-        ))
+        # messages.append((
+        #     "user",
+        #     plan
+        # ))
         thought = state["thought"]
         prefix = controller.get_thought_string_story(thought) + prefix
 
@@ -166,6 +181,8 @@ def agent_completion_story(state: AgentState):
 
     sws = [f"{controller.config.user_name}:",
            f"{controller.config.user_name} thinks:",
+           f"User:",
+           f"User thinks:",
            f"{controller.config.companion_name}:",
            f"{controller.config.companion_name} thinks:"]
     feedback = []

@@ -7,8 +7,9 @@ from pm.llm.base_llm import CommonCompSettings
 
 
 class AgentMessage(BaseModel):
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
     text: str
+    name: str
     public: bool = Field(default=True)
     from_tool: bool = Field(default=False)
 

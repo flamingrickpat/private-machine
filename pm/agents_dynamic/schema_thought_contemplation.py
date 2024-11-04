@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from pm.agents.generate_thought_aspects import PersonalityAspects
 from pm.controller import controller
 from pm.database.db_helper import get_facts
-from pm.agents_dynamic.agent_manager import Agent, execute_boss_worker_chat
+from pm.agents_dynamic.agent_manager import Agent, execute_boss_worker_chat, BossWorkerChatResult
 from pm.llm.base_llm import CommonCompSettings
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class MemoryQuery(BaseModel):
         return get_facts("", self.query)
 
 
-def thought_contemplation_dialog(context: str, goal: str, aspects: PersonalityAspects) -> (str, List[Agent]):
+def thought_contemplation_dialog(context: str, goal: str, aspects: PersonalityAspects) -> BossWorkerChatResult:
     agents = []
 
     for i in range(2):
@@ -33,7 +33,8 @@ def thought_contemplation_dialog(context: str, goal: str, aspects: PersonalityAs
                    f"{aspects.aspects[i].perspective}"
                    f"These are your core qualities:"
                    f"{aspects.aspects[i].core_quality}"
-                   f"Discuss with these aspect of yourself another aspect of yourself. Please keep your responses short and concise.")
+                   f"Discuss with these aspect of yourself another aspect of yourself this thought: {goal}"
+                   f"Please keep your responses short and concise.")
 
         # Pessimistic Agent
         agents.append(Agent(
@@ -49,5 +50,5 @@ def thought_contemplation_dialog(context: str, goal: str, aspects: PersonalityAs
         ))
 
     # Execute the boss-worker chat with the agents
-    result = execute_boss_worker_chat(context, goal, agents, min_confidence=0.85, convert_to_memory=True)
-    return result["conclusion"], agents
+    result = execute_boss_worker_chat(context, goal, agents, min_confidence=0.85, convert_to_memory=False)
+    return result

@@ -7,7 +7,7 @@ from duckdb.duckdb import rollback
 from lancedb import LanceDBConnection
 
 from pm.consts import THOUGHT_SEP
-from pm.database.db_model import User, Message, Conversation, Fact
+from pm.database.db_model import User, Message, Conversation, Fact, MessageInterlocus
 from pm.architecture.system import AgentState, make_completion
 from pm.config.config import read_config_file, MainConfig
 from pm.controller import controller
@@ -107,6 +107,11 @@ def chat_ui():
         #    st.rerun()
 
     if 'current_conversation_id' in st.session_state:
+        # Function to display message in colored box
+        def display_colored_message(text, color):
+            color_class = color.lower()
+            st.markdown(f'<div class="box {color_class}">{text}</div>', unsafe_allow_html=True)
+
         convo_id = st.session_state.get('current_conversation_id')
         if convo_id:
             convo = controller.db.open_table(Conversation.table).search().where(f"id='{convo_id}'", prefilter=True).limit(
@@ -116,14 +121,16 @@ def chat_ui():
             messages = fetch_messages(convo_id)
             for msg in messages:
                 if msg.role == "user":
-                    st.success(f"{msg.text}")
+                    display_colored_message(msg.text, "green")
+                elif msg.role == "system":
+                    display_colored_message(msg.text, "yellow")
                 else:
-                    message_text = msg.text
-                    if THOUGHT_SEP in message_text:
-                        parts = message_text.strip().split(THOUGHT_SEP)
-                        st.info(f"{parts[1].strip()}")
+                    if msg.interlocus == MessageInterlocus.MessageThought:
+                        display_colored_message(msg.text, "red")
+                    elif msg.interlocus == MessageInterlocus.MessageResponse:
+                        display_colored_message(msg.text, "blue")
                     else:
-                        st.info(f"{message_text}")
+                        display_colored_message(msg.text, "orange")
 
             new_message = st.text_input("Your message", key=f"new_msg_{convo_id}")
             if st.button("Send", key=f"send_{convo_id}"):
@@ -137,9 +144,17 @@ if 'user' not in st.session_state:
 else:
     chat_ui()
 
+
+
 # Style modifications
 st.markdown("""
 <style>
+    .box { padding: 10px; border-radius: 5px; margin-bottom: 10px; color: #333; }
+    .green { background-color: #DFF0D8; }
+    .blue { background-color: #D9EDF7; }
+    .yellow { background-color: #FCF8E3; }
+    .red { background-color: #F2DEDE; }
+    .orange { background-color: #FFA500; }
     .stButton>button {
         width: 100%;
         height: 3em;

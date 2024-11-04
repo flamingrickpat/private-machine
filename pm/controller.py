@@ -60,16 +60,16 @@ class Controller:
         return (f"{controller.config.companion_name} thinks: {thought}"
                 f"I shouldn't think to long, now I'll respond to {controller.config.user_name}!\n\n"
                 f"{controller.config.companion_name}: "
-                )
+                ).strip()
 
     def get_thought_string_assistant(self, thought: str) -> str:
-        return f"Thought: {thought}"
+        return f"Thought: {thought}".strip()
 
     def get_response_string_story(self, response: str) -> str:
-        return f"{controller.config.companion_name}: {response}"
+        return f"{controller.config.companion_name}: {response}".strip()
 
     def get_response_string_assistant(self, response: str) -> str:
-        return f"Response: {response}"
+        return f"Response: {response}".strip()
 
     def completion_tool(self,
                         preset: LlmPreset,

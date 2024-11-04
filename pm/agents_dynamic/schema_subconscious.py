@@ -4,7 +4,7 @@ import logging
 from pydantic import BaseModel, Field
 
 from pm.database.db_helper import get_facts
-from pm.agents_dynamic.agent_manager import Agent, execute_boss_worker_chat
+from pm.agents_dynamic.agent_manager import Agent, execute_boss_worker_chat, BossWorkerChatResult
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class MemoryQuery(BaseModel):
         return get_facts("", self.query)
 
 
-def get_plan_from_subconscious_agents(context: str, goal: str) -> str:
+def get_plan_from_subconscious_agents(context: str, goal: str) -> BossWorkerChatResult:
     agents = []
 
     # Pessimistic Agent
@@ -135,4 +135,4 @@ def get_plan_from_subconscious_agents(context: str, goal: str) -> str:
 
     # Execute the boss-worker chat with the agents
     result = execute_boss_worker_chat(context, goal, agents, min_confidence=0.66)
-    return result["conclusion"]
+    return result
