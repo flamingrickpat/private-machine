@@ -60,9 +60,10 @@ def agent_generate_aspects(state: AgentState):
     conv_context = get_last_n_messages_or_words_from_string(full_text)
 
     aspects = generate_personality_aspects(controller.config.character_card_story, state["thought"])
-    conclusion = thought_contemplation_dialog(conv_context, "Reach a conclusion on this thought.", aspects)
-    print(conclusion)
-    exit(1)
+    conclusion, agents = thought_contemplation_dialog(conv_context, f"Reach a conclusion on this thought: {state['thought']}", aspects)
+
+    #print(conclusion)
+    #exit(1)
     return state
 
 

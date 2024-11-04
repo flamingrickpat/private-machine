@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from enum import Enum
 from typing import Literal, TypedDict, List
 from typing import Tuple
@@ -8,14 +9,18 @@ from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 
+from pm.agents.convert_subcon_to_con_thought import generate_restructured_thought
 from pm.agents_dynamic.agent import Agent, AgentMessage
 from pm.agents_dynamic.boss_agent import prompt_boss
 from pm.agents_dynamic.dynamic_subagent import prompt_subagent
 from pm.agents_dynamic.routing_agent import prompt_routing
 from pm.controller import controller
+from pm.database.db_helper import insert_object
+from pm.database.db_model import Message, MessageInterlocus
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.tools.generate_documentation import create_header_functions, create_documentation_functions, \
     create_documentation_json
+from pm.utils.token_utils import quick_estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +33,7 @@ class SubAgentState(TypedDict):
     routing: str
     required_confidence: float
     routing_count: int
+    convert_to_memory: bool
 
 class BossAgentChoice(BaseModel):
     """
@@ -210,6 +216,22 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                         public=True,
                         from_tool=True
                     ))
+                elif state["convert_to_memory"]:
+                    res = generate_restructured_thought(agent.description, content)
+                    content_clean = re.sub(r"[^a-zA-Z0-9\s'!?.,]", "", content)
+                    if res.validness >= 0.5:
+                        msg_ai = Message(
+                            conversation_id="main",
+                            role='assistant',
+                            text=content_clean,
+                            public=True,
+                            embedding=controller.embedder.get_embedding_scalar_float_list(content_clean),
+                            tokens=quick_estimate_tokens(content_clean),
+                            interlocus=MessageInterlocus.MessageThought
+                        )
+                        insert_object(msg_ai)
+                    else:
+                        continue
 
                 break
 
@@ -222,7 +244,7 @@ def get_next_agent(state: SubAgentState):
     return state["next_agent"]
 
 
-def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], min_confidence: float = 0.5) -> (str, float):
+def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], min_confidence: float = 0.5, convert_to_memory: bool = False) -> (str, float):
     workflow = StateGraph(SubAgentState)
     workflow.add_node("router", lambda x: _execute_router(x, agents))
     workflow.add_edge(START, "router")
@@ -271,7 +293,8 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], 
         finished=False,
         routing="agentic",
         required_confidence=min_confidence,
-        routing_count=0
+        routing_count=0,
+        convert_to_memory=convert_to_memory
     )
     state = graph.invoke(state, {"recursion_limit": 100})
     return state

@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import List
 
 from pydantic import BaseModel, Field
 
@@ -23,7 +24,7 @@ class MemoryQuery(BaseModel):
         return get_facts("", self.query)
 
 
-def thought_contemplation_dialog(context: str, goal: str, aspects: PersonalityAspects) -> str:
+def thought_contemplation_dialog(context: str, goal: str, aspects: PersonalityAspects) -> (str, List[Agent]):
     agents = []
 
     for i in range(2):
@@ -48,5 +49,5 @@ def thought_contemplation_dialog(context: str, goal: str, aspects: PersonalityAs
         ))
 
     # Execute the boss-worker chat with the agents
-    result = execute_boss_worker_chat(context, goal, agents, min_confidence=0.85)
-    return result["conclusion"]
+    result = execute_boss_worker_chat(context, goal, agents, min_confidence=0.85, convert_to_memory=True)
+    return result["conclusion"], agents

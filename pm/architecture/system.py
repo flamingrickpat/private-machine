@@ -51,7 +51,7 @@ def agent_commit_transaction(state: AgentState):
         )
         insert_object(thoguht_ai)
 
-    if state['output'] != "":
+    if state['output'] and state['output'] != "":
         output = state['output']
         msg_ai = Message(
             conversation_id=state["conversation_id"],
@@ -96,6 +96,7 @@ def agent_task_converse_end(state: AgentState):
     return state
 
 def agent_task_think_start(state: AgentState):
+    state["task"].remove("task_think")
     return state
 
 def agent_task_think_end(state: AgentState):
@@ -136,6 +137,7 @@ def get_graph():
     workflow.add_conditional_edges("agent_tasks_delegate", task_delegate_func)
     workflow.add_edge("agent_task_summarize", "agent_tasks_delegate")
     workflow.add_edge("agent_task_converse_end", "agent_tasks_delegate")
+    workflow.add_edge("agent_task_think_end","agent_tasks_delegate")
     workflow.add_edge("agent_commit_transaction", END)
 
     # response system
