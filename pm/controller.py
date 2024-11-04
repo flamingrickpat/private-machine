@@ -56,16 +56,6 @@ class Controller:
 
         return template
 
-    def format_thought(self, message_text: str, story_mode: bool):
-        if THOUGHT_SEP in message_text:
-            parts = message_text.strip().split(THOUGHT_SEP)
-            if story_mode:
-                return self.get_thought_string_story(parts[0]) + self.get_response_string_story(parts[1])
-            else:
-                return self.get_thought_string_assistant(parts[0]) + self.get_response_string_assistant(parts[1])
-        else:
-            return message_text
-
     def get_thought_string_story(self, thought: str) -> str:
         return (f"{controller.config.companion_name} thinks: {thought}"
                 f"I shouldn't think to long, now I'll respond to {controller.config.user_name}!\n\n"
@@ -125,5 +115,6 @@ class Controller:
                         ) -> (str, List[BaseModel]):
         content, models = self.completion_tool(preset, inp, comp_settings)
         return content
+
 
 controller = Controller()

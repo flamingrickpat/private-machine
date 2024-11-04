@@ -2,7 +2,7 @@ import copy
 from typing import List, Union, Tuple
 
 from pm.controller import controller
-from pm.database.db_model import Message, MessageSummary, Relation
+from pm.database.db_model import Message, MessageSummary, Relation, MessageInterlocus
 
 from typing import List, Tuple, Set
 from datetime import datetime
@@ -137,8 +137,21 @@ def build_prompt(story_mode: bool,
     for item in sorted_all_messages:
         if isinstance(item, Message):
             msg = item
-            text = controller.format_thought(msg.text, story_mode)
-            prompt_parts.append((msg.role, text))
+
+            if story_mode:
+                if item.interlocus == MessageInterlocus.MessageSystemInst:
+                    prompt_parts.append((msg.role, f"{controller.config.companion_name} gets a notification from their internal system agent: '{item.text}'"))
+                elif item.interlocus == MessageInterlocus.MessageResponse:
+                    prompt_parts.append((msg.role, f"{controller.config.companion_name}: '{item.text}'"))
+                elif item.interlocus == MessageInterlocus.MessageThought:
+                    prompt_parts.append((msg.role, f"{controller.config.companion_name} thinks: '{item.text}'"))
+            else:
+                if item.interlocus == MessageInterlocus.MessageSystemInst:
+                    prompt_parts.append((msg.role, item.text))
+                elif item.interlocus == MessageInterlocus.MessageResponse:
+                    prompt_parts.append((msg.role, f"Response: '{item.text}'"))
+                elif item.interlocus == MessageInterlocus.MessageThought:
+                    prompt_parts.append((msg.role, f"Thought: '{item.text}'"))
         elif isinstance(item, MessageSummary):
             summary = item
             level = summary.level

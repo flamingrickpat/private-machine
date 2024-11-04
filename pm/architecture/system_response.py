@@ -134,7 +134,7 @@ def agent_completion_story(state: AgentState):
     rels = fetch_relations("main")
 
     messages = build_prompt(True, msgs, sums, rels, full_token_allowance=4096)
-    message_block = "\n".join([f"{controller.config.user_name if item[0] == 'user' else controller.config.companion_name}: {item[1]}" for item in messages])
+    message_block = "\n".join([f"{item[1]}" for item in messages])
 
     # add system prompt
     messages = [(
@@ -172,7 +172,7 @@ def agent_completion_story(state: AgentState):
     regen_count = 0
     regens = []
     while True:
-        content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws)).replace("Response:", "").strip()
+        content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws)).replace("Response:", "").replace("'", "").replace('"', "").strip()
         if content == "":
             continue
 
