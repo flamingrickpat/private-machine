@@ -9,7 +9,8 @@
             "turn_assistant_token": "<|im_start|>assistant",
             "turn_user_token": "<|im_start|>user",
             "eot_token": "<|im_end|>",
-            "context_size": 8196
+            "context_size": 8196,
+            "n_gpu_layers": -1
         }
     ],
     "model_map": {
