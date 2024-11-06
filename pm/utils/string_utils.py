@@ -56,8 +56,7 @@ class StringConstant(metaclass=StringConstantMeta):
             return cls.add(*item)
         raise ValueError("Invalid item format")
 
-
-def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int = 3, n_words: int = 128) -> str:
+def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int = 6, n_words: int = 256) -> str:
     # Split the conversation string into individual lines (messages)
     lines = conversation.strip().splitlines()
 

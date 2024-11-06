@@ -140,6 +140,10 @@ def fetch_messages_as_string(conversation_id: str) -> str:
     message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages])
     return message_block
 
+def fetch_responses_as_string(conversation_id: str) -> str:
+    messages = fetch_messages(conversation_id)
+    message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages if x.interlocus != MessageInterlocus.MessageThought])
+    return message_block
 
 def fetch_relations(conversation_id: str) -> List[Relation]:
     tmp = sql_query(f"select * from relation")

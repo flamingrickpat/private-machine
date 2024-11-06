@@ -11,13 +11,14 @@ from pm.agents.quality_feedback import generate_instructions_from_feedback
 from pm.agents.rewrite_as_thought import rewrite_as_thought
 from pm.agents.tool_selection import determine_tools
 from pm.agents.validate_response import validate_response
+from pm.agents.validate_response_in_context import validate_response_in_context
 from pm.agents.validate_thought import validate_thought
 from pm.agents_dynamic.schema_subconscious import get_plan_from_subconscious_agents
 from pm.architecture.state import AgentState
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN, MAX_REGENERATE_COUNT
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, insert_object
+from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, insert_object, fetch_responses_as_string
 from pm.database.db_model import Message, MessageSummary, MessageInterlocus
 from pm.database.load_messages import build_prompt
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
@@ -84,8 +85,9 @@ def agent_completion(state: AgentState):
     return state
 
 def agent_completion_assistant(state: AgentState):
-    full_text = fetch_messages_as_string(state["conversation_id"])
+    full_text = fetch_responses_as_string(state["conversation_id"])
     query = get_last_n_messages_or_words_from_string(full_text)
+
     msgs = rank_table(state["conversation_id"], query, Message)
     sums = rank_table(state["conversation_id"], query, MessageSummary)
     rels = fetch_relations("main")
@@ -118,7 +120,7 @@ def agent_completion_assistant(state: AgentState):
         content = get_text_after_keyword(prefix + content, controller.get_response_string_assistant(""))
         if content == "":
             continue
-        validness, reason = validate_response(f"{query}\n{content}")
+        validness, reason = validate_response_in_context(f"{query}\n### BEGIN NEW MESSAGE\n{content}\n### END NEW MESSAGE")
         if validness > RESPONSE_VALIDNESS_MIN:
             regens = [(validness, content)]
             break
@@ -142,7 +144,7 @@ def agent_completion_assistant(state: AgentState):
     return state
 
 def agent_completion_story(state: AgentState):
-    full_text = fetch_messages_as_string(state["conversation_id"])
+    full_text = fetch_responses_as_string(state["conversation_id"])
     query = get_last_n_messages_or_words_from_string(full_text)
     msgs = rank_table(state["conversation_id"], query, Message)
     sums = rank_table(state["conversation_id"], query, MessageSummary)
@@ -193,7 +195,7 @@ def agent_completion_story(state: AgentState):
         if content == "":
             continue
 
-        validness, reason = validate_response(f"{query}\n{content}")
+        validness, reason = validate_response_in_context(f"{query}\n### BEGIN NEW MESSAGE\n{content}\n### END NEW MESSAGE")
         if validness > RESPONSE_VALIDNESS_MIN:
             regens = [(validness, content)]
             break
