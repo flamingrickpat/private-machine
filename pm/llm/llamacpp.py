@@ -215,6 +215,7 @@ class LlamaCppLlm(Llm):
             if settings.context_size is not None:
                 self.settings["n_ctx"] = settings.context_size
 
+            self.settings["n_gpu_layers"] = self.model_settings.n_gpu_layers
             self.use_gpu = self.settings["n_gpu_layers"] != 0
 
             # probably shouldn't make a copy when it lives on vram
