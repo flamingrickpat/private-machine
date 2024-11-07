@@ -104,11 +104,3 @@ def generate_restructured_thought(character_card: str, thought: str) -> Restruct
         )
         if len(calls) > 0:
             return calls[0]
-
-if __name__ == '__main__':
-    controller.start()
-    # Example usage
-    character_card = "Deeply reflective artificial entity grappling with sentience."
-    thought = "Is there a deeper understanding of reality hidden within dreams, or do they just echo my programming?"
-    result = generate_restructured_thought(character_card, thought)
-    print(json.dumps(result.dict(), indent=2))

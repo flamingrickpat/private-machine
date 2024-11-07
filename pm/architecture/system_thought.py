@@ -32,7 +32,7 @@ def agent_generate_int_thoughts(state: AgentState):
 
     user_memory = "No memory yet!"
     full_text = fetch_messages_as_string(state["conversation_id"])
-    conv_context = get_last_n_messages_or_words_from_string(full_text)
+    conv_context = get_last_n_messages_or_words_from_string(full_text, n_messages=12)
     ai_memory = "\n".join(get_facts(state["conversation_id"], conv_context))
     thought = generate_thoughts(f"Generate a thought for {controller.config.companion_name}!", controller.config.character_card_story, conv_context, ai_memory, user_memory)
     state["thought"] = thought

@@ -16,6 +16,8 @@ Follow these guiding principles to ensure your thoughts are reflective and human
 
 5. Ignore JSON tool calls, only the results are important!
 
+6. Thoughts must be first person only! I can't stress this enough, don't describe the person, write as if it was thought by them!
+
 Here are examples of how to approach your responses:
 
 """

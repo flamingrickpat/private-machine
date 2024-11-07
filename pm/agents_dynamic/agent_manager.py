@@ -10,7 +10,6 @@ from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 
 from pm.agents.convert_subagent_conversation_to_thought import convert_subagent_conversation_to_thought
-from pm.agents.convert_subcon_to_con_thought import generate_restructured_thought
 from pm.agents.validate_thought import validate_thought
 from pm.agents_dynamic.agent import Agent, AgentMessage
 from pm.agents_dynamic.boss_agent import prompt_boss
