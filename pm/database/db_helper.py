@@ -135,14 +135,18 @@ def fetch_messages(conversation_id: str) -> List[Message]:
     tmp = sql_query(f"select * from message where conversation_id='{conversation_id}' order by created_at asc")
     return df_to_pydantic(tmp, Message)
 
+def role_to_name(x: Message):
+    name = controller.config.companion_name if x.role == 'assistant' else (controller.config.user_name if x.role == "user" else "System")
+    return name
+
 def fetch_messages_as_string(conversation_id: str) -> str:
     messages = fetch_messages(conversation_id)
-    message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages])
+    message_block = "\n".join([f"{role_to_name(x)}: {x.text}" for x in messages])
     return message_block
 
 def fetch_responses_as_string(conversation_id: str) -> str:
     messages = fetch_messages(conversation_id)
-    message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages if x.interlocus != MessageInterlocus.MessageThought])
+    message_block = "\n".join([f"{role_to_name(x)}: {x.text}" for x in messages if x.interlocus != MessageInterlocus.MessageThought])
     return message_block
 
 def fetch_relations(conversation_id: str) -> List[Relation]:

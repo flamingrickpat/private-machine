@@ -23,47 +23,9 @@ def agent_start_transaction(state: AgentState):
     rollback_transaction()
     start_transaction()
 
-    input = state["input"]
-    msg_user = Message(
-        conversation_id=state["conversation_id"],
-        role='user',
-        public=True,
-        text=input,
-        embedding=controller.embedder.get_embedding_scalar_float_list(input),
-        tokens=quick_estimate_tokens(input),
-        interlocus=MessageInterlocus.MessageResponse
-    )
-    insert_object(msg_user)
-
     return state
 
 def agent_commit_transaction(state: AgentState):
-    if state["thought"] != "":
-        thought = state["thought"]
-        thoguht_ai = Message(
-            conversation_id=state["conversation_id"],
-            role='assistant',
-            text=thought,
-            public=True,
-            embedding=controller.embedder.get_embedding_scalar_float_list(thought),
-            tokens=quick_estimate_tokens(thought),
-            interlocus=MessageInterlocus.MessageThought
-        )
-        insert_object(thoguht_ai)
-
-    if state['output'] and state['output'] != "":
-        output = state['output']
-        msg_ai = Message(
-            conversation_id=state["conversation_id"],
-            role='assistant',
-            text=output,
-            public=True,
-            embedding=controller.embedder.get_embedding_scalar_float_list(output),
-            tokens=quick_estimate_tokens(output),
-            interlocus=MessageInterlocus.MessageResponse
-        )
-        insert_object(msg_ai)
-
     commit_transaction()
     return state
 
@@ -90,9 +52,47 @@ def agent_task_summarize(state: AgentState):
 
 def agent_task_converse_start(state: AgentState):
     state["task"].remove("task_converse")
+
+    input = state["input"]
+    msg_user = Message(
+        conversation_id=state["conversation_id"],
+        role='user',
+        public=True,
+        text=input,
+        embedding=controller.embedder.get_embedding_scalar_float_list(input),
+        tokens=quick_estimate_tokens(input),
+        interlocus=MessageInterlocus.MessageResponse
+    )
+    insert_object(msg_user)
+
     return state
 
 def agent_task_converse_end(state: AgentState):
+    if state["thought"] != "":
+        thought = state["thought"]
+        thoguht_ai = Message(
+            conversation_id=state["conversation_id"],
+            role='assistant',
+            text=thought,
+            public=True,
+            embedding=controller.embedder.get_embedding_scalar_float_list(thought),
+            tokens=quick_estimate_tokens(thought),
+            interlocus=MessageInterlocus.MessageThought
+        )
+        insert_object(thoguht_ai)
+
+    if state['output'] and state['output'] != "":
+        output = state['output']
+        msg_ai = Message(
+            conversation_id=state["conversation_id"],
+            role='assistant',
+            text=output,
+            public=True,
+            embedding=controller.embedder.get_embedding_scalar_float_list(output),
+            tokens=quick_estimate_tokens(output),
+            interlocus=MessageInterlocus.MessageResponse
+        )
+        insert_object(msg_ai)
     return state
 
 def agent_task_think_start(state: AgentState):

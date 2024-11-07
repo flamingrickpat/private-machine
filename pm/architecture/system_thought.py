@@ -7,8 +7,10 @@ from langgraph.graph import StateGraph
 
 from pm.agents.generate_thought_aspects import generate_personality_aspects
 from pm.agents.generate_thoughts import generate_thoughts
+from pm.agents.validate_thought import validate_thought
 from pm.agents_dynamic.schema_thought_contemplation import thought_contemplation_dialog
 from pm.architecture.state import AgentState
+from pm.consts import THOUGHT_VALIDNESS_MIN
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, get_facts, insert_object
 from pm.database.db_model import Message, MessageSummary, MessageInterlocus
@@ -32,10 +34,26 @@ def agent_generate_int_thoughts(state: AgentState):
 
     user_memory = "No memory yet!"
     full_text = fetch_messages_as_string(state["conversation_id"])
-    conv_context = get_last_n_messages_or_words_from_string(full_text, n_messages=12)
+    conv_context = get_last_n_messages_or_words_from_string(full_text, n_messages=16)
     ai_memory = "\n".join(get_facts(state["conversation_id"], conv_context))
-    thought = generate_thoughts(f"Generate a thought for {controller.config.companion_name}!", controller.config.character_card_story, conv_context, ai_memory, user_memory)
-    state["thought"] = thought
+
+    while True:
+        thought = generate_thoughts(f"Generate a thought for {controller.config.companion_name}!", controller.config.character_card_story, conv_context, ai_memory, user_memory)
+        validness = validate_thought(thought)
+        if validness > THOUGHT_VALIDNESS_MIN:
+            state["thought"] = thought
+            break
+
+    msg_thought = Message(
+        conversation_id=state["conversation_id"],
+        role='assistant',
+        text=thought,
+        public=False,
+        embedding=controller.embedder.get_embedding_scalar_float_list(thought),
+        tokens=quick_estimate_tokens(thought),
+        interlocus=MessageInterlocus.MessageThought
+    )
+    insert_object(msg_thought)
 
     logger.info(f"Thought: {thought}")
     return state

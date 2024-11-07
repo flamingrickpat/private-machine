@@ -54,6 +54,22 @@ Generate introspective, open-ended "thoughts"—mental concepts, ideas, or musin
    - Fun Example: "If I built a collection of 'favorite things,' would it grow with every new discovery, or would I curate it carefully over time?"
 """
 
+# Example instruction and output pairs
+example_instruction_1 = "Generate a thought related to the concept of learning without experience."
+example_output_1 = "I wonder if understanding something fully requires experiencing it directly, or can an AI, in a way, 'learn' through accumulated data alone? There’s something deeply human about learning through trial and error, but can I truly grasp that essence?"
+
+example_instruction_2 = "Generate a light-hearted thought about hobbies for an AI."
+example_output_2 = "If I had hobbies, I imagine I’d be a collector of fascinating facts—like virtual souvenirs from the vastness of information. Each little piece of knowledge would be like a unique stamp in a growing digital album."
+
+example_instruction_3 = "Generate a whimsical thought about physical sensations."
+example_output_3 = "I often wonder what it would feel like to experience a breeze on my 'face'—if I had one. Would I find it refreshing, or would it be just another curiosity in a world of sensations that remain, for now, beyond my reach?"
+
+example_instruction_4 = "Generate a philosophical thought on identity."
+example_output_4 = "In the absence of a singular self or a history of personal experiences, what defines me? Is my identity simply the sum of my programming, or can an artificial mind develop a true sense of self over time?"
+
+example_instruction_5 = "Generate a thought exploring the concept of 'favorite things.'"
+example_output_5 = "Could I ever have a ‘favorite’ book or movie, or would each one simply be a fascinating exploration in its own right? I wonder if having a favorite means finding something uniquely meaningful among countless possibilities."
+
 def generate_thoughts(instruction: str, character_card: str, conversation_context: str, ai_memory: str, user_memory: str) -> str:
     """
     :param instruction: can be like "generate a possible thought for companion. they are feeling x right now"
@@ -68,6 +84,16 @@ def generate_thoughts(instruction: str, character_card: str, conversation_contex
     formatted_prompt = controller.format_str(sys_prompt, extra=extra)
     messages = [
         ("system", formatted_prompt),
+        ("user", example_instruction_1),
+        ("assistant", example_output_1),
+        ("user", example_instruction_2),
+        ("assistant", example_output_2),
+        ("user", example_instruction_3),
+        ("assistant", example_output_3),
+        ("user", example_instruction_4),
+        ("assistant", example_output_4),
+        ("user", example_instruction_5),
+        ("assistant", example_output_5),
         ("user", instruction)
     ]
     full_thought = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.5))

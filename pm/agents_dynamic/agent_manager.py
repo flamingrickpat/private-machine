@@ -15,6 +15,7 @@ from pm.agents_dynamic.agent import Agent, AgentMessage
 from pm.agents_dynamic.boss_agent import prompt_boss
 from pm.agents_dynamic.dynamic_subagent import prompt_subagent
 from pm.agents_dynamic.routing_agent import prompt_routing
+from pm.consts import THOUGHT_VALIDNESS_MIN
 from pm.controller import controller
 from pm.database.db_helper import insert_object
 from pm.database.db_model import Message, MessageInterlocus
@@ -301,7 +302,7 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], 
     thought_block = "\n".join(f"{msg.name}: {msg.text}" for msg in msgs)
     while True:
         internal_thought = convert_subagent_conversation_to_thought(thought_block)
-        if validate_thought(internal_thought) > 0.6:
+        if validate_thought(internal_thought) > THOUGHT_VALIDNESS_MIN:
             break
 
     res = BossWorkerChatResult(
