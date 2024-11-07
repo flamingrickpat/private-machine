@@ -9,7 +9,11 @@ prompt_conscious_assistant_base = """{character_card}
 """
 
 tool_insert = """
+You have the following tools available:
 {insert_tools}
+
+If you want to use them, please just describe how you would use them.
+The specialized JSON agent will convert your thought into a call and return the result. Do not write the JSON directly yourself!
 """
 
 thought_insert = """
