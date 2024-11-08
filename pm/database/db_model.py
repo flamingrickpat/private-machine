@@ -160,3 +160,22 @@ class Relation(LanceModel):
     b: str
     rel_ab: str
 Relation.table = "Relations"
+
+class Reminder(LanceModel):
+    id: str = Field(default_factory=get_guid)
+    reminder_text: str = Field()
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    reminder_time: datetime = Field()
+    session_id: str = Field(default_factory=str)
+Reminder.table = "Reminder"
+
+class Goal(LanceModel):
+    id: str = Field(default_factory=get_guid)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    session_id: str = Field(default_factory=str)
+    identifier: str
+    goal: str
+    description: str
+    status: str
+    progress: float
+Goal.table = "Goal"

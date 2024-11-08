@@ -209,6 +209,18 @@ def insert_object(obj: LanceModel | List[LanceModel]):
         obj = [obj]
     controller.db.open_table(tablename).add(obj)
 
+def insert_system_message(conversation_id: str, sysmsg: str):
+    msg_init = Message(
+        conversation_id=conversation_id,
+        role='system',
+        text=sysmsg,
+        public=True,
+        embedding=controller.embedder.get_embedding_scalar_float_list(sysmsg),
+        tokens=quick_estimate_tokens(sysmsg),
+        interlocus=MessageInterlocus.AutoThoughtSystemInst
+    )
+    insert_object(msg_init)
+
 def rank_table(conversation_id: str, query: str, table: Type[LanceModel]) -> List[Tuple[LanceModel, float]]:
     if query.strip() == "":
         return []

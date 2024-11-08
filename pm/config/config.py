@@ -19,6 +19,7 @@ class MainConfig(BaseModel):
     character_card_assistant: str
     character_card_story: str
     initial_character_memory: List[str] = Field(default_factory=list)
+    brave_api_key: str | None = Field(default=None)
 
     def get_model(self, preset: LlmPreset) -> LlmModel:
         for model in self.models:

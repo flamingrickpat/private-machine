@@ -153,7 +153,8 @@ class LlamaCppLlm(Llm):
         for i, (role, message) in enumerate(prompt):
             if role == "system":
                 # Add system token directly to the raw_string
-                raw_string += self._detokenize(self.turn_system_token, special=True) + "\n" + message.strip() + self._detokenize(self.eot_token, special=True) + "\n"
+                msg_with_dt = f"Current datetime: {datetime.now()}\n{message.strip()}"
+                raw_string += self._detokenize(self.turn_system_token, special=True) + "\n" + msg_with_dt + self._detokenize(self.eot_token, special=True) + "\n"
             else:
                 # Tokenize the message and calculate its token count
                 message_tokens = self._tokenize(message, special=False)
