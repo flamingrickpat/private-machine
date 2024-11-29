@@ -132,10 +132,11 @@ def chat_ui():
                     else:
                         display_colored_message(msg.text, "orange")
 
-            new_message = st.text_input("Your message", key=f"new_msg_{convo_id}")
+            new_message = st.text_area("Your message", key=f"new_msg_{convo_id}", value="", height=260)
             if st.button("Send", key=f"send_{convo_id}"):
                 send_message(convo_id, "user", new_message)
                 st.rerun()
+                new_message.cle
 
 
 init_db()

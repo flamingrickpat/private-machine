@@ -158,3 +158,9 @@ class SearchWeb(BaseModel):
                 return "No relevant results found."
 
             insert_system_message(state["conversation_id"], f"Search Results: {extract_text_from_results(search_results.model_dump())}")
+
+class InsertDiaryEntry(BaseModel):
+    """
+    Document something from the user's life.
+    """
+    entry: str = Field(description="")

@@ -2,6 +2,7 @@
     "models": [
         {
             "identifier": "model_main",
+            "type": 1,
             "path": "/path/to/your/Hermes-3-Llama-3.1-8B.Q8_0.gguf",
             "bos_token": "<|begin_of_text|>",
             "eos_token": "<|end_of_text|>",
@@ -11,6 +12,14 @@
             "eot_token": "<|im_end|>",
             "context_size": 8196,
             "n_gpu_layers": -1
+        },
+        {
+          "identifier": "model_openai_api",
+          "type": 2,
+          "base_url": "https://openrouter.ai/api/v1",
+          "api_key": "<your_api_key>",
+          "model": "meta-llama/llama-3.1-8b-instruct",
+          "context_size": 8196
         }
     ],
     "model_map": {

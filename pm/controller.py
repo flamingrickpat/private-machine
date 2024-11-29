@@ -1,7 +1,12 @@
+import shutil
 from collections import defaultdict
+from datetime import datetime
 from typing import Dict, List, Tuple, Type
+import os
 
 from lancedb import LanceDBConnection
+from langchain_openai import ChatOpenAI
+from langchain_core.output_parsers import PydanticToolsParser
 from pydantic import BaseModel
 
 from pm.config.config import read_config_file
@@ -9,12 +14,32 @@ from pm.consts import THOUGHT_SEP
 from pm.embedding.transformer_embedding import TransformerEmbedding
 from pm.llm.base_llm import LlmPreset, CommonCompSettings, LlmType
 from pm.llm.llamacpp import LlamaCppLlm
+from pm.llm.llm_openai import get_llm, chat_complete_openai
 from pm.log_utils import setup_logger
 from pm.nlp.nlp_spacy import NlpSpacy
 
 
 class Controller:
     _shared_state = {}  # This is the shared state dictionary
+
+    def setup_db_path(self):
+        live_db_path = os.path.join(self.config.db_path, "live")
+
+        # Ensure the base db_path directory exists
+        os.makedirs(self.config.db_path, exist_ok=True)
+
+        # If "live" directory already exists, back it up
+        if os.path.exists(live_db_path):
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_folder_name = f"backup_{timestamp}"
+            backup_path = os.path.join(self.config.db_path, backup_folder_name)
+
+            # Copy the current "live" folder to the backup path
+            shutil.copytree(live_db_path, backup_path)
+            print(f"Existing 'live' directory backed up to: {backup_path}")
+
+        # Initialize the LanceDB connection without modifying the "live" folder
+        self.db = LanceDBConnection(live_db_path)
 
     def __init__(self):
         # Redirect the instance dictionary to the shared state
@@ -23,7 +48,7 @@ class Controller:
         # Initialize only if it's the first instance
         if not hasattr(self, 'initialized'):
             self.config = read_config_file("config.json")
-            self.db = LanceDBConnection(self.config.db_path)
+            self.setup_db_path()
             setup_logger("main.log")
             self.llm = LlamaCppLlm(verbose=False)
             self.embedder = TransformerEmbedding()
@@ -106,7 +131,20 @@ class Controller:
                     pass
             return content, models
         else:
-            raise Exception("not implemented")
+            llm = get_llm(model, comp_settings)
+            if len(tools) > 0:
+                llm = llm.bind_tools(tools=tools, tool_choice="required")
+            full = chat_complete_openai(llm, inp)
+            content = full.content
+            models = []
+            for tool in comp_settings.tools_json:
+                try:
+                    obj = tool.model_validate_json(content)
+                    models.append(obj)
+                    break
+                except:
+                    pass
+            return content, models
 
     def completion_text(self,
                         preset: LlmPreset,

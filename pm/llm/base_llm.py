@@ -64,6 +64,9 @@ class LlmModel(BaseModel):
     default_top_p: float = Field(default=0.9)
     default_repeat_penalty: float = Field(default=1.1)
     n_gpu_layers: int = Field(default=-1)
+    base_url: str | None = Field(default=None)
+    api_key: str | None = Field(default=None)
+    model: str | None = Field(default=None)
 
     def get_tokens_for_tempalte(self):
         res = {

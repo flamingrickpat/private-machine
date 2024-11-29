@@ -56,7 +56,8 @@ def agent_generate_thought(state: AgentState):
     full_text = fetch_messages_as_string(state["conversation_id"])
     query = get_last_n_messages_or_words_from_string(full_text)
 
-    res = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say to mimic human cognition and agency in every way?")
+    res = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say "
+                                                   f"to mimic human cognition and agency in every way and also support their user?")
 
     thought = res.as_internal_thought
     msg_thought = Message(
@@ -202,10 +203,7 @@ def agent_completion_story(state: AgentState):
         else:
             feedback.append(reason)
             aux_sys_prompt = generate_instructions_from_feedback(feedback)
-            messages.append((
-                "system",
-                aux_sys_prompt
-            ))
+            messages[0] = ("system", messages[0][1] + "\n" + aux_sys_prompt)
             regens.append((validness, content))
             if regen_count > MAX_REGENERATE_COUNT:
                 break
