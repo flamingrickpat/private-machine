@@ -92,7 +92,7 @@ def agent_completion_assistant(state: AgentState):
     msgs = rank_table(state["conversation_id"], query, Message)
     sums = rank_table(state["conversation_id"], query, MessageSummary)
     rels = fetch_relations("main")
-    messages = build_prompt(False, msgs, sums, rels, full_token_allowance=4096)
+    messages = build_prompt(False, msgs, sums, rels, full_token_allowance=6000)
 
     # add system prompt
     messages.insert(0, (
@@ -151,7 +151,7 @@ def agent_completion_story(state: AgentState):
     sums = rank_table(state["conversation_id"], query, MessageSummary)
     rels = fetch_relations("main")
 
-    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=4096)
+    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=6000)
     message_block = "\n".join([f"{item[1]}" for item in messages])
 
     # add system prompt
@@ -167,7 +167,7 @@ def agent_completion_story(state: AgentState):
     )]
 
     # add latest message
-    prefix = f"\n{controller.config.companion_name}:"
+    prefix = ""
     if state["thought"] != "":
         plan = state["plan"]
         # messages.append((
@@ -175,12 +175,10 @@ def agent_completion_story(state: AgentState):
         #     plan
         # ))
         thought = state["thought"]
-        prefix = controller.get_thought_string_story(thought) + prefix
+        prefix = controller.get_thought_string_story(thought)
+    prefix += f"\n{controller.config.companion_name}:"
 
-    messages.append((
-        "assistant",
-        prefix
-    ))
+    messages[-1] = ("assistant", messages[-1][1] + "\n" + prefix)
 
     sws = [f"{controller.config.user_name}:",
            f"{controller.config.user_name} thinks:",

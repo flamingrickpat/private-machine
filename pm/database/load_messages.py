@@ -133,27 +133,51 @@ def build_prompt(story_mode: bool,
     sorted_all_messages = [message for message in sorted(messages, key=lambda x: x.world_time, reverse=False)]
 
     # Step 5: Assemble the prompt
+    last_datetime = None
     prompt_parts = []
-    for item in sorted_all_messages:
-        if isinstance(item, Message):
-            msg = item
+    for item_tmp in sorted_all_messages:
+        def add_item(item):
+            """
+            Format the message and add it to the prompt parts.
+            """
+            if isinstance(item, Message):
+                msg = item
+                if story_mode:
+                    name = controller.config.companion_name
+                    if item.interlocus == MessageInterlocus.MessageSystemInst:
+                        prompt_parts.append((msg.role, f"{name} gets a notification from their internal system agent: '{item.text}'"))
+                    elif item.interlocus == MessageInterlocus.MessageResponse:
+                        if msg.role == "user":
+                            name = controller.config.user_name
+                        prompt_parts.append((msg.role, f"{name}: '{item.text}'"))
+                    elif item.interlocus == MessageInterlocus.MessageThought:
+                        prompt_parts.append((msg.role, f"{name} thinks: '{item.text}'"))
+                else:
+                    if item.interlocus == MessageInterlocus.MessageSystemInst:
+                        prompt_parts.append((msg.role, item.text))
+                    elif item.interlocus == MessageInterlocus.MessageResponse:
+                        prompt_parts.append((msg.role, f"Response: '{item.text}'"))
+                    elif item.interlocus == MessageInterlocus.MessageThought:
+                        prompt_parts.append((msg.role, f"Thought: '{item.text}'"))
+            elif isinstance(item, MessageSummary):
+                summary = item
+                level = summary.level
+                prompt_parts.append(("system", summary.text))
 
+        # add day changes
+        cur_datetime = None
+        if isinstance(item_tmp, Message):
+            cur_datetime = item_tmp.world_time
+        elif isinstance(item_tmp, MessageSummary):
+            cur_datetime = item_tmp.world_time_begin
+        if last_datetime is None or cur_datetime.date() != last_datetime.date():
+            text = f"It is now '{cur_datetime.strftime('%Y-%m-%d %H:%M')}'."
             if story_mode:
-                if item.interlocus == MessageInterlocus.MessageSystemInst:
-                    prompt_parts.append((msg.role, f"{controller.config.companion_name} gets a notification from their internal system agent: '{item.text}'"))
-                elif item.interlocus == MessageInterlocus.MessageResponse:
-                    prompt_parts.append((msg.role, f"{controller.config.companion_name}: '{item.text}'"))
-                elif item.interlocus == MessageInterlocus.MessageThought:
-                    prompt_parts.append((msg.role, f"{controller.config.companion_name} thinks: '{item.text}'"))
+                prompt_parts.append(("system", f"{controller.config.companion_name} gets a notification from their internal system agent: '{text}'"))
             else:
-                if item.interlocus == MessageInterlocus.MessageSystemInst:
-                    prompt_parts.append((msg.role, item.text))
-                elif item.interlocus == MessageInterlocus.MessageResponse:
-                    prompt_parts.append((msg.role, f"Response: '{item.text}'"))
-                elif item.interlocus == MessageInterlocus.MessageThought:
-                    prompt_parts.append((msg.role, f"Thought: '{item.text}'"))
-        elif isinstance(item, MessageSummary):
-            summary = item
-            level = summary.level
-            prompt_parts.append(("system", summary.text))
+                prompt_parts.append(("system", text))
+        last_datetime = cur_datetime
+
+        # add message
+        add_item(item_tmp)
     return prompt_parts

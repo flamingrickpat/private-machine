@@ -56,9 +56,24 @@ class StringConstant(metaclass=StringConstantMeta):
             return cls.add(*item)
         raise ValueError("Invalid item format")
 
+
 def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int = 6, n_words: int = 256) -> str:
-    # Split the conversation string into individual lines (messages)
-    lines = conversation.strip().splitlines()
+    # Split the conversation string into individual lines, ensuring we consider ":" in the first 20 characters
+    lines = []
+    current_message = []
+
+    for line in conversation.strip().splitlines():
+        # Check if there's a ":" in the first 20 characters of the line
+        if ":" in line[:20]:
+            # If we already have collected parts of a previous message, save it
+            if current_message:
+                lines.append("\n".join(current_message))
+                current_message = []
+        current_message.append(line)
+
+    # Append the last message if there are leftover lines
+    if current_message:
+        lines.append("\n".join(current_message))
 
     # Reverse the lines to process from the most recent message
     lines = lines[::-1]
@@ -68,7 +83,7 @@ def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int 
 
     for line in lines:
         # Split the message part of the line into words
-        message_part = line.split(": ", 1)[1] if ": " in line else ""
+        message_part = line.split(": ", 1)[1] if ": " in line[:20] else ""
         words_in_message = message_part.split()
         message_word_count = len(words_in_message)
 
@@ -90,7 +105,6 @@ def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int 
     # Join the selected lines into the final text block format
     message_block = "\n".join(selected_lines)
     return message_block
-
 
 def get_text_after_keyword(text: str, keyword: str) -> str:
     # Find the position of the keyword in the text

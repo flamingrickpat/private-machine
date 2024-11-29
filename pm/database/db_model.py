@@ -65,7 +65,7 @@ class Message(LanceModel):
     @property
     def full_text(self):
         from pm.controller import controller
-        return f"{controller.config.companion_name if self.role == 'assistant' else controller.config.user_name}: {self.text}"
+        return f"{controller.config.companion_name if self.role == 'assistant' else 'System' if self.role == 'system' else controller.config.user_name}: {self.text}"
 
     class Config:
         extra = "allow"
