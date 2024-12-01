@@ -4,6 +4,7 @@ from typing import TypedDict, Dict, List
 
 from langgraph.graph import StateGraph
 
+from experiments.test_its import messages
 from pm.agents.assistant_story_check import assistant_story_check
 from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
 from pm.agents.determine_complexity import determine_complexity
@@ -18,7 +19,7 @@ from pm.architecture.state import AgentState
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN, MAX_REGENERATE_COUNT
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, insert_object, fetch_responses_as_string
+from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, insert_object, fetch_responses_as_string, get_facts_str, get_facts
 from pm.database.db_model import Message, MessageSummary, MessageInterlocus
 from pm.database.load_messages import build_prompt
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
@@ -29,31 +30,59 @@ from pm.utils.token_utils import quick_estimate_tokens
 
 logger = logging.getLogger(__name__)
 
-
 def agent_task_converse(state: AgentState):
-    state["complexity"] = 0
-    state["available_tools"] = []
-    state["completion_mode"] = "assistant"
+    state.complexity = 0
+    state.available_tools = []
+    state.completion_mode = "assistant"
     return state
-
-
-def agent_assistant_story_check(state: AgentState) -> AgentState:
-    state["story_mode"] = assistant_story_check(state['current_user_assistant_chat'])
-    return state
-
 
 def agent_preprocess_input(state: AgentState):
-    msgs = fetch_messages(state["conversation_id"])
+    msgs = fetch_messages(state.conversation_id)
 
-    state["complexity"] = determine_complexity(msgs)
-    state["available_tools"] = determine_tools(msgs)
-    state["completion_mode"] = determine_completion_mode(msgs).value
-    state["thought"] = ""
+    state.complexity = determine_complexity(msgs)
+    state.available_tools = determine_tools(msgs)
+    state.completion_mode = determine_completion_mode(msgs).value
+    state.thought = ""
 
     return state
 
+def agent_create_knowledge_plan(state: AgentState):
+    current_questions = state.plan_questions[-8:]
+    question_block = '\n'.join(current_questions)
+    full_text = fetch_messages_as_string(state.conversation_id)
+    conversation_block = get_last_n_messages_or_words_from_string(full_text, n_messages=6)
+
+    sysprompt = """You are a helpful assistant that generates questions based on a conversation between a user and a LLM agent.
+    The goal is to create questions that can be used to retrieve contextual information from the RAG storage for the LLM.    
+    """
+
+    userprompt = f"""### BEGIN CONVERSATION
+    {conversation_block}
+    ### END CONVERSATION
+    ### BEGIN ALREADY ASKED QUESTIONS
+    {question_block}
+    ### END ALREADY ASKED QUESTIONS
+    What new questions are necessary to answer before {controller.config.companion_name} can give a good answer?
+    """
+
+    messages = [
+        ("system", sysprompt),
+        ("user", userprompt),
+        ("assistant", "Here is a list of questions for RAG search:")
+    ]
+
+    content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024)).strip()
+    new_questions = content.split("\n")
+    data = set()
+    for q in new_questions:
+        state.plan_questions.append(q)
+        facts = get_facts(state.conversation_id, q, 2)
+        for f in facts:
+            state.implicit_knowledge_ids.append(f.id)
+
+
 def agent_generate_thought(state: AgentState):
-    full_text = fetch_messages_as_string(state["conversation_id"])
+    full_text = fetch_messages_as_string(state.conversation_id)
     query = get_last_n_messages_or_words_from_string(full_text)
 
     res = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say "
@@ -61,7 +90,7 @@ def agent_generate_thought(state: AgentState):
 
     thought = res.as_internal_thought
     msg_thought = Message(
-        conversation_id=state["conversation_id"],
+        conversation_id=state.conversation_id,
         role='assistant',
         text=thought,
         public=False,
@@ -72,12 +101,12 @@ def agent_generate_thought(state: AgentState):
     insert_object(msg_thought)
 
     plan = res.conclusion
-    state["plan"] = plan
+    state.plan = plan
     while True:
         thought = rewrite_as_thought(f"{query}\n{plan}", max_sentences_in=4, max_sentences_out=4)
         validness = validate_thought(thought)
         if validness > THOUGHT_VALIDNESS_MIN:
-            state["thought"] = thought
+            state.thought = thought
             break
 
     return state
@@ -86,22 +115,22 @@ def agent_completion(state: AgentState):
     return state
 
 def agent_completion_assistant(state: AgentState):
-    full_text = fetch_responses_as_string(state["conversation_id"])
+    full_text = fetch_responses_as_string(state.conversation_id)
     query = get_last_n_messages_or_words_from_string(full_text)
 
-    msgs = rank_table(state["conversation_id"], query, Message)
-    sums = rank_table(state["conversation_id"], query, MessageSummary)
+    msgs = rank_table(state.conversation_id, query, Message)
+    sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
     messages = build_prompt(False, msgs, sums, rels, full_token_allowance=6000)
 
     # add system prompt
     messages.insert(0, (
         "system",
-        build_sys_prompt_conscious_assistant(state["complexity"] > COMPLEX_THRESHOLD, state["available_tools"])
+        build_sys_prompt_conscious_assistant(state.complexity > COMPLEX_THRESHOLD, state.available_tools)
     ))
 
-    if state["thought"] != "":
-        thought = state["thought"]
+    if state.thought != "":
+        thought = state.thought
         prefix = controller.get_thought_string_assistant(thought) + "\n" + controller.get_response_string_assistant("")
     else:
         prefix = controller.get_response_string_assistant("")
@@ -139,16 +168,16 @@ def agent_completion_assistant(state: AgentState):
 
     # Select the content with the highest validness score from regens
     if regens:
-        state["output"] = max(regens, key=lambda x: x[0])[1]
-        state["status"] = 0
+        state.output = max(regens, key=lambda x: x[0])[1]
+        state.status = 0
 
     return state
 
 def agent_completion_story(state: AgentState):
-    full_text = fetch_responses_as_string(state["conversation_id"])
+    full_text = fetch_responses_as_string(state.conversation_id)
     query = get_last_n_messages_or_words_from_string(full_text)
-    msgs = rank_table(state["conversation_id"], query, Message)
-    sums = rank_table(state["conversation_id"], query, MessageSummary)
+    msgs = rank_table(state.conversation_id, query, Message)
+    sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
 
     messages = build_prompt(True, msgs, sums, rels, full_token_allowance=6000)
@@ -157,7 +186,7 @@ def agent_completion_story(state: AgentState):
     # add system prompt
     messages = [(
         "system",
-        build_sys_prompt_conscious_story(state["complexity"] > COMPLEX_THRESHOLD)
+        build_sys_prompt_conscious_story(state.complexity > COMPLEX_THRESHOLD)
     ), (
         "user",
         "Please write a story about endearing experience of an AI and their user."
@@ -168,13 +197,13 @@ def agent_completion_story(state: AgentState):
 
     # add latest message
     prefix = ""
-    if state["thought"] != "":
-        plan = state["plan"]
+    if state.thought != "":
+        plan = state.plan
         # messages.append((
         #     "user",
         #     plan
         # ))
-        thought = state["thought"]
+        thought = state.thought
         prefix = controller.get_thought_string_story(thought)
     prefix += f"\n{controller.config.companion_name}:"
 
@@ -185,6 +214,7 @@ def agent_completion_story(state: AgentState):
            f"User:",
            f"User thinks:",
            f"{controller.config.companion_name}:",
+           f"{controller.config.companion_name} gets a notification from",
            f"{controller.config.companion_name} thinks:"]
     feedback = []
     regen_count = 0
@@ -209,21 +239,21 @@ def agent_completion_story(state: AgentState):
 
     # Select the content with the highest validness score from regens
     if regens:
-        state["output"] = max(regens, key=lambda x: x[0])[1]
-        state["status"] = 0
+        state.output = max(regens, key=lambda x: x[0])[1]
+        state.status = 0
 
     return state
 
 
 def complexity_switch_func(state: AgentState):
-    if state["complexity"] > COMPLEX_THRESHOLD:
+    if state.complexity > COMPLEX_THRESHOLD:
         return "agent_generate_thought"
     else:
         return "agent_completion"
 
 
 def completion_select_func(state: AgentState):
-    if state["completion_mode"] == CompletionModeResponseMode.Assistant.value:
+    if state.completion_mode == CompletionModeResponseMode.Assistant.value:
         return "agent_completion_assistant"
     else:
         return "agent_completion_story"
@@ -235,6 +265,8 @@ def add_response_system_to_graph(workflow: StateGraph, start_node: str, end_node
     workflow.add_node("agent_completion_story", agent_completion_story)
     workflow.add_node("agent_generate_thought", agent_generate_thought)
     workflow.add_node("agent_completion", agent_completion)
+    workflow.add_node("agent_create_knowledge_plan", agent_create_knowledge_plan)
+
     workflow.add_edge(start_node, "agent_preprocess_input")
     workflow.add_conditional_edges("agent_preprocess_input", complexity_switch_func)
     workflow.add_edge("agent_generate_thought", "agent_completion")

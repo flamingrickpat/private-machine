@@ -24,13 +24,11 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
 
     # create langgraph state
     status = 0
-    state = {
-        "title": None,
-        "input": input,
-        "output": None,
-        "status": status,
-        "conversation_id": conversation_id,
-    }
+    state = AgentState(
+        input=input,
+        status=status,
+        conversation_id=conversation_id,
+    )
 
     # Make the completion
     #try:
@@ -136,7 +134,6 @@ def chat_ui():
             if st.button("Send", key=f"send_{convo_id}"):
                 send_message(convo_id, "user", new_message)
                 st.rerun()
-                new_message.cle
 
 
 init_db()

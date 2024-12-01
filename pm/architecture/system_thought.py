@@ -12,7 +12,7 @@ from pm.agents_dynamic.schema_thought_contemplation import thought_contemplation
 from pm.architecture.state import AgentState
 from pm.consts import THOUGHT_VALIDNESS_MIN
 from pm.controller import controller
-from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, get_facts, insert_object
+from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, get_facts_str, insert_object
 from pm.database.db_model import Message, MessageSummary, MessageInterlocus
 from pm.utils.string_utils import get_last_n_messages_or_words_from_string
 from pm.utils.token_utils import quick_estimate_tokens
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 def agent_generate_int_thoughts(state: AgentState):
     sysmsg = "The user hasn't responded yet, entering autonomous thinking mode..."
     msg_init = Message(
-        conversation_id=state["conversation_id"],
+        conversation_id=state.conversation_id,
         role='system',
         text=sysmsg,
         public=True,
@@ -33,19 +33,19 @@ def agent_generate_int_thoughts(state: AgentState):
     insert_object(msg_init)
 
     user_memory = "No memory yet!"
-    full_text = fetch_messages_as_string(state["conversation_id"])
+    full_text = fetch_messages_as_string(state.conversation_id)
     conv_context = get_last_n_messages_or_words_from_string(full_text, n_messages=16)
-    ai_memory = "\n".join(get_facts(state["conversation_id"], conv_context))
+    ai_memory = "\n".join(get_facts_str(state.conversation_id, conv_context))
 
     while True:
         thought = generate_thoughts(f"Generate a thought for {controller.config.companion_name}!", controller.config.character_card_story, conv_context, ai_memory, user_memory)
         validness = validate_thought(thought)
         if validness > THOUGHT_VALIDNESS_MIN:
-            state["thought"] = thought
+            state.thought = thought
             break
 
     msg_thought = Message(
-        conversation_id=state["conversation_id"],
+        conversation_id=state.conversation_id,
         role='assistant',
         text=thought,
         public=False,
@@ -60,15 +60,15 @@ def agent_generate_int_thoughts(state: AgentState):
 
 
 def agent_generate_aspects(state: AgentState):
-    full_text = fetch_messages_as_string(state["conversation_id"])
+    full_text = fetch_messages_as_string(state.conversation_id)
     conv_context = get_last_n_messages_or_words_from_string(full_text)
 
-    aspects = generate_personality_aspects(controller.config.character_card_story, state["thought"])
+    aspects = generate_personality_aspects(controller.config.character_card_story, state.thought)
     res = thought_contemplation_dialog(conv_context, f"Reach a conclusion on this thought: {state['thought']}", aspects)
 
     thought = res.as_internal_thought
     msg_thought = Message(
-        conversation_id=state["conversation_id"],
+        conversation_id=state.conversation_id,
         role='assistant',
         text=thought,
         public=False,

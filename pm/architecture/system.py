@@ -30,32 +30,32 @@ def agent_commit_transaction(state: AgentState):
     return state
 
 def agent_tasks_create(state: AgentState):
-    state["task"] = []
-    if state["input"].strip() != "":
-        state["task"].append("task_converse")
-    if state["input"].strip() == "":
-        state["task"].append("task_think")
-    if len(fetch_messages_no_summary(state["conversation_id"])) > RECALC_SUMMARIES_MESSAGES:
-        state["task"].append("task_summarize")
-    if len(state["task"]) == 0:
-        state["task"].append("commit_transaction")
+    state.task = []
+    if state.input.strip() != "":
+        state.task.append("task_converse")
+    if state.input.strip() == "":
+        state.task.append("task_think")
+    if len(fetch_messages_no_summary(state.conversation_id)) > RECALC_SUMMARIES_MESSAGES:
+        state.task.append("task_summarize")
+    if len(state.task) == 0:
+        state.task.append("commit_transaction")
     return state
 
 def agent_tasks_delegate(state: AgentState):
     return state
 
 def agent_task_summarize(state: AgentState):
-    state["task"].remove("task_summarize")
-    cluster_and_summarize(state["conversation_id"])
-    high_level_summarize(state["conversation_id"])
+    state.task.remove("task_summarize")
+    cluster_and_summarize(state.conversation_id)
+    high_level_summarize(state.conversation_id)
     return state
 
 def agent_task_converse_start(state: AgentState):
-    state["task"].remove("task_converse")
+    state.task.remove("task_converse")
 
-    input = state["input"]
+    input = state.input
     msg_user = Message(
-        conversation_id=state["conversation_id"],
+        conversation_id=state.conversation_id,
         role='user',
         public=True,
         text=input,
@@ -68,10 +68,10 @@ def agent_task_converse_start(state: AgentState):
     return state
 
 def agent_task_converse_end(state: AgentState):
-    if state["thought"] != "":
-        thought = state["thought"]
+    if state.thought != "":
+        thought = state.thought
         thoguht_ai = Message(
-            conversation_id=state["conversation_id"],
+            conversation_id=state.conversation_id,
             role='assistant',
             text=thought,
             public=True,
@@ -81,10 +81,10 @@ def agent_task_converse_end(state: AgentState):
         )
         insert_object(thoguht_ai)
 
-    if state['output'] and state['output'] != "":
-        output = state['output']
+    if state.output and state.output != "":
+        output = state.output
         msg_ai = Message(
-            conversation_id=state["conversation_id"],
+            conversation_id=state.conversation_id,
             role='assistant',
             text=output,
             public=True,
@@ -96,18 +96,18 @@ def agent_task_converse_end(state: AgentState):
     return state
 
 def agent_task_think_start(state: AgentState):
-    state["task"].remove("task_think")
+    state.task.remove("task_think")
     return state
 
 def agent_task_think_end(state: AgentState):
     return state
 
 def task_delegate_func(state: AgentState):
-    if "task_summarize" in state["task"]:
+    if "task_summarize" in state.task:
         return "agent_task_summarize"
-    elif "task_converse" in state["task"]:
+    elif "task_converse" in state.task:
         return "agent_task_converse_start"
-    elif "task_think" in state["task"]:
+    elif "task_think" in state.task:
         return "agent_task_think_start"
     else:
         return "agent_commit_transaction"
@@ -150,10 +150,10 @@ def get_graph():
 
 def make_completion(state: AgentState) -> AgentState:
     messages = []
-    msgs = fetch_messages(state["conversation_id"])[-4:]
+    msgs = fetch_messages(state.conversation_id)[-4:]
     for msg in msgs:
         messages.append((msg.role, msg.text))
-    messages.append(("user", state["input"]))
+    messages.append(("user", state.input))
 
     graph = get_graph()
     return graph.invoke(state)
