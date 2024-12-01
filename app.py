@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import datetime
 from typing import List
 
 import streamlit as st
@@ -13,10 +14,14 @@ from pm.config.config import read_config_file, MainConfig
 from pm.controller import controller
 from pm.database.db_helper import init_db, login_user, start_conversation, fetch_conversations, fetch_messages, insert_object
 from pm.database.transactions import rollback_transaction
+from pm.log_utils import setup_logger
 from pm.utils.token_utils import quick_estimate_tokens
 
 
 def async_handle_llm(conversation_id: str, input: str) -> (int, str):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    setup_logger(f"main_{timestamp}.log")
+
     # Fetch the current agent state for the conversation
     convo_table = controller.db.open_table(Conversation.table)
     convo = convo_table.search().where(f"id='{conversation_id}'", prefilter=True).limit(1).to_pydantic(

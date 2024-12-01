@@ -265,10 +265,15 @@ def get_facts(conversation_id: str, query: str, limit: int = 10) -> List[Fact]:
     # _relevance_score
     emb = controller.embedder.get_embedding_scalar(query)
     keywords = " ".join(controller.nlp.extract_keywords(query))
-
-    scores = (controller.db.open_table(Fact.table)
-                 .search(query_type="hybrid").vector(emb).text(keywords)
-                 .limit(limit)
-                 .to_pydantic(Fact))
+    if keywords.strip() != "":
+        scores = (controller.db.open_table(Fact.table)
+                     .search(query_type="hybrid").vector(emb).text(keywords)
+                     .limit(limit)
+                     .to_pydantic(Fact))
+    else:
+        scores = (controller.db.open_table(Fact.table)
+                     .search(query_type="hybrid").vector(emb)
+                     .limit(limit)
+                     .to_pydantic(Fact))
 
     return [x for x in scores]

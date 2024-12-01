@@ -16,17 +16,18 @@ A short description about the AI {companion_name}:
 {character_card}
 
 And some of the information they about user and environment they collected:
-<not_enough_data_yet>
+{knowledge}
 """
 
 thought_insert = """You can also describe the internal monologue of the AI with '{companion_name} thinks:'. That will really add depth to the story! Just make sure to write what they actually say with '{companion_name}:' next!"""
 
-def build_sys_prompt_conscious_story(use_thoughts: bool) -> str:
+def build_sys_prompt_conscious_story(use_thoughts: bool, knowledge: str) -> str:
     map = {
         "character_card": controller.config.character_card_story,
         "thought_insert": "",
         "companion_name": controller.config.companion_name,
-        "user_name": controller.config.user_name
+        "user_name": controller.config.user_name,
+        "knowledge": knowledge
     }
 
     if use_thoughts:

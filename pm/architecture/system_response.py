@@ -1,10 +1,10 @@
 import json
 import logging
+import random
 from typing import TypedDict, Dict, List
 
 from langgraph.graph import StateGraph
 
-from experiments.test_its import messages
 from pm.agents.assistant_story_check import assistant_story_check
 from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
 from pm.agents.determine_complexity import determine_complexity
@@ -26,7 +26,7 @@ from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
 from pm.utils.string_utils import get_last_n_messages_or_words_from_string, get_text_after_keyword
-from pm.utils.token_utils import quick_estimate_tokens
+from pm.utils.token_utils import quick_estimate_tokens, truncate_to_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +47,8 @@ def agent_preprocess_input(state: AgentState):
     return state
 
 def agent_create_knowledge_plan(state: AgentState):
-    current_questions = state.plan_questions[-8:]
-    question_block = '\n'.join(current_questions)
+    #current_questions = state.plan_questions[-8:]
+    #question_block = '\n'.join(current_questions)
     full_text = fetch_messages_as_string(state.conversation_id)
     conversation_block = get_last_n_messages_or_words_from_string(full_text, n_messages=6)
 
@@ -59,9 +59,6 @@ def agent_create_knowledge_plan(state: AgentState):
     userprompt = f"""### BEGIN CONVERSATION
     {conversation_block}
     ### END CONVERSATION
-    ### BEGIN ALREADY ASKED QUESTIONS
-    {question_block}
-    ### END ALREADY ASKED QUESTIONS
     What new questions are necessary to answer before {controller.config.companion_name} can give a good answer?
     """
 
@@ -75,10 +72,13 @@ def agent_create_knowledge_plan(state: AgentState):
     new_questions = content.split("\n")
     data = set()
     for q in new_questions:
-        state.plan_questions.append(q)
-        facts = get_facts(state.conversation_id, q, 2)
-        for f in facts:
-            state.implicit_knowledge_ids.append(f.id)
+        if q.strip() != "":
+            facts = get_facts(state.conversation_id, q, 4)
+            for f in facts:
+                data.add(f.text)
+
+    random.shuffle(list(data))
+    state.knowledge_implicit = truncate_to_tokens("\n".join(data), 1024)
 
 
 def agent_generate_thought(state: AgentState):
@@ -98,7 +98,7 @@ def agent_generate_thought(state: AgentState):
         tokens=quick_estimate_tokens(thought),
         interlocus=MessageInterlocus.MessageThought
     )
-    insert_object(msg_thought)
+    #insert_object(msg_thought)
 
     plan = res.conclusion
     state.plan = plan
@@ -121,12 +121,13 @@ def agent_completion_assistant(state: AgentState):
     msgs = rank_table(state.conversation_id, query, Message)
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
-    messages = build_prompt(False, msgs, sums, rels, full_token_allowance=6000)
+    sysprompt = build_sys_prompt_conscious_assistant(state.complexity > COMPLEX_THRESHOLD, state.available_tools, state.knowledge_implicit)
+    messages = build_prompt(False, msgs, sums, rels, full_token_allowance=controller.config.get_model(LlmPreset.Default).context_size - (quick_estimate_tokens(sysprompt) + 512))
 
     # add system prompt
     messages.insert(0, (
         "system",
-        build_sys_prompt_conscious_assistant(state.complexity > COMPLEX_THRESHOLD, state.available_tools)
+        sysprompt
     ))
 
     if state.thought != "":
@@ -180,13 +181,14 @@ def agent_completion_story(state: AgentState):
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
 
-    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=6000)
+    sysprompt = build_sys_prompt_conscious_story(state.complexity > COMPLEX_THRESHOLD, state.knowledge_implicit)
+    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=controller.config.get_model(LlmPreset.Default).context_size - (quick_estimate_tokens(sysprompt) + 512))
     message_block = "\n".join([f"{item[1]}" for item in messages])
 
     # add system prompt
     messages = [(
         "system",
-        build_sys_prompt_conscious_story(state.complexity > COMPLEX_THRESHOLD)
+        sysprompt
     ), (
         "user",
         "Please write a story about endearing experience of an AI and their user."
@@ -268,7 +270,8 @@ def add_response_system_to_graph(workflow: StateGraph, start_node: str, end_node
     workflow.add_node("agent_create_knowledge_plan", agent_create_knowledge_plan)
 
     workflow.add_edge(start_node, "agent_preprocess_input")
-    workflow.add_conditional_edges("agent_preprocess_input", complexity_switch_func)
+    workflow.add_edge("agent_preprocess_input", "agent_create_knowledge_plan")
+    workflow.add_conditional_edges("agent_create_knowledge_plan", complexity_switch_func)
     workflow.add_edge("agent_generate_thought", "agent_completion")
     workflow.add_conditional_edges("agent_completion", completion_select_func)
     workflow.add_edge("agent_completion_story", end_node)

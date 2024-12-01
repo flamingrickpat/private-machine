@@ -1,4 +1,5 @@
 import json
+from enum import Enum
 from typing import List, Literal
 
 from pydantic import BaseModel, Field
@@ -79,14 +80,15 @@ example3_assistant = """
 }
 """
 
-categories = [controller.config.user_name.lower(),
-              controller.config.companion_name.lower(),
-              "environment"]
+class ExtractedFactCategory(str, Enum):
+    user = "user"
+    ai_companion = "ai_companion"
+    environment = "environment"
 
 class ExtractedFact(BaseModel):
     """Describes a fact."""
     fact: str = Field(description="text representation of the fact")
-    category: Literal[tuple(categories)] = Field(description=f"category can be '{controller.config.user_name}', '{controller.config.companion_name}' or 'environment'")
+    category: ExtractedFactCategory = Field(description=f"category can be 'user' for '{controller.config.user_name}', 'ai_companion' for '{controller.config.companion_name}' or 'environment'")
     importance: float = Field(description="how important the fact is. small miniscule facts such as favorite dog breed are lower and important facts such as new job are higher. from 0 to 1.",
                               ge=0, le=1)
 

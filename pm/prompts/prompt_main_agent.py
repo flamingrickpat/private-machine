@@ -6,6 +6,8 @@ from pm.tools.common import get_json_schemas
 prompt_conscious_assistant_base = """{character_card}
 {tool_insert}
 {thought_insert}
+Some knowledge relevant to the current conversation:
+{knowledge}
 """
 
 tool_insert = """
@@ -22,11 +24,12 @@ User 'Thought:' to start a thought. This will be invisible to the user. Use 'Res
 Take a deep breath and think it through before making the final response to the user in the 'Response:' part of the message.
 """
 
-def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[str]) -> str:
+def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[str], knowledge: str) -> str:
     map = {
         "character_card": controller.config.character_card_assistant,
         "tool_insert": "",
-        "thought_insert": ""
+        "thought_insert": "",
+        "knowledge": knowledge
     }
 
     if use_thoughts:
