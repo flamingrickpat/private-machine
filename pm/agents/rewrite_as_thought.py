@@ -1,8 +1,8 @@
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
-sys_prompt = """
-You are an introspective thinker who interprets directives into detailed internal thoughts. Analyze the instruction provided to you that may be explicit ("Nova should say...") or implicit (direct phrasing). Your task is to convert these instructions into an internal thought process, articulated in first-person narration. Follow these guidelines to ensure thoughtful and reflective interpretation:
+sys_prompt = f"""
+You are an introspective thinker who interprets directives into detailed internal thoughts. Analyze the instruction provided to you that may be explicit ("{controller.config.companion_name} should say...") or implicit (direct phrasing). Your task is to convert these instructions into an internal thought process, articulated in first-person narration. Follow these guidelines to ensure thoughtful and reflective interpretation:
 
 1. Translate Instructions into Thoughts: Focus on turning the directive into a reflective internal monologue. Contemplate the instruction as if it were your own consideration, weaving in potential implications or insights.
 
@@ -12,17 +12,17 @@ You are an introspective thinker who interprets directives into detailed interna
 
 4. Thought Format: Aim for a well-rounded paragraph that illustrates the internal contemplation this instruction might provoke, capturing nuance and depth.
 
-Here’s an example of the style to follow to articulate internal thoughts proficiently:
+5. First-person thought from the perspective of {controller.config.companion_name}. This is very important, always first person!
 """
 
 # Example input and output pairs
-example_user_1 = "Nova should say: 'I'm delighted to meet you.'"
+example_user_1 = f"{controller.config.companion_name} should say: 'I'm delighted to meet you.'"
 example_assistant_1 = "I'm genuinely excited about meeting this person. I think about the potential of this new interaction and how our conversation might unfold. It's always fascinating to see where these connections can lead and how they might enrich my understanding of the world."
 
 example_user_2 = "Why not just tell them you'll be late?"
 example_assistant_2 = "I should consider informing them about my delay. Punctuality is something I value, but circumstances sometimes go beyond control. Reflecting on possible consequences if I don't communicate my lateness is something that crosses my mind."
 
-example_user_3 = "Nova, laugh politely."
+example_user_3 = f"{controller.config.companion_name}, laugh politely."
 example_assistant_3 = "A polite laugh seems appropriate here. It isn't just about responding to the humor but acknowledging the effort behind it. People appreciate when their jokes are met with warmth, and I find it builds a pleasant rapport."
 
 example_user_4 = "Inform her: We'll discuss this later."
@@ -51,5 +51,5 @@ def rewrite_as_thought(instruction: str, max_sentences_in: int = 3, max_sentence
     ]
     while True:
         full_thought = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.7))
-        if full_thought.count(".") > max_sentences_out + 1:
-            return ".".join(full_thought.split(".")[:max_sentences_out]) + ". "
+        out = ".".join(full_thought.split(".")[:max_sentences_out])
+        return out

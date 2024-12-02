@@ -301,7 +301,8 @@ def execute_boss_worker_chat(context_data: str, task: str, agents: List[Agent], 
 
     thought_block = "\n".join(f"{msg.name}: {msg.text}" for msg in msgs)
     while True:
-        internal_thought = convert_subagent_conversation_to_thought(thought_block)
+        # double convert to get better result
+        internal_thought = convert_subagent_conversation_to_thought(convert_subagent_conversation_to_thought(thought_block))
         if validate_thought(internal_thought) > THOUGHT_VALIDNESS_MIN:
             break
 

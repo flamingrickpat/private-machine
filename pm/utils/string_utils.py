@@ -64,7 +64,7 @@ def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int 
 
     for line in conversation.strip().splitlines():
         # Check if there's a ":" in the first 20 characters of the line
-        if ":" in line[:20]:
+        if ":" in line[:32]:
             # If we already have collected parts of a previous message, save it
             if current_message:
                 lines.append("\n".join(current_message))

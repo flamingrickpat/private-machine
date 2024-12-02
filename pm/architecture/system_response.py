@@ -18,7 +18,7 @@ from pm.agents.validate_thought import validate_thought
 from pm.agents_dynamic.schema_subconscious import get_plan_from_subconscious_agents
 from pm.architecture.state import AgentState, EmotionalAxesModel
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
-from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN, MAX_REGENERATE_COUNT
+from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN, MAX_REGENERATE_COUNT, ADD_INTERMEDIATE_STEP_THOUGHT
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, insert_object, fetch_responses_as_string, get_facts_str, get_facts
 from pm.database.db_model import Message, MessageSummary, MessageInterlocus
@@ -146,21 +146,23 @@ def agent_generate_thought(state: AgentState):
                                                    f"to mimic human cognition and agency in every way and also support their user?")
 
     thought = res.as_internal_thought
-    msg_thought = Message(
-        conversation_id=state.conversation_id,
-        role='assistant',
-        text=thought,
-        public=False,
-        embedding=controller.embedder.get_embedding_scalar_float_list(thought),
-        tokens=quick_estimate_tokens(thought),
-        interlocus=MessageInterlocus.MessageThought
-    )
-    #insert_object(msg_thought)
+
+    if ADD_INTERMEDIATE_STEP_THOUGHT:
+        msg_thought = Message(
+            conversation_id=state.conversation_id,
+            role='assistant',
+            text=thought,
+            public=False,
+            embedding=controller.embedder.get_embedding_scalar_float_list(thought),
+            tokens=quick_estimate_tokens(thought),
+            interlocus=MessageInterlocus.MessageThought
+        )
+        insert_object(msg_thought)
 
     plan = res.conclusion
     state.plan = plan
     while True:
-        thought = rewrite_as_thought(f"{query}\n{plan}", max_sentences_in=4, max_sentences_out=4)
+        thought = rewrite_as_thought(f"{plan}", max_sentences_in=16, max_sentences_out=8)
         validness = validate_thought(thought)
         if validness > THOUGHT_VALIDNESS_MIN:
             state.thought = thought

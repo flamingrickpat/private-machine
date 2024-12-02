@@ -141,7 +141,7 @@ def role_to_name(x: Message):
 
 def fetch_messages_as_string(conversation_id: str) -> str:
     messages = fetch_messages(conversation_id)
-    message_block = "\n".join([f"{role_to_name(x)}: {x.text}" for x in messages])
+    message_block = "\n".join([f"{role_to_name(x)}{' thinks' if x.interlocus == 10 else ''}: {x.text}" for x in messages])
     return message_block
 
 def fetch_responses_as_string(conversation_id: str) -> str:
