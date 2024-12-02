@@ -157,7 +157,7 @@ def fetch_relations(conversation_id: str) -> List[Relation]:
 def fetch_messages_no_summary(conversation_id: str) -> List[Message]:
     query = (f"select distinct m.* from message m "
              f"where m.id not in (select a from relation where rel_ab = 'summarized_by') "
-             f"and m.conversation_id = '{conversation_id}' "
+             f"and m.conversation_id = '{conversation_id}' and interlocus = 20 "
              f"order by m.created_at")
     tmp = sql_query(query)
     return df_to_pydantic(tmp, Message)
@@ -221,7 +221,7 @@ def insert_system_message(conversation_id: str, sysmsg: str):
     )
     insert_object(msg_init)
 
-def rank_table(conversation_id: str, query: str, table: Type[LanceModel]) -> List[Tuple[LanceModel, float]]:
+def rank_table(conversation_id: str, query: str, table: Type[LanceModel]) -> List[Tuple[Message | Fact | MessageSummary, float]]:
     if query.strip() == "":
         return []
 

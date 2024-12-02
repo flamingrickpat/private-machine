@@ -4,6 +4,7 @@ import random
 from typing import TypedDict, Dict, List
 
 from langgraph.graph import StateGraph
+from pydantic import BaseModel, FiniteFloat, Field
 
 from pm.agents.assistant_story_check import assistant_story_check
 from pm.agents.completion_mode import determine_completion_mode, CompletionModeResponseMode
@@ -15,7 +16,7 @@ from pm.agents.validate_response import validate_response
 from pm.agents.validate_response_in_context import validate_response_in_context
 from pm.agents.validate_thought import validate_thought
 from pm.agents_dynamic.schema_subconscious import get_plan_from_subconscious_agents
-from pm.architecture.state import AgentState
+from pm.architecture.state import AgentState, EmotionalAxesModel
 from pm.clustering.summarize import cluster_and_summarize, high_level_summarize
 from pm.consts import COMPLEX_THRESHOLD, RECALC_SUMMARIES_MESSAGES, THOUGHT_VALIDNESS_MIN, RESPONSE_VALIDNESS_MIN, MAX_REGENERATE_COUNT
 from pm.controller import controller
@@ -78,7 +79,63 @@ def agent_create_knowledge_plan(state: AgentState):
                 data.add(f.text)
 
     random.shuffle(list(data))
-    state.knowledge_implicit = truncate_to_tokens("\n".join(data), 1024)
+    state.knowledge_implicit_facts = truncate_to_tokens("\n".join(data), 1024)
+
+    full_text = fetch_responses_as_string(state.conversation_id)
+    query = get_last_n_messages_or_words_from_string(full_text, n_messages=4)
+    msgs = rank_table(state.conversation_id, query, Message)
+    sums = rank_table(state.conversation_id, query, MessageSummary)
+    rels = fetch_relations("main")
+    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=1024)
+    message_block = "\n".join([f"{item[1]}" for item in messages])
+    state.knowledge_implicit_conversation = message_block
+
+    return state
+
+def agent_determine_emotions(state: AgentState):
+    class EmotionalImpact(BaseModel):
+        """
+        Determine how much the current emotional state will be changed.
+        """
+        emotional_impact: float = Field(default_factory=float, ge=0, le=1, description="from 0 for minimal impact to 1 to maximum emotional impact (meaning the strength by which whatever current "
+                                                                                       "emotional state is changed")
+
+    sysprompt = (f"You are a helpful assistant that determines the emotional impact of a conversation on the emotional state of {controller.config.companion_name}."
+              f"The current conversation:"
+              f"### BEGINN CONVERSATION"
+              f"{state.knowledge_implicit_conversation}"
+              f"### END CONVERSATION"
+              f"### BEGINN CONTEXT INFORMATION"
+              f"{state.knowledge_implicit_facts}"
+              f"### END CONTEXT INFORMATION")
+
+
+    schema_impact = f"\nYou will output valid JSON in this format: {json.dumps(EmotionalImpact.model_json_schema())}"
+    userprompt = f"What is the emotional impact on {controller.config.companion_name} when {controller.config.user_name} says '{state.input}'?"
+    messages = [
+        ("system", sysprompt + schema_impact),
+        ("user", userprompt),
+    ]
+
+    tools = [EmotionalImpact]
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, CommonCompSettings(max_tokens=1024, temperature=0.1), tools=tools)
+    emotional_impact = 0
+    if isinstance(calls[0], EmotionalImpact):
+        emotional_impact = calls[0].emotional_impact
+
+    print(emotional_impact)
+
+    tools = [EmotionalAxesModel]
+    schema_impact = f"\nYou will output valid JSON in this format: {json.dumps(EmotionalAxesModel.model_json_schema())}"
+    messages = [
+        ("system", sysprompt + schema_impact),
+        ("user", userprompt),
+    ]
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, CommonCompSettings(max_tokens=1024, temperature=0.1), tools=tools)
+    if isinstance(calls[0], EmotionalAxesModel):
+        print(calls[0])
+
+    return state
 
 
 def agent_generate_thought(state: AgentState):
@@ -116,12 +173,11 @@ def agent_completion(state: AgentState):
 
 def agent_completion_assistant(state: AgentState):
     full_text = fetch_responses_as_string(state.conversation_id)
-    query = get_last_n_messages_or_words_from_string(full_text)
-
+    query = get_last_n_messages_or_words_from_string(full_text, n_messages=4)
     msgs = rank_table(state.conversation_id, query, Message)
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
-    sysprompt = build_sys_prompt_conscious_assistant(state.complexity > COMPLEX_THRESHOLD, state.available_tools, state.knowledge_implicit)
+    sysprompt = build_sys_prompt_conscious_assistant(state.complexity > COMPLEX_THRESHOLD, state.available_tools, state.knowledge_implicit_facts)
     messages = build_prompt(False, msgs, sums, rels, full_token_allowance=controller.config.get_model(LlmPreset.Default).context_size - (quick_estimate_tokens(sysprompt) + 512))
 
     # add system prompt
@@ -176,12 +232,12 @@ def agent_completion_assistant(state: AgentState):
 
 def agent_completion_story(state: AgentState):
     full_text = fetch_responses_as_string(state.conversation_id)
-    query = get_last_n_messages_or_words_from_string(full_text)
+    query = get_last_n_messages_or_words_from_string(full_text, n_messages=4)
     msgs = rank_table(state.conversation_id, query, Message)
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
 
-    sysprompt = build_sys_prompt_conscious_story(state.complexity > COMPLEX_THRESHOLD, state.knowledge_implicit)
+    sysprompt = build_sys_prompt_conscious_story(state.complexity > COMPLEX_THRESHOLD, state.knowledge_implicit_facts)
     messages = build_prompt(True, msgs, sums, rels, full_token_allowance=controller.config.get_model(LlmPreset.Default).context_size - (quick_estimate_tokens(sysprompt) + 512))
     message_block = "\n".join([f"{item[1]}" for item in messages])
 
@@ -268,10 +324,12 @@ def add_response_system_to_graph(workflow: StateGraph, start_node: str, end_node
     workflow.add_node("agent_generate_thought", agent_generate_thought)
     workflow.add_node("agent_completion", agent_completion)
     workflow.add_node("agent_create_knowledge_plan", agent_create_knowledge_plan)
+    workflow.add_node("agent_determine_emotions", agent_determine_emotions)
 
     workflow.add_edge(start_node, "agent_preprocess_input")
     workflow.add_edge("agent_preprocess_input", "agent_create_knowledge_plan")
-    workflow.add_conditional_edges("agent_create_knowledge_plan", complexity_switch_func)
+    workflow.add_edge("agent_create_knowledge_plan", "agent_determine_emotions")
+    workflow.add_conditional_edges("agent_determine_emotions", complexity_switch_func)
     workflow.add_edge("agent_generate_thought", "agent_completion")
     workflow.add_conditional_edges("agent_completion", completion_select_func)
     workflow.add_edge("agent_completion_story", end_node)

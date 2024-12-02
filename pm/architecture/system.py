@@ -74,7 +74,7 @@ def agent_task_converse_end(state: AgentState):
             conversation_id=state.conversation_id,
             role='assistant',
             text=thought,
-            public=True,
+            public=False,
             embedding=controller.embedder.get_embedding_scalar_float_list(thought),
             tokens=quick_estimate_tokens(thought),
             interlocus=MessageInterlocus.MessageThought

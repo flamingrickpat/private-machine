@@ -42,7 +42,7 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
     #    return -1, repr(e)
 
     # Save the new state and the LLM response as a new message
-    convo.agent_state = json.dumps(state)
+    convo.agent_state = "" # json.dumps(state.model_dump())
     convo.title = f"Conversation {convo.id}"
     convo_table.update(where=f"id = '{convo.id}'", values=convo.model_dump())
 

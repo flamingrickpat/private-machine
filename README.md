@@ -47,3 +47,28 @@ THIS NO WARRANTY SECTION SHALL BE APPLICABLE TO THE FULLEST EXTENT PERMITTED BY 
 
 THIS DISCLAIMER OF WARRANTY IS TO BE READ AND UNDERSTOOD IN CONJUNCTION WITH THE GNU AFFERO GENERAL PUBLIC LICENSE (AGPL) UNDER WHICH THIS SOFTWARE IS LICENSED. NOTHING IN THIS DISCLAIMER SHALL BE DEEMED TO LIMIT ANY RIGHTS OR OBLIGATIONS UNDER THE SAID LICENSE.
 
+## Citations
+```                                               
+    . ..    ....:....                                                    
+    . .. .:;&&&&&&&&+::..                                       .         
+    . ...;&&&&&&&&&&&&$;.                                       .         
+    . . ;&&&&+&$X;&&&&&&;:.                                     .         
+    .. ..X&&xX&$+$&&;X&&&&::..                                             
+    . ..&&&&&&&&&&&&&&&&&&&x;:..                                 .        
+    . ..$&&$&&&&&&&&&&&&&&&&&$x;::....                                    
+    . ..+&&&&X&&&&&&&x&&&&&&&&&$X+;;;::....                     .         
+    . ..:X&&&&&&&&&&&&&&&:$&$X$&$$Xxx++xx+;::....                .        
+    . ...:;&&&&&&&&&&&&&&&&&&+:;++XXXXXXxx++xxx+;:....           .        
+    . .. ..::X&&&&&&;:;X&&&&&&&&$+:.:;x$X++xx++XXXX+;::....     .         
+    . ..     .......   ..::;+X$&&&$$$XX:+::;;;++xXXXXX$&&$;:... .         
+    . ..                  ....:::;xXX$&&&X+;:.:::;;X$&&&&&&&&&; .         
+    . ..                    .. . ..:::+xXXX$$$$X;.:;x$&$&&&X$&+..         
+    . ..                             ....:;+xXX$&&$XxX$$&XX&$$X.          
+    . ..                                   ...:;X$&&&&&&&:$&$X+..         
+    . ..                                       ...:+&&&&&&&&&X: .         
+    . ..                                           ...:+&&&&X:  .         
+    . ..                           .   ..    .   .  .  ...... ..          
+    ... . . . ..  . .  .  . ...  . . ..  ....  .  .  .    .   .           
+                                                                          
+```
+

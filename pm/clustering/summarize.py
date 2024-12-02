@@ -19,10 +19,10 @@ controller.start()
 
 def cluster_and_summarize(conversation_id: str):
     no_summary = fetch_messages_no_summary(conversation_id)
-    all = fetch_messages(conversation_id)
-    if len(all) < SUMMARY_MIN_CHAT_LENGTH:
+    if len(no_summary) < SUMMARY_MIN_CHAT_LENGTH:
         return
 
+    all = fetch_messages(conversation_id)
     subset_plain = all[-SUMMARY_MIN_CHAT_LENGTH:]
     subset = get_sliding_window_embedded_messages(subset_plain)
     clusters = get_agglomerative_clusters_as_dict(subset)
