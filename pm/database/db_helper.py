@@ -139,20 +139,30 @@ def role_to_name(x: Message):
     name = controller.config.companion_name if x.role == 'assistant' else (controller.config.user_name if x.role == "user" else "System")
     return name
 
-def fetch_messages_as_string(conversation_id: str, n_thought_plans: int = 1, n_thoughts: int = 4) -> str:
+def fetch_messages_as_string(conversation_id: str, n_thought_plans: int = 1, n_thought: int = 4, n_thought_emotion: int = 2, n_thought_feeling: int = 1) -> str:
     messages = fetch_messages(conversation_id)
 
     cnt_thought_plans = 0
     cnt_thoughts = 0
+    cnt_thought_emotion = 0
+    cnt_thought_feeling = 0
     for i in range(len(messages) - 1, -1, -1):
         msg = messages[i]
         if msg.interlocus == MessageInterlocus.MessageThought:
             cnt_thoughts += 1
-            if cnt_thoughts > n_thoughts:
+            if cnt_thoughts > n_thought:
                 del messages[i]
         if msg.interlocus == MessageInterlocus.MessagePlanThought:
             cnt_thought_plans += 1
             if cnt_thought_plans > n_thought_plans:
+                del messages[i]
+        if msg.interlocus == MessageInterlocus.MessageEmotions:
+            cnt_thought_emotion += 1
+            if cnt_thought_emotion > n_thought_emotion:
+                del messages[i]
+        if msg.interlocus == MessageInterlocus.MessageFeeling:
+            cnt_thought_feeling += 1
+            if cnt_thought_feeling > n_thought_feeling:
                 del messages[i]
 
     message_block = "\n".join([f"{role_to_name(x)}{' thinks' if MessageInterlocus.is_thought(x.interlocus) else ''}: {x.text}" for x in messages])

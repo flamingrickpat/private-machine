@@ -134,10 +134,54 @@ def agent_determine_emotions(state: AgentState):
     old_emotions = state.emotional_state
     new_emotions = old_emotions.model_copy()
     new_emotions.decay_to_baseline(0.05)
-    new_emotions.add_state_with_factor()
 
     if isinstance(calls[0], EmotionalAxesModel):
-        print(calls[0])
+        delta = calls[0]
+        new_emotions.add_state_with_factor(delta.model_dump(), emotional_impact)
+
+        sysprompt = (f"You are a helpful assistant that determines the current emotional state of {controller.config.companion_name}."
+                     f"The current conversation:"
+                     f"### BEGINN CONVERSATION"
+                     f"{state.knowledge_implicit_conversation}"
+                     f"### END CONVERSATION"
+                     f"### BEGIN SCHEMA"
+                     f"{json.dumps(EmotionalAxesModel.model_json_schema())}"
+                     f"### END SCHEMA"
+                     f"### BEGIN EMOTION DELTA"
+                     f"{delta.model_dump_json(indent=2)}"
+                     f"### END EMOTION DELTA"
+                     f"### BEGIN EMOTION STATE"
+                     f"{new_emotions.model_dump_json(indent=2)}"
+                     f"### END EMOTION STATE"
+                     f"Your goal is to describe their current emotional state without using the names of the variables in the emotional state. You describe it in a very natural way!")
+
+        userprompt = f"What is the emotional state of {controller.config.companion_name}? Please be descriptive about how they feel and why, but don't make it unnecessarily long!"
+        messages = [
+            ("system", sysprompt + schema_impact),
+            ("user", userprompt),
+            ("assistant", f"{controller.config.companion_name} feels")
+        ]
+
+        content = f"{controller.config.companion_name} feels" + controller.completion_text(LlmPreset.Default, messages, CommonCompSettings(max_tokens=1024, temperature=0.5))
+
+        while True:
+            thought = rewrite_as_thought(f"{content}", max_sentences_in=16, max_sentences_out=6)
+            validness = validate_thought(thought)
+            if validness > THOUGHT_VALIDNESS_MIN:
+                state.thought = thought
+                break
+
+        msg_thought = Message(
+            conversation_id=state.conversation_id,
+            role='assistant',
+            text=thought,
+            public=False,
+            embedding=controller.embedder.get_embedding_scalar_float_list(thought),
+            tokens=quick_estimate_tokens(thought),
+            interlocus=MessageInterlocus.MessageEmotions
+        )
+        insert_object(msg_thought)
+
 
     return state
 
@@ -149,7 +193,7 @@ def agent_generate_thought(state: AgentState):
     res = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say "
                                                    f"to mimic human cognition and agency in every way and also support their user?")
 
-    thought = res.as_internal_thought
+    thought = truncate_to_tokens(res.as_internal_thought, 128)
 
     if ADD_INTERMEDIATE_STEP_THOUGHT:
         msg_thought = Message(

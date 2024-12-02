@@ -46,32 +46,30 @@ class EmotionalAxesModel(BaseModel):
 
     def add_state_with_factor(self, state: dict, factor: float = 1.0):
         """
-        Adds a state multiplied by a factor to the current state.
+        Adds a state multiplied by a factor to the current state with a dampening mechanism
+        that reduces changes near the upper and lower bounds.
         """
         for field_name, value in state.items():
             if field_name in self.model_fields:
                 model_field = self.model_fields[field_name]
                 current_value = getattr(self, field_name)
-                new_value = current_value + value * factor
+
+                # Determine the bounds
+                lower_bound = model_field.ge if hasattr(model_field, 'ge') else -1.0
+                upper_bound = model_field.le if hasattr(model_field, 'le') else 1.0
+
+                # Calculate the dampening factor based on proximity to bounds
+                range_span = upper_bound - lower_bound
+                proximity_scale = 1 - ((abs(current_value - upper_bound) / range_span) if value > 0 else (abs(current_value - lower_bound) / range_span))
+                dampened_factor = factor * proximity_scale
+
+                # Apply the scaled change
+                new_value = current_value + value * dampened_factor
+
                 # Clamp value to the defined limits
-                lower_bound = float("inf")
-                upper_bound = float("inf")
-                for meta in model_field.metadata:
-                    if hasattr(meta, "ge"):
-                        lower_bound = meta.ge
-                    if hasattr(meta, "le"):
-                        upper_bound = meta.le
                 new_value = max(min(new_value, upper_bound), lower_bound)
                 setattr(self, field_name, new_value)
 
-
-# Example usage
-model = EmotionalAxesModel()
-print("Before decay:", model.dict())
-model.decay_to_baseline(0.2)
-print("After decay:", model.dict())
-model.add_state_with_factor({'valence': 0.3, 'calmness': -0.2}, 0.5)
-print("After adding state:", model.dict())
 class AgentState(BaseModel):
     input: str = Field(default_factory=str)
     output: str = Field(default_factory=str)
@@ -96,3 +94,13 @@ class AgentState(BaseModel):
     thought: str = Field(default_factory=str)
 
     emotional_state: EmotionalAxesModel = Field(default_factory=EmotionalAxesModel)
+
+if __name__ == '__main__':
+    # Example usage
+    model = EmotionalAxesModel()
+    print("Before decay:", model.dict())
+    model.decay_to_baseline(0.2)
+    print("After decay:", model.dict())
+    model.add_state_with_factor({'valence': 0.9, 'calmness': -0.9}, 0.5)
+    model.add_state_with_factor(EmotionalAxesModel(calmness=1).model_dump(), 0.5)
+    print("After adding state:", model.dict())

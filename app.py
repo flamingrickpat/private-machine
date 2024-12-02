@@ -7,7 +7,7 @@ import streamlit as st
 from duckdb.duckdb import rollback
 from lancedb import LanceDBConnection
 
-from pm.consts import THOUGHT_SEP
+from pm.consts import THOUGHT_SEP, DISPLAY_INTERNAL_MESSAGES
 from pm.database.db_model import User, Message, Conversation, Fact, MessageInterlocus
 from pm.architecture.system import AgentState, make_completion
 from pm.config.config import read_config_file, MainConfig
@@ -49,7 +49,7 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
     #    return -1, repr(e)
 
     # Save the new state and the LLM response as a new message
-    convo.agent_state = state.model_dump_json(indent=2)
+    convo.agent_state = AgentState.model_validate(state).model_dump_json(indent=2)
     convo.title = f"Conversation {convo.id}"
     convo_table.update(where=f"id = '{convo.id}'", values=convo.model_dump())
 
@@ -135,11 +135,11 @@ def chat_ui():
                 elif msg.role == "system":
                     display_colored_message(msg.text, "yellow")
                 else:
-                    if MessageInterlocus.is_thought(msg.interlocus):
+                    if MessageInterlocus.is_thought(msg.interlocus) and DISPLAY_INTERNAL_MESSAGES:
                         display_colored_message(msg.text, "red")
                     elif msg.interlocus == MessageInterlocus.MessageResponse:
                         display_colored_message(msg.text, "blue")
-                    else:
+                    elif DISPLAY_INTERNAL_MESSAGES:
                         display_colored_message(msg.text, "orange")
 
             new_message = st.text_area("Your message", key=f"new_msg_{convo_id}", value="", height=260)
