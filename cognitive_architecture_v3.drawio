@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.7.5 Chrome/126.0.6478.183 Electron/31.3.0 Safari/537.36" version="24.7.5">
   <diagram id="C5RBs43oDa-KdzZeNtuy" name="Page-1">
-    <mxGraphModel dx="612" dy="909" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="2555" dy="2020" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="WIyWlLk6GJQsqaUBKTNV-0" />
         <mxCell id="WIyWlLk6GJQsqaUBKTNV-1" parent="WIyWlLk6GJQsqaUBKTNV-0" />
@@ -16,15 +16,6 @@
         <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-4" value="execute_tasks" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
           <mxGeometry x="2930" y="540" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-5" value="" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="1885" y="40" width="350" height="600" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-6" value="memory_implicit&lt;div&gt;unconscious_memory&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2000" y="80" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-7" value="memory_explicit&lt;br&gt;conscious_memory" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2000" y="170" width="120" height="60" as="geometry" />
-        </mxCell>
         <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-8" value="task_cluster_summarize" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
           <mxGeometry x="2540" y="640" width="120" height="60" as="geometry" />
         </mxCell>
@@ -35,13 +26,7 @@
           <mxGeometry x="3110" y="640" width="120" height="60" as="geometry" />
         </mxCell>
         <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-11" value="task_converse" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3340" y="640" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-12" value="emotion" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2000" y="250" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-13" value="current_thought" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2000" y="330" width="120" height="60" as="geometry" />
+          <mxGeometry x="4070" y="640" width="120" height="60" as="geometry" />
         </mxCell>
         <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-14" value="check_unfinished_thought" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
           <mxGeometry x="3080" y="780" width="180" height="60" as="geometry" />
@@ -180,9 +165,6 @@
         <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-62" value="agent_completion_story" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
           <mxGeometry x="4200" y="2560" width="160" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-63" value="agent_create_knowledge_plan&lt;div&gt;build plan to collect necessary knowledge&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4285" y="1407" width="195" height="73" as="geometry" />
-        </mxCell>
         <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-64" value="convert_plan_to_thought" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
           <mxGeometry x="4285" y="1640" width="195" height="60" as="geometry" />
         </mxCell>
@@ -190,16 +172,13 @@
           <mxGeometry x="4322.5" y="1737" width="120" height="60" as="geometry" />
         </mxCell>
         <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-66" value="check_plan" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4325" y="1560" width="120" height="60" as="geometry" />
+          <mxGeometry x="4320" y="1530" width="120" height="60" as="geometry" />
         </mxCell>
         <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-69" value="build_simple_prompt&lt;div&gt;&amp;lt;sysprompt&amp;gt;&lt;br&gt;&amp;lt;core_memory&amp;gt;&lt;br&gt;&amp;lt;messages&amp;gt;&lt;br&gt;&amp;lt;emotion_prompt&amp;gt;&lt;/div&gt;&lt;div&gt;&amp;lt;thoguht&amp;gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
           <mxGeometry x="4253" y="1860" width="260" height="200" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-70" value="Actor" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="1680" y="117.5" width="180" height="325" as="geometry" />
-        </mxCell>
-        <mxCell id="PP9p4Om70f5uDUpxaZ5m-1" value="multi_step_reasoning" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="WIyWlLk6GJQsqaUBKTNV-1">
-          <mxGeometry x="4630" y="1547" width="120" height="60" as="geometry" />
+        <mxCell id="PP9p4Om70f5uDUpxaZ5m-1" value="multi_step_reasoning" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="4320" y="1430" width="120" height="60" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
