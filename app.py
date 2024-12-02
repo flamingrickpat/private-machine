@@ -17,6 +17,11 @@ from pm.database.transactions import rollback_transaction
 from pm.log_utils import setup_logger
 from pm.utils.token_utils import quick_estimate_tokens
 
+try:
+    import torch
+    torch.cuda.set_per_process_memory_fraction(1.0, 0)
+except:
+    pass
 
 def async_handle_llm(conversation_id: str, input: str) -> (int, str):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

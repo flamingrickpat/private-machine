@@ -98,7 +98,7 @@ def determine_completion_mode(messages: List[Message]) -> CompletionModeResponse
     )]
 
     state = {"mode": CompletionModeResponseMode.Assistant}
-    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0), tools=[CompletionModeResponse])
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.1), tools=[CompletionModeResponse])
     for call in calls:
         call.execute(state)
 

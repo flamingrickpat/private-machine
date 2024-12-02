@@ -78,6 +78,6 @@ def convert_subagent_conversation_to_thought(instruction: str) -> str:
         ("user", instruction)
     ]
     while True:
-        full_thought = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.6))
+        full_thought = controller.completion_text(LlmPreset.Good, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.6))
         if len(full_thought) > 10:
             return full_thought

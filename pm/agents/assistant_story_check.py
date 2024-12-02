@@ -36,7 +36,7 @@ def assistant_story_check(current_chat: str) -> bool:
     )]
 
     state = {}
-    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=128, temperature=0), tools=[DecideModelMode])
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=128, temperature=0.1), tools=[DecideModelMode])
     for call in calls:
         call.execute(state)
 

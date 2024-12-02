@@ -3,7 +3,7 @@ from typing import List, Type, Callable
 
 from pydantic import BaseModel, Field
 
-from pm.llm.base_llm import CommonCompSettings
+from pm.llm.base_llm import CommonCompSettings, LlmPreset
 
 
 class AgentMessage(BaseModel):
@@ -23,3 +23,4 @@ class Agent(BaseModel):
     functions: List[Callable] = Field(default_factory=list)
     messages: List[AgentMessage] = Field(default_factory=list)
     comp_settings: CommonCompSettings | None = Field(default=None)
+    model_preset: LlmPreset = Field(default=LlmPreset.Default)

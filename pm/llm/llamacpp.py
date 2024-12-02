@@ -1,6 +1,7 @@
 import json
 import logging
 import random
+import time
 from datetime import datetime
 from typing import Union, Optional, List, Callable, Tuple, Dict
 import re
@@ -151,15 +152,15 @@ class LlamaCppLlm(Llm):
 
         # Process each part of the prompt
         for i, (role, message) in enumerate(prompt):
+            msg_with_dt = message
             if role == "system":
                 # Add system token directly to the raw_string
                 msg_with_dt = f"Current datetime: {datetime.now()}\n{message.strip()}"
-                raw_string += self._detokenize(self.turn_system_token, special=True) + "\n" + msg_with_dt + self._detokenize(self.eot_token, special=True) + "\n"
-            else:
-                # Tokenize the message and calculate its token count
-                message_tokens = self._tokenize(message, special=False)
-                effective_prompt.append((role, message_tokens))
-                total_token_count += len(message_tokens)
+
+            # Tokenize the message and calculate its token count
+            message_tokens = self._tokenize(msg_with_dt, special=False)
+            effective_prompt.append((role, message_tokens))
+            total_token_count += len(message_tokens)
 
         # Calculate the max allowed tokens for the effective prompt (excluding system prompt)
         max_allowed_tokens = context_size - max_generation_tokens - len(self._tokenize(raw_string, special=True))
@@ -184,6 +185,8 @@ class LlamaCppLlm(Llm):
                     raw_string += self._detokenize(self.turn_user_token, special=True) + "\n"
                 elif role == "assistant":
                     raw_string += self._detokenize(self.turn_assistant_token, special=True) + "\n"
+                elif role == "system":
+                    raw_string += self._detokenize(self.turn_system_token, special=True) + "\n"
 
             # Accumulate messages if joining the same role's turns
             accumulated_message += message + "\n" if join_same_role else message
@@ -222,6 +225,11 @@ class LlamaCppLlm(Llm):
             # probably shouldn't make a copy when it lives on vram
             if self.use_gpu:
                 Llama.load_state = load_state_fast
+
+            self.llama = None
+            gc.collect()
+            time.sleep(1)
+            gc.collect()
 
             self.llama = Llama(settings.path, verbose=self.verbose, **self.settings)
 

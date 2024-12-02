@@ -222,8 +222,8 @@ def agent_completion(state: AgentState):
     return state
 
 def agent_completion_assistant(state: AgentState):
-    full_text = fetch_responses_as_string(state.conversation_id)
-    query = get_last_n_messages_or_words_from_string(full_text, n_messages=4)
+    full_text = fetch_messages_as_string(state.conversation_id)
+    query = get_last_n_messages_or_words_from_string(full_text, 4, n_tokens=1024)
     msgs = rank_table(state.conversation_id, query, Message)
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
@@ -281,8 +281,8 @@ def agent_completion_assistant(state: AgentState):
     return state
 
 def agent_completion_story(state: AgentState):
-    full_text = fetch_responses_as_string(state.conversation_id)
-    query = get_last_n_messages_or_words_from_string(full_text, n_messages=4)
+    full_text = fetch_messages_as_string(state.conversation_id)
+    query = get_last_n_messages_or_words_from_string(full_text, n_messages=4, n_tokens=1024)
     msgs = rank_table(state.conversation_id, query, Message)
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")

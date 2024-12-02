@@ -92,6 +92,8 @@ class AgentState(BaseModel):
     knowledge_implicit_conversation: str = Field(default_factory=str)
 
     thought: str = Field(default_factory=str)
+    init_message: str = Field(default_factory=str)
+    goal_thought: str = Field(default_factory=str)
 
     emotional_state: EmotionalAxesModel = Field(default_factory=EmotionalAxesModel)
 

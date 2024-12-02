@@ -34,9 +34,6 @@ class Conversation(LanceModel):
 Conversation.table = "Conversation"
 
 class MessageInterlocus(enum.IntEnum):
-    AutoThoughtSystemInst = -20
-    AutoThoughtToolCall = -11
-    AutoThought = -10
     Undefined = 0
     MessageSystemInst = 5
     MessageEmotions = 7

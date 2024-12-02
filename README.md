@@ -1,6 +1,6 @@
 # private-machine
 
-smol silly project about chatbots with hierarchical memory, subconscious society-of-mind agents and internal thought 👉👈
+smol silly project about chatbots with hierarchical memory, subconscious society-of-mind agents, emotions and internal thought 👉👈
 
 ## Description
 
@@ -14,6 +14,8 @@ I'm testing with ``Hermes-3-Llama-3.1-8B.Q8_0.gguf`` and it seems good enough, m
 - **Internal Thought**: The output of the agents is converted to first-person thought and injected into the prompt before the final response to the user.
 - **Assistant and story mode**: Seamlessly switches between assistant and RP mode. For either enhanced tool calling or more realistic and in-depth conversation.
 - **Error Correction**: Agents handle and discard hallucinations and plain garbage.
+- **Emotions**: Emotions are modeled as a vector and affect and be affected by conversation and thought.
+- **Personality**: Personality agents based on the HEXACO model.
 
 ## Installation
 - Make venv with Python 3.11

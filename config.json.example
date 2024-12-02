@@ -14,6 +14,19 @@
             "n_gpu_layers": -1
         },
         {
+          "identifier": "model_good",
+          "path": "/path/to/your/llama3.1-70B-or-something.gguf",
+          "n_gpu_layers": 37,
+          "bos_token": "<|begin_of_text|>",
+          "eos_token": "<|end_of_text|>",
+          "turn_system_token": "<|start_header_id|>system<|end_header_id|>",
+          "turn_assistant_token": "<|start_header_id|>assistant<|end_header_id|>",
+          "turn_user_token": "<|start_header_id|>user<|end_header_id|>",
+          "eot_token": "<|eot_id|>",
+          "context_size": 8196,
+          "n_gpu_layers": 38
+        },
+        {
           "identifier": "model_openai_api",
           "type": 2,
           "base_url": "https://openrouter.ai/api/v1",
@@ -25,8 +38,8 @@
     "model_map": {
         "fast": "model_main",
         "default": "model_main",
-        "good": "model_main",
-        "best": "model_main"
+        "good": "model_good",
+        "best": "model_good"
     },
     "embedding_model": {
         "identifier": "main",

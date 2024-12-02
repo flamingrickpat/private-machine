@@ -57,10 +57,12 @@ class StringConstant(metaclass=StringConstantMeta):
         raise ValueError("Invalid item format")
 
 
-def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int = 6, n_words: int = 256) -> str:
+def get_last_n_messages_or_words_from_string(conversation: str, n_messages: int = 6, n_tokens: int = 256) -> str:
     # Split the conversation string into individual lines, ensuring we consider ":" in the first 20 characters
     lines = []
     current_message = []
+
+    n_words = n_tokens / 1.5
 
     for line in conversation.strip().splitlines():
         # Check if there's a ":" in the first 20 characters of the line

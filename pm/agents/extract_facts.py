@@ -125,7 +125,7 @@ def extract_facts_from_messages(messages: List[Message]) -> ExtractedFacts:
         message_block
     )]
     while True:
-        _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0), tools=[ExtractedFacts])
+        _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.1), tools=[ExtractedFacts])
         if len(calls) > 0:
             calls = calls[0]
             break

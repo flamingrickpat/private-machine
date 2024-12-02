@@ -1,5 +1,7 @@
 import json
 
+from pydantic import BaseModel
+
 from pm.tools.mental_health_tools import SetReminder, AddGoal, ProgressGoal, FinishGoal, ListGoals, SeeGoalDetails, ExtendPersonality, SearchWeb
 
 tools_list = [SetReminder, AddGoal, ProgressGoal, FinishGoal, ListGoals, SeeGoalDetails, ExtendPersonality, SearchWeb]
@@ -11,4 +13,10 @@ for tool in tools_list:
 tool_docs = "\n".join([f"{tool.__name__}: {tool.__doc__}" for tool in tools_list])
 
 def get_json_schemas(tool_list):
-    return {tool_name: json.dumps(tool_dict[tool_name].model_json_schema(), indent=2) for tool_name in tool_list}
+    res = {}
+    for tool in tools_list:
+        if isinstance(tool, str):
+            res[tool] = json.dumps(tool_dict[tool].model_json_schema(), indent=2)
+        elif isinstance(tool, BaseModel):
+            res[tool.__name__] = json.dumps(tool.model_json_schema(), indent=2)
+    return res

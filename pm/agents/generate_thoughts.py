@@ -96,5 +96,5 @@ def generate_thoughts(instruction: str, character_card: str, conversation_contex
         ("assistant", example_output_5),
         ("user", instruction)
     ]
-    full_thought = controller.completion_text(LlmPreset.Good, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.5))
+    full_thought = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.5))
     return full_thought

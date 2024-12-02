@@ -1,7 +1,10 @@
+import json
 from typing import List, Tuple
 
+from pydantic import BaseModel
+
 from pm.controller import controller
-from pm.tools.common import get_json_schemas
+from pm.tools.common import get_json_schemas, tools_list
 
 prompt_conscious_assistant_base = """{character_card}
 {tool_insert}
@@ -24,7 +27,7 @@ User 'Thought:' to start a thought. This will be invisible to the user. Use 'Res
 Take a deep breath and think it through before making the final response to the user in the 'Response:' part of the message.
 """
 
-def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[str], knowledge: str) -> str:
+def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[BaseModel], knowledge: str) -> str:
     map = {
         "character_card": controller.config.character_card_assistant,
         "tool_insert": "",
@@ -36,7 +39,7 @@ def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[str
         map["thought_insert"] = thought_insert
 
     if len(tool_list) > 0:
-        map["tool_insert"] = get_json_schemas(tool_list)
+        map["tool_insert"] = "\n".join([json.dumps(x.model_json_schema(), indent=2) for x in tool_list])
 
     prompt = controller.format_str(prompt_conscious_assistant_base, extra=map)
     return prompt
