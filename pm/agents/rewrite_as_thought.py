@@ -50,6 +50,6 @@ def rewrite_as_thought(instruction: str, max_sentences_in: int = 3, max_sentence
         ("user", instruction)
     ]
     while True:
-        full_thought = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.7))
+        full_thought = controller.completion_text(LlmPreset.Good, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.7))
         out = ".".join(full_thought.split(".")[:max_sentences_out])
         return out + "."

@@ -162,7 +162,7 @@ def agent_determine_emotions(state: AgentState):
             ("assistant", f"{controller.config.companion_name} feels")
         ]
 
-        content = f"{controller.config.companion_name} feels" + controller.completion_text(LlmPreset.Default, messages, CommonCompSettings(max_tokens=1024, temperature=0.5))
+        content = f"{controller.config.companion_name} feels" + controller.completion_text(LlmPreset.Good, messages, CommonCompSettings(max_tokens=1024, temperature=0.5))
 
         while True:
             thought = rewrite_as_thought(f"{content}", max_sentences_in=16, max_sentences_out=6)
@@ -228,7 +228,7 @@ def agent_completion_assistant(state: AgentState):
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
     sysprompt = build_sys_prompt_conscious_assistant(state.complexity > COMPLEX_THRESHOLD, state.available_tools, state.knowledge_implicit_facts)
-    messages = build_prompt(False, msgs, sums, rels, full_token_allowance=controller.config.get_model(LlmPreset.Default).context_size - (quick_estimate_tokens(sysprompt) + 512))
+    messages = build_prompt(False, msgs, sums, rels, full_token_allowance=controller.config.get_model(LlmPreset.Good).context_size - (quick_estimate_tokens(sysprompt) + 512))
 
     # add system prompt
     messages.insert(0, (
@@ -253,7 +253,7 @@ def agent_completion_assistant(state: AgentState):
     regen_count = 0
     regens = []
     while True:
-        content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws)).strip()
+        content = controller.completion_text(LlmPreset.Good, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws)).strip()
         content = get_text_after_keyword(prefix + content, controller.get_response_string_assistant(""))
         if content == "":
             continue
@@ -288,7 +288,7 @@ def agent_completion_story(state: AgentState):
     rels = fetch_relations("main")
 
     sysprompt = build_sys_prompt_conscious_story(state.complexity > COMPLEX_THRESHOLD, state.knowledge_implicit_facts)
-    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=controller.config.get_model(LlmPreset.Default).context_size - (quick_estimate_tokens(sysprompt) + 512))
+    messages = build_prompt(True, msgs, sums, rels, full_token_allowance=controller.config.get_model(LlmPreset.Good).context_size - (quick_estimate_tokens(sysprompt) + 512))
     message_block = "\n".join([f"{item[1]}" for item in messages])
 
     # add system prompt
@@ -328,7 +328,8 @@ def agent_completion_story(state: AgentState):
     regen_count = 0
     regens = []
     while True:
-        content = controller.completion_text(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws)).replace("Response:", "").replace("'", "").replace('"', "").strip()
+        content = controller.completion_text(LlmPreset.Good, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws)).replace("Response:", "").replace("'", "").replace('"',
+                                                                                                                                                                                         "").strip()
         if content == "":
             continue
 
