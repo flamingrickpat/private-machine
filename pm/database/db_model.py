@@ -1,5 +1,6 @@
 import enum
 import uuid
+from operator import truediv
 
 from lancedb.pydantic import Vector, LanceModel
 from typing import List, Optional
@@ -38,9 +39,19 @@ class MessageInterlocus(enum.IntEnum):
     AutoThought = -10
     Undefined = 0
     MessageSystemInst = 5
-    MessageToolCall = 9
+    MessageEmotions = 7
+    MessageFeeling = 8
+    MessagePlanThought = 9
     MessageThought = 10
+    MessageToolCall = 15
     MessageResponse = 20
+
+    @staticmethod
+    def is_thought(il):
+        if il == MessageInterlocus.MessageThought or il == MessageInterlocus.MessagePlanThought or il == MessageInterlocus.MessageEmotions or il == MessageInterlocus.MessageFeeling:
+            return True
+        return False
+
 
 class Message(LanceModel):
     id: str = Field(default_factory=get_guid)

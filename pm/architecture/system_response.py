@@ -123,8 +123,6 @@ def agent_determine_emotions(state: AgentState):
     if isinstance(calls[0], EmotionalImpact):
         emotional_impact = calls[0].emotional_impact
 
-    print(emotional_impact)
-
     tools = [EmotionalAxesModel]
     schema_impact = f"\nYou will output valid JSON in this format: {json.dumps(EmotionalAxesModel.model_json_schema())}"
     messages = [
@@ -132,6 +130,12 @@ def agent_determine_emotions(state: AgentState):
         ("user", userprompt),
     ]
     _, calls = controller.completion_tool(LlmPreset.Default, messages, CommonCompSettings(max_tokens=1024, temperature=0.1), tools=tools)
+
+    old_emotions = state.emotional_state
+    new_emotions = old_emotions.model_copy()
+    new_emotions.decay_to_baseline(0.05)
+    new_emotions.add_state_with_factor()
+
     if isinstance(calls[0], EmotionalAxesModel):
         print(calls[0])
 
@@ -155,7 +159,7 @@ def agent_generate_thought(state: AgentState):
             public=False,
             embedding=controller.embedder.get_embedding_scalar_float_list(thought),
             tokens=quick_estimate_tokens(thought),
-            interlocus=MessageInterlocus.MessageThought
+            interlocus=MessageInterlocus.MessagePlanThought
         )
         insert_object(msg_thought)
 

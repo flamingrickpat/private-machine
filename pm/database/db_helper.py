@@ -139,14 +139,28 @@ def role_to_name(x: Message):
     name = controller.config.companion_name if x.role == 'assistant' else (controller.config.user_name if x.role == "user" else "System")
     return name
 
-def fetch_messages_as_string(conversation_id: str) -> str:
+def fetch_messages_as_string(conversation_id: str, n_thought_plans: int = 1, n_thoughts: int = 4) -> str:
     messages = fetch_messages(conversation_id)
-    message_block = "\n".join([f"{role_to_name(x)}{' thinks' if x.interlocus == 10 else ''}: {x.text}" for x in messages])
+
+    cnt_thought_plans = 0
+    cnt_thoughts = 0
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        if msg.interlocus == MessageInterlocus.MessageThought:
+            cnt_thoughts += 1
+            if cnt_thoughts > n_thoughts:
+                del messages[i]
+        if msg.interlocus == MessageInterlocus.MessagePlanThought:
+            cnt_thought_plans += 1
+            if cnt_thought_plans > n_thought_plans:
+                del messages[i]
+
+    message_block = "\n".join([f"{role_to_name(x)}{' thinks' if MessageInterlocus.is_thought(x.interlocus) else ''}: {x.text}" for x in messages])
     return message_block
 
 def fetch_responses_as_string(conversation_id: str) -> str:
     messages = fetch_messages(conversation_id)
-    message_block = "\n".join([f"{role_to_name(x)}: {x.text}" for x in messages if x.interlocus != MessageInterlocus.MessageThought])
+    message_block = "\n".join([f"{role_to_name(x)}: {x.text}" for x in messages if not MessageInterlocus.is_thought(x.interlocus)])
     return message_block
 
 def fetch_relations(conversation_id: str) -> List[Relation]:

@@ -150,14 +150,14 @@ def build_prompt(story_mode: bool,
                         if msg.role == "user":
                             name = controller.config.user_name
                         prompt_parts.append((msg.role, f"{name}: '{item.text}'"))
-                    elif item.interlocus == MessageInterlocus.MessageThought:
+                    elif MessageInterlocus.is_thought(item.interlocus):
                         prompt_parts.append((msg.role, f"{name} thinks: '{item.text}'"))
                 else:
                     if item.interlocus == MessageInterlocus.MessageSystemInst:
                         prompt_parts.append((msg.role, item.text))
                     elif item.interlocus == MessageInterlocus.MessageResponse:
                         prompt_parts.append((msg.role, f"Response: '{item.text}'"))
-                    elif item.interlocus == MessageInterlocus.MessageThought:
+                    elif MessageInterlocus.is_thought(item.interlocus):
                         prompt_parts.append((msg.role, f"Thought: '{item.text}'"))
             elif isinstance(item, MessageSummary):
                 summary = item

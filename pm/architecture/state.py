@@ -1,6 +1,8 @@
+import json
 from typing import TypedDict, Dict, List
 
 from pydantic import BaseModel, Field
+
 
 class EmotionalAxesModel(BaseModel):
     """
@@ -22,6 +24,54 @@ class EmotionalAxesModel(BaseModel):
     gratitude: float = Field(default=0, ge=0.0, le=1.0, description="From absence (0) to full intensity of gratitude (+1).")
     loneliness: float = Field(default=0, ge=0.0, le=1.0, description="From absence (0) to full intensity of loneliness (+1).")
 
+    def decay_to_baseline(self, decay_factor: float = 0.1):
+        """
+        Decays each emotional state toward its baseline value (0.5 or 0).
+        """
+        for field_name, model_field in self.model_fields.items():
+            baseline = 0.5 if model_field.default == 0.5 else 0.0
+            current_value = getattr(self, field_name)
+            decayed_value = current_value - decay_factor * (current_value - baseline)
+            # Clamp value to the defined limits
+
+            lower_bound = float("inf")
+            upper_bound = float("inf")
+            for meta in model_field.metadata:
+                if hasattr(meta, "ge"):
+                    lower_bound = meta.ge
+                if hasattr(meta, "le"):
+                    upper_bound = meta.le
+            decayed_value = max(min(decayed_value, upper_bound), lower_bound)
+            setattr(self, field_name, decayed_value)
+
+    def add_state_with_factor(self, state: dict, factor: float = 1.0):
+        """
+        Adds a state multiplied by a factor to the current state.
+        """
+        for field_name, value in state.items():
+            if field_name in self.model_fields:
+                model_field = self.model_fields[field_name]
+                current_value = getattr(self, field_name)
+                new_value = current_value + value * factor
+                # Clamp value to the defined limits
+                lower_bound = float("inf")
+                upper_bound = float("inf")
+                for meta in model_field.metadata:
+                    if hasattr(meta, "ge"):
+                        lower_bound = meta.ge
+                    if hasattr(meta, "le"):
+                        upper_bound = meta.le
+                new_value = max(min(new_value, upper_bound), lower_bound)
+                setattr(self, field_name, new_value)
+
+
+# Example usage
+model = EmotionalAxesModel()
+print("Before decay:", model.dict())
+model.decay_to_baseline(0.2)
+print("After decay:", model.dict())
+model.add_state_with_factor({'valence': 0.3, 'calmness': -0.2}, 0.5)
+print("After adding state:", model.dict())
 class AgentState(BaseModel):
     input: str = Field(default_factory=str)
     output: str = Field(default_factory=str)
@@ -36,7 +86,7 @@ class AgentState(BaseModel):
     available_tools: List[str] = Field(default_factory=list)
     completion_mode: str = Field(default_factory=str)
 
-    status: int = Field(default_factory=str)
+    status: int = Field(default=0)
     next_agent: str = Field(default_factory=str)
 
     plan: str = Field(default_factory=str)

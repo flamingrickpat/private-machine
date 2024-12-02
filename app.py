@@ -35,6 +35,13 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
         conversation_id=conversation_id,
     )
 
+    # load previous emotional state
+    try:
+        state_old = AgentState.model_validate_json(convo.agent_state)
+        state.emotional_state = state_old.emotional_state
+    except:
+        pass
+
     # Make the completion
     #try:
     state = make_completion(state)
@@ -42,7 +49,7 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
     #    return -1, repr(e)
 
     # Save the new state and the LLM response as a new message
-    convo.agent_state = "" # json.dumps(state.model_dump())
+    convo.agent_state = state.model_dump_json(indent=2)
     convo.title = f"Conversation {convo.id}"
     convo_table.update(where=f"id = '{convo.id}'", values=convo.model_dump())
 
@@ -128,7 +135,7 @@ def chat_ui():
                 elif msg.role == "system":
                     display_colored_message(msg.text, "yellow")
                 else:
-                    if msg.interlocus == MessageInterlocus.MessageThought:
+                    if MessageInterlocus.is_thought(msg.interlocus):
                         display_colored_message(msg.text, "red")
                     elif msg.interlocus == MessageInterlocus.MessageResponse:
                         display_colored_message(msg.text, "blue")
