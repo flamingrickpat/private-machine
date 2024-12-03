@@ -363,7 +363,7 @@ def agent_completion_assistant(state: AgentState):
             insert_object(msg_init)
             messages.append(("system", sysmsg))
 
-            prefix2 = "I called the tool"
+            prefix2 = "I called the tool "
             messages.append(("assistant", prefix2))
             content = prefix2 + controller.completion_text(LLM_PRESET_FINAL_OUTPUT, messages, comp_settings=CommonCompSettings(max_tokens=1024, stop_words=sws)).strip()
             state.output = content

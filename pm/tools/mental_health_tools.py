@@ -132,7 +132,7 @@ class ExtendPersonality(BaseModel):
         )
         insert_object(f)
 
-        state["output"] = f"Fact successfully saved!"
+        state["output"] = f"Personality extension successfully saved!"
 
 class SearchWeb(BaseModel):
     """

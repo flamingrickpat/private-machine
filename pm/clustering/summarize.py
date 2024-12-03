@@ -16,81 +16,69 @@ from pm.utils.token_utils import quick_estimate_tokens
 
 controller.start()
 
+def _cluster_summarize_factualize_messages(conversation_id, cur_cluster_list):
+    summary = summarize_messages_for_l0_summary(cur_cluster_list)
+    cluster = MessageSummary(
+        conversation_id=conversation_id,
+        level=0,
+        text=summary,
+        embedding=controller.embedder.get_embedding_scalar_float_list(summary),
+        tokens=quick_estimate_tokens(summary),
+        world_time_begin=cur_cluster_list[0].world_time - datetime.timedelta(seconds=1),
+        world_time_end=cur_cluster_list[-1].world_time
+    )
+    summary_id = cluster.id
+    insert_object(cluster)
+
+    # make relations
+    for cluster_msg in cur_cluster_list:
+        rel = Relation(
+            a=cluster_msg.id,
+            b=summary_id,
+            rel_ab="summarized_by"
+        )
+        insert_object(rel)
+
+    # extract facts
+    facts = extract_facts_from_messages(cur_cluster_list)
+    for fact in facts.facts[:max(len(cur_cluster_list), 2)]:
+        f = Fact(
+            conversation_id=conversation_id,
+            text=fact.fact,
+            importance=fact.importance,
+            embedding=controller.embedder.get_embedding_scalar_float_list(fact.fact),
+            category=fact.category,
+            tokens=quick_estimate_tokens(fact.fact),
+        )
+        insert_object(f)
+
 
 def cluster_and_summarize(conversation_id: str):
     no_summary = fetch_messages_no_summary(conversation_id)
-    if len(no_summary) < SUMMARY_MIN_CHAT_LENGTH:
+    if len(no_summary) <= SUMMARY_MIN_CHAT_LENGTH:
         return
 
-    all = fetch_messages(conversation_id)
-    subset_plain = all[-SUMMARY_MIN_CHAT_LENGTH:]
-    subset = get_sliding_window_embedded_messages(subset_plain)
-    clusters = get_agglomerative_clusters_as_dict(subset)
+    for i in range(len(no_summary) // SUMMARY_MIN_CHAT_LENGTH):
+        subset_plain = no_summary[SUMMARY_MIN_CHAT_LENGTH * i:(SUMMARY_MIN_CHAT_LENGTH * (i + 1))]
+        subset = get_sliding_window_embedded_messages(subset_plain)
+        clusters = get_agglomerative_clusters_as_dict(subset)
 
-    last_cluster = None
-    cur_cluster_list = []
-    cur_cluster_list_padded = []
-    for i, msg in enumerate(subset):
-        if not last_cluster:
-            last_cluster = clusters[msg.id]
+        last_cluster = None
+        cur_cluster_list = []
+        for i, msg in enumerate(subset):
+            if not last_cluster:
+                last_cluster = clusters[msg.id]
 
-        cur_cluster = clusters[msg.id]
-        if cur_cluster != last_cluster:
-            if i < len(subset) - 1:
-                cur_cluster_list_padded.append(subset[i + 1])
-
-            do_summarize = True
-            for cluster_msg in cur_cluster_list:
-                if cluster_msg not in no_summary:
-                    do_summarize = False
-                    break
-
-            if do_summarize:
-                summary = summarize_messages_for_l0_summary(cur_cluster_list)
-                cluster = MessageSummary(
-                    conversation_id=conversation_id,
-                    level=0,
-                    text=summary,
-                    embedding=controller.embedder.get_embedding_scalar_float_list(summary),
-                    tokens=quick_estimate_tokens(summary),
-                    world_time_begin=cur_cluster_list[0].world_time - datetime.timedelta(seconds=1),
-                    world_time_end=cur_cluster_list[-1].world_time
-                )
-                summary_id = cluster.id
-                insert_object(cluster)
-
-                facts = extract_facts_from_messages(cur_cluster_list)
-                for fact in facts.facts:
-                    f = Fact(
-                        conversation_id=conversation_id,
-                        text=fact.fact,
-                        importance=fact.importance,
-                        embedding=controller.embedder.get_embedding_scalar_float_list(fact.fact),
-                        category=fact.category,
-                        tokens=quick_estimate_tokens(fact.fact),
-                    )
-                    insert_object(f)
-
-                for cluster_msg in cur_cluster_list:
-                    rel = Relation(
-                        a=cluster_msg.id,
-                        b=summary_id,
-                        rel_ab="summarized_by"
-                    )
-                    insert_object(rel)
-
-            cur_cluster_list = []
-            cur_cluster_list_padded = []
-            if i > 0:
-                cur_cluster_list_padded.append(subset[i - 1])
-
-            cur_cluster_list_padded.append(msg)
-            cur_cluster_list.append(msg)
-        else:
-            cur_cluster_list_padded.append(msg)
-            cur_cluster_list.append(msg)
-        last_cluster = cur_cluster
-
+            cur_cluster = clusters[msg.id]
+            if cur_cluster != last_cluster:
+                print(f"len cur_cluster_list: {len(cur_cluster_list)}")
+                _cluster_summarize_factualize_messages(conversation_id, cur_cluster_list)
+                cur_cluster_list = [msg]
+            else:
+                cur_cluster_list.append(msg)
+            last_cluster = cur_cluster
+        # last one
+        _cluster_summarize_factualize_messages(conversation_id, cur_cluster_list)
 
 def high_level_summarize(conversation_id: str):
     cur_level = 1

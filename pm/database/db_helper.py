@@ -91,7 +91,7 @@ def start_conversation(user_id: str, override_id: str | None = None) -> Conversa
             text=memory,
             importance=0.5,
             embedding=controller.embedder.get_embedding_scalar_float_list(memory),
-            category=controller.config.user_name.lower(),
+            category=controller.config.companion_name.lower(),
             tokens=quick_estimate_tokens(memory),
         )
         insert_object(f)
@@ -181,8 +181,8 @@ def fetch_relations(conversation_id: str) -> List[Relation]:
 def fetch_messages_no_summary(conversation_id: str) -> List[Message]:
     query = (f"select distinct m.* from message m "
              f"where m.id not in (select a from relation where rel_ab = 'summarized_by') "
-             f"and m.conversation_id = '{conversation_id}' and interlocus = 20 "
-             f"order by m.created_at")
+             f"and m.conversation_id = '{conversation_id}' "
+             f"order by m.created_at asc")
     tmp = sql_query(query)
     return df_to_pydantic(tmp, Message)
 
