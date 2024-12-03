@@ -167,19 +167,19 @@ def agent_determine_emotions(state: AgentState):
         content = f"{controller.config.companion_name} feels" + controller.completion_text(LlmPreset.Good, messages, CommonCompSettings(max_tokens=1024, temperature=0.5))
 
         while True:
-            thought = rewrite_as_thought(f"{content}", max_sentences_in=16, max_sentences_out=6)
-            validness = validate_thought(thought)
+            emotions = rewrite_as_thought(f"{content}", max_sentences_in=16, max_sentences_out=6)
+            validness = validate_thought(emotions)
             if validness > THOUGHT_VALIDNESS_MIN:
-                state.thought = thought
+                state.emotions = emotions
                 break
 
         msg_thought = Message(
             conversation_id=state.conversation_id,
             role='assistant',
-            text=thought,
+            text=emotions,
             public=False,
-            embedding=controller.embedder.get_embedding_scalar_float_list(thought),
-            tokens=quick_estimate_tokens(thought),
+            embedding=controller.embedder.get_embedding_scalar_float_list(emotions),
+            tokens=quick_estimate_tokens(emotions),
             interlocus=MessageInterlocus.MessageEmotions
         )
         insert_object(msg_thought)
@@ -195,21 +195,20 @@ def agent_generate_thought(state: AgentState):
     res = get_plan_from_subconscious_agents(query, f"What should the AI companion {controller.config.companion_name} say "
                                                    f"to mimic human cognition and agency in every way and also support their user?")
 
-    thought = truncate_to_tokens(res.as_internal_thought, 128)
-
+    plan = truncate_to_tokens(res.as_internal_thought, 128)
     if ADD_INTERMEDIATE_STEP_THOUGHT:
         msg_thought = Message(
             conversation_id=state.conversation_id,
             role='assistant',
-            text=thought,
+            text=plan,
             public=False,
-            embedding=controller.embedder.get_embedding_scalar_float_list(thought),
-            tokens=quick_estimate_tokens(thought),
+            embedding=controller.embedder.get_embedding_scalar_float_list(plan),
+            tokens=quick_estimate_tokens(plan),
             interlocus=MessageInterlocus.MessagePlanThought
         )
         insert_object(msg_thought)
 
-    plan = res.as_internal_thought + "\n" + res.conclusion
+    plan = res.conclusion
     state.plan = plan
     while True:
         thought = rewrite_as_thought(f"{plan}", max_sentences_in=32, max_sentences_out=6)
