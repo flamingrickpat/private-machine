@@ -4,6 +4,7 @@ from typing import List
 from pydantic import BaseModel, Field
 
 from pm.controller import controller
+from pm.database.db_helper import role_to_name
 from pm.database.db_model import Message
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
@@ -63,7 +64,7 @@ class ComplexityResponse(BaseModel):
         return state
 
 def determine_complexity(messages: List[Message]) -> float:
-    message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages])
+    message_block = "\n".join([f"{role_to_name(x)}: {x.text}" for x in messages])
 
     messages = [(
         "system",

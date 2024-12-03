@@ -5,6 +5,7 @@ from typing import List
 from pydantic import BaseModel, Field
 
 from pm.controller import controller
+from pm.database.db_helper import role_to_name
 from pm.database.db_model import Message
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
@@ -12,6 +13,7 @@ sys_prompt = """You are a helpful assistant that determines if the AI should use
 Analyze the following chat log between two people, {user_name} and the AI {companion_name}. 
 Your task is to determine the completion mode of the query for {companion_name} as string, with "story" for story mode and "assistant" for assistant mode.
 Your answer will determine if {companion_name} makes the next response using the LLM model trained for assistant style queries with possible tool calls,
+If tool calls are mentioned AT ALL, the assistant mode will be required! This is very important. Any speaking of tools results in assistant mode.
 or the roleplay LLM model trained for realistic human-on-human style conversation.
 You output valid JSON only, in this format:
 {basemodel_schema}
@@ -69,7 +71,7 @@ class CompletionModeResponse(BaseModel):
         return state
 
 def determine_completion_mode(messages: List[Message]) -> CompletionModeResponseMode:
-    message_block = "\n".join([f"{controller.config.companion_name if x.role == 'assistant' else controller.config.user_name}: {x.text}" for x in messages])
+    message_block = "\n".join([f"{role_to_name(x)}: {x.text}" for x in messages])
 
     messages = [(
         "system",

@@ -1,15 +1,17 @@
 from datetime import datetime
 from typing import List
 
+from nltk.corpus import words
 from pydantic import BaseModel, Field
 from streamlit import progress
 from brave import Brave
+from tavily import TavilyClient
 
 from pm.controller import controller
 from pm.database.db_helper import insert_object, insert_system_message
 from pm.database.db_model import Reminder, Goal, Fact
+from pm.utils.string_utils import get_last_n_messages_or_words_from_string, clip_to_sentence_by_words
 from pm.utils.token_utils import quick_estimate_tokens
-
 
 class SetReminder(BaseModel):
     """
@@ -25,7 +27,7 @@ class SetReminder(BaseModel):
             reminder_time=time
         )
         insert_object(rem)
-        insert_system_message(state["conversation_id"], f"Reminder has been successfully set for {time}!")
+        state["output"] = f"Reminder has been successfully set for {time}!"
 
 
 class AddGoal(BaseModel):
@@ -45,7 +47,7 @@ class AddGoal(BaseModel):
             progress=0
         )
         insert_object(goal)
-        insert_system_message(state["conversation_id"], f"Goal '{self.goal}' has been created!")
+        state["output"] = f"Goal '{self.goal}' has been created!"
 
 class ProgressGoal(BaseModel):
     """
@@ -60,11 +62,11 @@ class ProgressGoal(BaseModel):
         where = f"identifier='{self.identifier}'"
         goal = goals.search().where(where, prefilter=True).limit(1).to_pydantic()
         if len(goal) == 0:
-            insert_system_message(state["conversation_id"], f"Goal with identifier '{self.identifier}' not found!")
+            state["output"] = f"Goal with identifier '{self.identifier}' not found!"
         else:
             new_status = goal[0].status + f"\nStatus update from {datetime.now()}:\n" + self.status
             goals.update(where=where, values={"status": new_status, "progress": progress})
-            insert_system_message(state["conversation_id"], f"Goal with ID '{self.identifier}' has been progressed!")
+            state["output"] = f"Goal with ID '{self.identifier}' has been progressed!"
 
 
 class FinishGoal(BaseModel):
@@ -79,10 +81,10 @@ class FinishGoal(BaseModel):
         where = f"identifier='{self.identifier}'"
         goal = goals.search().where(where, prefilter=True).limit(1).to_pydantic()
         if len(goal) == 0:
-            insert_system_message(state["conversation_id"], f"Goal with identifier '{self.identifier}' not found!")
+            state["output"] = f"Goal with identifier '{self.identifier}' not found!"
         else:
             goals.update(where=where, values={"progress": 1})
-            insert_system_message(state["conversation_id"], f"Goal with ID '{self.identifier}' has been finished!")
+            state["output"] = f"Goal with ID '{self.identifier}' has been finished!"
 
 class ListGoals(BaseModel):
     """
@@ -95,7 +97,7 @@ class ListGoals(BaseModel):
         goal: List[Goal] = goals.search(controller.embedder.get_embedding_scalar_float_list(self.sort_query)).limit(64).to_pydantic()
 
         lst = "\n".join([f"Identifier: {x.identifier} Goal: {x.goal} Progress: {x.progress}" for x in goal])
-        insert_system_message(state["conversation_id"], f"Goal list:\n{lst}")
+        state["output"] = f"Goal list:\n{lst}"
 
 class SeeGoalDetails(BaseModel):
     """
@@ -108,9 +110,9 @@ class SeeGoalDetails(BaseModel):
         where = f"identifier='{self.identifier}'"
         goal = goals.search().where(where, prefilter=True).limit(1).to_pydantic()
         if len(goal) == 0:
-            insert_system_message(state["conversation_id"], f"Goal with identifier '{self.identifier}' not found!")
+            state["output"] = f"Goal with identifier '{self.identifier}' not found!"
         else:
-            insert_system_message(state["conversation_id"], goal[0].model_dump_json())
+            state["output"] = goal[0].model_dump_json()
 
 class ExtendPersonality(BaseModel):
     """
@@ -130,7 +132,7 @@ class ExtendPersonality(BaseModel):
         )
         insert_object(f)
 
-        insert_system_message(state["conversation_id"], f"Fact successfully saved!")
+        state["output"] = f"Fact successfully saved!"
 
 class SearchWeb(BaseModel):
     """
@@ -139,28 +141,31 @@ class SearchWeb(BaseModel):
     query: str = Field(description="web query from brave search API")
 
     def execute(self, state):
-        if not controller.config.brave_api_key or controller.config.brave_api_key == "":
-            insert_system_message(state["conversation_id"], f"Brave Web Search not set up, please inform your user!")
+        def format_tavily_result(tavily_result):
+            query = tavily_result.get("query", "No query provided")
+            results = tavily_result.get("results", [])
+
+            compact_result = f"Query: {query}\nTop Results:\n"
+            for i, result in enumerate(results[:2], start=1):
+                title = result.get("title", "No title")
+                url = result.get("url", "No URL")
+                content = result.get("content", "No content").replace("\n", "")
+                compact_result += f"{i}. {title}\n   Summary: {content}\n\n"
+
+            return compact_result.strip()
+
+        if not controller.config.tavily_api_key or controller.config.tavily_api_key == "":
+            state["output"] = f"Tavily Web Search not set up, please inform your user!"
         else:
-            brave = Brave(api_key=controller.config.brave_api_key)
-            query = "current us president"
-            num_results = 4
-            search_results = brave.search(q=query, count=num_results)
-
-            def extract_text_from_results(json_response):
-                if 'web' in json_response and 'results' in json_response['web']:
-                    results = json_response['web']['results']
-                    extracted_text = [
-                        f"Title: {result.get('title', '')}\nDescription: {result.get('description', '')}"
-                        for result in results
-                    ]
-                    return "\n\n".join(extracted_text)
-                return "No relevant results found."
-
-            insert_system_message(state["conversation_id"], f"Search Results: {extract_text_from_results(search_results.model_dump())}")
+            tavily_client = TavilyClient(api_key=controller.config.tavily_api_key)
+            response = format_tavily_result(tavily_client.search(self.query))
+            state["output"] = f"Search Results: {response}"
 
 class InsertDiaryEntry(BaseModel):
     """
     Document something from the user's life.
     """
-    entry: str = Field(description="")
+    entry: str = Field(description="entry about events")
+
+    def execute(self, state):
+        print(self.entry)

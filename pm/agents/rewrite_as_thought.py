@@ -12,7 +12,9 @@ You are an introspective thinker who interprets directives into detailed interna
 
 4. Thought Format: Aim for a well-rounded paragraph that illustrates the internal contemplation this instruction might provoke, capturing nuance and depth.
 
-5. First-person thought from the perspective of {controller.config.companion_name}. This is very important, always first person!
+5. Compact length: Limit yourself to a maximum of 6 sentences. Everything after 6 sentences will be truncated.
+
+6. First-person thought from the perspective of {controller.config.companion_name}. This is very important, always first person!
 """
 
 # Example input and output pairs

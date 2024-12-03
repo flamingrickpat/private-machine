@@ -15,7 +15,7 @@ from pm.agents.generate_thoughts import generate_thoughts
 from pm.agents.validate_thought import validate_thought
 from pm.agents_dynamic.schema_thought_contemplation import thought_contemplation_dialog
 from pm.architecture.state import AgentState
-from pm.consts import THOUGHT_VALIDNESS_MIN
+from pm.consts import THOUGHT_VALIDNESS_MIN, LLM_PRESET_FINAL_OUTPUT
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, get_facts_str, insert_object, get_facts
 from pm.database.db_model import Message, MessageSummary, MessageInterlocus
@@ -62,7 +62,7 @@ class MetaModeManualThinking(BaseModel):
 
 class MetaModeInitConversation(BaseModel):
     """
-    Use this to initilize a conversation with the user.
+    Use this to initialize a conversation with the user.
     Warning: This will disable further thinking, and you'll have to wait until the user replies.
     """
     message: str = Field(description="Message to send to the user.")
@@ -105,7 +105,7 @@ def agent_metacognitive_selection(state: AgentState):
     tools = [MetaModeDefaultModeNetwork, MetaModeInitConversation]  # MetaModeDoingMode, MetaModeBeingMode, MetaModeManualThinking]
 
     sysprompt = build_sys_prompt_conscious_assistant(False, tools, state.knowledge_implicit_facts)
-    messages = build_prompt(False, msgs, sums, rels, full_token_allowance=controller.config.get_model(LlmPreset.Good).context_size - (quick_estimate_tokens(sysprompt) + 256))
+    messages = build_prompt(False, msgs, sums, rels, full_token_allowance=controller.config.get_model(LLM_PRESET_FINAL_OUTPUT).context_size - (quick_estimate_tokens(sysprompt) + 256))
 
     # add system prompt
     messages.insert(0, (
@@ -113,7 +113,7 @@ def agent_metacognitive_selection(state: AgentState):
         sysprompt
     ))
 
-    _, calls = controller.completion_tool(LlmPreset.Good, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.6), tools=tools)
+    _, calls = controller.completion_tool(LLM_PRESET_FINAL_OUTPUT, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.6), tools=tools)
     call = calls[0]
     if isinstance(call, MetaModeDefaultModeNetwork):
         state.next_agent = "agent_generate_int_thoughts"

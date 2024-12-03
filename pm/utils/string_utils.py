@@ -118,3 +118,59 @@ def get_text_after_keyword(text: str, keyword: str) -> str:
 
     # If the keyword is not found, return the whole string
     return text
+
+
+def clip_to_sentence(text, max_chars):
+    """
+    Clips a long string to a full sentence within the specified number of characters.
+
+    Parameters:
+        text (str): The input string.
+        max_chars (int): The maximum number of characters allowed in the clipped string.
+
+    Returns:
+        str: The clipped string ending at a full sentence.
+    """
+    if len(text) <= max_chars:
+        return text
+
+    # Find all sentences using a regex
+    sentences = re.split(r'(?<=[.!?]) +', text)
+
+    clipped_text = ""
+    for sentence in sentences:
+        if len(clipped_text) + len(sentence) <= max_chars:
+            clipped_text += sentence + " "
+        else:
+            break
+
+    # Strip trailing spaces
+    return clipped_text.strip()
+
+
+def clip_to_sentence_by_words(text, max_words):
+    """
+    Clips a long string to a full sentence within the specified number of words.
+
+    Parameters:
+        text (str): The input string.
+        max_words (int): The maximum number of words allowed in the clipped string.
+
+    Returns:
+        str: The clipped string ending at a full sentence.
+    """
+    # Split the input text into sentences
+    sentences = re.split(r'(?<=[.!?]) +', text)
+
+    clipped_text = []
+    word_count = 0
+
+    for sentence in sentences:
+        sentence_words = sentence.split()
+        if word_count + len(sentence_words) <= max_words:
+            clipped_text.append(sentence)
+            word_count += len(sentence_words)
+        else:
+            break
+
+    return " ".join(clipped_text).strip()

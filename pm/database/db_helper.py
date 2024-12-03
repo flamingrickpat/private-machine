@@ -241,7 +241,7 @@ def insert_system_message(conversation_id: str, sysmsg: str):
         public=True,
         embedding=controller.embedder.get_embedding_scalar_float_list(sysmsg),
         tokens=quick_estimate_tokens(sysmsg),
-        interlocus=MessageInterlocus.AutoThoughtSystemInst
+        interlocus=MessageInterlocus.MessageSystemInst
     )
     insert_object(msg_init)
 
