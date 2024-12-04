@@ -7,6 +7,7 @@ from pm.controller import controller
 from pm.tools.common import get_json_schemas, tools_list
 
 prompt_conscious_assistant_base = """{character_card}
+{example_dialog_insert}
 {tool_insert}
 {optional_tool_insert}
 {thought_insert}
@@ -34,13 +35,24 @@ User 'Thought:' to start a thought. This will be invisible to the user. Use 'Res
 Take a deep breath and think it through before making the final response to the user in the 'Response:' part of the message.
 """
 
-def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[BaseModel], knowledge: str, optional_tools: List[BaseModel]) -> str:
+example_dialog_insert = """
+You talk like this, this is your writing style:
+### BEGIN EXAMPLE UTTERANCES
+{lst_example_dialog_insert}
+### END EXAMPLE UTTERANCES
+"""
+
+def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[BaseModel], knowledge: str, optional_tools: List[BaseModel] = None) -> str:
+    if optional_tools is None:
+        optional_tools = []
+
     map = {
         "character_card": controller.config.character_card_assistant,
         "tool_insert": "",
         "optional_tool_insert": "",
         "thought_insert": "",
-        "knowledge": knowledge
+        "knowledge": knowledge,
+        "example_dialog_insert": ""
     }
 
     if use_thoughts:
@@ -53,6 +65,10 @@ def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[Bas
     if len(optional_tools) > 0:
         map["optional_tool_insert"] = optional_tool_insert
         map["lst_optional_tool_insert"] = "\n".join([f"- {x.__name__}: {x.__doc__}" for x in optional_tools])
+
+    if len(controller.config.example_dialog):
+        map["example_dialog_insert"] = example_dialog_insert
+        map["lst_example_dialog_insert"] = "\n- ".join(controller.config.example_dialog)
 
     prompt = controller.format_str(prompt_conscious_assistant_base, extra=map)
     return prompt

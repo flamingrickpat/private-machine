@@ -19,12 +19,20 @@ And some of the information they about user and environment they collected:
 {knowledge}
 """
 
+example_dialog_insert = """
+{companion_name} talks like this, this is their writing style:
+### BEGIN EXAMPLE UTTERANCES {companion_name}
+{lst_example_dialog_insert}
+### END EXAMPLE UTTERANCES {companion_name}
+"""
+
 thought_insert = """You can also describe the internal monologue of the AI with '{companion_name} thinks:'. That will really add depth to the story! Just make sure to write what they actually say with '{companion_name}:' next!"""
 
 def build_sys_prompt_conscious_story(use_thoughts: bool, knowledge: str) -> str:
     map = {
         "character_card": controller.config.character_card_story,
         "thought_insert": "",
+        "example_dialog_insert": "",
         "companion_name": controller.config.companion_name,
         "user_name": controller.config.user_name,
         "knowledge": knowledge
@@ -32,6 +40,10 @@ def build_sys_prompt_conscious_story(use_thoughts: bool, knowledge: str) -> str:
 
     if use_thoughts:
         map["thought_insert"] = thought_insert
+
+    if len(controller.config.example_dialog):
+        map["example_dialog_insert"] = example_dialog_insert
+        map["lst_example_dialog_insert"] = "\n- ".join(controller.config.example_dialog)
 
     prompt = controller.format_str(prompt_conscious_assistant_base, extra=map)
     return prompt

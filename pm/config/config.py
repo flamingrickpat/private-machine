@@ -22,6 +22,8 @@ class MainConfig(BaseModel):
     example_dialog: List[str] = Field(default_factory=list)
     brave_api_key: str | None = Field(default=None)
     tavily_api_key: str | None = Field(default=None)
+    telegram_token: str | None = Field(default=None)
+    telegram_chat_id: str | None = Field(default=None)
 
     def get_model(self, preset: LlmPreset) -> LlmModel:
         for model in self.models:

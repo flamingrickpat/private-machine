@@ -139,7 +139,7 @@ def role_to_name(x: Message):
     name = controller.config.companion_name if x.role == 'assistant' else (controller.config.user_name if x.role == "user" else "System")
     return name
 
-def fetch_messages_as_string(conversation_id: str, n_thought_plans: int = 1, n_thought: int = 4, n_thought_emotion: int = 2, n_thought_feeling: int = 1) -> str:
+def fetch_messages_as_string(conversation_id: str, n_thought_plans: int = 1, n_thought: int = 8, n_thought_emotion: int = 4, n_thought_feeling: int = 2) -> str:
     messages = fetch_messages(conversation_id)
 
     cnt_thought_plans = 0

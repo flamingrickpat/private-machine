@@ -63,22 +63,34 @@ class MetaModeManualThinking(BaseModel):
 class MetaModeInitConversation(BaseModel):
     """
     Use this to initialize a conversation with the user.
+    You can talk about anything you want, but remember to provide context. The user can't see your internal thoughts.
     Warning: This will disable further thinking, and you'll have to wait until the user replies.
     """
-    message: str = Field(description="Message to send to the user.")
+    message: str = Field(description="Message to send to the user with enough context. Can be about anything!")
 
 def agent_init_auto_thought(state: AgentState):
     sysmsg = "The user hasn't responded yet, entering autonomous thinking mode..."
-    msg_init = Message(
-        conversation_id=state.conversation_id,
-        role='system',
-        text=sysmsg,
-        public=True,
-        embedding=controller.embedder.get_embedding_scalar_float_list(sysmsg),
-        tokens=quick_estimate_tokens(sysmsg),
-        interlocus=MessageInterlocus.MessageSystemInst
-    )
-    insert_object(msg_init)
+
+    do_message = True
+    msgs = fetch_messages(state.conversation_id)
+    for i in range(len(msgs) - 1, -1, -1):
+        if msgs[i].text == sysmsg:
+            do_message = False
+            break
+        elif msgs[i].role == "user":
+            break
+
+    if do_message:
+        msg_init = Message(
+            conversation_id=state.conversation_id,
+            role='system',
+            text=sysmsg,
+            public=True,
+            embedding=controller.embedder.get_embedding_scalar_float_list(sysmsg),
+            tokens=quick_estimate_tokens(sysmsg),
+            interlocus=MessageInterlocus.MessageSystemInst
+        )
+        insert_object(msg_init)
     return state
 
 def agent_auto_thought_prepare_knowledge(state: AgentState):
@@ -186,6 +198,7 @@ def agent_generate_aspects(state: AgentState):
 
 def agent_init_message(state: AgentState):
     output = state.init_message
+    state.output = output
     msg_ai = Message(
         conversation_id=state.conversation_id,
         role='assistant',

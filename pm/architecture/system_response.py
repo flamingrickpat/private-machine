@@ -299,6 +299,8 @@ def check_for_optional_tool_call(conversation_id, content, tools) -> str | None:
 def agent_completion_assistant(state: AgentState):
     full_text = fetch_messages_as_string(state.conversation_id)
     query = get_last_n_messages_or_words_from_string(full_text, 4, n_tokens=1024)
+    full_text_response_only = fetch_messages_as_string(state.conversation_id, n_thought=0, n_thought_plans=0, n_thought_emotion=0, n_thought_feeling=0)
+    query_response_only = get_last_n_messages_or_words_from_string(full_text_response_only, 4, n_tokens=1024)
     msgs = rank_table(state.conversation_id, query, Message)
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
@@ -344,7 +346,7 @@ def agent_completion_assistant(state: AgentState):
                 public=True,
                 embedding=controller.embedder.get_embedding_scalar_float_list(output),
                 tokens=quick_estimate_tokens(output),
-                interlocus=MessageInterlocus.MessageResponse
+                interlocus=MessageInterlocus.MessageThought
             )
             insert_object(msg_ai)
             messages.append(("assistant", output))
@@ -372,7 +374,7 @@ def agent_completion_assistant(state: AgentState):
             content = get_text_after_keyword(prefix + content, controller.get_response_string_assistant(""))
             if content == "":
                 continue
-            validness, reason = validate_response_in_context(f"{query}\n### BEGIN NEW MESSAGE\n{content}\n### END NEW MESSAGE")
+            validness, reason = validate_response_in_context(f"{query_response_only}\n### BEGIN NEW MESSAGE\n{content}\n### END NEW MESSAGE")
             if validness > RESPONSE_VALIDNESS_MIN:
                 regens = [(validness, content)]
                 break
@@ -398,6 +400,8 @@ def agent_completion_assistant(state: AgentState):
 def agent_completion_story(state: AgentState):
     full_text = fetch_messages_as_string(state.conversation_id)
     query = get_last_n_messages_or_words_from_string(full_text, n_messages=4, n_tokens=1024)
+    full_text_response_only = fetch_messages_as_string(state.conversation_id, n_thought=0, n_thought_plans=0, n_thought_emotion=0, n_thought_feeling=0)
+    query_response_only = get_last_n_messages_or_words_from_string(full_text_response_only, 4, n_tokens=1024)
     msgs = rank_table(state.conversation_id, query, Message)
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
@@ -448,7 +452,7 @@ def agent_completion_story(state: AgentState):
         if content == "":
             continue
 
-        validness, reason = validate_response_in_context(f"{query}\n### BEGIN NEW MESSAGE\n{content}\n### END NEW MESSAGE")
+        validness, reason = validate_response_in_context(f"{query_response_only}\n### BEGIN NEW MESSAGE\n{content}\n### END NEW MESSAGE")
         if validness > RESPONSE_VALIDNESS_MIN:
             regens = [(validness, content)]
             break
