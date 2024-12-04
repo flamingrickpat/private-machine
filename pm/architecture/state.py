@@ -96,6 +96,9 @@ class AgentState(BaseModel):
     init_message: str = Field(default_factory=str)
     goal_thought: str = Field(default_factory=str)
 
+    idle_mode: bool = Field(default=False)
+    idle_for_minutes: int = Field(default=0)
+
     emotional_state: EmotionalAxesModel = Field(default_factory=EmotionalAxesModel)
 
 if __name__ == '__main__':

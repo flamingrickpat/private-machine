@@ -3,12 +3,14 @@ from queue import Queue
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 
 from pm.architecture.state import AgentState
 from pm.architecture.system import make_completion
+from pm.consts import CONVERSATION_ID, NEXT_AUTO_THOUGHT_MINUTES
 from pm.controller import controller
+from pm.database.db_helper import fetch_messages
 from pm.database.db_model import Conversation
 from pm.log_utils import setup_logger
 
@@ -20,20 +22,39 @@ queue_input = Queue()
 queue_output = Queue()
 
 def handle_llm_thread():
+    last_msg = datetime(2000, 1, 1)
+    msgs = fetch_messages(CONVERSATION_ID)
+    if len(msgs) > 0:
+        lst_msg = msgs[0].world_time
+
+    next_empty_call = last_msg + timedelta(minutes=NEXT_AUTO_THOUGHT_MINUTES)
     while True:
         try:
             copy = queue_input.queue
             if len(copy) > 0:
                 msg = copy[-1]
-                status, output = async_handle_llm("main", msg)
+                state = async_handle_llm(CONVERSATION_ID, msg)
+                output = state.output
+
                 if output is not None and output != "":
                     queue_output.put(output)
                 queue_input.get()
+                next_empty_call = datetime.now() + timedelta(minutes=NEXT_AUTO_THOUGHT_MINUTES)
+            else:
+                if datetime.now() > next_empty_call:
+                    state = async_handle_llm(CONVERSATION_ID, "")
+                    output = state.output
+                    if output is not None and output != "":
+                        queue_output.put(output)
+                    if state.idle_mode:
+                        next_empty_call = datetime.now() + timedelta(minutes=min(6 * 60, max(10, state.idle_for_minutes)))
+                    else:
+                        next_empty_call = datetime.now() + timedelta(minutes=NEXT_AUTO_THOUGHT_MINUTES)
             time.sleep(10)
         except Exception as e:
             pass
 
-def async_handle_llm(conversation_id: str, input: str) -> (int, str):
+def async_handle_llm(conversation_id: str, input: str) -> AgentState | None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     setup_logger(f"main_{timestamp}.log")
 
@@ -60,14 +81,14 @@ def async_handle_llm(conversation_id: str, input: str) -> (int, str):
     try:
         state_dict = make_completion(state)
     except Exception as e:
-        return -1, str(e)
+        return None
 
     state = AgentState.model_validate(state_dict)
     convo.agent_state = state.model_dump_json(indent=2)
     convo.title = f"Conversation {convo.id}"
     convo_table.update(where=f"id = '{convo.id}'", values=convo.model_dump())
 
-    return 0, state.output
+    return state
 
 
 # Your Telegram Bot Token

@@ -46,11 +46,12 @@ class MetaModeDoingMode(BaseModel):
     toolset: MetaToolset = Field(description="What toolset you want to use.")
 
 
-class MetaModeBeingMode(BaseModel):
+class MetaModeIdleMode(BaseModel):
     """
     Use this tool to disable thinking and instead wait for sensations such as system notifications or user input.
+    You can use this at night while the user is asleep to "sleep" yourself.
     """
-    timelimit_minutes: int = Field(description="How long you want to wait for sensation before being able to select metacognitive state again in minutes.")
+    timelimit_minutes: int = Field(description="How long you want to wait for sensation before being able to select metacognitive state again in minutes. Between 10 and 360 minutes.")
 
 
 class MetaModeManualThinking(BaseModel):
@@ -114,7 +115,7 @@ def agent_metacognitive_selection(state: AgentState):
     sums = rank_table(state.conversation_id, query, MessageSummary)
     rels = fetch_relations("main")
 
-    tools = [MetaModeDefaultModeNetwork, MetaModeInitConversation]  # MetaModeDoingMode, MetaModeBeingMode, MetaModeManualThinking]
+    tools = [MetaModeDefaultModeNetwork, MetaModeInitConversation, MetaModeIdleMode]  # MetaModeDoingMode, MetaModeBeingMode, MetaModeManualThinking]
 
     sysprompt = build_sys_prompt_conscious_assistant(False, tools, state.knowledge_implicit_facts)
     messages = build_prompt(False, msgs, sums, rels, full_token_allowance=controller.config.get_model(LLM_PRESET_FINAL_OUTPUT).context_size - (quick_estimate_tokens(sysprompt) + 256))
@@ -133,6 +134,9 @@ def agent_metacognitive_selection(state: AgentState):
     elif isinstance(call, MetaModeInitConversation):
         state.next_agent = "agent_init_message"
         state.init_message = call.message
+    elif isinstance(call, MetaModeIdleMode):
+        state.idle_mode = True
+        state.idle_for_minutes = call.timelimit_minutes
 
     return state
 
