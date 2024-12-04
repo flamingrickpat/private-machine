@@ -10,12 +10,15 @@ from accelerate.commands.config.config import description
 from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 
+from pm.agents.completion_mode import CompletionModeResponseMode
 from pm.agents.generate_thought_aspects import generate_personality_aspects
 from pm.agents.generate_thoughts import generate_thoughts
+from pm.agents.rewrite_as_thought import rewrite_as_thought
 from pm.agents.validate_thought import validate_thought
+from pm.agents_dynamic.schema_subconscious import get_plan_from_subconscious_agents
 from pm.agents_dynamic.schema_thought_contemplation import thought_contemplation_dialog
 from pm.architecture.state import AgentState
-from pm.consts import THOUGHT_VALIDNESS_MIN, LLM_PRESET_FINAL_OUTPUT
+from pm.consts import THOUGHT_VALIDNESS_MIN, LLM_PRESET_FINAL_OUTPUT, ADD_INTERMEDIATE_STEP_THOUGHT
 from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, get_facts_str, insert_object, get_facts
 from pm.database.db_model import Message, MessageSummary, MessageInterlocus
@@ -67,7 +70,7 @@ class MetaModeInitConversation(BaseModel):
     You can talk about anything you want, but remember to provide context. The user can't see your internal thoughts.
     Warning: This will disable further thinking, and you'll have to wait until the user replies.
     """
-    message: str = Field(description="Message to send to the user with enough context. Can be about anything!")
+    topic: str = Field(description="General topic to talk about, can be about anything!")
 
 def agent_init_auto_thought(state: AgentState):
     sysmsg = "The user hasn't responded yet, entering autonomous thinking mode..."
@@ -133,7 +136,7 @@ def agent_metacognitive_selection(state: AgentState):
         state.goal_thought = call.thinking_goal
     elif isinstance(call, MetaModeInitConversation):
         state.next_agent = "agent_init_message"
-        state.init_message = call.message
+        state.init_message = call.topic
     elif isinstance(call, MetaModeIdleMode):
         state.idle_mode = True
         state.idle_for_minutes = call.timelimit_minutes
@@ -201,28 +204,36 @@ def agent_generate_aspects(state: AgentState):
 
 
 def agent_init_message(state: AgentState):
-    output = state.init_message
-    state.output = output
-    msg_ai = Message(
+    topic = state.init_message
+    topic_want = f"I want to initiate a conversation and talk about '{topic}'!"
+    msg_thought = Message(
         conversation_id=state.conversation_id,
         role='assistant',
-        text=output,
-        public=True,
-        embedding=controller.embedder.get_embedding_scalar_float_list(output),
-        tokens=quick_estimate_tokens(output),
-        interlocus=MessageInterlocus.MessageResponse
+        text=topic_want,
+        public=False,
+        embedding=controller.embedder.get_embedding_scalar_float_list(topic_want),
+        tokens=quick_estimate_tokens(topic_want),
+        interlocus=MessageInterlocus.MessageThought
     )
-    insert_object(msg_ai)
+    insert_object(msg_thought)
+
+    full_text = fetch_messages_as_string(state.conversation_id)
+    query = get_last_n_messages_or_words_from_string(full_text)
+
+    res = get_plan_from_subconscious_agents(query, f"{controller.config.companion_name} wants to initiate a conversation with {controller.config.user_name}."
+                                                   f"What could they say? They have a general topic defined: {topic}."
+                                                   f"Generate a plan to start a proper conversation where the conversation partner can easily enter!")
+
+    state.plan = res.conclusion
+    while True:
+        thought = rewrite_as_thought(f"{state.plan}", max_sentences_in=32, max_sentences_out=8)
+        validness = validate_thought(thought)
+        if validness > THOUGHT_VALIDNESS_MIN:
+            state.thought = thought
+            break
+
+    state.completion_mode = CompletionModeResponseMode.Story
     return state
-
-def system_internal_thought():
-    pass
-    # get random thought from context
-    # let conscious ai with conscious history decide if its a thought worth thinking
-    # if yes, enter story mode
-    # instruct sotry writer agent with 2 aspects
-    # end generate for n steps or until breaking out
-
 
 def add_thought_system_to_graph(workflow: StateGraph, start_node: str, end_node: str):
     workflow.add_node("agent_init_auto_thought", agent_init_auto_thought)
@@ -239,4 +250,4 @@ def add_thought_system_to_graph(workflow: StateGraph, start_node: str, end_node:
     workflow.add_edge("agent_generate_int_thoughts", "agent_generate_aspects")
     workflow.add_edge("agent_generate_aspects", end_node)
 
-    workflow.add_edge("agent_init_message", end_node)
+    workflow.add_edge("agent_init_message", "agent_completion")
