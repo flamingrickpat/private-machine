@@ -1,5 +1,5 @@
 import json
-from typing import List, Tuple
+from typing import List, Tuple, Type
 
 from pydantic import BaseModel
 
@@ -42,7 +42,7 @@ You talk like this, this is your writing style:
 ### END EXAMPLE UTTERANCES
 """
 
-def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[BaseModel], knowledge: str, optional_tools: List[BaseModel] = None) -> str:
+def build_sys_prompt_conscious_assistant(use_thoughts: bool, tool_list: List[Type[BaseModel]], knowledge: str, optional_tools: List[Type[BaseModel]] = None) -> str:
     if optional_tools is None:
         optional_tools = []
 

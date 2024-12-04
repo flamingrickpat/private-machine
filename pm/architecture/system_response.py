@@ -25,6 +25,7 @@ from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, insert_object, fetch_responses_as_string, get_facts_str, get_facts
 from pm.database.db_model import Message, MessageSummary, MessageInterlocus
 from pm.database.load_messages import build_prompt
+from pm.grapheditor.decorator import graph_function
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.prompts.prompt_main_agent_story import build_sys_prompt_conscious_story
@@ -34,12 +35,14 @@ from pm.tools.common import tools_list
 
 logger = logging.getLogger(__name__)
 
+@graph_function()
 def agent_task_converse(state: AgentState):
     state.complexity = 0
     state.available_tools = []
     state.completion_mode = "assistant"
     return state
 
+@graph_function()
 def agent_preprocess_input(state: AgentState):
     msgs = fetch_messages(state.conversation_id)[-4:]
     state.complexity = determine_complexity(msgs)
@@ -49,6 +52,7 @@ def agent_preprocess_input(state: AgentState):
 
     return state
 
+@graph_function()
 def agent_create_knowledge_plan(state: AgentState):
     #current_questions = state.plan_questions[-8:]
     #question_block = '\n'.join(current_questions)
@@ -94,6 +98,7 @@ def agent_create_knowledge_plan(state: AgentState):
 
     return state
 
+@graph_function()
 def agent_determine_emotions(state: AgentState):
     class EmotionalImpact(BaseModel):
         """
@@ -187,7 +192,7 @@ def agent_determine_emotions(state: AgentState):
 
     return state
 
-
+@graph_function()
 def agent_generate_thought(state: AgentState):
     full_text = fetch_messages_as_string(state.conversation_id)
     query = get_last_n_messages_or_words_from_string(full_text)
@@ -219,8 +224,10 @@ def agent_generate_thought(state: AgentState):
 
     return state
 
+@graph_function()
 def agent_completion(state: AgentState):
     return state
+
 
 def check_for_optional_tool_call(conversation_id, content, tools) -> str | None:
     def create_tool_selection():
@@ -296,6 +303,7 @@ def check_for_optional_tool_call(conversation_id, content, tools) -> str | None:
     return state["output"] if "output" in state else "No output!"
 
 
+@graph_function()
 def agent_completion_assistant(state: AgentState):
     full_text = fetch_messages_as_string(state.conversation_id)
     query = get_last_n_messages_or_words_from_string(full_text, 4, n_tokens=1024)
@@ -397,6 +405,7 @@ def agent_completion_assistant(state: AgentState):
 
     return state
 
+@graph_function()
 def agent_completion_story(state: AgentState):
     full_text = fetch_messages_as_string(state.conversation_id)
     query = get_last_n_messages_or_words_from_string(full_text, n_messages=4, n_tokens=1024)

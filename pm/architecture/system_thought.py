@@ -23,6 +23,7 @@ from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, rank_table, fetch_relations, fetch_messages_as_string, get_facts_str, insert_object, get_facts
 from pm.database.db_model import Message, MessageSummary, MessageInterlocus
 from pm.database.load_messages import build_prompt
+from pm.grapheditor.decorator import graph_function
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.prompts.prompt_main_agent import build_sys_prompt_conscious_assistant
 from pm.utils.string_utils import get_last_n_messages_or_words_from_string
@@ -72,6 +73,7 @@ class MetaModeInitConversation(BaseModel):
     """
     topic: str = Field(description="General topic to talk about, can be about anything!")
 
+@graph_function()
 def agent_init_auto_thought(state: AgentState):
     sysmsg = "The user hasn't responded yet, entering autonomous thinking mode..."
 
@@ -97,6 +99,7 @@ def agent_init_auto_thought(state: AgentState):
         insert_object(msg_init)
     return state
 
+@graph_function()
 def agent_auto_thought_prepare_knowledge(state: AgentState):
     full_text = fetch_messages_as_string(state.conversation_id)
     conv_context = get_last_n_messages_or_words_from_string(full_text, n_messages=8)
@@ -110,7 +113,7 @@ def agent_auto_thought_prepare_knowledge(state: AgentState):
     state.knowledge_implicit_facts = truncate_to_tokens("\n".join(data), 1024)
     return state
 
-
+@graph_function()
 def agent_metacognitive_selection(state: AgentState):
     full_text = fetch_messages_as_string(state.conversation_id, n_thought=8)
     query = get_last_n_messages_or_words_from_string(full_text, n_messages=4)
@@ -143,6 +146,7 @@ def agent_metacognitive_selection(state: AgentState):
 
     return state
 
+@graph_function()
 def agent_generate_int_thoughts(state: AgentState):
     full_text = fetch_messages_as_string(state.conversation_id)
     conv_context = get_last_n_messages_or_words_from_string(full_text, n_messages=8)
@@ -181,7 +185,7 @@ def agent_generate_int_thoughts(state: AgentState):
     logger.info(f"Thought: {thought}")
     return state
 
-
+@graph_function()
 def agent_generate_aspects(state: AgentState):
     full_text = fetch_messages_as_string(state.conversation_id)
     conv_context = get_last_n_messages_or_words_from_string(full_text)
@@ -202,7 +206,7 @@ def agent_generate_aspects(state: AgentState):
     insert_object(msg_thought)
     return state
 
-
+@graph_function()
 def agent_init_message(state: AgentState):
     topic = state.init_message
     topic_want = f"I want to initiate a conversation and talk about '{topic}'!"

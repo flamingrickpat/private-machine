@@ -324,7 +324,7 @@ class NodeEditorApp(QMainWindow):
                     if class_name in globals():
                         cls = globals()[class_name]
 
-                    from privatemachine.architecture.get_cls import get_cls
+                    from pm.grapheditor.get_cls import get_cls
                     cls = get_cls(class_name)
                     if cls is not None:
                         node = self.scene.restore_node(v["state"])

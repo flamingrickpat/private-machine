@@ -14,21 +14,25 @@ from pm.controller import controller
 from pm.database.db_helper import fetch_messages, fetch_messages_no_summary, insert_object
 from pm.database.db_model import Message, MessageInterlocus
 from pm.database.transactions import start_transaction, rollback_transaction, commit_transaction
+from pm.grapheditor.decorator import graph_function
 from pm.utils.token_utils import quick_estimate_tokens
 
 logger = logging.getLogger(__name__)
 
 # high level
+@graph_function()
 def agent_start_transaction(state: AgentState):
     rollback_transaction()
     start_transaction()
 
     return state
 
+@graph_function()
 def agent_commit_transaction(state: AgentState):
     commit_transaction()
     return state
 
+@graph_function()
 def agent_tasks_create(state: AgentState):
     state.task = []
     if state.input.strip() != "":
@@ -41,15 +45,18 @@ def agent_tasks_create(state: AgentState):
         state.task.append("commit_transaction")
     return state
 
+@graph_function()
 def agent_tasks_delegate(state: AgentState):
     return state
 
+@graph_function()
 def agent_task_summarize(state: AgentState):
     state.task.remove("task_summarize")
     cluster_and_summarize(state.conversation_id)
     high_level_summarize(state.conversation_id)
     return state
 
+@graph_function()
 def agent_task_converse_start(state: AgentState):
     state.task.remove("task_converse")
 
@@ -67,6 +74,7 @@ def agent_task_converse_start(state: AgentState):
 
     return state
 
+@graph_function()
 def agent_task_converse_end(state: AgentState):
     if state.thought != "":
         thought = state.thought
@@ -95,13 +103,16 @@ def agent_task_converse_end(state: AgentState):
         insert_object(msg_ai)
     return state
 
+@graph_function()
 def agent_task_think_start(state: AgentState):
     state.task.remove("task_think")
     return state
 
+@graph_function()
 def agent_task_think_end(state: AgentState):
     return state
 
+@graph_function()
 def task_delegate_func(state: AgentState):
     if "task_summarize" in state.task:
         return "agent_task_summarize"
