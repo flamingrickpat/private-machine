@@ -168,6 +168,11 @@ def fetch_messages_as_string(conversation_id: str, n_thought_plans: int = 1, n_t
     message_block = "\n".join([f"{role_to_name(x)}{' thinks' if MessageInterlocus.is_thought(x.interlocus) else ''}: {x.text}" for x in messages])
     return message_block
 
+def fetch_responses(conversation_id: str) -> List[Message]:
+    messages = fetch_messages(conversation_id)
+    messages = [x for x in messages if not MessageInterlocus.is_thought(x.interlocus)]
+    return messages
+
 def fetch_responses_as_string(conversation_id: str) -> str:
     messages = fetch_messages(conversation_id)
     message_block = "\n".join([f"{role_to_name(x)}: {x.text}" for x in messages if not MessageInterlocus.is_thought(x.interlocus)])

@@ -1,184 +1,429 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/24.7.5 Chrome/126.0.6478.183 Electron/31.3.0 Safari/537.36" version="24.7.5">
   <diagram id="C5RBs43oDa-KdzZeNtuy" name="Page-1">
-    <mxGraphModel dx="2555" dy="2020" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="12818" dy="16851" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="WIyWlLk6GJQsqaUBKTNV-0" />
         <mxCell id="WIyWlLk6GJQsqaUBKTNV-1" parent="WIyWlLk6GJQsqaUBKTNV-0" />
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-1" value="START" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2930" y="140" width="120" height="60" as="geometry" />
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-51" value="Cognitive Architecture" style="shape=table;childLayout=tableLayout;startSize=141;collapsible=0;recursiveResize=0;expand=0;fontSize=78;strokeWidth=10;editable=0;movable=1;resizable=1;rotatable=1;deletable=1;locked=0;connectable=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="5354" y="1966" width="26912" height="5368" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-2" value="preprocess" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2930" y="270" width="120" height="60" as="geometry" />
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-52" value="META-COGNTION" style="shape=tableRow;horizontal=0;swimlaneHead=0;swimlaneBody=0;top=0;left=0;strokeColor=inherit;bottom=0;right=0;dropTarget=0;fontStyle=1;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;startSize=165;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-51" vertex="1">
+          <mxGeometry y="141" width="26912" height="1046" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-3" value="create_tasks" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2930" y="390" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-4" value="execute_tasks" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2930" y="540" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-8" value="task_cluster_summarize" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2540" y="640" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-9" value="task_extract_facts" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2760" y="640" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-10" value="task_think" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3110" y="640" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-11" value="task_converse" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4070" y="640" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-14" value="check_unfinished_thought" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3080" y="780" width="180" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-15" value="has_unfinished_thought" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2990" y="900" width="160" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-16" value="generate_new_thought" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3230" y="900" width="170" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-17" value="want_to_think_about_it" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3110" y="1030" width="160" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-20" value="discard_thought" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3240" y="1150" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-21" value="preprocess_thought_emotions" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3000" y="1150" width="180" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-25" target="Yb4LFoSS5Q_ugk_9xnQv-27" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-25" value="agent_get&lt;span style=&quot;background-color: initial;&quot;&gt;_personality_aspects&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2955" y="1280" width="300" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-26" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-27" target="Yb4LFoSS5Q_ugk_9xnQv-40" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-27" value="agent_contemplation_group_chat" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2955" y="1410" width="300" height="57" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-29" target="Yb4LFoSS5Q_ugk_9xnQv-33" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-29" value="thought_finished" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3047.5" y="1767" width="115" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-33" target="Yb4LFoSS5Q_ugk_9xnQv-34" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-33" value="finished?" style="rhombus;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3055" y="1877" width="100" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-34" value="agent_update_realization" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2992.5" y="2110" width="225" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-35" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-38" target="Yb4LFoSS5Q_ugk_9xnQv-29" edge="1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-36" value="no" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="Yb4LFoSS5Q_ugk_9xnQv-35" vertex="1" connectable="0">
-          <mxGeometry x="-0.0824" relative="1" as="geometry">
-            <mxPoint y="-1" as="offset" />
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-53" value="INIT" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;strokeColor=inherit;connectable=0;fillColor=none;startSize=108;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-52" vertex="1">
+          <mxGeometry x="165" width="5348" height="1046" as="geometry">
+            <mxRectangle width="5348" height="1046" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-37" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-38" target="Yb4LFoSS5Q_ugk_9xnQv-42" edge="1">
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-126" value="filtering_necessary" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-53" vertex="1">
+          <mxGeometry x="764" y="202" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-127" value="Metacognitive check if filtering is necessary.&lt;div&gt;If we&#39;re in tool calling mode probably not.&lt;/div&gt;" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-126" vertex="1">
+          <mxGeometry y="50" width="337" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-18" value="ID Check" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-53" vertex="1">
+          <mxGeometry x="3744" y="305" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-19" value="Check if ID processing is necssary." style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="2ho36PFjFaWToWEbiMz6-18" vertex="1">
+          <mxGeometry y="50" width="337" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-22" value="Superego Check" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-53" vertex="1">
+          <mxGeometry x="4123" y="303" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-23" value="Check if superego is necessary" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="2ho36PFjFaWToWEbiMz6-22" vertex="1">
+          <mxGeometry y="50" width="337" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-53" source="2ho36PFjFaWToWEbiMz6-19" target="2ho36PFjFaWToWEbiMz6-23" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-38" value="" style="rhombus;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3062.5" y="1647" width="80" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-40" target="Yb4LFoSS5Q_ugk_9xnQv-38" edge="1">
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-0" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-53" source="8ogi0LJcsjxLQ3pZLBAo-127" target="2ho36PFjFaWToWEbiMz6-19" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-40" value="agent_check_thought_for_tool" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2950" y="1547" width="310" height="60" as="geometry" />
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-54" value="PREPROCESS" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;strokeColor=inherit;connectable=0;fillColor=none;startSize=108;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-52" vertex="1">
+          <mxGeometry x="5513" width="5355" height="1046" as="geometry">
+            <mxRectangle width="5355" height="1046" as="alternateBounds" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-42" target="Yb4LFoSS5Q_ugk_9xnQv-29" edge="1">
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-55" value="PROCESS" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;strokeColor=inherit;connectable=0;fillColor=none;startSize=108;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-52" vertex="1">
+          <mxGeometry x="10868" width="5351" height="1046" as="geometry">
+            <mxRectangle width="5351" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-14" value="&lt;h3 style=&quot;text-align: left; text-wrap: nowrap;&quot;&gt;&lt;strong&gt;Toolset Selection&lt;/strong&gt;&lt;/h3&gt;" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-55" vertex="1">
+          <mxGeometry x="127" y="331" width="604" height="374" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-15" value="Based&amp;nbsp; on sensation adjust what toolset such as conversation, tool calling etc should be available." style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="Bm5EduecZjT10OOh1c8T-14" vertex="1">
+          <mxGeometry y="50" width="604" height="324" as="geometry" />
+        </mxCell>
+        <mxCell id="g0w9Peve4dl1CfhMJt1y-1" value="&lt;h3 style=&quot;text-align: left; text-wrap: nowrap;&quot;&gt;&lt;strong&gt;Prepare USTM&lt;/strong&gt;&lt;/h3&gt;" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-55" vertex="1">
+          <mxGeometry x="846" y="328" width="604" height="374" as="geometry" />
+        </mxCell>
+        <mxCell id="g0w9Peve4dl1CfhMJt1y-2" value="Tool calling results and such and most important conversation core memories." style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="g0w9Peve4dl1CfhMJt1y-1" vertex="1">
+          <mxGeometry y="50" width="604" height="324" as="geometry" />
+        </mxCell>
+        <mxCell id="g0w9Peve4dl1CfhMJt1y-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-55" source="Bm5EduecZjT10OOh1c8T-15" target="g0w9Peve4dl1CfhMJt1y-2" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-85" value="ACT" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;strokeColor=inherit;connectable=0;fillColor=none;startSize=108;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-52" vertex="1">
+          <mxGeometry x="16219" width="5345" height="1046" as="geometry">
+            <mxRectangle width="5345" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-90" value="POST-PROCESS" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;strokeColor=inherit;connectable=0;fillColor=none;startSize=108;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-52" vertex="1">
+          <mxGeometry x="21564" width="5348" height="1046" as="geometry">
+            <mxRectangle width="5348" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-52" source="2ho36PFjFaWToWEbiMz6-23" target="Bm5EduecZjT10OOh1c8T-15" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-56" value="CONSCIOUS" style="shape=tableRow;horizontal=0;swimlaneHead=0;swimlaneBody=0;top=0;left=0;strokeColor=inherit;bottom=0;right=0;dropTarget=0;fontStyle=1;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;startSize=165;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-51" vertex="1">
+          <mxGeometry y="1187" width="26912" height="1043" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-57" value="" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-56" vertex="1">
+          <mxGeometry x="165" width="5348" height="1043" as="geometry">
+            <mxRectangle width="5348" height="1043" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-14" value="decision_respond_to_sensation" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-57" vertex="1">
+          <mxGeometry x="3318" y="1244" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-58" value="" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;movable=0;resizable=0;rotatable=0;deletable=0;editable=0;locked=1;" parent="8ogi0LJcsjxLQ3pZLBAo-56" vertex="1">
+          <mxGeometry x="5513" width="5355" height="1043" as="geometry">
+            <mxRectangle width="5355" height="1043" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-59" value="" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-56" vertex="1">
+          <mxGeometry x="10868" width="5351" height="1043" as="geometry">
+            <mxRectangle width="5351" height="1043" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-86" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-56" vertex="1">
+          <mxGeometry x="16219" width="5345" height="1043" as="geometry">
+            <mxRectangle width="5345" height="1043" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-91" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-56" vertex="1">
+          <mxGeometry x="21564" width="5348" height="1043" as="geometry">
+            <mxRectangle width="5348" height="1043" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-60" value="PRE-CONSCIOUS" style="shape=tableRow;horizontal=0;swimlaneHead=0;swimlaneBody=0;top=0;left=0;strokeColor=inherit;bottom=0;right=0;dropTarget=0;fontStyle=1;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;startSize=165;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-51" vertex="1">
+          <mxGeometry y="2230" width="26912" height="1046" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-61" value="" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-60" vertex="1">
+          <mxGeometry x="165" width="5348" height="1046" as="geometry">
+            <mxRectangle width="5348" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-11" value="prepare_workspace" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-61" vertex="1">
+          <mxGeometry x="4684" y="208" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-62" value="" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;movable=0;resizable=0;rotatable=0;deletable=0;editable=0;locked=1;" parent="8ogi0LJcsjxLQ3pZLBAo-60" vertex="1">
+          <mxGeometry x="5513" width="5355" height="1046" as="geometry">
+            <mxRectangle width="5355" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EC5Jr2nUSnAaorZUmen8-0" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" parent="8ogi0LJcsjxLQ3pZLBAo-62" vertex="1">
+          <mxGeometry x="134" y="69" width="1294" height="1379" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-63" value="" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-60" vertex="1">
+          <mxGeometry x="10868" width="5351" height="1046" as="geometry">
+            <mxRectangle width="5351" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-87" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-60" vertex="1">
+          <mxGeometry x="16219" width="5345" height="1046" as="geometry">
+            <mxRectangle width="5345" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-92" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-60" vertex="1">
+          <mxGeometry x="21564" width="5348" height="1046" as="geometry">
+            <mxRectangle width="5348" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-77" value="SUB-UNCONSCIOUS" style="shape=tableRow;horizontal=0;swimlaneHead=0;swimlaneBody=0;top=0;left=0;strokeColor=inherit;bottom=0;right=0;dropTarget=0;fontStyle=1;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;startSize=165;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-51" vertex="1">
+          <mxGeometry y="3276" width="26912" height="1046" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-78" value="" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-77" vertex="1">
+          <mxGeometry x="165" width="5348" height="1046" as="geometry">
+            <mxRectangle width="5348" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="g0w9Peve4dl1CfhMJt1y-0" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="357" y="-2512" width="756" height="3428" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-6" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="2243" y="19.5" width="506" height="989" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-119" value="generate_thought" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="556.5" y="554" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-120" value="generate a random thought. basedo the&amp;nbsp;" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-119" vertex="1">
+          <mxGeometry y="50" width="337" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-0" value="&lt;p&gt;&lt;strong&gt;Relevance Agent&lt;/strong&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Determines whether the sensation aligns with current goals, tasks, or context.&lt;/li&gt;&lt;li&gt;Example: If the user is focused on solving a problem, irrelevant distractions are filtered out.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="2295" y="235" width="306" height="166" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-2" value="&lt;p&gt;&lt;strong&gt;Urgency Agent&lt;/strong&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Evaluates the time-sensitivity of the sensation.&lt;/li&gt;&lt;li&gt;Example: A request to turn off an alarm might take precedence over a casual user query.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="2295" y="418" width="325" height="129" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-3" value="&lt;p&gt;&lt;strong&gt;Task Relevance Agent&lt;/strong&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Checks if the sensation pertains to ongoing tasks or active tools.&lt;/li&gt;&lt;li&gt;Example: While writing code, an unrelated thought about cats might be deprioritized.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="2295" y="571" width="315" height="137" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-4" value="&lt;p&gt;&lt;strong&gt;Redundancy Agent&lt;/strong&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Identifies sensations similar to recently processed ones and prevents them from re-entering the pipeline.&lt;/li&gt;&lt;li&gt;Example: If the system has already responded to a user query, follow-up pings might be deprioritized.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="2295" y="727" width="341" height="127" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-5" value="&lt;p&gt;&lt;strong&gt;Focus Agent&lt;/strong&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Enforces a &quot;focus mode,&quot; prioritizing sensations that match a currently active task or context.&lt;/li&gt;&lt;li&gt;Example: While writing a report, this agent suppresses non-essential distractions.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="2295" y="873" width="299" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-6" value="&lt;p&gt;&lt;strong&gt;Meta-Sensation Agent&lt;/strong&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Monitors the system’s internal state (e.g., cognitive load, fatigue) to dynamically adjust the filtering threshold.&lt;/li&gt;&lt;li&gt;Example: If the system detects that it’s overwhelmed, it raises the threshold to reduce input volume.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="2295" y="32" width="330" height="196" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-13" value="pre_sensation_filter" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="2817" y="394" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="2ho36PFjFaWToWEbiMz6-14" value="Prepare the sensation with some context to filter." style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="2ho36PFjFaWToWEbiMz6-13" vertex="1">
+          <mxGeometry y="50" width="337" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-1" value="sensation_metadata" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="1769" y="70" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-2" value="sensation = {&lt;br/&gt;    &lt;span class=&quot;hljs-string&quot;&gt;&quot;text&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-string&quot;&gt;&quot;Why didn&#39;t you respond earlier?&quot;&lt;/span&gt;,&amp;nbsp;&lt;div&gt;&amp;nbsp;    &lt;span class=&quot;hljs-string&quot;&gt;&quot;tone&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-string&quot;&gt;&quot;irritated&quot;&lt;/span&gt;,&lt;br/&gt;    &lt;span class=&quot;hljs-string&quot;&gt;&quot;relationship&quot;&lt;/span&gt;: {&lt;br/&gt;        &lt;span class=&quot;hljs-string&quot;&gt;&quot;closeness&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-number&quot;&gt;0.7&lt;/span&gt;,&lt;/div&gt;&lt;div&gt;&lt;span class=&quot;hljs-string&quot;&gt;&quot;trust_level&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-number&quot;&gt;0.8&lt;/span&gt;,&lt;br/&gt;        &lt;span class=&quot;hljs-string&quot;&gt;&quot;power_dynamics&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-string&quot;&gt;&quot;peer&quot;&lt;/span&gt;,&amp;nbsp;&lt;/div&gt;&lt;div&gt;&amp;nbsp;        &lt;span class=&quot;hljs-string&quot;&gt;&quot;interaction_history&quot;&lt;/span&gt;: [&lt;span class=&quot;hljs-string&quot;&gt;&quot;positive&quot;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&quot;neutral&quot;&lt;/span&gt;]&lt;br/&gt;    }&lt;br/&gt;}&lt;/div&gt;" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="Sf5BCupqHHkOQp_wS39m-1" vertex="1">
+          <mxGeometry y="50" width="337" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-33" value="prepare_history" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" vertex="1">
+          <mxGeometry x="1323" y="96" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-34" value="based on the sensation find relevant context&lt;div&gt;. such as compressing tool calls history when input is chat&lt;/div&gt;" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="Sf5BCupqHHkOQp_wS39m-33" vertex="1">
+          <mxGeometry y="50" width="337" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-78" source="Sf5BCupqHHkOQp_wS39m-33" target="Sf5BCupqHHkOQp_wS39m-2" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-36" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-78" source="Sf5BCupqHHkOQp_wS39m-2" target="Sf5BCupqHHkOQp_wS39m-6" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-37" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.014;entryY=0.375;entryDx=0;entryDy=0;entryPerimeter=0;" parent="8ogi0LJcsjxLQ3pZLBAo-78" source="Sf5BCupqHHkOQp_wS39m-6" target="2ho36PFjFaWToWEbiMz6-14" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pd_5h1AMlDaaw0fkD7eb-2" value="Speculative Thought" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="8ogi0LJcsjxLQ3pZLBAo-78">
+          <mxGeometry x="390" y="-935" width="234" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="pd_5h1AMlDaaw0fkD7eb-4" value="Other" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="8ogi0LJcsjxLQ3pZLBAo-78">
+          <mxGeometry x="774" y="-935" width="254" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-79" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;movable=0;resizable=0;rotatable=0;deletable=0;editable=0;locked=1;" parent="8ogi0LJcsjxLQ3pZLBAo-77" vertex="1">
+          <mxGeometry x="5513" width="5355" height="1046" as="geometry">
+            <mxRectangle width="5355" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EC5Jr2nUSnAaorZUmen8-1" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="8ogi0LJcsjxLQ3pZLBAo-79" vertex="1">
+          <mxGeometry x="1595" y="-458" width="1294" height="1365" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-8" value="Empathy" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-79" vertex="1">
+          <mxGeometry x="1737" y="178" width="285" height="161" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-20" value="&lt;h4&gt;3. &lt;strong&gt;Drive Fulfillment Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Ensures that core drives (hunger, sleep, safety, curiosity) are acknowledged and pursued.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Monitors unmet needs and generates high-priority signals when drives are unfulfilled.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Generates an urgency signal if a &quot;hunger drive&quot; sensation is detected.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-79" vertex="1">
+          <mxGeometry x="2493" y="-349" width="304" height="214" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-21" value="&lt;h4&gt;4. &lt;strong&gt;Impulse Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Generates spontaneous, often irrational desires or urges.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Processes fleeting sensations or thoughts that reflect sudden wants, like indulgence or risk-taking.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Promotes actions like impulsively eating dessert or exploring a novel idea.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-79" vertex="1">
+          <mxGeometry x="1722" y="-110" width="303" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-22" value="&lt;h4&gt;&lt;strong&gt;Fantasy Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Creates and maintains idealized or escapist scenarios in response to unmet desires or boredom.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Generates &quot;wish fulfillment&quot; thoughts or imaginations to satisfy long-term unmet goals.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Imagines an exotic vacation when processing a sensation of monotony or frustration.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-79" vertex="1">
+          <mxGeometry x="2097" y="-98" width="357" height="265" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-23" value="&lt;h4&gt; &lt;strong&gt;Emotional Resonance Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Amplifies or spreads emotional states across related sensations.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Associates current emotions with previous experiences or stimuli to create consistent emotional patterns.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: If sadness is detected, it might resurface memories or thoughts tied to past losses.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-79" vertex="1">
+          <mxGeometry x="2524" y="-55" width="315" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-80" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-77" vertex="1">
+          <mxGeometry x="10868" width="5351" height="1046" as="geometry">
+            <mxRectangle width="5351" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-88" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-77" vertex="1">
+          <mxGeometry x="16219" width="5345" height="1046" as="geometry">
+            <mxRectangle width="5345" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-93" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-77" vertex="1">
+          <mxGeometry x="21564" width="5348" height="1046" as="geometry">
+            <mxRectangle width="5348" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-81" value="UNCONSCIOUS" style="shape=tableRow;horizontal=0;swimlaneHead=0;swimlaneBody=0;top=0;left=0;strokeColor=inherit;bottom=0;right=0;dropTarget=0;fontStyle=1;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;startSize=165;collapsible=0;recursiveResize=0;expand=0;fontSize=40;" parent="8ogi0LJcsjxLQ3pZLBAo-51" vertex="1">
+          <mxGeometry y="4322" width="26912" height="1046" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-82" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-81" vertex="1">
+          <mxGeometry x="165" width="5348" height="1046" as="geometry">
+            <mxRectangle width="5348" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-116" value="event_loop" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-82" vertex="1">
+          <mxGeometry x="146" y="428" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-117" value="the main event loop. get sensation from queue" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-116" vertex="1">
+          <mxGeometry y="50" width="337" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-121" value="is there a sensation?" style="rhombus;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-82" vertex="1">
+          <mxGeometry x="636" y="501" width="178" height="146.5" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-122" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-82" source="8ogi0LJcsjxLQ3pZLBAo-117" target="8ogi0LJcsjxLQ3pZLBAo-121" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-99" value="classify_sensation" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-82" vertex="1">
+          <mxGeometry x="1252" y="454.25" width="337" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-100" value="here we classify the sensation&lt;div&gt;right now there are only user_input&amp;nbsp;&lt;/div&gt;" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-99" vertex="1">
+          <mxGeometry y="50" width="337" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-123" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-82" source="8ogi0LJcsjxLQ3pZLBAo-121" target="8ogi0LJcsjxLQ3pZLBAo-99" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-83" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-81" vertex="1">
+          <mxGeometry x="5513" width="5355" height="1046" as="geometry">
+            <mxRectangle width="5355" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-84" value="" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-81" vertex="1">
+          <mxGeometry x="10868" width="5351" height="1046" as="geometry">
+            <mxRectangle width="5351" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-2" value="&lt;h3 style=&quot;text-align: left; text-wrap: nowrap;&quot;&gt;&lt;strong&gt;Prompt Integration&lt;/strong&gt;&lt;/h3&gt;" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-84" vertex="1">
+          <mxGeometry x="1841" y="177" width="604" height="374" as="geometry" />
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-3" value="Integrate all data into prompt.&lt;div&gt;With qwen tool calls can be &amp;lt;tool_call&amp;gt; or similar.&lt;/div&gt;" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="Nb9jCwQAMZDcgM3xCZ0y-2" vertex="1">
+          <mxGeometry y="50" width="604" height="324" as="geometry" />
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-6" value="sysprompt" style="rounded=0;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-84" vertex="1">
+          <mxGeometry x="2541" y="25" width="379" height="123" as="geometry" />
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-8" value="stuff like core memory" style="rounded=0;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-84" vertex="1">
+          <mxGeometry x="2541" y="172" width="379" height="123" as="geometry" />
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-11" value="compiled state" style="rounded=0;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-84" vertex="1">
+          <mxGeometry x="2541" y="319" width="379" height="123" as="geometry" />
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-12" value="relevant chat" style="rounded=0;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-84" vertex="1">
+          <mxGeometry x="2541" y="470" width="379" height="123" as="geometry" />
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-13" value="current chat" style="rounded=0;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-84" vertex="1">
+          <mxGeometry x="2541" y="608" width="379" height="123" as="geometry" />
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-22" value="ustm as sysprompt" style="rounded=0;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-84" vertex="1">
+          <mxGeometry x="2541" y="746" width="379" height="123" as="geometry" />
+        </mxCell>
+        <mxCell id="Nb9jCwQAMZDcgM3xCZ0y-23" value="sensation" style="rounded=0;whiteSpace=wrap;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-84" vertex="1">
+          <mxGeometry x="2541" y="889" width="379" height="123" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-89" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-81" vertex="1">
+          <mxGeometry x="16219" width="5345" height="1046" as="geometry">
+            <mxRectangle width="5345" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-94" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=0;connectable=0;strokeColor=inherit;fillColor=none;startSize=0;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" parent="8ogi0LJcsjxLQ3pZLBAo-81" vertex="1">
+          <mxGeometry x="21564" width="5348" height="1046" as="geometry">
+            <mxRectangle width="5348" height="1046" as="alternateBounds" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-124" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="8ogi0LJcsjxLQ3pZLBAo-51" source="8ogi0LJcsjxLQ3pZLBAo-121" target="8ogi0LJcsjxLQ3pZLBAo-120" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-125" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-51" source="8ogi0LJcsjxLQ3pZLBAo-120" target="8ogi0LJcsjxLQ3pZLBAo-99" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="8ogi0LJcsjxLQ3pZLBAo-128" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-51" source="8ogi0LJcsjxLQ3pZLBAo-100" target="8ogi0LJcsjxLQ3pZLBAo-127" edge="1">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="2795" y="1797" />
+              <mxPoint x="1943" y="4921" />
+              <mxPoint x="1943" y="3642" />
+              <mxPoint x="816" y="3642" />
+              <mxPoint x="816" y="488" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-42" value="agent_exec_thought_tool" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="2685" y="1657" width="200" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-43" value="update_thought_emotions" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3012.5" y="2210" width="180" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-45" value="agent_preprocess_input" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4050" y="790" width="160" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-46" value="create_plan" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4070" y="910" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-47" value="collect_facts" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4070" y="1010" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-48" value="get_emotional_state" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4070" y="1109" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-49" value="get_complexity" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4070" y="1220" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-50" value="simple" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3840" y="1330" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-52" value="complex" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4320" y="1330" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-53" value="build_simple_prompt&lt;div&gt;&amp;lt;sysprompt&amp;gt;&lt;br&gt;&amp;lt;core_memory&amp;gt;&lt;br&gt;&amp;lt;knowledge_stack&amp;gt;&lt;br&gt;&amp;lt;messages&amp;gt;&lt;br&gt;&amp;lt;emotion_prompt&amp;gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3770" y="1440" width="260" height="200" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-54" value="agent_completion" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4080" y="2250" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-55" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-59" target="Yb4LFoSS5Q_ugk_9xnQv-62" edge="1">
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-51" source="2ho36PFjFaWToWEbiMz6-23" target="Sf5BCupqHHkOQp_wS39m-11" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-56" value="story" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="Yb4LFoSS5Q_ugk_9xnQv-55" vertex="1" connectable="0">
-          <mxGeometry x="0.198" y="3" relative="1" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-57" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-59" target="Yb4LFoSS5Q_ugk_9xnQv-61" edge="1">
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-51" target="2ho36PFjFaWToWEbiMz6-19" edge="1">
           <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="4035" y="2440" />
-            </Array>
+            <mxPoint x="3820" y="2576.000000000001" as="sourcePoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-58" value="completion" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" parent="Yb4LFoSS5Q_ugk_9xnQv-57" vertex="1" connectable="0">
-          <mxGeometry x="-0.2656" y="4" relative="1" as="geometry">
-            <mxPoint x="-4" y="33" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-59" value="story or assistant?" style="rhombus;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4100" y="2400" width="80" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-60" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Yb4LFoSS5Q_ugk_9xnQv-54" target="Yb4LFoSS5Q_ugk_9xnQv-59" edge="1">
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-51" source="2ho36PFjFaWToWEbiMz6-14" target="Sf5BCupqHHkOQp_wS39m-14" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-61" value="agent_completion_assistant" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="3950" y="2560" width="170" height="60" as="geometry" />
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-35" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-51" source="8ogi0LJcsjxLQ3pZLBAo-127" target="Sf5BCupqHHkOQp_wS39m-33" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="6822" y="5731" as="sourcePoint" />
+            <mxPoint x="7490" y="8734" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-62" value="agent_completion_story" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4200" y="2560" width="160" height="60" as="geometry" />
+        <mxCell id="g0w9Peve4dl1CfhMJt1y-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="8ogi0LJcsjxLQ3pZLBAo-51" source="g0w9Peve4dl1CfhMJt1y-2" target="Nb9jCwQAMZDcgM3xCZ0y-3" edge="1">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-64" value="convert_plan_to_thought" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4285" y="1640" width="195" height="60" as="geometry" />
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-9" value="&lt;h4&gt;1. &lt;strong&gt;Pleasure-Seeking Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Maximizes pleasure and comfort, aligning with the &quot;pleasure principle.&quot;&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Scans sensations for opportunities to enhance positive emotions or reduce discomfort.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Flags enjoyable sensations (e.g., laughter, rewards) and prioritizes actions that sustain them.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="12644" y="4903" width="227" height="194" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-65" value="check_thought" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4322.5" y="1737" width="120" height="60" as="geometry" />
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-10" value="&lt;h4&gt;2. &lt;strong&gt;Pain-Avoidance Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Minimizes pain and discomfort by identifying threatening or aversive sensations.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Associates negative sensations with avoidance strategies or immediate suppression.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Reacts strongly to harsh criticism or physical danger signals to avoid further discomfort.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="13000" y="4887" width="314" height="224" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-66" value="check_plan" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4320" y="1530" width="120" height="60" as="geometry" />
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-25" value="&lt;h4&gt;&lt;strong&gt;Moral Judgment Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Evaluates sensations and actions against ethical principles and moral frameworks.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Detects and flags behaviors or sensations that violate core ethical rules.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Stops an action that might harm another person or contradict a defined personal value.&lt;/li&gt;&lt;/ul&gt;&lt;h4&gt;&lt;/h4&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="11119" y="4887" width="376" height="295" as="geometry" />
         </mxCell>
-        <mxCell id="Yb4LFoSS5Q_ugk_9xnQv-69" value="build_simple_prompt&lt;div&gt;&amp;lt;sysprompt&amp;gt;&lt;br&gt;&amp;lt;core_memory&amp;gt;&lt;br&gt;&amp;lt;messages&amp;gt;&lt;br&gt;&amp;lt;emotion_prompt&amp;gt;&lt;/div&gt;&lt;div&gt;&amp;lt;thoguht&amp;gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4253" y="1860" width="260" height="200" as="geometry" />
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-26" value="&lt;h4&gt;&lt;strong&gt;Social Compliance Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Aligns behavior with societal norms and expectations.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Analyzes sensations for potential violations of social norms or conventions.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Suggests polite phrasing for a user response to avoid appearing rude.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="11570" y="4681" width="326" height="265" as="geometry" />
         </mxCell>
-        <mxCell id="PP9p4Om70f5uDUpxaZ5m-1" value="multi_step_reasoning" style="rounded=0;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
-          <mxGeometry x="4320" y="1430" width="120" height="60" as="geometry" />
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-27" value="&lt;h4&gt; &lt;strong&gt;Habit Reinforcement Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Promotes consistency by prioritizing actions that align with established habits or routines.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Reinforces habitual responses or penalizes deviations to maintain stability.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Encourages sticking to a daily exercise routine despite distractions.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="11578" y="4989" width="370" height="263" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-28" value="&lt;h4&gt;. &lt;strong&gt;Perfectionism Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Drives a pursuit of excellence or ideal outcomes.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Scans actions and outputs for areas of improvement, often prioritizing precision and quality.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Insists on revising a draft response until it meets high standards of clarity or correctness.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="11180" y="4639" width="331" height="225" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-30" value="&lt;h4&gt; &lt;strong&gt;Reputation Manager Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Monitors and safeguards the external self-image or reputation.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Ensures outputs align with desired public perception, avoiding contradictions or inconsistencies.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Adjusts the tone of responses to maintain a professional demeanor in formal contexts.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="11952" y="4684" width="339" height="281" as="geometry" />
+        </mxCell>
+        <mxCell id="Sf5BCupqHHkOQp_wS39m-31" value="&lt;h4&gt; &lt;strong&gt;Guilt and Self-Correction Agent&lt;/strong&gt;&lt;/h4&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Purpose&lt;/strong&gt;: Identifies and addresses actions that conflict with internalized values or past mistakes.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Functionality&lt;/strong&gt;: Triggers corrective behavior or self-reflection when a sensation evokes guilt.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Example&lt;/strong&gt;: Prompts an apology if the system detects a tone that might have offended someone.&lt;/li&gt;&lt;/ul&gt;" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="11175" y="5281" width="349" height="270" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-1" value="Self-Image" style="rounded=1;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="11197" y="4357" width="259" height="195" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-2" value="&lt;h3 style=&quot;text-align: left; text-wrap: nowrap;&quot;&gt;&lt;strong&gt;Weighted Voting or Scoring&lt;/strong&gt;&lt;/h3&gt;" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="14005" y="4396" width="604" height="374" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-3" value="&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Mechanism&lt;/strong&gt;: Each agent rates its output’s importance, and the GWT integration layer combines&lt;br&gt;these ratings to compute a weighted result.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;How It Works&lt;/strong&gt;:&lt;ul&gt;&lt;li&gt;All contributing agents provide their outputs along with a confidence or relevance score.&lt;/li&gt;&lt;li&gt;Use a weighted averaging or ranking mechanism to select and combine the top-rated outputs.&lt;/li&gt;&lt;li&gt;Output the most representative instruction based on aggregate scores.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Pros&lt;/strong&gt;:&lt;ul&gt;&lt;li&gt;Computationally efficient.&lt;/li&gt;&lt;li&gt;Encourages fairness by considering all agents, even those with lower scores.&lt;/li&gt;&lt;li&gt;Easily interpretable and scalable.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Cons&lt;/strong&gt;:&lt;ul&gt;&lt;li&gt;Risk of &quot;groupthink&quot; or bias if agents heavily weight certain types of outputs.&lt;/li&gt;&lt;li&gt;Limited emergent reasoning compared to argumentation.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/ul&gt;" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="Bm5EduecZjT10OOh1c8T-2" vertex="1">
+          <mxGeometry y="50" width="604" height="324" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.25;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Bm5EduecZjT10OOh1c8T-3" target="EC5Jr2nUSnAaorZUmen8-0" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Bm5EduecZjT10OOh1c8T-3" target="EC5Jr2nUSnAaorZUmen8-1" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-7" value="&lt;h3 style=&quot;text-align: left; text-wrap: nowrap;&quot;&gt;&lt;strong&gt;Iterative Refinement (Deliberative Prompting)&lt;/strong&gt;&lt;/h3&gt;" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="14708" y="4401" width="604" height="374" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-8" value="&lt;ul&gt;&lt;li&gt;&lt;li&gt;&lt;strong style=&quot;background-color: initial;&quot;&gt;Mechanism&lt;/strong&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;: Combine elements of argumentation and prompt compilation into an iterative refinement process.&lt;/span&gt;&lt;br&gt;&lt;/li&gt;&lt;li&gt;&lt;strong style=&quot;background-color: initial;&quot;&gt;How It Works&lt;/strong&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;:&lt;/span&gt;&lt;ul style=&quot;background-color: initial;&quot;&gt;&lt;li&gt;Begin with outputs from all relevant agents.&lt;/li&gt;&lt;li&gt;Use a summarization model or meta-agent to draft an initial instruction.&lt;/li&gt;&lt;li&gt;Iteratively refine the instruction by allowing agents to critique and improve it.&lt;/li&gt;&lt;li&gt;Stop once the instruction meets predefined convergence criteria (e.g., clarity, alignment with goals).&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;li&gt;&lt;strong style=&quot;background-color: initial;&quot;&gt;Pros&lt;/strong&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;:&lt;/span&gt;&lt;ul style=&quot;background-color: initial;&quot;&gt;&lt;li&gt;Balances emergent reasoning with computational efficiency.&lt;/li&gt;&lt;li&gt;Allows for dynamic feedback loops.&lt;/li&gt;&lt;li&gt;Can produce high-quality outputs without requiring extensive agent interaction upfront.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;li&gt;&lt;strong style=&quot;background-color: initial;&quot;&gt;Cons&lt;/strong&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;:&lt;/span&gt;&lt;ul style=&quot;background-color: initial;&quot;&gt;&lt;li&gt;Requires well-defined stopping rules or thresholds for refinement.&lt;/li&gt;&lt;li&gt;More complex to implement compared to one-shot approaches.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/li&gt;&lt;/ul&gt;" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="Bm5EduecZjT10OOh1c8T-7" vertex="1">
+          <mxGeometry y="50" width="604" height="324" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Bm5EduecZjT10OOh1c8T-3" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="14703.190836588541" y="4608.000000000001" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-11" value="&lt;h3 style=&quot;text-align: left; text-wrap: nowrap;&quot;&gt;&lt;strong&gt;Meta-Agent Mediation&lt;/strong&gt;&lt;/h3&gt;" style="swimlane;childLayout=stackLayout;horizontal=1;startSize=50;horizontalStack=0;rounded=1;fontSize=14;fontStyle=0;strokeWidth=2;resizeParent=0;resizeLast=1;shadow=0;dashed=0;align=center;arcSize=4;whiteSpace=wrap;html=1;" parent="WIyWlLk6GJQsqaUBKTNV-1" vertex="1">
+          <mxGeometry x="15460" y="4401" width="604" height="374" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-12" value="&lt;ul&gt;&lt;li&gt;&lt;li&gt;&lt;strong style=&quot;background-color: initial;&quot;&gt;Mechanism&lt;/strong&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;: Introduce a dedicated meta-agent that synthesizes and mediates between competing inputs.&lt;/span&gt;&lt;br&gt;&lt;/li&gt;&lt;li&gt;&lt;strong style=&quot;background-color: initial;&quot;&gt;How It Works&lt;/strong&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;:&lt;/span&gt;&lt;ul style=&quot;background-color: initial;&quot;&gt;&lt;li&gt;All contributing agents send their outputs to the meta-agent.&lt;/li&gt;&lt;li&gt;The meta-agent evaluates these inputs against predefined criteria (e.g., alignment with &lt;br&gt;goals, emotional resonance, contextual relevance).&lt;/li&gt;&lt;li&gt;Generates a final instruction by selecting or blending the most relevant inputs.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;li&gt;&lt;strong style=&quot;background-color: initial;&quot;&gt;Pros&lt;/strong&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;:&lt;/span&gt;&lt;ul style=&quot;background-color: initial;&quot;&gt;&lt;li&gt;Centralized control makes it easier to enforce consistency and alignment.&lt;/li&gt;&lt;li&gt;Meta-agent can be tuned for different scenarios or tasks.&lt;/li&gt;&lt;li&gt;Simplifies downstream processing for the Ego layer.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;li&gt;&lt;strong style=&quot;background-color: initial;&quot;&gt;Cons&lt;/strong&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;:&lt;/span&gt;&lt;ul style=&quot;background-color: initial;&quot;&gt;&lt;li&gt;Risk of over-centralization, reducing the benefits of distributed reasoning.&lt;/li&gt;&lt;li&gt;Potential for bottlenecks if the meta-agent is overwhelmed with complex inputs.&lt;/li&gt;&lt;/ul&gt;&lt;/li&gt;&lt;/li&gt;&lt;/ul&gt;" style="align=left;strokeColor=none;fillColor=none;spacingLeft=4;fontSize=12;verticalAlign=top;resizable=1;rotatable=0;part=1;html=1;" parent="Bm5EduecZjT10OOh1c8T-11" vertex="1">
+          <mxGeometry y="50" width="604" height="324" as="geometry" />
+        </mxCell>
+        <mxCell id="Bm5EduecZjT10OOh1c8T-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="WIyWlLk6GJQsqaUBKTNV-1" source="Bm5EduecZjT10OOh1c8T-8" target="Bm5EduecZjT10OOh1c8T-12" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pd_5h1AMlDaaw0fkD7eb-0" value="Introspective Thought" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="WIyWlLk6GJQsqaUBKTNV-1">
+          <mxGeometry x="6078" y="4544" width="244" height="136" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
