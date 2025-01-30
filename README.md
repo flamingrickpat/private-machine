@@ -8,6 +8,7 @@
 4. Install llamacpppython from whl or compile it yourself
 5. Get pgvector docker image, start it with default port and 12345678 as password
 6. Change the settings and paths in character.py (I was too lazy to make a config)
+7. (venv) python run.py "hello, how are you?"
 
 # Disclaimer
 
