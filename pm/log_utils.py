@@ -41,7 +41,7 @@ def setup_logger(log_filename):
     """
     # Ensure the logs directory exists
 
-    log_dir = os.path.dirname(__file__) + "/../logs/"
+    log_dir = os.path.dirname(os.path.abspath(__file__)) + "/../logs/"
     os.makedirs(log_dir, exist_ok=True)
 
     # Full path to the log file

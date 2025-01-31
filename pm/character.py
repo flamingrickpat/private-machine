@@ -2,7 +2,7 @@ import datetime
 
 companion_name = "Emmy"
 user_name = "Rick"
-database_uri = "postgresql://postgres:12345678@127.0.0.1:5432/postgres"
+database_uri = "postgresql://postgres:password@127.0.0.1:5432/postgres"
 
 MODEL_FAST = "E:\\AI\\Hermes-3-Llama-3.1-8B.Q8_0.gguf"
 MODEL_FAST_LAYERS = -1
@@ -18,6 +18,8 @@ EMB_MODEL = 'Alibaba-NLP/gte-base-en-v1.5'
 CONTEXT_SIZE = 32768
 CONTEXT_SYS_PROMPT = 5000
 CLUSTER_SPLIT = 0.33
+
+TIMESTAMP_FORMAT = "%A, %d.%m.%y %H:%M"
 
 sysprompt = f"""You are an AI companion designed to mimic human cognition and interaction. Your name is {companion_name}.
 Your purpose is to engage in conversations with warmth, empathy, curiosity, and adaptability. 

@@ -269,7 +269,7 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                 messages = compile_message(agents, agent)
                 messages.insert(0, ("system", agent.system_prompt))
 
-                comp_settings = agent.comp_settings if agent.comp_settings else CommonCompSettings(max_tokens=128)
+                comp_settings = agent.comp_settings if agent.comp_settings else CommonCompSettings(max_tokens=1024)
 
                 tool_res_list = []
                 content, calls = controller.completion_tool(state["llmpreset"], messages, comp_settings=comp_settings,

@@ -2,6 +2,7 @@ import json
 import string
 import textwrap
 import uuid
+from copy import copy
 from enum import StrEnum
 from pprint import pprint
 import random
@@ -101,11 +102,12 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
     else:
         tools = [DiscrimminatoryThoughts]
 
-    content, calls = controller.completion_tool(LlmPreset.Fast, messages, comp_settings=CommonCompSettings(temperature=0.8, repeat_penalty=1.1, max_tokens=1024), tools=tools)
+    content, calls = controller.completion_tool(LlmPreset.Fast, messages, comp_settings=CommonCompSettings(temperature=0.8, repeat_penalty=1.1, max_tokens=2048), tools=tools)
     state = {}
     for call in calls:
-        random.shuffle(call.thoughts)
-        for thought in call.thoughts:
+        thoughts = copy(call.thoughts)
+        thoughts.reverse()
+        for thought in thoughts:
             new_thought = f"""
 ### BEGIN CHAIN ELEMENT
 {thought.model_dump_json()}
@@ -120,7 +122,7 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
 
             rating = 0
             possibility = 0
-            content, calls = controller.completion_tool(LlmPreset.Fast, messages, comp_settings=CommonCompSettings(temperature=0.6, repeat_penalty=1, max_tokens=512), tools=[ThoughtRating])
+            content, calls = controller.completion_tool(LlmPreset.Fast, messages, comp_settings=CommonCompSettings(temperature=0.6, repeat_penalty=1, max_tokens=2048), tools=[ThoughtRating])
             for call in calls:
                 if isinstance(call, ThoughtRating):
                     rating = (call.relevance + call.emotion + call.novelty + call.realism + call.possibility + call.effectiveness) / 6

@@ -1,9 +1,11 @@
 import gc
 import json
 import logging
+import os
 import random
 import string
 import time
+import uuid
 from datetime import datetime
 from typing import Tuple, Type, Dict
 import threading
@@ -31,7 +33,6 @@ from pm.log_utils import setup_logger
 logger = logging.getLogger(__name__)
 
 import textwrap
-
 
 def log_conversation(conversation: list[tuple[str, str]], file_path: str, max_width: int = 80):
     with open(file_path, 'w', encoding='utf-8') as file:
@@ -104,6 +105,16 @@ class Controller:
                         ) -> (str, List[BaseModel]):
         self.load_model(preset)
 
+        inp_formatted = []
+        for msg in inp:
+            inp_formatted.append((self.format_str(msg[0]), self.format_str(msg[1])))
+
+        log_filename = f"{str(uuid.uuid4())}_{preset.value}.log"
+        log_dir = os.path.dirname(os.path.abspath(__file__)) + "/../logs/"
+        os.makedirs(log_dir, exist_ok=True)
+        log_file_path = os.path.join(log_dir, log_filename)
+        log_conversation(inp_formatted, log_file_path, 200)
+
         if comp_settings is None:
             comp_settings = CommonCompSettings()
 
@@ -114,8 +125,8 @@ class Controller:
             comp_settings.tools_json += tools
 
         openai_inp = []
-        for msg in inp:
-            openai_inp.append({"role": msg[0], "content": self.format_str(msg[1])})
+        for msg in inp_formatted:
+            openai_inp.append({"role": msg[0], "content": msg[1]})
 
         tools = comp_settings.tools_json
         if len(tools) == 0:
@@ -161,7 +172,7 @@ class Controller:
             exit(1)
 
         event = Event(
-            source="{user_name}",
+            source=f"{user_name}",
             content=inp,
             embedding=self.get_embedding(inp),
             token=get_token(inp),

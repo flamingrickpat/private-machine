@@ -27,7 +27,7 @@ from pm.database.tables import Event, CogEventType, EventCluster, Cluster, Clust
 from pm.prompt.get_optimized_prompt import get_optimized_prompt, create_optimized_prompt, get_optimized_prompt_temp_cluster
 from pm.thought.generate_tot import generate_tot_v1
 
-from pm.character import sysprompt, database_uri, CONTEXT_SIZE, CONTEXT_SYS_PROMPT, CLUSTER_SPLIT
+from pm.character import sysprompt, database_uri, CONTEXT_SIZE, CONTEXT_SYS_PROMPT, CLUSTER_SPLIT, companion_name, TIMESTAMP_FORMAT
 from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
 from pm.emotion.generate_emotion import generate_first_person_emotion
@@ -280,16 +280,14 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
             for item in items:
                 msgs.append(item.to_tuple())
 
-        log_conversation(msgs, f"./logs/{str(uuid.uuid4())}_conscious.log", 200)
-
         while True:
-            content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1, max_tokens=512))
+            content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1, max_tokens=1024))
             if "<think>" in content:
                 msgs.append(("assistant", content))
             else:
                 #print(f"{companion_name}: {content.strip()}")
                 event = Event(
-                    source="{companion_name}",
+                    source=f"{companion_name}",
                     content=content.strip(),
                     embedding=controller.get_embedding(content),
                     token=get_token(content),
@@ -333,13 +331,22 @@ def get_prompt() -> List[PromptItem]:
                                               n_split=CLUSTER_SPLIT)
 
     # add datetimes
-    for i in range(1, len(parts)):
+    for i in range(len(parts) - 1, 1, -1):
         part_prev = parts[i - 1]
         part = parts[i]
 
         delta = (part.timestamp - part_prev.timestamp).total_seconds() / 60
         if delta > 180:
-            part.prefix = f"Timestamp: {part.timestamp}\n{part.prefix}".strip()
+            pi = PromptItem(
+                str(uuid.uuid4()),
+                part.timestamp,
+                "system",
+                "",
+                f"Current time: {part.timestamp.strftime(TIMESTAMP_FORMAT)}",
+                "",
+                1)
+
+            parts.insert(i, pi)
 
     return parts
 
@@ -381,7 +388,7 @@ def evalue_prompt_complexity():
     return rating
 
 def evalue_emotional_impact():
-    all = get_recent_messages_block(16)
+    all = get_recent_messages_block(10)
     last = get_recent_messages_block(1)
     rating = rate_emotional_impact(all, last)
     return rating
@@ -403,7 +410,7 @@ def generate_context_tot(complexity: float) -> Event:
     k = get_facts_block(64, get_recent_messages_block(4))
     thought = generate_tot_v1(ctx, k, max_depth)
     event = Event(
-        source="{companion_name}",
+        source=f"{companion_name}",
         content=thought,
         embedding=controller.get_embedding(thought),
         token=get_token(thought),
@@ -415,10 +422,11 @@ def generate_context_tot(complexity: float) -> Event:
 
 
 def generate_emotion_tot():
-    ctx = get_recent_messages_block(24)
-    thought = generate_first_person_emotion(ctx)
+    ctx = get_recent_messages_block(8)
+    lm = get_recent_messages_block(1)
+    thought = generate_first_person_emotion(ctx, lm)
     event = Event(
-        source="{companion_name}",
+        source=f"{companion_name}",
         content=thought,
         embedding=controller.get_embedding(thought),
         token=get_token(thought),

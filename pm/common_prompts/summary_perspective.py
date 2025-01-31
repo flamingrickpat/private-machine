@@ -14,5 +14,5 @@ def summarize_messages(msgs: List[str]):
         ("user", f"### BEGIN MESSAGES\n{msg_string}\n### END MESSAGES\nPlease summarize what happened during the conversation from {companion_name}'s perspective in first person."),
     ]
 
-    content = controller.completion_text(LlmPreset.Fast, prompt, comp_settings=CommonCompSettings(temperature=0.1, max_tokens=256))
+    content = controller.completion_text(LlmPreset.Fast, prompt, comp_settings=CommonCompSettings(temperature=0.1, max_tokens=1024))
     return content

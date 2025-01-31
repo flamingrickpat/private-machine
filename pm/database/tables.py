@@ -7,6 +7,8 @@ from sqlmodel import Field, Session, SQLModel, create_engine, select, col
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, text, INTEGER
 
+from pm.character import TIMESTAMP_FORMAT, user_name
+
 
 class CogEventType(StrEnum):
     Thought = "thought"
@@ -57,7 +59,7 @@ class Event(SQLModel, table=True):
                     "assistant",
                     "<think>\nThis conversation invokes strong feelings inside me.\n",
                     self.content,
-                    "\nI'm a thinking and feeling being and will include these emotions in my final resposne directed at my user {user_name}..\n</think>",
+                    f"\nI'm a thinking and feeling being and will include these emotions in my final resposne directed at my user {user_name}..\n</think>",
                     -1)]
         elif self.interlocus == -1:
             return [
@@ -67,14 +69,14 @@ class Event(SQLModel, table=True):
                     "assistant",
                     "<think>\nTo craft a better response, I will now generate a Tree Of Thoughts based on recent events.\n",
                     self.content,
-                    "\nAction: Now I'll include all these thoughts into the final resposne directed at my user {user_name}.\n</think>",
+                    f"\nAction: Now I'll include all these thoughts into the final resposne directed at my user {user_name}.\n</think>",
                     -1)]
         else:
             return [
                 PromptItem(
                 self.id,
                 self.timestamp,
-                "user" if self.source == "{user_name}" else "assistant",
+                "user" if self.source == f"{user_name}" else "assistant",
                 "",
                 self.content,
                 "",
@@ -111,7 +113,7 @@ class Cluster(SQLModel, table=True):
                 self.timestamp_from,
                 "system",
                 "",
-                f"Current time: {self.timestamp_from}",
+                f"Current time: {self.timestamp_from.strftime(TIMESTAMP_FORMAT)}",
                 "",
                 1)
 
@@ -123,7 +125,7 @@ class Cluster(SQLModel, table=True):
                 str(uuid.uuid4()),
                 self.timestamp_from,
                 "system",
-                f"You remember this happening between {self.timestamp_from} and {self.timestamp_to}: <memory>",
+                f"You remember this happening between {self.timestamp_from.strftime(TIMESTAMP_FORMAT)} and {self.timestamp_to.strftime(TIMESTAMP_FORMAT)}: <memory>",
                 self.summary,
                 f"</memory>",
                 1)]

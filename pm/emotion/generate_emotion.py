@@ -58,7 +58,7 @@ def select_relevant_agents(agents, context_data):
     return [calls[0].agent1, calls[0].agent2]
 
 
-def generate_first_person_emotion(ctx_msgs: str):
+def generate_first_person_emotion(ctx_msgs: str, last_message: str):
     context = f"""### BEGIN CHARACTER CARD
 {char_card_3rd_person_emotional}
 ### END CHARACTER CARD
@@ -66,6 +66,13 @@ def generate_first_person_emotion(ctx_msgs: str):
 ### BEGIN CONVERSATION HISTORY
 {ctx_msgs}
 ### END CONVERSATION HISTORY
+
+### BEGIN LAST MESSAGE
+{last_message}
+### END LAST MESSAGE
+
+You will focus on emotions that are evoked by the last message! Previous messages are only here for context, they have already been evaluated.
+FOCUS ON THE LAST MESSAGE!
 """
 
     context_neutral = f"""### BEGIN CHARACTER CARD
@@ -75,6 +82,13 @@ def generate_first_person_emotion(ctx_msgs: str):
 ### BEGIN CONVERSATION HISTORY
 {ctx_msgs}
 ### END CONVERSATION HISTORY
+
+### BEGIN LAST MESSAGE
+{last_message}
+### END LAST MESSAGE
+
+You will focus on emotions that are evoked by the last message! Previous messages are only here for context, they have already been evaluated.
+FOCUS ON THE LAST MESSAGE!
 """
     layer = get_initial_dynamic_schema()
     gwt_output: List[CogEvent] = []
