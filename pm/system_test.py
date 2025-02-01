@@ -281,7 +281,7 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
                 msgs.append(item.to_tuple())
 
         while True:
-            content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1, max_tokens=1024))
+            content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024))
             if "<think>" in content:
                 msgs.append(("assistant", content))
             else:
@@ -436,7 +436,7 @@ def generate_emotion_tot():
     return event
 
 
-def run_telegram():
+def run_cli():
     inp = sys.argv[1]
     if inp.strip() == "":
         print("no input")
@@ -503,12 +503,15 @@ def output_prompt_block():
 #            elif action_type == ActionType.Sleep:
 #                pass
 
+
+def get_action_only():
+    prompt = get_prompt()
+    action = get_action(prompt, 0)
+
 def run_system():
     init_db()
     init()
-    #run()
-    run_telegram()
-    #output_prompt_block()
+    run_cli()
 
 if __name__ == '__main__':
     run_system()
