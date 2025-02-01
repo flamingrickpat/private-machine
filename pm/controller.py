@@ -21,9 +21,11 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import torch
 from llama_cpp import Llama
+from sqlmodel import Field, Session, SQLModel, create_engine, select, col
+from sqlalchemy import Column, text, INTEGER, func
 
 from pm.character import companion_name, user_name, MODEL_FAST, MODEL_GOOD, MODEL_BEST, MODEL_FAST_LAYERS, MODEL_DEFAULT, MODEL_DEFAULT_LAYERS, MODEL_GOOD_LAYERS, MODEL_BEST_LAYERS, \
-    EMB_MODEL, CONTEXT_SIZE
+    EMB_MODEL, CONTEXT_SIZE, database_uri
 from pm.config.config import read_config_file
 from pm.database.tables import Event
 from pm.embedding.token import get_token
@@ -50,6 +52,7 @@ def log_conversation(conversation: list[tuple[str, str]], file_path: str, max_wi
 
 class Controller:
     def __init__(self, test_mode: bool, backtest_messages: bool):
+        self.session = None
         self.config = read_config_file("config.json")
         setup_logger("main.log")
         self.db_lock = threading.Lock()
@@ -208,5 +211,17 @@ class Controller:
     @staticmethod
     def get_timestamp() -> datetime:
         return datetime.now()
+
+    def init_db(self):
+        self.session = Session(create_engine(database_uri))
+
+    def get_session(self):
+        return self.session
+
+    def rollback_db(self):
+        self.session.rollback()
+
+    def commit_db(self):
+        self.session.commit()
 
 controller = Controller(False, False)

@@ -64,9 +64,9 @@ def init():
 
 def check_tasks():
     time.sleep(1)
-    with Session(get_engine()) as session:
-        statement = select(Event).where(col(Event.id).not_in(select(col(EventCluster.cog_event_id)))).where(Event.interlocus > 0).order_by(col(Event.id))
-        unclustered_events: List[Event] = session.exec(statement).all()
+    session = controller.get_session()
+    statement = select(Event).where(col(Event.id).not_in(select(col(EventCluster.cog_event_id)))).where(Event.interlocus > 0).order_by(col(Event.id))
+    unclustered_events: List[Event] = session.exec(statement).all()
 
     sum_token = 0
     for event in unclustered_events:
@@ -102,7 +102,6 @@ def events_to_cluster(session, events: List[Event]) -> Cluster:
     )
 
     session.add(cluster)
-    session.commit()
     cluster_id = cluster.id
 
     lines = []
@@ -112,7 +111,6 @@ def events_to_cluster(session, events: List[Event]) -> Cluster:
         session.add(cecc)
         lines.append(f"{event.source}: {event.content}")
 
-    session.commit()
     return cluster
 
 
@@ -143,57 +141,53 @@ def events_to_facts(session, events: List[Event]):
                     token=get_token(fstr)
                 )
                 session.add(f)
-                session.commit()
 
 def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
-    with Session(get_engine(), expire_on_commit=False) as session:
-        for cluster in clusters:
-            event_ids = []
-            for context_cluster_id in cluster.items:
-                statement = select(EventCluster).where(EventCluster.con_cluster_id == context_cluster_id)
-                tmp: List[EventCluster] = session.exec(statement).all()
-                for ec in tmp:
-                    event_ids.append(ec.cog_event_id)
+    session = controller.get_session()
+    for cluster in clusters:
+        event_ids = []
+        for context_cluster_id in cluster.items:
+            statement = select(EventCluster).where(EventCluster.con_cluster_id == context_cluster_id)
+            tmp: List[EventCluster] = session.exec(statement).all()
+            for ec in tmp:
+                event_ids.append(ec.cog_event_id)
 
-            msgs = []
-            for event_id in event_ids:
-                statement = select(Event).where(Event.id == event_id)
-                tmp: List[Event] = session.exec(statement).all()
-                if len(tmp) > 0:
-                    event = tmp[0]
-                    msgs.append(f"{event.source}: {event.content}")
+        msgs = []
+        for event_id in event_ids:
+            statement = select(Event).where(Event.id == event_id)
+            tmp: List[Event] = session.exec(statement).all()
+            if len(tmp) > 0:
+                event = tmp[0]
+                msgs.append(f"{event.source}: {event.content}")
 
-            sum = summarize_messages(msgs)
-            tc = Cluster(
-                level=temp_cluster_to_level(cluster.raw_type),
-                type=ClusterType.Temporal,
-                summary=sum,
-                included_messages=", ".join([str(e) for e in event_ids]),
-                token=get_token(sum),
-                embedding=controller.get_embedding(sum),
-                timestamp_from=cluster.timestamp_begin - timedelta(seconds=5),
-                timestamp_to=cluster.timestamp_end + timedelta(seconds=5)
-            )
+        sum = summarize_messages(msgs)
+        tc = Cluster(
+            level=temp_cluster_to_level(cluster.raw_type),
+            type=ClusterType.Temporal,
+            summary=sum,
+            included_messages=", ".join([str(e) for e in event_ids]),
+            token=get_token(sum),
+            embedding=controller.get_embedding(sum),
+            timestamp_from=cluster.timestamp_begin - timedelta(seconds=5),
+            timestamp_to=cluster.timestamp_end + timedelta(seconds=5)
+        )
 
-            session.add(tc)
-            session.commit()
-            cluster_id = tc.id
+        session.add(tc)
+        cluster_id = tc.id
 
-            for event_id in event_ids:
-                cecc = EventCluster(cog_event_id=event_id, con_cluster_id=cluster_id)
-                session.add(cecc)
-            session.commit()
+        for event_id in event_ids:
+            cecc = EventCluster(cog_event_id=event_id, con_cluster_id=cluster_id)
+            session.add(cecc)
 
 
 def clusterize():
     print("Clustering...")
-    with Session(get_engine(), expire_on_commit=False) as session:
-        session.exec(text("truncate eventcluster"))
-        session.exec(text("truncate cluster"))
-        session.commit()
+    session = controller.get_session()
+    session.exec(text("truncate eventcluster"))
+    session.exec(text("truncate cluster"))
 
-        statement = select(Event).where(Event.interlocus > 0).order_by(col(Event.id))
-        events: List[Event] = session.exec(statement).all()
+    statement = select(Event).where(Event.interlocus > 0).order_by(col(Event.id))
+    events: List[Event] = session.exec(statement).all()
 
     event_map = {x.id: x for x in events}
     cluster_desc = get_optimal_clusters(events)
@@ -225,9 +219,9 @@ def clusterize():
 
 
 def factorize():
-    with Session(get_engine(), expire_on_commit=False) as session:
-        statement = select(Event).order_by(col(Event.id))
-        events: List[Event] = session.exec(statement).all()
+    session = controller.get_session()
+    statement = select(Event).order_by(col(Event.id))
+    events: List[Event] = session.exec(statement).all()
 
     if len(events) < 16:
         return
@@ -308,15 +302,14 @@ def add_cognitive_event(event: Event):
     if event is None:
         return
 
-    with Session(get_engine()) as session:
-        session.add(event)
-        session.commit()
+    session = controller.get_session()
+    session.add(event)
 
 def get_prompt() -> List[PromptItem]:
-    with Session(get_engine()) as session:
-        events =        list(session.exec(select(Event).order_by(col(Event.id))).fetchall())
-        clusters =      session.exec(select(Cluster).order_by(col(Cluster.id))).fetchall()
-        event_cluster = session.exec(select(EventCluster).order_by(col(EventCluster.id))).fetchall()
+    session = controller.get_session()
+    events =        list(session.exec(select(Event).order_by(col(Event.id))).fetchall())
+    clusters =      session.exec(select(Cluster).order_by(col(Cluster.id))).fetchall()
+    event_cluster = session.exec(select(EventCluster).order_by(col(EventCluster.id))).fetchall()
 
     thought_cnt = 0
     for i in range(len(events) - 1, -1, -1):
@@ -370,8 +363,8 @@ class ActionType(StrEnum):
 
 
 def get_recent_messages_block(n_msgs: int):
-    with Session(get_engine()) as session:
-        events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
+    session = controller.get_session()
+    events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
 
     latest_events = events[-n_msgs:]
     lines = []
@@ -395,9 +388,9 @@ def evalue_emotional_impact():
 
 def get_facts_block(n_facts: int, search_string: str) -> str:
     emb = controller.get_embedding(search_string)
-    with Session(get_engine()) as session:
-        facts = session.exec(select(Fact).order_by(Fact.embedding.cosine_distance(emb)).limit(n_facts)).fetchall()
-        return "\n".join([f.content for f in facts])
+    session = controller.get_session()
+    facts = session.exec(select(Fact).order_by(Fact.embedding.cosine_distance(emb)).limit(n_facts)).fetchall()
+    return "\n".join([f.content for f in facts])
 
 
 def generate_context_tot(complexity: float) -> Event:
@@ -511,7 +504,14 @@ def get_action_only():
 def run_system():
     init_db()
     init()
-    run_cli()
+
+    controller.init_db()
+    try:
+        run_cli()
+        controller.commit_db()
+    except Exception as e:
+        print(e)
+        controller.rollback_db()
 
 if __name__ == '__main__':
     run_system()

@@ -295,6 +295,7 @@ while True:
     prompt_player[0] = ("system", sysprompt_player) # + world_block)
 
     if player_turn:
+        print(f"### BEGIN PLAYER")
         _, calls = controller.completion_tool(LlmPreset.Default, prompt_player, CommonCompSettings(max_tokens=512), tools=[Action])
         content = json.dumps(calls[0].model_dump(), indent=2)
         action: Action = calls[0]
@@ -309,6 +310,7 @@ while True:
         prompt_gm.append(("user", content))
         prompt_player.append(("assistant", content))
     else:
+        print(f"### BEGIN GM")
         _, calls = controller.completion_tool(LlmPreset.Default, prompt_gm, CommonCompSettings(max_tokens=512), tools=[ResponseObservation if current_observation else ResponseAction])
         content = json.dumps(calls[0].model_dump(), indent=2)
 

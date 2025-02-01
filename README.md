@@ -1,8 +1,13 @@
 # private-machine
 
-A local AI companion framework with structured memory, clustering, and emotion analysis.
+*I'll be your machinery*
+
+A local AI companion framework with structured memory, clustering, and emotion analysis. 
+You only need to be able to run a 40GB GGUF with like 32k context 🥲
 
 ## Installation
+
+*New start, restart, empty pages*
 
 1. Install python 3.11
 2. Install requirements
@@ -13,11 +18,21 @@ A local AI companion framework with structured memory, clustering, and emotion a
 7. Change the settings and paths in character.py (I was too lazy to make a config)
 8. (venv) python run.py "hello, how are you?"
 
+## Big To Do's
+
+- Run independent from user input
+- Virtual environment for other companions (like Animal Crossing)
+- Needs fulfilment
+- Meta-system for automatic prompt adjustment and meta-learning
+
 ## Implementation
+*Ich bin meines Glückes Schmied*
 
 I totally wrote all this myself.
 
 ### Clustering & Information Recollection
+*Tell me what to find...*
+
 Beyond simple retrieval, private-machine organizes past interactions into meaningful clusters, allowing for better context awareness and long-term memory.
 - Temporal & Thematic Clustering – Groups related messages based on topic and time, avoiding context drift.
 - Dynamic Context Management – Prioritizes relevant information without blindly dumping full logs into prompts.
@@ -26,6 +41,8 @@ Beyond simple retrieval, private-machine organizes past interactions into meanin
 - Standard RAG retrieval is often keyword-based and context-blind. This system structures data for better synthesis and context weighting.
 
 ### Emotion Analysis
+*I've got some news for you, fembots have feelings too!*
+
 Rather than just detecting sentiment, private-machine evaluates emotional weight and integrates it into responses dynamically.
 - Impact Scoring – Rates how emotionally significant an interaction is.
 - First-Person Emotional Thought Generation – Generates internal reflections based on prior interactions.
@@ -34,11 +51,13 @@ Rather than just detecting sentiment, private-machine evaluates emotional weight
 - Most LLM-based sentiment analysis treats emotions as static labels. Here, emotion feeds into a broader cognitive loop.
 
 ### Tree of Thoughts (ToT) with Anti-Pattern Exploration
+*Free in my trapped soul*
+
 Unlike basic idea generation, private-machine structures thoughts hierarchically and prioritizes unconventional conclusions.
 - Multi-Step Thought Chains – Generates follow-up thoughts, ensuring deeper reasoning.
 - Anti-Pattern Selection – Prefers less conventional responses, avoiding repetitive or cookie-cutter LLM output.
 - Evaluated Divergence – Filters ideas by realism, novelty, and emotional resonance.
-#### Why not just use random brainstorming or ChatGPT?
+#### Why not just use random brainstorming?
 - LLMs tend to favor safe, expected answers. This method systematically generates and selects ideas that break patterns.
 
 ## Disclaimer
