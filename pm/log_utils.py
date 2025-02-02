@@ -69,7 +69,7 @@ def setup_logger(log_filename):
     console_handler.setFormatter(file_formatter)  # Use the same formatter for console
 
     # Add console handler to logger
-    logger.addHandler(console_handler)
+    # logger.addHandler(console_handler)
 
     # Filter to remove unwanted HTTP request logs
     logger.addFilter(NoHttpRequestFilter())

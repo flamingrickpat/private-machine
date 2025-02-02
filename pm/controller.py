@@ -53,7 +53,7 @@ def log_conversation(conversation: list[tuple[str, str]], file_path: str, max_wi
 class Controller:
     def __init__(self, test_mode: bool, backtest_messages: bool):
         self.session = None
-        self.config = read_config_file("config.json")
+        #self.config = read_config_file("config.json")
         setup_logger("main.log")
         self.db_lock = threading.Lock()
         self.model_path = None
@@ -112,12 +112,6 @@ class Controller:
         for msg in inp:
             inp_formatted.append((self.format_str(msg[0]), self.format_str(msg[1])))
 
-        log_filename = f"{str(uuid.uuid4())}_{preset.value}.log"
-        log_dir = os.path.dirname(os.path.abspath(__file__)) + "/../logs/"
-        os.makedirs(log_dir, exist_ok=True)
-        log_file_path = os.path.join(log_dir, log_filename)
-        log_conversation(inp_formatted, log_file_path, 200)
-
         if comp_settings is None:
             comp_settings = CommonCompSettings()
 
@@ -126,6 +120,13 @@ class Controller:
 
         if len(tools) > 0:
             comp_settings.tools_json += tools
+            inp_formatted[0] = ("system", inp_formatted[0][1] + "\nTool Documentation JSON Schema:\n" + json.dumps(tools[0].model_json_schema()))
+
+        log_filename = f"{str(uuid.uuid4())}_{preset.value}.log"
+        log_dir = os.path.dirname(os.path.abspath(__file__)) + "/../logs/"
+        os.makedirs(log_dir, exist_ok=True)
+        log_file_path = os.path.join(log_dir, log_filename)
+        log_conversation(inp_formatted, log_file_path, 200)
 
         openai_inp = []
         for msg in inp_formatted:
@@ -138,7 +139,6 @@ class Controller:
             return content, []
         else:
             gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation([tools[0]])
-            openai_inp[0]["content"] = openai_inp[0]["content"] + "\nTool Documentation JSON Schema:\n" + json.dumps(tools[0].model_json_schema())
             grammar = LlamaGrammar(_grammar=gbnf_grammar)
             while True:
                 try:

@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
 
-from pm.database.tables import Event, CogEventType, EventCluster, Cluster
+from pm.database.tables import Event, EventCluster, Cluster
 
 def compute_contextual_embeddings(events: List[Event], context_window):
     embeddings = np.array([event.embedding for event in events])

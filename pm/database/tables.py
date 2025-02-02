@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from enum import StrEnum
+from enum import StrEnum, IntEnum
 from typing import Optional, Any, List, Tuple
 
 from sqlmodel import Field, Session, SQLModel, create_engine, select, col
@@ -8,12 +8,6 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, text, INTEGER
 
 from pm.character import TIMESTAMP_FORMAT, user_name
-
-
-class CogEventType(StrEnum):
-    Thought = "thought"
-    Action = "action"
-    Observation = "observation"
 
 
 class PromptItem:
@@ -38,6 +32,15 @@ class PromptItem:
     def to_tuple(self):
         return (self.turn, f"{self.prefix}\n{self.content}\n{self.postfix}".strip())
 
+class InterlocusType(IntEnum):
+    ActionDecision = -4
+    Contemplation = -3
+    Emotion = -2
+    Thought = -1
+    SystemMessage = 0
+    Public = 1
+
+
 class Event(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     source: str = Field(default="")
@@ -45,13 +48,13 @@ class Event(SQLModel, table=True):
     embedding: Any = Field(sa_column=Column(Vector(768)))
     token: int = Field()
     timestamp: datetime.datetime
-    interlocus: float = Field(ge=-1, le=1)
+    interlocus: float = Field(ge=-10, le=1)
 
     def __repr__(self):
         return f"{self.source}: {self.content}"
 
     def to_prompt_item(self) -> List[PromptItem]:
-        if self.interlocus == -2:
+        if self.interlocus == InterlocusType.Emotion.value:
             return [
                 PromptItem(
                     self.id,
@@ -59,9 +62,9 @@ class Event(SQLModel, table=True):
                     "assistant",
                     "<think>\nThis conversation invokes strong feelings inside me.\n",
                     self.content,
-                    f"\nI'm a thinking and feeling being and will include these emotions in my final resposne directed at my user {user_name}..\n</think>",
+                    f"\nI'm a thinking and feeling being and will include these emotions in my final response directed at my user {user_name}..\n</think>",
                     -1)]
-        elif self.interlocus == -1:
+        elif self.interlocus == InterlocusType.Thought.value:
             return [
                 PromptItem(
                     self.id,
@@ -70,6 +73,26 @@ class Event(SQLModel, table=True):
                     "<think>\nTo craft a better response, I will now generate a Tree Of Thoughts based on recent events.\n",
                     self.content,
                     f"\nAction: Now I'll include all these thoughts into the final resposne directed at my user {user_name}.\n</think>",
+                    -1)]
+        elif self.interlocus == InterlocusType.Contemplation.value:
+            return [
+                PromptItem(
+                    self.id,
+                    self.timestamp,
+                    "assistant",
+                    f"<think>\nWhile {user_name} is away, I will contemplate on some stuff.\n",
+                    self.content,
+                    f"\nNow I'll wait for the next heartbeat.</think>",
+                    -1)]
+        elif self.interlocus == InterlocusType.ActionDecision.value:
+            return [
+                PromptItem(
+                    self.id,
+                    self.timestamp,
+                    "assistant",
+                    f"<think>",
+                    self.content,
+                    f"</think>",
                     -1)]
         else:
             return [

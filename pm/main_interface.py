@@ -1,21 +1,24 @@
+import sys
+import os
+
+# Add the project root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8')
+
 import asyncio
 import multiprocessing
-import time
-from datetime import datetime
-import aioconsole
-import httpx
 import requests
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Input, Static
 from textual.containers import VerticalScroll
 from textual.reactive import reactive
-from textual.worker import get_current_worker
-from textual.color import Color
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message
 from aiogram import Router
 from dotenv import load_dotenv
 import os
+
+from pm.character import user_name, companion_name
 
 load_dotenv()
 
@@ -32,12 +35,21 @@ dp.include_router(router)
 message_queue = multiprocessing.Queue()
 message_write_queue = multiprocessing.Queue()
 
-# Dummy AI function simulating LLM response
-def ai_process(input_type, content, output_queue):
-    """Simulates AI processing and sends response to queue."""
-    time.sleep(2)  # Simulate AI thinking
-    response = f"AI Response to {input_type}: {content}"
-    output_queue.put(("ai", response, None))  # Send response to queue
+def ai_process(content, output_queue):
+    import sys
+    import os
+
+    # Add the project root directory to sys.path
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    sys.stdin.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding='utf-8')
+
+    from pm.system_test import run_system_mp
+    response = run_system_mp(content)
+    if response is None or response == "":
+        output_queue.put(("tick", ""))
+    else:
+        output_queue.put(("message", response))
 
 
 # ------------------ Full-Screen Messenger UI (Textual) ------------------
@@ -97,9 +109,9 @@ class MessengerUI(App):
         while not message_write_queue.empty():
             source, content = message_write_queue.get()
             if source == "user":
-                self.update_chat_log(f"Rick: {content}")
+                self.update_chat_log(f"{user_name}: {content}")
             elif source == "assistant":
-                self.update_chat_log(f"Emmy: {content}")
+                self.update_chat_log(f"{companion_name}: {content}")
 
 
 
@@ -127,16 +139,21 @@ class AIChatBot:
         """Continuously checks for messages and sends them to AI or Telegram."""
         while True:
             if not message_queue.empty():
-
                 source, content = message_queue.get()
-                content = f"my response to {content} is..."
 
-                message_write_queue.put(("assistant", content))
+                ai_process_queue = multiprocessing.Queue()
+                ai_prc = multiprocessing.Process(target=ai_process, args=(content, ai_process_queue))
+                ai_prc.start()
+                ai_prc.join()
 
-                # Also send user message to Telegram if allowed
-                if USE_TELEGRAM:
-                    telegram_proc = multiprocessing.Process(target=send_telegram_message, args=(content,))
-                    telegram_proc.start()
+                output_type, output = ai_process_queue.get()
+                if output_type == "message":
+                    message_write_queue.put(("assistant", output))
+
+                    # Also send user message to Telegram if allowed
+                    if USE_TELEGRAM:
+                        telegram_proc = multiprocessing.Process(target=send_telegram_message, args=(output,))
+                        telegram_proc.start()
 
             await asyncio.sleep(0.5)  # Avoid high CPU usage
 
