@@ -1,5 +1,7 @@
+import datetime
 import sys
 import os
+import time
 
 # Add the project root directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -117,17 +119,20 @@ class MessengerUI(App):
 
 # ------------------ AI Chat Bot ------------------
 def send_telegram_message(msg):
-    url = f"https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage"
+    while True:
+        url = f"https://api.telegram.org/bot{TELEGRAM_API_KEY}/sendMessage"
 
-    # Payload (message data)
-    payload = {
-        "chat_id": ALLOWED_CHAT_ID,
-        "text": msg
-    }
+        # Payload (message data)
+        payload = {
+            "chat_id": ALLOWED_CHAT_ID,
+            "text": msg
+        }
 
-    # Send the request
-    requests.post(url, json=payload)
-
+        res = requests.post(url, json=payload)
+        if res.status_code == 200:
+            return
+        else:
+            time.sleep(5)
 
 class AIChatBot:
     """Handles AI processing and communication with Telegram."""
@@ -137,10 +142,17 @@ class AIChatBot:
 
     async def process_message(self):
         """Continuously checks for messages and sends them to AI or Telegram."""
+        last_message = datetime.datetime.now()
         while True:
+            content = None
             if not message_queue.empty():
                 source, content = message_queue.get()
+            else:
+                now = datetime.datetime.now()
+                if (now - last_message).total_seconds() / 60 > 60:
+                    content = "/think"
 
+            if content is not None:
                 ai_process_queue = multiprocessing.Queue()
                 ai_prc = multiprocessing.Process(target=ai_process, args=(content, ai_process_queue))
                 ai_prc.start()
@@ -155,7 +167,9 @@ class AIChatBot:
                         telegram_proc = multiprocessing.Process(target=send_telegram_message, args=(output,))
                         telegram_proc.start()
 
-            await asyncio.sleep(0.5)  # Avoid high CPU usage
+                last_message = datetime.datetime.now()
+
+            await asyncio.sleep(1)
 
 
 # ------------------ Telegram Bot ------------------

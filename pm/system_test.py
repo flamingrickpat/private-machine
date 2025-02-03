@@ -29,7 +29,7 @@ from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Prompt
 from pm.prompt.get_optimized_prompt import get_optimized_prompt, create_optimized_prompt, get_optimized_prompt_temp_cluster
 from pm.thought.generate_tot import generate_tot_v1
 
-from pm.character import sysprompt, database_uri, CONTEXT_SIZE, CONTEXT_SYS_PROMPT, CLUSTER_SPLIT, companion_name, TIMESTAMP_FORMAT
+from pm.character import sysprompt, database_uri, CONTEXT_SIZE, CONTEXT_SYS_PROMPT, CLUSTER_SPLIT, companion_name, TIMESTAMP_FORMAT, sysprompt_addendum
 from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
 from pm.emotion.generate_emotion import generate_first_person_emotion
@@ -304,7 +304,8 @@ def determine_action_type(items) -> ActionSelector:
         for item in items:
             msgs.append(item.to_tuple())
 
-    _, calls = controller.completion_tool(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024), tools=[ActionSelector])
+    _, calls = controller.completion_tool(LlmPreset.Best, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
+                                          tools=[ActionSelector])
     return calls[0]
 
 class MetaSystemOperationModeDecision(BaseModel):
@@ -362,6 +363,20 @@ def get_prompt() -> List[PromptItem]:
                 1)
 
             parts.insert(i, pi)
+
+    # insert intermediate system prompt
+    if len(parts) > 20:
+        for i in range(len(parts) - 16, len(parts) - 2):
+            if parts[i].turn == "user":
+                pi = PromptItem(
+                    str(uuid.uuid4()),
+                    datetime.now(),
+                    "system",
+                    "",
+                    f"{sysprompt_addendum}",
+                    "",
+                    1)
+                parts.insert(i + 1, pi)
 
     return parts
 
@@ -457,7 +472,8 @@ def get_message_to_user(items) -> InitiateUserItem:
         for item in items:
             msgs.append(item.to_tuple())
 
-    _, calls = controller.completion_tool(LlmPreset.Best, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024), tools=[InitiateUserItem])
+    _, calls = controller.completion_tool(LlmPreset.Best, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
+                                          tools=[InitiateUserItem])
     return calls[0]
 
 class InternalContemplationItem(BaseModel):
@@ -469,7 +485,8 @@ def get_internal_contemplation(items) -> InternalContemplationItem:
         for item in items:
             msgs.append(item.to_tuple())
 
-    _, calls = controller.completion_tool(LlmPreset.Best, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024), tools=[InternalContemplationItem])
+    _, calls = controller.completion_tool(LlmPreset.Best, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
+                                          tools=[InternalContemplationItem])
     return calls[0]
 
 
@@ -636,6 +653,7 @@ def get_action_only():
 
     return rating, state
 
+TEST_MODE = False
 
 def run_system_cli():
     init_db()
@@ -644,7 +662,10 @@ def run_system_cli():
     controller.init_db()
     try:
         run_cli()
-        controller.commit_db()
+        if TEST_MODE:
+            controller.rollback_db()
+        else:
+            controller.commit_db()
     except Exception as e:
         print(e)
         controller.rollback_db()
@@ -658,7 +679,10 @@ def run_system_mp(inp: str) -> str:
     controller.init_db()
     try:
         res = run_mp(inp)
-        controller.commit_db()
+        if TEST_MODE:
+            controller.rollback_db()
+        else:
+            controller.commit_db()
     except Exception as e:
         print(e)
         controller.rollback_db()

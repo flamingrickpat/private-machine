@@ -114,6 +114,8 @@ class CommonCompSettings(BaseModel):
     enforced_structure_regex: str = Field(default=None)
     enforced_structure_gbnf: str = Field(default=None)
     force_include_string: str = Field(default=None)
+    frequency_penalty: float = Field(default=0)
+    presence_penalty: float = Field(default=0)
 
     @validator('tools_func', pre=True)
     def val_tools_func(cls, value):

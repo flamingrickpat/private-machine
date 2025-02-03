@@ -134,7 +134,8 @@ class Controller:
 
         tools = comp_settings.tools_json
         if len(tools) == 0:
-            res = self.llm.create_chat_completion_openai_v1(openai_inp, max_tokens=comp_settings.max_tokens, repeat_penalty=comp_settings.repeat_penalty, temperature=comp_settings.temperature)
+            res = self.llm.create_chat_completion_openai_v1(openai_inp, max_tokens=comp_settings.max_tokens, repeat_penalty=comp_settings.repeat_penalty, temperature=comp_settings.temperature,
+                                                            frequency_penalty=comp_settings.frequency_penalty, presence_penalty=comp_settings.presence_penalty)
             content = res.choices[0].message.content
             return content, []
         else:
@@ -142,7 +143,8 @@ class Controller:
             grammar = LlamaGrammar(_grammar=gbnf_grammar)
             while True:
                 try:
-                    res = self.llm.create_chat_completion_openai_v1(openai_inp, grammar=grammar, max_tokens=comp_settings.max_tokens, repeat_penalty=comp_settings.repeat_penalty, temperature=comp_settings.temperature)
+                    res = self.llm.create_chat_completion_openai_v1(openai_inp, grammar=grammar, max_tokens=comp_settings.max_tokens, repeat_penalty=comp_settings.repeat_penalty,
+                                                                    temperature=comp_settings.temperature, frequency_penalty=comp_settings.frequency_penalty, presence_penalty=comp_settings.presence_penalty)
                     content = res.choices[0].message.content
                     good_json_string = repair_json(content)
                     calls = [tools[0].model_validate_json(good_json_string)]
