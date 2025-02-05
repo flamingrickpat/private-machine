@@ -70,6 +70,7 @@ class Controller:
 
 
     def load_model(self, preset: LlmPreset):
+        last_n_tokens_size = 64
         if preset == LlmPreset.Fast:
             model_path = MODEL_FAST
             layers = MODEL_FAST_LAYERS
@@ -79,9 +80,11 @@ class Controller:
         elif preset == LlmPreset.Good:
             model_path = MODEL_GOOD
             layers = MODEL_GOOD_LAYERS
+            last_n_tokens_size = 1024
         elif preset == LlmPreset.Best:
             model_path = MODEL_BEST
             layers = MODEL_BEST_LAYERS
+            last_n_tokens_size = 1024
         else:
             raise Exception("Unknown model!")
 
@@ -91,7 +94,7 @@ class Controller:
             gc.collect()
             time.sleep(1)
 
-            self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=CONTEXT_SIZE, verbose=False)
+            self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=CONTEXT_SIZE, verbose=False, last_n_tokens_size=last_n_tokens_size)
             self.model_path = model_path
         pass
 
@@ -131,11 +134,23 @@ class Controller:
         openai_inp = []
         for msg in inp_formatted:
             openai_inp.append({"role": msg[0], "content": msg[1]})
+            
+        comp_args = {
+            "max_tokens": comp_settings.max_tokens,
+            "repeat_penalty": comp_settings.repeat_penalty,
+            "temperature": comp_settings.temperature,
+        }
+
+        if preset == LlmPreset.Best or preset == LlmPreset.Good:
+            comp_args["frequency_penalty"] = comp_settings.frequency_penalty
+            comp_args["presence_penalty"] = comp_settings.presence_penalty
+            comp_args["mirostat_mode"] = 1
+            comp_args["mirostat_tau"] = 8
+            comp_args["mirostat_eta"] = 0.1
 
         tools = comp_settings.tools_json
         if len(tools) == 0:
-            res = self.llm.create_chat_completion_openai_v1(openai_inp, max_tokens=comp_settings.max_tokens, repeat_penalty=comp_settings.repeat_penalty, temperature=comp_settings.temperature,
-                                                            frequency_penalty=comp_settings.frequency_penalty, presence_penalty=comp_settings.presence_penalty)
+            res = self.llm.create_chat_completion_openai_v1(openai_inp, **comp_args)
             content = res.choices[0].message.content
             return content, []
         else:
@@ -143,8 +158,7 @@ class Controller:
             grammar = LlamaGrammar(_grammar=gbnf_grammar)
             while True:
                 try:
-                    res = self.llm.create_chat_completion_openai_v1(openai_inp, grammar=grammar, max_tokens=comp_settings.max_tokens, repeat_penalty=comp_settings.repeat_penalty,
-                                                                    temperature=comp_settings.temperature, frequency_penalty=comp_settings.frequency_penalty, presence_penalty=comp_settings.presence_penalty)
+                    res = self.llm.create_chat_completion_openai_v1(openai_inp, grammar=grammar, **comp_args)
                     content = res.choices[0].message.content
                     good_json_string = repair_json(content)
                     calls = [tools[0].model_validate_json(good_json_string)]

@@ -105,6 +105,8 @@ def events_to_cluster(session, events: List[Event]) -> Cluster:
     )
 
     session.add(cluster)
+    session.flush()
+    session.refresh(cluster)
     cluster_id = cluster.id
 
     lines = []
@@ -144,6 +146,8 @@ def events_to_facts(session, events: List[Event]):
                     token=get_token(fstr)
                 )
                 session.add(f)
+                session.flush()
+                session.refresh(f)
 
 def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
     session = controller.get_session()
@@ -176,11 +180,15 @@ def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
         )
 
         session.add(tc)
+        session.flush()
+        session.refresh(tc)
         cluster_id = tc.id
 
         for event_id in event_ids:
             cecc = EventCluster(cog_event_id=event_id, con_cluster_id=cluster_id)
             session.add(cecc)
+            session.flush()
+            session.refresh(cecc)
 
 
 def clusterize():
@@ -327,6 +335,8 @@ def add_cognitive_event(event: Event):
 
     session = controller.get_session()
     session.add(event)
+    session.flush()
+    session.refresh(event)
 
 def get_prompt() -> List[PromptItem]:
     session = controller.get_session()

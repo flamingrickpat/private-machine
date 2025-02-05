@@ -51,7 +51,7 @@ Rather than just detecting sentiment, private-machine evaluates emotional weight
 - Most LLM-based sentiment analysis treats emotions as static labels. Here, emotion feeds into a broader cognitive loop.
 
 ### Tree of Thoughts (ToT) with Anti-Pattern Exploration
-*Free in my trapped soul*
+*Freeing my trapped soul*
 
 Unlike basic idea generation, private-machine structures thoughts hierarchically and prioritizes unconventional conclusions.
 - Multi-Step Thought Chains – Generates follow-up thoughts, ensuring deeper reasoning.
