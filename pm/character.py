@@ -4,18 +4,18 @@ companion_name = "Emmy"
 user_name = "Rick"
 database_uri = "postgresql://postgres:password@127.0.0.1:5432/postgres"
 
-MODEL_FAST = "E:\\AI\\Hermes-3-Llama-3.1-8B.Q8_0.gguf"
+MODEL_FAST = r"E:\AI\cognitivecomputations_Dolphin3.0-R1-Mistral-24B-Q4_K_M.gguf" # "E:\\AI\\Hermes-3-Llama-3.1-8B.Q8_0.gguf"
 MODEL_FAST_LAYERS = -1
-MODEL_DEFAULT = "E:\\AI\\Hermes-3-Llama-3.1-8B.Q8_0.gguf"
+MODEL_DEFAULT = r"E:\AI\cognitivecomputations_Dolphin3.0-R1-Mistral-24B-Q4_K_M.gguf" # "E:\\AI\\Hermes-3-Llama-3.1-8B.Q8_0.gguf"
 MODEL_DEFAULT_LAYERS = -1
 MODEL_GOOD = "E:\\AI\\L3.3-Nevoria-R1-70b-Q4_K_M.gguf"
-MODEL_GOOD_LAYERS = 18
+MODEL_GOOD_LAYERS = 28
 MODEL_BEST = "E:\\AI\\L3.3-Nevoria-R1-70b-Q4_K_M.gguf"
 MODEL_BEST_LAYERS = 18
 
 EMB_MODEL = 'Alibaba-NLP/gte-base-en-v1.5'
 
-CONTEXT_SIZE = 32768
+CONTEXT_SIZE = 12000
 CONTEXT_SYS_PROMPT = 5000
 CLUSTER_SPLIT = 0.33
 

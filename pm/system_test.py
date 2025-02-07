@@ -4,6 +4,9 @@ import uuid
 
 from pydantic import BaseModel
 
+from pm.cosine_clustering.cosine_cluster import get_best_category, cluster_text, TEMPLATE_CATEGORIES
+from pm.fact_learners.extract_cause_effect_agent import extract_cas
+
 # Add the project root directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.stdin.reconfigure(encoding='utf-8')
@@ -25,7 +28,7 @@ from pm.common_prompts.summary_perspective import summarize_messages
 from pm.controller import controller, log_conversation
 from pm.embedding.embedding import get_embedding
 from pm.embedding.token import get_token
-from pm.database.tables import Event, EventCluster, Cluster, ClusterType, PromptItem, Fact, InterlocusType, AgentMessages
+from pm.database.tables import Event, EventCluster, Cluster, ClusterType, PromptItem, Fact, InterlocusType, AgentMessages, CauseEffectDbEntry
 from pm.prompt.get_optimized_prompt import get_optimized_prompt, create_optimized_prompt, get_optimized_prompt_temp_cluster
 from pm.thought.generate_tot import generate_tot_v1
 
@@ -149,6 +152,41 @@ def events_to_facts(session, events: List[Event]):
                 session.flush()
                 session.refresh(f)
 
+
+
+def events_to_ca(session, events: List[Event]):
+    lines = []
+    events.sort(key=lambda x: x.timestamp)
+    for event in events:
+        lines.append(f"{event.source}: {event.content}")
+
+    max_fact_event_id = session.exec(func.max(CauseEffect.max_event_id)).scalar() or 0
+
+    # Check if the minimum event ID in the cluster is greater than the maximum event ID in the Fact table
+    min_event_id = min([event.id for event in events])
+    if min_event_id > max_fact_event_id:
+        block = "\n".join(lines)
+        cas = extract_cas(block)
+        if True:
+            for ca in cas:
+                fstr = f"cause: {ca.cause} effect: {ca.effect}"
+                clusters = cluster_text(fstr, template_dict=TEMPLATE_CATEGORIES)
+                max_event_id = events[-1].id
+
+                f = CauseEffectDbEntry(
+                    cause=ca.cause,
+                    effect=ca.effect,
+                    category=get_best_category(clusters),
+                    max_event_id=max_event_id,
+                    embedding=controller.get_embedding(fstr),
+                    token=get_token(fstr),
+                    timestamp=events[0].timestamp
+                )
+                session.add(f)
+                session.flush()
+                session.refresh(f)
+
+
 def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
     session = controller.get_session()
     for cluster in clusters:
@@ -251,14 +289,12 @@ def factorize():
 
         if cluster != prev_cluster and len(event_buffer) > 0:
             events_to_facts(session, event_buffer)
+            events_to_ca(session, event_buffer)
             event_buffer = []
 
         event_buffer.append(event)
         prev_cluster = cluster
 
-    # skip current one
-    if False:
-        events_to_facts(session, event_buffer)
 
 def get_sensation(allow_timeout: bool = False, override: str = None):
     return controller.get_user_input(override=override)

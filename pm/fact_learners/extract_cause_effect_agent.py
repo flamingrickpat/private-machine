@@ -115,10 +115,8 @@ CauseEffect:
 }
 """
 
-mt = 4000
-
-def extract_facts(block: str):
-
+def extract_cas(block: str) -> List[CauseEffect]:
+    mt = 4096
     convo_to_text_agent = AgentHistorizedSimpel(
         id="convo_to_text_agent",
         sysprompt=sysprompt_convo_to_text
@@ -147,6 +145,7 @@ Convert this to the specified JSON format.
         id="text_to_cause_effect_json_agent",
         sysprompt=sysprompt_json_converter
     )
+    res = []
     prompt = text_to_cause_effect_json_agent.get_prompt(query, mt)
     _, calls = controller.completion_tool(LlmPreset.Fast, prompt,  comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024), tools=[CauseEffects])
     content = json.dumps(calls[0].model_dump(), indent=2)
@@ -154,11 +153,11 @@ Convert this to the specified JSON format.
         for ce in calls[0].cause_effects:
             if ce.cause != "" and ce.effect != "":
                 ces.cause_effects.append(ce)
-                pprint(ce)
+                res.append(ce)
 
     rating = rate_agent_output(sysprompt_json_converter, query, content)
     text_to_cause_effect_json_agent.add_messages(query, content, rating)
-
+    return res
 
 if __name__ == '__main__':
     controller.init_db()
@@ -174,7 +173,7 @@ if __name__ == '__main__':
         for event in events:
             block.append(f"{event.source}: {event.to_prompt_item()[0].to_tuple()[1]}")
         strblock = "\n".join(block)
-        extract_facts(strblock)
+        extract_cas(strblock)
         controller.commit_db()
         #exit(1)
 

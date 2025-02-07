@@ -70,6 +70,7 @@ class Controller:
 
 
     def load_model(self, preset: LlmPreset):
+        ctx = CONTEXT_SIZE
         last_n_tokens_size = 64
         if preset == LlmPreset.Fast:
             model_path = MODEL_FAST
@@ -94,7 +95,7 @@ class Controller:
             gc.collect()
             time.sleep(1)
 
-            self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=CONTEXT_SIZE, verbose=False, last_n_tokens_size=last_n_tokens_size)
+            self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=ctx, verbose=False, last_n_tokens_size=last_n_tokens_size)
             self.model_path = model_path
         pass
 
