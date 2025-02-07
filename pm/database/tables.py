@@ -7,7 +7,7 @@ from sqlmodel import Field, Session, SQLModel, create_engine, select, col
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, text, INTEGER
 
-from pm.character import TIMESTAMP_FORMAT, user_name
+from pm.character import TIMESTAMP_FORMAT, user_name, database_uri
 
 
 class PromptItem:
@@ -39,6 +39,23 @@ class InterlocusType(IntEnum):
     Thought = -1
     SystemMessage = 0
     Public = 1
+
+def get_guid():
+    return str(uuid.uuid4())
+
+class AgentMessages(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    agent_id: str = Field(...)
+    turn: str = Field(...)
+    content: str = Field(default="")
+    embedding: Any = Field(sa_column=Column(Vector(768)))
+    token: int = Field()
+    timestamp: datetime.datetime
+    rating: float = Field()
+    turn_id: str = Field(default_factory=get_guid)
+
+    def __repr__(self):
+        return f"{self.turn}: {self.content}"
 
 
 class Event(SQLModel, table=True):
@@ -166,3 +183,6 @@ class EventCluster(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     cog_event_id: int
     con_cluster_id: int
+
+engine = create_engine(database_uri)
+SQLModel.metadata.create_all(engine)

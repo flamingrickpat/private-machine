@@ -25,7 +25,7 @@ from pm.common_prompts.summary_perspective import summarize_messages
 from pm.controller import controller, log_conversation
 from pm.embedding.embedding import get_embedding
 from pm.embedding.token import get_token
-from pm.database.tables import Event, EventCluster, Cluster, ClusterType, PromptItem, Fact, InterlocusType
+from pm.database.tables import Event, EventCluster, Cluster, ClusterType, PromptItem, Fact, InterlocusType, AgentMessages
 from pm.prompt.get_optimized_prompt import get_optimized_prompt, create_optimized_prompt, get_optimized_prompt_temp_cluster
 from pm.thought.generate_tot import generate_tot_v1
 

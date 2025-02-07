@@ -39,6 +39,7 @@ class PromptKeyword(str, Enum):
 
 
 class LlmPreset(str, Enum):
+    Mid = "Mid"
     EmotionSubSystem = "EmotionSubSystem"
     DeepSeekVent = "DeepSeekVent"
     DeepSeekMid = "DeepSeekMid"
