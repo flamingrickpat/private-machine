@@ -275,7 +275,7 @@ class ResponseObservation(BaseModel):
 sysprompt_gm = "You are a game master for a fantasy text RPG like Animal Crossing. You goal is to provide a virtual world as enrichtment activity for an AI companion.. \n## World Information:\n"
 sysprompt_player = sysprompt + "\nYou are in virtual world mode right now. \n## World Information:\n"
 sysprompt_fe = """You extract facts from a text RPG for enhanced memory storage.
-You will be given existing facts, use the ID of those to check if some need extension or must be overriden with new information!
+You will be given existing facts, use the ID of those to check if some need extension or must be overridden with new information!
 ## Existing facts: 
 """
 
