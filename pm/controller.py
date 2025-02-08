@@ -24,8 +24,7 @@ from llama_cpp import Llama
 from sqlmodel import Field, Session, SQLModel, create_engine, select, col
 from sqlalchemy import Column, text, INTEGER, func
 
-from pm.character import companion_name, user_name, MODEL_FAST, MODEL_GOOD, MODEL_BEST, MODEL_FAST_LAYERS, MODEL_DEFAULT, MODEL_DEFAULT_LAYERS, MODEL_GOOD_LAYERS, MODEL_BEST_LAYERS, \
-    EMB_MODEL, CONTEXT_SIZE, database_uri
+from pm.character import companion_name, user_name, embedding_model, database_uri, model_map
 from pm.config.config import read_config_file
 from pm.database.tables import Event
 from pm.embedding.token import get_token
@@ -52,8 +51,8 @@ def log_conversation(conversation: list[tuple[str, str]], file_path: str, max_wi
 
 class Controller:
     def __init__(self, test_mode: bool, backtest_messages: bool):
+        self.current_ctx = None
         self.session = None
-        #self.config = read_config_file("config.json")
         setup_logger("main.log")
         self.db_lock = threading.Lock()
         self.model_path = None
@@ -63,29 +62,22 @@ class Controller:
 
         self.model = None
         if not self.test_mode:
-            self.model = SentenceTransformer(EMB_MODEL, trust_remote_code=True)
+            self.model = SentenceTransformer(embedding_model, trust_remote_code=True)
             if torch.cuda.is_available():
                 device = 'cuda'
                 self.model = self.model.to(device)
 
+    def get_conscious_context(self) -> int:
+        preset = LlmPreset.Conscious
+        ctx = model_map[preset.value]["context"]
+        return ctx
 
     def load_model(self, preset: LlmPreset):
-        ctx = CONTEXT_SIZE
-        last_n_tokens_size = 64
-        if preset == LlmPreset.Fast:
-            model_path = MODEL_FAST
-            layers = MODEL_FAST_LAYERS
-        elif preset == LlmPreset.Default:
-            model_path = MODEL_DEFAULT
-            layers = MODEL_DEFAULT_LAYERS
-        elif preset == LlmPreset.Good:
-            model_path = MODEL_GOOD
-            layers = MODEL_GOOD_LAYERS
-            last_n_tokens_size = 1024
-        elif preset == LlmPreset.Best:
-            model_path = MODEL_BEST
-            layers = MODEL_BEST_LAYERS
-            last_n_tokens_size = 1024
+        if preset.value in model_map.keys():
+            ctx = model_map[preset.value]["context"]
+            last_n_tokens_size = model_map[preset.value]["last_n_tokens_size"]
+            model_path  = model_map[preset.value]["path"]
+            layers = model_map[preset.value]["layers"]
         else:
             raise Exception("Unknown model!")
 
@@ -96,13 +88,9 @@ class Controller:
             time.sleep(1)
 
             self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=ctx, verbose=False, last_n_tokens_size=last_n_tokens_size)
+            self.current_ctx = ctx
             self.model_path = model_path
         pass
-
-    @property
-    def db(self):
-        db = LanceDBConnection(self.config.db_path)
-        return db
 
     def completion_tool(self,
                         preset: LlmPreset,
@@ -142,7 +130,7 @@ class Controller:
             "temperature": comp_settings.temperature,
         }
 
-        if preset == LlmPreset.Best or preset == LlmPreset.Good:
+        if preset == LlmPreset.Conscious:
             comp_args["frequency_penalty"] = comp_settings.frequency_penalty
             comp_args["presence_penalty"] = comp_settings.presence_penalty
             comp_args["mirostat_mode"] = 1

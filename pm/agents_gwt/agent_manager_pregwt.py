@@ -322,7 +322,7 @@ class BossWorkerChatResult(BaseModel):
 
 
 def execute_boss_worker_chat_pregwt(base_state, context_data: str, task: str, agents: List[Agent], min_confidence: float = 0.5,
-                             convert_to_memory: bool = False, round_robin: bool = False, max_rounds: int = 100, llmpreset: LlmPreset = LlmPreset.Good) -> BossWorkerChatResult:
+                             convert_to_memory: bool = False, round_robin: bool = False, max_rounds: int = 100, llmpreset: LlmPreset = LlmPreset.Default) -> BossWorkerChatResult:
     workflow = StateGraph(SubAgentState)
     workflow.add_node("router", lambda x: _execute_router(x, agents))
     workflow.add_edge(START, "router")

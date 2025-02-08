@@ -54,7 +54,7 @@ def select_relevant_agents(agents, context_data):
         ("user", userprompt)
     ]
 
-    _, calls = controller.completion_tool(LlmPreset.Fast, messages, tools=[AgentSelection])
+    _, calls = controller.completion_tool(LlmPreset.Emotion, messages, tools=[AgentSelection])
     return [calls[0].agent1, calls[0].agent2]
 
 
@@ -108,7 +108,7 @@ FOCUS ON THE LAST MESSAGE!
             ))
 
         state = {}
-        result = execute_boss_worker_chat_pregwt(state, context, subsystem.goal, agents, min_confidence=0.8, max_rounds=20, round_robin=True, llmpreset=LlmPreset.Default)
+        result = execute_boss_worker_chat_pregwt(state, context, subsystem.goal, agents, min_confidence=0.8, max_rounds=20, round_robin=True, llmpreset=LlmPreset.Emotion)
 
         # add subagent messages
         subagent_messages = []

@@ -16,5 +16,5 @@ def rate_complexity(block: str):
         ("user", f"### BEGIN MESSAGES\n{block}\n### END MESSAGES\n"),
     ]
 
-    content, calls = controller.completion_tool(LlmPreset.Fast, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=1024), tools=[Complexity])
+    content, calls = controller.completion_tool(LlmPreset.Auxiliary, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=1024), tools=[Complexity])
     return calls[0].complexity

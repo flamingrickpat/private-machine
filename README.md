@@ -14,9 +14,11 @@ You only need to be able to run a 40GB GGUF with like 32k context 🥲
 3. Install torch with CUDA support
 4. Install llamacpppython from whl or compile it yourself
 5. Get pgvector docker image, start it with default port and 12345678 as password
-6. Install the vector extension
-7. Change the settings and paths in character.py (I was too lazy to make a config)
-8. (venv) python run.py "hello, how are you?"
+6. Copy the config.yaml.example to config.yaml and edit it to your preference
+    - Change the model paths
+    - Set a custom database name
+    - Edit the character
+7. (venv) python run.py "hello, how are you?"
 
 ## Big To Do's
 

@@ -97,12 +97,12 @@ if __name__ == '__main__':
 
     p = "what is a cat?"
     prompt = a.get_prompt(p, 4000)
-    res = controller.completion_text(LlmPreset.Fast, prompt, comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024))
+    res = controller.completion_text(LlmPreset.Default, prompt, comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024))
     a.add_messages(p, res, 0.9)
 
     p = "and the largest?"
     prompt = a.get_prompt(p, 4000)
-    res = controller.completion_text(LlmPreset.Fast, prompt, comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024))
+    res = controller.completion_text(LlmPreset.Default, prompt, comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024))
     a.add_messages(p, res, 0.9)
 
     prompt = a.get_prompt("end", 4000)

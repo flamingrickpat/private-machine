@@ -39,19 +39,15 @@ class PromptKeyword(str, Enum):
 
 
 class LlmPreset(str, Enum):
-    Mid = "Mid"
-    EmotionSubSystem = "EmotionSubSystem"
-    DeepSeekVent = "DeepSeekVent"
-    DeepSeekMid = "DeepSeekMid"
-    Stheno = "stheno"
-    DeepSeekR1Qwen7B = "dsr1q7"
-    Buddy = "buddy"
-    Fast = "fast"
-    Default = "default"
-    Good = "good"
-    Best = "best"
-    Roleplay = "rp"
-
+    Conscious = "Conscious"
+    CauseEffect = "CauseEffect"
+    Auxiliary = "Auxiliary"
+    Emotion = "Emotion"
+    Summarize = "Summarize"
+    ExtractFacts = "ExtractFacts"
+    Default = "Default"
+    ConvertToInternalThought = "ConvertToInternalThought"
+    GenerateTot = "GenerateTot"
 
 class LlmModel(BaseModel):
     type: LlmType = Field(default=LlmType.LlamaCpp)

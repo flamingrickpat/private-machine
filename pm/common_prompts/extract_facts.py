@@ -18,7 +18,7 @@ def extract_facts(block: str):
         ("user", f"### BEGIN MESSAGES\n{block}\n### END MESSAGES\n"),
     ]
 
-    _, calls = controller.completion_tool(LlmPreset.Fast, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=1024), tools=[Facts])
+    _, calls = controller.completion_tool(LlmPreset.ExtractFacts, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=1024), tools=[Facts])
     facts = []
     for fact in calls[0].facts:
         #print(fact)
@@ -29,7 +29,7 @@ def extract_facts(block: str):
             ("user", f"### BEGIN MESSAGES\n{block}\n### END MESSAGES\n"),
         ]
 
-        _, calls2 = controller.completion_tool(LlmPreset.Fast, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=1024), tools=[TimeInvariance])
+        _, calls2 = controller.completion_tool(LlmPreset.ExtractFacts, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=1024), tools=[TimeInvariance])
         time_variance = calls2[0].time_variance
         facts.append((fact, time_variance))
 

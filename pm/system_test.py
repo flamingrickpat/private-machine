@@ -32,7 +32,7 @@ from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Prompt
 from pm.prompt.get_optimized_prompt import get_optimized_prompt, create_optimized_prompt, get_optimized_prompt_temp_cluster
 from pm.thought.generate_tot import generate_tot_v1
 
-from pm.character import sysprompt, database_uri, CONTEXT_SIZE, CONTEXT_SYS_PROMPT, CLUSTER_SPLIT, companion_name, TIMESTAMP_FORMAT, sysprompt_addendum
+from pm.character import sysprompt, database_uri, context_sys_prompt, cluster_split, companion_name, timestamp_format, sysprompt_addendum
 from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
 from pm.emotion.generate_emotion import generate_first_person_emotion
@@ -78,7 +78,7 @@ def check_tasks():
     for event in unclustered_events:
         sum_token += event.token
 
-    limit = (CONTEXT_SIZE - CONTEXT_SYS_PROMPT) * CLUSTER_SPLIT
+    limit = (controller.get_conscious_context() - context_sys_prompt) * cluster_split
     if sum_token > limit:
         clusterize()
 
@@ -289,7 +289,7 @@ def factorize():
 
         if cluster != prev_cluster and len(event_buffer) > 0:
             events_to_facts(session, event_buffer)
-            #events_to_ca(session, event_buffer)
+            events_to_ca(session, event_buffer)
             event_buffer = []
 
         event_buffer.append(event)
@@ -339,7 +339,7 @@ class ActionSelector(BaseModel):
     reason: str = Field(description="why you chose this action type?")
 
 def get_independant_thought_system_msg():
-    return ("system", f"System Message: The user hasn't responded yet, entering autonomous thinking mode. Current timestamp: {datetime.now().strftime(TIMESTAMP_FORMAT)}\n"
+    return ("system", f"System Message: The user hasn't responded yet, entering autonomous thinking mode. Current timestamp: {datetime.now().strftime(timestamp_format)}\n"
                       f"Please use the provided tools to select an action type.")
 
 def determine_action_type(items) -> ActionSelector:
@@ -348,7 +348,7 @@ def determine_action_type(items) -> ActionSelector:
         for item in items:
             msgs.append(item.to_tuple())
 
-    _, calls = controller.completion_tool(LlmPreset.Best, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
+    _, calls = controller.completion_tool(LlmPreset.Conscious, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
                                           tools=[ActionSelector])
     return calls[0]
 
@@ -358,11 +358,7 @@ class MetaSystemOperationModeDecision(BaseModel):
 
 
 def get_action(prompt: List[PromptItem], complexity: float):
-    if complexity > 0.75:
-        preset = LlmPreset.Best
-    else:
-        preset = LlmPreset.Good
-
+    preset = LlmPreset.Conscious
     return completion_conscious(prompt, preset=preset)
 
 def add_cognitive_event(event: Event):
@@ -389,8 +385,8 @@ def get_prompt() -> List[PromptItem]:
 
     parts = get_optimized_prompt_temp_cluster(events, clusters, event_cluster,
                                               search_string=get_recent_messages_block(6),
-                                              n_context_size=(CONTEXT_SIZE - CONTEXT_SYS_PROMPT),
-                                              n_split=CLUSTER_SPLIT)
+                                              n_context_size=(controller.get_conscious_context() - context_sys_prompt),
+                                              n_split=cluster_split)
 
     # add datetimes
     for i in range(len(parts) - 1, 1, -1):
@@ -404,7 +400,7 @@ def get_prompt() -> List[PromptItem]:
                 part.timestamp,
                 "system",
                 "",
-                f"Current time: {part.timestamp.strftime(TIMESTAMP_FORMAT)}",
+                f"Current time: {part.timestamp.strftime(timestamp_format)}",
                 "",
                 1)
 
@@ -518,7 +514,7 @@ def get_message_to_user(items) -> InitiateUserItem:
         for item in items:
             msgs.append(item.to_tuple())
 
-    _, calls = controller.completion_tool(LlmPreset.Best, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
+    _, calls = controller.completion_tool(LlmPreset.Conscious, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
                                           tools=[InitiateUserItem])
     return calls[0]
 
@@ -531,7 +527,7 @@ def get_internal_contemplation(items) -> InternalContemplationItem:
         for item in items:
             msgs.append(item.to_tuple())
 
-    _, calls = controller.completion_tool(LlmPreset.Best, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
+    _, calls = controller.completion_tool(LlmPreset.Conscious, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
                                           tools=[InternalContemplationItem])
     return calls[0]
 
@@ -626,6 +622,9 @@ def run_mp(inp: str) -> str:
     if inp.strip() == "/think":
         res = run_auto_thinking_procedure()
         return res
+    if inp.strip() == "/sleep":
+        check_tasks()
+        return "clustered and extracted facts!"
     else:
         check_tasks()
         try:

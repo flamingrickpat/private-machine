@@ -21,6 +21,6 @@ def rate_agent_output(instruction, user_input, agent_output) -> float:
                  f"With knowing the input from the user, how would you rate the agents output? Did it fulfill its instructions well?"),
     ]
 
-    _, calls = controller.completion_tool(LlmPreset.Fast, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=256), tools=[Rating])
+    _, calls = controller.completion_tool(LlmPreset.Auxiliary, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=256), tools=[Rating])
     r: Rating = calls[0]
     return r.final_rating

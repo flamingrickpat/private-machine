@@ -129,7 +129,7 @@ def extract_cas(block: str) -> List[CauseEffect]:
 Extract cause-effect relationships in a structured list."""
 
     prompt = convo_to_text_agent.get_prompt(query, mt)
-    content = controller.completion_text(LlmPreset.Fast, prompt,  comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024))
+    content = controller.completion_text(LlmPreset.CauseEffect, prompt,  comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024))
     rating = rate_agent_output(sysprompt_convo_to_text, query, content)
     convo_to_text_agent.add_messages(query, content, rating)
 
@@ -147,7 +147,7 @@ Convert this to the specified JSON format.
     )
     res = []
     prompt = text_to_cause_effect_json_agent.get_prompt(query, mt)
-    _, calls = controller.completion_tool(LlmPreset.Fast, prompt,  comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024), tools=[CauseEffects])
+    _, calls = controller.completion_tool(LlmPreset.CauseEffect, prompt,  comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024), tools=[CauseEffects])
     content = json.dumps(calls[0].model_dump(), indent=2)
     if calls[0].cause_effect_can_be_extracted:
         for ce in calls[0].cause_effects:

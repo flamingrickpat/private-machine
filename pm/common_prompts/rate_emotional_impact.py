@@ -24,5 +24,5 @@ def rate_emotional_impact(context_data, last_input):
         ("user", userprompt)
     ]
 
-    _, calls = controller.completion_tool(LlmPreset.Fast, messages, tools=[EmotionalImpact])
+    _, calls = controller.completion_tool(LlmPreset.Auxiliary, messages, tools=[EmotionalImpact])
     return calls[0].emotional_impact

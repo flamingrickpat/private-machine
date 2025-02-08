@@ -120,5 +120,5 @@ def get_emotional_state(context_data, last_input) -> EmotionalState:
         ("user", userprompt)
     ]
 
-    _, calls = controller.completion_tool(LlmPreset.Fast, messages, tools=[EmotionalState])
+    _, calls = controller.completion_tool(LlmPreset.Auxiliary, messages, tools=[EmotionalState])
     return calls[0]

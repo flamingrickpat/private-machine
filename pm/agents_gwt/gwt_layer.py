@@ -61,4 +61,4 @@ def pregwt_to_internal_thought(context_data: str, recommendations: str) -> str:
         ("user", userprompt)
     ]
 
-    return controller.completion_text(LlmPreset.Fast, messages)
+    return controller.completion_text(LlmPreset.ConvertToInternalThought, messages)

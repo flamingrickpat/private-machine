@@ -26,4 +26,4 @@ def summarize_pre_gwt(context_data: str, agent_conversation: str, agent_task: st
         ("user", userprompt)
     ]
 
-    return controller.completion_text(LlmPreset.Default, messages)
+    return controller.completion_text(LlmPreset.Summarize, messages)

@@ -58,12 +58,12 @@ def to_internal_thought(thought):
     #    ("user", f"{thought}"
     #             f"Can you convert this into a first-person thought for CoT prompting? Do not address the user directly!")
     #]
-    #content = controller.completion_text(LlmPreset.Fast, messages, comp_settings=CommonCompSettings(temperature=0.1, max_tokens=512))
+    #content = controller.completion_text(LlmPreset.ConvertToInternalThought, messages, comp_settings=CommonCompSettings(temperature=0.1, max_tokens=512))
     #messages.append(("assistant", content))
     #messages.append(("user", "Do not address the user directly! Don't forget, you are essentially {companion_name} in our scenario. Also don't make a list, make it sound like a natural inner
     # thought! "
     #                         "Let's try again without addressing {user_name} and without lists. And make it shorter, 1-2 sentences for the thought!"))
-    #content = controller.completion_text(LlmPreset.Fast, messages, comp_settings=CommonCompSettings(temperature=0.1, max_tokens=512))
+    #content = controller.completion_text(LlmPreset.ConvertToInternalThought, messages, comp_settings=CommonCompSettings(temperature=0.1, max_tokens=512))
     #return content
 
 
@@ -102,7 +102,7 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
     else:
         tools = [DiscrimminatoryThoughts]
 
-    content, calls = controller.completion_tool(LlmPreset.Fast, messages, comp_settings=CommonCompSettings(temperature=0.8, repeat_penalty=1.1, max_tokens=2048), tools=tools)
+    content, calls = controller.completion_tool(LlmPreset.GenerateTot, messages, comp_settings=CommonCompSettings(temperature=0.8, repeat_penalty=1.1, max_tokens=2048), tools=tools)
     state = {}
     for call in calls:
         thoughts = copy(call.thoughts)
@@ -122,7 +122,7 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
 
             rating = 0
             possibility = 0
-            content, calls = controller.completion_tool(LlmPreset.Fast, messages, comp_settings=CommonCompSettings(temperature=0.6, repeat_penalty=1, max_tokens=2048), tools=[ThoughtRating])
+            content, calls = controller.completion_tool(LlmPreset.GenerateTot, messages, comp_settings=CommonCompSettings(temperature=0.6, repeat_penalty=1, max_tokens=2048), tools=[ThoughtRating])
             for call in calls:
                 if isinstance(call, ThoughtRating):
                     rating = (call.relevance + call.emotion + call.novelty + call.realism + call.possibility + call.effectiveness) / 6

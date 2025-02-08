@@ -7,7 +7,7 @@ from sqlmodel import Field, Session, SQLModel, create_engine, select, col
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, text, INTEGER
 
-from pm.character import TIMESTAMP_FORMAT, user_name, database_uri
+from pm.character import timestamp_format, user_name, database_uri
 
 
 class PromptItem:
@@ -153,7 +153,7 @@ class Cluster(SQLModel, table=True):
                 self.timestamp_from,
                 "system",
                 "",
-                f"Current time: {self.timestamp_from.strftime(TIMESTAMP_FORMAT)}",
+                f"Current time: {self.timestamp_from.strftime(timestamp_format)}",
                 "",
                 1)
 
@@ -165,7 +165,7 @@ class Cluster(SQLModel, table=True):
                 str(uuid.uuid4()),
                 self.timestamp_from,
                 "system",
-                f"You remember this happening between {self.timestamp_from.strftime(TIMESTAMP_FORMAT)} and {self.timestamp_to.strftime(TIMESTAMP_FORMAT)}: <memory>",
+                f"You remember this happening between {self.timestamp_from.strftime(timestamp_format)} and {self.timestamp_to.strftime(timestamp_format)}: <memory>",
                 self.summary,
                 f"</memory>",
                 1)]
