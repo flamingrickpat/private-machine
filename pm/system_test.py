@@ -160,7 +160,7 @@ def events_to_ca(session, events: List[Event]):
     for event in events:
         lines.append(f"{event.source}: {event.content}")
 
-    max_fact_event_id = session.exec(func.max(CauseEffect.max_event_id)).scalar() or 0
+    max_fact_event_id = session.exec(func.max(CauseEffectDbEntry.max_event_id)).scalar() or 0
 
     # Check if the minimum event ID in the cluster is greater than the maximum event ID in the Fact table
     min_event_id = min([event.id for event in events])
@@ -289,7 +289,7 @@ def factorize():
 
         if cluster != prev_cluster and len(event_buffer) > 0:
             events_to_facts(session, event_buffer)
-            events_to_ca(session, event_buffer)
+            #events_to_ca(session, event_buffer)
             event_buffer = []
 
         event_buffer.append(event)

@@ -22,10 +22,10 @@ class Valence(StrEnum):
 
 
 class GenerativeThought(BaseModel):
-    observation: str = Field(default="")
-    context_ai_companion: str = Field(default="")
-    analysis: str = Field(default="")
-    action: str = Field(default="")
+    observation: str = Field()
+    context_ai_companion: str = Field()
+    analysis: str = Field()
+    action: str = Field()
 
 class GenerativeThoughts(BaseModel):
     thoughts: List[GenerativeThought] = Field(default_factory=list)
@@ -34,10 +34,10 @@ class GenerativeThoughts(BaseModel):
         return True
 
 class DiscrimminatoryThought(BaseModel):
-    reflective_thought_observation: str = Field(default="")
-    context_world: str = Field(default="")
-    possible_complication: str = Field(default="")
-    worst_case_scenario: str = Field(default="")
+    reflective_thought_observation: str = Field()
+    context_world: str = Field()
+    possible_complication: str = Field()
+    worst_case_scenario: str = Field()
 
 class DiscrimminatoryThoughts(BaseModel):
     thoughts: List[DiscrimminatoryThought] = Field(default_factory=list)
