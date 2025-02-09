@@ -316,8 +316,11 @@ def generate_tot_v1(context: str, knowledge: str, max_depth: int):
         parts.append(node.content)
 
     # Export to NetworkX
-    graph = export_to_networkx(thought_tree)
-    nx.write_gml(graph, f"./logs/thought_tree_{uuid.uuid4().hex}.gml")
+    try:
+        graph = export_to_networkx(thought_tree)
+        nx.write_gml(graph, f"./logs/thought_tree_{uuid.uuid4().hex}.gml")
+    except:
+        pass
 
     return "\n".join(parts)
 

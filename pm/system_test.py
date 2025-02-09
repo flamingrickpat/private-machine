@@ -1,5 +1,6 @@
 import sys
 import os
+import traceback
 import uuid
 
 from pydantic import BaseModel
@@ -314,7 +315,7 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
         for item in items:
             msgs.append(item.to_tuple())
 
-        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024))
+        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=4096))
 
         cache_user_input = controller.cache_user_input
         cache_emotion = controller.cache_emotion
@@ -325,7 +326,7 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
         msgs.append(("system", "System Warning: Answer does not pass the meta-learning check and was not sent."
                                f"Please use these tips to craft a new, better response: ### BEGIN TIPS\n{feedback}\n### END TIPS"))
 
-        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024))
+        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=4096))
         event = Event(
             source=f"{companion_name}",
             content=content.strip(),
@@ -726,7 +727,7 @@ def get_action_only():
 
     return rating, state
 
-TEST_MODE = False
+TEST_MODE = True
 
 def run_system_cli():
     init_db()
@@ -741,6 +742,7 @@ def run_system_cli():
             controller.commit_db()
     except Exception as e:
         print(e)
+        print(traceback.format_exc())
         controller.rollback_db()
 
 
@@ -758,6 +760,7 @@ def run_system_mp(inp: str) -> str:
             controller.commit_db()
     except Exception as e:
         print(e)
+        print(traceback.format_exc())
         controller.rollback_db()
     return res
 

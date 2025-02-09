@@ -3,7 +3,7 @@
 *I'll be your machinery*
 
 A local AI companion framework with structured memory, clustering, and emotion analysis. 
-You only need to be able to run a 40GB GGUF with like 32k context 🥲
+With Dolphin3.0-R1-Mistral-24B you can run it on a single 24GB VRAM card!
 
 ## Installation
 
@@ -13,11 +13,12 @@ You only need to be able to run a 40GB GGUF with like 32k context 🥲
 2. Install requirements
 3. Install torch with CUDA support
 4. Install llamacpppython from whl or compile it yourself
-5. Get pgvector docker image, start it with default port and 12345678 as password
+5. Get pgvector docker image, start it with default port and password as password
 6. Copy the config.yaml.example to config.yaml and edit it to your preference
     - Change the model paths
     - Set a custom database name
     - Edit the character
+    - Switch to your preferred model (cognitivecomputations_Dolphin3.0-R1-Mistral-24B-Q4_K_M.gguf seems to do the job well enough)
 7. (venv) python -m spacy download en_core_web_trf
 8. (venv) python run.py "hello, how are you?"
 

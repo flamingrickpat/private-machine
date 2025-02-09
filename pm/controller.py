@@ -168,15 +168,15 @@ class Controller:
             else:
                 break
 
+        content = None
         tools = comp_settings.tools_json
         if len(tools) == 0:
             res = self.llm.create_chat_completion_openai_v1(openai_inp, **comp_args)
+            finish_reason = res.choices[0].finish_reason
             content = res.choices[0].message.content
-
+            calls = []
             if discard_thinks:
                 content = content.split("</think>")[-1]
-
-            return content.strip(), []
         else:
             gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation([tools[0]])
             grammar = LlamaGrammar(_grammar=gbnf_grammar)
@@ -184,12 +184,17 @@ class Controller:
                 try:
                     res = self.llm.create_chat_completion_openai_v1(openai_inp, grammar=grammar, **comp_args)
                     content = res.choices[0].message.content
+                    finish_reason = res.choices[0].finish_reason
                     good_json_string = repair_json(content)
                     calls = [tools[0].model_validate_json(good_json_string)]
-                    return content, calls
+                    break
                 except Exception as e:
                     print(e)
-                    pass
+
+        content = content.strip()
+        inp_formatted.append(("assistant", content))
+        log_conversation(inp_formatted, log_file_path + f".completion_{finish_reason}.log", 200)
+        return content, calls
 
     def completion_text(self,
                         preset: LlmPreset,
