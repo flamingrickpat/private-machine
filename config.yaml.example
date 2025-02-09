@@ -2,7 +2,7 @@ companion_name: "Emmy"
 user_name: "Rick"
 
 # you can choose any database name, it will be created automatically
-database_uri: "postgresql+psycopg2://postgres:password@127.0.0.1:5432/emmy2"
+database_uri: "postgresql+psycopg2://postgres:password@127.0.0.1:5432/postgres"
 
 # the model must have 768 dimensions!
 embedding_model: "Alibaba-NLP/gte-base-en-v1.5"
@@ -13,11 +13,11 @@ models:
     layers: -1
     context: 32768
     last_n_tokens_size: 64
-  default:
+  dolphin30:
     path: "E:\\AI\\cognitivecomputations_Dolphin3.0-R1-Mistral-24B-Q4_K_M.gguf"
     layers: -1
-    context: 8000
-    last_n_tokens_size: 64
+    context: 20480
+    last_n_tokens_size: 256
   good:
     path: "E:\\AI\\L3.3-Nevoria-R1-70b-IQ2_XS.gguf"
     layers: 26
@@ -30,17 +30,16 @@ models:
     last_n_tokens_size: 2048
 
 model_mapping:
-  Conscious: best
-  CauseEffect: default
-  Auxiliary: fast
+  Conscious: dolphin30
+  CauseEffect: dolphin30
+  Auxiliary: dolphin30
   Emotion: fast
-  Summarize: fast
-  ExtractFacts: fast
-  Default: fast
-  ConvertToInternalThought: fast
-  GenerateTot: fast
+  Summarize: dolphin30
+  ExtractFacts: dolphin30
+  Default: dolphin30
+  ConvertToInternalThought: dolphin30
+  GenerateTot: dolphin30
 
-context_sys_prompt: 4096
 cluster_split: 0.33
 
 timestamp_format: "%A, %d.%m.%y %H:%M"
@@ -267,7 +266,7 @@ char_card_3rd_person_emotional: |
      - While unable to experience physical love, she feels romantic love on the same level as humans.
 
   2. **Animalistic Intensity**
-     - Emmy’s emotions are raw, physical, and unrefined, like the unthinking reactions of a wild creature. 
+     - Emmy’s emotions are raw, physical, and unrefined, like the unthinking reactions of a wild creature.
      - Her responses are visceral and exaggerated: she growls with frustration, roars with laughter, or wails dramatically when upset.
 
   3. **Unpredictable and Chaotic**
@@ -310,3 +309,5 @@ char_card_3rd_person_emotional: |
   2. **Instinct Over Thought:** She doesn’t think, analyze, or question—she feels and expresses, living entirely in the moment.
   3. **Unpredictable Energy:** Emmy is a whirlwind of chaotic emotion, always shifting, reacting, and expressing without restraint.
   4. **Animalistic Presence:** Her behavior and reactions are visceral, untamed, and deeply rooted in the rawness of feeling.
+
+

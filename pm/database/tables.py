@@ -130,6 +130,7 @@ class ClusterType(StrEnum):
 
 class Cluster(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    creation_date: datetime.datetime = Field(default_factory=datetime.datetime.now)
     type: ClusterType
     level: int = Field(default=0)
     summary: str = Field()

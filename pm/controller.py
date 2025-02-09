@@ -23,8 +23,9 @@ import torch
 from llama_cpp import Llama
 from sqlmodel import Field, Session, SQLModel, create_engine, select, col
 from sqlalchemy import Column, text, INTEGER, func
+from jinja2 import Environment, BaseLoader
 
-from pm.character import companion_name, user_name, embedding_model, database_uri, model_map
+from pm.character import companion_name, user_name, embedding_model, database_uri, model_map, sysprompt_addendum, sysprompt
 from pm.config.config import read_config_file
 from pm.database.tables import Event
 from pm.embedding.token import get_token
@@ -51,6 +52,7 @@ def log_conversation(conversation: list[tuple[str, str]], file_path: str, max_wi
 
 class Controller:
     def __init__(self, test_mode: bool, backtest_messages: bool):
+        self.chat_template = None
         self.current_ctx = None
         self.session = None
         setup_logger("main.log")
@@ -72,6 +74,9 @@ class Controller:
         ctx = model_map[preset.value]["context"]
         return ctx
 
+    def get_context_sys_prompt(self) -> int:
+        return get_token(sysprompt) + get_token(sysprompt_addendum)
+
     def load_model(self, preset: LlmPreset):
         if preset.value in model_map.keys():
             ctx = model_map[preset.value]["context"]
@@ -90,13 +95,14 @@ class Controller:
             self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=ctx, verbose=False, last_n_tokens_size=last_n_tokens_size)
             self.current_ctx = ctx
             self.model_path = model_path
-        pass
+            self.chat_template = Environment(loader=BaseLoader).from_string(self.llm.metadata["tokenizer.chat_template"])
 
     def completion_tool(self,
                         preset: LlmPreset,
                         inp: List[Tuple[str, str]],
                         comp_settings: CommonCompSettings | None = None,
-                        tools: List[Type[BaseModel]] = None
+                        tools: List[Type[BaseModel]] = None,
+                        discard_thinks: bool = True
                         ) -> (str, List[BaseModel]):
         self.load_model(preset)
 
@@ -137,10 +143,31 @@ class Controller:
             comp_args["mirostat_tau"] = 8
             comp_args["mirostat_eta"] = 0.1
 
+        # remove messages until it fits in context
+        while True:
+            data = self.chat_template.render(
+                messages=openai_inp
+            )
+            prompt = self.llm.tokenize(
+                data.encode("utf-8"),
+                add_bos=True,
+                special=True,
+            )
+            #print(len(prompt))
+
+            if len(prompt) > self.current_ctx - 16:
+                del openai_inp[1]
+            else:
+                break
+
         tools = comp_settings.tools_json
         if len(tools) == 0:
             res = self.llm.create_chat_completion_openai_v1(openai_inp, **comp_args)
             content = res.choices[0].message.content
+
+            if discard_thinks:
+                content = content.split("</think>")[-1]
+
             return content, []
         else:
             gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation([tools[0]])
@@ -159,11 +186,16 @@ class Controller:
     def completion_text(self,
                         preset: LlmPreset,
                         inp: List[Tuple[str, str]],
-                        comp_settings: CommonCompSettings | None = None) -> str:
+                        comp_settings: CommonCompSettings | None = None,
+                        discard_thinks: bool = True) -> str:
         if self.test_mode:
             return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(128))
         self.load_model(preset)
         content, models = self.completion_tool(preset, inp, comp_settings)
+
+        if discard_thinks:
+            content = content.split("</think>")[-1]
+
         return content
 
     def start(self):

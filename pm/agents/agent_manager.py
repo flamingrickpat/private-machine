@@ -290,7 +290,7 @@ def execute_boss_worker_chat(base_state, context_data: str, task: str, agents: L
         convert_to_memory=convert_to_memory,
         llmpreset=llmpreset.value
     )
-    state = graph.invoke(state, {"recursion_limit": 100})
+    state = graph.invoke(state, {"recursion_limit": 1024})
 
     msgs = []
     for agent in agents:

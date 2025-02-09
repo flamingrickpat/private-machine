@@ -214,8 +214,9 @@ def _execute_router(state: SubAgentState, agents: List[Agent]):
         return state
     state["cur_rounds"] = state["cur_rounds"] + 1
 
-    if state["cur_rounds"] > state["max_rounds"]:
+    if state["routing_count"] > state["max_rounds"]:
         state["next_agent"] = END
+        return state
 
     if state["routing"] == "round_robin":
         if state["agent_idx"] >= len(agents):
@@ -322,7 +323,7 @@ class BossWorkerChatResult(BaseModel):
 
 
 def execute_boss_worker_chat_pregwt(base_state, context_data: str, task: str, agents: List[Agent], min_confidence: float = 0.5,
-                             convert_to_memory: bool = False, round_robin: bool = False, max_rounds: int = 100, llmpreset: LlmPreset = LlmPreset.Default) -> BossWorkerChatResult:
+                             convert_to_memory: bool = False, round_robin: bool = False, max_rounds: int = 32, llmpreset: LlmPreset = LlmPreset.Default) -> BossWorkerChatResult:
     workflow = StateGraph(SubAgentState)
     workflow.add_node("router", lambda x: _execute_router(x, agents))
     workflow.add_edge(START, "router")
@@ -380,7 +381,7 @@ def execute_boss_worker_chat_pregwt(base_state, context_data: str, task: str, ag
         cur_rounds=0,
         llmpreset=llmpreset
     )
-    state = graph.invoke(state, {"recursion_limit": 100})
+    state = graph.invoke(state, {"recursion_limit": 1024})
 
     msgs = []
     for agent in agents:

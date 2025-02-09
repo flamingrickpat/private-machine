@@ -12,7 +12,6 @@ user_name = ""
 database_uri = ""
 embedding_model = ""
 
-context_sys_prompt = 4096
 cluster_split = 0.33
 
 timestamp_format = ""
@@ -37,7 +36,6 @@ global_map = {
     "user_name": config_data.get("user_name", ""),
     "database_uri": config_data.get("database_uri", ""),
     "embedding_model": config_data.get("embedding_model", ""),
-    "context_sys_prompt": config_data.get("context_sys_prompt", 4096),
     "cluster_split": config_data.get("cluster_split", 0.33),
     "timestamp_format": config_data.get("timestamp_format", ""),
     "sysprompt": config_data.get("sysprompt", ""),
@@ -76,4 +74,8 @@ if not database_exists(engine.url):
 if __name__ == "__main__":
     for key, value in global_map.items():
         print(f"{key}: {value}")
+
+    print(get_token(sysprompt))
+    print(get_token(sysprompt_addendum))
+
 

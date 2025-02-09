@@ -32,7 +32,7 @@ from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Prompt
 from pm.prompt.get_optimized_prompt import get_optimized_prompt, create_optimized_prompt, get_optimized_prompt_temp_cluster
 from pm.thought.generate_tot import generate_tot_v1
 
-from pm.character import sysprompt, database_uri, context_sys_prompt, cluster_split, companion_name, timestamp_format, sysprompt_addendum
+from pm.character import sysprompt, database_uri, cluster_split, companion_name, timestamp_format, sysprompt_addendum
 from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
 from pm.emotion.generate_emotion import generate_first_person_emotion
@@ -78,7 +78,7 @@ def check_tasks():
     for event in unclustered_events:
         sum_token += event.token
 
-    limit = (controller.get_conscious_context() - context_sys_prompt) * cluster_split
+    limit = (controller.get_conscious_context() - controller.get_context_sys_prompt()) * cluster_split
     if sum_token > limit:
         clusterize()
 
@@ -189,6 +189,7 @@ def events_to_ca(session, events: List[Event]):
 
 def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
     session = controller.get_session()
+    msgs_prev = []
     for cluster in clusters:
         event_ids = []
         for context_cluster_id in cluster.items:
@@ -204,6 +205,12 @@ def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
             if len(tmp) > 0:
                 event = tmp[0]
                 msgs.append(f"{event.source}: {event.content}")
+
+        same_as_prev = all(x == y for x, y in zip(msgs, msgs_prev))
+        msgs_prev = msgs
+
+        if same_as_prev:
+            continue
 
         sum = summarize_messages(msgs)
         tc = Cluster(
@@ -385,7 +392,7 @@ def get_prompt() -> List[PromptItem]:
 
     parts = get_optimized_prompt_temp_cluster(events, clusters, event_cluster,
                                               search_string=get_recent_messages_block(6),
-                                              n_context_size=(controller.get_conscious_context() - context_sys_prompt),
+                                              n_context_size=(controller.get_conscious_context() - controller.get_context_sys_prompt()),
                                               n_split=cluster_split)
 
     # add datetimes
