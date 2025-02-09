@@ -63,6 +63,10 @@ class Controller:
         self.test_mode = test_mode
         self.backtest_messages = backtest_messages
 
+        self.cache_user_input: str = ""
+        self.cache_emotion: str = ""
+        self.cache_tot: str = ""
+
         self.model = None
         if not self.test_mode:
             self.model = SentenceTransformer(embedding_model, trust_remote_code=True)

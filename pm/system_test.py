@@ -37,6 +37,7 @@ from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
 from pm.emotion.generate_emotion import generate_first_person_emotion
 from pm.common_prompts.get_emotional_state import get_emotional_state
+from pm.meta_learning.integrate_rules_final_output import integrate_rules_final_output
 
 def get_engine():
     return create_engine(database_uri)
@@ -313,21 +314,27 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
         for item in items:
             msgs.append(item.to_tuple())
 
-    while True:
         content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024))
-        if "<think>" in content:
-            msgs.append(("assistant", content))
-        else:
-            #print(f"{companion_name}: {content.strip()}")
-            event = Event(
-                source=f"{companion_name}",
-                content=content.strip(),
-                embedding=controller.get_embedding(content),
-                token=get_token(content),
-                timestamp=datetime.now(),
-                interlocus=1
-            )
-            return event
+
+        cache_user_input = controller.cache_user_input
+        cache_emotion = controller.cache_emotion
+        cache_tot = controller.cache_tot
+        facts = get_learned_rules_block(64, cache_user_input + cache_emotion + cache_tot + content)
+        feedback = integrate_rules_final_output(cache_user_input, cache_emotion, cache_tot, content, facts)
+
+        msgs.append(("system", "System Warning: Answer does not pass the meta-learning check and was not sent."
+                               f"Please use these tips to craft a new, better response: ### BEGIN TIPS\n{feedback}\n### END TIPS"))
+
+        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024))
+        event = Event(
+            source=f"{companion_name}",
+            content=content.strip(),
+            embedding=controller.get_embedding(content),
+            token=get_token(content),
+            timestamp=datetime.now(),
+            interlocus=1
+        )
+        return event
 
 
 class OperationMode(StrEnum):
@@ -473,6 +480,13 @@ def get_facts_block(n_facts: int, search_string: str) -> str:
     return "\n".join([f.content for f in facts])
 
 
+def get_learned_rules_block(n_facts: int, search_string: str) -> str:
+    emb = controller.get_embedding(search_string)
+    session = controller.get_session()
+    facts: List[CauseEffectDbEntry] = session.exec(select(CauseEffectDbEntry).order_by(CauseEffectDbEntry.embedding.cosine_distance(emb)).limit(n_facts)).fetchall()
+    return "\n".join([f"Cause: '{f.cause}' Effect: '{f.effect}'" for f in facts])
+
+
 def generate_context_tot(complexity: float) -> Event:
     if complexity < 0.8:
         max_depth = 2
@@ -482,6 +496,9 @@ def generate_context_tot(complexity: float) -> Event:
     ctx = get_recent_messages_block(24)
     k = get_facts_block(64, get_recent_messages_block(4))
     thought = generate_tot_v1(ctx, k, max_depth)
+
+    controller.cache_tot = thought
+
     event = Event(
         source=f"{companion_name}",
         content=thought,
@@ -498,6 +515,9 @@ def generate_emotion_tot():
     ctx = get_recent_messages_block(8)
     lm = get_recent_messages_block(1)
     thought = generate_first_person_emotion(ctx, lm)
+
+    controller.cache_emotion = thought
+
     event = Event(
         source=f"{companion_name}",
         content=thought,
@@ -633,6 +653,7 @@ def run_mp(inp: str) -> str:
         check_tasks()
         return "clustered and extracted facts!"
     else:
+        controller.cache_user_input = inp.strip()
         check_tasks()
         try:
             sensation = get_sensation(override=inp)
