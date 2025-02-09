@@ -89,7 +89,7 @@ class Event(SQLModel, table=True):
                     "assistant",
                     "<think>\nTo craft a better response, I will now generate a Tree Of Thoughts based on recent events.\n",
                     self.content,
-                    f"\nAction: Now I'll include all these thoughts into the final resposne directed at my user {user_name}.\n</think>",
+                    f"\nAction: Now I'll include all these thoughts into the final response directed at my user {user_name}.\n</think>",
                     -1)]
         elif self.interlocus == InterlocusType.Contemplation.value:
             return [

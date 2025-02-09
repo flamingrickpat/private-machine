@@ -31,6 +31,7 @@ from pm.database.tables import Event
 from pm.embedding.token import get_token
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.log_utils import setup_logger
+from pm.nlp.nlp_spacy import NlpSpacy
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,9 @@ class Controller:
             if torch.cuda.is_available():
                 device = 'cuda'
                 self.model = self.model.to(device)
+
+        self.spacy: NlpSpacy = NlpSpacy()
+        self.spacy.init_model()
 
     def get_conscious_context(self) -> int:
         preset = LlmPreset.Conscious
@@ -168,7 +172,7 @@ class Controller:
             if discard_thinks:
                 content = content.split("</think>")[-1]
 
-            return content, []
+            return content.strip(), []
         else:
             gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation([tools[0]])
             grammar = LlamaGrammar(_grammar=gbnf_grammar)
@@ -196,7 +200,7 @@ class Controller:
         if discard_thinks:
             content = content.split("</think>")[-1]
 
-        return content
+        return content.strip()
 
     def start(self):
         pass

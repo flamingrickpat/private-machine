@@ -52,9 +52,41 @@ class NlpSpacy(BaseNlp):
     def convert_third_person_to_first_person(self, text: str, name: str) -> str:
         self.init_model()
         resolved_text = self.resolve_coreferences(text)
-        lines = resolved_text.split('\n')
-        converted_lines = [self._convert_line(line, name) for line in lines]
-        return '\n'.join(converted_lines)
+        doc = self.nlp(resolved_text)
+        return self._convert_sentence_to_first_person(doc, name)
+
+    def _convert_sentence_to_first_person(self, doc: Doc, name: str) -> str:
+        converted_tokens = []
+        name_lower = name.lower()
+        for i, token in enumerate(doc):
+            token_text_lower = token.text.lower()
+
+            if token_text_lower == name_lower:
+                converted_tokens.append("I")
+            elif token_text_lower == name_lower + "'s":
+                converted_tokens.append("my")
+            elif token_text_lower == name_lower + "'ll":
+                converted_tokens.append("I'll")
+            elif token.dep_ == "poss" and token.head.text.lower() == name_lower:
+                converted_tokens.append("my")
+            elif token.dep_ == "nsubj" and token_text_lower == name_lower:
+                converted_tokens.append("I")
+            elif token.dep_ == "dobj" and token_text_lower == name_lower:
+                converted_tokens.append("me")
+            elif token.dep_ == "pobj" and token_text_lower == name_lower:
+                converted_tokens.append("me")
+            elif token.dep_ == "nsubj" and token_text_lower in ["he", "she", "it"]:
+                converted_tokens.append("I")
+            elif token.dep_ == "poss" and token_text_lower in ["his", "her", "its"]:
+                converted_tokens.append("mine")
+            elif token.dep_ == "dobj" and token_text_lower in ["him", "her"]:
+                converted_tokens.append("me")
+            elif token.dep_ == "pobj" and token_text_lower in ["him", "her"]:
+                converted_tokens.append("me")
+            else:
+                converted_tokens.append(token.text)
+
+        return " ".join(converted_tokens).replace(" my 's", " my").replace("my '", "my").replace("' 's", "").replace(f"{name}s", "my")
 
     def convert_third_person_to_instruction(self, text: str, name: str) -> str:
         self.init_model()

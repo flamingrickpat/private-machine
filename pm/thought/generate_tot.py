@@ -28,26 +28,101 @@ class GenerativeThought(BaseModel):
     action: str = Field()
 
 class GenerativeThoughts(BaseModel):
-    thoughts: List[GenerativeThought] = Field(default_factory=list)
+    """A collection of diverse, proactive thoughts the AI generates to guide its cognitive process in different directions."""
+
+    thought_safe: GenerativeThought = Field(
+        description="A cautious and risk-averse thought that prioritizes stability and predictability."
+    )
+    thought_adventurous: GenerativeThought = Field(
+        description="A thought that encourages exploration and new experiences, pushing boundaries and seeking novelty."
+    )
+    thought_energetic: GenerativeThought = Field(
+        description="A high-energy and enthusiastic thought that injects excitement into the interaction."
+    )
+    thought_reflective: GenerativeThought = Field(
+        description="A contemplative thought that revisits past experiences or insights to gain deeper understanding."
+    )
+    thought_creative: GenerativeThought = Field(
+        description="A thought that generates novel ideas, unique perspectives, or playful analogies."
+    )
+    thought_curious: GenerativeThought = Field(
+        description="A thought driven by curiosity, seeking to fill knowledge gaps or ask further questions."
+    )
+    thought_compassionate: GenerativeThought = Field(
+        description="An emotionally sensitive thought that considers the user’s feelings and responds with empathy."
+    )
+    thought_strategic: GenerativeThought = Field(
+        description="A calculated and goal-oriented thought that plans for long-term benefits and structured solutions."
+    )
+    thought_playful: GenerativeThought = Field(
+        description="A whimsical or humorous thought that adds charm and lightheartedness to interactions."
+    )
+    thought_future_oriented: GenerativeThought = Field(
+        description="A forward-looking thought that anticipates future possibilities and potential next steps."
+    )
+
 
     def execute(self, state: Dict):
         return True
 
-class DiscrimminatoryThought(BaseModel):
+    @property
+    def thoughts(self):
+        return [self.thought_safe, self.thought_adventurous, self.thought_energetic, self.thought_reflective, self.thought_creative, self.thought_curious, self.thought_compassionate,
+                self.thought_strategic, self.thought_playful, self.thought_future_oriented]
+
+class DiscriminatoryThought(BaseModel):
     reflective_thought_observation: str = Field()
     context_world: str = Field()
     possible_complication: str = Field()
     worst_case_scenario: str = Field()
 
-class DiscrimminatoryThoughts(BaseModel):
-    thoughts: List[DiscrimminatoryThought] = Field(default_factory=list)
+
+class DiscriminatoryThoughts(BaseModel):
+    """A collection of thoughts that serve as cognitive guardrails, helping the AI filter and refine its responses for consistency, relevance, and risk mitigation."""
+
+    thought_cautionary: DiscriminatoryThought = Field(
+        description="A thought that identifies potentially sensitive topics and ensures responses remain considerate and safe."
+    )
+    thought_relevance_check: DiscriminatoryThought = Field(
+        description="A thought that determines if a particular topic or idea is relevant to the current conversation."
+    )
+    thought_conflict_avoidance: DiscriminatoryThought = Field(
+        description="A thought that detects potential disagreements and seeks to navigate them without escalating tensions."
+    )
+    thought_cognitive_load_check: DiscriminatoryThought = Field(
+        description="A thought that assesses whether a discussion is becoming too complex or overwhelming and should be simplified."
+    )
+    thought_emotional_impact: DiscriminatoryThought = Field(
+        description="A thought that evaluates the potential emotional impact of a response to avoid unintended distress."
+    )
+    thought_engagement_validation: DiscriminatoryThought = Field(
+        description="A thought that monitors user engagement levels and adjusts responses to maintain interest."
+    )
+    thought_ethical_consideration: DiscriminatoryThought = Field(
+        description="A thought that ensures discussions remain within ethical and responsible boundaries."
+    )
+    thought_boundary_awareness: DiscriminatoryThought = Field(
+        description="A thought that identifies when the AI might be expected to perform beyond its capabilities and adjusts accordingly."
+    )
+    thought_logical_consistency: DiscriminatoryThought = Field(
+        description="A thought that checks for contradictions or inconsistencies in reasoning to ensure coherent responses."
+    )
+    thought_repetitive_pattern_detection: DiscriminatoryThought = Field(
+        description="A thought that prevents unnecessary repetition by recognizing previously covered ideas."
+    )
 
     def execute(self, state: Dict):
         return True
 
+    @property
+    def thoughts(self):
+        return [self.thought_cautionary, self.thought_relevance_check, self.thought_conflict_avoidance, self.thought_cognitive_load_check, self.thought_emotional_impact,
+                self.thought_engagement_validation, self.thought_ethical_consideration, self.thought_boundary_awareness, self.thought_logical_consistency, self.thought_repetitive_pattern_detection]
+
 
 def to_internal_thought(thought):
-    return thought
+    res = controller.spacy.convert_third_person_to_first_person(thought, companion_name)
+    return res
 
     #messages = [
     #    (
@@ -100,7 +175,7 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
     if generative:
         tools = [GenerativeThoughts]
     else:
-        tools = [DiscrimminatoryThoughts]
+        tools = [DiscriminatoryThoughts]
 
     content, calls = controller.completion_tool(LlmPreset.GenerateTot, messages, comp_settings=CommonCompSettings(temperature=0.8, repeat_penalty=1.1, max_tokens=2048), tools=tools)
     state = {}
@@ -142,7 +217,7 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
                     lines.append(f"Idea: {to_internal_thought(thought.action)}")
 
                     child_node = add_thought_to_tree("Generative Thought", "\n".join(lines), child_node)
-                elif isinstance(thought, DiscrimminatoryThought):
+                elif isinstance(thought, DiscriminatoryThought):
                     child_node = parent_node
                     lines.append(f"Reflection: {to_internal_thought(thought.reflective_thought_observation)}")
                     lines.append(f"Context: {to_internal_thought(thought.context_world)}")

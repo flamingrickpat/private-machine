@@ -108,7 +108,7 @@ FOCUS ON THE LAST MESSAGE!
             ))
 
         state = {}
-        result = execute_boss_worker_chat_pregwt(state, context, subsystem.goal, agents, min_confidence=0.8, max_rounds=20, round_robin=True, llmpreset=LlmPreset.Emotion)
+        result = execute_boss_worker_chat_pregwt(state, context, subsystem.goal, agents, min_confidence=0.8, max_rounds=16, round_robin=True, llmpreset=LlmPreset.Emotion)
 
         # add subagent messages
         subagent_messages = []

@@ -18,7 +18,8 @@ You only need to be able to run a 40GB GGUF with like 32k context 🥲
     - Change the model paths
     - Set a custom database name
     - Edit the character
-7. (venv) python run.py "hello, how are you?"
+7. (venv) python -m spacy download en_core_web_trf
+8. (venv) python run.py "hello, how are you?"
 
 ## Big To Do's
 
