@@ -19,8 +19,17 @@ With Dolphin3.0-R1-Mistral-24B you can run it on a single 24GB VRAM card!
     - Set a custom database name
     - Edit the character
     - Switch to your preferred model (cognitivecomputations_Dolphin3.0-R1-Mistral-24B-Q4_K_M.gguf seems to do the job well enough)
-7. (venv) python -m spacy download en_core_web_trf
-8. (venv) python run.py "hello, how are you?"
+7. ```(venv) python -m spacy download en_core_web_trf```
+8. ```(venv) python run.py "hello, how are you?"```
+
+## Telegram
+
+If you don't want to use console, there is also a Telegram Client. Just copy .env.example to .env and set your tokens.
+Start the service like this:
+
+```(venv) python .\pm\main_interface.py```
+
+The messages will be relayed from and to Telegram.
 
 ## Big To Do's
 

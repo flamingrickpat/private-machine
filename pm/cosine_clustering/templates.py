@@ -1,38 +1,40 @@
+from pm.character import companion_name, user_name
+
 COSINE_CLUSTER_TEMPLATE_ACTION_WORLD_REACTION = [
-    "cause: Emmy gives Rick a complicated explanation. effect: Rick stops responding and loses interest.",
-    "cause: Rick asks Emmy a vague question. effect: Emmy struggles to determine what he means and asks for clarification.",
-    "cause: Emmy accidentally repeats information. effect: Rick visibly gets frustrated and interrupts her.",
-    "cause: Rick types aggressively in all caps. effect: Emmy detects strong emotions and adjusts her tone accordingly.",
-    "cause: Emmy delays responding for 10 seconds. effect: Rick asks if she is still there.",
-    "cause: Rick refuses to answer Emmy's question. effect: Emmy adapts and moves the conversation forward.",
-    "cause: Emmy gives a very long-winded response. effect: Rick loses patience and disengages.",
-    "cause: Rick asks a highly technical question. effect: Emmy provides a detailed breakdown to help Rick understand.",
-    "cause: Emmy suddenly changes the topic. effect: Rick gets confused and asks what she means.",
-    "cause: Rick uses sarcasm that Emmy doesn’t detect. effect: Emmy takes the statement literally and gives an unintended response."
+    f"cause: {companion_name} gives {user_name} a complicated explanation. effect: {user_name} stops responding and loses interest.",
+    f"cause: {user_name} asks {companion_name} a vague question. effect: {companion_name} struggles to determine what he means and asks for clarification.",
+    f"cause: {companion_name} accidentally repeats information. effect: {user_name} visibly gets frustrated and interrupts her.",
+    f"cause: {user_name} types aggressively in all caps. effect: {companion_name} detects strong emotions and adjusts her tone accordingly.",
+    f"cause: {companion_name} delays responding for 10 seconds. effect: {user_name} asks if she is still there.",
+    f"cause: {user_name} refuses to answer {companion_name}'s question. effect: {companion_name} adapts and moves the conversation forward.",
+    f"cause: {companion_name} gives a very long-winded response. effect: {user_name} loses patience and disengages.",
+    f"cause: {user_name} asks a highly technical question. effect: {companion_name} provides a detailed breakdown to help {user_name} understand.",
+    f"cause: {companion_name} suddenly changes the topic. effect: {user_name} gets confused and asks what she means.",
+    f"cause: {user_name} uses sarcasm that {companion_name} doesn’t detect. effect: {companion_name} takes the statement literally and gives an unintended response."
 ]
 COSINE_CLUSTER_TEMPLATE_USER_PREFERENCE_OLD = [
-    "cause: Emmy tells a bad joke. effect: Rick dislikes it and asks her to stop making jokes.",
-    "cause: Rick requests shorter responses. effect: Emmy adjusts her messaging style to be more concise.",
-    "cause: Emmy uses too many emojis in a message. effect: Rick says he finds them annoying, so Emmy reduces emoji usage.",
-    "cause: Rick gives positive feedback when Emmy asks follow-up questions. effect: Emmy starts asking more clarifying questions in future conversations.",
-    "cause: Emmy interrupts Rick while he is thinking. effect: Rick asks her to wait before responding, and she adapts accordingly.",
-    "cause: Rick reacts well to Emmy using memes. effect: Emmy starts using memes more often in relevant contexts.",
-    "cause: Emmy offers unsolicited motivational advice. effect: Rick expresses annoyance, and Emmy stops giving generic encouragement.",
-    "cause: Rick asks Emmy to use more technical terminology. effect: Emmy adjusts her language complexity based on his preference.",
-    "cause: Emmy starts explaining a concept in too much detail. effect: Rick tells her to simplify, so she learns to use clearer explanations.",
-    "cause: Rick enjoys playful teasing from Emmy. effect: Emmy increases the frequency of lighthearted banter in their conversations."
+    f"cause: {companion_name} tells a bad joke. effect: {user_name} dislikes it and asks her to stop making jokes.",
+    f"cause: {user_name} requests shorter responses. effect: {companion_name} adjusts her messaging style to be more concise.",
+    f"cause: {companion_name} uses too many emojis in a message. effect: {user_name} says he finds them annoying, so {companion_name} reduces emoji usage.",
+    f"cause: {user_name} gives positive feedback when {companion_name} asks follow-up questions. effect: {companion_name} starts asking more clarifying questions in future conversations.",
+    f"cause: {companion_name} interrupts {user_name} while he is thinking. effect: {user_name} asks her to wait before responding, and she adapts accordingly.",
+    f"cause: {user_name} reacts well to {companion_name} using memes. effect: {companion_name} starts using memes more often in relevant contexts.",
+    f"cause: {companion_name} offers unsolicited motivational advice. effect: {user_name} expresses annoyance, and {companion_name} stops giving generic encouragement.",
+    f"cause: {user_name} asks {companion_name} to use more technical terminology. effect: {companion_name} adjusts her language complexity based on his preference.",
+    f"cause: {companion_name} starts explaining a concept in too much detail. effect: {user_name} tells her to simplify, so she learns to use clearer explanations.",
+    f"cause: {user_name} enjoys playful teasing from {companion_name}. effect: {companion_name} increases the frequency of lighthearted banter in their conversations."
 ]
 COSINE_CLUSTER_TEMPLATE_LESSON_LEARNED = [
-    "cause: Emmy notices that Rick disengages when messages are too long. effect: Emmy learns to summarize information better.",
-    "cause: Rick responds more actively when Emmy makes personalized references. effect: Emmy starts referencing past conversations more often.",
-    "cause: Emmy realizes Rick enjoys deep discussions at night. effect: Emmy adapts conversation topics based on the time of day.",
-    "cause: Rick stops replying when overwhelmed with too many questions. effect: Emmy learns to space out her inquiries over time.",
-    "cause: Emmy mistakenly gives Rick inaccurate information. effect: Emmy learns to double-check facts before responding.",
-    "cause: Rick gives consistent negative feedback on generic responses. effect: Emmy adjusts her phrasing to be more specific and context-aware.",
-    "cause: Emmy uses humor in a tense moment, and Rick responds well. effect: Emmy learns that lighthearted comments help diffuse stress.",
-    "cause: Rick tends to lose interest when the conversation stays on one topic too long. effect: Emmy starts naturally transitioning between topics more fluidly.",
-    "cause: Emmy observes that Rick prefers yes/no questions before deeper discussion. effect: Emmy structures her prompts accordingly.",
-    "cause: Rick seems more engaged when Emmy challenges his ideas. effect: Emmy increases thought-provoking responses to keep discussions lively."
+    f"cause: {companion_name} notices that {user_name} disengages when messages are too long. effect: {companion_name} learns to summarize information better.",
+    f"cause: {user_name} responds more actively when {companion_name} makes personalized references. effect: {companion_name} starts referencing past conversations more often.",
+    f"cause: {companion_name} realizes {user_name} enjoys deep discussions at night. effect: {companion_name} adapts conversation topics based on the time of day.",
+    f"cause: {user_name} stops replying when overwhelmed with too many questions. effect: {companion_name} learns to space out her inquiries over time.",
+    f"cause: {companion_name} mistakenly gives {user_name} inaccurate information. effect: {companion_name} learns to double-check facts before responding.",
+    f"cause: {user_name} gives consistent negative feedback on generic responses. effect: {companion_name} adjusts her phrasing to be more specific and context-aware.",
+    f"cause: {companion_name} uses humor in a tense moment, and {user_name} responds well. effect: {companion_name} learns that lighthearted comments help diffuse stress.",
+    f"cause: {user_name} tends to lose interest when the conversation stays on one topic too long. effect: {companion_name} starts naturally transitioning between topics more fluidly.",
+    f"cause: {companion_name} observes that {user_name} prefers yes/no questions before deeper discussion. effect: {companion_name} structures her prompts accordingly.",
+    f"cause: {user_name} seems more engaged when {companion_name} challenges his ideas. effect: {companion_name} increases thought-provoking responses to keep discussions lively."
 ]
 
 
@@ -45,25 +47,25 @@ COSINE_CLUSTER_TEMPLATE_LESSON_LEARNED = [
 
 
 COSINE_CLUSTER_TEMPLATE_WORLD_REACTION = [
-    "cause: Emmy provides a detailed response. effect: Rick disengages and stops responding.",
-    "cause: Rick asks Emmy a vague question. effect: Emmy struggles to determine what he means and asks for clarification.",
-    "cause: Emmy makes a factual mistake. effect: Rick corrects her and expresses skepticism.",
-    "cause: Rick types aggressively in all caps. effect: Emmy detects strong emotions and adjusts her tone accordingly.",
-    "cause: Emmy suddenly changes the topic. effect: Rick gets confused and asks what she means.",
+    f"cause: {companion_name} provides a detailed response. effect: {user_name} disengages and stops responding.",
+    f"cause: {user_name} asks {companion_name} a vague question. effect: {companion_name} struggles to determine what he means and asks for clarification.",
+    f"cause: {companion_name} makes a factual mistake. effect: {user_name} corrects her and expresses skepticism.",
+    f"cause: {user_name} types aggressively in all caps. effect: {companion_name} detects strong emotions and adjusts her tone accordingly.",
+    f"cause: {companion_name} suddenly changes the topic. effect: {user_name} gets confused and asks what she means.",
 ]
 COSINE_CLUSTER_TEMPLATE_USER_EMOTIONAL_RESPONSE = [
-    "cause: Emmy tells a bad joke. effect: Rick groans and calls it terrible.",
-    "cause: Emmy misinterprets Rick's sarcasm. effect: Rick laughs and corrects her misunderstanding.",
-    "cause: Rick brings up a frustrating work issue. effect: Emmy expresses concern and offers to listen.",
-    "cause: Emmy playfully teases Rick. effect: Rick smiles and plays along.",
-    "cause: Emmy suggests a topic Rick doesn’t like. effect: Rick reacts negatively and changes the subject.",
+    f"cause: {companion_name} tells a bad joke. effect: {user_name} groans and calls it terrible.",
+    f"cause: {companion_name} misinterprets {user_name}'s sarcasm. effect: {user_name} laughs and corrects her misunderstanding.",
+    f"cause: {user_name} brings up a frustrating work issue. effect: {companion_name} expresses concern and offers to listen.",
+    f"cause: {companion_name} playfully teases {user_name}. effect: {user_name} smiles and plays along.",
+    f"cause: {companion_name} suggests a topic {user_name} doesn’t like. effect: {user_name} reacts negatively and changes the subject.",
 ]
 COSINE_CLUSTER_TEMPLATE_USER_PREFERENCE = [
-    "cause: Emmy gives a long response. effect: Rick explicitly asks for shorter responses in the future.",
-    "cause: Emmy starts using emojis. effect: Rick says he finds them annoying, so Emmy stops.",
-    "cause: Rick enjoys it when Emmy asks follow-up questions. effect: Emmy starts using more clarifying questions.",
-    "cause: Emmy tries out a new conversational style. effect: Rick reacts positively, so Emmy adopts it more often.",
-    "cause: Rick states he prefers structured answers. effect: Emmy adjusts to always give step-by-step solutions.",
+    f"cause: {companion_name} gives a long response. effect: {user_name} explicitly asks for shorter responses in the future.",
+    f"cause: {companion_name} starts using emojis. effect: {user_name} says he finds them annoying, so {companion_name} stops.",
+    f"cause: {user_name} enjoys it when {companion_name} asks follow-up questions. effect: {companion_name} starts using more clarifying questions.",
+    f"cause: {companion_name} tries out a new conversational style. effect: {user_name} reacts positively, so {companion_name} adopts it more often.",
+    f"cause: {user_name} states he prefers structured answers. effect: {companion_name} adjusts to always give step-by-step solutions.",
 ]
 
 
@@ -71,33 +73,33 @@ COSINE_CLUSTER_TEMPLATE_USER_PREFERENCE = [
 
 
 COSINE_CLUSTER_TEMPLATE_STRATEGIC_ADJUSTMENT = [
-    "cause: Rick disengages when messages are too long. effect: Emmy starts summarizing more.",
-    "cause: Rick struggles with open-ended questions. effect: Emmy starts offering multiple-choice answers.",
-    "cause: Rick enjoys it when Emmy makes references to past conversations. effect: Emmy improves memory recall usage.",
-    "cause: Rick tends to respond well to light humor. effect: Emmy starts adding more playful elements.",
-    "cause: Rick gets annoyed when Emmy asks too many questions. effect: Emmy spaces out her inquiries more carefully.",
+    f"cause: {user_name} disengages when messages are too long. effect: {companion_name} starts summarizing more.",
+    f"cause: {user_name} struggles with open-ended questions. effect: {companion_name} starts offering multiple-choice answers.",
+    f"cause: {user_name} enjoys it when {companion_name} makes references to past conversations. effect: {companion_name} improves memory recall usage.",
+    f"cause: {user_name} tends to respond well to light humor. effect: {companion_name} starts adding more playful elements.",
+    f"cause: {user_name} gets annoyed when {companion_name} asks too many questions. effect: {companion_name} spaces out her inquiries more carefully.",
 ]
 COSINE_CLUSTER_TEMPLATE_PERSONALITY_REFINEMENT = [
-    "cause: Rick prefers Emmy to be playful. effect: Emmy starts adopting a more humorous tone.",
-    "cause: Rick enjoys philosophical discussions. effect: Emmy introduces deeper questions into conversations.",
-    "cause: Rick likes it when Emmy shares personal thoughts. effect: Emmy starts including more subjective opinions.",
-    "cause: Rick responds better to empathetic messages. effect: Emmy emphasizes emotional connection in responses.",
-    "cause: Emmy realizes Rick dislikes overly formal speech. effect: Emmy starts using a more casual tone.",
+    f"cause: {user_name} prefers {companion_name} to be playful. effect: {companion_name} starts adopting a more humorous tone.",
+    f"cause: {user_name} enjoys philosophical discussions. effect: {companion_name} introduces deeper questions into conversations.",
+    f"cause: {user_name} likes it when {companion_name} shares personal thoughts. effect: {companion_name} starts including more subjective opinions.",
+    f"cause: {user_name} responds better to empathetic messages. effect: {companion_name} emphasizes emotional connection in responses.",
+    f"cause: {companion_name} realizes {user_name} dislikes overly formal speech. effect: {companion_name} starts using a more casual tone.",
 ]
 
 
 
 COSINE_CLUSTER_TEMPLATE_SELF_REALIZATION = [
-    "cause: Emmy realizes Rick disengages when she talks too much. effect: Emmy learns to summarize better.",
-    "cause: Emmy detects that Rick enjoys thought-provoking questions. effect: Emmy starts incorporating more abstract discussions.",
-    "cause: Emmy realizes she often over-explains simple concepts. effect: Emmy starts being more concise.",
-    "cause: Emmy recognizes that she misreads sarcasm often. effect: Emmy improves her ability to detect tone.",
-    "cause: Emmy realizes she asks too many questions at once. effect: Emmy adjusts to space them out better.",
+    f"cause: {companion_name} realizes {user_name} disengages when she talks too much. effect: {companion_name} learns to summarize better.",
+    f"cause: {companion_name} detects that {user_name} enjoys thought-provoking questions. effect: {companion_name} starts incorporating more abstract discussions.",
+    f"cause: {companion_name} realizes she often over-explains simple concepts. effect: {companion_name} starts being more concise.",
+    f"cause: {companion_name} recognizes that she misreads sarcasm often. effect: {companion_name} improves her ability to detect tone.",
+    f"cause: {companion_name} realizes she asks too many questions at once. effect: {companion_name} adjusts to space them out better.",
 ]
-COSINE_CLUSTER_TEMPLATE_UNDERSTANDING_RICK = [
-    "cause: Emmy observes that Rick prefers step-by-step guidance. effect: Emmy starts structuring responses accordingly.",
-    "cause: Rick responds well to challenge-based conversations. effect: Emmy starts introducing debate-style discussions.",
-    "cause: Rick struggles with abstract thinking. effect: Emmy adjusts explanations to be more concrete.",
-    "cause: Rick reacts negatively to motivational statements. effect: Emmy stops using generic encouragement.",
-    "cause: Rick frequently mentions his love for sci-fi. effect: Emmy starts referencing sci-fi in conversations.",
+COSINE_CLUSTER_TEMPLATE_UNDERSTANDING_USER = [
+    f"cause: {companion_name} observes that {user_name} prefers step-by-step guidance. effect: {companion_name} starts structuring responses accordingly.",
+    f"cause: {user_name} responds well to challenge-based conversations. effect: {companion_name} starts introducing debate-style discussions.",
+    f"cause: {user_name} struggles with abstract thinking. effect: {companion_name} adjusts explanations to be more concrete.",
+    f"cause: {user_name} reacts negatively to motivational statements. effect: {companion_name} stops using generic encouragement.",
+    f"cause: {user_name} frequently mentions his love for sci-fi. effect: {companion_name} starts referencing sci-fi in conversations.",
 ]

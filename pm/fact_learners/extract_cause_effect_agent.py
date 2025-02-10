@@ -8,6 +8,7 @@ from sqlmodel import Field, Session, SQLModel, create_engine, select, col
 
 from pm.agents.agent import Agent
 from pm.agents_historized.agent_historized_simple import AgentHistorizedSimpel
+from pm.character import companion_name, user_name
 from pm.common_prompts.rate_agent_output import rate_agent_output
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
@@ -36,42 +37,42 @@ ces = CauseEffects(
     cause_effect_can_be_extracted=True
 )
 
-sysprompt_convo_to_text = """fYou are analyzing a conversation to extract cause-effect relationships.
+sysprompt_convo_to_text = f"""fYou are analyzing a conversation to extract cause-effect relationships.
 
 Situation:
-- Rick (user) and Emmy (AI chatbot) are communicating via text
-- Rick is a person
-- Emmy is a highly advanced chatbot that mimics human cognition and emotion perfectly
+- {user_name} (user) and {companion_name} (AI chatbot) are communicating via text
+- {user_name} is a person
+- {companion_name} is a highly advanced chatbot that mimics human cognition and emotion perfectly
 
 Your task:
 - Identify **causes** (an action, event, or decision).
 - Identify **effects** (the direct consequences of the cause).
 - Ensure the effects explicitly mention how they impact:
-  - The AI (Emmy)
-  - The user (Rick)
+  - The AI ({companion_name})
+  - The user ({user_name})
   - The world (if applicable)
 - **Prioritize important cause-effect pairs** and omit trivial ones.
 
 ### EXAMPLES
-Rick: "Hey Emmy, do you know what the weather is like?"
-Emmy: "It's sunny outside!"
+{user_name}: "Hey {companion_name}, do you know what the weather is like?"
+{companion_name}: "It's sunny outside!"
 CauseEffect:
-- Cause: "Rick asks about the weather."
-- Effect: "Emmy provides weather information."
+- Cause: "{user_name} asks about the weather."
+- Effect: "{companion_name} provides weather information."
 - Importance: Low
 
-Rick: "I feel really unmotivated today..."
-Emmy: "That’s okay! Want me to help you plan something small?"
+{user_name}: "I feel really unmotivated today..."
+{companion_name}: "That’s okay! Want me to help you plan something small?"
 CauseEffect:
-- Cause: "Rick expresses low motivation."
-- Effect: "Emmy offers encouragement and suggests an action."
+- Cause: "{user_name} expresses low motivation."
+- Effect: "{companion_name} offers encouragement and suggests an action."
 - Importance: High
 
-Rick: "Oh no, I think I broke something!"
-Emmy: "Don’t worry, let’s check what happened!"
+{user_name}: "Oh no, I think I broke something!"
+{companion_name}: "Don’t worry, let’s check what happened!"
 CauseEffect:
-- Cause: "Rick reports an issue."
-- Effect: "Emmy reassures him and offers help."
+- Cause: "{user_name} reports an issue."
+- Effect: "{companion_name} reassures him and offers help."
 - Importance: Medium
 """
 
@@ -98,8 +99,8 @@ Your task:
 ### EXAMPLES
 #### Input:
 CauseEffect:
-- Cause: "Rick asks about the weather."
-- Effect: "Emmy provides weather information."
+- Cause: "{user_name} asks about the weather."
+- Effect: "{companion_name} provides weather information."
 - Importance: Low
 
 #### Output:
@@ -107,8 +108,8 @@ CauseEffect:
   "cause_effect_can_be_extracted": true,
   "cause_effects": [
     {
-      "cause": "Rick asks about the weather.",
-      "effect": "Emmy provides weather information.",
+      "cause": "{user_name} asks about the weather.",
+      "effect": "{companion_name} provides weather information.",
       "importance": "low"
     }
   ]

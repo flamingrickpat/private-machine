@@ -71,11 +71,4 @@ if not database_exists(engine.url):
         con.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         con.commit()
 
-if __name__ == "__main__":
-    for key, value in global_map.items():
-        print(f"{key}: {value}")
-
-    print(get_token(sysprompt))
-    print(get_token(sysprompt_addendum))
-
 

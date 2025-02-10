@@ -211,18 +211,18 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
                 lines = []
                 if isinstance(thought, GenerativeThought):
                     child_node = parent_node
-                    lines.append(f"Observation: {to_internal_thought(thought.observation)}")
-                    lines.append(f"Context: {to_internal_thought(thought.context_ai_companion)}")
-                    lines.append(f"Analysis: {to_internal_thought(thought.analysis)}")
-                    lines.append(f"Idea: {to_internal_thought(thought.action)}")
+                    lines.append(f"Observation: {thought.observation}")
+                    lines.append(f"Context: {thought.context_ai_companion}")
+                    lines.append(f"Analysis: {thought.analysis}")
+                    lines.append(f"Idea: {thought.action}")
 
                     child_node = add_thought_to_tree("Generative Thought", "\n".join(lines), child_node)
                 elif isinstance(thought, DiscriminatoryThought):
                     child_node = parent_node
-                    lines.append(f"Reflection: {to_internal_thought(thought.reflective_thought_observation)}")
-                    lines.append(f"Context: {to_internal_thought(thought.context_world)}")
-                    lines.append(f"Complication: {to_internal_thought(thought.possible_complication)}")
-                    lines.append(f"Outcome: {to_internal_thought(thought.worst_case_scenario)}")
+                    lines.append(f"Reflection: {thought.reflective_thought_observation}")
+                    lines.append(f"Context: {thought.context_world}")
+                    lines.append(f"Complication: {thought.possible_complication}")
+                    lines.append(f"Outcome: {thought.worst_case_scenario}")
 
                     child_node = add_thought_to_tree("Checking Thought", "\n".join(lines), child_node)
                 else:
@@ -322,7 +322,9 @@ def generate_tot_v1(context: str, knowledge: str, max_depth: int):
     except:
         pass
 
-    return "\n".join(parts)
+    block = "\n".join(parts)
+    block_fp = controller.spacy.convert_third_person_to_first_person(block, companion_name)
+    return block_fp
 
 
 

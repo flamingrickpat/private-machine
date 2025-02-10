@@ -9,7 +9,7 @@ from pm.cosine_clustering.templates import (
     COSINE_CLUSTER_TEMPLATE_STRATEGIC_ADJUSTMENT,
     COSINE_CLUSTER_TEMPLATE_PERSONALITY_REFINEMENT,
     COSINE_CLUSTER_TEMPLATE_SELF_REALIZATION,
-    COSINE_CLUSTER_TEMPLATE_UNDERSTANDING_RICK
+    COSINE_CLUSTER_TEMPLATE_UNDERSTANDING_USER
 )
 
 # Define category hierarchy (Major Category → Subcategories)
@@ -25,7 +25,7 @@ TEMPLATE_CATEGORIES = {
     },
     "ai_cognitive_growth": {
         "self_realization": COSINE_CLUSTER_TEMPLATE_SELF_REALIZATION,
-        "understanding_rick": COSINE_CLUSTER_TEMPLATE_UNDERSTANDING_RICK
+        "understanding_rick": COSINE_CLUSTER_TEMPLATE_UNDERSTANDING_USER
     }
 }
 
