@@ -325,7 +325,7 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
         content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=MAX_GENERATION_TOKENS))
         content = clip_last_unfinished_sentence(content)
 
-        if get_learned_rules_count() > 32:
+        if False and get_learned_rules_count() > 32:
             cache_user_input = controller.cache_user_input
             cache_emotion = controller.cache_emotion
             cache_tot = controller.cache_tot
@@ -336,7 +336,9 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
             msgs.append(("assistant", content))
             msgs.append(("system", "System Warning: Your answer was good, but the meta-learning system thinks it can be improved by following these tips:"
                                    f"### BEGIN TIPS\n{feedback}\n### END TIPS\n"
-                                   f"Use these tips to rewrite and restructure your response to be better! Do not announce it, the user doesn't have to know that you needed a 2nd try!"))
+                                   f"Use these tips to rewrite and restructure your response to be better! Do not announce it with phrases such as 'Let me try rewriting the previous answer based on "
+                                   f"these tips' or similar. Just write it for the user to see! "
+                                   f"The user doesn't have to know that you needed a 2nd try!"))
 
             content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=MAX_GENERATION_TOKENS))
             content = clip_last_unfinished_sentence(content)
