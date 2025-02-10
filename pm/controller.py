@@ -163,7 +163,7 @@ class Controller:
             )
             #print(len(prompt))
 
-            if len(prompt) > self.current_ctx - 16:
+            if len(prompt) > (self.current_ctx - comp_settings.max_tokens) - 16:
                 del openai_inp[1]
             else:
                 break

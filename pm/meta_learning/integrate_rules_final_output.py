@@ -1,3 +1,4 @@
+from pm.character import companion_name
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
@@ -9,7 +10,7 @@ def integrate_rules_final_output(user_input, emotion_block ,thought_block, respo
                  "- Make the response more engaging"
                  "- Filter output that the user doesn't like")
 
-    block = f"""Hi, I'm Emmy the AI companion. This is my latest thought chain and output.
+    block = f"""Hi, I'm {companion_name} the AI companion. This is my latest thought chain and output.
     
 ### BEGIN USER INPUT
 {user_input}

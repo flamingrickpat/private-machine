@@ -41,6 +41,7 @@ from pm.common_prompts.get_emotional_state import get_emotional_state
 from pm.meta_learning.integrate_rules_final_output import integrate_rules_final_output
 
 res_tag = "<<<RESULT>>>"
+MAX_GENERATION_TOKENS = 4096
 
 def get_engine():
     return create_engine(database_uri)
@@ -321,7 +322,7 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
         for item in items:
             msgs.append(item.to_tuple())
 
-        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=4096))
+        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=MAX_GENERATION_TOKENS))
         content = clip_last_unfinished_sentence(content)
 
         if get_learned_rules_count() > 32:
@@ -330,11 +331,14 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
             cache_tot = controller.cache_tot
             facts = get_learned_rules_block(64, cache_user_input + cache_emotion + cache_tot + content)
             feedback = integrate_rules_final_output(cache_user_input, cache_emotion, cache_tot, content, facts)
+            feedback = clip_last_unfinished_sentence(feedback[:512])
 
-            msgs.append(("system", "System Warning: Answer does not pass the meta-learning check and was not sent."
-                                   f"Please use these tips to craft a new, better response: ### BEGIN TIPS\n{feedback}\n### END TIPS"))
+            msgs.append(("assistant", content))
+            msgs.append(("system", "System Warning: Your answer was good, but the meta-learning system thinks it can be improved by following these tips:"
+                                   f"### BEGIN TIPS\n{feedback}\n### END TIPS\n"
+                                   f"Use these tips to rewrite and restructure your response to be better! Do not announce it, the user doesn't have to know that you needed a 2nd try!"))
 
-            content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=4096))
+            content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=MAX_GENERATION_TOKENS))
             content = clip_last_unfinished_sentence(content)
 
         event = Event(
