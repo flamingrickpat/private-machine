@@ -40,6 +40,8 @@ from pm.emotion.generate_emotion import generate_first_person_emotion
 from pm.common_prompts.get_emotional_state import get_emotional_state
 from pm.meta_learning.integrate_rules_final_output import integrate_rules_final_output
 
+res_tag = "<<<RESULT>>>"
+
 def get_engine():
     return create_engine(database_uri)
 
@@ -644,7 +646,7 @@ def run_cli() -> str:
         exit(1)
 
     res = run_mp(inp)
-    print("<<<RESULT>>>" + res)
+    print(res_tag + res)
 
 def run_mp(inp: str) -> str:
     if inp.strip() == "/think":
@@ -741,6 +743,7 @@ def run_system_cli():
         else:
             controller.commit_db()
     except Exception as e:
+        print(res_tag)
         print(e)
         print(traceback.format_exc())
         controller.rollback_db()
@@ -759,6 +762,7 @@ def run_system_mp(inp: str) -> str:
         else:
             controller.commit_db()
     except Exception as e:
+        print(res_tag)
         print(e)
         print(traceback.format_exc())
         controller.rollback_db()
