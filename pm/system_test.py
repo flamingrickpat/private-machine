@@ -310,6 +310,10 @@ def factorize():
 def get_sensation(allow_timeout: bool = False, override: str = None):
     return controller.get_user_input(override=override)
 
+def clip_last_unfinished_sentence(inp):
+    if "." in inp and not inp.strip().endswith("."):
+        return inp[:inp.rfind(".") + 1]
+    return inp
 
 def completion_conscious(items, preset: LlmPreset) -> Event:
     msgs = [("system", sysprompt)]
@@ -318,17 +322,21 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
             msgs.append(item.to_tuple())
 
         content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=4096))
+        content = clip_last_unfinished_sentence(content)
 
-        cache_user_input = controller.cache_user_input
-        cache_emotion = controller.cache_emotion
-        cache_tot = controller.cache_tot
-        facts = get_learned_rules_block(64, cache_user_input + cache_emotion + cache_tot + content)
-        feedback = integrate_rules_final_output(cache_user_input, cache_emotion, cache_tot, content, facts)
+        if get_learned_rules_count() > 32:
+            cache_user_input = controller.cache_user_input
+            cache_emotion = controller.cache_emotion
+            cache_tot = controller.cache_tot
+            facts = get_learned_rules_block(64, cache_user_input + cache_emotion + cache_tot + content)
+            feedback = integrate_rules_final_output(cache_user_input, cache_emotion, cache_tot, content, facts)
 
-        msgs.append(("system", "System Warning: Answer does not pass the meta-learning check and was not sent."
-                               f"Please use these tips to craft a new, better response: ### BEGIN TIPS\n{feedback}\n### END TIPS"))
+            msgs.append(("system", "System Warning: Answer does not pass the meta-learning check and was not sent."
+                                   f"Please use these tips to craft a new, better response: ### BEGIN TIPS\n{feedback}\n### END TIPS"))
 
-        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=4096))
+            content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=4096))
+            content = clip_last_unfinished_sentence(content)
+
         event = Event(
             source=f"{companion_name}",
             content=content.strip(),
@@ -386,6 +394,11 @@ def add_cognitive_event(event: Event):
     session.add(event)
     session.flush()
     session.refresh(event)
+
+def get_public_event_count() -> int:
+    session = controller.get_session()
+    events = list(session.exec(select(Event).where(Event.interlocus == 1).order_by(col(Event.id))).fetchall())
+    return len(events)
 
 def get_prompt() -> List[PromptItem]:
     session = controller.get_session()
@@ -482,6 +495,10 @@ def get_facts_block(n_facts: int, search_string: str) -> str:
     facts = session.exec(select(Fact).order_by(Fact.embedding.cosine_distance(emb)).limit(n_facts)).fetchall()
     return "\n".join([f.content for f in facts])
 
+def get_learned_rules_count() -> int:
+    session = controller.get_session()
+    facts: List[CauseEffectDbEntry] = session.exec(select(CauseEffectDbEntry)).fetchall()
+    return len(facts)
 
 def get_learned_rules_block(n_facts: int, search_string: str) -> str:
     emb = controller.get_embedding(search_string)
@@ -662,15 +679,18 @@ def run_mp(inp: str) -> str:
             sensation = get_sensation(override=inp)
             add_cognitive_event(sensation)
 
-            emotional_impact = evalue_emotional_impact()
-            if emotional_impact > 0.5:
-                emotion_chain = generate_emotion_tot()
-                add_cognitive_event(emotion_chain)
+            # disable complex stuff until some messages have been generated to not confuse the llm with <think> too early
+            complexity = 0
+            if get_public_event_count() > 32:
+                emotional_impact = evalue_emotional_impact()
+                if emotional_impact > 0.5:
+                    emotion_chain = generate_emotion_tot()
+                    add_cognitive_event(emotion_chain)
 
-            complexity = evalue_prompt_complexity()
-            if complexity > 0.5:
-                thought_chain = generate_context_tot(complexity)
-                add_cognitive_event(thought_chain)
+                complexity = evalue_prompt_complexity()
+                if complexity > 0.5:
+                    thought_chain = generate_context_tot(complexity)
+                    add_cognitive_event(thought_chain)
 
             prompt = get_prompt()
             action = get_action(prompt, complexity)
@@ -729,7 +749,7 @@ def get_action_only():
 
     return rating, state
 
-TEST_MODE = True
+TEST_MODE = False
 
 def run_system_cli():
     init_db()
@@ -762,9 +782,7 @@ def run_system_mp(inp: str) -> str:
         else:
             controller.commit_db()
     except Exception as e:
-        print(res_tag)
-        print(e)
-        print(traceback.format_exc())
+        res = f"{traceback.format_exc()}\n{e}"
         controller.rollback_db()
     return res
 
