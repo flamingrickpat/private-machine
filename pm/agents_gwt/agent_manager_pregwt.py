@@ -105,7 +105,8 @@ class SubAgentState(TypedDict):
     max_rounds: int
     cur_rounds: int
     llmpreset: LlmPreset
-
+    context_data: str
+    task: str
 
 class BossAgentReport(BaseModel):
     """
@@ -119,13 +120,13 @@ class BossAgentReport(BaseModel):
     )
 
     task_deviation: float = Field(
-        ge=0, le=1000,
+        ge=0, le=1,
         description="How much are the agents deviating from the current task? Between 0 and 1. 0 is good, no deviation. 1 is bad, maximum deviation! You need to steer the agents back in the right "
                     "direction!"
     )
 
     agent_completeness: float = Field(
-        ge=0, le=100,
+        ge=0, le=1,
         description="How many of the agents have had a chance to talk? Between 0 and 1."
     )
 
@@ -139,18 +140,19 @@ class BossAgentReport(BaseModel):
         state["confidence"] = 0
         state["conclusion"] = ""
         state["status"] = BossAgentStatus.STILL_ARGUING
+        state["finished"] = False
+        state["confidence"] = 0
 
-        if self.agent_completeness < 0.75:
-            return {"error": f"Not enough agents have had the chance to speak! Feedback: {self.agent_feedback}"}
-
-        if self.task_completion > 0.85: # and self.task_deviation < 0.15:
-            state["finished"] = True
-            state["confidence"] = 1
-            state["conclusion"] = ""
-            state["status"] = BossAgentStatus.CONCLUSION_POSSIBLE
-            return {}
-        else:
-            return {"error": f"Confidence not high enough or too much deviation. Feedback: {self.agent_feedback}"}
+        #if self.agent_completeness < 0.75:
+        #    return {"error": f"Not enough agents have had the chance to speak! Feedback: {self.agent_feedback}"}
+        #if self.task_completion > 0.85: # and self.task_deviation < 0.15:
+        #    state["finished"] = True
+        #    state["confidence"] = 1
+        #    state["conclusion"] = ""
+        #    #state["status"] = BossAgentStatus.CONCLUSION_POSSIBLE
+        #    return {}
+        #else:
+        #    return {"error": f"Confidence not high enough or too much deviation. Feedback: {self.agent_feedback}"}
 
 
 def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, str]]:
@@ -159,10 +161,17 @@ def compile_message(agents: List[Agent], cur_agent: Agent) -> List[Tuple[str, st
 
     for agent in agents:
         role = "assistant" if agent == cur_agent else "user"
+
         for message in agent.messages:
+            role = "user" if message.from_tool else role
+
+            # treat boss as system
+            if message.name == "Boss Agent":
+                role = "system"
+
             # Append each message with role, text, timestamp, and agent name if it's a user
             all_messages.append({
-                "role": "user" if message.from_tool else role,
+                "role": role,
                 "text": message.text if role == "assistant" else f"{agent.name}: {message.text}",
                 "created_at": message.created_at,
                 "is_private": False,  # not message.public if role == "user" else False
@@ -260,7 +269,14 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
         if cur_agent == "Boss Agent" and len(agent.messages) == 0:
             # initial message
             agent.messages.append(AgentMessage(
-                text=f"Alright, our task is '{agent.task}'. Get to work!",
+                text=f"""This is the current conversation context you should focus on:
+### BEGINNING OF CONTEXT
+{state['context_data']}
+### END OF CONTEXT
+
+Your task is as follows:
+{state['task']}
+Get to work!""",
                 name=agent.name,
                 public=True
             ))
@@ -287,21 +303,22 @@ def _execute_agent(state: SubAgentState, agents: List[Agent]):
                     continue
 
                 # add text responses, make tool call private
-                agent.messages.append(AgentMessage(
-                    text="\n".join(x.model_dump_json() for x in calls) if len(content) == 0 else content,
-                    name=agent.name,
-                    public=len(tool_res_list) == 0
-                ))
-
-                # result of tool call will always be public
-                if len(tool_res_list) > 0:
-                    call_string = "\n".join([json.dumps(x) for x in tool_res_list])
+                if agent.name != "Boss Agent":
                     agent.messages.append(AgentMessage(
-                        text=call_string,
+                        text="\n".join(x.model_dump_json() for x in calls) if len(content) == 0 else content,
                         name=agent.name,
-                        public=True,
-                        from_tool=True
+                        public=len(tool_res_list) == 0
                     ))
+
+                    # result of tool call will always be public
+                    if len(tool_res_list) > 0:
+                        call_string = "\n".join([json.dumps(x) for x in tool_res_list])
+                        agent.messages.append(AgentMessage(
+                            text=call_string,
+                            name=agent.name,
+                            public=True,
+                            from_tool=True
+                        ))
 
                 break
 
@@ -328,20 +345,20 @@ def execute_boss_worker_chat_pregwt(base_state, context_data: str, task: str, ag
     workflow.add_node("router", lambda x: _execute_router(x, agents))
     workflow.add_edge(START, "router")
 
-    # add boss
-    agents.insert(0,
-                  Agent(
-                      id="Boss Agent",
-                      name="Boss Agent",
-                      description="",
-                      goal="",
-                      system_prompt=controller.format_str(prompt_boss,
-                                                          extra={"conclusion_schema": json.dumps(
-                                                              BossAgentReport.model_json_schema())}),
-                      tools=[BossAgentReport],
-                      task=task
-                  )
-                  )
+    ## add boss
+    #agents.insert(0,
+    #              Agent(
+    #                  id="Boss Agent",
+    #                  name="Boss Agent",
+    #                  description="",
+    #                  goal="",
+    #                  system_prompt=controller.format_str(prompt_boss,
+    #                                                      extra={"conclusion_schema": json.dumps(
+    #                                                          BossAgentReport.model_json_schema())}),
+    #                  tools=[BossAgentReport],
+    #                  task=task
+    #              )
+    #              )
 
     agent_list = ", ".join([x.name for x in agents])
 
@@ -379,7 +396,11 @@ def execute_boss_worker_chat_pregwt(base_state, context_data: str, task: str, ag
         product="",
         max_rounds=max_rounds,
         cur_rounds=0,
-        llmpreset=llmpreset
+        llmpreset=llmpreset,
+        context_data=context_data,
+        task=task,
+        conclusion="",
+        status=""
     )
     state = graph.invoke(state, {"recursion_limit": 1024})
 
@@ -393,6 +414,6 @@ def execute_boss_worker_chat_pregwt(base_state, context_data: str, task: str, ag
         conclusion=state["conclusion"],
         agent_messages=msgs,
         as_internal_thought="",
-        status=state["status"],
+        status=BossAgentStatus.CONCLUSION_POSSIBLE,
     )
     return res

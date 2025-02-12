@@ -77,12 +77,3 @@ def get_best_category(nested_scores, threshold=0.0):
 
     return best_category  # Returns the best matching category as a string
 
-
-if __name__ == '__main__':
-    # Test 1
-    res = cluster_text("cause: emmy tells rick a corny joke. effect: rick doesn't like it", template_dict=TEMPLATE_CATEGORIES)
-    print(get_best_category(res))
-
-    # Test 2
-    res = cluster_text("cause: emmy tells rick a corny joke. effect: rick doesn't like it at all and tells emmy he hates stupid jokes", template_dict=TEMPLATE_CATEGORIES)
-    print(get_best_category(res))

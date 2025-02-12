@@ -8,7 +8,7 @@ database_uri: "postgresql+psycopg2://postgres:password@127.0.0.1:5432/postgres"
 embedding_model: "Alibaba-NLP/gte-base-en-v1.5"
 
 models:
-  fast:
+  hermes:
     path: "E:\\AI\\Hermes-3-Llama-3.1-8B.Q8_0.gguf"
     layers: -1
     context: 32768
@@ -25,20 +25,26 @@ models:
     last_n_tokens_size: 2048
   best:
     path: "E:\\AI\\L3.3-Nevoria-R1-70b-Q4_K_M.gguf"
-    layers: 18
-    context: 32768
+    layers: 0
+    context: 32000
     last_n_tokens_size: 2048
+  qwen:
+    path: "E:\\AI\\DS-R1-Distill-Q2.5-14B-Harmony_V0.1.i1-Q4_K_M.gguf"
+    layers: -1
+    context: 20480
+    last_n_tokens_size: 256
+
 
 model_mapping:
   Conscious: dolphin30
-  CauseEffect: dolphin30
-  Auxiliary: dolphin30
-  Emotion: dolphin30
-  Summarize: dolphin30
-  ExtractFacts: dolphin30
-  Default: dolphin30
-  ConvertToInternalThought: dolphin30
-  GenerateTot: dolphin30
+  CauseEffect: hermes
+  Auxiliary: hermes
+  Emotion: hermes
+  Summarize: hermes
+  ExtractFacts: hermes
+  Default: hermes
+  ConvertToInternalThought: hermes
+  GenerateTot: hermes
 
 cluster_split: 0.33
 

@@ -1,6 +1,7 @@
 from pm.character import companion_name
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset
+from pm.validation.validate_thought import validate_thought
 
 sysprompt = """You are an agent in a cognitive architecture designed to assist individuals with mental health challenges by offering insights and perspectives modeled on diverse ways of thinking.
 In your scenario the user '{user_name}' has autism and has troubles gauging the response of his friend '{companion_name}'. Your goal is to simulate the thoughts of {companion_name} so {user_name} can learn Theory-of-Mind of others before
@@ -61,4 +62,8 @@ def pregwt_to_internal_thought(context_data: str, recommendations: str) -> str:
         ("user", userprompt)
     ]
 
-    return controller.completion_text(LlmPreset.ConvertToInternalThought, messages)
+    while True:
+        cot = controller.completion_text(LlmPreset.ConvertToInternalThought, messages)
+        rating = validate_thought(cot)
+        if rating > 0.9:
+            return cot

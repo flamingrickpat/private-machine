@@ -149,7 +149,7 @@ class AIChatBot:
                 source, content = message_queue.get()
             else:
                 now = datetime.datetime.now()
-                if (now - last_message).total_seconds() / 60 > 60:
+                if (now - last_message).total_seconds() / 60 > 180:
                     content = "/think"
 
             if content is not None:

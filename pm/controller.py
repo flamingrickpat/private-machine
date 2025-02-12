@@ -12,7 +12,7 @@ import threading
 
 from json_repair import repair_json
 from lancedb import LanceDBConnection
-from llama_cpp import LlamaGrammar
+from llama_cpp import LlamaGrammar, LlamaDiskCache
 from pydantic import BaseModel
 from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation
 from typing import List
@@ -59,7 +59,7 @@ class Controller:
         setup_logger("main.log")
         self.db_lock = threading.Lock()
         self.model_path = None
-        self.llm = None
+        self.llm: Llama | None = None
         self.test_mode = test_mode
         self.backtest_messages = backtest_messages
 
@@ -100,7 +100,8 @@ class Controller:
             gc.collect()
             time.sleep(1)
 
-            self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=ctx, verbose=False, last_n_tokens_size=last_n_tokens_size)
+            self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=ctx, verbose=False, last_n_tokens_size=last_n_tokens_size, flash_attn=True)
+            #self.llm.cache = LlamaDiskCache(capacity_bytes=int(42126278829))
             self.current_ctx = ctx
             self.model_path = model_path
             self.chat_template = Environment(loader=BaseLoader).from_string(self.llm.metadata["tokenizer.chat_template"])
@@ -117,6 +118,24 @@ class Controller:
         inp_formatted = []
         for msg in inp:
             inp_formatted.append((self.format_str(msg[0]), self.format_str(msg[1])))
+
+        # Merge consecutive messages from the same role
+        merged_inp_formatted = []
+        prev_role, prev_content = None, ""
+
+        for role, content in inp_formatted:
+            if role == prev_role:
+                prev_content += "\n" + content  # Concatenate messages with a newline
+            else:
+                if prev_role is not None:
+                    merged_inp_formatted.append((prev_role, prev_content))
+                prev_role, prev_content = role, content
+
+        # Append the last message
+        if prev_role is not None:
+            merged_inp_formatted.append((prev_role, prev_content))
+
+        inp_formatted = merged_inp_formatted
 
         if comp_settings is None:
             comp_settings = CommonCompSettings()
@@ -151,19 +170,32 @@ class Controller:
             comp_args["mirostat_tau"] = 8
             comp_args["mirostat_eta"] = 0.1
 
+        # remove add generation prompts if last turn is from assistant
+        openai_inp_remove_ass = [{"role": "system", "content": "test1"}, {"role": "user", "content": "test2"}, {"role": "assistant", "content": "test3"}, {"role": "assistant", "content": "test4"}]
+        data_remove_ass = self.chat_template.render(
+            messages=openai_inp_remove_ass,
+            add_generation_prompt=True
+        )
+
+        remove_ass_string = data_remove_ass.split("test4")[1]
+
         # remove messages until it fits in context
         while True:
-            data = self.chat_template.render(
-                messages=openai_inp
+            rendered_data = self.chat_template.render(
+                messages=openai_inp,
+                add_generation_prompt=True
             )
-            prompt = self.llm.tokenize(
-                data.encode("utf-8"),
+
+            if openai_inp[-1]["role"] == "assistant":
+                rendered_data = rendered_data.removesuffix(remove_ass_string)
+
+            tokenized_prompt = self.llm.tokenize(
+                rendered_data.encode("utf-8"),
                 add_bos=True,
                 special=True,
             )
-            #print(len(prompt))
 
-            if len(prompt) > (self.current_ctx - comp_settings.max_tokens) - 16:
+            if len(tokenized_prompt) > (self.current_ctx - comp_settings.max_tokens) - 16:
                 del openai_inp[1]
             else:
                 break
@@ -171,9 +203,9 @@ class Controller:
         content = None
         tools = comp_settings.tools_json
         if len(tools) == 0:
-            res = self.llm.create_chat_completion_openai_v1(openai_inp, **comp_args)
-            finish_reason = res.choices[0].finish_reason
-            content = res.choices[0].message.content
+            res = self.llm.create_completion(tokenized_prompt, **comp_args)
+            finish_reason = res["choices"][0]["finish_reason"]
+            content = res["choices"][0]["text"]
             calls = []
             if discard_thinks:
                 content = content.split("</think>")[-1]
@@ -204,10 +236,7 @@ class Controller:
         if self.test_mode:
             return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(128))
         self.load_model(preset)
-        content, models = self.completion_tool(preset, inp, comp_settings)
-
-        if discard_thinks:
-            content = content.split("</think>")[-1]
+        content, models = self.completion_tool(preset, inp, comp_settings, discard_thinks=discard_thinks)
 
         return content.strip()
 

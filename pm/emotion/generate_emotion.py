@@ -94,8 +94,11 @@ FOCUS ON THE LAST MESSAGE!
     gwt_output: List[CogEvent] = []
     for subsystem in layer.get_subsystems():
         agents = []
-        reso = select_relevant_agents(subsystem.agents, context)
-        selected_agents = [a for a in subsystem.agents if a.name in reso]
+        while True:
+            reso = select_relevant_agents(subsystem.agents, context)
+            selected_agents = [a for a in subsystem.agents if a.name in reso]
+            if len(selected_agents) == 2:
+                break
 
         for agent in selected_agents:
             prompt = layer.common_prefix + "\n" + subsystem.prompt_prefix + "\n" + agent.prompt

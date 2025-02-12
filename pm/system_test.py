@@ -1,3 +1,4 @@
+import copy
 import sys
 import os
 import traceback
@@ -5,8 +6,11 @@ import uuid
 
 from pydantic import BaseModel
 
+from pm.common_prompts.rate_complexity_v2 import rate_complexity_v2
 from pm.cosine_clustering.cosine_cluster import get_best_category, cluster_text, TEMPLATE_CATEGORIES
 from pm.fact_learners.extract_cause_effect_agent import extract_cas
+from pm.validation.validate_directness import validate_directness
+from pm.validation.validate_response_in_context import validate_response_in_context
 
 # Add the project root directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -42,6 +46,7 @@ from pm.meta_learning.integrate_rules_final_output import integrate_rules_final_
 
 res_tag = "<<<RESULT>>>"
 MAX_GENERATION_TOKENS = 4096
+MAX_THOUGHTS_IN_PROMPT = 1
 
 def get_engine():
     return create_engine(database_uri)
@@ -322,26 +327,40 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
         for item in items:
             msgs.append(item.to_tuple())
 
-        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=MAX_GENERATION_TOKENS))
+        lst_messages = get_recent_messages_block(6)
+        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=128), discard_thinks=False)
         content = clip_last_unfinished_sentence(content)
 
-        if False and get_learned_rules_count() > 32:
-            cache_user_input = controller.cache_user_input
-            cache_emotion = controller.cache_emotion
-            cache_tot = controller.cache_tot
-            facts = get_learned_rules_block(64, cache_user_input + cache_emotion + cache_tot + content)
-            feedback = integrate_rules_final_output(cache_user_input, cache_emotion, cache_tot, content, facts)
-            feedback = clip_last_unfinished_sentence(feedback[:512])
+        rating = validate_response_in_context(lst_messages, content)
+        rating_directness = validate_directness(lst_messages, content)
 
-            msgs.append(("assistant", content))
-            msgs.append(("system", "System Warning: Your answer was good, but the meta-learning system thinks it can be improved by following these tips:"
-                                   f"### BEGIN TIPS\n{feedback}\n### END TIPS\n"
-                                   f"Use these tips to rewrite and restructure your response to be better! Do not announce it with phrases such as 'Let me try rewriting the previous answer based on "
-                                   f"these tips' or similar. Just write it for the user to see! "
-                                   f"The user doesn't have to know that you needed a 2nd try!"))
+        if get_learned_rules_count() > 32 and rating < 0.85 and rating_directness < 0.85:
+            while True:
+                msgs_copy = copy.copy(msgs)
+                cache_user_input = controller.cache_user_input
+                cache_emotion = controller.cache_emotion
+                cache_tot = controller.cache_tot
+                facts = get_learned_rules_block(64, cache_user_input + cache_emotion + cache_tot + content)
+                feedback = integrate_rules_final_output(cache_user_input, cache_emotion, cache_tot, content, facts)
+                #feedback = clip_last_unfinished_sentence(feedback[:512])
 
-            content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=MAX_GENERATION_TOKENS))
-            content = clip_last_unfinished_sentence(content)
+                msgs_copy.append(("assistant", content))
+                msgs_copy.append(("system", "System Warning: Your answer was good, but the meta-learning system thinks it can be improved by following these tips:"
+                                            f"### BEGIN TIPS\n{feedback}\n### END TIPS\n"
+                                            f"Use these tips to rewrite, shorten and restructure your response to be better! Do not announce it with phrases such as 'Let me try rewriting the previous "
+                                            f"answer based on "
+                                            f"these tips', 'Sure, let's try piecing together a key insight by reframing our conversation from a different angle to be more intimate and direct.' or "
+                                            f"similar. Just write it for the user to see with no announcement whatsoever, just the direct response! "
+                                            f"The user doesn't have to know that you needed a 2nd try!"))
+
+                content_tmp = controller.completion_text(preset, msgs_copy, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=128))
+                content_tmp = clip_last_unfinished_sentence(content_tmp)
+
+                rating = validate_response_in_context(lst_messages, content_tmp)
+                rating_directness = validate_directness(lst_messages, content_tmp)
+                if rating > 0.85 and rating_directness > 0.85:
+                    content = content_tmp
+                    break
 
         event = Event(
             source=f"{companion_name}",
@@ -414,9 +433,11 @@ def get_prompt() -> List[PromptItem]:
 
     thought_cnt = 0
     for i in range(len(events) - 1, -1, -1):
-        if events[i].interlocus < 0:
+        if events[i].interlocus == -1:
+            del events[i]
+        elif events[i].interlocus == -2:
             thought_cnt += 1
-            if thought_cnt > 6:
+            if thought_cnt > MAX_THOUGHTS_IN_PROMPT:
                 del events[i]
 
     parts = get_optimized_prompt_temp_cluster(events, clusters, event_cluster,
@@ -443,8 +464,8 @@ def get_prompt() -> List[PromptItem]:
             parts.insert(i, pi)
 
     # insert intermediate system prompt
-    if len(parts) > 20:
-        for i in range(len(parts) - 16, len(parts) - 2):
+    if len(parts) > 40:
+        for i in range(len(parts) - 32, len(parts) - 2):
             if parts[i].turn == "user":
                 pi = PromptItem(
                     str(uuid.uuid4()),
@@ -478,15 +499,16 @@ def get_recent_messages_block(n_msgs: int):
     latest_events = events[-n_msgs:]
     lines = []
     for event in latest_events:
-        content = event.to_prompt_item()[0].to_tuple()[1]
-        lines.append(f"{event.source}: {content}")
+        if event.interlocus == 1 and event.source != "system":
+            content = event.to_prompt_item()[0].to_tuple()[1]
+            lines.append(f"{event.source}: {content}")
     all = "\n".join(lines)
     return all
 
 
 def evalue_prompt_complexity():
     all = get_recent_messages_block(10)
-    rating = rate_complexity(all)
+    rating = rate_complexity_v2(all)
     return rating
 
 def evalue_emotional_impact():
@@ -688,7 +710,7 @@ def run_mp(inp: str) -> str:
             # disable complex stuff until some messages have been generated to not confuse the llm with <think> too early
             complexity = 0
             if get_public_event_count() > 32:
-                emotional_impact = evalue_emotional_impact()
+                emotional_impact = 1 #evalue_emotional_impact()
                 if emotional_impact > 0.5:
                     emotion_chain = generate_emotion_tot()
                     add_cognitive_event(emotion_chain)
@@ -697,6 +719,7 @@ def run_mp(inp: str) -> str:
                 if complexity > 0.5:
                     thought_chain = generate_context_tot(complexity)
                     add_cognitive_event(thought_chain)
+                pass
 
             prompt = get_prompt()
             action = get_action(prompt, complexity)
