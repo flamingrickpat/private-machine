@@ -10,6 +10,7 @@ from pm.common_prompts.rate_complexity_v2 import rate_complexity_v2
 from pm.cosine_clustering.cosine_cluster import get_best_category, cluster_text, TEMPLATE_CATEGORIES
 from pm.fact_learners.extract_cause_effect_agent import extract_cas
 from pm.validation.validate_directness import validate_directness
+from pm.validation.validate_query_fulfillment import validate_query_fulfillment
 from pm.validation.validate_response_in_context import validate_response_in_context
 
 # Add the project root directory to sys.path
@@ -333,8 +334,9 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
 
         rating = validate_response_in_context(lst_messages, content)
         rating_directness = validate_directness(lst_messages, content)
+        rating_fulfilment = validate_query_fulfillment(lst_messages, content)
 
-        if get_learned_rules_count() > 32 and rating < 0.85 and rating_directness < 0.85:
+        if get_learned_rules_count() > 32 and (rating < 0.9 or rating_directness < 0.9 or rating_fulfilment < 0.75):
             while True:
                 msgs_copy = copy.copy(msgs)
                 cache_user_input = controller.cache_user_input
@@ -358,7 +360,9 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
 
                 rating = validate_response_in_context(lst_messages, content_tmp)
                 rating_directness = validate_directness(lst_messages, content_tmp)
-                if rating > 0.85 and rating_directness > 0.85:
+                rating_fulfilment = validate_query_fulfillment(lst_messages, content)
+
+                if rating > 0.85 and rating_directness > 0.85 and rating_fulfilment > 0.75:
                     content = content_tmp
                     break
 
