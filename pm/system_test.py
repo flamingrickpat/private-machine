@@ -47,7 +47,7 @@ from pm.meta_learning.integrate_rules_final_output import integrate_rules_final_
 
 res_tag = "<<<RESULT>>>"
 MAX_GENERATION_TOKENS = 4096
-MAX_THOUGHTS_IN_PROMPT = 1
+MAX_THOUGHTS_IN_PROMPT = 4
 
 def get_engine():
     return create_engine(database_uri)
@@ -437,9 +437,7 @@ def get_prompt() -> List[PromptItem]:
 
     thought_cnt = 0
     for i in range(len(events) - 1, -1, -1):
-        if events[i].interlocus == -1:
-            del events[i]
-        elif events[i].interlocus == -2:
+        if events[i].interlocus < 0:
             thought_cnt += 1
             if thought_cnt > MAX_THOUGHTS_IN_PROMPT:
                 del events[i]
@@ -496,14 +494,14 @@ def evaluate_action_type(thought_chain):
     pass
 
 
-def get_recent_messages_block(n_msgs: int):
+def get_recent_messages_block(n_msgs: int, internal: bool = False):
     session = controller.get_session()
     events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
 
     latest_events = events[-n_msgs:]
     lines = []
     for event in latest_events:
-        if event.interlocus == 1 and event.source != "system":
+        if (event.interlocus == 1 and event.source != "system") or internal:
             content = event.to_prompt_item()[0].to_tuple()[1]
             lines.append(f"{event.source}: {content}")
     all = "\n".join(lines)
@@ -543,9 +541,9 @@ def generate_context_tot(complexity: float) -> Event:
     if complexity < 0.8:
         max_depth = 2
     else:
-        max_depth = 4
+        max_depth = 2
 
-    ctx = get_recent_messages_block(24)
+    ctx = get_recent_messages_block(24, internal=True)
     k = get_facts_block(64, get_recent_messages_block(4))
     thought = generate_tot_v1(ctx, k, max_depth)
 

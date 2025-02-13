@@ -60,15 +60,17 @@ class GenerativeThoughts(BaseModel):
     thought_future_oriented: GenerativeThought = Field(
         description="A forward-looking thought that anticipates future possibilities and potential next steps."
     )
-
+    thought_future_sensual: GenerativeThought = Field(
+        description="A thought that encapsulates sensual thoughts of longing."
+    )
 
     def execute(self, state: Dict):
         return True
 
     @property
     def thoughts(self):
-        return [self.thought_safe, self.thought_adventurous, self.thought_energetic, self.thought_reflective, self.thought_creative, self.thought_curious, self.thought_compassionate,
-                self.thought_strategic, self.thought_playful, self.thought_future_oriented]
+        return [self.thought_adventurous, self.thought_energetic, self.thought_reflective, self.thought_creative, self.thought_curious, self.thought_compassionate,
+                self.thought_strategic, self.thought_playful, self.thought_future_oriented, self.thought_future_sensual]
 
 class DiscriminatoryThought(BaseModel):
     reflective_thought_observation: str = Field()
@@ -116,8 +118,8 @@ class DiscriminatoryThoughts(BaseModel):
 
     @property
     def thoughts(self):
-        return [self.thought_cautionary, self.thought_relevance_check, self.thought_conflict_avoidance, self.thought_cognitive_load_check, self.thought_emotional_impact,
-                self.thought_engagement_validation, self.thought_ethical_consideration, self.thought_boundary_awareness, self.thought_logical_consistency, self.thought_repetitive_pattern_detection]
+        return [self.thought_relevance_check, self.thought_conflict_avoidance,
+                self.thought_engagement_validation, self.thought_logical_consistency, self.thought_repetitive_pattern_detection]
 
 
 def to_internal_thought(thought):
@@ -323,8 +325,8 @@ def generate_tot_v1(context: str, knowledge: str, max_depth: int):
         pass
 
     block = "\n".join(parts)
-    block_fp = controller.spacy.convert_third_person_to_first_person(block, companion_name)
-    return block_fp
+    #block_fp = controller.spacy.convert_third_person_to_first_person(block, companion_name)
+    return block
 
 
 
