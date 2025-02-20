@@ -25,7 +25,7 @@ class AgentHistorizedSimpel(BaseModel):
     id: str
     sysprompt: str
 
-    def get_prompt(self, new_input: str, max_tokens: int):
+    def get_prompt(self, new_input: str, max_tokens: int) -> List[Tuple[str, str]]:
         session = controller.get_session()
         msgs = session.exec(select(AgentMessages).
                             where(AgentMessages.agent_id == self.id).

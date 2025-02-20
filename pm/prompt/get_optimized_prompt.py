@@ -17,7 +17,8 @@ def get_optimized_prompt(
     all_clusters: List[Cluster],
     all_event_cluster: List[EventCluster],
     n_context_size: int = 1024,
-    n_split: float = 0.33
+    n_split: float = 0.33,
+    story_mode: bool = False
 ) -> List[PromptItem]:
     """
     Creates an optimized prompt by balancing recent events, context clusters, and temporal summaries.
@@ -46,7 +47,7 @@ def get_optimized_prompt(
     recent_tokens_used = 0
     for event in all_events:
         if recent_tokens_used + event.token <= recent_token_budget:
-            recent_events.append(event.to_prompt_item())
+            recent_events.append(event.to_prompt_item(story_mode))
             recent_event_ids.append(event.id)
             recent_tokens_used += event.token
         else:
@@ -81,8 +82,8 @@ def get_optimized_prompt(
         if not np.isin(cluster_event_ids, recent_event_ids_array).all():
             cluster_event_tokens = sum(event.token for event in cluster_events)
             if context_tokens_used + cluster_event_tokens <= context_token_budget:
-                selected_clusters.extend(event.to_prompt_item() for event in cluster_events)
-                #selected_clusters.append(cluster.to_prompt_item())
+                selected_clusters.extend(event.to_prompt_item(story_mode) for event in cluster_events)
+                #selected_clusters.append(cluster.to_prompt_item(story_mode))
                 context_tokens_used += cluster_event_tokens
             else:
                 break
@@ -94,7 +95,7 @@ def get_optimized_prompt(
     ]
     for summary in temporal_summaries:
         if context_tokens_used + summary.token <= context_token_budget:
-            selected_clusters.append(summary.to_prompt_item())
+            selected_clusters.append(summary.to_prompt_item(story_mode))
             context_tokens_used += summary.token
         elif context_tokens_used >= context_token_budget:
             break
@@ -114,7 +115,8 @@ def get_optimized_prompt_temp_cluster(
         all_event_cluster: List[EventCluster],
         search_string: str,
         n_context_size: int = 2048,
-        n_split: float = 0.33
+        n_split: float = 0.33,
+        story_mode: bool = False
 ) -> List[PromptItem]:
     """
     Creates an optimized prompt by balancing recent events, context clusters, and temporal summaries.
@@ -143,7 +145,7 @@ def get_optimized_prompt_temp_cluster(
     recent_tokens_used = 0
     for event in all_events:
         if recent_tokens_used + event.token <= recent_token_budget:
-            recent_events.extend(event.to_prompt_item())
+            recent_events.extend(event.to_prompt_item(story_mode))
             recent_event_ids.append(event.id)
             recent_tokens_used += event.token
         else:
@@ -229,7 +231,7 @@ def get_optimized_prompt_temp_cluster(
         if not np.isin(cluster_event_ids, recent_event_ids_array).all():
             cluster_event_tokens = sum(event.token for event in cluster_events)
             if context_tokens_used + cluster_event_tokens <= context_token_budget:
-                selected_clusters.extend(cluster.to_prompt_item([event.to_prompt_item()[0] for event in cluster_events]))
+                selected_clusters.extend(cluster.to_prompt_item(story_mode, [event.to_prompt_item(story_mode)[0] for event in cluster_events]))
                 context_tokens_used += cluster_event_tokens
             else:
                 break
@@ -273,7 +275,7 @@ def get_optimized_prompt_temp_cluster(
                     limit = True
                     break
                 else:
-                    temporal_clusters.extend(cluster.to_prompt_item())
+                    temporal_clusters.extend(cluster.to_prompt_item(story_mode))
                     temporal_tokens += cluster.token
 
             if not popped:
@@ -335,7 +337,7 @@ def create_optimized_promptasdf(
     recent_tokens_used = 0
     for event in all_events:
         if recent_tokens_used + event.token <= recent_token_budget:
-            recent_events.append(event.to_prompt_item())
+            recent_events.append(event.to_prompt_item(story_mode))
             recent_event_ids.add(event.id)
             recent_tokens_used += event.token
         else:
@@ -385,7 +387,7 @@ def create_optimized_promptasdf(
         # Convert selected clusters to PromptItem objects
         for item in selected_clusters:
             if item["type"] == "cluster":
-                context_items.append(next(cluster.to_prompt_item() for cluster in all_clusters if cluster.id == item["id"]))
+                context_items.append(next(cluster.to_prompt_item(story_mode) for cluster in all_clusters if cluster.id == item["id"]))
 
     # Combine recent events and context clusters
     res = recent_events + context_items
@@ -429,7 +431,7 @@ def create_optimized_prompt(
 
     for event in all_events:
         if recent_tokens_used + event.token <= recent_token_budget:
-            recent_events.append(event.to_prompt_item())
+            recent_events.append(event.to_prompt_item(story_mode))
             recent_event_ids.add(event.id)
             recent_tokens_used += event.token
         else:
@@ -457,7 +459,7 @@ def create_optimized_prompt(
 
     for cluster in filtered_clusters:
         if cluster_tokens_used + cluster.token <= cluster_token_budget:
-            relevant_clusters.append(cluster.to_prompt_item())
+            relevant_clusters.append(cluster.to_prompt_item(story_mode))
             cluster_tokens_used += cluster.token
         else:
             break
@@ -471,7 +473,7 @@ def create_optimized_prompt(
 
     for summary in temporal_summaries:
         if temporal_tokens_used + summary.token <= temporal_token_budget:
-            temporal_items.append(summary.to_prompt_item())
+            temporal_items.append(summary.to_prompt_item(story_mode))
             temporal_tokens_used += summary.token
         else:
             break

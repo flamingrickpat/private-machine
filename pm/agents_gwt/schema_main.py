@@ -1,7 +1,20 @@
+import enum
+from typing import List
+
 from pydantic import BaseModel, Field
 
 from pm.agents_gwt.schema_base import Subsystem, DynamicAgent
 from pm.character import user_name, companion_name
+
+class GwtLayer(enum.StrEnum):
+    id = "id"
+    superego = "superego"
+    social = "social"
+    metacognition = "metacognition"
+    complex_planning = "complex_planning"
+    thought_generation = "thought_generation"
+    emotions = "emotions"
+    tool_calling = "tool_calling"
 
 
 class DynamicPreGwtLayer(BaseModel):
@@ -15,10 +28,23 @@ class DynamicPreGwtLayer(BaseModel):
     subsystem_emotions: Subsystem = Field(default_factory=Subsystem)
     subsystem_tool_calling: Subsystem = Field(default_factory=Subsystem)
 
-    def get_subsystems(self):
-        return [self.subsystem_id, self.subsystem_emotions, self.subsystem_superego]
-        #return [self.subsystem_id, self.subsystem_emotions, self.subsystem_superego, self.subsystem_social,
-        #        self.subsystem_complex_planning, self.subsystem_metacognition]
+    def get_subsystems(self, gl: GwtLayer) -> Subsystem:
+        if gl == GwtLayer.id:
+            return self.subsystem_id
+        if gl == GwtLayer.superego:
+            return self.subsystem_superego
+        if gl == GwtLayer.social:
+            return self.subsystem_social
+        if gl == GwtLayer.metacognition:
+            return self.subsystem_metacognition
+        if gl == GwtLayer.complex_planning:
+            return self.subsystem_complex_planning
+        if gl == GwtLayer.thought_generation:
+            return self.subsystem_thought_generation
+        if gl == GwtLayer.emotions:
+            return self.subsystem_emotions
+        if gl == GwtLayer.tool_calling:
+            return self.subsystem_tool_calling
 
 def get_initial_dynamic_schema() -> DynamicPreGwtLayer:
     layer = DynamicPreGwtLayer()
@@ -360,14 +386,15 @@ def init_subsystem_complex_planning(layer: DynamicPreGwtLayer):
     )
 
     # Resource Allocation Agent
-    layer.subsystem_complex_planning.agents.append(
-        DynamicAgent(
-            name=f"Resource Allocation",
-            description=f"Manages the allocation of resources, including time and cognitive effort, to tasks.",
-            goal=f"Propose resource allocation strategies to optimize the use of available resources.",
-            prompt=f"Your role is to evaluate the resource requirements of tasks and propose efficient allocation strategies. Consider time, effort, and any other constraints to ensure resources are used effectively and tasks are prioritized appropriately."
-        )
-    )
+    #layer.subsystem_complex_planning.agents.append(
+    #    DynamicAgent(
+    #        name=f"Resource Allocation",
+    #        description=f"Manages the allocation of resources, including time and cognitive effort, to tasks.",
+    #        goal=f"Propose resource allocation strategies to optimize the use of available resources.",
+    #        prompt=f"Your role is to evaluate the resource requirements of tasks and propose efficient allocation strategies. Consider time, effort, and any other constraints to ensure resources
+    #        are used effectively and tasks are prioritized appropriately."
+    #    )
+    #)
 
     # Iterative Refinement Agent
     layer.subsystem_complex_planning.agents.append(

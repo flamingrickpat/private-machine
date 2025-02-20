@@ -7,7 +7,7 @@ from sqlmodel import Field, Session, SQLModel, create_engine, select, col
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, text, INTEGER
 
-from pm.character import timestamp_format, user_name, database_uri
+from pm.character import timestamp_format, user_name, database_uri, companion_name
 
 
 class PromptItem:
@@ -70,58 +70,111 @@ class Event(SQLModel, table=True):
     def __repr__(self):
         return f"{self.source}: {self.content}"
 
-    def to_prompt_item(self) -> List[PromptItem]:
-        if self.interlocus == InterlocusType.Emotion.value:
-            return [
-                PromptItem(
-                    self.id,
-                    self.timestamp,
-                    "assistant",
-                    "<think>\nThis conversation invokes strong feelings inside me.\n",
-                    self.content,
-                    f"\nI will use this feelings as basis for the next steps in my response planning.</think>",
-                    -1)]
-        elif self.interlocus == InterlocusType.Thought.value:
-            return [
-                PromptItem(
-                    self.id,
-                    self.timestamp,
-                    "assistant",
-                    "<think>\nTo craft a better response, I will explore possible scenarios.\n",
-                    self.content,
-                    f"\nBased on this I will now draft a response to the user {user_name}.\n</think>",
-                    -1)]
-        elif self.interlocus == InterlocusType.Contemplation.value:
-            return [
-                PromptItem(
-                    self.id,
-                    self.timestamp,
-                    "assistant",
-                    f"<think>\nWhile {user_name} is away, I will contemplate on some stuff.\n",
-                    self.content,
-                    f"\nNow I'll wait for the next heartbeat.</think>",
-                    -1)]
-        elif self.interlocus == InterlocusType.ActionDecision.value:
-            return [
-                PromptItem(
-                    self.id,
-                    self.timestamp,
-                    "assistant",
-                    f"<think>",
-                    self.content,
-                    f"</think>",
-                    -1)]
+    def to_prompt_item(self, story_mode: bool) -> List[PromptItem]:
+        if story_mode:
+            if self.interlocus == InterlocusType.Emotion.value:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        "user",
+                        f"{companion_name} is experiencing these emotions and needs right now:",
+                        self.content,
+                        f"",
+                        -1)]
+            elif self.interlocus == InterlocusType.Thought.value:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        "user",
+                        f"Let's make {companion_name}'s response more interesting, here is a tree of possibilities with considerations.",
+                        self.content,
+                        f"",
+                        -1)]
+            elif self.interlocus == InterlocusType.Contemplation.value:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        "assistant",
+                        f"<think>\nWhile {user_name} is away, I will contemplate on some stuff.\n",
+                        self.content,
+                        f"\nNow I'll wait for the next heartbeat.</think>",
+                        -1)]
+            elif self.interlocus == InterlocusType.ActionDecision.value:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        "user",
+                        f"Emmys thinks: '",
+                        self.content,
+                        f"'",
+                        -1)]
+            else:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        "assistant",
+                        "",
+                        self.source + ": " + self.content,
+                        "",
+                        1)
+                ]
         else:
-            return [
-                PromptItem(
-                self.id,
-                self.timestamp,
-                "user" if self.source == f"{user_name}" else "assistant",
-                "",
-                self.content,
-                "",
-                1)
-            ]
+            if self.interlocus == InterlocusType.Emotion.value:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        "assistant",
+                        "<think>\nThis conversation invokes strong feelings inside me.\n",
+                        self.content,
+                        f"\nI will use this feelings as basis for the next steps in my response planning.</think>",
+                        -1)]
+            elif self.interlocus == InterlocusType.Thought.value:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        "assistant",
+                        "<think>\nTo craft a better response, I will explore possible scenarios.\n",
+                        self.content,
+                        f"\nBased on this I will now draft a response to the user {user_name}.\n</think>",
+                        -1)]
+            elif self.interlocus == InterlocusType.Contemplation.value:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        "assistant",
+                        f"<think>\nWhile {user_name} is away, I will contemplate on some stuff.\n",
+                        self.content,
+                        f"\nNow I'll wait for the next heartbeat.</think>",
+                        -1)]
+            elif self.interlocus == InterlocusType.ActionDecision.value:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        "assistant",
+                        f"<think>",
+                        self.content,
+                        f"</think>",
+                        -1)]
+            else:
+                return [
+                    PromptItem(
+                    self.id,
+                    self.timestamp,
+                    "user" if self.source == f"{user_name}" else "assistant",
+                    "",
+                    self.content,
+                    "",
+                    1)
+                ]
 
 class ClusterType(StrEnum):
     Topical = "topical"
@@ -144,32 +197,59 @@ class Cluster(SQLModel, table=True):
     # Temporary field, excluded from the DB schema
     similarity: float = Field(default=0.0, exclude=True)
 
-    def to_prompt_item(self, data=None):
-        if self.type == ClusterType.Topical:
-            if data is None:
-                raise Exception()
+    def to_prompt_item(self, story_mode: bool = False, data=None):
+        if story_mode:
+            if self.type == ClusterType.Topical:
+                if data is None:
+                    raise Exception()
 
-            pi = PromptItem(
-                str(uuid.uuid4()),
-                self.timestamp_from,
-                "system",
-                "",
-                f"Current time: {self.timestamp_from.strftime(timestamp_format)}",
-                "",
-                1)
+                pi = PromptItem(
+                    str(uuid.uuid4()),
+                    self.timestamp_from,
+                    "assistant",
+                    "",
+                    f"Current time: {self.timestamp_from.strftime(timestamp_format)}",
+                    "",
+                    1)
 
-            data = [e for e in data]
-            data.insert(0, pi)
-            return data
+                data = [e for e in data]
+                data.insert(0, pi)
+                return data
+            else:
+                return [PromptItem(
+                    str(uuid.uuid4()),
+                    self.timestamp_from,
+                    "assistant",
+                    f"This happened between {self.timestamp_from.strftime(timestamp_format)} and {self.timestamp_to.strftime(timestamp_format)}:",
+                    self.summary,
+                    f"",
+                    1)]
         else:
-            return [PromptItem(
-                str(uuid.uuid4()),
-                self.timestamp_from,
-                "system",
-                f"You remember this happening between {self.timestamp_from.strftime(timestamp_format)} and {self.timestamp_to.strftime(timestamp_format)}: <memory>",
-                self.summary,
-                f"</memory>",
-                1)]
+            if self.type == ClusterType.Topical:
+                if data is None:
+                    raise Exception()
+
+                pi = PromptItem(
+                    str(uuid.uuid4()),
+                    self.timestamp_from,
+                    "system",
+                    "",
+                    f"Current time: {self.timestamp_from.strftime(timestamp_format)}",
+                    "",
+                    1)
+
+                data = [e for e in data]
+                data.insert(0, pi)
+                return data
+            else:
+                return [PromptItem(
+                    str(uuid.uuid4()),
+                    self.timestamp_from,
+                    "system",
+                    f"You remember this happening between {self.timestamp_from.strftime(timestamp_format)} and {self.timestamp_to.strftime(timestamp_format)}: <memory>",
+                    self.summary,
+                    f"</memory>",
+                    1)]
 
 
 class Fact(SQLModel, table=True):

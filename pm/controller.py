@@ -165,6 +165,7 @@ class Controller:
             "max_tokens": comp_settings.max_tokens,
             "repeat_penalty": comp_settings.repeat_penalty,
             "temperature": comp_settings.temperature,
+            "stop": comp_settings.stop_words
         }
 
         if preset == LlmPreset.Conscious:
@@ -201,8 +202,9 @@ class Controller:
                 special=True,
             )
 
+            # start deleting in middle
             if len(tokenized_prompt) > (self.current_ctx - comp_settings.max_tokens) - 16:
-                del openai_inp[1]
+                del openai_inp[int(len(openai_inp) / 2)]
             else:
                 break
 
@@ -300,7 +302,7 @@ class Controller:
     def init_db(self):
         self.session = Session(create_engine(database_uri))
 
-    def get_session(self):
+    def get_session(self) -> Session:
         return self.session
 
     def rollback_db(self):

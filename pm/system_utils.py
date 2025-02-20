@@ -4,13 +4,18 @@ import os
 import traceback
 import uuid
 
+from django.contrib.auth import user_logged_in
 from pydantic import BaseModel
 
 from pm.agents_gwt.gwt_layer import pregwt_to_internal_thought
+from pm.agents_gwt.schema_main import GwtLayer
 from pm.common_prompts.rate_complexity_v2 import rate_complexity_v2
 from pm.common_prompts.rewrite_as_thought import rewrite_as_thought
 from pm.cosine_clustering.cosine_cluster import get_best_category, cluster_text, TEMPLATE_CATEGORIES
 from pm.fact_learners.extract_cause_effect_agent import extract_cas
+from pm.futils.enum_utils import make_enum_subset
+from pm.subsystems.subsystem_thought import execute_subsystem_thought
+from pm.tools.common import tool_docs
 from pm.validation.validate_directness import validate_directness
 from pm.validation.validate_query_fulfillment import validate_query_fulfillment
 from pm.validation.validate_response_in_context import validate_response_in_context
@@ -41,16 +46,15 @@ from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Prompt
 from pm.prompt.get_optimized_prompt import get_optimized_prompt, create_optimized_prompt, get_optimized_prompt_temp_cluster
 from pm.thought.generate_tot import generate_tot_v1
 
-from pm.character import sysprompt, database_uri, cluster_split, companion_name, timestamp_format, sysprompt_addendum
+from pm.character import sysprompt, database_uri, cluster_split, companion_name, timestamp_format, sysprompt_addendum, char_card_3rd_person_neutral, user_name, char_card_3rd_person_emotional
 from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
-from pm.emotion.generate_emotion import generate_first_person_emotion
 from pm.common_prompts.get_emotional_state import get_emotional_state
 from pm.meta_learning.integrate_rules_final_output import integrate_rules_final_output
 
 res_tag = "<<<RESULT>>>"
 MAX_GENERATION_TOKENS = 4096
-MAX_THOUGHTS_IN_PROMPT = 4
+MAX_THOUGHTS_IN_PROMPT = 16
 
 def get_engine():
     return create_engine(database_uri)
@@ -351,7 +355,7 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
                 if get_learned_rules_count() > 32:
                     while True:
                         msgs_copy = copy.copy(msgs)
-                        cache_user_input = controller.cache_user_input
+                        cache_user_input = controller.cache_sensation
                         cache_emotion = controller.cache_emotion
                         cache_tot = controller.cache_tot
                         facts = get_learned_rules_block(64, cache_user_input + cache_emotion + cache_tot + content)
@@ -395,6 +399,9 @@ class OperationMode(StrEnum):
     #VirtualWorld = "VirtualWorld"
 
 class ActionType(StrEnum):
+    Reply = "Reply"
+    ToolCall = "ToolCall"
+    Ignore = "Ignore"
     InitiateUserConversation = "InitiateUserConversation"
     InitiateInternalContemplation = "InitiateInternalContemplation"
     InitiateIdleMode = "InitiateIdleMode"
@@ -404,18 +411,35 @@ class ActionSelector(BaseModel):
     action_type: ActionType = Field(description="the action type")
     reason: str = Field(description="why you chose this action type?")
 
-def get_independant_thought_system_msg():
+def get_independent_thought_system_msg():
     return ("system", f"System Message: The user hasn't responded yet, entering autonomous thinking mode. Current timestamp: {datetime.now().strftime(timestamp_format)}\n"
                       f"Please use the provided tools to select an action type.")
 
-def determine_action_type(items) -> ActionSelector:
-    msgs = [("system", sysprompt)]
-    if items is not None:
-        for item in items:
-            msgs.append(item.to_tuple())
+def determine_action_type(items, allowed_actions: List[ActionType]) -> ActionSelector:
+    enum_subset = make_enum_subset(ActionType, allowed_actions)
 
-    _, calls = controller.completion_tool(LlmPreset.Conscious, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
-                                          tools=[ActionSelector])
+    class WorkingActionSelector(BaseModel):
+        thoughts: str = Field(description="pros and cons for different selections")
+        action_type: enum_subset = Field(description="the action type")
+        reason: str = Field(description="why you chose this action type?")
+
+    msgs = [("system", f"You are a helpful assistant that determines what action the AI companion {companion_name} should do."
+                       f"### BEGIN CHARACTER DESCRIPTION"
+                       f"\n{char_card_3rd_person_emotional}\n"
+                       f"### END CHARACTER DESCRIPTION"
+                       f"\nThe following tools are available to {companion_name}:\n"
+                       f"### BEGIN TOOLS"
+                       f"\n{tool_docs}\n"
+                       f"### END TOOLS")]
+
+    block = get_recent_messages_block(16, True)
+    msgs.append(("user", f"### BEGIN MESSAGES"
+                         f"{block}"
+                         f"### END MESSAGES"
+                         f"What action should {companion_name} choose? Make sure to include her internal thoughts in your decision! And don't forget about tools (API calls) she could use!"))
+
+    _, calls = controller.completion_tool(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
+                                          tools=[WorkingActionSelector])
     return calls[0]
 
 class MetaSystemOperationModeDecision(BaseModel):
@@ -426,6 +450,22 @@ class MetaSystemOperationModeDecision(BaseModel):
 def get_action(prompt: List[PromptItem], complexity: float):
     preset = LlmPreset.Conscious
     return completion_conscious(prompt, preset=preset)
+
+def completion_story_mode():
+    items = get_prompt(story_mode=True)
+    msgs = [("system", f"You are a story writer that writes and endearing and fun story about the AI companion {companion_name} and her user {user_name}."
+                       f"### BEGIN {companion_name} DESCRIPTION"
+                       f"{char_card_3rd_person_neutral}"
+                       f"### END {companion_name} DESCRIPTION")]
+    if items is not None:
+        for item in items:
+            msgs.append(item.to_tuple())
+
+    msgs.append(("assistant", f"{companion_name}:"))
+
+    content = controller.completion_text(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, stop_words=["Rick:"]), discard_thinks=False)
+    print(content)
+
 
 def add_cognitive_event(event: Event):
     if event is None:
@@ -441,7 +481,7 @@ def get_public_event_count() -> int:
     events = list(session.exec(select(Event).where(Event.interlocus == 1).order_by(col(Event.id))).fetchall())
     return len(events)
 
-def get_prompt() -> List[PromptItem]:
+def get_prompt(story_mode: bool = False) -> List[PromptItem]:
     session = controller.get_session()
     events =        list(session.exec(select(Event).order_by(col(Event.id))).fetchall())
     clusters =      session.exec(select(Cluster).order_by(col(Cluster.id))).fetchall()
@@ -457,7 +497,8 @@ def get_prompt() -> List[PromptItem]:
     parts = get_optimized_prompt_temp_cluster(events, clusters, event_cluster,
                                               search_string=get_recent_messages_block(6),
                                               n_context_size=(controller.get_conscious_context() - controller.get_context_sys_prompt()),
-                                              n_split=cluster_split)
+                                              n_split=cluster_split,
+                                              story_mode=story_mode)
 
     # add datetimes
     for i in range(len(parts) - 1, 1, -1):
@@ -469,7 +510,7 @@ def get_prompt() -> List[PromptItem]:
             pi = PromptItem(
                 str(uuid.uuid4()),
                 part.timestamp,
-                "system",
+                "assistant" if story_mode else "system",
                 "",
                 f"Current time: {part.timestamp.strftime(timestamp_format)}",
                 "",
@@ -478,7 +519,7 @@ def get_prompt() -> List[PromptItem]:
             parts.insert(i, pi)
 
     # insert intermediate system prompt
-    if len(parts) > 40:
+    if len(parts) > 40 and not story_mode:
         for i in range(len(parts) - 32, len(parts) - 2):
             if parts[i].turn == "user":
                 pi = PromptItem(
@@ -495,10 +536,6 @@ def get_prompt() -> List[PromptItem]:
     return parts
 
 
-def generate_thought():
-    pass
-
-
 def generate_tot(thought):
     pass
 
@@ -511,12 +548,19 @@ def get_recent_messages_block(n_msgs: int, internal: bool = False):
     session = controller.get_session()
     events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
 
-    latest_events = events[-n_msgs:]
+    cnt = 0
+    latest_events = events[::-1]
     lines = []
     for event in latest_events:
-        if (event.interlocus == 1 and event.source != "system") or internal:
-            content = event.to_prompt_item()[0].to_tuple()[1]
+        if (event.interlocus >= 0) or internal:
+            content = event.to_prompt_item(False)[0].to_tuple()[1].replace("\n", "")
             lines.append(f"{event.source}: {content}")
+            if event.source != "system":
+                cnt += 1
+            if cnt >= n_msgs:
+                break
+
+    lines.reverse()
     all = "\n".join(lines)
     return all
 
@@ -574,23 +618,12 @@ def generate_context_tot(complexity: float) -> Event:
     return event
 
 
-def generate_emotion_tot():
+def generate_thought():
     ctx = get_recent_messages_block(8)
     lm = get_recent_messages_block(1)
-    thought = generate_first_person_emotion(ctx, lm)
 
-    controller.cache_emotion = thought
-
-    event = Event(
-        source=f"{companion_name}",
-        content=thought,
-        embedding=controller.get_embedding(thought),
-        token=get_token(thought),
-        timestamp=controller.get_timestamp(),
-        interlocus=-2
-    )
-    return event
-
+    thought = execute_subsystem_thought(ctx, lm)
+    return thought
 
 class InitiateUserItem(BaseModel):
     user_name: str = Field(description="name of recipient")
@@ -622,214 +655,5 @@ def get_internal_contemplation(items) -> InternalContemplationItem:
     return calls[0]
 
 
-def run_auto_thinking_procedure() -> str:
-    content = get_independant_thought_system_msg()[1]
-    event = Event(
-        source=f"system",
-        content=content,
-        embedding=controller.get_embedding(content),
-        token=get_token(content),
-        timestamp=datetime.now(),
-        interlocus=0
-    )
-    controller.get_session().add(event)
-
-    prompt = get_prompt()
-    action_type = determine_action_type(prompt)
-    #print(action_type.reason)
-    content = None
-    if action_type.action_type == ActionType.InitiateUserConversation:
-        content = f"I will message my user because of the following reasons: {action_type.reason}"
-    elif action_type.action_type == ActionType.InitiateIdleMode:
-        content = f"I will stay idle until the next heartbeat because of the following reasons: {action_type.reason}"
-    elif action_type.action_type == ActionType.InitiateInternalContemplation:
-        content = f"I will contemplate for the time being because of the following reasons: {action_type.reason}"
-
-    event = Event(
-        source=f"{companion_name}",
-        content=content,
-        embedding=controller.get_embedding(content),
-        token=get_token(content),
-        timestamp=datetime.now(),
-        interlocus=InterlocusType.ActionDecision.value
-    )
-    controller.get_session().add(event)
-
-    prompt = get_prompt()
-    if action_type.action_type == ActionType.InitiateUserConversation:
-        item = get_message_to_user(prompt)
-
-        content = item.thought
-        event = Event(
-            source=f"{companion_name}",
-            content=content,
-            embedding=controller.get_embedding(content),
-            token=get_token(content),
-            timestamp=datetime.now(),
-            interlocus=InterlocusType.Thought.value
-        )
-        controller.get_session().add(event)
-
-
-        content = item.message
-        event = Event(
-            source=f"{companion_name}",
-            content=content,
-            embedding=controller.get_embedding(content),
-            token=get_token(content),
-            timestamp=datetime.now(),
-            interlocus=InterlocusType.Public.value
-        )
-        controller.get_session().add(event)
-        return content
-    elif action_type.action_type == ActionType.InitiateIdleMode:
-        pass
-    elif action_type.action_type == ActionType.InitiateInternalContemplation:
-        item = get_internal_contemplation(prompt)
-
-        content = item.contemplation
-        event = Event(
-            source=f"{companion_name}",
-            content=content,
-            embedding=controller.get_embedding(content),
-            token=get_token(content),
-            timestamp=datetime.now(),
-            interlocus=InterlocusType.Thought.value
-        )
-        controller.get_session().add(event)
-        return ""
-
-def run_cli() -> str:
-    inp = sys.argv[1]
-    if inp.strip() == "":
-        print("no input")
-        exit(1)
-
-    res = run_mp(inp)
-    print(res_tag + res)
-
-def run_mp(inp: str) -> str:
-    if inp.strip() == "/think":
-        res = run_auto_thinking_procedure()
-        return res
-    if inp.strip() == "/sleep":
-        check_tasks()
-        return "clustered and extracted facts!"
-    else:
-        controller.cache_user_input = inp.strip()
-        check_tasks()
-        try:
-            sensation = get_sensation(override=inp)
-            add_cognitive_event(sensation)
-
-            # disable complex stuff until some messages have been generated to not confuse the llm with <think> too early
-            complexity = 0
-            if get_public_event_count() > 32:
-                emotional_impact = 1 #evalue_emotional_impact()
-                if emotional_impact > 0.66:
-                    emotion_chain = generate_emotion_tot()
-                    add_cognitive_event(emotion_chain)
-
-                complexity = 1 #evalue_prompt_complexity()
-                if complexity > 0.66:
-                    thought_chain = generate_context_tot(complexity)
-                    add_cognitive_event(thought_chain)
-                pass
-
-            prompt = get_prompt()
-            action = get_action(prompt, complexity)
-            res = action.content
-            add_cognitive_event(action)
-            return res
-        except Exception as e:
-            return str(e)
-
-#def run():
-#    auto_thinking_mode = False
-#    while True:
-#        check_tasks()
-#        try:
-#            sensation = get_sensation(allow_timeout=not auto_thinking_mode)
-#            add_cognitive_event(sensation)
-#
-#            emotional_impact = evalue_emotional_impact()
-#            if emotional_impact > 0.5:
-#                emotion_chain = generate_emotion_tot()
-#                add_cognitive_event(emotion_chain)
-#
-#            complexity = evalue_prompt_complexity()
-#            if complexity > 0.5:
-#                thought_chain = generate_context_tot(complexity)
-#                add_cognitive_event(thought_chain)
-#
-#            prompt = get_prompt()
-#            action = get_action(prompt)
-#            add_cognitive_event(action)
-#        except TimeoutError:
-#            auto_thinking_mode = True
-#            thought = generate_thought()
-#            thought_chain = generate_tot(thought)
-#            add_cognitive_event(thought_chain)
-#            action_type = evaluate_action_type(thought_chain)
-#            if action_type == ActionType.MessageUser:
-#                pass
-#            elif action_type == ActionType.ContinueInternalMonolouge:
-#                pass
-#            elif action_type == ActionType.Sleep:
-#                pass
-
-
-def get_action_only():
-    prompt = get_prompt()
-    #action = get_action(prompt, 0)
-
-    all = get_recent_messages_block(10)
-    last = get_recent_messages_block(1)
-    rating = rate_emotional_impact(all, last)
-
-    all = get_recent_messages_block(10)
-    last = get_recent_messages_block(1)
-    state = get_emotional_state(all, last)
-
-    return rating, state
-
-TEST_MODE = True
-
-def run_system_cli():
-    init_db()
-    init()
-
-    controller.init_db()
-    try:
-        run_cli()
-        if TEST_MODE:
-            controller.rollback_db()
-        else:
-            controller.commit_db()
-    except Exception as e:
-        print(res_tag)
-        print(e)
-        print(traceback.format_exc())
-        controller.rollback_db()
-
-
-def run_system_mp(inp: str) -> str:
-    init_db()
-    init()
-    res = ""
-
-    controller.init_db()
-    try:
-        res = run_mp(inp)
-        if TEST_MODE:
-            controller.rollback_db()
-        else:
-            controller.commit_db()
-    except Exception as e:
-        res = f"{traceback.format_exc()}\n{e}"
-        controller.rollback_db()
-    return res
-
-
-if __name__ == '__main__':
-    run_system_cli()
+def get_completion_story(prompt):
+    pass
