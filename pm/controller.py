@@ -29,6 +29,7 @@ from pm.character import companion_name, user_name, embedding_model, database_ur
 from pm.config.config import read_config_file
 from pm.database.tables import Event
 from pm.embedding.token import get_token
+from pm.futils.string_utils import remove_strings
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.log_utils import setup_logger
 from pm.nlp.nlp_spacy import NlpSpacy
@@ -86,6 +87,9 @@ class Controller:
         return get_token(sysprompt) + get_token(sysprompt_addendum)
 
     def load_model(self, preset: LlmPreset):
+        if preset == LlmPreset.CurrentOne:
+            return
+
         if preset.value in model_map.keys():
             ctx = model_map[preset.value]["context"]
             last_n_tokens_size = model_map[preset.value]["last_n_tokens_size"]
@@ -188,6 +192,8 @@ class Controller:
 
             if openai_inp[-1]["role"] == "assistant":
                 rendered_data = rendered_data.removesuffix(remove_ass_string)
+
+            rendered_data = remove_strings(rendered_data, "</think>", "<think>")
 
             tokenized_prompt = self.llm.tokenize(
                 rendered_data.encode("utf-8"),

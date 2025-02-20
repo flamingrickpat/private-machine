@@ -6,7 +6,9 @@ import uuid
 
 from pydantic import BaseModel
 
+from pm.agents_gwt.gwt_layer import pregwt_to_internal_thought
 from pm.common_prompts.rate_complexity_v2 import rate_complexity_v2
+from pm.common_prompts.rewrite_as_thought import rewrite_as_thought
 from pm.cosine_clustering.cosine_cluster import get_best_category, cluster_text, TEMPLATE_CATEGORIES
 from pm.fact_learners.extract_cause_effect_agent import extract_cas
 from pm.validation.validate_directness import validate_directness
@@ -22,6 +24,7 @@ import time
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Optional, Any, List, Tuple
+import re
 
 from sqlmodel import Field, Session, SQLModel, create_engine, select, col
 from sqlalchemy import Column, text, INTEGER, func
@@ -317,7 +320,12 @@ def factorize():
 def get_sensation(allow_timeout: bool = False, override: str = None):
     return controller.get_user_input(override=override)
 
+
 def clip_last_unfinished_sentence(inp):
+    idx1 = inp.rfind(".")
+    idx2 = inp.rfind("?")
+    idx3 = inp.rfind(".")
+
     if "." in inp and not inp.strip().endswith("."):
         return inp[:inp.rfind(".") + 1]
     return inp
@@ -329,43 +337,47 @@ def completion_conscious(items, preset: LlmPreset) -> Event:
             msgs.append(item.to_tuple())
 
         lst_messages = get_recent_messages_block(6)
-        content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=128), discard_thinks=False)
-        content = clip_last_unfinished_sentence(content)
 
-        rating = validate_response_in_context(lst_messages, content)
-        rating_directness = validate_directness(lst_messages, content)
-        rating_fulfilment = validate_query_fulfillment(lst_messages, content)
+        content_final = ""
+        while True:
+            content = controller.completion_text(preset, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=128), discard_thinks=False)
+            content = clip_last_unfinished_sentence(content)
 
-        if get_learned_rules_count() > 32 and (rating < 0.9 or rating_directness < 0.9 or rating_fulfilment < 0.75):
-            while True:
-                msgs_copy = copy.copy(msgs)
-                cache_user_input = controller.cache_user_input
-                cache_emotion = controller.cache_emotion
-                cache_tot = controller.cache_tot
-                facts = get_learned_rules_block(64, cache_user_input + cache_emotion + cache_tot + content)
-                feedback = integrate_rules_final_output(cache_user_input, cache_emotion, cache_tot, content, facts)
-                #feedback = clip_last_unfinished_sentence(feedback[:512])
+            rating = validate_response_in_context(lst_messages, content)
+            rating_directness = validate_directness(lst_messages, content)
+            rating_fulfilment = validate_query_fulfillment(lst_messages, content)
 
-                msgs_copy.append(("assistant", content))
-                msgs_copy.append(("system", "System Warning: Your answer was good, but the meta-learning system thinks it can be improved by following these tips:"
-                                            f"### BEGIN TIPS\n{feedback}\n### END TIPS\n"
-                                            f"Use these tips to rewrite, shorten and restructure your response to be better! Do not announce it with phrases such as 'Let me try rewriting the previous "
-                                            f"answer based on "
-                                            f"these tips', 'Sure, let's try piecing together a key insight by reframing our conversation from a different angle to be more intimate and direct.' or "
-                                            f"similar. Just write it for the user to see with no announcement whatsoever, just the direct response! "
-                                            f"The user doesn't have to know that you needed a 2nd try!"))
+            if rating >= 0.75 and rating_directness >= 0.75 and rating_fulfilment > 0.75:
+                if get_learned_rules_count() > 32:
+                    while True:
+                        msgs_copy = copy.copy(msgs)
+                        cache_user_input = controller.cache_user_input
+                        cache_emotion = controller.cache_emotion
+                        cache_tot = controller.cache_tot
+                        facts = get_learned_rules_block(64, cache_user_input + cache_emotion + cache_tot + content)
+                        feedback = integrate_rules_final_output(cache_user_input, cache_emotion, cache_tot, content, facts)
+                        #feedback = clip_last_unfinished_sentence(feedback[:1024])
 
-                content_tmp = controller.completion_text(preset, msgs_copy, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=128))
-                content_tmp = clip_last_unfinished_sentence(content_tmp)
+                        msgs_copy.append(("assistant", f"<think>I could say something like this: '{content}'</think>"))
+                        feedback_fp = pregwt_to_internal_thought(cache_user_input + cache_emotion + cache_tot + content, feedback)
+                        msgs_copy.append(("assistant", f"<think>No, this isn't good good and I have some concerns: '{feedback_fp}'\nThat's it! With this I can write the final response now!</think>"))
 
-                rating = validate_response_in_context(lst_messages, content_tmp)
-                rating_directness = validate_directness(lst_messages, content_tmp)
-                rating_fulfilment = validate_query_fulfillment(lst_messages, content)
+                        content_tmp = controller.completion_text(preset, msgs_copy, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=512))
+                        content_tmp = clip_last_unfinished_sentence(content_tmp)
 
-                if rating > 0.85 and rating_directness > 0.85 and rating_fulfilment > 0.75:
-                    content = content_tmp
+                        rating = validate_response_in_context(lst_messages, content_tmp)
+                        rating_directness = validate_directness(lst_messages, content_tmp)
+                        rating_fulfilment = validate_query_fulfillment(lst_messages, content)
+
+                        if rating >= 0.8 and rating_directness >= 0.8 and rating_fulfilment > 0.8:
+                            content_final = content_tmp
+                            break
+                    break
+                else:
+                    content_final = content
                     break
 
+        content = content_final
         event = Event(
             source=f"{companion_name}",
             content=content.strip(),
@@ -478,6 +490,7 @@ def get_prompt() -> List[PromptItem]:
                     "",
                     1)
                 parts.insert(i + 1, pi)
+                break
 
     return parts
 
@@ -546,7 +559,7 @@ def generate_context_tot(complexity: float) -> Event:
     ctx = get_recent_messages_block(24, internal=True)
     k = get_facts_block(64, get_recent_messages_block(4))
     thought = generate_tot_v1(ctx, k, max_depth)
-
+    #thought = rewrite_as_thought(thought)
     controller.cache_tot = thought
 
     event = Event(
@@ -713,12 +726,12 @@ def run_mp(inp: str) -> str:
             complexity = 0
             if get_public_event_count() > 32:
                 emotional_impact = 1 #evalue_emotional_impact()
-                if emotional_impact > 0.5:
+                if emotional_impact > 0.66:
                     emotion_chain = generate_emotion_tot()
                     add_cognitive_event(emotion_chain)
 
-                complexity = evalue_prompt_complexity()
-                if complexity > 0.5:
+                complexity = 1 #evalue_prompt_complexity()
+                if complexity > 0.66:
                     thought_chain = generate_context_tot(complexity)
                     add_cognitive_event(thought_chain)
                 pass
@@ -780,7 +793,7 @@ def get_action_only():
 
     return rating, state
 
-TEST_MODE = False
+TEST_MODE = True
 
 def run_system_cli():
     init_db()

@@ -63,7 +63,7 @@ def pregwt_to_internal_thought(context_data: str, recommendations: str) -> str:
     ]
 
     while True:
-        cot = controller.completion_text(LlmPreset.ConvertToInternalThought, messages)
+        cot = controller.completion_text(LlmPreset.CurrentOne, messages)
         rating = validate_thought(cot)
         if rating > 0.9:
             return cot

@@ -39,6 +39,7 @@ class PromptKeyword(str, Enum):
 
 
 class LlmPreset(str, Enum):
+    CurrentOne = "CurrentOne"
     Conscious = "Conscious"
     CauseEffect = "CauseEffect"
     Auxiliary = "Auxiliary"

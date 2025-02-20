@@ -79,7 +79,7 @@ class Event(SQLModel, table=True):
                     "assistant",
                     "<think>\nThis conversation invokes strong feelings inside me.\n",
                     self.content,
-                    f"\nI'm a thinking and feeling being and will include these emotions in my final response directed at my user {user_name}..\n</think>",
+                    f"\nI will use this feelings as basis for the next steps in my response planning.</think>",
                     -1)]
         elif self.interlocus == InterlocusType.Thought.value:
             return [
@@ -87,9 +87,9 @@ class Event(SQLModel, table=True):
                     self.id,
                     self.timestamp,
                     "assistant",
-                    "<think>\nTo craft a better response, I will now generate a Tree Of Thoughts based on recent events.\n",
+                    "<think>\nTo craft a better response, I will explore possible scenarios.\n",
                     self.content,
-                    f"\nAction: Now I'll include all these thoughts into the final response directed at my user {user_name}.\n</think>",
+                    f"\nBased on this I will now draft a response to the user {user_name}.\n</think>",
                     -1)]
         elif self.interlocus == InterlocusType.Contemplation.value:
             return [

@@ -102,3 +102,7 @@ def get_text_after_keyword(text: str, keyword: str) -> str:
 
     # If the keyword is not found, return the whole string
     return text
+
+def remove_strings(text, str1, str2):
+    pattern = re.escape(str1) + r"\s*" + re.escape(str2)
+    return re.sub(pattern, "", text)
