@@ -10,6 +10,17 @@ from datetime import datetime
 from typing import Tuple, Type, Dict
 import threading
 
+import copy
+import sys
+import os
+import traceback
+import uuid
+
+# Add the project root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8')
+
 from json_repair import repair_json
 from lancedb import LanceDBConnection
 from llama_cpp import LlamaGrammar, LlamaDiskCache

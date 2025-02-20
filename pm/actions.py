@@ -2,7 +2,7 @@ from pm.common_prompts.determine_tool import determine_tools
 from pm.common_prompts.get_tool_call import get_tool_call
 from pm.reply_consideration import generate_reply_consideration
 from pm.subsystems.subsystem_base import CogEvent
-from pm.system_utils import get_message_to_user, get_internal_contemplation, ActionType, determine_action_type, add_cognitive_event, get_prompt, get_completion_story, completion_story_mode, \
+from pm.system_utils import get_message_to_user, get_internal_contemplation, ActionType, determine_action_type, add_cognitive_event, get_prompt, completion_story_mode, \
     get_recent_messages_block
 import time
 from datetime import datetime, timedelta
@@ -41,7 +41,6 @@ def generate_action_selection(allowed_actions: List[ActionType]) -> Tuple[Action
         timestamp=datetime.now(),
         interlocus=InterlocusType.ActionDecision.value
     )
-    add_cognitive_event(event)
     return action_type, event
 
 
@@ -93,24 +92,14 @@ def action_tool_call():
     tool_type = determine_tools(ctx)
 
     res = {}
-    t = get_tool_call(ctx, tool_type)
-    t.execute(res)
+    tool = get_tool_call(ctx, tool_type)
+    tool.execute(res)
 
     content = f"{companion_name} uses her AI powers to call the tool. The tool response: {res['output']}"
-    #tool_call = Event(
-    #    source=f"{companion_name}",
-    #    content=content,
-    #    embedding=controller.get_embedding(content),
-    #    token=get_token(content),
-    #    timestamp=datetime.now(),
-    #    interlocus=InterlocusType.SystemMessage.value
-    #)
-    #add_cognitive_event(tool_call)
     return "<tool>" + content
 
 def action_reply():
     reply_consideration = generate_reply_consideration()
-    #self.cache_reply_consideration = reply_consideration
     add_cognitive_event(reply_consideration)
 
-    completion_story_mode()
+    return completion_story_mode()

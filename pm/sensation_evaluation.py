@@ -26,5 +26,4 @@ def generate_sensation_evaluation():
         timestamp=controller.get_timestamp(),
         interlocus=-2
     )
-    add_cognitive_event(event)
     return event

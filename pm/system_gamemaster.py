@@ -257,12 +257,12 @@ class WorldFormatter:
 
         return "\n\n".join(sections) if sections else "No world data yet! Let’s add some details. ☕"
 
-class ActionType(StrEnum):
+class InteractionType(StrEnum):
     Interact = "Interact"
     Observe = "Observe"
 
 class Action(BaseModel):
-    action_type: ActionType = Field(description="do something or observer something")
+    action_type: InteractionType = Field(description="do something or observer something")
     target_instruction: str = Field(description="describe the action. what you observe or what you do")
 
 class ResponseAction(BaseModel):
@@ -299,7 +299,7 @@ while True:
         _, calls = controller.completion_tool(LlmPreset.Default, prompt_player, CommonCompSettings(max_tokens=512), tools=[Action])
         content = json.dumps(calls[0].model_dump(), indent=2)
         action: Action = calls[0]
-        if action.action_type == ActionType.Observe:
+        if action.action_type == InteractionType.Observe:
             current_observation = True
         else:
             current_observation = False

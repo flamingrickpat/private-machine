@@ -131,6 +131,7 @@ class NeedsModel(BaseModel):
 
 
 class SensationType(StrEnum):
+    Empty = "empty"
     ToolResult = "tool_result"
     Thought = "thought"
     UserInput = "user_input"

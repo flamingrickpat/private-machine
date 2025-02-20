@@ -46,7 +46,7 @@ def ai_process(content, output_queue):
     sys.stdin.reconfigure(encoding='utf-8')
     sys.stdout.reconfigure(encoding='utf-8')
 
-    from pm.system_test import run_system_mp
+    from pm.system_run import run_system_mp
     response = run_system_mp(content)
     if response is None or response == "":
         output_queue.put(("tick", ""))

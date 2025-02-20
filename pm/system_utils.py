@@ -463,8 +463,9 @@ def completion_story_mode():
 
     msgs.append(("assistant", f"{companion_name}:"))
 
-    content = controller.completion_text(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, stop_words=["Rick:"]), discard_thinks=False)
-    print(content)
+    content = controller.completion_text(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, stop_words=["Rick:", "Current time:"]),
+                                         discard_thinks=False)
+    return content
 
 
 def add_cognitive_event(event: Event):
@@ -653,7 +654,3 @@ def get_internal_contemplation(items) -> InternalContemplationItem:
     _, calls = controller.completion_tool(LlmPreset.Conscious, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
                                           tools=[InternalContemplationItem])
     return calls[0]
-
-
-def get_completion_story(prompt):
-    pass
