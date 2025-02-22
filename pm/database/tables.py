@@ -1,11 +1,11 @@
 import datetime
 import uuid
 from enum import StrEnum, IntEnum
-from typing import Optional, Any, List, Tuple
+from typing import Optional, Any, List
 
-from sqlmodel import Field, Session, SQLModel, create_engine, select, col
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, text, INTEGER
+from sqlalchemy import Column
+from sqlmodel import Field, SQLModel, create_engine
 
 from pm.character import timestamp_format, user_name, database_uri, companion_name
 
@@ -278,8 +278,8 @@ class CauseEffectDbEntry(SQLModel, table=True):
 class CognitiveTick(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     counter: int
-    start_time: datetime
-    end_time: Optional[datetime] = Field(default=None)
+    start_time: datetime.datetime
+    end_time: Optional[datetime.datetime] = Field(default=None)
 
 class WorldInteractionType(IntEnum):
     Sensation = 1

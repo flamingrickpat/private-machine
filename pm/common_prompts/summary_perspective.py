@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List
 
 from pm.character import companion_name
 from pm.controller import controller

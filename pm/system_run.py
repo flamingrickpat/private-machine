@@ -1,11 +1,14 @@
-import copy
 import sys
-import os
 import traceback
-import uuid
-from pm.controller import controller, log_conversation
-from pm.system import run_tick
-from pm.system_utils import init_db, init, res_tag
+
+from pm.controller import controller
+from pm.database.db_utils import init_db
+from pm.ghost.ghost import Ghost
+from pm.subsystem.add_impulse.subsystem_impulse_to_event import SubsystemImpulseToEvent
+from pm.subsystem.choose_action.subsystem_action_selection import SubsystemActionSelection
+from pm.subsystem.create_action.user_reply.subsystem_user_reply import SubsystemUserReply
+from pm.system_classes import Impulse, ImpulseType
+from pm.system_utils import init, res_tag
 
 TEST_MODE = True
 
@@ -20,6 +23,23 @@ def is_debug():
             return False
         else:
             return True
+
+
+def run_tick(inp):
+
+    subsystem_response = SubsystemUserReply()
+    subsystem_choose_action = SubsystemActionSelection()
+    subsystem_impulse_to_event = SubsystemImpulseToEvent()
+
+    ghost = Ghost()
+    ghost.register_subsystem(subsystem_response)
+    ghost.register_subsystem(subsystem_choose_action)
+    ghost.register_subsystem(subsystem_impulse_to_event)
+
+    imp = Impulse(is_input=True, impulse_type=ImpulseType.UserInput, endpoint="Rick", payload=inp)
+    res = ghost.tick(imp)
+    return res.payload
+
 
 def run_cli() -> str:
     inp = sys.argv[1]

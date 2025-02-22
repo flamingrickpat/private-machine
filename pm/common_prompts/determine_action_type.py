@@ -1,13 +1,14 @@
-from typing import Optional, Any, List, Tuple
+from typing import List
 
 from pydantic import BaseModel, Field
 
-from pm.controller import controller, log_conversation
-from pm.character import sysprompt, database_uri, cluster_split, companion_name, timestamp_format, sysprompt_addendum, char_card_3rd_person_neutral, user_name, char_card_3rd_person_emotional
+from pm.character import companion_name, char_card_3rd_person_emotional
+from pm.controller import controller
 from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.system_classes import ActionType
-from pm.utils.enum_utils import make_enum_subset
 from pm.tools.common import tool_docs
+from pm.utils.enum_utils import make_enum_subset
+
 
 class ActionSelector(BaseModel):
     thoughts: str = Field(description="pros and cons for different selections")

@@ -1,20 +1,16 @@
 from datetime import datetime
 from typing import List
 
-from pydantic import BaseModel
-
-from pm.actions import generate_action_selection
 from pm.character import companion_name
-from pm.common_prompts.determine_action_type import determine_action_type
 from pm.controller import controller
 from pm.database.db_utils import update_database_item
 from pm.database.tables import InterlocusType, Event
 from pm.embedding.token import get_token
-from pm.ghost.ghost_classes import GhostState, PipelineStage, GhostAction
-from pm.subsystem.sleep.sleep_procedures import optimize_memory
+from pm.ghost.ghost_classes import GhostState, PipelineStage
+from pm.subsystem.create_action.sleep.sleep_procedures import optimize_memory
 from pm.subsystem.subsystem_base import SubsystemBase
 from pm.system_classes import ImpulseType, ActionType
-from pm.system_utils import get_recent_messages_block
+
 
 class SubsystemActionSleep(SubsystemBase):
     def get_subsystem_name(self) -> str:

@@ -1,7 +1,5 @@
-from enum import StrEnum
-
 from pydantic import BaseModel, Field
-import math
+
 
 class EmotionalAxesModel(BaseModel):
     """
@@ -80,7 +78,6 @@ class EmotionalAxesModel(BaseModel):
 
 
 from pydantic import BaseModel, Field
-import math
 
 
 class NeedsModel(BaseModel):

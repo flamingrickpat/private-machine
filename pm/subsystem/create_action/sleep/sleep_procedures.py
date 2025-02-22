@@ -1,19 +1,19 @@
 import time
-from datetime import datetime, timedelta
-from typing import Optional, Any, List, Tuple
+from datetime import timedelta
+from typing import List
 
-from sqlmodel import Field, Session, SQLModel, create_engine, select, col
-from sqlalchemy import Column, text, INTEGER, func
+from sqlalchemy import text, func
+from sqlmodel import select, col
 
+from pm.character import cluster_split
 from pm.cluster.cluster_temporal import MiniContextCluster, temporally_cluster_context, TemporalCluster, temp_cluster_to_level
 from pm.cluster.cluster_utils import get_optimal_clusters
 from pm.common_prompts.extract_facts import extract_facts
 from pm.common_prompts.summary_perspective import summarize_messages
-from pm.controller import controller, log_conversation
-from pm.embedding.token import get_token
-from pm.database.tables import Event, EventCluster, Cluster, ClusterType, PromptItem, Fact, InterlocusType, AgentMessages, CauseEffectDbEntry
-from pm.character import sysprompt, database_uri, cluster_split, companion_name, timestamp_format, sysprompt_addendum, char_card_3rd_person_neutral, user_name, char_card_3rd_person_emotional
+from pm.controller import controller
 from pm.cosine_clustering.cosine_cluster import get_best_category, cluster_text, TEMPLATE_CATEGORIES
+from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Fact, CauseEffectDbEntry
+from pm.embedding.token import get_token
 from pm.fact_learners.extract_cause_effect_agent import extract_cas
 
 

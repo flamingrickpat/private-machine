@@ -4,17 +4,12 @@ import logging
 import os
 import random
 import string
+import sys
+import threading
 import time
 import uuid
 from datetime import datetime
 from typing import Tuple, Type, Dict
-import threading
-
-import copy
-import sys
-import os
-import traceback
-import uuid
 
 # Add the project root directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -22,8 +17,7 @@ sys.stdin.reconfigure(encoding='utf-8')
 sys.stdout.reconfigure(encoding='utf-8')
 
 from json_repair import repair_json
-from lancedb import LanceDBConnection
-from llama_cpp import LlamaGrammar, LlamaDiskCache
+from llama_cpp import LlamaGrammar
 from pydantic import BaseModel
 from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation
 from typing import List
@@ -32,12 +26,10 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import torch
 from llama_cpp import Llama
-from sqlmodel import Field, Session, SQLModel, create_engine, select, col
-from sqlalchemy import Column, text, INTEGER, func
+from sqlmodel import Session, create_engine
 from jinja2 import Environment, BaseLoader
 
 from pm.character import companion_name, user_name, embedding_model, database_uri, model_map, sysprompt_addendum, sysprompt
-from pm.config.config import read_config_file
 from pm.database.tables import Event
 from pm.embedding.token import get_token
 from pm.utils.string_utils import remove_strings

@@ -1,9 +1,6 @@
 from datetime import datetime
 from typing import List
 
-from pydantic import BaseModel
-
-from pm.actions import generate_action_selection
 from pm.common_prompts.determine_action_type import determine_action_type
 from pm.controller import controller
 from pm.database.db_utils import update_database_item
@@ -60,7 +57,7 @@ class SubsystemActionSelection(SubsystemBase):
         elif action_type == ActionType.Ignore:
             content = f"I will ignore this input because: {action_selection.reason}"
         elif action_type == ActionType.ToolCall:
-            content = f"I will use my AI powers to make an API call."
+            content = f"I will use my AI powers to make an API call: {action_selection.reason}"
 
         action_event = Event(
             source=self.get_subsystem_name(),

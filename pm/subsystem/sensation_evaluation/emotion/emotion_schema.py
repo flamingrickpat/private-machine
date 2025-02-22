@@ -1,20 +1,11 @@
-import copy
-import datetime
-import enum
-import os.path
-from typing import List
-
-from pydantic import BaseModel, Field
-
 from pm.agent_schemas.schema_main import get_agent_schema_main
+from pm.agents_manager.agent import Agent
 from pm.agents_manager.agent_group_conversation import agent_group_conversation
-from pm.character import char_card_3rd_person_emotional, char_card_3rd_person_neutral, companion_name
+from pm.character import char_card_3rd_person_emotional
 from pm.common_prompts.select_relevant_agents import select_relevant_agents
 from pm.common_prompts.summarize_agent_conversation import summarize_agent_conversation
-from pm.controller import controller
+from pm.llm.base_llm import LlmPreset
 
-from pm.agents_manager.agent import Agent
-from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 def execute_agent_group_emotion(ctx_msgs: str, last_message: str) -> str:
     context = f"""### BEGIN CHARACTER CARD

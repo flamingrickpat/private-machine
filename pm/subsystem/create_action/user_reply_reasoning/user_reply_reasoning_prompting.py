@@ -1,13 +1,9 @@
 import copy
-import time
-from datetime import datetime, timedelta
 
+from pm.character import sysprompt
 from pm.common_prompts.agent_discussion_to_internal_thought import agent_discussion_to_internal_thought
 from pm.controller import controller
-from pm.embedding.embedding import get_embedding
-from pm.embedding.token import get_token
-from pm.database.tables import Event, EventCluster, Cluster, ClusterType, PromptItem, Fact, InterlocusType, AgentMessages, CauseEffectDbEntry
-from pm.character import sysprompt, database_uri, cluster_split, companion_name, timestamp_format, sysprompt_addendum, char_card_3rd_person_neutral, user_name, char_card_3rd_person_emotional
+from pm.database.tables import Event
 from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.meta_learning.integrate_rules_final_output import integrate_rules_final_output
 from pm.system_utils import get_learned_rules_count, get_learned_rules_block, get_recent_messages_block

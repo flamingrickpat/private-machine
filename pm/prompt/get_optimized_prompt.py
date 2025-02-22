@@ -1,10 +1,7 @@
-import itertools
-from typing import List
 import random
+from typing import List
 
 import numpy as np
-import torch
-from torch import cosine_similarity
 
 from pm.cluster.cluster_utils import get_optimal_clusters
 from pm.controller import controller
@@ -307,7 +304,7 @@ def create_optimized_promptasdf(
     all_event_cluster: List[EventCluster],
     n_context_size: int = 1024,
     n_split: float = 0.5
-) -> List[PromptItem]:
+, story_mode=None) -> List[PromptItem]:
     """
     Creates an optimized prompt by balancing recent events, context clusters, and temporal summaries.
 
@@ -402,8 +399,7 @@ def create_optimized_prompt(
     all_events: List[Event],
     all_clusters: List[Cluster],
     all_event_cluster: List[EventCluster],
-    n_context_size: int = 1024
-) -> List[PromptItem]:
+    n_context_size: int = 1024, story_mode=None) -> List[PromptItem]:
     """
     Creates an optimized prompt by balancing recent history, relevant clusters, and temporal summaries.
 

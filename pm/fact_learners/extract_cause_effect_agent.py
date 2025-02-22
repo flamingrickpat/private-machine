@@ -1,22 +1,15 @@
 import json
-import time
-from datetime import datetime, timedelta
-from enum import StrEnum
-from typing import Optional, Any, List, Tuple, Union
+from typing import List
 
-from sqlmodel import Field, Session, SQLModel, create_engine, select, col
+from pydantic import BaseModel, Field
+from sqlmodel import select, col
 
-from pm.agents.agent import Agent
 from pm.agents_historized.agent_historized_simple import AgentHistorizedSimpel
 from pm.character import companion_name, user_name
 from pm.common_prompts.rate_agent_output import rate_agent_output
 from pm.controller import controller
-from pm.llm.base_llm import LlmPreset, CommonCompSettings
-from rich import print as pprint
-
-from pydantic import BaseModel, Field
-
 from pm.database.tables import EventCluster, Event, Cluster
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 sysprompt = "You are a helpful assistant for analyzing text."
 

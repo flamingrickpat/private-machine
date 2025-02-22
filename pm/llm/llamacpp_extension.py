@@ -1,13 +1,13 @@
+import contextlib
+import ctypes
+import gc
 import json
 import logging
+import os
 import random
+import re
 from datetime import datetime
 from typing import Union, Optional, List, Callable, Tuple, Dict
-import re
-import gc
-import ctypes
-import contextlib
-import os
 
 import numpy as np
 from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation
@@ -24,8 +24,7 @@ from lmformatenforcer.integrations.llamacpp import build_llamacpp_logits_process
 from lmformatenforcer import JsonSchemaParser, RegexParser
 import tqdm
 
-from pm.llm.base_llm import (Llm, LlmModel, CommonCompSettings, CompletionResult, CompletionStopReason, ToolResult,
-                             ToolResultStatus, ToolResultList)
+from pm.llm.base_llm import (Llm, LlmModel, CommonCompSettings, CompletionResult, CompletionStopReason, ToolResult)
 from pm.utils.string_utils import list_ends_with, clip_last_unfinished_sentence, find_python_functions_in_text
 
 logger = logging.getLogger(__name__)

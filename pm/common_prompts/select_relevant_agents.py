@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from pm.character import companion_name
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset
+
 
 class AgentSelection(BaseModel):
     agent1: str

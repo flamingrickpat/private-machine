@@ -1,20 +1,18 @@
-import json
 import string
-import textwrap
+import random
+import string
 import uuid
 from copy import copy
 from enum import StrEnum
-from pprint import pprint
-import random
-from typing import Dict, List
+from typing import Dict
 
-from pydantic import BaseModel, Field
 import networkx as nx
-import json
+from pydantic import BaseModel, Field
 
 from pm.character import companion_name
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
+
 
 class Valence(StrEnum):
     Positive = "positive"
@@ -305,7 +303,7 @@ def flatten_thoughts(root):
     return flattened
 
 
-def generate_tot_v1(context: str, knowledge: str, max_depth: int):
+def generate_tree_of_thoughts_str(context: str, knowledge: str, max_depth: int):
     if controller.test_mode:
         return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(int(max_depth * 50)))
 

@@ -1,5 +1,6 @@
 import re
-from typing import Dict, Any
+from typing import Dict
+
 
 def same_string(a: str, b: str) -> bool:
     return a.strip().casefold() == b.strip().casefold()

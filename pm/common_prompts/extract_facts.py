@@ -1,9 +1,10 @@
-from typing import List, Tuple
+from typing import List
 
 from pydantic import BaseModel, Field
 
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
+
 
 class Facts(BaseModel):
     facts: List[str] = Field(default_factory=list, description="list of facts extracted from conversation")

@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta
-from http.cookies import Morsel
-from random import randrange
-from typing import List, Dict
-from enum import Enum, auto, StrEnum
 from collections import defaultdict
+from datetime import datetime, timedelta
+from enum import auto, StrEnum
+from random import randrange
+from typing import List
 
 from pydantic import BaseModel, Field
+
 
 class TempRangeType(StrEnum):
     TIME_OF_DAY = auto()

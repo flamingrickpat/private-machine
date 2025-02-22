@@ -8,11 +8,6 @@ from pm.character import sysprompt
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
-import json
-from enum import StrEnum, auto
-from typing import List, Union
-from pydantic import BaseModel, Field
-
 
 # 🍃 Cozy World Fact Categories
 class FactCategory(StrEnum):
@@ -108,8 +103,6 @@ class FactContainer(BaseModel):
     def get_facts_by_category(self, category: FactCategory):
         return [fact for fact in self.facts if fact.category == category]
 
-
-import random
 
 def initialize_cozy_world():
     """Creates a peaceful, cozy world setting in a meadow near a forest with a warm home and friendly critters."""

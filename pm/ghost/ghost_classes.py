@@ -1,14 +1,10 @@
-from datetime import datetime
+from enum import StrEnum
 from enum import StrEnum
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from pm.actions import generate_action_selection
-from pm.character import companion_name
-from pm.database.db_utils import update_database_item
-from pm.database.tables import CognitiveTick, ImpulseRegister, WorldInteractionType, Event
-from pm.sensation_evaluation import generate_sensation_evaluation
+from pm.database.tables import Event
 from pm.system_classes import ActionType, Impulse
 
 

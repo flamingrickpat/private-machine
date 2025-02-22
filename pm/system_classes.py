@@ -1,7 +1,7 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
-import math
+from pydantic import BaseModel
+
 
 class ActionType(StrEnum):
     All = "All"

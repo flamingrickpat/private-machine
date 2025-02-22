@@ -1,10 +1,11 @@
 from pydantic import BaseModel, Field
-from pm.agents_gwt.schema_base import DynamicAgent, Subsystem
+
+from pm.agent_schemas.schema_base import AgentGroup, DynamicAgent
 
 
 class MetaLayer(BaseModel):
     common_prefix: str = Field(default_factory=str)
-    subsystem_self_optimization: Subsystem = Field(default_factory=Subsystem)
+    subsystem_self_optimization: AgentGroup = Field(default_factory=AgentGroup)
 
     def get_subsystems(self):
         return [self.subsystem_self_optimization]
