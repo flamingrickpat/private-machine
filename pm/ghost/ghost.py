@@ -7,7 +7,6 @@ from pm.ghost.ghost_classes import GhostState, PipelineStage
 from pm.subsystem.subsystem_base import SubsystemBase
 from pm.system_classes import ImpulseType, Impulse, ActionType
 
-
 class Ghost:
     def __init__(self):
         self.depth = 0
@@ -67,7 +66,8 @@ class Ghost:
         update_database_item(item)
         state = GhostState(
             tick_id=self.current_tick_id,
-            sensation=impulse
+            sensation=impulse,
+            ghost=self
         )
 
         self._execute_subsystems(state)
@@ -144,4 +144,3 @@ class Ghost:
     def _end_tick(self):
         self.current_tick.end_time = datetime.now()
         update_database_item(self.current_tick)
-

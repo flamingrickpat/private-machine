@@ -1,6 +1,6 @@
 from enum import StrEnum
 from enum import StrEnum
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,7 @@ class GhostAction(BaseModel):
 
 class GhostState(BaseModel):
     tick_id: int
+    ghost: Optional[Any] = Field(default=None)
     sensation: Impulse
     buffer_add_impulse: List[Event] = Field(default_factory=list)
     buffer_sensation_evaluation: List[Event] = Field(default_factory=list)
@@ -34,3 +35,8 @@ class GhostState(BaseModel):
     buffer_create_action: List[Event] = Field(default_factory=list)
     buffer_verify_action: List[Event] = Field(default_factory=list)
     output: Impulse | None = Field(default=None)
+
+    @property
+    def subsystem_description(self) -> str:
+        ghost = self.ghost
+        return "\n- ".join([x.get_subsystem_name() + ": " + x.get_subsystem_description() for x in ghost.subsystems])

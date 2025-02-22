@@ -15,8 +15,9 @@ class LightControlTool(ToolBase):
     action: str  # "on" or "off"
 
     def execute(self, state: Dict[str, Any]):
-        print(f"Turning {self.action} the lights in {self.room}.")
-        state["output"] = f"Lights in {self.room} turned {self.action}"
+        s =  f"Lights in '{self.room}' set to status '{self.action}'"
+        print(s)
+        state["output"] = s
 
 
 class ThermostatTool(ToolBase):
@@ -41,6 +42,8 @@ tools_list = [LightControlTool, ThermostatTool, EnergyConsumptionTool]
 tool_dict = {}
 for tool in tools_list:
     tool_dict[tool.__name__] = tool
+
+tools_list_str = [x.__name__ for x in tools_list]
 
 # Generate tool documentation dynamically for the system prompt
 tool_docs = "\n".join([f"{tool.__name__}: {tool.__doc__}" for tool in tools_list])

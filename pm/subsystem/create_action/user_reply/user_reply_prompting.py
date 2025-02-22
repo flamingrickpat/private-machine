@@ -69,11 +69,15 @@ def get_prompt(story_mode: bool = False) -> List[PromptItem]:
     return parts
 
 
-def completion_story_mode():
+def completion_story_mode(subsystem_description: str) -> str:
+    char_card = controller.format_str(char_card_3rd_person_neutral, extra={
+        "subsystem_description": subsystem_description
+    })
+
     items = get_prompt(story_mode=True)
     msgs = [("system", f"You are a story writer that writes and endearing and fun story about the AI companion {companion_name} and her user {user_name}."
                        f"### BEGIN {companion_name} DESCRIPTION"
-                       f"{char_card_3rd_person_neutral}"
+                       f"{char_card}"
                        f"### END {companion_name} DESCRIPTION")]
     if items is not None:
         for item in items:

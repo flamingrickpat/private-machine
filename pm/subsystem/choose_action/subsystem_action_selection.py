@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List
 
+from pm.character import companion_name
 from pm.common_prompts.determine_action_type import determine_action_type
 from pm.controller import controller
 from pm.database.db_utils import update_database_item
@@ -47,17 +48,17 @@ class SubsystemActionSelection(SubsystemBase):
         content = None
         action_type = ActionType[str(action_selection.action_type.value)]
         if action_type == ActionType.InitiateUserConversation:
-            content = f"You should message the user because of the following reasons: {action_selection.reason}"
+            content = f"{companion_name} should message the user because of the following reasons: {action_selection.reason}"
         elif action_type == ActionType.InitiateIdleMode:
-            content = f"You should stay idle until the next heartbeat because of the following reasons: {action_selection.reason}"
+            content = f"{companion_name} should stay idle until the next heartbeat because of the following reasons: {action_selection.reason}"
         elif action_type == ActionType.InitiateInternalContemplation:
-            content = f"You should contemplate for the time being because of the following reasons: {action_selection.reason}"
+            content = f"{companion_name} should contemplate for the time being because of the following reasons: {action_selection.reason}"
         elif action_type == ActionType.Reply:
-            content = f"You should now reply to the user."
+            content = f"{companion_name} should now reply to the user."
         elif action_type == ActionType.Ignore:
-            content = f"You should ignore this input because: {action_selection.reason}"
+            content = f"{companion_name} should ignore this input because: {action_selection.reason}"
         elif action_type == ActionType.ToolCall:
-            content = f"You should use your AI companion abilities to make an API call: {action_selection.reason}"
+            content = f"{companion_name} should use her AI companion abilities to make an API call: {action_selection.reason}"
 
         action_event = Event(
             source=self.get_subsystem_name(),

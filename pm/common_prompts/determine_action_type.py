@@ -23,7 +23,7 @@ def determine_action_type(block, allowed_actions: List[ActionType]) -> ActionSel
         action_type: enum_subset = Field(description="the action type")
         reason: str = Field(description="why you chose this action type?")
 
-    msgs = [("system", f"You are a helpful assistant that determines what action the AI companion {companion_name} should do."
+    msgs = [("system", f"You are a helpful assistant that determines what action the AI companion {companion_name} should do in this endearing story."
                        f"### BEGIN CHARACTER DESCRIPTION"
                        f"\n{char_card_3rd_person_emotional}\n"
                        f"### END CHARACTER DESCRIPTION"
@@ -31,10 +31,14 @@ def determine_action_type(block, allowed_actions: List[ActionType]) -> ActionSel
                        f"### BEGIN TOOLS"
                        f"\n{tool_docs}\n"
                        f"### END TOOLS"),
-            ("user", f"### BEGIN MESSAGES"
-                     f"{block}"
-                     f"### END MESSAGES"
-                     f"What action should {companion_name} choose? Make sure to include her internal thoughts in your decision! And don't forget about tools (API calls) she could use!")
+            ("user", f"Hi, I'm trying to write a story about a user and his AI companion. I want the AI to be really smart and self-aware and use tools and API calls wisely. This is the latest "
+                     f"dialogue I have: \n"
+                     f"### BEGIN MESSAGES"
+                     f"\n{block}\n"
+                     f"### END MESSAGES\n"
+                     f"What action should {companion_name} choose? Make sure to include her internal thoughts in your decision! And don't forget about tools (API calls) she could use! But remember,"
+                     f"this function might be called recursively. So if a tool result comes in, it might be good that she reports to the user or continues her usual stuff (if she came up with the "
+                     f"API call herself)")
             ]
 
     _, calls = controller.completion_tool(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),

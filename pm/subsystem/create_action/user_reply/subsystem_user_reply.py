@@ -23,13 +23,13 @@ class SubsystemUserReply(SubsystemBase):
         return [PipelineStage.CreateAction]
 
     def get_impulse_type(self) -> List[ImpulseType]:
-        return [ImpulseType.UserInput]
+        return [ImpulseType.UserInput, ImpulseType.ToolResult]
 
     def get_action_types(self):
         return [ActionType.Reply]
 
     def proces_state(self, state: GhostState):
-        content = completion_story_mode()
+        content = completion_story_mode(state.subsystem_description)
 
         action_event = Event(
             source=companion_name,
