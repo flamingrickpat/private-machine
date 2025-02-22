@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from pm.character import companion_name, user_name
 from pm.controller import controller
-from pm.futils.enum_utils import make_enum_from_list
+from pm.utils.enum_utils import make_enum_from_list
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.tools.common import tools_list, tool_docs, tool_dict, ToolBase
 

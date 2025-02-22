@@ -40,7 +40,7 @@ from pm.character import companion_name, user_name, embedding_model, database_ur
 from pm.config.config import read_config_file
 from pm.database.tables import Event
 from pm.embedding.token import get_token
-from pm.futils.string_utils import remove_strings
+from pm.utils.string_utils import remove_strings
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.log_utils import setup_logger
 from pm.nlp.nlp_spacy import NlpSpacy

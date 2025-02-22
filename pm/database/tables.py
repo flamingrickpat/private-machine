@@ -275,5 +275,42 @@ class CauseEffectDbEntry(SQLModel, table=True):
     timestamp: datetime.datetime
     max_event_id: int
 
+class CognitiveTick(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    counter: int
+    start_time: datetime
+    end_time: Optional[datetime] = Field(default=None)
+
+class WorldInteractionType(IntEnum):
+    Sensation = 1
+    Action = 2
+
+class ImpulseRegister(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tick_id: int
+    is_input: bool
+    impulse_type: str
+    endpoint: str
+    payload: str
+
+class CognitiveState(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tick_id: int
+    key: str
+    value: float
+
+class SemanticKnowledgeTree(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    parent_node: Optional[int] = Field(default=None)
+    name: str
+    path: str
+
+class FactSktWeight(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    skt_id: int
+    fact_id: int
+    weight: float
+
+
 engine = create_engine(database_uri)
 SQLModel.metadata.create_all(engine)

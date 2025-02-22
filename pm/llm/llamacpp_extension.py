@@ -26,7 +26,7 @@ import tqdm
 
 from pm.llm.base_llm import (Llm, LlmModel, CommonCompSettings, CompletionResult, CompletionStopReason, ToolResult,
                              ToolResultStatus, ToolResultList)
-from pm.futils.string_utils import list_ends_with, truncate_after_last_period, find_python_functions_in_text
+from pm.utils.string_utils import list_ends_with, clip_last_unfinished_sentence, find_python_functions_in_text
 
 logger = logging.getLogger(__name__)
 
@@ -614,7 +614,7 @@ class LlamaCppLlm(Llm):
         result.output_sanitized = self._detokenize(completion_tokens)
 
         if result.stop_reason == CompletionStopReason.TokenLimit or result.stop_reason == CompletionStopReason.MaxTokensGenerated:
-            result.output_sanitized = truncate_after_last_period(result.output_sanitized)
+            result.output_sanitized = clip_last_unfinished_sentence(result.output_sanitized)
 
         for sw in stop_words:
             result.output_sanitized = result.output_sanitized.replace(sw, "")
