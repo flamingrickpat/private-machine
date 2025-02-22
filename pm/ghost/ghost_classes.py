@@ -27,8 +27,10 @@ class GhostAction(BaseModel):
 class GhostState(BaseModel):
     tick_id: int
     sensation: Impulse
-    buffer_sensation_preprocessing: List[Event] = Field(default_factory=list)
+    buffer_add_impulse: List[Event] = Field(default_factory=list)
+    buffer_sensation_evaluation: List[Event] = Field(default_factory=list)
     action: Optional[GhostAction] = Field(default=None)
-    buffer_response_planning: List[Event] = Field(default_factory=list)
-    buffer_output_verification: List[Event] = Field(default_factory=list)
+    buffer_plan_action: List[Event] = Field(default_factory=list)
+    buffer_create_action: List[Event] = Field(default_factory=list)
+    buffer_verify_action: List[Event] = Field(default_factory=list)
     output: Impulse | None = Field(default=None)

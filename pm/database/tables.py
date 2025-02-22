@@ -33,12 +33,18 @@ class PromptItem:
         return (self.turn, f"{self.prefix}\n{self.content}\n{self.postfix}".strip())
 
 class InterlocusType(IntEnum):
-    ActionDecision = -4
-    Contemplation = -3
-    Emotion = -2
-    Thought = -1
+    Unconscious = -3
+    Subconscious = -2
+    ConsciousSubsystem = -2
+    FirstPersonThought = -1
     SystemMessage = 0
     Public = 1
+
+class TurnType(IntEnum):
+    User = 1
+    Assistant = 2
+    System = 3
+    NoTurn = 4
 
 def get_guid():
     return str(uuid.uuid4())
@@ -65,13 +71,48 @@ class Event(SQLModel, table=True):
     embedding: Any = Field(sa_column=Column(Vector(768)))
     token: int = Field()
     timestamp: datetime.datetime
-    interlocus: float = Field(ge=-10, le=1)
+    turn_story: str
+    turn_assistant: str
+    interlocus: int
 
     def __repr__(self):
         return f"{self.source}: {self.content}"
 
     def to_prompt_item(self, story_mode: bool) -> List[PromptItem]:
         if story_mode:
+
+            if self.interlocus == InterlocusType.Public:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        self.turn_story,
+                        self.source + ': "',
+                         self.content,
+                        f'"',
+                        self.interlocus)]
+            elif self.interlocus == InterlocusType.ConsciousSubsystem:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        self.turn_story,
+                        f'{companion_name}\'s Subsystem "{self.source}" reports: "',
+                        self.content,
+                        f'"',
+                        self.interlocus)]
+        else:
+            return [
+                PromptItem(
+                    self.id,
+                    self.timestamp,
+                    self.turn_assistant,
+                    f"",
+                    self.content,
+                    f"",
+                    self.interlocus)]
+
+        """
             if self.interlocus == InterlocusType.Emotion.value:
                 return [
                     PromptItem(
@@ -175,6 +216,7 @@ class Event(SQLModel, table=True):
                     "",
                     1)
                 ]
+                """
 
 class ClusterType(StrEnum):
     Topical = "topical"

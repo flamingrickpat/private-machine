@@ -37,8 +37,10 @@ class SubsystemUserReply(SubsystemBase):
             embedding=controller.get_embedding(content),
             token=get_token(content),
             timestamp=datetime.now(),
-            interlocus=InterlocusType.Public.value
-        )
+            interlocus=InterlocusType.Public.value,
+            turn_story="assistant",
+            turn_assistant="assistant")
         update_database_item(action_event)
+        state.buffer_create_action.append(action_event)
 
         state.output = Impulse(is_input=False, impulse_type=ImpulseType.UserOutput, endpoint="user", payload=content)

@@ -35,7 +35,9 @@ class SubsystemImpulseToEvent(SubsystemBase):
                 embedding=controller.get_embedding(content),
                 token=get_token(content),
                 timestamp=datetime.now(),
-                interlocus=InterlocusType.Public.value
+                interlocus=InterlocusType.Public.value,
+                turn_story="assistant",
+                turn_assistant="user"
             )
             update_database_item(event)
-
+            state.buffer_add_impulse.append(event)

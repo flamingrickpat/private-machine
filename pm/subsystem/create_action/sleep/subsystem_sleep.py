@@ -36,7 +36,7 @@ class SubsystemActionSleep(SubsystemBase):
             embedding=controller.get_embedding(content),
             token=get_token(content),
             timestamp=datetime.now(),
-            interlocus=InterlocusType.ActionDecision.value
+            interlocus=InterlocusType.Thought.value
         )
         update_database_item(event1)
         state.buffer_execute_action.append(event1)
@@ -50,7 +50,7 @@ class SubsystemActionSleep(SubsystemBase):
             embedding=controller.get_embedding(content),
             token=get_token(content),
             timestamp=datetime.now(),
-            interlocus=InterlocusType.ActionDecision.value
+            interlocus=InterlocusType.Thought.value
         )
         update_database_item(event2)
         state.buffer_execute_action.append(event2)

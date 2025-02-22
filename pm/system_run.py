@@ -7,6 +7,7 @@ from pm.ghost.ghost import Ghost
 from pm.subsystem.add_impulse.subsystem_impulse_to_event import SubsystemImpulseToEvent
 from pm.subsystem.choose_action.subsystem_action_selection import SubsystemActionSelection
 from pm.subsystem.create_action.user_reply.subsystem_user_reply import SubsystemUserReply
+from pm.subsystem.sensation_evaluation.emotion.subsystem_emotion import SubsystemEmotion
 from pm.system_classes import Impulse, ImpulseType
 from pm.system_utils import init, res_tag
 
@@ -30,11 +31,13 @@ def run_tick(inp):
     subsystem_response = SubsystemUserReply()
     subsystem_choose_action = SubsystemActionSelection()
     subsystem_impulse_to_event = SubsystemImpulseToEvent()
+    subsystem_emotion = SubsystemEmotion()
 
     ghost = Ghost()
     ghost.register_subsystem(subsystem_response)
     ghost.register_subsystem(subsystem_choose_action)
     ghost.register_subsystem(subsystem_impulse_to_event)
+    ghost.register_subsystem(subsystem_emotion)
 
     imp = Impulse(is_input=True, impulse_type=ImpulseType.UserInput, endpoint="Rick", payload=inp)
     res = ghost.tick(imp)

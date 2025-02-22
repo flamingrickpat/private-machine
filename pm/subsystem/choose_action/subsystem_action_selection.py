@@ -47,17 +47,17 @@ class SubsystemActionSelection(SubsystemBase):
         content = None
         action_type = ActionType[str(action_selection.action_type.value)]
         if action_type == ActionType.InitiateUserConversation:
-            content = f"I will message my user because of the following reasons: {action_selection.reason}"
+            content = f"You should message the user because of the following reasons: {action_selection.reason}"
         elif action_type == ActionType.InitiateIdleMode:
-            content = f"I will stay idle until the next heartbeat because of the following reasons: {action_selection.reason}"
+            content = f"You should stay idle until the next heartbeat because of the following reasons: {action_selection.reason}"
         elif action_type == ActionType.InitiateInternalContemplation:
-            content = f"I will contemplate for the time being because of the following reasons: {action_selection.reason}"
+            content = f"You should contemplate for the time being because of the following reasons: {action_selection.reason}"
         elif action_type == ActionType.Reply:
-            content = f"I will now reply to the user."
+            content = f"You should now reply to the user."
         elif action_type == ActionType.Ignore:
-            content = f"I will ignore this input because: {action_selection.reason}"
+            content = f"You should ignore this input because: {action_selection.reason}"
         elif action_type == ActionType.ToolCall:
-            content = f"I will use my AI powers to make an API call: {action_selection.reason}"
+            content = f"You should use your AI companion abilities to make an API call: {action_selection.reason}"
 
         action_event = Event(
             source=self.get_subsystem_name(),
@@ -65,9 +65,9 @@ class SubsystemActionSelection(SubsystemBase):
             embedding=controller.get_embedding(content),
             token=get_token(content),
             timestamp=datetime.now(),
-            interlocus=InterlocusType.ActionDecision.value
-        )
-
+            interlocus=InterlocusType.ConsciousSubsystem.value,
+            turn_story="user",
+            turn_assistant="assistant")
         update_database_item(action_event)
 
         state.action = GhostAction(
