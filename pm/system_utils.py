@@ -28,9 +28,13 @@ def get_public_event_count() -> int:
     events = list(session.exec(select(Event).where(Event.interlocus == 1).order_by(col(Event.id))).fetchall())
     return len(events)
 
-def get_recent_messages_block(n_msgs: int, internal: bool = False):
+def get_recent_messages_block(n_msgs: int, internal: bool = False, max_tick: int = -1):
     session = controller.get_session()
-    events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
+
+    if max_tick <= 0:
+        events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
+    else:
+        events = session.exec(select(Event).where(Event.tick_id <= max_tick).order_by(col(Event.id))).fetchall()
 
     cnt = 0
     latest_events = events[::-1]

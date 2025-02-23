@@ -70,6 +70,7 @@ class Controller:
         self.cache_user_input: str = ""
         self.cache_emotion: str = ""
         self.cache_tot: str = ""
+        self.current_tick_id = -1
 
         self.model = None
         if not self.test_mode:

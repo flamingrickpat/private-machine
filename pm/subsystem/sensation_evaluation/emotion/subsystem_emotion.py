@@ -2,11 +2,14 @@ from datetime import datetime
 from typing import List
 
 from pm.character import companion_name
+from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
+from pm.common_prompts.rate_emotional_state import rate_emotional_state
 from pm.controller import controller
 from pm.database.db_utils import update_database_item
 from pm.database.tables import InterlocusType, Event
 from pm.embedding.token import get_token
 from pm.ghost.ghost_classes import GhostState, PipelineStage
+from pm.ghost.mental_state import base_model_to_db
 from pm.subsystem.sensation_evaluation.emotion.emotion_schema import execute_agent_group_emotion
 from pm.subsystem.subsystem_base import SubsystemBase
 from pm.system_classes import ImpulseType, Impulse
@@ -30,10 +33,25 @@ class SubsystemEmotion(SubsystemBase):
         pass
 
     def proces_state(self, state: GhostState):
+        ctx = get_recent_messages_block(16, internal=True, max_tick=state.prev_tick_id if state.prev_tick_id is not None else -1)
+        lm = get_recent_messages_block(1, max_tick=state.prev_tick_id if state.prev_tick_id is not None else -1)
+        old_emotional_state = rate_emotional_state(ctx, lm)
+
         ctx = get_recent_messages_block(16, internal=True)
         lm = get_recent_messages_block(1)
+        new_emotional_state = rate_emotional_state(ctx, lm)
 
-        content = execute_agent_group_emotion(ctx, lm)
+        emotional_impact = rate_emotional_impact(ctx, lm)
+        emotional_delta = old_emotional_state.get_delta(new_emotional_state, emotional_impact)
+
+        cur_emotional_state = state.emotional_state
+        emotional_state = cur_emotional_state + emotional_delta
+
+        base_model_to_db(state.tick_id, emotional_state)
+        state.emotional_state = emotional_state
+
+        content = execute_agent_group_emotion(ctx, lm) #, emotional_state=emotional_state)
+
         event = Event(
             source=f"{self.get_subsystem_name()}",
             content=content,

@@ -4,7 +4,9 @@ from typing import List, Optional, Any
 
 from pydantic import BaseModel, Field
 
+from pm.common_prompts.get_emotional_state import EmotionalState
 from pm.database.tables import Event
+from pm.ghost.mental_state import EmotionalAxesModel, NeedsAxesModel
 from pm.system_classes import ActionType, Impulse
 
 
@@ -25,6 +27,7 @@ class GhostAction(BaseModel):
 
 
 class GhostState(BaseModel):
+    prev_tick_id: int | None
     tick_id: int
     ghost: Optional[Any] = Field(default=None)
     sensation: Impulse
@@ -35,6 +38,8 @@ class GhostState(BaseModel):
     buffer_create_action: List[Event] = Field(default_factory=list)
     buffer_verify_action: List[Event] = Field(default_factory=list)
     output: Impulse | None = Field(default=None)
+    emotional_state: EmotionalAxesModel
+    needs_state: NeedsAxesModel
 
     @property
     def subsystem_description(self) -> str:

@@ -9,6 +9,9 @@ from sqlmodel import Field, SQLModel, create_engine
 
 from pm.character import timestamp_format, user_name, database_uri, companion_name
 
+def get_tick_id():
+    from pm.controller import controller
+    return controller.current_tick_id
 
 class PromptItem:
     def __init__(self, id, timestamp, turn, prefix, content, postfix, interlocus):#
@@ -74,6 +77,7 @@ class Event(SQLModel, table=True):
     turn_story: str
     turn_assistant: str
     interlocus: int
+    tick_id: int = Field(default_factory=get_tick_id)
 
     def __repr__(self):
         return f"{self.source}: {self.content}"
@@ -320,6 +324,7 @@ class CauseEffectDbEntry(SQLModel, table=True):
 class CognitiveTick(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     counter: int
+    parent_id: Optional[int] = Field(default=None)
     start_time: datetime.datetime
     end_time: Optional[datetime.datetime] = Field(default=None)
 

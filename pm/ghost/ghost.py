@@ -1,15 +1,20 @@
 from datetime import datetime
 from typing import List
 
+from sqlmodel import select
+
+from pm.controller import controller
 from pm.database.db_utils import update_database_item
 from pm.database.tables import CognitiveTick, ImpulseRegister
 from pm.ghost.ghost_classes import GhostState, PipelineStage
+from pm.ghost.mental_state import db_to_base_model, EmotionalAxesModel, base_model_to_db, NeedsAxesModel
 from pm.subsystem.subsystem_base import SubsystemBase
 from pm.system_classes import ImpulseType, Impulse, ActionType
 
 class Ghost:
     def __init__(self):
         self.depth = 0
+        self.prev_tick_id = None
         self.current_tick_id = 0
         self.current_tick: CognitiveTick | None = None
         self.stage: PipelineStage = PipelineStage.Null
@@ -65,9 +70,12 @@ class Ghost:
         )
         update_database_item(item)
         state = GhostState(
+            prev_tick_id=self.prev_tick_id,
             tick_id=self.current_tick_id,
             sensation=impulse,
-            ghost=self
+            ghost=self,
+            emotional_state=db_to_base_model(self.current_tick_id - 1, EmotionalAxesModel) if self.current_tick_id > 0 else EmotionalAxesModel(),
+            needs_state=db_to_base_model(self.current_tick_id - 1, NeedsAxesModel) if self.current_tick_id > 0 else NeedsAxesModel()
         )
 
         self._execute_subsystems(state)
@@ -96,6 +104,7 @@ class Ghost:
 
     def _publish_output(self, state: GhostState) -> Impulse:
         self.stage = PipelineStage.PublishOutput
+        base_model_to_db(self.current_tick.id, state.emotional_state)
 
         if state.output is None:
             return Impulse(is_input=False, impulse_type=ImpulseType.Empty, endpoint="env", payload="...")
@@ -134,11 +143,21 @@ class Ghost:
         pass
 
     def _start_tick(self):
+        parent_id = None
+
+        session = controller.get_session()
+        data = session.exec(select(CognitiveTick).order_by(CognitiveTick.counter.desc())).all()
+        if len(data) > 0:
+            parent_id = data[0].id
+
         tick = CognitiveTick(
             counter=self.current_tick.counter + 1 if self.current_tick is not None else 1,
-            start_time=datetime.now()
+            start_time=datetime.now(),
+            parent_id=parent_id
         )
+        self.prev_tick_id = parent_id
         self.current_tick_id = update_database_item(tick)
+        controller.current_tick_id = self.current_tick_id
         self.current_tick = tick
 
     def _end_tick(self):
