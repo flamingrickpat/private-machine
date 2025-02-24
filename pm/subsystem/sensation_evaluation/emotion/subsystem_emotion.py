@@ -44,13 +44,12 @@ class SubsystemEmotion(SubsystemBase):
         emotional_impact = rate_emotional_impact(ctx, lm)
         emotional_delta = old_emotional_state.get_delta(new_emotional_state, emotional_impact)
 
-        cur_emotional_state = state.emotional_state
-        emotional_state = cur_emotional_state + emotional_delta
+        emotional_state = state.emotional_state + emotional_delta
 
         base_model_to_db(state.tick_id, emotional_state)
         state.emotional_state = emotional_state
 
-        content = execute_agent_group_emotion(ctx, lm) #, emotional_state=emotional_state)
+        content = execute_agent_group_emotion(ctx, lm, emotional_state=emotional_state)
 
         event = Event(
             source=f"{self.get_subsystem_name()}",

@@ -20,6 +20,14 @@ class LightControlTool(ToolBase):
         state["output"] = s
 
 
+class DummyTools(ToolBase):
+    """Use this tool when you have entered tool calling mode as a mistake and don't want to call any tools."""
+    dummy_text: str
+
+    def execute(self, state: Dict[str, Any]):
+        state["output"] = f"Exiting tool calling mode..."
+
+
 class ThermostatTool(ToolBase):
     """Adjusts the thermostat temperature."""
     target_temperature: float
@@ -38,7 +46,7 @@ class EnergyConsumptionTool(ToolBase):
 
 
 # List of tool instances available for the model
-tools_list = [LightControlTool, ThermostatTool, EnergyConsumptionTool]
+tools_list = [LightControlTool, ThermostatTool, EnergyConsumptionTool, DummyTools]
 tool_dict = {}
 for tool in tools_list:
     tool_dict[tool.__name__] = tool

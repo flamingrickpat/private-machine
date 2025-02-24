@@ -84,7 +84,6 @@ class Event(SQLModel, table=True):
 
     def to_prompt_item(self, story_mode: bool) -> List[PromptItem]:
         if story_mode:
-
             if self.interlocus == InterlocusType.Public:
                 return [
                     PromptItem(
@@ -102,6 +101,16 @@ class Event(SQLModel, table=True):
                         self.timestamp,
                         self.turn_story,
                         f'{companion_name}\'s Subsystem "{self.source}" reports: "',
+                        self.content,
+                        f'"',
+                        self.interlocus)]
+            else:
+                return [
+                    PromptItem(
+                        self.id,
+                        self.timestamp,
+                        self.turn_story,
+                        f'One of {companion_name}\'s secondary Subsystem reports: "',
                         self.content,
                         f'"',
                         self.interlocus)]
