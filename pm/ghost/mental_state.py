@@ -52,10 +52,19 @@ def db_to_base_model(tick_id: int, model_type: Type[BaseModel]) -> BaseModel:
 class DecayableMentalState(BaseModel):
     def __add__(self, b):
         delta_values = {}
-        for field_name in self.model_fields:
+        for field_name, model_field in self.model_fields.items():
+            # Fetch bounds
+            ge = -float("inf")
+            le = float("inf")
+            for meta in model_field.metadata:
+                if hasattr(meta, "ge"):
+                    ge = meta.ge
+                if hasattr(meta, "le"):
+                    le = meta.le
+
             current_value = getattr(self, field_name)
             target_value = getattr(b, field_name)
-            delta_values[field_name] = max(-1, min(1, ((target_value + current_value) / 2)))
+            delta_values[field_name] = max(ge, min(le, ((target_value + current_value) / 2)))
 
         cls = b.__class__
         return cls(**delta_values)
@@ -133,10 +142,20 @@ class DecayableMentalState(BaseModel):
         scaled by the impact factor.
         """
         delta_values = {}
-        for field_name in self.model_fields:
+        for field_name, model_field in self.model_fields.items():
+            # Fetch bounds
+            ge = -float("inf")
+            le = float("inf")
+            for meta in model_field.metadata:
+                if hasattr(meta, "ge"):
+                    ge = meta.ge
+                if hasattr(meta, "le"):
+                    le = meta.le
+
             current_value = getattr(self, field_name)
             target_value = getattr(b, field_name)
-            delta_values[field_name] = (target_value - current_value) * impact
+            val = (target_value - current_value) * impact
+            delta_values[field_name] = max(ge, min(le, val))
 
         cls = b.__class__
         return cls(**delta_values)
