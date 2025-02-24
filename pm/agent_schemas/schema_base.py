@@ -7,6 +7,7 @@ class DynamicAgent(BaseModel):
     name: str
     description: str
     goal: str
+    prefix: str = Field(default="")
     prompt: str
 
 class AgentGroup(BaseModel):

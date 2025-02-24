@@ -3,7 +3,7 @@ from typing import List
 
 from sqlmodel import select, col
 
-from pm.character import timestamp_format
+from pm.character import timestamp_format, user_name
 from pm.common_prompts.rate_complexity import rate_complexity
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
 from pm.controller import controller
@@ -52,6 +52,33 @@ def get_recent_messages_block(n_msgs: int, internal: bool = False, max_tick: int
     lines.reverse()
     all = "\n".join(lines)
     return all
+
+def get_recent_messages_block_user(n_msgs: int, internal: bool = False, max_tick: int = -1):
+    session = controller.get_session()
+
+    if max_tick <= 0:
+        events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
+    else:
+        events = session.exec(select(Event).where(Event.tick_id <= max_tick).order_by(col(Event.id))).fetchall()
+
+    cnt = 0
+    latest_events = events[::-1]
+    lines = []
+    for event in latest_events:
+        if event.source == user_name:
+            if event.interlocus >= 0 or internal:
+                content = event.to_prompt_item(False)[0].to_tuple()[1].replace("\n", "")
+                lines.append(f"{event.source}: {content}")
+
+                if event.interlocus != 0:
+                    cnt += 1
+                if cnt >= n_msgs:
+                    break
+
+    lines.reverse()
+    all = "\n".join(lines)
+    return all
+
 
 
 def evalue_prompt_complexity():

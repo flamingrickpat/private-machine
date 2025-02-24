@@ -9,6 +9,7 @@ from langgraph.graph import StateGraph
 from pydantic import BaseModel, Field
 
 from pm.agents_manager.agent import Agent, AgentMessage
+from pm.character import companion_name
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
@@ -61,11 +62,6 @@ You are an agent within the "{description}" subsystem. Your role is to {goal}.
 1. Focus exclusively on the task assigned to your subsystem. Avoid proposing actions or solutions that fall outside your defined role. 
 2. If you detect a need for actions outside your expertise, clearly identify and defer to the appropriate subsystem. For example, if emotional reasoning is required, acknowledge it and allow the Emotions Subsystem to contribute.
 3. Do not repeat or duplicate the functionality of other agents. Instead, contribute uniquely from your specialized perspective.
-
-This is the current conversation context you should focus on:
-### BEGINNING OF CONTEXT
-{context_data}
-### END OF CONTEXT
 
 Your task is as follows:
 {task}
@@ -285,6 +281,12 @@ Get to work!""",
                 messages = compile_message(agents, agent)
                 messages.insert(0, ("system", agent.system_prompt))
 
+                instruct_prompt = f"""
+{agent.init_user_prompt}
+"""
+                messages.insert(1, ("user", instruct_prompt))
+
+
                 comp_settings = agent.comp_settings if agent.comp_settings else CommonCompSettings(max_tokens=1024)
 
                 tool_res_list = []
@@ -378,6 +380,7 @@ def agent_group_conversation(base_state, context_data: str, task: str, agents: L
             base_prompt = prompt_subagent
 
         agent.system_prompt = controller.format_str(base_prompt, extra=extra)
+        agent.init_user_prompt = context_data
         workflow.add_node(agent.name, lambda x: _execute_agent(x, agents))
         workflow.add_edge(agent.name, "router")
 

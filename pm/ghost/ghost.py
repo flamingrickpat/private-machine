@@ -158,7 +158,7 @@ class Ghost:
         parent_id = None
 
         session = controller.get_session()
-        data = session.exec(select(CognitiveTick).order_by(CognitiveTick.counter.desc())).all()
+        data = session.exec(select(CognitiveTick).order_by(CognitiveTick.id.desc())).all()
         if len(data) > 0:
             parent_id = data[0].id
 

@@ -17,6 +17,7 @@ class Agent(BaseModel):
     id: str
     name: str
     system_prompt: str | None = Field(default=None)
+    init_user_prompt: str | None = Field(default=None)
     description: str
     goal: str = Field(default_factory=str)
     task: str = Field(default_factory=str)

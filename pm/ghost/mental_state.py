@@ -46,7 +46,11 @@ def db_to_base_model(tick_id: int, model_type: Type[BaseModel]) -> BaseModel:
     #    raise Exception("sneed")
 
     # Create and return an instance of the given model_type.
-    return model_type(**data)
+    try:
+        res = model_type(**data)
+    except:
+        res = model_type()
+    return res
 
 
 class DecayableMentalState(BaseModel):
