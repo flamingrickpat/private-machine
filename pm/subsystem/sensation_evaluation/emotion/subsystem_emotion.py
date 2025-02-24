@@ -46,7 +46,6 @@ class SubsystemEmotion(SubsystemBase):
 
         emotional_state = state.emotional_state + emotional_delta
 
-        base_model_to_db(state.tick_id, emotional_state)
         state.emotional_state = emotional_state
 
         content = execute_agent_group_emotion(ctx, lm, emotional_state=emotional_state)

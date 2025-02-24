@@ -43,7 +43,7 @@ def get_prompt(story_mode: bool = False) -> List[PromptItem]:
             pi = PromptItem(
                 str(uuid.uuid4()),
                 part.timestamp,
-                "assistant" if story_mode else "system",
+                "user" if story_mode else "system",
                 "",
                 f"Current time: {part.timestamp.strftime(timestamp_format)}",
                 "",
