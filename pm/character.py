@@ -1,10 +1,8 @@
-import datetime
 import os
-import yaml
 
-from sqlalchemy import create_engine
-from sqlalchemy_utils import database_exists, create_database
+import yaml
 from sqlalchemy import create_engine, text
+from sqlalchemy_utils import database_exists, create_database
 
 # Define module-level variables with default empty values
 companion_name = ""

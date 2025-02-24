@@ -1,9 +1,12 @@
-from typing import List, Tuple
-
 from pydantic import BaseModel, Field
 
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
+from pydantic import BaseModel, Field
+
+from pm.controller import controller
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
+
 
 class Rating(BaseModel):
     analysis: str = Field(description="initial analysis where you consider the instruction and output. make it short, 3 sentences at most!")

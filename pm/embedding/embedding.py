@@ -1,7 +1,7 @@
-import os
 from typing import List
-from sentence_transformers.util import cos_sim
+
 import numpy as np
+from sentence_transformers.util import cos_sim
 
 from pm.controller import controller
 

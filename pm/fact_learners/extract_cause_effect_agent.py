@@ -1,37 +1,33 @@
 import json
-import time
-from datetime import datetime, timedelta
-from enum import StrEnum
-from typing import Optional, Any, List, Tuple, Union
+from typing import List
 
-from sqlmodel import Field, Session, SQLModel, create_engine, select, col
+from pydantic import BaseModel, Field
+from sqlmodel import select, col
 
-from pm.agents.agent import Agent
 from pm.agents_historized.agent_historized_simple import AgentHistorizedSimpel
 from pm.character import companion_name, user_name
 from pm.common_prompts.rate_agent_output import rate_agent_output
 from pm.controller import controller
-from pm.llm.base_llm import LlmPreset, CommonCompSettings
-from rich import print as pprint
-
-from pydantic import BaseModel, Field
-
 from pm.database.tables import EventCluster, Event, Cluster
+from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 sysprompt = "You are a helpful assistant for analyzing text."
 
 prompt = []
 
+
 class CauseEffect(BaseModel):
     cause: str = Field(default="", description="Triggering action or event.")
     effect: str = Field(default="", description="Resulting outcome.")
-    #temporality: float = Field(default=0.5, description="0 = short-term, 1 = long-term.")
+    # temporality: float = Field(default=0.5, description="0 = short-term, 1 = long-term.")
     importance: str = Field(default="mid", description="low = minor, medium = moderate, high = major")
-    #duration: float = Field(default=0.5, description="one-time, recurring, persistent")
+    # duration: float = Field(default=0.5, description="one-time, recurring, persistent")
+
 
 class CauseEffects(BaseModel):
     cause_effect_can_be_extracted: bool = Field(description="if false, leave other fields empty")
     cause_effects: List[CauseEffect] = Field(default_factory=list, description="list of cause effect objects (if there are some)")
+
 
 ces = CauseEffects(
     cause_effect_can_be_extracted=True
@@ -76,8 +72,6 @@ CauseEffect:
 - Importance: Medium
 """
 
-
-
 sysprompt_json_converter = """You are a structured data converter.
 
 Your task:
@@ -116,6 +110,7 @@ CauseEffect:
 }
 """
 
+
 def extract_cas(block: str) -> List[CauseEffect]:
     mt = 4096
     convo_to_text_agent = AgentHistorizedSimpel(
@@ -130,10 +125,9 @@ def extract_cas(block: str) -> List[CauseEffect]:
 Extract cause-effect relationships in a structured list."""
 
     prompt = convo_to_text_agent.get_prompt(query, mt)
-    content = controller.completion_text(LlmPreset.CauseEffect, prompt,  comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024))
+    content = controller.completion_text(LlmPreset.CauseEffect, prompt, comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024))
     rating = rate_agent_output(sysprompt_convo_to_text, query, content)
     convo_to_text_agent.add_messages(query, content, rating)
-
 
     query = f"""### BEGIN TEXT
 {content}
@@ -148,7 +142,7 @@ Convert this to the specified JSON format.
     )
     res = []
     prompt = text_to_cause_effect_json_agent.get_prompt(query, mt)
-    _, calls = controller.completion_tool(LlmPreset.CauseEffect, prompt,  comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024), tools=[CauseEffects])
+    _, calls = controller.completion_tool(LlmPreset.CauseEffect, prompt, comp_settings=CommonCompSettings(temperature=0.2, max_tokens=1024), tools=[CauseEffects])
     content = json.dumps(calls[0].model_dump(), indent=2)
     if calls[0].cause_effect_can_be_extracted:
         for ce in calls[0].cause_effects:
@@ -159,6 +153,7 @@ Convert this to the specified JSON format.
     rating = rate_agent_output(sysprompt_json_converter, query, content)
     text_to_cause_effect_json_agent.add_messages(query, content, rating)
     return res
+
 
 if __name__ == '__main__':
     controller.init_db()
@@ -172,20 +167,8 @@ if __name__ == '__main__':
             Event.id)).fetchall()
         block = []
         for event in events:
-            block.append(f"{event.source}: {event.to_prompt_item()[0].to_tuple()[1]}")
+            block.append(f"{event.source}: {event.to_prompt_item(False)[0].to_tuple()[1]}")
         strblock = "\n".join(block)
         extract_cas(strblock)
         controller.commit_db()
-        #exit(1)
-
-
-
-
-
-
-
-
-
-
-
-
+        # exit(1)

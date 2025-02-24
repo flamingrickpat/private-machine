@@ -4,15 +4,20 @@ import logging
 import os
 import random
 import string
+import sys
+import threading
 import time
 import uuid
 from datetime import datetime
 from typing import Tuple, Type, Dict
-import threading
+
+# Add the project root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8')
 
 from json_repair import repair_json
-from lancedb import LanceDBConnection
-from llama_cpp import LlamaGrammar, LlamaDiskCache
+from llama_cpp import LlamaGrammar
 from pydantic import BaseModel
 from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation
 from typing import List
@@ -21,14 +26,13 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import torch
 from llama_cpp import Llama
-from sqlmodel import Field, Session, SQLModel, create_engine, select, col
-from sqlalchemy import Column, text, INTEGER, func
+from sqlmodel import Session, create_engine
 from jinja2 import Environment, BaseLoader
 
 from pm.character import companion_name, user_name, embedding_model, database_uri, model_map, sysprompt_addendum, sysprompt
-from pm.config.config import read_config_file
 from pm.database.tables import Event
 from pm.embedding.token import get_token
+from pm.utils.string_utils import remove_strings
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 from pm.log_utils import setup_logger
 from pm.nlp.nlp_spacy import NlpSpacy
@@ -66,6 +70,7 @@ class Controller:
         self.cache_user_input: str = ""
         self.cache_emotion: str = ""
         self.cache_tot: str = ""
+        self.current_tick_id = -1
 
         self.model = None
         if not self.test_mode:
@@ -86,6 +91,9 @@ class Controller:
         return get_token(sysprompt) + get_token(sysprompt_addendum)
 
     def load_model(self, preset: LlmPreset):
+        if preset == LlmPreset.CurrentOne:
+            return
+
         if preset.value in model_map.keys():
             ctx = model_map[preset.value]["context"]
             last_n_tokens_size = model_map[preset.value]["last_n_tokens_size"]
@@ -161,6 +169,7 @@ class Controller:
             "max_tokens": comp_settings.max_tokens,
             "repeat_penalty": comp_settings.repeat_penalty,
             "temperature": comp_settings.temperature,
+            "stop": comp_settings.stop_words
         }
 
         if preset == LlmPreset.Conscious:
@@ -189,14 +198,17 @@ class Controller:
             if openai_inp[-1]["role"] == "assistant":
                 rendered_data = rendered_data.removesuffix(remove_ass_string)
 
+            rendered_data = remove_strings(rendered_data, "</think>", "<think>")
+
             tokenized_prompt = self.llm.tokenize(
                 rendered_data.encode("utf-8"),
                 add_bos=True,
                 special=True,
             )
 
+            # start deleting in middle
             if len(tokenized_prompt) > (self.current_ctx - comp_settings.max_tokens) - 16:
-                del openai_inp[1]
+                del openai_inp[int(len(openai_inp) / 2)]
             else:
                 break
 
@@ -294,7 +306,7 @@ class Controller:
     def init_db(self):
         self.session = Session(create_engine(database_uri))
 
-    def get_session(self):
+    def get_session(self) -> Session:
         return self.session
 
     def rollback_db(self):

@@ -1,12 +1,13 @@
-from typing import List, Union, Dict
+from typing import List, Dict
 
-from pydantic import BaseModel, Field
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
+from pydantic import BaseModel, Field
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
+from sklearn.metrics.pairwise import cosine_similarity
 
-from pm.database.tables import Event, EventCluster, Cluster
+from pm.database.tables import Event
+
 
 def compute_contextual_embeddings(events: List[Event], context_window):
     embeddings = np.array([event.embedding for event in events])

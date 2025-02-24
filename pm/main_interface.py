@@ -1,6 +1,6 @@
 import datetime
-import sys
 import os
+import sys
 import time
 
 # Add the project root directory to sys.path
@@ -8,14 +8,13 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.stdin.reconfigure(encoding='utf-8')
 sys.stdout.reconfigure(encoding='utf-8')
 
-import asyncio
 import multiprocessing
 import requests
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Input, Static
 from textual.containers import VerticalScroll
 from textual.reactive import reactive
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher
 from aiogram import Router
 from dotenv import load_dotenv
 import os
@@ -46,7 +45,7 @@ def ai_process(content, output_queue):
     sys.stdin.reconfigure(encoding='utf-8')
     sys.stdout.reconfigure(encoding='utf-8')
 
-    from pm.system_test import run_system_mp
+    from pm.system_run import run_system_mp
     response = run_system_mp(content)
     if response is None or response == "":
         output_queue.put(("tick", ""))
@@ -149,7 +148,7 @@ class AIChatBot:
                 source, content = message_queue.get()
             else:
                 now = datetime.datetime.now()
-                if (now - last_message).total_seconds() / 60 > 180:
+                if (now - last_message).total_seconds() / 60 > 60 * 24:
                     content = "/think"
 
             if content is not None:
@@ -204,7 +203,6 @@ def telegram_process(queue, msg_queue):
     asyncio.run(telegram_main())
 
 
-import threading
 import asyncio
 
 async def main():
