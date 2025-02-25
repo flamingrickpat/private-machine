@@ -366,6 +366,7 @@ def agent_group_conversation(base_state, context_data: str, task: str, agents: L
     # format prompts
     for agent in agents:
         extra = {
+            "name": agent.name,
             "context_data": context_data,
             "task": task,
             "description": agent.description,
@@ -380,7 +381,7 @@ def agent_group_conversation(base_state, context_data: str, task: str, agents: L
             base_prompt = prompt_subagent
 
         agent.system_prompt = controller.format_str(base_prompt, extra=extra)
-        agent.init_user_prompt = context_data
+        agent.init_user_prompt = controller.format_str(context_data, extra=extra)
         workflow.add_node(agent.name, lambda x: _execute_agent(x, agents))
         workflow.add_edge(agent.name, "router")
 

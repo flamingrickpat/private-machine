@@ -66,7 +66,7 @@ def execute_agent_group_emotion(ctx_msgs: str, last_message: str, emotional_stat
 ### END LAST MESSAGE
 
 How should Emmy react to the new message to make the story realistic? Please don't just give me example dialog, talk with me about WHY she should say / do something. I want this to be the best 
-story ever!
+story ever! Primarily focus on your own emotional role: {{name}}
 """
 
     agents = []

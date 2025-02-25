@@ -85,7 +85,9 @@ def completion_story_mode(subsystem_description: str) -> str:
 
     msgs.append(("assistant", f"{companion_name}:"))
 
-    content = controller.completion_text(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, stop_words=[f"{user_name}:", "Current time:"]),
+    content = controller.completion_text(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, stop_words=[f"{user_name}:",
+                                                                                                                                                                    f"{companion_name}:",
+                                                                                                                                                                    "Current time:"]),
                                          discard_thinks=False)
     return content.strip().removeprefix('"').removesuffix('"').strip()
 
