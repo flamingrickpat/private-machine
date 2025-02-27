@@ -1,11 +1,13 @@
 import sys
 import traceback
 
+from pm.character import user_name
 from pm.controller import controller
 from pm.database.db_utils import init_db
 from pm.ghost.ghost import Ghost
 from pm.subsystem.add_impulse.subsystem_impulse_to_event import SubsystemImpulseToEvent
 from pm.subsystem.choose_action.subsystem_action_selection import SubsystemActionSelection
+from pm.subsystem.create_action.sleep.subsystem_sleep import SubsystemActionSleep
 from pm.subsystem.create_action.tool_call.subsystem_tool_call import SubsystemToolCall
 from pm.subsystem.create_action.user_reply.subsystem_user_reply import SubsystemUserReply
 from pm.subsystem.sensation_evaluation.emotion.subsystem_emotion import SubsystemEmotion
@@ -28,12 +30,12 @@ def is_debug():
 
 
 def run_tick(inp):
-
     subsystem_response = SubsystemUserReply()
     subsystem_choose_action = SubsystemActionSelection()
     subsystem_impulse_to_event = SubsystemImpulseToEvent()
     subsystem_emotion = SubsystemEmotion()
     subsystem_tools = SubsystemToolCall()
+    subsystem_sleep = SubsystemActionSleep()
 
     ghost = Ghost()
     ghost.register_subsystem(subsystem_response)
@@ -41,11 +43,15 @@ def run_tick(inp):
     ghost.register_subsystem(subsystem_impulse_to_event)
     ghost.register_subsystem(subsystem_emotion)
     ghost.register_subsystem(subsystem_tools)
+    ghost.register_subsystem(subsystem_sleep)
 
-    imp = Impulse(is_input=True, impulse_type=ImpulseType.UserInput, endpoint="Rick", payload=inp)
-    res = ghost.tick(imp)
-    return res.payload
-
+    if inp == "/check":
+        ghost.run_system_diagnosis()
+        return "<SYSTEM OPERATIONAL>"
+    else:
+        imp = Impulse(is_input=True, impulse_type=ImpulseType.UserInput, endpoint=user_name, payload=inp)
+        res = ghost.tick(imp)
+        return res.payload
 
 def run_cli() -> str:
     inp = sys.argv[1]

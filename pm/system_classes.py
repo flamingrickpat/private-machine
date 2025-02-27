@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 
 class ActionType(StrEnum):
+    Sleep = "Sleep"
     All = "All"
     Reply = "Reply"
     ToolCall = "ToolCall"
@@ -14,6 +15,9 @@ class ActionType(StrEnum):
 
 
 class ImpulseType(StrEnum):
+    SystemMessageSilent = "SystemMessageSilent"
+    SystemMessage = "SystemMessage"
+    WakeUp = "WakeUp"
     All = "All"
     Empty = "Empty"
     ToolResult = "ToolResult"

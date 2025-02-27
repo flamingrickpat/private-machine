@@ -18,8 +18,8 @@ def get_allowed_actions_for_impulse(st: ImpulseType):
         return [ActionType.Reply, ActionType.ToolCall]
     elif st == ImpulseType.ToolResult:
         return [ActionType.Reply, ActionType.ToolCall]
-    elif st == ImpulseType.Thought:
-        return [ActionType.InitiateUserConversation, ActionType.InitiateInternalContemplation, ActionType.ToolCall]
+    elif st == ImpulseType.Thought or st == ImpulseType.SystemMessage:
+        return [ActionType.InitiateUserConversation, ActionType.InitiateInternalContemplation, ActionType.ToolCall, ActionType.Sleep]
     else:
         raise Exception("not allowed as input")
 
@@ -59,6 +59,8 @@ class SubsystemActionSelection(SubsystemBase):
             content = f"{companion_name} should ignore this input because: {action_selection.reason}"
         elif action_type == ActionType.ToolCall:
             content = f"{companion_name} should use her AI companion abilities to make an API call: {action_selection.reason}"
+        elif action_type == ActionType.Sleep:
+            content = f"{companion_name} should follow the advice given to her by her system."
 
         action_event = Event(
             source=self.get_subsystem_name(),

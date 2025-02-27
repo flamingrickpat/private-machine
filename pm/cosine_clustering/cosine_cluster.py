@@ -1,6 +1,7 @@
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
+from pm.character import user_name
 from pm.controller import controller
 from pm.cosine_clustering.templates import (
     COSINE_CLUSTER_TEMPLATE_WORLD_REACTION,
@@ -25,7 +26,7 @@ TEMPLATE_CATEGORIES = {
     },
     "ai_cognitive_growth": {
         "self_realization": COSINE_CLUSTER_TEMPLATE_SELF_REALIZATION,
-        "understanding_rick": COSINE_CLUSTER_TEMPLATE_UNDERSTANDING_USER
+        f"understanding_{user_name}": COSINE_CLUSTER_TEMPLATE_UNDERSTANDING_USER
     }
 }
 
