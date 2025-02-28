@@ -42,7 +42,7 @@ def get_recent_messages_block(n_msgs: int, internal: bool = False, max_tick: int
     for event in latest_events:
         if event.interlocus >= 0 or internal:
             content = event.to_prompt_item(False)[0].to_tuple()[1].replace("\n", "")
-            lines.append(f"{event.source}: {content}")
+            lines.append(f"{event.timestamp.strftime(timestamp_format)}, {event.source}: {content}")
 
             if event.interlocus != 0:
                 cnt += 1

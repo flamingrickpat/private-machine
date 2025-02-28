@@ -15,11 +15,11 @@ from pm.system_utils import get_recent_messages_block
 
 def get_allowed_actions_for_impulse(st: ImpulseType):
     if st == ImpulseType.UserInput:
-        return [ActionType.Reply, ActionType.ToolCall]
+        return [ActionType.Reply, ActionType.ToolCall, ActionType.Sleep]
     elif st == ImpulseType.ToolResult:
-        return [ActionType.Reply, ActionType.ToolCall]
-    elif st == ImpulseType.Thought:
-        return [ActionType.InitiateUserConversation, ActionType.InitiateInternalContemplation, ActionType.ToolCall]
+        return [ActionType.Reply, ActionType.ToolCall, ActionType.Sleep]
+    elif st == ImpulseType.Thought or st == ImpulseType.SystemMessage:
+        return [ActionType.ToolCall, ActionType.Sleep] # ActionType.InitiateInternalContemplation, ActionType.InitiateUserConversation,
     else:
         raise Exception("not allowed as input")
 
@@ -59,6 +59,8 @@ class SubsystemActionSelection(SubsystemBase):
             content = f"{companion_name} should ignore this input because: {action_selection.reason}"
         elif action_type == ActionType.ToolCall:
             content = f"{companion_name} should use her AI companion abilities to make an API call: {action_selection.reason}"
+        elif action_type == ActionType.Sleep:
+            content = f"{companion_name} should follow the advice given to her by her system."
 
         action_event = Event(
             source=self.get_subsystem_name(),

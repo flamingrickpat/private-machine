@@ -41,3 +41,18 @@ class SubsystemImpulseToEvent(SubsystemBase):
             )
             update_database_item(event)
             state.buffer_add_impulse.append(event)
+        elif state.sensation.impulse_type == ImpulseType.SystemMessage:
+            content = state.sensation.payload
+            event = Event(
+                source=f"{state.sensation.endpoint}",
+                content=content,
+                embedding=controller.get_embedding(content),
+                token=get_token(content),
+                timestamp=datetime.now(),
+                interlocus=InterlocusType.Public.value,
+                turn_story="system",
+                turn_assistant="user"
+            )
+            update_database_item(event)
+            state.buffer_add_impulse.append(event)
+

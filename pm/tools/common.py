@@ -3,6 +3,8 @@ from typing import Dict, Any
 
 from pydantic import BaseModel
 
+from pm.subsystem.create_action.sleep.sleep_procedures import check_optimize_memory_necessary
+
 
 class ToolBase(BaseModel):
     def execute(self, state: Dict[str, Any]):
@@ -25,7 +27,7 @@ class DummyTools(ToolBase):
     dummy_text: str
 
     def execute(self, state: Dict[str, Any]):
-        state["output"] = f"Exiting tool calling mode..."
+        state["output"] = f"Warning: No tool available for this task!"
 
 
 class ThermostatTool(ToolBase):
@@ -45,8 +47,19 @@ class EnergyConsumptionTool(ToolBase):
         state["output"] = "Energy consumption in normal range."
 
 
+class SystemDiagnosis(ToolBase):
+    """Run a system diagnostic routine."""
+
+    def execute(self, state: Dict[str, Any]):
+        sleep_necessary = check_optimize_memory_necessary()
+
+        if sleep_necessary:
+            state["output"] = "WARNING: Memory fragmentation reaches critical levels! SLEEP IMMEDIATELY!"
+        else:
+            state["output"] = "System Diagnostics: All systems normal."
+
 # List of tool instances available for the model
-tools_list = [LightControlTool, ThermostatTool, EnergyConsumptionTool, DummyTools]
+tools_list = [LightControlTool, ThermostatTool, EnergyConsumptionTool, DummyTools, SystemDiagnosis]
 tool_dict = {}
 for tool in tools_list:
     tool_dict[tool.__name__] = tool

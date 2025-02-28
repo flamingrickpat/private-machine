@@ -22,12 +22,10 @@ def extract_facts(block: str):
     _, calls = controller.completion_tool(LlmPreset.ExtractFacts, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=1024), tools=[Facts])
     facts = []
     for fact in calls[0].facts:
-        #print(fact)
-
         sysprompt = "You are a helpful assistant. You extract determine if a fact is time-variant or time-invariant. Use 0 for facts that are true at all times, and 1 for facts only true right now."
         prompt = [
             ("system", sysprompt),
-            ("user", f"### BEGIN MESSAGES\n{block}\n### END MESSAGES\n"),
+            ("user", f"### BEGIN MESSAGES\n{block}\n### END MESSAGES\n### BEGIN FACT\n{fact}\n### END FACT\nIs the extracted fact from the messages time-independent (0) or time-dependent (1)?"),
         ]
 
         _, calls2 = controller.completion_tool(LlmPreset.ExtractFacts, prompt, comp_settings=CommonCompSettings(temperature=0.4, max_tokens=1024), tools=[TimeInvariance])

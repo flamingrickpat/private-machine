@@ -12,26 +12,32 @@ from pm.common_prompts.extract_facts import extract_facts
 from pm.common_prompts.summary_perspective import summarize_messages
 from pm.controller import controller
 from pm.cosine_clustering.cosine_cluster import get_best_category, cluster_text, TEMPLATE_CATEGORIES
-from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Fact, CauseEffectDbEntry
+from pm.database.db_utils import update_database_item
+from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Fact, CauseEffectDbEntry, FactCategory
 from pm.embedding.token import get_token
 from pm.fact_learners.extract_cause_effect_agent import extract_cas
+from pm.subsystem.create_action.sleep.categorize_memory import categorize_fact
 
 
-def optimize_memory():
+def check_optimize_memory_necessary() -> bool:
     time.sleep(1)
     session = controller.get_session()
     statement = select(Event).where(col(Event.id).not_in(select(col(EventCluster.cog_event_id)))).where(Event.interlocus > 0).order_by(col(Event.id))
     unclustered_events: List[Event] = session.exec(statement).all()
 
-    sum_token = 0
+    sum_token = 200
     for event in unclustered_events:
         sum_token += event.token
 
     limit = (controller.get_conscious_context() - controller.get_context_sys_prompt()) * cluster_split
-    if sum_token > limit:
-        clusterize()
+    return sum_token > limit
 
+
+def optimize_memory():
+    clusterize()
     factorize()
+    fact_categorize()
+
 
 def events_to_cluster(session, events: List[Event]) -> Cluster:
     content = ", ".join([str(x.id) for x in events])
@@ -56,9 +62,7 @@ def events_to_cluster(session, events: List[Event]) -> Cluster:
         timestamp_to=events[-1].timestamp + timedelta(seconds=5)
     )
 
-    session.add(cluster)
-    session.flush()
-    session.refresh(cluster)
+    update_database_item(cluster)
     cluster_id = cluster.id
 
     lines = []
@@ -84,23 +88,21 @@ def events_to_facts(session, events: List[Event]):
     if min_event_id > max_fact_event_id:
         block = "\n".join(lines)
         facts = extract_facts(block)
-        if True:
-            for fact in facts:
-                fstr = fact[0]
-                temp = fact[1]
-                max_event_id = events[-1].id
+        for fact in facts:
+            fstr = fact[0]
+            temp = fact[1]
+            max_event_id = events[-1].id
 
-                f = Fact(
-                    content=fstr,
-                    temporality=temp,
-                    max_event_id=max_event_id,
-                    embedding=controller.get_embedding(fstr),
-                    token=get_token(fstr)
-                )
-                session.add(f)
-                session.flush()
-                session.refresh(f)
+            f = Fact(
+                content=fstr,
+                temporality=temp,
+                max_event_id=max_event_id,
+                embedding=controller.get_embedding(fstr),
+                token=get_token(fstr)
+            )
+            update_database_item(f)
 
+            categorize_fact(f)
 
 
 def events_to_ca(session, events: List[Event]):
@@ -131,9 +133,7 @@ def events_to_ca(session, events: List[Event]):
                     token=get_token(fstr),
                     timestamp=events[0].timestamp
                 )
-                session.add(f)
-                session.flush()
-                session.refresh(f)
+                update_database_item(f)
 
 
 def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
@@ -173,16 +173,12 @@ def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
             timestamp_to=cluster.timestamp_end + timedelta(seconds=5)
         )
 
-        session.add(tc)
-        session.flush()
-        session.refresh(tc)
+        update_database_item(tc)
         cluster_id = tc.id
 
         for event_id in event_ids:
-            cecc = EventCluster(cog_event_id=event_id, con_cluster_id=cluster_id)
-            session.add(cecc)
-            session.flush()
-            session.refresh(cecc)
+            ec = EventCluster(cog_event_id=event_id, con_cluster_id=cluster_id)
+            update_database_item(ec)
 
 
 def clusterize():
@@ -200,8 +196,8 @@ def clusterize():
     clusters = []
     prev_cluster = -1
     event_buffer = []
-    for id, cluster in cluster_desc.topic_switch_cluster.items():
-        event = event_map[id]
+    for _id, cluster in cluster_desc.topic_switch_cluster.items():
+        event = event_map[_id]
 
         if cluster != prev_cluster and len(event_buffer) > 0:
             clusters.append(events_to_cluster(session, event_buffer))
@@ -224,14 +220,13 @@ def clusterize():
 
 
 def factorize():
+    print("Extracting facts...")
     session = controller.get_session()
-    statement = select(Event).order_by(col(Event.id))
+    statement = select(Event).where(Event.interlocus > 0).order_by(col(Event.id))
     events: List[Event] = session.exec(statement).all()
 
     if len(events) < 16:
         return
-
-    print("Extracting facts...")
 
     #events = events[:-8]
     event_map = {x.id: x for x in events}
@@ -250,3 +245,20 @@ def factorize():
 
         event_buffer.append(event)
         prev_cluster = cluster
+
+
+def fact_categorize():
+    print("Categorizing facts...")
+    session = controller.get_session()
+
+    categorized_fact_ids = set()
+    cats: List[FactCategory] = session.exec(select(FactCategory)).all()
+    for cat in cats:
+        categorized_fact_ids.add(cat.fact_id)
+
+    statement = select(Fact).order_by(col(Fact.id))
+    facts: List[Fact] = session.exec(statement).all()
+
+    for fact in facts:
+        if fact.id not in categorized_fact_ids:
+            categorize_fact(fact)

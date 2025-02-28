@@ -355,18 +355,25 @@ class CognitiveState(SQLModel, table=True):
     key: str
     value: float
 
-class SemanticKnowledgeTree(SQLModel, table=True):
+class FactCategory(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    parent_node: Optional[int] = Field(default=None)
-    name: str
-    path: str
-
-class FactSktWeight(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    skt_id: int
     fact_id: int
+    category: str
+    category_id: int
     weight: float
+    max_weight: float
 
+class CoreMemoryTag(IntEnum):
+    Companion = 1
+    User = 2
+    Relationship = 3
+    World = 4
+
+class CoreMemory(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tag: int
+    memory: str
+    token: int
 
 engine = create_engine(database_uri)
 SQLModel.metadata.create_all(engine)

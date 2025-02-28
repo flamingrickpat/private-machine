@@ -12,8 +12,8 @@ from pm.utils.enum_utils import make_enum_subset
 
 class ActionSelector(BaseModel):
     thoughts: str = Field(description="pros and cons for different selections")
-    action_type: ActionType = Field(description="the action type")
     reason: str = Field(description="why you chose this action type?")
+    action_type: ActionType = Field(description="the action type")
 
 def determine_action_type(block, allowed_actions: List[ActionType]) -> ActionSelector:
     enum_subset = make_enum_subset(ActionType, allowed_actions)
@@ -41,6 +41,6 @@ def determine_action_type(block, allowed_actions: List[ActionType]) -> ActionSel
                      f"API call herself)")
             ]
 
-    _, calls = controller.completion_tool(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, presence_penalty=1, frequency_penalty=1),
+    _, calls = controller.completion_tool(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=0, repeat_penalty=1, max_tokens=1024),
                                           tools=[WorkingActionSelector])
     return calls[0]

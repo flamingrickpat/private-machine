@@ -3,11 +3,13 @@ from typing import List
 
 from sqlmodel import select
 
+from pm.character import companion_name
 from pm.controller import controller
 from pm.database.db_utils import update_database_item
 from pm.database.tables import CognitiveTick, ImpulseRegister
 from pm.ghost.ghost_classes import GhostState, PipelineStage
 from pm.ghost.mental_state import db_to_base_model, EmotionalAxesModel, base_model_to_db, NeedsAxesModel
+from pm.subsystem.create_action.sleep.sleep_procedures import check_optimize_memory_necessary
 from pm.subsystem.subsystem_base import SubsystemBase
 from pm.system_classes import ImpulseType, Impulse, ActionType
 
@@ -36,6 +38,14 @@ class Ghost:
         self._end_tick()
         return res
 
+    def run_system_diagnosis(self):
+        """Check if self-optimization is necessary and execute it."""
+        sleep_necessary = check_optimize_memory_necessary()
+        if sleep_necessary:
+            imp = Impulse(is_input=True, impulse_type=ImpulseType.SystemMessage, endpoint="System", payload=f"{companion_name}'s system reports that their memory is becoming fragmented. "
+                                                                                                        f"Sleeping is required now. Otherwise critical system errors will appear.")
+            self.tick(imp)
+
     def _tick_internal(self, impulse: Impulse) -> Impulse:
         """
         Main event loop with possible recursion.
@@ -43,18 +53,20 @@ class Ghost:
         self.depth += 1
         self._start_subtick()
 
+        output = None
         state = self._add_impulse(impulse)
-        self._eval_sensation(state)
-        self._choose_action(state)
-        while True:
-            temp_state = state.model_copy(deep=True)
-            self._plan_action(temp_state)
-            self._create_action(temp_state)
-            status = self._verify_action(temp_state)
-            if status:
-                state = temp_state
-                break
-        output = self._publish_output(state)
+        if self._impulse_requires_action(impulse):
+            self._eval_sensation(state)
+            self._choose_action(state)
+            while True:
+                temp_state = state.model_copy(deep=True)
+                self._plan_action(temp_state)
+                self._create_action(temp_state)
+                status = self._verify_action(temp_state)
+                if status:
+                    state = temp_state
+                    break
+            output = self._publish_output(state)
 
         self._end_subtick()
         return output
@@ -163,3 +175,14 @@ class Ghost:
     def _end_tick(self):
         self.current_tick.end_time = datetime.now()
         update_database_item(self.current_tick)
+
+    def _impulse_requires_action(self, impulse: Impulse):
+        """
+        Check if the ghost needs to act on the impulse.
+        """
+        if impulse.impulse_type == ImpulseType.SystemMessageSilent:
+            return False
+
+        return True
+
+
