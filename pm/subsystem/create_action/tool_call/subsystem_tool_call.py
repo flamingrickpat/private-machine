@@ -26,7 +26,7 @@ class SubsystemToolCall(SubsystemBase):
         return [PipelineStage.CreateAction]
 
     def get_impulse_type(self) -> List[ImpulseType]:
-        return [ImpulseType.UserInput, ImpulseType.ToolResult, ImpulseType.Thought]
+        return [ImpulseType.UserInput, ImpulseType.ToolResult, ImpulseType.Thought, ImpulseType.SystemMessage, ImpulseType.SystemMessageSilent]
 
     def get_action_types(self):
         return [ActionType.ToolCall]
@@ -39,7 +39,7 @@ class SubsystemToolCall(SubsystemBase):
         tool = get_tool_call(ctx, tool_type)
         tool.execute(res)
 
-        content = f"{companion_name} uses her AI powers to call the tool. The tool response: {res['output']}"
+        content = f"{companion_name} uses her AI powers to call the tool '{tool_type.__name__}'. The tool '{tool_type.__name__}' reports: {res['output']}"
 
         action_event = Event(
             source="system",
