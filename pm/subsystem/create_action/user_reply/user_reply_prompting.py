@@ -10,14 +10,18 @@ from pm.database.tables import Event, EventCluster, Cluster, PromptItem
 from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.prompt.get_optimized_prompt import get_optimized_prompt_temp_cluster
 from pm.system_utils import get_recent_messages_block
+from pm.validation.validate_directness import validate_directness
+from pm.validation.validate_query_fulfillment import validate_query_fulfillment
+from pm.validation.validate_response_in_context import validate_response_in_context
 
 MAX_GENERATION_TOKENS = 4096
 MAX_THOUGHTS_IN_PROMPT = 16
 
+
 def get_prompt(story_mode: bool = False) -> List[PromptItem]:
     session = controller.get_session()
-    events =        list(session.exec(select(Event).order_by(col(Event.id))).fetchall())
-    clusters =      session.exec(select(Cluster).order_by(col(Cluster.id))).fetchall()
+    events = list(session.exec(select(Event).order_by(col(Event.id))).fetchall())
+    clusters = session.exec(select(Cluster).order_by(col(Cluster.id))).fetchall()
     event_cluster = session.exec(select(EventCluster).order_by(col(EventCluster.id))).fetchall()
 
     thought_cnt = 0
@@ -84,10 +88,20 @@ def completion_story_mode(subsystem_description: str) -> str:
             msgs.append(item.to_tuple())
 
     msgs.append(("assistant", f"{companion_name}:"))
+    lst_messages = get_recent_messages_block(6)
 
-    content = controller.completion_text(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024, stop_words=[f"{user_name}:",
-                                                                                                                                                                    f"{companion_name}:",
-                                                                                                                                                                    "Current time:"]),
-                                         discard_thinks=False)
-    return content.strip().removeprefix('"').removesuffix('"').strip()
+    while True:
+        content = controller.completion_text(LlmPreset.Default, msgs,
+                                             comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024,
+                                                                              stop_words=[f"{user_name}:",
+                                                                                          f"{companion_name}:",
+                                                                                          "Current time:"]),
+                                             discard_thinks=False)
+
+        rating = validate_response_in_context(lst_messages, content)
+        rating_directness = validate_directness(lst_messages, content)
+        rating_fulfilment = validate_query_fulfillment(lst_messages, content)
+
+        if rating >= 0.75 and rating_directness >= 0.75 and rating_fulfilment > 0.75:
+            return content.strip().removeprefix('"').removesuffix('"').strip()
 

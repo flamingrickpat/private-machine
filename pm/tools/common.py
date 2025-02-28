@@ -27,7 +27,7 @@ class DummyTools(ToolBase):
     dummy_text: str
 
     def execute(self, state: Dict[str, Any]):
-        state["output"] = f"Warning: No tool available for this task!"
+        state["output"] = f"Error: No matching tool found! Maybe a tool-call isn't the right way to handle this!"
 
 
 class ThermostatTool(ToolBase):

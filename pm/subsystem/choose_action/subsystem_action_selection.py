@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List
 
-from pm.character import companion_name
+from pm.character import companion_name, user_name
 from pm.common_prompts.determine_action_type import determine_action_type
 from pm.controller import controller
 from pm.database.db_utils import update_database_item
@@ -54,7 +54,7 @@ class SubsystemActionSelection(SubsystemBase):
         elif action_type == ActionType.InitiateInternalContemplation:
             content = f"{companion_name} should contemplate for the time being because of the following reasons: {action_selection.reason}"
         elif action_type == ActionType.Reply:
-            content = f"{companion_name} should now reply to the user."
+            content = f"{companion_name} should now reply to the user. She should make a short and concise answer so {user_name} has an easier time replying."
         elif action_type == ActionType.Ignore:
             content = f"{companion_name} should ignore this input because: {action_selection.reason}"
         elif action_type == ActionType.ToolCall:

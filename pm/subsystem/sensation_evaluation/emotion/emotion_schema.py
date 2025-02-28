@@ -5,9 +5,10 @@ from pm.agent_schemas.schema_base import DynamicAgent
 from pm.agent_schemas.schema_main import get_agent_schema_main
 from pm.agents_manager.agent import Agent
 from pm.agents_manager.agent_group_conversation import agent_group_conversation
-from pm.character import char_card_3rd_person_emotional
+from pm.character import char_card_3rd_person_emotional, companion_name
 from pm.common_prompts.select_relevant_agents import select_relevant_agents
 from pm.common_prompts.summarize_agent_conversation import summarize_agent_conversation
+from pm.embedding.embedding import get_embedding
 from pm.ghost.mental_state import EmotionalAxesModel
 from pm.llm.base_llm import LlmPreset
 
@@ -57,6 +58,15 @@ def execute_agent_group_emotion(ctx_msgs: str, last_message: str, emotional_stat
 ### END CHARACTER CARD
 """
     context = f"""Alright, this is the current story and the character card.
+    
+### BEGIN CHARACTER CARD {companion_name.upper()}
+{char_card_3rd_person_emotional}
+### END CHARACTER CARD {companion_name.upper()}
+    
+### BEGIN LEARNED FACTS
+<facts>
+### END LEARNED FACTS
+    
 ### BEGIN CONVERSATION HISTORY
 {ctx_msgs}
 ### END CONVERSATION HISTORY
@@ -78,7 +88,9 @@ story ever! Primarily focus on your own emotional role: {{name}}
             name=agent.name,
             description=agent.description,
             goal=agent.goal,
-            system_prompt=prompt
+            system_prompt=prompt,
+            fact_bias=agent.fact_bias,
+            fact_embedding=get_embedding(last_message)
         ))
 
     state = {}

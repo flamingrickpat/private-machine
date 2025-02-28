@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import List, Type, Callable
+from typing import List, Type, Callable, Dict
 
 from pydantic import BaseModel, Field
 
+from pm.agent_schemas.schema_base import DynamicAgent
 from pm.llm.base_llm import CommonCompSettings
 
 
@@ -25,3 +26,5 @@ class Agent(BaseModel):
     functions: List[Callable] = Field(default_factory=list)
     messages: List[AgentMessage] = Field(default_factory=list)
     comp_settings: CommonCompSettings | None = Field(default=None)
+    fact_embedding: List[float] = Field(default_factory=list)
+    fact_bias: Dict[int, float] = Field(default_factory=dict)

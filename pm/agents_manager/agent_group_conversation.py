@@ -11,7 +11,9 @@ from pydantic import BaseModel, Field
 from pm.agents_manager.agent import Agent, AgentMessage
 from pm.character import companion_name
 from pm.controller import controller
+from pm.embedding.embedding import get_embedding
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
+from pm.system_utils import return_biased_facts_with_emb
 
 logger = logging.getLogger(__name__)
 
@@ -284,8 +286,12 @@ Get to work!""",
                 instruct_prompt = f"""
 {agent.init_user_prompt}
 """
-                messages.insert(1, ("user", instruct_prompt))
 
+                if "<facts>" in instruct_prompt:
+                    facts = return_biased_facts_with_emb(agent.fact_bias, embedding=agent.fact_embedding, n_facts=32)
+                    instruct_prompt = instruct_prompt.replace("<facts>", facts.strip())
+
+                messages.insert(1, ("user", instruct_prompt))
 
                 comp_settings = agent.comp_settings if agent.comp_settings else CommonCompSettings(max_tokens=1024)
 
