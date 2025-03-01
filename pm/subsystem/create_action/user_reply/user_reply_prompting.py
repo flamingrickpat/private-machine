@@ -93,7 +93,7 @@ def completion_story_mode(subsystem_description: str) -> str:
     while True:
         content = controller.completion_text(LlmPreset.Default, msgs,
                                              comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024,
-                                                                              stop_words=['"',
+                                                                              stop_words=['"\n',
                                                                                           f"{user_name}:",
                                                                                           f"{companion_name}:",
                                                                                           f"{user_name}'s",
