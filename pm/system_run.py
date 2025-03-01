@@ -12,7 +12,7 @@ from pm.subsystem.create_action.tool_call.subsystem_tool_call import SubsystemTo
 from pm.subsystem.create_action.user_reply.subsystem_user_reply import SubsystemUserReply
 from pm.subsystem.plan_action.generate_reply_thoughts.subsystem_generate_reply_thoughts import SubsystemGenerateReplyThoughts
 from pm.subsystem.sensation_evaluation.emotion.subsystem_emotion import SubsystemEmotion
-from pm.system_classes import Impulse, ImpulseType
+from pm.system_classes import Impulse, ImpulseType, EndlessLoopError
 from pm.system_utils import init, res_tag
 
 def is_debug():
@@ -68,27 +68,43 @@ def run_system_cli():
     init_db()
     init()
 
-    controller.init_db()
-    if is_debug:
-        run_cli()
-        if not commit:
-            print("rolling back...")
-            controller.rollback_db()
-        else:
-            controller.commit_db()
-    else:
-        try:
-            run_cli()
+    while True:
+        controller.init_db()
+        if is_debug:
+            try:
+                run_cli()
+            except EndlessLoopError:
+                controller.rollback_db()
+            except Exception as e:
+                raise e
+
             if not commit:
                 print("rolling back...")
                 controller.rollback_db()
             else:
                 controller.commit_db()
-        except Exception as e:
-            print(res_tag)
-            print(e)
-            print(traceback.format_exc())
-            controller.rollback_db()
+
+            break
+        else:
+            try:
+                try:
+                    run_cli()
+                except EndlessLoopError:
+                    controller.rollback_db()
+                except Exception as e:
+                    raise e
+
+                if not commit:
+                    print("rolling back...")
+                    controller.rollback_db()
+                else:
+                    controller.commit_db()
+            except Exception as e:
+                print(res_tag)
+                print(e)
+                print(traceback.format_exc())
+                controller.rollback_db()
+                break
 
 
 def run_system_mp(inp: str) -> str:
@@ -96,17 +112,22 @@ def run_system_mp(inp: str) -> str:
     init()
     res = ""
 
-    controller.init_db()
-    try:
-        res = run_tick(inp)
-        if not commit:
-            print("rolling back...")
+    while True:
+        controller.init_db()
+        try:
+            res = run_tick(inp)
+            if not commit:
+                print("rolling back...")
+                controller.rollback_db()
+            else:
+                controller.commit_db()
+            break
+        except EndlessLoopError:
             controller.rollback_db()
-        else:
-            controller.commit_db()
-    except Exception as e:
-        res = f"{traceback.format_exc()}\n{e}"
-        controller.rollback_db()
+        except Exception as e:
+            res = f"{traceback.format_exc()}\n{e}"
+            controller.rollback_db()
+            break
     return res
 
 

@@ -134,7 +134,7 @@ class Controller:
             )
         except:
             # remove add generation prompts if last turn is from assistant
-            openai_inp_remove_ass = [{"role": "user", "content": "test2"}, {"role": "assistant", "content": "test4"}]
+            openai_inp_remove_ass = [{"role": "system", "content": "test1"}, {"role": "user", "content": "test2"}, {"role": "assistant", "content": "test4"}]
             data_remove_ass = self.chat_template.render(
                 messages=openai_inp_remove_ass,
                 add_generation_prompt=True,

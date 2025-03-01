@@ -90,6 +90,7 @@ def completion_story_mode(subsystem_description: str) -> str:
     msgs.append(("assistant", f'{companion_name}: "'))
     lst_messages = get_recent_messages_block(6)
 
+    cnt = 0
     while True:
         content = controller.completion_text(LlmPreset.Default, msgs,
                                              comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024,
@@ -102,6 +103,10 @@ def completion_story_mode(subsystem_description: str) -> str:
                                                                                           f"{companion_name}s",
                                                                                           "Current time:"]),
                                              discard_thinks=False)
+
+        cnt += 1
+        if cnt > 24:
+            raise EndlessLoopError()
 
         if len(content) < 12:
             continue

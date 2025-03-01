@@ -2,6 +2,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel
 
+class EndlessLoopError(Exception):
+    pass
 
 class ActionType(StrEnum):
     Sleep = "Sleep"

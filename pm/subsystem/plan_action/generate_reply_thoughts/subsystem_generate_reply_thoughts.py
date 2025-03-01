@@ -35,7 +35,7 @@ class SubsystemGenerateReplyThoughts(SubsystemBase):
             return
 
         # 15% chance to execute tot
-        chance = 0.15
+        chance = 0.33
         if random.uniform(0, 1) > chance:
             return
 
