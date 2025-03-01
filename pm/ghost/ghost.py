@@ -111,7 +111,7 @@ class Ghost:
 
     def _plan_action(self, state: GhostState):
         self.stage = PipelineStage.PlanAction
-        pass
+        self._execute_subsystems(state)
 
     def _create_action(self, state: GhostState):
         self.stage = PipelineStage.CreateAction

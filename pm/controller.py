@@ -57,6 +57,7 @@ def log_conversation(conversation: list[tuple[str, str]], file_path: str, max_wi
 
 class Controller:
     def __init__(self, test_mode: bool, backtest_messages: bool):
+        self.log_dir = None
         self.chat_template = None
         self.current_ctx = None
         self.session = None
@@ -157,6 +158,9 @@ class Controller:
 
         log_filename = f"{str(uuid.uuid4())}_{preset.value}.log"
         log_dir = os.path.dirname(os.path.abspath(__file__)) + "/../logs/"
+
+        self.log_dir = log_dir
+
         os.makedirs(log_dir, exist_ok=True)
         log_file_path = os.path.join(log_dir, log_filename)
         log_conversation(inp_formatted, log_file_path, 200)

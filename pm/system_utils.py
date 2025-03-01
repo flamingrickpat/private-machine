@@ -55,6 +55,24 @@ def get_recent_messages_block(n_msgs: int, internal: bool = False, max_tick: int
     all = "\n".join(lines)
     return all
 
+def get_recent_user_messages_block(n_msgs: int) -> str:
+    session = controller.get_session()
+    events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
+    cnt = 0
+    latest_events = events[::-1]
+    lines = []
+    for event in latest_events:
+        if event.interlocus == 1 and event.source == user_name:
+            content = event.to_prompt_item(False)[0].to_tuple()[1].replace("\n", "")
+            lines.append(f"{event.timestamp.strftime(timestamp_format)}, {event.source}: {content}")
+            cnt += 1
+            if cnt >= n_msgs:
+                break
+
+    lines.reverse()
+    all = "\n".join(lines)
+    return all
+
 def get_recent_messages_block_user(n_msgs: int, internal: bool = False, max_tick: int = -1):
     session = controller.get_session()
 

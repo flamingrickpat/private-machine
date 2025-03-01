@@ -1,3 +1,4 @@
+import os.path
 import string
 import random
 import string
@@ -9,7 +10,7 @@ from typing import Dict
 import networkx as nx
 from pydantic import BaseModel, Field
 
-from pm.character import companion_name
+from pm.character import companion_name, char_card_3rd_person_neutral, user_name
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
@@ -20,10 +21,10 @@ class Valence(StrEnum):
 
 
 class GenerativeThought(BaseModel):
-    observation: str = Field()
-    context_ai_companion: str = Field()
-    analysis: str = Field()
-    action: str = Field()
+    observation: str = Field(description="initial observation on context and past ideas")
+    context_ai_companion: str = Field(description="the world context as basis for further analysis")
+    analysis: str = Field(description="analysis of the goals and meta-goals that the AI companion wishes to fulfill with this interaction")
+    response_idea: str = Field(description="in what direction should the response go? no direct dialogue, just an idea")
 
 class GenerativeThoughts(BaseModel):
     """A collection of diverse, proactive thoughts the AI generates to guide its cognitive process in different directions."""
@@ -71,10 +72,10 @@ class GenerativeThoughts(BaseModel):
                 self.thought_strategic, self.thought_playful, self.thought_future_oriented, self.thought_future_sensual]
 
 class DiscriminatoryThought(BaseModel):
-    reflective_thought_observation: str = Field()
-    context_world: str = Field()
-    possible_complication: str = Field()
-    worst_case_scenario: str = Field()
+    reflective_thought_observation: str = Field(description="critical reflection on the previous idea for a response")
+    context_world: str = Field(description="based on the world context, what could cause conflict with plan")
+    possible_complication: str = Field(description="complications from world, characters")
+    worst_case_scenario: str = Field(description="possible negative outcome by following the idea")
 
 
 class DiscriminatoryThoughts(BaseModel):
@@ -149,28 +150,24 @@ class ThoughtRating(BaseModel):
     relevance: float = Field(description="Does it align with user context and ego? (between 0 and 1)")
     emotion: float = Field(description="Does it express appropriate emotions (e.g., anger for insults)? (between 0 and 1)")
     effectiveness: float = Field(description="Does it meet conversational goals (e.g., re-engaging the user)? (between 0 and 1)")
-    possibility: float = Field(description="Is it possible for the AI companion to do this? (between 0 and 1)")
+    possibility: float = Field(description="Is it possible for the AI companion to do this? Like with text only communication, and no body? (between 0 and 1)")
     positives: str = Field(description="What is positive about this thought? 1-2 sentences.")
     negatives: str = Field(description="What is negative about this thought? 1-2 sentences.")
 
-def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_depth=4, rating_threshold=0.75):
-    if depth == 0:
-        messages = [
-            ("system", f"You are the thought-generating agent in a cognitive architecture. Your goal is to generate at least 5 different possible thoughts or follow-up thoughts in a sequential "
-                       f"thought-chain."),
-            ("user", f"This is the context: {ctx}"
-                     f"And the current thought chain: {chain}"
-                     f"Please generate at least 5 different thoughts {companion_name} could have to mimic human cognition. They will be rated and the best"
-                     f"one executed.")
-        ]
-    else:
-        messages = [
-            ("system", f"You are the thought-generating agent in a cognitive architecture. Your goal is to generate at least 5 different follow-up thoughts that are an extension of the latest "
-                       f"thoughts. This is the knowledge: {k}"),
-            ("user",
-                     f"This is the current thought-chain: {chain}"
-                     f"Please generate at least 5 different follow-up thoughts that reflect on the elements the chain!")
-        ]
+def generate_thought_chain(ctx, last_user_message, k, chain, generative, depth, parent_node, max_depth=4, rating_threshold=0.75):
+    messages = [
+        ("system", f"You are a helpful assistant that helps authors with their story by exploring different possible response scenarios of a character. "),
+        ("user", f"This is the character: ### BEGIN CHARACTER\n{char_card_3rd_person_neutral}\n### END CHARACTER"
+                 f"This is the knowledge: ### BEGIN KNOWLEDGE\n{k}\n### END KNOWLEDGE"
+                 f"This is the context: ### BEGIN CONTEXT\n{ctx}\n### END CONTEXT"
+                 f"Please generate at least 5 different thoughts {companion_name} could have to mimic human cognition in this scenario. They will be rated and the best"
+                 f"one will be chosen in my story for the final dialogue. Please focus on making the ideas based on the context. The goal is to find out what {companion_name} should say to "
+                 f"{user_name} to make the story really engaging and realistic. Just a reminder, {user_name} last utterance was: '{last_user_message}'")
+    ]
+    if depth > 1:
+        addendum = (f"This is the current thought-chain: ### BEGIN THOUGHT CHAIN\n{chain}\n### END THOUGHT CHAIN\nPlease generate at least 5 different follow-up thoughts that reflect on the elements "
+                    f"the chain!")
+        messages[1] = (messages[1][0], messages[1][0] + f"\n{addendum}")
 
     if generative:
         tools = [GenerativeThoughts]
@@ -184,12 +181,18 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
         thoughts.reverse()
         for thought in thoughts:
             new_thought = f"""
+This is the character: 
+This is the character: ### BEGIN CHARACTER\n{char_card_3rd_person_neutral}\n### END CHARACTER
+This is the knowledge: ### BEGIN KNOWLEDGE\n{k}\n### END KNOWLEDGE
+This is the context: ### BEGIN CONTEXT\n{ctx}\n### END CONTEXT
+And the current idea:
 ### BEGIN CHAIN ELEMENT
 {thought.model_dump_json()}
 ### END CHAIN ELEMENT"""
 
             messages = [
-                ("system", f"You are a helpful assistant that rates internal thoughts of an AI companion system. The AI companion can only communicate with text, can't self-modify itself. But"
+                ("system", f"You are a helpful assistant that rates ideas about a conversational story I'm writing. The AI companion {companion_name} can only communicate with text, can't self-modify "
+                           f"itself. But"
                            f"she is able to feel emotions and display all other aspects of human emotion and cognition. Please rate the thought-chain. Your output will determine if it the thought "
                            f"is fit for further prompting."),
                 ("user", new_thought)
@@ -203,6 +206,10 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
                     rating = (call.relevance + call.emotion + call.novelty + call.realism + call.possibility + call.effectiveness) / 6
                     possibility = call.possibility
 
+            # just ignore instead of backtracking to save tokens
+            if rating < rating_threshold:
+                continue
+
             do_break = False
             if possibility <= 0.75:
                 child_node = parent_node
@@ -214,7 +221,7 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
                     lines.append(f"Observation: {thought.observation}")
                     lines.append(f"Context: {thought.context_ai_companion}")
                     lines.append(f"Analysis: {thought.analysis}")
-                    lines.append(f"Idea: {thought.action}")
+                    lines.append(f"Idea: {thought.response_idea}")
 
                     child_node = add_thought_to_tree("Generative Thought", "\n".join(lines), child_node)
                 elif isinstance(thought, DiscriminatoryThought):
@@ -234,7 +241,7 @@ def generate_thought_chain(ctx, k, chain, generative, depth, parent_node, max_de
 
             if depth < max_depth and not do_break:
                 chain = chain + new_thought
-                limite_reached = generate_thought_chain(ctx, k, chain, not generative, depth + 1, child_node, max_depth, rating_threshold)
+                limite_reached = generate_thought_chain(ctx, last_user_message,k, chain, not generative, depth + 1, child_node, max_depth, rating_threshold)
                 if limite_reached:
                     return True
                 break
@@ -303,23 +310,24 @@ def flatten_thoughts(root):
     return flattened
 
 
-def generate_tree_of_thoughts_str(context: str, knowledge: str, max_depth: int):
+def generate_tree_of_thoughts_str(context: str, last_user_message: str, knowledge: str, max_depth: int):
     if controller.test_mode:
         return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(int(max_depth * 50)))
 
     thought_tree = ThoughtNode("root", "root", "")
-    generate_thought_chain(context, knowledge, "", True, 0, thought_tree, max_depth=max_depth)
+    generate_thought_chain(context, last_user_message, knowledge, "", True, 1, thought_tree, max_depth=max_depth)
     flattened_nodes = flatten_thoughts(thought_tree)
 
     parts = []
     for node in flattened_nodes:
         parts.append(node.content)
 
-    # Export to NetworkX
     try:
-        graph = export_to_networkx(thought_tree)
-        nx.write_gml(graph, f"./logs/thought_tree_{uuid.uuid4().hex}.gml")
-    except:
+        if controller.log_dir is not None:
+            graph = export_to_networkx(thought_tree)
+            nx.write_gml(graph, os.path.join(controller.log_dir, f"thought_tree_{uuid.uuid4().hex}.gml"))
+    except Exception as e:
+        #print(e)
         pass
 
     block = "\n".join(parts)

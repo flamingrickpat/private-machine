@@ -10,6 +10,7 @@ from pm.subsystem.choose_action.subsystem_action_selection import SubsystemActio
 from pm.subsystem.create_action.sleep.subsystem_sleep import SubsystemActionSleep
 from pm.subsystem.create_action.tool_call.subsystem_tool_call import SubsystemToolCall
 from pm.subsystem.create_action.user_reply.subsystem_user_reply import SubsystemUserReply
+from pm.subsystem.plan_action.generate_reply_thoughts.subsystem_generate_reply_thoughts import SubsystemGenerateReplyThoughts
 from pm.subsystem.sensation_evaluation.emotion.subsystem_emotion import SubsystemEmotion
 from pm.system_classes import Impulse, ImpulseType
 from pm.system_utils import init, res_tag
@@ -34,6 +35,7 @@ def run_tick(inp):
     subsystem_emotion = SubsystemEmotion()
     subsystem_tools = SubsystemToolCall()
     subsystem_sleep = SubsystemActionSleep()
+    subsystem_reply_thoughts = SubsystemGenerateReplyThoughts()
 
     ghost = Ghost()
     ghost.register_subsystem(subsystem_response)
@@ -42,6 +44,7 @@ def run_tick(inp):
     ghost.register_subsystem(subsystem_emotion)
     ghost.register_subsystem(subsystem_tools)
     ghost.register_subsystem(subsystem_sleep)
+    ghost.register_subsystem(subsystem_reply_thoughts)
 
     if inp == "/check":
         ghost.run_system_diagnosis()
