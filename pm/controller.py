@@ -11,13 +11,15 @@ import uuid
 from datetime import datetime
 from typing import Tuple, Type, Dict
 
+from pandas._typing import npt
+
 # Add the project root directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.stdin.reconfigure(encoding='utf-8')
 sys.stdout.reconfigure(encoding='utf-8')
 
 from json_repair import repair_json
-from llama_cpp import LlamaGrammar
+from llama_cpp import LlamaGrammar, LogitsProcessorList
 from pydantic import BaseModel
 from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation
 from typing import List
@@ -124,7 +126,7 @@ class Controller:
                         ) -> (str, List[BaseModel]):
         self.load_model(preset)
 
-        no_system = False
+        probably_mistral = False
         try:
             # remove add generation prompts if last turn is from assistant
             openai_inp_remove_ass = [{"role": "system", "content": "test1"}, {"role": "user", "content": "test2"}, {"role": "assistant", "content": "test3"}, {"role": "assistant", "content": "test4"}]
@@ -141,7 +143,8 @@ class Controller:
                 bos_token="<s>",
                 eos_token="</s>",
             )
-            no_system = True
+            probably_mistral = True
+            
         remove_ass_string = data_remove_ass.split("test4")[1]
 
         inp_formatted = []
@@ -228,6 +231,35 @@ class Controller:
                 del openai_inp[int(len(openai_inp) / 2)]
             else:
                 break
+
+        class LplNoEos(LogitsProcessorList):
+            def __init__(self, eos_value=-np.inf):
+                """
+                Args:
+                    eos_value (float): The value to assign to token 2 (EOS).
+                                       Use np.NINF for negative infinity or another low value like -9999.
+                """
+                super().__init__()
+                self.eos_value = eos_value
+
+            def __call__(self, input_ids: np.ndarray, scores: np.ndarray) -> np.ndarray:
+                # Process the scores with any additional processors in the list
+                for processor in self:
+                    scores = processor(input_ids, scores)
+
+                # Assume scores shape is either (vocab_size,) or (batch_size, vocab_size)
+                if scores.ndim == 1:
+                    scores[2] = self.eos_value
+                elif scores.ndim == 2:
+                    scores[:, 2] = self.eos_value
+                else:
+                    raise ValueError("Unexpected shape for scores array")
+
+                return scores
+
+        if len(tools) == 0 and probably_mistral:
+            lp = LplNoEos()
+            comp_args["logits_processor"] = lp
 
         content = None
         tools = comp_settings.tools_json
