@@ -9,6 +9,7 @@ from pm.controller import controller
 from pm.database.tables import Event, EventCluster, Cluster, PromptItem
 from pm.llm.base_llm import CommonCompSettings, LlmPreset
 from pm.prompt.get_optimized_prompt import get_optimized_prompt_temp_cluster
+from pm.system_classes import EndlessLoopError
 from pm.system_utils import get_recent_messages_block
 from pm.validation.validate_directness import validate_directness
 from pm.validation.validate_query_fulfillment import validate_query_fulfillment
