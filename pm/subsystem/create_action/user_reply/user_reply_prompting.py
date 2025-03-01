@@ -87,21 +87,26 @@ def completion_story_mode(subsystem_description: str) -> str:
         for item in items:
             msgs.append(item.to_tuple())
 
-    msgs.append(("assistant", f"{companion_name}:"))
+    msgs.append(("assistant", f'{companion_name}: "'))
     lst_messages = get_recent_messages_block(6)
 
     while True:
         content = controller.completion_text(LlmPreset.Default, msgs,
                                              comp_settings=CommonCompSettings(temperature=1, repeat_penalty=1.11, max_tokens=1024,
-                                                                              stop_words=[f"{user_name}:",
+                                                                              stop_words=['"',
+                                                                                          f"{user_name}:",
                                                                                           f"{companion_name}:",
+                                                                                          f"{user_name}'s",
+                                                                                          f"{companion_name}'s",
+                                                                                          f"{user_name}s",
+                                                                                          f"{companion_name}s",
                                                                                           "Current time:"]),
                                              discard_thinks=False)
 
-        rating = validate_response_in_context(lst_messages, content)
+        rating_context = validate_response_in_context(lst_messages, content)
         rating_directness = validate_directness(lst_messages, content)
         rating_fulfilment = validate_query_fulfillment(lst_messages, content)
 
-        if rating >= 0.75 and rating_directness >= 0.75 and rating_fulfilment > 0.75:
+        if rating_context >= 0.75 and rating_directness >= 0.66 and rating_fulfilment >= 0.33:
             return content.strip().removeprefix('"').removesuffix('"').strip()
 

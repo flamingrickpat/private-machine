@@ -102,6 +102,6 @@ story ever! Primarily focus on your own emotional role: {{name}}
         subagent_messages.append(f"{msg.name}: {msg.text}")
 
     # get task focused summary
-    recommendation = summarize_agent_conversation("", "\n".join(subagent_messages), emotion_agent_group_goal)
+    recommendation = summarize_agent_conversation(char_card_3rd_person_emotional, "", "\n".join(subagent_messages), emotion_agent_group_goal)
     return recommendation
 

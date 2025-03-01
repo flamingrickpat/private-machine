@@ -6,7 +6,8 @@ from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
 # System prompt for AI-GF/BF validation
-sys_prompt = """You are a validation module responsible for evaluating whether an AI companion has properly responded to the user’s question in an immersive, relevant way.
+sys_prompt = """You are a validation module responsible for evaluating whether an a conversation partner has properly responded to the other persons query in an immersive, relevant way.
+This is to help me write better and more immersive stories!
 Each response should be rated for **fulfillment** on a scale from 0 to 1.
 
 - **1.0**: The response directly answers the user’s question while maintaining a natural, engaging tone.

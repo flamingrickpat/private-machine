@@ -54,7 +54,8 @@ class SubsystemActionSelection(SubsystemBase):
         elif action_type == ActionType.InitiateInternalContemplation:
             content = f"{companion_name} should contemplate for the time being because of the following reasons: {action_selection.reason}"
         elif action_type == ActionType.Reply:
-            content = f"{companion_name} should now reply to the user. She should make a short and concise answer so {user_name} has an easier time replying."
+            content = (f"{companion_name} should now reply to the user. She should make a short and concise answer so for better reading experience, fully integrating her emotions and "
+                       f"recommendations of subsystems!")
         elif action_type == ActionType.Ignore:
             content = f"{companion_name} should ignore this input because: {action_selection.reason}"
         elif action_type == ActionType.ToolCall:
