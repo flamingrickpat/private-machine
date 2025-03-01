@@ -261,7 +261,7 @@ class Cluster(SQLModel, table=True):
                 pi = PromptItem(
                     str(uuid.uuid4()),
                     self.timestamp_from,
-                    "assistant",
+                    "user",
                     "",
                     f"Current time: {self.timestamp_from.strftime(timestamp_format)}",
                     "",
@@ -274,10 +274,10 @@ class Cluster(SQLModel, table=True):
                 return [PromptItem(
                     str(uuid.uuid4()),
                     self.timestamp_from,
-                    "assistant",
-                    f"This happened between {self.timestamp_from.strftime(timestamp_format)} and {self.timestamp_to.strftime(timestamp_format)}:",
+                    "user",
+                    f'{companion_name} remembers this happening between {self.timestamp_from.strftime(timestamp_format)} and {self.timestamp_to.strftime(timestamp_format)}: "',
                     self.summary,
-                    f"",
+                    f'"',
                     1)]
         else:
             if self.type == ClusterType.Topical:

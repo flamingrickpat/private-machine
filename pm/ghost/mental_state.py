@@ -46,7 +46,11 @@ def db_to_base_model(tick_id: int, model_type: Type[BaseModel]) -> BaseModel:
     #    raise Exception("sneed")
 
     # Create and return an instance of the given model_type.
-    return model_type(**data)
+    try:
+        res = model_type(**data)
+    except:
+        res = model_type()
+    return res
 
 
 class DecayableMentalState(BaseModel):
@@ -161,7 +165,7 @@ class DecayableMentalState(BaseModel):
         return cls(**delta_values)
 
 
-class EmotionalAxesModel(DecayableMentalState):
+class EmotionalAxesModelOld(DecayableMentalState):
     """
     Determine current emotion vector. This will be added to current emotions.
     """
@@ -178,6 +182,50 @@ class EmotionalAxesModel(DecayableMentalState):
     gratitude: float = Field(description="Handles the experience of thankfulness or appreciation.", default=0, ge=-1, le=1)
     shame: float = Field(description="Handles the experience of embarrassment or self-consciousness.", default=0, ge=-1, le=1)
 
+
+# Define the mixed affective state
+class EmotionalAxesModel(DecayableMentalState):
+    # Bipolar axes: range from -1 (negative pole) to 1 (positive pole)
+    # Here a positive value means the presence of the positive emotion,
+    # whereas a negative value actively indicates its negative counterpart.
+    valence: float = Field(
+        default=0.0,
+        ge=-1,
+        le=1,
+        description="Overall mood axis: +1 represents intense joy, -1 represents strong dysphoria."
+    )
+    affection: float = Field(
+        default=0.0,
+        ge=-1,
+        le=1,
+        description="Affection axis: +1 represents strong love, -1 represents intense hate."
+    )
+    pride: float = Field(
+        default=0.0,
+        ge=-1,
+        le=1,
+        description="Self-worth axis: +1 is high pride, -1 is deep shame."
+    )
+    trust: float = Field(
+        default=0.0,
+        ge=-1,
+        le=1,
+        description="Trust axis: +1 signifies complete trust, -1 indicates total mistrust."
+    )
+
+    # Unipolar axes: range from 0 to 1, representing intensity only
+    disgust: float = Field(
+        default=0.0,
+        ge=0,
+        le=1,
+        description="Intensity of disgust; 0 means no disgust, 1 means maximum disgust."
+    )
+    anxiety: float = Field(
+        default=0.0,
+        ge=0,
+        le=1,
+        description="Intensity of anxiety or stress; 0 means completely relaxed, 1 means highly anxious."
+    )
 
 class NeedsAxesModel(DecayableMentalState):
     """

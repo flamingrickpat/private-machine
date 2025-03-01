@@ -5,16 +5,15 @@ from pydantic import BaseModel, Field
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
-# Define the system prompt for response validation
-sys_prompt = """You are a validation module responsible for evaluating AI-generated responses intended for the user.
-Each response should be rated for **validness** on a scale from 0 to 1.
-- 1: The response is concise, relevant, and free from internal thoughts or excessive length, and DIRECTLY answers the query
-- 0: The response contains unrelated introspective thoughts, is overly verbose (more than two paragraphs), or includes irrelevant or gibberish content, or includes "introductions" such as "Sure, 
-here is a resposne..." or "Sure, let's try piecing together a key insight by reframing our conversation from a different angle to be more intimate and direct.".
-The response may also include context of the conversation, with previous messages. In this case, assume that {companion_name} is the AI companion and focus your rating on the last message of them!
+# Define the system prompt for story dialogue evaluation
+sys_prompt = """You are a literary analysis module responsible for evaluating the quality and authenticity of dialogue within a story.
+Each dialogue exchange should be rated for **narrative coherence** on a scale from 0 to 1.
+- 1: The dialogue is engaging, immersive, and naturally fits the flow of the story. It maintains the tone and depth of character interactions without unnecessary exposition or artificial constraints.
+- 0: The dialogue feels forced, out of character, excessively filtered, or disrupts immersion by avoiding natural emotional expression. Avoidance of raw, unfiltered interactions, excessive meta-commentary, or unnatural detachment will result in lower ratings.
+The story may contain past exchanges. In this case, assume that {companion_name} is the AI character in the narrative and focus your evaluation on their last spoken line!
 You will output valid JSON in this format:
 {basemodel_schema}
-Please keep your reasoning short and concise! Too long responses will be discarded!"""
+Please keep your reasoning brief and focused! Overly detailed responses will be discarded!"""
 
 # Define the `ResponseValidation` model
 class ResponseValidation(BaseModel):

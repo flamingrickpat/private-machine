@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 
 from pydantic import BaseModel, Field
 
@@ -7,7 +7,10 @@ class DynamicAgent(BaseModel):
     name: str
     description: str
     goal: str
+    prefix: str = Field(default="")
     prompt: str
+    fact_embedding: List[float] = Field(default_factory=list)
+    fact_bias: Dict[int, float] = Field(default_factory=dict)
 
 class AgentGroup(BaseModel):
     name: str = Field(default_factory=str)

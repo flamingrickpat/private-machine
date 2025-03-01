@@ -14,7 +14,7 @@ from pm.subsystem.sensation_evaluation.emotion.subsystem_emotion import Subsyste
 from pm.system_classes import Impulse, ImpulseType
 from pm.system_utils import init, res_tag
 
-TEST_MODE = False
+TEST_MODE = True
 
 def is_debug():
     import sys

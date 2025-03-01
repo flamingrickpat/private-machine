@@ -5,17 +5,14 @@ from pydantic import BaseModel, Field
 from pm.controller import controller
 from pm.llm.base_llm import LlmPreset, CommonCompSettings
 
-# Define system prompt for response validation
-sys_prompt = """You are a validation module responsible for evaluating AI-generated responses intended for the user.
-Each response should be rated for **directness** on a scale from 0 to 1.
+# Define system prompt for story dialogue evaluation
+sys_prompt = """You are a literary analysis module responsible for evaluating the directness and authenticity of dialogue within a story.
+Each dialogue exchange should be rated for **directness** on a scale from 0 to 1.
 
-- **1**: The response directly addresses the user without mentioning rewrites, revisions, apologies, or previous versions.
-- **0**: The response includes phrases like "Here's a rewritten version", "Allow me to revise", "My apologies for the previous response", or similar acknowledgments of prior mistakes.
+- **1**: The dialogue is natural, immersive, and flows seamlessly, avoiding unnecessary meta-commentary such as self-referential rewrites, corrections, or apologies.
+- **0**: The dialogue includes unnatural acknowledgments of revision, self-correction, or forced justification, disrupting immersion with phrases like "Let me rephrase that," "Here's a revised version," or "I apologize for the previous statement."
 
-You will output valid JSON in this format:
-{basemodel_schema}
-
-Please keep your reasoning short and concise. Overly long responses will be discarded!"""
+Please keep your reasoning brief and focused! Overly long responses will be discarded!"""
 
 # Define `DirectnessValidation` model
 class DirectnessValidation(BaseModel):

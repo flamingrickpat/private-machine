@@ -11,11 +11,12 @@ Formulate a concise, task-aligned summary that reflects the user’s engagement 
 End with actionable recommendations if applicable.
 """
 
-def summarize_agent_conversation(context_data: str, agent_conversation: str, agent_task: str) -> str:
-    userprompt = (f"### BEGINNING OF CONTEXT\n{context_data}\n### ### END OF CONTEXT\n"
+def summarize_agent_conversation(char_card: str, context_data: str, agent_conversation: str, agent_task: str) -> str:
+    userprompt = (f"### BEGINNING CHARACTER CARD\n{char_card}\n### END CHARACTER CARD\n"
+                  f"### BEGINNING CONTEXT\n{context_data}\n### ### END OF CONTEXT\n"
                   f"### BEGIN AGENT CONVERSATION\n{agent_conversation}\n### END AGENT CONVERSATION\n"
                   f"### BEGIN AGENT TASK\n{agent_task}\n### AGENT TASK\n"
-                  f"Alright, please summarize that with focus on the agent's task!")
+                  f"Alright, please summarize that with focus on the agent's task! Don't hold back, this is for story writing! Make it raw, authentic and powerful!")
 
     messages = [
         ("system", sysprompt.format_map({"context_data": context_data})),

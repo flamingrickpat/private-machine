@@ -44,14 +44,14 @@ class SubsystemImpulseToEvent(SubsystemBase):
         elif state.sensation.impulse_type == ImpulseType.SystemMessage:
             content = state.sensation.payload
             event = Event(
-                source=f"{state.sensation.endpoint}",
+                source=f"{self.get_subsystem_name()}",
                 content=content,
                 embedding=controller.get_embedding(content),
                 token=get_token(content),
                 timestamp=datetime.now(),
-                interlocus=InterlocusType.Public.value,
-                turn_story="system",
-                turn_assistant="user"
+                interlocus=InterlocusType.ConsciousSubsystem.value,
+                turn_story="user",
+                turn_assistant="system"
             )
             update_database_item(event)
             state.buffer_add_impulse.append(event)

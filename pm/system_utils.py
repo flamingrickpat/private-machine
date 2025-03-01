@@ -3,11 +3,13 @@ from typing import List
 
 from sqlmodel import select, col
 
-from pm.character import timestamp_format
+from pm.character import timestamp_format, user_name
 from pm.common_prompts.rate_complexity import rate_complexity
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
 from pm.controller import controller
-from pm.database.tables import Event, Fact, CauseEffectDbEntry
+from pm.database.tables import Event, Fact, CauseEffectDbEntry, FactCategory
+from pm.embedding.embedding import get_cos_sim, get_embedding
+from pm.subsystem.sensation_evaluation.emotion.emotion_agent_group import agent_joy, agent_hate
 
 res_tag = "<<<RESULT>>>"
 
@@ -53,6 +55,33 @@ def get_recent_messages_block(n_msgs: int, internal: bool = False, max_tick: int
     all = "\n".join(lines)
     return all
 
+def get_recent_messages_block_user(n_msgs: int, internal: bool = False, max_tick: int = -1):
+    session = controller.get_session()
+
+    if max_tick <= 0:
+        events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
+    else:
+        events = session.exec(select(Event).where(Event.tick_id <= max_tick).order_by(col(Event.id))).fetchall()
+
+    cnt = 0
+    latest_events = events[::-1]
+    lines = []
+    for event in latest_events:
+        if event.source == user_name:
+            if event.interlocus >= 0 or internal:
+                content = event.to_prompt_item(False)[0].to_tuple()[1].replace("\n", "")
+                lines.append(f"{event.source}: {content}")
+
+                if event.interlocus != 0:
+                    cnt += 1
+                if cnt >= n_msgs:
+                    break
+
+    lines.reverse()
+    all = "\n".join(lines)
+    return all
+
+
 
 def evalue_prompt_complexity():
     all = get_recent_messages_block(10)
@@ -82,3 +111,40 @@ def get_learned_rules_block(n_facts: int, search_string: str) -> str:
     facts: List[CauseEffectDbEntry] = session.exec(select(CauseEffectDbEntry).order_by(CauseEffectDbEntry.embedding.cosine_distance(emb)).limit(n_facts)).fetchall()
     return "\n".join([f"Cause: '{f.cause}' Effect: '{f.effect}'" for f in facts])
 
+
+def return_biased_facts_with_emb(bias_dict: dict, embedding: list[float], bias_strength: float = 0.5, n_facts: int = 10) -> str:
+    session = controller.get_session()
+
+    # Retrieve all facts
+    facts = session.exec(select(Fact)).all()
+    scored_facts = []
+
+    for fact in facts:
+        similarity = get_cos_sim(embedding, fact.embedding)
+        categories = session.exec(select(FactCategory).where(FactCategory.fact_id == fact.id)).all()
+        bias_score = 0.0
+        if categories:
+            for cat in categories:
+                if cat.category_id in bias_dict:
+                    norm_weight = (cat.weight / cat.max_weight) if cat.max_weight else 0
+                    bias_score += norm_weight * bias_dict[cat.category_id]
+            bias_score /= len(categories)
+
+        final_score = (similarity * (1 - bias_strength)) + (bias_score * bias_strength)
+        scored_facts.append((fact, final_score))
+
+    # Select the top n_facts based on final_score
+    scored_facts.sort(key=lambda x: x[1], reverse=True)
+    top_facts = scored_facts[:n_facts]
+
+    # Finally, sort these top facts by their id (chronological order)
+    top_facts = sorted(top_facts, key=lambda x: x[0].id)
+
+    return "\n".join([f"Fact: '{fact.content}' (ID: {fact.id}, Score: {score:.2f})" for fact, score in top_facts])
+
+
+if __name__ == '__main__':
+    controller.start()
+    controller.init_db()
+    res = return_biased_facts_with_emb(agent_hate.fact_bias, embedding=get_embedding("berlin"), n_facts=15)
+    print(res)
