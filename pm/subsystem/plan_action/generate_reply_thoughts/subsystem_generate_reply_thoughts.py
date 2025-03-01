@@ -1,3 +1,4 @@
+import random
 from typing import List
 
 from pm.character import companion_name
@@ -10,7 +11,7 @@ from pm.ghost.ghost_classes import GhostState, PipelineStage
 from pm.subsystem.plan_action.generate_reply_thoughts.generate_reply_thoughts_tree import generate_tree_of_thoughts_str
 from pm.subsystem.subsystem_base import SubsystemBase
 from pm.system_classes import ImpulseType, ActionType
-from pm.system_utils import get_recent_messages_block, get_facts_block, get_recent_user_messages_block
+from pm.system_utils import get_recent_messages_block, get_facts_block, get_recent_user_messages_block, get_public_event_count
 
 
 class SubsystemGenerateReplyThoughts(SubsystemBase):
@@ -30,6 +31,14 @@ class SubsystemGenerateReplyThoughts(SubsystemBase):
         return [ActionType.Reply, ActionType.InitiateUserConversation]
 
     def proces_state(self, state: GhostState):
+        if get_public_event_count() < 32:
+            return
+
+        # 15% chance to execute tot
+        chance = 0.15
+        if random.uniform(0, 1) > chance:
+            return
+
         ctx = get_recent_messages_block(32, internal=True)
         lum = get_recent_user_messages_block(1)
         k = get_facts_block(64, get_recent_messages_block(4))

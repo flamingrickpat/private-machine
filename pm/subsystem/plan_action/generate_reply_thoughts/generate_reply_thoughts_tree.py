@@ -178,7 +178,8 @@ def generate_thought_chain(ctx, last_user_message, k, chain, generative, depth, 
     state = {}
     for call in calls:
         thoughts = copy(call.thoughts)
-        thoughts.reverse()
+        random.shuffle(thoughts)
+
         for thought in thoughts:
             new_thought = f"""
 This is the character: 

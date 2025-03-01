@@ -13,7 +13,7 @@ from pm.ghost.mental_state import base_model_to_db
 from pm.subsystem.sensation_evaluation.emotion.emotion_schema import execute_agent_group_emotion
 from pm.subsystem.subsystem_base import SubsystemBase
 from pm.system_classes import ImpulseType, Impulse
-from pm.system_utils import get_recent_messages_block, get_recent_messages_block_user
+from pm.system_utils import get_recent_messages_block, get_recent_messages_block_user, get_public_event_count
 
 
 class SubsystemEmotion(SubsystemBase):
@@ -33,6 +33,9 @@ class SubsystemEmotion(SubsystemBase):
         pass
 
     def proces_state(self, state: GhostState):
+        if get_public_event_count() < 32:
+            return
+
         old_ctx = get_recent_messages_block(16, internal=True, max_tick=state.prev_tick_id if state.prev_tick_id is not None else -1)
         old_lm = get_recent_messages_block_user(1, max_tick=state.prev_tick_id if state.prev_tick_id is not None else -1)
         old_emotional_state = rate_emotional_state(old_ctx, old_lm)
