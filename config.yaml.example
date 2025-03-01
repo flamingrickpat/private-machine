@@ -3,6 +3,8 @@ user_name: "Rick"
 
 # you can choose any database name, it will be created automatically
 database_uri: "postgresql+psycopg2://postgres:password@127.0.0.1:5432/emmy"
+# commit or rollback for tests?
+commit: True
 
 # the model must have 768 dimensions!
 embedding_model: "Alibaba-NLP/gte-base-en-v1.5"

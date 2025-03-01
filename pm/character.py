@@ -18,6 +18,7 @@ sysprompt = ""
 char_card_3rd_person_neutral = ""
 char_card_3rd_person_emotional = ""
 sysprompt_addendum = ""
+commit = False
 
 # Get absolute path to the config file
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.yaml")
@@ -40,6 +41,7 @@ global_map = {
     "char_card_3rd_person_neutral": config_data.get("char_card_3rd_person_neutral", ""),
     "char_card_3rd_person_emotional": config_data.get("char_card_3rd_person_emotional", ""),
     "sysprompt_addendum": config_data.get("sysprompt_addendum", ""),
+    "commit": config_data.get("commit", True)
 }
 globals().update(global_map)
 

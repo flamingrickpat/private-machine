@@ -1,7 +1,7 @@
 import sys
 import traceback
 
-from pm.character import user_name
+from pm.character import user_name, commit
 from pm.controller import controller
 from pm.database.db_utils import init_db
 from pm.ghost.ghost import Ghost
@@ -13,8 +13,6 @@ from pm.subsystem.create_action.user_reply.subsystem_user_reply import Subsystem
 from pm.subsystem.sensation_evaluation.emotion.subsystem_emotion import SubsystemEmotion
 from pm.system_classes import Impulse, ImpulseType
 from pm.system_utils import init, res_tag
-
-TEST_MODE = False
 
 def is_debug():
     import sys
@@ -70,14 +68,16 @@ def run_system_cli():
     controller.init_db()
     if is_debug:
         run_cli()
-        if TEST_MODE:
+        if not commit:
+            print("rolling back...")
             controller.rollback_db()
         else:
             controller.commit_db()
     else:
         try:
             run_cli()
-            if TEST_MODE:
+            if not commit:
+                print("rolling back...")
                 controller.rollback_db()
             else:
                 controller.commit_db()
@@ -96,7 +96,8 @@ def run_system_mp(inp: str) -> str:
     controller.init_db()
     try:
         res = run_tick(inp)
-        if TEST_MODE:
+        if not commit:
+            print("rolling back...")
             controller.rollback_db()
         else:
             controller.commit_db()
