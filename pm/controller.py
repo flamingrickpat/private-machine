@@ -124,6 +124,26 @@ class Controller:
                         ) -> (str, List[BaseModel]):
         self.load_model(preset)
 
+        no_system = False
+        try:
+            # remove add generation prompts if last turn is from assistant
+            openai_inp_remove_ass = [{"role": "system", "content": "test1"}, {"role": "user", "content": "test2"}, {"role": "assistant", "content": "test3"}, {"role": "assistant", "content": "test4"}]
+            data_remove_ass = self.chat_template.render(
+                messages=openai_inp_remove_ass,
+                add_generation_prompt=True
+            )
+        except:
+            # remove add generation prompts if last turn is from assistant
+            openai_inp_remove_ass = [{"role": "user", "content": "test2"}, {"role": "assistant", "content": "test4"}]
+            data_remove_ass = self.chat_template.render(
+                messages=openai_inp_remove_ass,
+                add_generation_prompt=True,
+                bos_token="<s>",
+                eos_token="</s>",
+            )
+            no_system = True
+        remove_ass_string = data_remove_ass.split("test4")[1]
+
         inp_formatted = []
         for msg in inp:
             inp_formatted.append((self.format_str(msg[0]), self.format_str(msg[1])))
@@ -168,7 +188,7 @@ class Controller:
         openai_inp = []
         for msg in inp_formatted:
             openai_inp.append({"role": msg[0], "content": msg[1]})
-            
+
         comp_args = {
             "max_tokens": comp_settings.max_tokens,
             "repeat_penalty": comp_settings.repeat_penalty,
@@ -183,20 +203,13 @@ class Controller:
             comp_args["mirostat_tau"] = 8
             comp_args["mirostat_eta"] = 0.1
 
-        # remove add generation prompts if last turn is from assistant
-        openai_inp_remove_ass = [{"role": "system", "content": "test1"}, {"role": "user", "content": "test2"}, {"role": "assistant", "content": "test3"}, {"role": "assistant", "content": "test4"}]
-        data_remove_ass = self.chat_template.render(
-            messages=openai_inp_remove_ass,
-            add_generation_prompt=True
-        )
-
-        remove_ass_string = data_remove_ass.split("test4")[1]
-
         # remove messages until it fits in context
         while True:
             rendered_data = self.chat_template.render(
                 messages=openai_inp,
-                add_generation_prompt=True
+                add_generation_prompt=True,
+                bos_token="",
+                eos_token="",
             )
 
             if openai_inp[-1]["role"] == "assistant":

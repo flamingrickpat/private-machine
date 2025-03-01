@@ -103,6 +103,9 @@ def completion_story_mode(subsystem_description: str) -> str:
                                                                                           "Current time:"]),
                                              discard_thinks=False)
 
+        if len(content) < 12:
+            continue
+
         rating_context = validate_response_in_context(lst_messages, content)
         rating_directness = validate_directness(lst_messages, content)
         rating_fulfilment = validate_query_fulfillment(lst_messages, content)

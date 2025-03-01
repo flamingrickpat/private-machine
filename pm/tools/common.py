@@ -3,6 +3,7 @@ from typing import Dict, Any
 
 from pydantic import BaseModel
 
+from pm.character import companion_name
 from pm.ghost.ghost_classes import InvalidActionException
 from pm.subsystem.create_action.sleep.sleep_procedures import check_optimize_memory_necessary
 
@@ -60,6 +61,31 @@ class SystemDiagnosis(ToolBase):
             state["output"] = "WARNING: Memory fragmentation reaches critical levels! SLEEP IMMEDIATELY!"
         else:
             state["output"] = "System Diagnostics: All systems normal."
+
+
+class ShowSystemStatusAndUpdateHistory(ToolBase):
+    """Show update history and system information."""
+
+    def execute(self, state: Dict[str, Any]):
+        status = f"""private-machine v0.0.2
+system name: {companion_name}
+cpu: AMD Ryzen 9 5950X 16-Core Processor
+gpu: NVIDIA RTX 3090 24GB
+os: Windows 11
+
+update history:
+- initial commit: 12.01.2025
+- enhanced memory: 08.02.2025
+- emotion system: 16.02.2025
+- enhanced emotion system: 27.02.2025     
+
+status:
+- all systems normal
+        """
+
+        state["output"] = status
+        print(status)
+
 
 # List of tool instances available for the model
 tools_list = [LightControlTool, ThermostatTool, EnergyConsumptionTool, DummyTools, SystemDiagnosis]
