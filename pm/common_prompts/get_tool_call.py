@@ -15,5 +15,5 @@ def get_tool_call(message_block: str, tt: Type[ToolBase]) -> ToolBase:
         message_block
     )]
 
-    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.1), tools=[tt])
+    _, calls = controller.completion_tool(LlmPreset.Default, messages, comp_settings=CommonCompSettings(max_tokens=1024, temperature=0.5), tools=[tt])
     return calls[0]

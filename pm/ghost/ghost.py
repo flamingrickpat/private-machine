@@ -7,11 +7,12 @@ from pm.character import companion_name
 from pm.controller import controller
 from pm.database.db_utils import update_database_item
 from pm.database.tables import CognitiveTick, ImpulseRegister
-from pm.ghost.ghost_classes import GhostState, PipelineStage
+from pm.ghost.ghost_classes import GhostState, PipelineStage, InvalidActionException
 from pm.ghost.mental_state import db_to_base_model, EmotionalAxesModel, base_model_to_db, NeedsAxesModel
 from pm.subsystem.create_action.sleep.sleep_procedures import check_optimize_memory_necessary
 from pm.subsystem.subsystem_base import SubsystemBase
 from pm.system_classes import ImpulseType, Impulse, ActionType
+
 
 class Ghost:
     def __init__(self):
@@ -57,15 +58,21 @@ class Ghost:
         state = self._add_impulse(impulse)
         if self._impulse_requires_action(impulse):
             self._eval_sensation(state)
-            self._choose_action(state)
             while True:
-                temp_state = state.model_copy(deep=True)
-                self._plan_action(temp_state)
-                self._create_action(temp_state)
-                status = self._verify_action(temp_state)
-                if status:
-                    state = temp_state
-                    break
+                try:
+                    with controller.get_session().begin_nested():
+                        temp_state = state.model_copy(deep=True)
+                        self._choose_action(temp_state)
+                        self._plan_action(temp_state)
+                        self._create_action(temp_state)
+                        status = self._verify_action(temp_state)
+                        if status:
+                            state = temp_state
+                            break
+                        else:
+                            raise InvalidActionException()
+                except InvalidActionException:
+                    pass
             output = self._publish_output(state)
 
         self._end_subtick()

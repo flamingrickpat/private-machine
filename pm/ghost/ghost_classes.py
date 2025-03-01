@@ -45,3 +45,7 @@ class GhostState(BaseModel):
     def subsystem_description(self) -> str:
         ghost = self.ghost
         return "\n- ".join([x.get_subsystem_name() + ": " + x.get_subsystem_description() for x in ghost.subsystems])
+
+
+class InvalidActionException(Exception):
+    pass

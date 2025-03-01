@@ -3,6 +3,7 @@ from typing import Dict, Any
 
 from pydantic import BaseModel
 
+from pm.ghost.ghost_classes import InvalidActionException
 from pm.subsystem.create_action.sleep.sleep_procedures import check_optimize_memory_necessary
 
 
@@ -28,6 +29,8 @@ class DummyTools(ToolBase):
 
     def execute(self, state: Dict[str, Any]):
         state["output"] = f"Error: No matching tool found! Maybe a tool-call isn't the right way to handle this!"
+        print(state["output"])
+        raise InvalidActionException()
 
 
 class ThermostatTool(ToolBase):

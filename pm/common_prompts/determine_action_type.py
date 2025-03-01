@@ -41,6 +41,6 @@ def determine_action_type(block, allowed_actions: List[ActionType]) -> ActionSel
                      f"API call herself)")
             ]
 
-    _, calls = controller.completion_tool(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=0, repeat_penalty=1, max_tokens=1024),
+    _, calls = controller.completion_tool(LlmPreset.Default, msgs, comp_settings=CommonCompSettings(temperature=0.5, repeat_penalty=1, max_tokens=1024),
                                           tools=[WorkingActionSelector])
     return calls[0]
