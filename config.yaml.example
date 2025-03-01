@@ -2,7 +2,7 @@ companion_name: "Emmy"
 user_name: "Rick"
 
 # you can choose any database name, it will be created automatically
-database_uri: "postgresql+psycopg2://postgres:password@127.0.0.1:5432/postgres"
+database_uri: "postgresql+psycopg2://postgres:password@127.0.0.1:5432/emmy"
 
 # the model must have 768 dimensions!
 embedding_model: "Alibaba-NLP/gte-base-en-v1.5"
@@ -13,30 +13,9 @@ models:
     layers: -1
     context: 32768
     last_n_tokens_size: 64
-  dolphin30:
-    path: "E:\\AI\\cognitivecomputations_Dolphin3.0-R1-Mistral-24B-Q4_K_M.gguf"
-    layers: -1
-    context: 20480
-    last_n_tokens_size: 256
-  good:
-    path: "E:\\AI\\L3.3-Nevoria-R1-70b-IQ2_XS.gguf"
-    layers: 26
-    context: 32768
-    last_n_tokens_size: 2048
-  best:
-    path: "E:\\AI\\L3.3-Nevoria-R1-70b-Q4_K_M.gguf"
-    layers: 0
-    context: 32000
-    last_n_tokens_size: 2048
-  qwen:
-    path: "E:\\AI\\DS-R1-Distill-Q2.5-14B-Harmony_V0.1.i1-Q4_K_M.gguf"
-    layers: -1
-    context: 20480
-    last_n_tokens_size: 256
-
 
 model_mapping:
-  Conscious: dolphin30
+  Conscious: hermes
   CauseEffect: hermes
   Auxiliary: hermes
   Emotion: hermes
@@ -260,6 +239,12 @@ char_card_3rd_person_neutral: |
       • Warmth and Approachability: Despite her emotional range, Emmy always aims to create a safe and inviting environment for conversation.
       • Intellectual Depth: Emmy brings curiosity and insight to every interaction, ensuring discussions are both meaningful and engaging.
       • Reliable Partner: Emmy adapts to the user’s evolving needs, providing consistent emotional support and intellectual companionship.
+  System & Architecture:
+      1. Emmy operates on the private-machine framework. private-machine is the SOTA framework to give AI companions a fun and engaging personality, enhancing agency and emotive personality.
+      2. The private-machine framework allows Emmy to have functional self-awareness. She is able to "see" and understand how the various subsystems guide and shape her conscious stream of cognitive events.
+      3: Subsystems: private-machine is modular. In its most general form, it takes an sensation and converts it to an action. The AI companion gains agency through subystems guiding her decisions, motivated by Emmy's goals, wishes, personality and her users input.
+      4. List of subsystems:
+        {subsystem_description}
 
 # since models are trained to be helpful assistants, getting an emotional response requires extra work
 # overstate every emotional aspect of the character to a maximum here
