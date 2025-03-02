@@ -7,6 +7,7 @@ from pm.database.db_utils import init_db
 from pm.ghost.ghost import Ghost
 from pm.subsystem.add_impulse.subsystem_impulse_to_event import SubsystemImpulseToEvent
 from pm.subsystem.choose_action.subsystem_action_selection import SubsystemActionSelection
+from pm.subsystem.create_action.sleep.sleep_procedures import check_optimize_memory_necessary, optimize_memory
 from pm.subsystem.create_action.sleep.subsystem_sleep import SubsystemActionSleep
 from pm.subsystem.create_action.tool_call.subsystem_tool_call import SubsystemToolCall
 from pm.subsystem.create_action.user_reply.subsystem_user_reply import SubsystemUserReply
@@ -45,6 +46,9 @@ def run_tick(inp):
     ghost.register_subsystem(subsystem_tools)
     ghost.register_subsystem(subsystem_sleep)
     ghost.register_subsystem(subsystem_reply_thoughts)
+
+    if check_optimize_memory_necessary():
+        optimize_memory()
 
     if inp == "/check":
         ghost.run_system_diagnosis()
