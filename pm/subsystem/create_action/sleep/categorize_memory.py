@@ -16,7 +16,7 @@ from pm.common_prompts.summary_perspective import summarize_messages
 from pm.controller import controller
 from pm.cosine_clustering.cosine_cluster import get_best_category, cluster_text, TEMPLATE_CATEGORIES
 from pm.database.db_utils import update_database_item
-from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Fact, CauseEffectDbEntry, FactCategory
+from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Fact, CauseEffect, FactCategory
 from pm.embedding.token import get_token
 from pm.fact_learners.extract_cause_effect_agent import extract_cas
 from pm.controller import controller

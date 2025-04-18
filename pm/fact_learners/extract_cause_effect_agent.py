@@ -16,7 +16,7 @@ sysprompt = "You are a helpful assistant for analyzing text."
 prompt = []
 
 
-class CauseEffect(BaseModel):
+class CauseEffectItem(BaseModel):
     cause: str = Field(default="", description="Triggering action or event.")
     effect: str = Field(default="", description="Resulting outcome.")
     # temporality: float = Field(default=0.5, description="0 = short-term, 1 = long-term.")
@@ -26,7 +26,7 @@ class CauseEffect(BaseModel):
 
 class CauseEffects(BaseModel):
     cause_effect_can_be_extracted: bool = Field(description="if false, leave other fields empty")
-    cause_effects: List[CauseEffect] = Field(default_factory=list, description="list of cause effect objects (if there are some)")
+    cause_effects: List[CauseEffectItem] = Field(default_factory=list, description="list of cause effect objects (if there are some)")
 
 
 ces = CauseEffects(
@@ -111,7 +111,7 @@ CauseEffect:
 """
 
 
-def extract_cas(block: str) -> List[CauseEffect]:
+def extract_cas(block: str) -> List[CauseEffectItem]:
     mt = 4096
     convo_to_text_agent = AgentHistorizedSimpel(
         id="convo_to_text_agent",

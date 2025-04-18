@@ -7,8 +7,8 @@ from pm.character import timestamp_format, user_name
 from pm.common_prompts.rate_complexity import rate_complexity
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
 from pm.controller import controller
-from pm.database.tables import Event, Fact, CauseEffectDbEntry, FactCategory
-from pm.embedding.embedding import get_cos_sim, get_embedding
+from pm.database.tables import Event, Fact, CauseEffect, FactCategory
+from pm.embedding.embedding import get_cos_sim, get_embedding, vector_search
 from pm.subsystem.sensation_evaluation.emotion.emotion_agent_group import agent_joy, agent_hate
 
 res_tag = "<<<RESULT>>>"
@@ -115,20 +115,21 @@ def evalue_emotional_impact():
 def get_facts_block(n_facts: int, search_string: str) -> str:
     emb = controller.get_embedding(search_string)
     session = controller.get_session()
-    facts = session.exec(select(Fact).order_by(Fact.embedding.cosine_distance(emb)).limit(n_facts)).fetchall()
-    return "\n".join([f.content for f in facts])
+    facts = session.exec(select(Fact)).fetchall()
+    best_facts = vector_search(facts, emb, n_facts)
+    return "\n".join([f.content for f in best_facts])
 
 def get_learned_rules_count() -> int:
     session = controller.get_session()
-    facts: List[CauseEffectDbEntry] = session.exec(select(CauseEffectDbEntry)).fetchall()
+    facts: List[CauseEffect] = session.exec(select(CauseEffect)).fetchall()
     return len(facts)
 
 def get_learned_rules_block(n_facts: int, search_string: str) -> str:
     emb = controller.get_embedding(search_string)
     session = controller.get_session()
-    facts: List[CauseEffectDbEntry] = session.exec(select(CauseEffectDbEntry).order_by(CauseEffectDbEntry.embedding.cosine_distance(emb)).limit(n_facts)).fetchall()
-    return "\n".join([f"Cause: '{f.cause}' Effect: '{f.effect}'" for f in facts])
-
+    facts: List[CauseEffect] = session.exec(select(CauseEffect)).fetchall()
+    best_facts = vector_search(facts, emb, n_facts)
+    return "\n".join([f"Cause: '{f.cause}' Effect: '{f.effect}'" for f in best_facts])
 
 def return_biased_facts_with_emb(bias_dict: dict, embedding: list[float], bias_strength: float = 0.5, n_facts: int = 10) -> str:
     session = controller.get_session()

@@ -13,7 +13,7 @@ from pm.common_prompts.summary_perspective import summarize_messages
 from pm.controller import controller
 from pm.cosine_clustering.cosine_cluster import get_best_category, cluster_text, TEMPLATE_CATEGORIES
 from pm.database.db_utils import update_database_item
-from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Fact, CauseEffectDbEntry, FactCategory
+from pm.database.tables import Event, EventCluster, Cluster, ClusterType, Fact, CauseEffect, FactCategory
 from pm.embedding.token import get_token
 from pm.fact_learners.extract_cause_effect_agent import extract_cas
 from pm.subsystem.create_action.sleep.categorize_memory import categorize_fact
@@ -113,7 +113,7 @@ def events_to_ca(session, events: List[Event]):
     for event in events:
         lines.append(f"{event.source}: {event.content}")
 
-    max_fact_event_id = session.exec(func.max(CauseEffectDbEntry.max_event_id)).scalar() or 0
+    max_fact_event_id = session.exec(func.max(CauseEffect.max_event_id)).scalar() or 0
 
     # Check if the minimum event ID in the cluster is greater than the maximum event ID in the Fact table
     min_event_id = min([event.id for event in events])
@@ -126,7 +126,7 @@ def events_to_ca(session, events: List[Event]):
                 clusters = cluster_text(fstr, template_dict=TEMPLATE_CATEGORIES)
                 max_event_id = events[-1].id
 
-                f = CauseEffectDbEntry(
+                f = CauseEffect(
                     cause=ca.cause,
                     effect=ca.effect,
                     category=get_best_category(clusters),

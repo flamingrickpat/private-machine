@@ -339,7 +339,7 @@ class EventCluster(SQLModel, table=True):
     cog_event_id: int
     con_cluster_id: int
 
-class CauseEffectDbEntry(SQLModel, table=True):
+class CauseEffect(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     cause: str = Field(default="")
     effect: str = Field(default="")
