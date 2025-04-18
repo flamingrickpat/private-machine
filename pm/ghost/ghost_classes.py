@@ -41,6 +41,8 @@ class GhostState(BaseModel):
     emotional_state: EmotionalAxesModel
     needs_state: NeedsAxesModel
 
+
+
     @property
     def subsystem_description(self) -> str:
         ghost = self.ghost

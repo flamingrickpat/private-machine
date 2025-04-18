@@ -66,9 +66,3 @@ for model_class, model_key in model_mapping.items():
 engine = create_engine(database_uri)
 if not database_exists(engine.url):
     create_database(engine.url)
-
-    with engine.connect() as con:
-        con.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        con.commit()
-
-

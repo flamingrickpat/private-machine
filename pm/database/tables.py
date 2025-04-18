@@ -3,15 +3,34 @@ import uuid
 from enum import StrEnum, IntEnum
 from typing import Optional, Any, List
 
-from pgvector.sqlalchemy import Vector
+#from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column
 from sqlmodel import Field, SQLModel, create_engine
+import pickle
+from typing import Any, List
+
+from sqlalchemy.types import TypeDecorator, LargeBinary
 
 from pm.character import timestamp_format, user_name, database_uri, companion_name
 
 def get_tick_id():
     from pm.controller import controller
     return controller.current_tick_id
+
+class EmbeddingType(TypeDecorator):
+    """Stores a Python list of floats as a BLOB via pickle."""
+    impl = LargeBinary
+
+    def process_bind_param(self, value: List[float], dialect) -> bytes:
+        if value is None:
+            return None
+        # you could also use json.dumps if you prefer text
+        return pickle.dumps(value)
+
+    def process_result_value(self, value: bytes, dialect) -> List[float]:
+        if value is None:
+            return None
+        return pickle.loads(value)
 
 class PromptItem:
     def __init__(self, id, timestamp, turn, prefix, content, postfix, interlocus):#
@@ -57,7 +76,7 @@ class AgentMessages(SQLModel, table=True):
     agent_id: str = Field(...)
     turn: str = Field(...)
     content: str = Field(default="")
-    embedding: Any = Field(sa_column=Column(Vector(768)))
+    embedding: List[float] = Field(sa_column=Column(EmbeddingType(), nullable=False))
     token: int = Field()
     timestamp: datetime.datetime
     rating: float = Field()
@@ -71,7 +90,7 @@ class Event(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     source: str = Field(default="")
     content: str = Field(default="")
-    embedding: Any = Field(sa_column=Column(Vector(768)))
+    embedding: List[float] = Field(sa_column=Column(EmbeddingType(), nullable=False))
     token: int = Field()
     timestamp: datetime.datetime
     turn_story: str
@@ -243,7 +262,7 @@ class Cluster(SQLModel, table=True):
     level: int = Field(default=0)
     summary: str = Field()
     included_messages: str = Field(default="")
-    embedding: Any = Field(sa_column=Column(Vector(768)))
+    embedding: List[float] = Field(sa_column=Column(EmbeddingType(), nullable=False))
     token: int = Field()
     timestamp_from: datetime.datetime
     timestamp_to: datetime.datetime
@@ -312,7 +331,7 @@ class Fact(SQLModel, table=True):
     content: str
     temporality: float
     max_event_id: int
-    embedding: Any = Field(sa_column=Column(Vector(768)))
+    embedding: List[float] = Field(sa_column=Column(EmbeddingType(), nullable=False))
     token: int = Field()
 
 class EventCluster(SQLModel, table=True):
@@ -325,7 +344,7 @@ class CauseEffectDbEntry(SQLModel, table=True):
     cause: str = Field(default="")
     effect: str = Field(default="")
     category: str = Field(default="")
-    embedding: Any = Field(sa_column=Column(Vector(768)))
+    embedding: List[float] = Field(sa_column=Column(EmbeddingType(), nullable=False))
     token: int = Field()
     timestamp: datetime.datetime
     max_event_id: int
@@ -374,6 +393,18 @@ class CoreMemory(SQLModel, table=True):
     tag: int
     memory: str
     token: int
+
+class Narratives(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tick_id: int
+    name: str
+    narrative: str
+    internal: bool # true = how the person sees itself (internal thought), false = how the person acts (no internal thought)
+
+class Intention(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tick_id: int
+
 
 engine = create_engine(database_uri)
 SQLModel.metadata.create_all(engine)

@@ -21,13 +21,6 @@ def get_engine():
 
 def init_db():
     engine = get_engine()
-    try:
-        with Session(engine) as session:
-            session.exec(text("CREATE EXTENSION vector;"))
-            session.commit()
-    except:
-        pass
-
     reset = False
 
     try:

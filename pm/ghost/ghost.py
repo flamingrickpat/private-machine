@@ -17,7 +17,7 @@ from pm.system_classes import ImpulseType, Impulse, ActionType
 class Ghost:
     def __init__(self):
         self.depth = 0
-        self.prev_tick_id = None
+        self.prev_tick_id = -1
         self.current_tick_id = 0
         self.current_tick: CognitiveTick | None = None
         self.stage: PipelineStage = PipelineStage.Null
@@ -93,8 +93,8 @@ class Ghost:
             tick_id=self.current_tick_id,
             sensation=impulse,
             ghost=self,
-            emotional_state=db_to_base_model(self.current_tick_id - 1, EmotionalAxesModel) if self.current_tick_id > 0 else EmotionalAxesModel(),
-            needs_state=db_to_base_model(self.current_tick_id - 1, NeedsAxesModel) if self.current_tick_id > 0 else NeedsAxesModel()
+            emotional_state=db_to_base_model(self.prev_tick_id, EmotionalAxesModel) if self.prev_tick_id > 0 else EmotionalAxesModel(),
+            needs_state=db_to_base_model(self.prev_tick_id, NeedsAxesModel) if self.prev_tick_id > 0 else NeedsAxesModel()
         )
 
         self._execute_subsystems(state)
@@ -162,7 +162,7 @@ class Ghost:
         pass
 
     def _start_tick(self):
-        parent_id = None
+        parent_id = -1
 
         session = controller.get_session()
         data = session.exec(select(CognitiveTick).order_by(CognitiveTick.id.desc())).all()

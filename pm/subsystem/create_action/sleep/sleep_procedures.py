@@ -35,6 +35,8 @@ def check_optimize_memory_necessary() -> bool:
 
 def optimize_memory():
     clusterize()
+
+def extract_facts_categorize():
     factorize()
     fact_categorize()
 
