@@ -7,7 +7,7 @@ from pm.character import timestamp_format, user_name
 from pm.common_prompts.rate_complexity import rate_complexity
 from pm.common_prompts.rate_emotional_impact import rate_emotional_impact
 from pm.controller import controller
-from pm.database.tables import Event, Fact, CauseEffect, FactCategory
+from pm.database.tables import Event, Fact, CauseEffect, FactCategory, Narratives
 from pm.embedding.embedding import get_cos_sim, get_embedding, vector_search
 from pm.subsystem.sensation_evaluation.emotion.emotion_agent_group import agent_joy, agent_hate
 
@@ -29,6 +29,31 @@ def get_public_event_count() -> int:
     session = controller.get_session()
     events = list(session.exec(select(Event).where(Event.interlocus == 1).order_by(col(Event.id))).fetchall())
     return len(events)
+
+def get_recent_messages_min_tick_id(n_msgs: int, internal: bool = False, max_tick: int = -1) -> int:
+    session = controller.get_session()
+
+    if max_tick <= 0:
+        events = session.exec(select(Event).order_by(col(Event.id))).fetchall()
+    else:
+        events = session.exec(select(Event).where(Event.tick_id <= max_tick).order_by(col(Event.id))).fetchall()
+
+    cnt = 0
+    latest_events = events[::-1]
+    ids = []
+    for event in latest_events:
+        if event.interlocus >= 0 or internal:
+            ids.append(event.tick_id)
+
+            if event.interlocus != 0:
+                cnt += 1
+            if cnt >= n_msgs:
+                break
+
+    ids.reverse()
+    if len(ids) > 0:
+        return ids[0]
+    return -1
 
 def get_recent_messages_block(n_msgs: int, internal: bool = False, max_tick: int = -1):
     session = controller.get_session()
@@ -160,6 +185,14 @@ def return_biased_facts_with_emb(bias_dict: dict, embedding: list[float], bias_s
     top_facts = sorted(top_facts, key=lambda x: x[0].id)
 
     return "\n".join([f"Fact: '{fact.content}' (ID: {fact.id}, Score: {score:.2f})" for fact, score in top_facts])
+
+def get_recent_analysis(type, target, min_tick_id=-1) -> str:
+    session = controller.get_session()
+    res = session.exec(select(Narratives).where(Narratives.type == type).where(Narratives.target == target).where(Narratives.tick_id < min_tick_id).order_by(col(Narratives.id))).fetchall()
+    if len(res) > 0:
+        return res[-1].content
+    else:
+        return ""
 
 
 if __name__ == '__main__':

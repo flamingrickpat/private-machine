@@ -18,6 +18,7 @@ class PipelineStage(StrEnum):
     ChooseAction = "ChooseAction"
     PlanAction = "PlanAction"
     VerifyAction = "VerifyAction"
+    ReflectLearn = "ReflectLearn"
     PublishOutput = "PublishOutput"
 
 

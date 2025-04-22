@@ -14,7 +14,12 @@ class ActionType(StrEnum):
     InitiateUserConversation = "InitiateUserConversation"
     InitiateInternalContemplation = "InitiateInternalContemplation"
     InitiateIdleMode = "InitiateIdleMode"
-
+    Think = "Think"
+    RecallMemory = "RecallMemory"
+    ManageIntent = "ManageIntent"
+    Plan = "Plan"
+    ManageAwarenessFocus = "ManageAwarenessFocus"
+    ReflectThoughts = "ReflectThoughts"
 
 class ImpulseType(StrEnum):
     SystemMessageSilent = "SystemMessageSilent"

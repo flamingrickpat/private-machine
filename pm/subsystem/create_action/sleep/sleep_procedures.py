@@ -61,7 +61,9 @@ def events_to_cluster(session, events: List[Event]) -> Cluster:
         token=token,
         embedding=emb,
         timestamp_from=events[0].timestamp - timedelta(seconds=5),
-        timestamp_to=events[-1].timestamp + timedelta(seconds=5)
+        timestamp_to=events[-1].timestamp + timedelta(seconds=5),
+        min_event_id=events[0].id,
+        max_event_id=events[-1].id
     )
 
     update_database_item(cluster)
@@ -93,11 +95,13 @@ def events_to_facts(session, events: List[Event]):
         for fact in facts:
             fstr = fact[0]
             temp = fact[1]
+            min_event_id = events[0].id
             max_event_id = events[-1].id
 
             f = Fact(
                 content=fstr,
                 temporality=temp,
+                min_event_id=min_event_id,
                 max_event_id=max_event_id,
                 embedding=controller.get_embedding(fstr),
                 token=get_token(fstr)
@@ -125,11 +129,13 @@ def events_to_ca(session, events: List[Event]):
                 fstr = f"cause: {ca.cause} effect: {ca.effect}"
                 clusters = cluster_text(fstr, template_dict=TEMPLATE_CATEGORIES)
                 max_event_id = events[-1].id
+                min_event_id = events[0].id
 
                 f = CauseEffect(
                     cause=ca.cause,
                     effect=ca.effect,
                     category=get_best_category(clusters),
+                    min_event_id=min_event_id,
                     max_event_id=max_event_id,
                     embedding=controller.get_embedding(fstr),
                     token=get_token(fstr),
@@ -172,7 +178,9 @@ def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
             token=get_token(summary),
             embedding=controller.get_embedding(summary),
             timestamp_from=cluster.timestamp_begin - timedelta(seconds=5),
-            timestamp_to=cluster.timestamp_end + timedelta(seconds=5)
+            timestamp_to=cluster.timestamp_end + timedelta(seconds=5),
+            min_event_id=min(event_ids),
+            max_event_id=max(event_ids)
         )
 
         update_database_item(tc)
@@ -186,8 +194,8 @@ def temporal_cluster_to_cluster(clusters: List[TemporalCluster]):
 def clusterize():
     print("Clustering...")
     session = controller.get_session()
-    session.exec(text("truncate eventcluster"))
-    session.exec(text("truncate cluster"))
+    session.exec(text("delete from eventcluster;"))
+    session.exec(text("delete from cluster;"))
 
     statement = select(Event).where(Event.interlocus > 0).order_by(col(Event.id))
     events: List[Event] = session.exec(statement).all()

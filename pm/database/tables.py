@@ -267,6 +267,8 @@ class Cluster(SQLModel, table=True):
     timestamp_from: datetime.datetime
     timestamp_to: datetime.datetime
     tag: str = Field(default="")
+    min_event_id: int
+    max_event_id: int
 
     # Temporary field, excluded from the DB schema
     similarity: float = Field(default=0.0, exclude=True)
@@ -330,6 +332,7 @@ class Fact(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     content: str
     temporality: float
+    min_event_id: int
     max_event_id: int
     embedding: List[float] = Field(sa_column=Column(EmbeddingType(), nullable=False))
     token: int = Field()
@@ -347,6 +350,7 @@ class CauseEffect(SQLModel, table=True):
     embedding: List[float] = Field(sa_column=Column(EmbeddingType(), nullable=False))
     token: int = Field()
     timestamp: datetime.datetime
+    min_event_id: int
     max_event_id: int
 
 class CognitiveTick(SQLModel, table=True):
@@ -355,6 +359,8 @@ class CognitiveTick(SQLModel, table=True):
     parent_id: Optional[int] = Field(default=None)
     start_time: datetime.datetime
     end_time: Optional[datetime.datetime] = Field(default=None)
+    csm_dump: str = Field(default="")
+    gwt_dump: str = Field(default="")
 
 class WorldInteractionType(IntEnum):
     Sensation = 1
@@ -397,14 +403,10 @@ class CoreMemory(SQLModel, table=True):
 class Narratives(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     tick_id: int
-    name: str
-    narrative: str
-    internal: bool # true = how the person sees itself (internal thought), false = how the person acts (no internal thought)
-
-class Intention(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    tick_id: int
-
+    type: str
+    target: str
+    content: str
+    embedding: List[float] = Field(sa_column=Column(EmbeddingType(), nullable=False))
 
 engine = create_engine(database_uri)
 SQLModel.metadata.create_all(engine)

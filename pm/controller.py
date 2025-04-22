@@ -354,14 +354,17 @@ class Controller:
 
     def init_db(self):
         self.session = Session(create_engine(database_uri))
+        self.session.begin()
 
     def get_session(self) -> Session:
         return self.session
 
     def rollback_db(self):
         self.session.rollback()
+        self.session.begin()
 
     def commit_db(self):
         self.session.commit()
+        self.session.begin()
 
 controller = Controller(False, False)

@@ -15,6 +15,8 @@ from pm.subsystem.plan_action.generate_reply_thoughts.subsystem_generate_reply_t
 from pm.subsystem.sensation_evaluation.emotion.subsystem_emotion import SubsystemEmotion
 from pm.system_classes import Impulse, ImpulseType, EndlessLoopError
 from pm.system_utils import init, res_tag
+from pm.utils.chat_utils import parse_chatlog
+
 
 def is_debug():
     import sys
