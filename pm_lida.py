@@ -1459,7 +1459,7 @@ class LlmManagerLLama(LlmManager):
                     calls = [tools[0].model_validate_json(good_json_string)]
                     break
                 except Exception as e:
-                    print(e)
+                    logger.debug(f"Error when creating basemodel {tools[0].__class__.__name__}: {e}")
 
         content = content.strip()
         inp_formatted.append(("assistant", content))
@@ -2329,7 +2329,7 @@ class KnoxelBase(BaseModel):
     timestamp_world_begin: datetime = Field(default_factory=datetime.now)
     timestamp_world_end: datetime = Field(default_factory=datetime.now)
 
-    def get_story_element(self) -> str:
+    def get_story_element(self, ghost: "Ghost" = None) -> str:
         return f"{self.__class__.__name__}: {self.content}"
 
     def __str__(self):
@@ -2382,13 +2382,14 @@ class MemoryClusterKnoxel(CoversTicksEventsKnoxel):
     temporal_key: Optional[str] = Field(default=None, description="Unique key for merging temporal clusters (e.g., '2023-10-26-MORNING')")
 
     # Override get_story_element for representation in prompts if needed
-    def get_story_element(self, all_knoxels: List[KnoxelBase] = None) -> str:
+    def get_story_element(self, ghost: "Ghost" = None) -> str:
         if self.cluster_type == ClusterType.Temporal and self.content:
             # How to represent time? Maybe add time range to summary?
             # level_name = self.level # TODO: Map level back to Day/Week etc.
             return f"*Summary of period ({self.timestamp_world_begin.strftime('%Y-%m-%d %H:%M')} - {self.timestamp_world_begin.strftime('%Y-%m-%d %H:%M')}): {self.content}*"
         elif self.cluster_type == ClusterType.Topical:
             # Topical clusters might not appear directly in story, used for retrieval
+            all_knoxels = ghost.all_knoxels_list
             if all_knoxels is None:
                 raise Exception("Must provide knoxels!")
 
@@ -2401,15 +2402,15 @@ class MemoryClusterKnoxel(CoversTicksEventsKnoxel):
                 event = map[event_id]
                 events.append(event)
 
-            sorted_events = sorted(events, lambda e: e.timestamp_world_begin)
-            for event in sorted_events:
-                buffer.append(event.get_story_element())
+            events.sort(key=lambda e: e.timestamp_world_begin)
+            for event in events:
+                buffer.append(event.get_story_element(ghost))
 
             buffer.append("End of relevant conversation.")
 
             topic = "\n".join(buffer)
             return topic
-        return super().get_story_element()  # Fallback
+        return super().get_story_element(ghost)  # Fallback
 
 
 class DeclarativeFactKnoxel(CoversTicksEventsKnoxel):
@@ -2423,7 +2424,7 @@ class DeclarativeFactKnoxel(CoversTicksEventsKnoxel):
     # token: Inherited (Calculated from content)
     # timestamps: Inherited (When fact was created/extracted)
 
-    def get_story_element(self) -> str:
+    def get_story_element(self, ghost: "Ghost" = None) -> str:
         # Facts might be recalled, not part of the direct flow
         return f"*(Fact: {self.content})*"
 
@@ -2445,7 +2446,7 @@ class CauseEffectKnoxel(CoversTicksEventsKnoxel):
             values['content'] = f"Cause: {values['cause']} -> Effect: {values['effect']}"
         return values
 
-    def get_story_element(self) -> str:
+    def get_story_element(self, ghost: "Ghost" = None) -> str:
         return f"*(Observed Cause/Effect: {self.content})*"
 
 
@@ -2533,7 +2534,7 @@ class Feature(KnoxelBase):
     def __str__(self):
         return f"{self.__class__.__name__} ({self.feature_type}): {self.content}"
 
-    def get_story_element(self) -> str:
+    def get_story_element(self, ghost: "Ghost" = None) -> str:
         # “(.*?)”
         story_map = {
             # Dialogue: Keep as is - standard format
@@ -2566,7 +2567,7 @@ class KnoxelList:
         s = self.get_story(None)
         return get_token_count(s)
 
-    def get_story(self, config: GhostConfig | None = None, max_tokens: Optional[int] = None) -> str:
+    def get_story(self, ghost: "Ghost" = None, max_tokens: Optional[int] = None) -> str:
         last_timestamp = None
         for item in self._list:
             if last_timestamp is None:
@@ -2576,7 +2577,7 @@ class KnoxelList:
                 raise Exception("Linear history mixed up!")
             last_timestamp = item.timestamp_world_begin
 
-        content_list = [k.get_story_element() for k in self._list]
+        content_list = [k.get_story_element(ghost) for k in self._list]
         current_tokens = 0
         buffer = []
         for content in content_list[::-1]:
@@ -2597,6 +2598,9 @@ class KnoxelList:
         except ValueError:
             logging.error("Inconsistent embedding dimensions found.")
             return None
+
+    def reverse(self, predicate) -> 'KnoxelList':
+        return KnoxelList(self._list.reverse().to_list())
 
     def where(self, predicate) -> 'KnoxelList':
         return KnoxelList(self._list.where(predicate).to_list())
@@ -4147,6 +4151,12 @@ class Ghost:
         self.memory_consolidator = DynamicMemoryConsolidator(self, self.memory_config)  # Pass self (ghost instance)
         self.meta_insights = []
 
+    @property
+    def all_knoxels_list(self):
+        tmp = list(self.all_knoxels.values())
+        tmp.sort(key=lambda x: x.timestamp_world_begin)
+        return tmp
+
     def _get_state_at_tick(self, tick_id: int) -> GhostState | None:
         if tick_id == self.current_tick_id:
             return self.current_state
@@ -4509,13 +4519,15 @@ class Ghost:
         recent_causal_features = Enumerable(self.all_features) \
             .where(lambda x: x.causal) \
             .where(lambda x: x.feature_type == FeatureType.Dialogue or x.feature_type == FeatureType.Thought or x.feature_type == FeatureType.WorldEvent) \
-            .order_by(lambda x: x.timestamp_world_begin) \
+            .order_by_descending(lambda x: x.timestamp_world_begin) \
             .take(self.config.retrieval_limit_features_context) \
             .to_list()
 
+        recent_causal_features.reverse()
+
         self._log_mental_mechanism(self._get_context_from_latest_causal_events, MLevel.Mid, f"Retrieved and added {len(recent_causal_features)} unique context knoxels to attention candidates.")
         for rcf in recent_causal_features:
-            self._log_mental_mechanism(self._get_context_from_latest_causal_events, MLevel.Debug, f"Retrieved and added feature: {rcf.get_story_element()}")
+            self._log_mental_mechanism(self._get_context_from_latest_causal_events, MLevel.Debug, f"Retrieved and added feature: {rcf.get_story_element(self)}")
 
         return KnoxelList(recent_causal_features)
 
@@ -4674,10 +4686,10 @@ class Ghost:
         expectation_delta = StateDeltas()
         working_emotion_state = copy.copy(self.current_state.state_emotions)
         working_emotion_state += self.appraisal_initial_delta.emotion_delta
-        
+
         working_needs_state = copy.copy(self.current_state.state_needs)
         working_needs_state += self.appraisal_initial_delta.needs_delta
-        
+
         working_cognition_state = copy.copy(self.current_state.state_cognition)
         working_cognition_state += self.appraisal_initial_delta.cognition_delta
 
@@ -5259,9 +5271,9 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
         # target
         base_avg_emotions = {}
-        full_state = dict(state.state_emotions.__class__.model_fields.items())
-        full_state.update(dict(state.state_needs.__class__.model_fields.items()))
-        full_state.update(dict(state.state_cognition.__class__.model_fields.items()))
+        full_state = dict(state.state_emotions.model_dump().items())
+        full_state.update(dict(state.state_needs.model_dump().items()))
+        full_state.update(dict(state.state_cognition.model_dump().items()))
 
         for key, val in full_state.items():
             base_avg_emotions[key] = val
@@ -5270,9 +5282,9 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         avg_emotions = {}
         for tick_id in range(mem.min_tick_id, mem.max_event_id + 1):
             tstate = self._get_state_at_tick(tick_id)
-            full_state = dict(tstate.state_emotions.__class__.model_fields.items())
-            full_state.update(dict(tstate.state_needs.__class__.model_fields.items()))
-            full_state.update(dict(tstate.state_cognition.__class__.model_fields.items()))
+            full_state = dict(tstate.state_emotions.model_dump().items())
+            full_state.update(dict(tstate.state_needs.model_dump().items()))
+            full_state.update(dict(tstate.state_cognition.model_dump().items()))
 
             for key, val in full_state.items():
                 if key not in avg_emotions:
@@ -5311,7 +5323,9 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 self.all_episodic_memories,
                 key=lambda c: cosine_distance(np.array(query_embedding), np.array(c.embedding))
             )
-            for mem in ranked_episodic_memories[:limit]:
+
+            ranked_episodic_memories = ranked_episodic_memories[:limit]
+            for mem in ranked_episodic_memories:
                 self.current_state.attention_candidates.add(mem)
 
             if len(ranked_episodic_memories) > 0:
@@ -5325,6 +5339,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 self.all_episodic_memories,
                 key=lambda c: self._get_emotional_similary_memory(c, self.current_tick_id)
             )
+            ranked_episodic_memories = ranked_episodic_memories[:limit]
             for mem in ranked_episodic_memories[:limit]:
                 self.current_state.attention_candidates.add(mem)
 
@@ -5335,7 +5350,8 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 self.all_declarative_facts,
                 key=lambda c: cosine_distance(np.array(query_embedding), np.array(c.embedding))
             )
-            for f in ranked_facts[:limit]:
+            ranked_facts = ranked_facts[:limit]
+            for f in ranked_facts:
                 self.current_state.attention_candidates.add(f)
 
             if len(ranked_facts) > 0:
@@ -5506,7 +5522,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
             rating: float = Field(..., description="How valueable the coalition is in the situation, with min=0 being bad and max=1 being very good. ")
 
         for coal_id, coal_knoxels in coalitions.items():
-            content = KnoxelList(coal_knoxels).get_story(self.config)
+            content = KnoxelList(coal_knoxels).get_story(self)
 
             # Use cognitive state to influence prompt
             focus_prompt = ""
@@ -5614,7 +5630,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         winning_coalition = coalitions[coalitions_rated[0]]
         winning_reason = coal_rating_map[coalitions_rated[0]]["attention_reasoning"]
         winning_score = combined_coalition_scored[coalitions_rated[0]]
-        winning_content = KnoxelList(winning_coalition).get_story(self.config)
+        winning_content = KnoxelList(winning_coalition).get_story(self)
         self._log_mental_mechanism(self._simulate_attention_on_coalitions, MLevel.Low, f"Coalition selected: ### BEGIN COALITION {winning_content[:64]}... ### END COALTION Winning Rating: {winning_score} with reasoning: {winning_reason}")
         self._log_mental_mechanism(self._simulate_attention_on_coalitions, MLevel.Debug, f"Coalition selected: ### BEGIN COALITION {winning_content} ### END COALTION Winning Rating: {winning_score} with reasoning: {winning_reason}")
 
@@ -5622,7 +5638,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
             discarded_coalition = coalitions[coalitions_rated[0]]
             discarded_reason = coal_rating_map[coalitions_rated[0]]
             discarded_score = combined_coalition_scored[coalitions_rated[0]]
-            discarded_content = KnoxelList(discarded_coalition).get_story(self.config)
+            discarded_content = KnoxelList(discarded_coalition).get_story(self)
             self._log_mental_mechanism(self._simulate_attention_on_coalitions, MLevel.Debug, f"Coalition discarded, placed {i}: ### BEGIN COALITION {discarded_content} ### END COALTION Discarded Rating: {discarded_score} with reasoning: {discarded_reason}")
 
         self.current_state.conscious_workspace = KnoxelList()
@@ -5643,7 +5659,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 ft = FeatureType.MemoryRecall
 
             if ft is None:
-                raise Exception("CAN'T CONVERT TO CAUSAL: " + k.get_story_element())
+                raise Exception("CAN'T CONVERT TO CAUSAL: " + k.get_story_element(self))
             else:
                 focus_feature = Feature(
                     content=k.content,
@@ -5987,7 +6003,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         self._log_mental_mechanism(self._generate_subjective_experience, MLevel.Mid, f"Convert the conscius workspace to a brief subjective experience (thought).")
 
         workspace_knoxels = self.current_state.conscious_workspace.to_list()
-        workspace_content = self.current_state.conscious_workspace.get_story(self.config)
+        workspace_content = self.current_state.conscious_workspace.get_story(self)
 
         context = self._get_context_from_latest_causal_events()
         context_events = context.get_story(self.config, 1024)
@@ -6036,7 +6052,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Mid, f"Use the workspace and the intentions to simulate options (internally, non-causal) and find option that best serves to fulfill intentions.")
 
         workspace_knoxels = self.current_state.conscious_workspace.to_list()
-        workspace_content = self.current_state.conscious_workspace.get_story(self.config)
+        workspace_content = self.current_state.conscious_workspace.get_story(self)
 
         context = self._get_context_from_latest_causal_events()
         context_events = context.get_story(self.config, 1024)
@@ -6618,7 +6634,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         # --- Token Budget Allocation ---
         # Ensure ratios sum to 1, adjust if not (though here they do
 
-        workspace_size = get_token_count(conscious_workspace_content.get_story())
+        workspace_size = get_token_count(conscious_workspace_content.get_story(self))
         max_total_tokens -= workspace_size
 
         selected_knoxels_for_story: Dict[int, KnoxelBase] = {}  # Use dict to ensure unique knoxels by ID
@@ -6742,7 +6758,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
         logger.info("Logging current story elements:")
         for k in final_knoxels_for_story:
-            logger.info(k.get_story_element().replace("\n", "\\n"))
+            logger.info(k.get_story_element(self).replace("\n", "\\n"))
 
         story_list = KnoxelList(final_knoxels_for_story)
         final_story_str = story_list.get_story(cfg, max_tokens=max_total_tokens)  # Pass the original max_total_tokens
