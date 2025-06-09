@@ -64,9 +64,39 @@ except Exception:
     pass
 
 # Display chat messages from this session's history
-for message in st.session_state.messages:
+for i, message in enumerate(st.session_state.messages):
+    idx = i
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+
+        # only show thumbs for the assistant
+        if message["role"] == "assistant":
+            col1, col2 = st.columns([1, 1], gap="small")
+            rating = message["rating"]
+            tick_id = message["tick_id"]
+            like = "👍"
+            if rating == 1:
+                like = "🟢" + like
+            if col1.button(
+                    like,
+                    key=f"like_{idx}",
+                    disabled=(message["rating"] == 1),
+            ):
+                message["rating"] = 1
+                shell.rate_message(tick_id, 1)  # <-- your shell method
+                st.rerun()
+
+            dislike = "👎"
+            if rating == 1:
+                dislike = "🔴" + dislike
+            if col2.button(
+                    dislike,
+                    key=f"dislike_{idx}",
+                    disabled=(message["rating"] == -1),
+            ):
+                message["rating"] = -1
+                shell.rate_message(tick_id, -1)  # <-- your shell method
+                st.rerun()
 
 # User input
 if prompt := st.chat_input("What do you want to say?", disabled=st.session_state.input_disabled):

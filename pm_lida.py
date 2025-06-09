@@ -4110,6 +4110,9 @@ class GhostState(BaseModel):
     selected_action_details: Optional[Dict[str, Any]] = None  # Details of the chosen simulation/action before execution
     selected_action_knoxel: Optional[Action] = None  # The final Action knoxel generated (set in execute)
 
+    # user rating 0 neutral, -1 bad, 1 good
+    rating: int = Field(default=0)
+
     # State snapshots
     state_emotions: EmotionalAxesModel = EmotionalAxesModel()
     state_needs: NeedsAxesModel = NeedsAxesModel()
@@ -4363,11 +4366,19 @@ class Ghost:
         """
         res = []
         for f in self.all_features:
+            tick_rating = 0
+            for s in self.states:
+                if s.tick_id == f.tick_id:
+                    tick_rating = s.rating
+                    break
+
             if f.feature_type == FeatureType.Dialogue:
+                d = {"content": f.content, "tick_id": f.tick_id, "feature_id": f.id, "rating": tick_rating}
                 if f.source == user_name:
-                    res.append({"role": "user", "content": f.content})
+                    d["role"] = "user"
                 elif f.source == companion_name:
-                    res.append({"role": "assistant", "content": f.content})
+                    d["role"] = "assistant"
+                res.append(d)
         return res
 
     def _log_mental_mechanism(self, func, level: MLevel, msg: str):
@@ -7335,7 +7346,7 @@ class GhostSqlite(Ghost):
                         field_name = col_name
                         is_reference_id = False
                         if col_name.endswith("_id") and col_name[:-3] in ['primary_stimulus', 'subjective_experience',
-                                                                          'selected_action_knoxel']:
+                                                                          'selected_action_knoxel', "rating"]:
                             field_name = col_name[:-3]  # e.g., primary_stimulus
                             is_reference_id = True
 
@@ -7694,6 +7705,13 @@ class Shell:
 
         print("Central Shell thread stopped.")
         self.ghost.kill()
+
+    def rate_message(self, tick_id, rating):
+        for s in self.ghost.states:
+            if s.tick_id == tick_id:
+                s.rating = rating
+                self.ghost.save_state_sqlite(db_path)
+                break
 
 
 # --- THE SINGLETON LOGIC ---
