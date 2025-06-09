@@ -7670,8 +7670,8 @@ class Shell:
                 now = time.time()
                 if now - self.last_interaction_time > self.user_inactivity_timeout:
                     print("Shell: User inactivity timeout reached.")
-                    proactive_stimulus = StimulusSimple("Inactivity_Thought", None)
-                    self._process_stimulus(proactive_stimulus)
+                    #proactive_stimulus = StimulusSimple("Inactivity_Thought", None)
+                    #self._process_stimulus(proactive_stimulus)
                     self.last_interaction_time = time.time() + self.ai_inactivity_timeout - self.user_inactivity_timeout
 
             time.sleep(1)

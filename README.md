@@ -30,8 +30,6 @@ Start the service like this:
 
 ```(venv) python streamlit run .\app.py --server.fileWatcherType none```
 
-The messages will be relayed from and to Telegram.
-
 ## Conceptual Overview
 
 I let Gemini write this. Emmy is the default character in config.
