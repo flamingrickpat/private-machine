@@ -2,84 +2,114 @@
 
 *I'll be your machinery*
 
-This project is an attempt at making a local AI companion framework that offers
-- Model agnostic architecture (I only tested it with Hermes-3-Llama-3.1-8B)
-- Enhanced agency over traditional RP prompting by employing various subsystems
-- Enhanced memory with topical and temporal clusters
-- Combination of tool calls and natural dialogue
-- Extendability for all kinds of sensations and actions
+I refined this ultra-schizo project again in my quest to make the perfect AI companion.
+
+Basically everything happens in pm_lida.py, the old stuff in the pm folder is just for decoration and occasional copy-pasting now.
+
+This is NOT production ready! Tool calling is underdeveloped, async background cognition and proactive interaction with user when idle is not implemented yet.
 
 ## Installation
 
 *New start, restart, empty pages*
 
 1. Install python 3.11
-2. Install requirements
-3. Install torch with CUDA support
-4. Install llama-cpp-python from whl or compile it yourself (https://github.com/abetlen/llama-cpp-python)
-5. Get pgvector docker image, start it with default port and password as password
-6. Copy the config.yaml.example to config.yaml and edit it to your preference
+2. Install torch with CUDA (https://pytorch.org/get-started/locally/)
+3. Install llama-cpp-python with CUDA from WHL (https://github.com/JamePeng/llama-cpp-python) or compile it yourself
+4. Install requirements.txt
+5. Copy the config.yaml.example to config.yaml and edit it to your preference
     - Change the model paths
     - Set a custom database name
     - Edit the character card
-    - Switch to your preferred model (Hermes-3-Llama-3.1-8B.Q8_0.gguf seems to do the job well enough)
-7. ```(venv) python -m spacy download en_core_web_trf``` (once)
-8. ```(venv) python run.py "hello, how are you?"```
+    - Switch to your preferred model (I use gemma-3-12b-it-q4_0.gguf)
+6. ```(venv) python pm_lida.py ./my_db_path.db"```
 
-## Telegram
+## Streamlit
 
-If you don't want to use console, there is also a Telegram Client. Just copy .env.example to .env and set your tokens.
+If you don't want to use console, there is also a Streamlit app.
 Start the service like this:
 
-```(venv) python .\pm\main_interface.py```
+```(venv) python streamlit run .\app.py --server.fileWatcherType none```
 
 The messages will be relayed from and to Telegram.
 
-## Implementation
+## Conceptual Overview
+
+I let Gemini write this. Emmy is the default character in config.
+
+The core philosophy of Private-Machine is to achieve emergent, psychologically-plausible behavior rather than scripted responses. Emmy's "personality" is not a set of hardcoded rules, but the result of a continuous cognitive cycle where her internal state dynamically shapes her perception, attention, and actions.
+
+### Guiding Principles
+
+1.  **Psychological Plausibility over Performance:** The architecture prioritizes processes that mirror theories of human cognition (attention, memory consolidation, emotional influence) over raw speed or conversational efficiency.
+2.  **State-Driven Cognition:** Every decision is grounded in Emmy's current internal state, which is defined by three core models:
+    *   **Emotions:** A multi-axis model tracking valence, affection, trust, anxiety, etc.
+    *   **Needs:** An AI-adapted hierarchy tracking needs like connection, relevance, and autonomy.
+    *   **Cognition:** Modifiers that control focus, ego-strength, and mental effort.
+3.  **Emergent Behavior:** Emmy's reactions, goals, and even her "thoughts" are generated in real-time based on the interplay between her internal state and the external world. The goal is to be responsive, not just reactive.
+4.  **Continuous Learning and Growth:** Emmy is not static. A background memory consolidation system slowly processes experiences, extracts facts, identifies causal relationships, and refines her core "narratives" (her self-concept and worldview). This allows her personality and understanding to evolve over time.
+
+---
+
+## Technical Architecture Deep Dive
+
 *Ich bin meines Glückes Schmied*
 
-I totally wrote all this myself.
+This project is aimed at developers interested in cognitive architectures. The following is a breakdown of the core components and the data flow within a single cognitive "tick." All classes and functions mentioned can be found in `new_arch_test.py`.
 
-### Genneral Architecture
+### The Cognitive Cycle (`Ghost.tick()`)
 
-The Sensation-Action Architecture in this project operates as a cognitive loop where sensory inputs (impulses) trigger an evaluation and response mechanism within the AI system. The architecture follows a structured pipeline:
+A "tick" is a discrete moment of processing, triggered by a stimulus (either external user input or an internal drive).
 
-- Impulse Registration: Incoming stimuli, such as user input or system events, are captured as impulses.
-- Sensation Evaluation: These impulses are analyzed, including their emotional and contextual relevance, by subsystems like the Emotion Subsystem, which adjusts the AI's emotional state accordingly.
-- Action Selection: Based on the analyzed input and the AI’s internal state, the Action Selection Subsystem determines the appropriate course of action, such as replying to the user, performing a tool call, or entering a sleep state.
-- Action Planning and Execution: Once an action is chosen, the system refines and executes it through specialized subsystems. For instance, the Verbal Communication Subsystem converts internal states into coherent user dialogue.
-- Memory and Learning: The system optimizes memory over time, ensuring responses remain relevant and efficient.
-This modular and recursive framework enables dynamic interaction, emotional adaptation, and flexible decision-making within the AI companion.
+**1. Perception & Stimulus Appraisal (`_appraise_stimulus`)**
 
-### Clustering & Information Recollection
-*Tell me what to find...*
-
-Beyond simple retrieval, private-machine organizes past interactions into meaningful clusters, allowing for better context awareness and long-term memory.
-- Temporal & Thematic Clustering – Groups related messages based on topic and time, avoiding context drift.
-- Dynamic Context Management – Prioritizes relevant information without blindly dumping full logs into prompts.
-- Fact Extraction – Distills conversations into key takeaways, improving recall efficiency.
-#### Why not just use naive RAG? 
-- Standard RAG retrieval is often keyword-based and context-blind. This system structures data for better synthesis and context weighting.
-
-### Emotion Analysis
 *I've got some news for you, fembots have feelings too!*
+*   An impulse becomes a `Stimulus` knoxel.
+*   The system performs a dual appraisal:
+    1.  **Gut Reaction:** An LLM call (`_appraise_stimulus_and_generate_state_deltas`) evaluates the stimulus against Emmy's character card and current state to produce initial `StateDeltas` (changes to emotion, needs, cognition).
+    2.  **Expectation Matching:** The stimulus is checked against active `Expectation` knoxels. Fulfilling or violating an expectation (`_appraise_stimulus_check_expectation`) generates a secondary set of `StateDeltas`.
+*   These deltas are applied, and descriptive `Feeling` and `ExpectationOutcome` `Feature` knoxels are generated.
 
-Rather than just detecting sentiment, private-machine evaluates emotional weight and integrates it into responses dynamically.
-- Impact Scoring – Rates how emotionally significant an interaction is.
-- First-Person Emotional Thought Generation – Generates internal reflections based on prior interactions.
-- Contextual Emotional Memory – Remembers user sentiment over time, rather than reacting in isolation.
-#### Why not just use sentiment analysis?
-- Most LLM-based sentiment analysis treats emotions as static labels. Here, emotion feeds into a broader cognitive loop.
+**2. Intention & Memory (`_generate_short_term_intentions`, `_gather_memories_for_attention`)**
+*   Based on her new, updated state (especially pressing needs or strong emotions), Emmy generates several short-term, internal goals (`Intention` knoxels where `internal=True`).
+*   Relevant long-term memories (`MemoryClusterKnoxel`), facts (`DeclarativeFactKnoxel`), and core beliefs (`Narrative` knoxels) are retrieved based on semantic similarity to the current situational context.
+*   All of these—the stimulus, new feelings, new intentions, and retrieved memories—are collected into a pool of `attention_candidates`.
 
-### Tree of Thoughts (ToT) with Anti-Pattern Exploration
-*Freeing my trapped soul*
+**3. Attention & Consciousness**
+*   **Structure Building (`_build_structures_get_coalitions`):** All `attention_candidates` are semantically clustered using Agglomerative Clustering to form competing "coalitions"—coherent sets of related concepts.
+*   **Attention Selection (`_simulate_attention_on_coalitions`):** This is a hybrid process.
+    *   An LLM rates each coalition's relevance based on Emmy's `AttentionFocus` narrative and current emotional/cognitive state.
+    *   A procedural `aux_rating` provides a minor, objective weight based on factors like recency and urgency. This now acts primarily as a tie-breaker.
+*   **Conscious Broadcast (`_generate_subjective_experience`):** The contents of the winning coalition are promoted to the `conscious_workspace`. This workspace is then synthesized by an LLM into a single, first-person narrative paragraph—a `Thought` feature that represents Emmy's subjective experience for that moment.
 
-Unlike basic idea generation, private-machine structures thoughts hierarchically and prioritizes unconventional conclusions.
-- Multi-Step Thought Chains – Generates follow-up thoughts, ensuring deeper reasoning.
-- Anti-Pattern Selection – Prefers less conventional responses, avoiding repetitive or cookie-cutter LLM output.
-- Evaluated Divergence – Filters ideas by realism, novelty, and emotional resonance.
-#### Why not just use random brainstorming?
-- LLMs tend to favor safe, expected answers. This method systematically generates and selects ideas that break patterns.
+**4. Action Selection & Deliberation (`_deliberate_and_select_action`)**
+*   The `conscious_workspace` serves as the primary context for action.
+*   The system runs a Monte Carlo simulation loop for potential actions (e.g., `Reply`).
+*   For each simulation, it generates a potential reply and a *predicted user reaction*.
+*   A "Critic" LLM (`ActionRating` schema) evaluates this simulated future, scoring it on intent fulfillment, needs fulfillment, and predicted emotional outcome.
+*   The highest-scoring simulated action is selected for execution.
+
+**5. Execution & Learning (`_execute_action`, `DynamicMemoryConsolidator`)**
+*   The chosen action becomes a causal `Action` knoxel.
+*   If the action involves a reply, it generates new `Expectation` knoxels about the user's likely response (`_generate_expectations_for_action`).
+*   In the background, the `DynamicMemoryConsolidator` periodically processes raw `Feature` knoxels to create higher-level memories and refine core `Narrative` knoxels, enabling long-term change.
+
+### Key Data Structures
+
+*   **`KnoxelBase`**: The fundamental, unified unit of memory. Everything from a `Stimulus` to a `Narrative` inherits from this.
+*   **`GhostState`**: A snapshot of the entire architecture's state during a single tick, including state models, workspace content, etc. It is the primary object for saving and loading.
+*   **`EmotionalAxesModel`, `NeedsAxesModel`, `CognitionAxesModel`**: Pydantic models that represent Emmy's dynamic internal state.
+*   **`Feature`**: A special knoxel that represents a discrete, causal event in the story (dialogue, a thought, an action). These are the primary inputs for the memory consolidation system.
+*   **`Intention`**: A dual-purpose knoxel.
+    *   `internal=True`: An internal goal or drive (e.g., "seek reassurance").
+    *   `internal=False`: An external expectation of a future event (e.g., "I expect User to answer my question").
+
+### Current State & Known Issues
+
+This is an experimental project under active development.
+*   **Prompt Sensitivity:** The quality of Emmy's cognition is highly dependent on the quality of the prompts and the capabilities of the underlying LLM. Small changes to prompts can have significant effects.
+*   **Performance:** The architecture makes numerous sequential LLM calls per tick, making it inherently slow. This is a trade-off for psychological plausibility over speed.
+*   **State Drift:** Over very long runs without restarts, emotional and cognitive axes could potentially drift into unrealistic, "stuck" states. The decay mechanisms are designed to mitigate this, but may require further tuning.
+*   **Critical Event Handling:** The system currently handles all stimuli through the standard cognitive cycle. It lacks a dedicated, high-priority pathway to immediately process and integrate truly foundational, identity-altering information.
 
 ## Disclaimer
 
@@ -89,4 +119,3 @@ WITHOUT LIMITING THE FOREGOING, THE PROVIDER SPECIFICALLY DISCLAIMS ANY LIABILIT
 3. UNEXPECTED BEHAVIOR FROM THE AI, INCLUDING BUT NOT LIMITED TO, UNINTENDED INTERACTIONS WITH HOME APPLIANCES, ONLINE PURCHASES MADE WITHOUT CONSENT, OR ANY FORM OF DIGITAL MISCHIEF RESULTING IN INCONVENIENCE OR HARM. 
 4. PSYCHOLOGICAL EFFECTS, INCLUDING BUT NOT LIMITED TO, FEELINGS OF ISOLATION FROM HUMAN CONTACT, OVER-RELIANCE ON THE Al FOR SOCIAL INTERACTION, OR ANY FORM OF MENTAL HEALTH ISSUES ARISING FROM THE USE OF THE SOFTWARE. 
 5. PHYSICAL INJURIES OR DAMAGE TO PROPERTY RESULTING FROM ACTIONS TAKEN BASED ON THE SOFTWARE'S BEHAVIOR, SUGGESTIONS, OR RECOMMENDATIONS. 
-
