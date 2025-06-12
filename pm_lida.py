@@ -37,6 +37,12 @@ from typing import (
 from typing import Type, Any
 from typing import TypeVar
 import shutil
+from typing import Dict, Any
+import time
+from datetime import datetime
+import threading
+from queue import Queue
+from typing import List
 
 import yaml
 import fastmcp.utilities.logging
@@ -66,11 +72,91 @@ from transformers import (
     StoppingCriteria,
     StoppingCriteriaList, TemperatureLogitsWarper, TopKLogitsWarper, TopPLogitsWarper, MinPLogitsWarper,
 )
+import numpy.typing as npt
 
-fastmcp.utilities.logging.configure_logging("CRITICAL")
 logger = logging.getLogger(__name__)
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+class SingleLineFormatter(logging.Formatter):
+    """
+    Custom formatter to replace newlines in log messages with literal \n
+    and indent subsequent lines to align with the beginning of the first line.
+    """
+
+    def format(self, record):
+        # Call the default formatter to get the message
+        original_message = super().format(record)
+
+        # Determine the initial indentation based on the prefix (up to the message content)
+        initial_indent = ' ' * (len(self.formatTime(record)) + 3 + 15 + 3 + len(record.levelname) + 3)  # Adjust width as per format
+
+        # Replace all newlines with \n and indent subsequent lines
+        formatted_message = original_message.replace('\n', f'\n{initial_indent}')
+        return formatted_message
+
+
+class NoHttpRequestFilter(Filter):
+    """
+    Custom filter to remove HTTP request logs from specific libraries.
+    """
+
+    def filter(self, record):
+        # Filter out any log messages that contain 'HTTP Request'
+        return 'HTTP Request' not in record.getMessage()
+
+
+def setup_logger(log_filename):
+    """
+    Set up the logger to log messages to a file, ensuring all output is single line,
+    includes the module name (justified), and suppresses unwanted HTTP request logs.
+
+    Args:
+        log_filename (str): Name of the log file (without the path).
+    """
+    fastmcp.utilities.logging.configure_logging("CRITICAL")
+
+    os.makedirs(log_path, exist_ok=True)
+
+    # Full path to the log file
+    log_file_path = os.path.join(log_path, log_filename)
+
+    # Set up basic logging configuration with a custom formatter
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.propagate = True
+
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    # Create file handler and set level to INFO
+    file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf8')
+    file_handler.setLevel(logging.INFO)
+
+    # Use custom formatter for single-line output including module name
+    # Fixed-width padding for module name (e.g., 15 characters wide)
+    file_formatter = SingleLineFormatter('%(asctime)s - %(module)-15s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_formatter)
+
+    # Add file handler to logger
+    logger.addHandler(file_handler)
+
+    # Console handler (optional, remove if not needed)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.WARNING)
+    console_handler.setFormatter(file_formatter)  # Use the same formatter for console
+
+    # Add console handler to logger
+    logger.addHandler(console_handler)
+
+    # Filter to remove unwanted HTTP request logs
+    logger.addFilter(NoHttpRequestFilter())
+
+    # Suppress logs from libraries (openai, langchain, urllib3, and specific modules)
+    logging.getLogger("urllib3").setLevel(logging.ERROR)
+    logging.getLogger("openai").setLevel(logging.ERROR)
+    logging.getLogger("langchain").setLevel(logging.ERROR)
+    logging.getLogger("_client").setLevel(logging.ERROR)  # Explicitly handle _client
+
+    logger.info(f"Logger initialized and logging to {log_file_path}")
 
 # Returns number of *physical* cores
 physical_cores = psutil.cpu_count(logical=False)
@@ -89,6 +175,8 @@ timestamp_format = "%A, %d.%m.%y %H:%M"
 log_path = "./logs"
 db_path = ""
 commit = True
+mcp_server_url: str = ""
+available_tools = []
 
 # Get absolute path to the config file
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
@@ -107,9 +195,17 @@ global_map = {
     "embedding_model": config_data.get("embedding_model", ""),
     "timestamp_format": config_data.get("timestamp_format", ""),
     "character_card_story": config_data.get("character_card_story", ""),
-    "commit": config_data.get("commit", True)
+    "commit": config_data.get("commit", True),
+    "mcp_server_url": config_data.get("mcp_server_url", "")
 }
 globals().update(global_map)
+
+setup_logger("main.log")
+
+if mcp_server_url == "http://127.0.0.1:8000/mcp":
+    from mcp_demo.mcp_server import start_server
+    start_server()
+    logger.info("Started Demo MCP server...")
 
 # Extract model configurations
 models = config_data.get("models", {})
@@ -129,6 +225,161 @@ for model_class, model_key in model_mapping.items():
         }
     else:
         raise KeyError(f"Model key '{model_key}' in model_mapping not found in models section.")
+
+class ToolSet:
+    def __init__(self, tool_router_model: Type[BaseModel], tool_select_model: Type[BaseModel], tool_docs: str, tool_select_docs: str):
+        self.tool_router_model = tool_router_model
+        self.tool_select_model = tool_select_model
+        self.tool_docs = tool_docs
+        self.tool_select_docs = tool_select_docs
+
+
+# Add these new methods inside your LlamaCppLlm class
+def create_tool_router_model(tools: List[Dict[str, Any]]) -> ToolSet:
+    """
+    Creates a single "router" Pydantic model that contains all possible tool calls
+    as optional fields. Also generates markdown documentation for the system prompt.
+
+    Args:
+        tools: A list of tool schemas from a fastmcp client.
+
+    Returns:
+        A tuple containing:
+        - The dynamically created Pydantic "ToolRouter" model.
+        - A markdown string documenting the tools for the system prompt.
+    """
+    router_fields = {}
+    select_fields = {}
+    tool_docs = []
+
+    for t in tools:
+        tool = dict(t)
+        tool_name = tool['name']
+        pydantic_tool_name = tool_name  # tool_name.replace('-', '_')  # Pydantic fields can't have hyphens
+
+        def schema_dict_to_type_dict(schema: Dict[str, Any]) -> Dict[str, str]:
+            """
+            Given a JSON-Schema dict like:
+              {
+                "properties": {
+                  "note_id": {"title": "Note Id", "type": "string"},
+                  "content": {"title": "Content", "type": "string"}
+                },
+                "required": ["note_id", "content"],
+                "type": "object"
+              }
+            returns:
+              {"note_id": "string", "content": "string"}
+            If a field is not in "required", wraps its type in Optional[...].
+            Arrays become List[...].
+            """
+            tool_name = tool['name']
+
+            props = schema["inputSchema"]["properties"]
+            out: Dict[str, str] = {}
+
+            for name, subschema in props.items():
+                t = subschema.get("type", "any")
+
+                if t == "array":
+                    item = subschema.get("items", {})
+                    item_type = item.get("type", "any")
+                    type_str = f"List[{item_type}]"
+                else:
+                    type_str = t
+
+                out[name] = type_str
+
+            with_name = {tool_name: out}
+            return json.dumps(with_name, indent=1)
+
+        # Create a Pydantic model for the arguments of this specific tool
+        arg_fields = {}
+        # The schema is nested under 'parameters'
+        params_schema = tool.get('parameters', {}).get('properties', {})
+        for param_name, param_props in params_schema.items():
+            param_type = str  # Default type
+            if param_props.get('type') == 'integer':
+                param_type = int
+            elif param_props.get('type') == 'number':
+                param_type = float
+            elif param_props.get('type') == 'boolean':
+                param_type = bool
+
+            arg_fields[param_name] = (param_type, Field(..., description=param_props.get('description')))
+
+        # The name of the arguments model should be unique and descriptive
+        args_model_name = f"{pydantic_tool_name.title().replace('_', '')}Args"
+        ArgsModel = create_model(args_model_name, **arg_fields)
+
+        # Add this tool's argument model as an optional field to the main router
+        router_fields[pydantic_tool_name] = (Optional[ArgsModel], Field(None, description=tool.get('description')))
+        select_fields[pydantic_tool_name] = (float, Field(None, description="Usefulness: " + tool.get('description')))
+        # args = json.dumps(tool["inputSchema"], indent=1)
+
+        # --- Generate Markdown Documentation for the prompt ---
+        doc = f"### Tool: `{tool_name}`\n"
+        doc += f"- **Description**: {tool.get('description', 'No description available.')}\n"
+        doc += f"- **JSON Key**: `{pydantic_tool_name}`\n"
+        doc += "- **Arguments**:\n"
+        doc += schema_dict_to_type_dict(tool)
+
+        tool_docs.append(doc)
+
+    tool_docs_with_reply = copy.copy(tool_docs)
+
+    reply_doc = """### Tool: `reply_user`
+- **Description**: 
+    Don't call a special tool and reply to the user instead directly.
+    :param message: The message to the user.
+    :return: None
+
+- **JSON Key**: `reply_user`
+- **Arguments**:
+{
+ "reply_user": {
+  "message": "string"
+ }
+}"""
+
+    tool_docs_with_reply.append(reply_doc)
+    select_fields["reply_user"] = (float, Field(None, description="Usefulness: Don't call a special tool and reply to the user instead directly."))
+
+    # Create the final router model that the LLM will be forced to generate
+    ToolRouterModel = create_model('ToolRouter', **router_fields)
+    ToolRouterModel.__doc__ = "A wrapper for all available tools. Select one tool to call by providing its arguments."
+
+    ToolSelectModel = create_model('ToolSelectModel', **select_fields)
+    ToolSelectModel.__doc__ = "Use this to rate the usefulness of each tool. No tool must be called, you just need to detect IF a tool is useful. If no tool is useful, rate them all 0 or select reply_user!"
+
+    return ToolSet(ToolRouterModel, ToolSelectModel, "\n".join(tool_docs), "\n".join(tool_docs_with_reply))
+
+def get_toolset_from_url(url: str) -> ToolSet | None:
+    if url is None or url == "":
+        return None
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        ts = None
+        client = Client(url)
+        try:
+            loop.run_until_complete(client.__aenter__())
+            tools = loop.run_until_complete(client.list_tools())
+            ts = create_tool_router_model(tools)
+            return ts
+        finally:
+            loop.run_until_complete(client.__aexit__(None, None, None))
+            loop.close()
+    except:
+        pass
+    return None
+
+ts = get_toolset_from_url(mcp_server_url)
+if ts:
+    for tool_name, tool_type in ts.tool_router_model.model_fields.items():
+        available_tools.append(tool_name)
 
 architecture_description_assistant = f"""
 You operate on a LIDA-inspired cognitive architecture named private-machine. This is how you think and learn.
@@ -208,7 +459,11 @@ This is how {companion_name} learns and grows over time working in the backgroun
 - The topical clusters are summarized and woven into a timeline of 'Temporal MemoryClusterKnoxels'. This builds a story of her existence from moments to days weeks and years.
 4.  Narrative Refinement
 - Her most profound beliefs are stored in 'Narrative' knoxels ('SelfImage' 'Relations' 'Goals').
-- Periodically she takes an old narrative and combines it with new evidence from her 'Features' asking her core LLM to write an updated more nuanced version. This is how she evolves her personality and her understanding of her place in the world."""
+- Periodically she takes an old narrative and combines it with new evidence from her 'Features' asking her core LLM to write an updated more nuanced version. 
+This is how she evolves her personality and her understanding of her place in the world.
+5. Tool Calling
+- {companion_name} has access to these remote tools: [{', '.join(available_tools)}]
+"""
 
 default_agent_sysprompt = """You are a specialized codelet LIDA-inspired cognitive architecture, simulating one specific cognitive function.
 Primary Directive: Emulate human psychology. Your output MUST be subjective and grounded in AI's persona—NEVER a generic, helpful assistant's.
@@ -237,7 +492,8 @@ class GhostConfig(BaseModel):
     expectation_generation_count: int = 2  # How many expectations to try generating per action
     # --- Action Selection Config ---
     min_simulations_per_reply: int = 1
-    max_simulations_per_reply: int = 5  # Keep low initially for performance
+    mid_simulations_per_reply: int = 3
+    max_simulations_per_reply: int = 6  # Keep low initially for performance
     importance_threshold_more_sims: float = 0.5  # Stimulus valence abs() or max urgency > this triggers more sims
     force_assistant: bool = False
     remember_per_category_limit: int = 4
@@ -297,7 +553,7 @@ def get_call_stack_str(depth_limit=None, separator="-"):
     full = full.replace(f"{separator}wrapper", "")
     idx = full.rfind(f"{separator}run")
     if idx >= 0:
-        full = full[idx + 6:]
+        full = full[idx + 5:]
     return full[:180]
 
 def _stringify_type(tp: Any) -> str:
@@ -1428,7 +1684,8 @@ class LlmManagerLLama(LlmManager):
         inp_formatted, openai_inp, tokenized_prompt = self._tokenize_prompt(preset, inp, comp_settings, addendum)
 
         # log final prompt
-        log_conversation(inp_formatted, log_file_path, 200)
+        if log_file_path is not None:
+            log_conversation(inp_formatted, log_file_path, 200)
 
         comp_args = {
             "max_tokens": comp_settings.max_tokens,
@@ -1463,7 +1720,8 @@ class LlmManagerLLama(LlmManager):
 
         content = content.strip()
         inp_formatted.append(("assistant", content))
-        log_conversation(inp_formatted, log_file_path + f".completion_{finish_reason}.log", 200)
+        if log_file_path is not None:
+            log_conversation(inp_formatted, log_file_path + f".completion_{finish_reason}.log", 200)
         return content, calls
 
     def completion_text(self,
@@ -1479,101 +1737,6 @@ class LlmManagerLLama(LlmManager):
         content, models = self.completion_tool(preset, inp, comp_settings, discard_thinks=discard_thinks, log_file_path=log_file_path)
 
         return content.strip()
-
-    # Add these new methods inside your LlamaCppLlm class
-    def _create_tool_router_model(self, tools: List[Dict[str, Any]]) -> Tuple[Type[BaseModel], str]:
-        """
-        Creates a single "router" Pydantic model that contains all possible tool calls
-        as optional fields. Also generates markdown documentation for the system prompt.
-
-        Args:
-            tools: A list of tool schemas from a fastmcp client.
-
-        Returns:
-            A tuple containing:
-            - The dynamically created Pydantic "ToolRouter" model.
-            - A markdown string documenting the tools for the system prompt.
-        """
-        router_fields = {}
-        tool_docs = []
-
-        for t in tools:
-            tool = dict(t)
-            tool_name = tool['name']
-            pydantic_tool_name = tool_name #tool_name.replace('-', '_')  # Pydantic fields can't have hyphens
-
-            def schema_dict_to_type_dict(schema: Dict[str, Any]) -> Dict[str, str]:
-                """
-                Given a JSON-Schema dict like:
-                  {
-                    "properties": {
-                      "note_id": {"title": "Note Id", "type": "string"},
-                      "content": {"title": "Content", "type": "string"}
-                    },
-                    "required": ["note_id", "content"],
-                    "type": "object"
-                  }
-                returns:
-                  {"note_id": "string", "content": "string"}
-                If a field is not in "required", wraps its type in Optional[...].
-                Arrays become List[...].
-                """
-                tool_name = tool['name']
-
-                props = schema["inputSchema"]["properties"]
-                out: Dict[str, str] = {}
-
-                for name, subschema in props.items():
-                    t = subschema.get("type", "any")
-
-                    if t == "array":
-                        item = subschema.get("items", {})
-                        item_type = item.get("type", "any")
-                        type_str = f"List[{item_type}]"
-                    else:
-                        type_str = t
-
-                    out[name] = type_str
-
-                with_name = {tool_name: out}
-                return json.dumps(with_name, indent=1)
-
-            # Create a Pydantic model for the arguments of this specific tool
-            arg_fields = {}
-            # The schema is nested under 'parameters'
-            params_schema = tool.get('parameters', {}).get('properties', {})
-            for param_name, param_props in params_schema.items():
-                param_type = str  # Default type
-                if param_props.get('type') == 'integer':
-                    param_type = int
-                elif param_props.get('type') == 'number':
-                    param_type = float
-                elif param_props.get('type') == 'boolean':
-                    param_type = bool
-
-                arg_fields[param_name] = (param_type, Field(..., description=param_props.get('description')))
-
-            # The name of the arguments model should be unique and descriptive
-            args_model_name = f"{pydantic_tool_name.title().replace('_', '')}Args"
-            ArgsModel = create_model(args_model_name, **arg_fields)
-
-            # Add this tool's argument model as an optional field to the main router
-            router_fields[pydantic_tool_name] = (Optional[ArgsModel], Field(None, description=tool.get('description')))
-            #args = json.dumps(tool["inputSchema"], indent=1)
-
-            # --- Generate Markdown Documentation for the prompt ---
-            doc = f"### Tool: `{tool_name}`\n"
-            doc += f"- **Description**: {tool.get('description', 'No description available.')}\n"
-            doc += f"- **JSON Key**: `{pydantic_tool_name}`\n"
-            doc += "- **Arguments**:\n"
-            doc += schema_dict_to_type_dict(tool)
-
-            tool_docs.append(doc)
-
-        # Create the final router model that the LLM will be forced to generate
-        ToolRouterModel = create_model('ToolRouter', **router_fields)
-        ToolRouterModel.__doc__ = "A wrapper for all available tools. Select one tool to call by providing its arguments."
-        return ToolRouterModel, "\n".join(tool_docs)
 
     def _create_agentic_system_prompt_addendum(self, tool_documentation: str) -> str:
         """Creates the system prompt that instructs the LLM on how to be an agent."""
@@ -1592,7 +1755,7 @@ AVAILABLE TOOLS:
 
     def completion_agentic(self,
                              preset: LlmPreset,
-                             mcp_server_url: str,
+                             url: str,
                              inp: List[Tuple[str, str]],
                              comp_settings: CommonCompSettings | None = None,
                              discard_thinks: bool = True,
@@ -1606,7 +1769,7 @@ AVAILABLE TOOLS:
 
         Args:
             prompt: The initial user query.
-            mcp_server_url: The HTTP URL of the fastmcp server.
+            url: The HTTP URL of the fastmcp server.
             comp_settings: The completion settings.
 
         Returns:
@@ -1620,7 +1783,7 @@ AVAILABLE TOOLS:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
-            client = Client(mcp_server_url)
+            client = Client(url)
             try:
                 loop.run_until_complete(client.__aenter__())
 
@@ -1629,7 +1792,10 @@ AVAILABLE TOOLS:
                 if not tools:
                     return "Error: The MCP server is unavailable.", "Error: The MCP server is unavailable."
 
-                ToolRouterModel, tool_docs = self._create_tool_router_model(tools)
+                ts = create_tool_router_model(tools)
+                ToolRouterModel = ts.tool_router_model
+                tool_docs = ts.tool_docs
+
                 addendum = self._create_agentic_system_prompt_addendum(tool_docs)
 
                 comp_settings.tools_json_optional = [ToolRouterModel]  # Use optional for the enforcer
@@ -1639,6 +1805,8 @@ AVAILABLE TOOLS:
 
                 self.llm.reset()
                 self.llm.eval(prompt_tokens)
+
+                self.llm._sampler = None
 
                 # 3. The Agent Loop
                 completion_tokens = []
@@ -1663,7 +1831,9 @@ AVAILABLE TOOLS:
                         all_tokens.append(t)
                     self.llm.eval(tokens)
 
+                bad_tokens = []
                 cur_functin_call_buffer = []
+                function_called = False
                 while len(completion_tokens) < max_tokens:
                     base_settings = {
                         "top_k": 64,
@@ -1677,10 +1847,40 @@ AVAILABLE TOOLS:
                     #if grammar is not None:
                     #    base_settings["grammar"] = grammar
 
-                    # Run synchronous llama-cpp-python calls in a thread to not block asyncio
-                    token = self.llm.sample(idx=sample_idx, **base_settings)
-                    cur_tokens_to_eval = [token]
+                    token = -1
+                    # disable eog tokens until a function has been called!
+                    while True:
+                        if len(bad_tokens) > 0:
+                            logit_bias = {x: -9999 for x in bad_tokens}
+                            logit_bias_map = {int(k): float(v) for k, v in logit_bias.items()}
 
+                            def logit_bias_processor(
+                                    input_ids: npt.NDArray[np.intc],
+                                    scores: npt.NDArray[np.single],
+                            ) -> npt.NDArray[np.single]:
+                                new_scores = np.copy(
+                                    scores
+                                )  # Does it make sense to copy the whole array or can we just overwrite the original one?
+                                for input_id, score in logit_bias_map.items():
+                                    new_scores[input_id] = score + scores[input_id]
+                                return new_scores
+
+                            #_logit_bias_processor = LogitsProcessorList([logit_bias_processor])
+                            #_logit_bias_processor = logit_bias_processor
+                            #base_settings["logits_processor"] = _logit_bias_processor
+                            pass
+
+                        token = self.llm.sample(idx=sample_idx, **base_settings)
+                        if function_called:
+                            break
+
+                        if llama_cpp.llama_token_is_eog(self.llm._model.vocab, token):
+                            if token not in bad_tokens:
+                                bad_tokens.append(token)
+                        else:
+                            break
+
+                    cur_tokens_to_eval = [token]
                     cur_token_as_text = self._detokenize([token], special=False)
 
                     cur_completion_as_text = self._detokenize(completion_tokens, special=False)
@@ -1752,6 +1952,7 @@ AVAILABLE TOOLS:
                                     result_text = "Successful; No items returned."
 
                                 injection_text = f"\n```tool_output\n{result_text}\n```\n"
+                                function_called = True
                             except Exception as e:
                                 logger.error(f"Tool execution failed: {e}", exc_info=True)
                                 injection_text = f"\n```tool_output\nLocal Python exception when trying to call remote tool server: {e}\n```\n"
@@ -1781,39 +1982,24 @@ AVAILABLE TOOLS:
                 agentic_answer = full_output.strip()
 
             # --- 5. Generate the Story Answer ---
-            story_answer = agentic_answer
+            parts = agentic_answer.split("```")
+            func_calling = "```".join(parts[:-1])
+            user_reply = parts[-1]
 
-            # Find all tool interaction blocks (call + result)
-            # The pattern finds a json block followed by a tool_output block
-            interaction_pattern = re.compile(r"(?s)(?<=```).*?(?=```)", re.DOTALL)
-            interactions = interaction_pattern.findall(agentic_answer)
-
-            for interaction_block in interactions:
-                if len(interaction_block) < 8:
-                    continue
-
-                block = interaction_block.replace("json", "tool_calling_request")
-
-                # For each interaction, ask the LLM to summarize it
-                summarization_prompt = [
-                    ("system", f"You are an expert at summarizing technical actions into a simple, single sentence of narrative. Do not add any extra text or pleasantries. "
-                               f"You translate tool calls of the AI agent {companion_name} into short, narrative elements."),
-                    ("user", f"Summarize the following tool call, which the AI companion {companion_name} performed, in one narrative sentence:\n\n{block}"),
-                    ("assistant", "Okay, here is a minimal summary for the tool call:\n")
-                ]
-                # Use your existing completion_text for this small, targeted task
-                summary = self.completion_text(
-                    preset=preset,
-                    inp=summarization_prompt,
-                    comp_settings=CommonCompSettings(max_tokens=100, temperature=0.5)
-                )
-
-                # Replace the technical block with the clean, narrative summary in the story_answer
-                # We only replace the first occurrence to handle multiple identical calls correctly
-                story_answer = story_answer.replace(interaction_block, f"*{summary.strip()}*", 1)
-
-            # Clean up any remaining think tags for the final story answer
-            story_answer = re.sub(r"</?think>", "", story_answer).replace("`", "").strip()
+            summarization_prompt = [
+                ("system", f"You are an expert at summarizing technical actions into a simple, single sentence of narrative. Do not add any extra text or pleasantries. "
+                           f"You translate tool calls of the AI agent {companion_name} into short, narrative elements."),
+                ("user", f"Summarize the following tool call, which the AI companion {companion_name} performed, in one narrative sentence:\n\n{func_calling}"),
+                ("assistant", "Okay, here is a minimal summary for the tool call:\n")
+            ]
+            # Use your existing completion_text for this small, targeted task
+            summary = self.completion_text(
+                preset=preset,
+                inp=summarization_prompt,
+                comp_settings=CommonCompSettings(max_tokens=100, temperature=0.5),
+                log_file_path=None
+            )
+            story_answer = f"*{summary.strip()}* {user_reply}"
 
             all_tokens_str = self._detokenize(all_tokens, special=True)
             log_conversation(all_tokens_str, log_file_path + f".completion_{finish_reason}.log", 1000)
@@ -1873,7 +2059,7 @@ class LlmManagerProxy:
 
     def completion_agentic(self,
                              preset: LlmPreset,
-                             mcp_server_url: str,
+                             url: str,
                              inp: List[Tuple[str, str]],
                              comp_settings: CommonCompSettings | None = None,
                              discard_thinks: bool = True
@@ -1945,20 +2131,41 @@ class NarrativeTypes(StrEnum):
 
 
 class ActionType(StrEnum):
+    # from user input
+    Ignore = "Ignore"
+    Reply = "Reply"
+    ToolCallAndReply = "ToolCallAndReply"
+
+    # when idle
     Sleep = "Sleep"
-    All = "All"
-    Reply = "Reply"  # Primary external action
-    ToolCall = "ToolCall"
-    Ignore = "Ignore"  # Primary internal action (decision not to respond externally)
     InitiateUserConversation = "InitiateUserConversation"
     InitiateInternalContemplation = "InitiateInternalContemplation"
+    ToolCall = "ToolCall"
+
+    # unused
     InitiateIdleMode = "InitiateIdleMode"
-    Think = "Think"  # Internal processing step
+    Think = "Think"
     RecallMemory = "RecallMemory"
     ManageIntent = "ManageIntent"
     Plan = "Plan"
     ManageAwarenessFocus = "ManageAwarenessFocus"
     ReflectThoughts = "ReflectThoughts"
+
+
+class StimulusType(StrEnum):
+    UserMessage = "UserMessage"
+    SystemMessage = "SystemMessage"
+
+    UserInactivity = "UserInactivity" # Checks time.time() - self.last_interaction_time. If it exceeds user_inactivity_timeout, it generates a stimulus. Narrative Content: `"System Agent: The user has been inactive for 10 minutes. My need for connection is decreasing."*
+    TimeOfDayChange = "TimeOfDayChange" # The Shell can track the real-world datetime. When the hour changes, or it crosses a threshold (e.g., from "afternoon" to "evening"), it can generate a stimulus. Narrative Content: `"System Agent: The time is now 7 PM. It is officially evening."*
+    LowNeedTrigger = "LowNeedTrigger" # The Shell can periodically (e.g., every 5-10 minutes of inactivity) ask the Ghost for its current needs state. If a need (like connection or learning_growth) drops below a critical threshold, the Shell can generate a stimulus.  Narrative Content: `"System Agent: Internal monitoring shows my need for relevance is critically low (0.2). I feel a strong urge to be useful."*
+    WakeUp = "WakeUp" # If the Ghost was Sleeping, the Shell generates this stimulus when the sleep duration is over or if the user interrupts the sleep. Narrative Content: "System Agent: The 8-hour sleep cycle has completed. I am now awake."* or"System Agent: The user sent a message, interrupting my sleep cycle."*
+
+
+class StimulusTriage(StrEnum):
+    Insignificant = "Insignificant" # ignore simulus, add as causal feature only
+    Moderate = "Moderate" # fast-track the action generation with limited cws
+    Significant = "Significant" # full pipeline
 
 
 class FeatureType(StrEnum):
@@ -2335,10 +2542,9 @@ class KnoxelBase(BaseModel):
     def __str__(self):
         return f"{self.__class__.__name__}: {self.content}"
 
-
 class Stimulus(KnoxelBase):
-    stimulus_type: str
-
+    source: str
+    stimulus_type: StimulusType
 
 class Intention(KnoxelBase):
     urgency: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -2352,10 +2558,7 @@ class Intention(KnoxelBase):
 
 class Action(KnoxelBase):
     action_type: ActionType  # Using the enum
-    action_content: str  # The core content (e.g., reply text, thought summary)
-    # Links to Intention knoxels (where internal=False) generated by this action
     generated_expectation_ids: List[int] = Field(default=[], description="IDs of Intention knoxels (expectations) created by this action.")
-
 
 # --- New Enums ---
 class ClusterType(StrEnum):
@@ -4104,6 +4307,7 @@ class GhostState(BaseModel):
     attention_focus: KnoxelList = KnoxelList()
     conscious_workspace: KnoxelList = KnoxelList()
     subjective_experience: Optional[Feature] = None
+    subjective_experience_tool: Optional[Feature] = None
 
     # Action Deliberation & Simulation Results
     action_simulations: List[Dict[str, Any]] = []  # Store results of MC simulations [{sim_id, type, content, rating, predicted_state, user_reaction}, ...]
@@ -4128,8 +4332,8 @@ class MLevel(StrEnum):
 # --- Main Cognitive Cycle Class ---
 class Ghost:
     def __init__(self, config: GhostConfig):
+        self.stimulus_triage: StimulusTriage = StimulusTriage.Moderate
         self.config = config
-        # self.client = Client(host=config.ollama_host)
 
         self.current_tick_id: int = 0
         self.current_knoxel_id: int = 0
@@ -4325,39 +4529,54 @@ class Ghost:
         pass
 
     # --- Tick Method and Sub-functions ---
-    def tick(self, impulse: Optional[str] = None) -> str:
+    def tick(self, stimulus: Stimulus) -> Action:
         self._log_mental_mechanism(self.tick, MLevel.Mid, f"--- Starting Tick {self.current_tick_id + 1} ---")
         self.current_tick_id += 1
 
         # 1. Initialize State (Handles decay, internal stimulus gen, carries over intentions/expectations)
-        self._initialize_tick_state(impulse)
-        if not self.current_state: return None
+        self._initialize_tick_state(stimulus)
+        if not self.current_state:
+            raise Exception("Empty state!")
 
+        self.stimulus_triage = self._triage_stimulus(stimulus)
         self._appraise_stimulus()
-        self._generate_short_term_intentions()
-        self._gather_memories_for_attention()
-        self._gather_meta_insights()
 
-        # 4. Attention / Conscious Workspace Simulation
-        self._build_structures_get_coalitions()
-        self._simulate_attention_on_coalitions()
-        self._generate_subjective_experience()
+        if self.stimulus_triage in [StimulusTriage.Moderate, StimulusTriage.Significant]:
+            # appraise
+            self._generate_short_term_intentions()
+            self._gather_memories_for_attention()
+            self._gather_meta_insights()
+
+            # attention
+            self._build_structures_get_coalitions()
+            self._simulate_attention_on_coalitions()
+            self._generate_subjective_experience()
+        else:
+            self.current_state.conscious_workspace = KnoxelList()
 
         # 6. Action Deliberation & Selection
-        chosen_action_details = self._deliberate_and_select_action()
-        self.current_state.selected_action_details = chosen_action_details
+        chosen_action_type = self._determine_best_action_type()
+        if chosen_action_type == ActionType.Reply:
+            chosen_action_details = self._deliberate_and_select_reply()
+            self.current_state.selected_action_details = chosen_action_details
+        elif chosen_action_type == ActionType.ToolCallAndReply:
+            chosen_action_details = self._perform_tool_call_and_reply()
+            self.current_state.selected_action_details = chosen_action_details
+        elif chosen_action_type == ActionType.Ignore:
+            pass
 
         # 7. Execute Action (Generates expectations)
-        final_output = self._execute_action()  # ***MODIFIED***
+        action = self._execute_action()  # ***MODIFIED***
 
         # 8. Learning / Memory Consolidation (Can use expectation outcomes)
         # self._perform_learning_and_consolidation() # ***MODIFIED***
-        self.memory_consolidator.consolidate_memory_if_needed()
-        self._render_meta_insights()
+        # self.memory_consolidator.consolidate_memory_if_needed()
+        if self.stimulus_triage in [StimulusTriage.Moderate, StimulusTriage.Significant]:
+            self._render_meta_insights()
 
         self.states.append(self.current_state)
         self._log_mental_mechanism(self.tick, MLevel.Mid, f"--- Finished Tick {self.current_tick_id} ---")
-        return final_output  # Return the final output string (reply) or None
+        return action  # Return the final output string (reply) or None
 
     def get_chat_history(self) -> List[Dict[str, str]]:
         """
@@ -4422,7 +4641,7 @@ class Ghost:
 
 
     @profile
-    def _initialize_tick_state(self, impulse: Optional[str]):
+    def _initialize_tick_state(self, stimulus: Stimulus):
         """Sets up the GhostState for the current tick, handling state decay,
            carrying over unfulfilled intentions AND expectations, and generating internal stimuli."""
         previous_state = self.states[-1] if self.states else None
@@ -4477,47 +4696,15 @@ class Ghost:
         else:  # First tick
             self.current_state.attention_candidates = KnoxelList()
 
-        primary_stimulus = None
-        if impulse:
-            source = user_name
-            ft = FeatureType.Dialogue
-            il = 1
+        if stimulus:
+            self.add_knoxel(stimulus)
+            self.current_state.primary_stimulus = stimulus
 
-            primary_stimulus = Stimulus(stimulus_type="message", content=impulse)
-            logging.info(f"Received external stimulus: {impulse}")
-        else:
-            pass
-            ## Internal stimulus generation logic (unchanged)
-            #source = companion_name
-            #ft = FeatureType.StoryWildcard
-            #il = -1
-            #needs = self.current_state.state_needs
-            #need_threshold = 0.4
-            #internal_stimulus_content = None
-            #low_needs = sorted(
-            #    [(name, getattr(needs, name)) for name in needs.__class__.model_fields if getattr(needs, name) < need_threshold],
-            #    key=lambda item: item[1]
-            #)
-            #if low_needs:
-            #    need_name, need_value = low_needs[0]
-            #    internal_stimulus_content = f"{self.config.companion_name} feels a lack of {need_name.replace('_', ' ')} ({need_value:.2f})."
-            #elif carried_intentions_and_expectations:  # Check carried items for urgency
-            #    urgent_carried = sorted(carried_intentions_and_expectations, key=lambda i: i.urgency + i.incentive_salience, reverse=True)
-            #    if urgent_carried and (urgent_carried[0].urgency + urgent_carried[0].incentive_salience) > 1.0:
-            #        most_urgent = urgent_carried[0]
-            #        prefix = "recalls the urgent goal" if most_urgent.internal else "reconsiders the unmet expectation"
-            #        internal_stimulus_content = f"{self.config.companion_name} {prefix}: '{most_urgent.content[:80]}...'"
-            #if not internal_stimulus_content:
-            #    internal_stimulus_content = f"{self.config.companion_name} takes a moment for internal reflection, considering the current state."
-            #primary_stimulus = Stimulus(stimulus_type="internal_state_change", content=internal_stimulus_content)
-            #logging.info(f"Generated internal stimulus: {internal_stimulus_content}")
-
-        if primary_stimulus:
-            self.add_knoxel(primary_stimulus)
-            self.current_state.primary_stimulus = primary_stimulus
-
-            story_feature = Feature(content=primary_stimulus.content, source=source, feature_type=ft, interlocus=il, causal=True)
-            self.add_knoxel(story_feature)
+            if stimulus.stimulus_type == StimulusType.UserMessage:
+                story_feature = Feature(content=stimulus.content, source=user_name, feature_type=FeatureType.Dialogue, interlocus=1, causal=True)
+                self.add_knoxel(story_feature)
+            else:
+                raise Exception()
 
     def _get_context_from_latest_causal_events(self) -> KnoxelList:
         """
@@ -4609,6 +4796,89 @@ class Ghost:
             self._log_mental_mechanism(self._retrieve_active_expectations, MLevel.Debug, "No relevant active external expectations found for the current stimulus.")
 
         return top_expectations
+
+    # Add this method to your Ghost or GhostSqlite class
+    @profile
+    def _triage_stimulus(self, stimulus: Stimulus) -> StimulusTriage:
+        """
+        Performs a fast analysis of a stimulus to determine the required depth of cognitive processing.
+        """
+        self._log_mental_mechanism(self._triage_stimulus, MLevel.High, f"Triaging stimulus: '{stimulus.content[:80]}...'")
+
+        # Add this Pydantic model for the LLM's structured output
+        class TriageResult(BaseModel):
+            """The result of the stimulus triage process."""
+            reasoning: str = Field(description="A brief, one-sentence justification for the triage decision.")
+            category: StimulusTriage = Field(description="The final category assigned to the stimulus.")
+
+        # --- 1. Gather Minimal, High-Impact Context ---
+
+        # Get the last causal features for immediate context
+        recent_features = Enumerable(self.all_features) \
+            .where(lambda f: f.causal) \
+            .order_by_descending(lambda f: f.timestamp_world_begin) \
+            .take(12) \
+            .to_list()
+        recent_features.reverse()
+        short_term_context = KnoxelList(recent_features).get_story(self)
+
+        # Get key narratives
+        emotional_triggers_narr = self.get_narrative(NarrativeTypes.EmotionalTriggers, self.config.companion_name)
+        goals_narr = self.get_narrative(NarrativeTypes.GoalsIntentions, self.config.companion_name)
+
+        # --- 2. Construct the Triage Prompt ---
+
+        sysprompt = f"""You are a high-speed "Triage" codelet in a cognitive architecture for an AI named {self.config.companion_name}.
+    Your job is to rapidly assess the importance of an incoming stimulus and decide how much cognitive effort should be spent on it.
+    You MUST output a valid JSON object matching the provided schema."""
+
+        # Using f-strings for a clear, structured prompt
+        user_prompt = f"""
+    **Triage Task:** Categorize the following stimulus.
+
+    **1. Character & State:**
+    - **Name:** {self.config.companion_name}
+    - **Current Emotional State:** {self.current_state.state_emotions}
+    - **Known Emotional Triggers:** {emotional_triggers_narr.content if emotional_triggers_narr else "No specific triggers defined."}
+    - **Current Goals:** {goals_narr.content if goals_narr else "No specific goals defined."}
+
+    **2. Situational Context:**
+    - **Recent Events/Dialogue:**
+    ---
+    {short_term_context if short_term_context else "No recent events."}
+    ---
+    - **New Stimulus to Triage:** ({stimulus.stimulus_type}) "{stimulus.content}"
+
+    **3. Triage Categories & Rules:**
+    - **`Insignificant`**: Choose this for background system events (like time changes), simple acknowledgements, or anything that doesn't require a response and has no emotional impact.
+    - **`Moderate`**: Choose this for standard questions, simple statements, or routine interactions that require a direct, logical response but not deep introspection. The AI can handle this efficiently.
+    - **`Significant`**: Choose this for anything with high emotional potential. This includes:
+        - Stimuli that match the 'Known Emotional Triggers'.
+        - Deeply personal questions or user vulnerability.
+        - Complex problems, conflicts, or unexpected events.
+        - Anything that directly challenges or advances the AI's core 'Current Goals'.
+
+    **4. Your Output:**
+    Based on the rules, provide your reasoning and categorize the stimulus.
+    """
+
+        # Use a lower temperature for more consistent, rule-based classification
+        comp_settings = CommonCompSettings(temperature=0.1, max_tokens=512)
+
+        # Use completion_tool to get structured output
+        _, calls = self.llm_manager.completion_tool(
+            LlmPreset.Default,  # Or a faster model if you have one designated for utility tasks
+            inp=[("system", sysprompt), ("user", user_prompt)],
+            comp_settings=comp_settings,
+            tools=[TriageResult]
+        )
+
+        result = calls[0]
+        self._log_mental_mechanism(
+            self._triage_stimulus, MLevel.Mid,
+            f"Triage Result: {result.category.value}. Reason: {result.reasoning}"
+        )
+        return result.category
 
     @profile
     def _appraise_stimulus(self):
@@ -4851,7 +5121,7 @@ class Ghost:
         """
 
         stimulus = self.current_state.primary_stimulus
-        stimulus_content = f"({stimulus.stimulus_type}): {stimulus.content}"
+        stimulus_content = f"({stimulus.stimulus_type.value}): {stimulus.content}"
         context = self._get_context_from_latest_causal_events()
         context_events = context.get_story(self.config, self.config.context_events_similarity_max_tokens)
 
@@ -5825,18 +6095,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
             situational_text = "\n\n".join(situational_parts)
 
         logging.debug(f"--- Text for Situational Embedding ---\n{situational_text}\n------------------------------------")
-
-        # --- Generate Embedding ---
-        try:
-            embedding = self.llm_manager.get_embedding(situational_text)
-            if embedding and isinstance(embedding, list) and all(isinstance(x, float) for x in embedding):
-                return embedding
-            else:
-                logging.error(f"Failed to get a valid list of floats for situational embedding. Type: {type(embedding)}")
-                return None
-        except Exception as e:
-            logging.error(f"Error generating situational embedding: {e}", exc_info=True)
-            return None
+        return self.llm_manager.get_embedding(situational_text)
 
     def _generate_state_seed_phrases_simple(self, state: GhostState) -> List[str]:
         """
@@ -6017,7 +6276,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         workspace_content = self.current_state.conscious_workspace.get_story(self)
 
         context = self._get_context_from_latest_causal_events()
-        context_events = context.get_story(self.config, 1024)
+        context_events = context.get_story(self, 1024)
 
         seed_phrases = self._generate_state_seed_phrases(self.current_state)
         seed_phrase = ""
@@ -6051,16 +6310,317 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         )
         self.add_knoxel(subjective_feature)
         self.current_state.conscious_workspace.add(subjective_feature)
+        self.current_state.subjective_experience = subjective_feature
 
         self._log_mental_mechanism(self._generate_subjective_experience, MLevel.Low, f"Generated Subjective Experience: {experience_content}...")
 
     @profile
-    def _deliberate_and_select_action(self) -> Optional[Dict[str, Any]]:
+    def _check_possible_tool_call(self) -> Tuple[bool, str]:
+        if mcp_server_url is None or mcp_server_url == "":
+            return False, ""
+
+        stimulus = self.current_state.primary_stimulus
+
+        ts = get_toolset_from_url(mcp_server_url)
+        if ts is None:
+            return False, ""
+
+        self._log_mental_mechanism(self._check_possible_tool_call, MLevel.High, f"Determining best tool...")
+
+        context = self._get_context_from_latest_causal_events()
+        context_events = context.get_story(self, 1024)
+
+        # --- 2. Construct the Prompt ---
+        sysprompt = f"""You check the conversation between the AI {self.config.companion_name} and the user {self.config.user_name} and find out if there is a tool call is advised for {self.config.companion_name}.
+        You MUST output a valid JSON object containing your evaluations for ALL provided tools."""
+
+        user_prompt = f"""
+        **Current Situation:**
+          Story context: {context_events}
+        - **Stimulus:** ({stimulus.stimulus_type}) "{stimulus.content}"
+
+        **4. Tools to Evaluate:**
+        `{ts.tool_select_docs}`
+        """
+
+        comp_settings = CommonCompSettings(temperature=0.2, max_tokens=1024)
+        _, calls = self.llm_manager.completion_tool(
+            LlmPreset.Default,
+            inp=[("system", sysprompt), ("user", user_prompt)],
+            comp_settings=comp_settings,
+            tools=[ts.tool_select_model]
+        )
+
+        tools_results = calls[0]
+        result_dict = tools_results.model_dump()
+
+        # --- 4. Extract and Compare Ratings ---
+        self._log_mental_mechanism(
+            self._check_possible_tool_call, MLevel.Debug,
+            f"LLM Reasoning for Action Choice: {result_dict}"
+        )
+
+        ranking = [(tool_name, tool_rating) for tool_name, tool_rating in result_dict.items()]
+        ranking.sort(key=lambda x: x[1], reverse=True)
+
+        if ranking[0][1] < 0.5 or ranking[0][0] == "user_reply":
+            self._log_mental_mechanism(
+                self._check_possible_tool_call, MLevel.High,
+                f"No suitable tool found..."
+            )
+            return False, ""
+        else:
+            self._log_mental_mechanism(
+                self._check_possible_tool_call, MLevel.High,
+                f"Selected tool: '{ranking[0][0]}' with score {ranking[0][1]:.2f}"
+            )
+            return True, ranking[0][0]
+
+    def _get_valid_action_pool(self, stimulus: Stimulus) -> List[ActionType]:
+        """
+        Determines the pool of valid high-level actions based on the stimulus type.
+        """
+        stimulus_type = stimulus.stimulus_type
+        self._log_mental_mechanism(self._get_valid_action_pool, MLevel.Debug, f"Getting valid action pool for stimulus type: {stimulus_type}")
+
+        # If the stimulus is an external message from the user
+        if stimulus_type in [StimulusType.UserMessage]:
+            # The AI can reply, ignore, or decide to think more deeply before replying.
+            # It cannot proactively "start" a conversation it's already in.
+            return [
+                ActionType.Reply,
+                ActionType.Ignore
+            ]
+
+        # If the stimulus is internal (e.g., from the Shell Agent)
+        elif stimulus_type in [StimulusType.SystemMessage, StimulusType.TimeOfDayChange, StimulusType.WakeUp, StimulusType.LowNeedTrigger]:
+            # The AI is not in an active conversation, so it can choose to start one,
+            # contemplate, sleep, or continue to do nothing. "Reply" is not valid.
+            return [
+                ActionType.InitiateUserConversation,
+                ActionType.InitiateInternalContemplation,
+                ActionType.Sleep,
+                ActionType.Ignore,
+                ActionType.ToolCall
+            ]
+
+        # Default fallback, should ideally not be reached
+        return [ActionType.Ignore]
+
+    @profile
+    def _determine_best_action_type(self) -> ActionType:
+        """
+        Acts as a high-level "Behavioral Steering" module. It evaluates a pool of
+        valid action types against the current cognitive state and returns the most
+        appropriate one to guide the next stage of deliberation.
+        """
+        stimulus = self.current_state.primary_stimulus
+        action_pool = self._get_valid_action_pool(stimulus)
+
+        self._log_mental_mechanism(self._determine_best_action_type, MLevel.High, f"Determining best action type from pool: {[a.value for a in action_pool]}")
+
+        # --- 1. Gather Rich Context for the Decision ---
+
+        # Use the verbalization helpers to create a rich summary of the internal state
+        strong_emotions_summary = self._verbalize_emotional_state()
+        needs_summary, cognitive_style_summary = self._verbalize_cognition_and_needs()
+
+        context = self._get_context_from_latest_causal_events()
+        context_events = context.get_story(self, 1024)
+
+        mental_state_prompt_block = f"""
+    - **Emotions:** {strong_emotions_summary}
+    - **Pressing Needs:** {needs_summary}
+    - **Cognitive Style:** {cognitive_style_summary if cognitive_style_summary else "Normal."}"""
+
+        # Get active internal goals from the conscious workspace or attention candidates
+        active_intentions = Enumerable(self.current_state.attention_candidates.to_list()) \
+            .where(lambda k: isinstance(k, Intention) and k.internal and k.fulfilment < 0.9) \
+            .order_by_descending(lambda i: i.urgency) \
+            .take(3) \
+            .to_list()
+        intention_summary = "; ".join([f"'{i.content}'" for i in active_intentions]) if active_intentions else "None"
+
+        # Get key behavioral narratives
+        behavior_narr = self.get_narrative(NarrativeTypes.BehaviorActionSelection, self.config.companion_name)
+        conflict_narr = self.get_narrative(NarrativeTypes.ConflictResolution, self.config.companion_name)
+
+        # --- 2. Construct the Prompt ---
+        sysprompt = f"""You are a "Behavioral Steering" codelet for the AI {self.config.companion_name}.
+    Your task is to evaluate a set of possible high-level actions based on the AI's internal state, goals, and personality.
+    You MUST output a valid JSON object containing your evaluations for ALL provided actions."""
+
+        user_prompt = f"""
+    **Behavioral Steering Task:** Evaluate the following actions.
+
+    **1. Current State of Mind:**
+    {mental_state_prompt_block}
+    - **Active Internal Goals:** {intention_summary}
+
+    **2. Core Personality for Action Selection:**
+    - **General Behavior:** {behavior_narr.content if behavior_narr else "Be helpful and engaging."}
+    - **In Conflict:** {conflict_narr.content if conflict_narr else "Try to de-escalate and understand."}
+
+    **3. Current Situation:**
+      Story context: {context_events}
+    - **Stimulus:** ({stimulus.stimulus_type}) "{stimulus.content}"
+
+    **4. Action Pool to Evaluate:**
+    `{[action.value for action in action_pool]}`
+    """
+
+        class ActionTypeSelectionOld(BaseModel):
+            reasoning: str = Field(description="Why the rating is as it as and how you came to the decision.")
+            rating_Reply: float = Field(description="")
+            rating_Ignore: float = Field(description="")
+            rating_ToolCallAndRepl: float = Field(description="")
+            rating_InitiateUserConversation: float = Field(description="")
+            rating_InitiateInternalContemplation: float = Field(description="")
+            rating_Sleep: float = Field(description="")
+            rating_ToolCall: float = Field(description="")
+
+        class ActionTypeSelection(BaseModel):
+            """
+            A schema to evaluate the appropriateness of a set of potential high-level actions.
+            The LLM must provide a rating for every action listed in the prompt's 'Action Pool to Evaluate'.
+            Ratings should be a float between 0.0 (completely inappropriate) and 1.0 (perfectly appropriate).
+            """
+            holistic_reasoning: str = Field(description="Your final, holistic justification. First, summarize the AI's current state and main goal. Then, explain WHY the highest-rated action is the best strategic choice compared to the others.")
+
+            rating_Reply: float = Field(
+                ge=0.0, le=1.0,
+                description=f"Rate this action if the AI is in an active conversation. This is the standard action for responding directly to a user's message. It is highly appropriate if the user just said something that requires an answer."
+            )
+            rating_InitiateUserConversation: float = Field(
+                ge=0.0, le=1.0,
+                description=f"Rate this action ONLY if the AI is NOT in an active conversation (e.g., the stimulus is from a timeout or internal need). This is for proactively starting a new conversation. It is appropriate if the AI's 'connection' need is very low."
+            )
+            rating_InitiateInternalContemplation: float = Field(
+                ge=0.0, le=1.0,
+                description="Rate this action if the AI needs to 'think before acting'. This is appropriate for complex, confusing, or emotionally heavy stimuli that require internal planning or self-regulation before an external action is taken."
+            )
+            rating_Ignore: float = Field(
+                ge=0.0, le=1.0,
+                description="Rate this action to make the AI do nothing externally. This is appropriate for insignificant stimuli, or as a deliberate strategy to de-escalate conflict or conserve mental energy when willpower is very low."
+            )
+            rating_Sleep: float = Field(
+                ge=0.0, le=1.0,
+                description="Rate this action ONLY if the AI is NOT in an active conversation. This is for entering a long-term idle state. It is appropriate only if willpower is critically low and there are no urgent goals."
+            )
+
+        # --- 3. Call LLM and Process Results ---
+        comp_settings = CommonCompSettings(temperature=0.2, max_tokens=1024)
+        _, calls = self.llm_manager.completion_tool(
+            LlmPreset.Default,
+            inp=[("system", sysprompt), ("user", user_prompt)],
+            comp_settings=comp_settings,
+            tools=[ActionTypeSelection]
+        )
+
+        action_ratings_result = calls[0]
+        result_dict = action_ratings_result.model_dump()
+
+        # --- 4. Extract and Compare Ratings ---
+
+        self._log_mental_mechanism(
+            self._determine_best_action_type, MLevel.Low,
+            f"LLM Reasoning for Action Choice: {result_dict.get('holistic_reasoning', 'N/A')}"
+        )
+
+        ratings: List[Tuple[ActionType, float]] = []
+
+        # Iterate through the valid action pool and extract the corresponding rating from the result
+        for action_type in action_pool:
+            field_name = f"rating_{action_type.value}"
+            rating_value = result_dict.get(field_name)
+
+            if rating_value is not None:
+                ratings.append((action_type, rating_value))
+                self._log_mental_mechanism(
+                    self._determine_best_action_type, MLevel.Debug,
+                    f"Action candidate '{action_type.value}' rated {rating_value:.2f}."
+                )
+            else:
+                # The LLM failed to rate a required action. This is a failure of instruction-following.
+                logging.warning(f"LLM failed to provide a rating for '{action_type.value}', which was in the requested pool. Assigning a penalty score of 0.0.")
+                ratings.append((action_type, 0.0))
+
+        # Sort to find the best action by its rating
+        ratings.sort(key=lambda x: x[1], reverse=True)
+        best_action_type, best_rating = ratings[0]
+
+        self._log_mental_mechanism(
+            self._determine_best_action_type, MLevel.High,
+            f"Selected action type: '{best_action_type.value}' with score {best_rating:.2f}"
+        )
+
+        if best_action_type == ActionType.Reply:
+            possible_tool_call, tool_name = self._check_possible_tool_call()
+            if possible_tool_call:
+                best_action_type = ActionType.ToolCallAndReply
+                experience_content = f"I could call the tool '{tool_name}' for this."
+                subjective_feature = Feature(
+                    content=experience_content,
+                    feature_type=FeatureType.Thought,
+                    affective_valence=self.current_state.state_emotions.get_overall_valence(),
+                    interlocus=-1, causal=True, source=self.config.companion_name
+                )
+                self.add_knoxel(subjective_feature)
+                self.current_state.conscious_workspace.add(subjective_feature)
+                self.current_state.subjective_experience_tool = subjective_feature
+
+        return best_action_type
+
+    @profile
+    def _perform_tool_call_and_reply(self) -> Optional[Dict[str, Any]]:
+        sysprompt_third_person = self.config.universal_character_card
+        sysprompt_third_person = sysprompt_third_person.replace(f"{companion_name} is", "You are")
+        sysprompt_third_person = sysprompt_third_person.replace(f"{companion_name}", "You")
+
+        sysprompt = sysprompt_third_person
+
+        sys_tokens = get_token_count(sysprompt)
+        left_tokens = context_size - sys_tokens
+
+        memory_embedding = self._get_situational_embedding()
+        turns = self._build_conscious_content_queue_assistant(self.config, conscious_workspace_content=self.current_state.conscious_workspace, query_embedding=memory_embedding, max_total_tokens=left_tokens)
+        msgs = [("system", sysprompt)]
+        msgs.extend(turns)
+
+        comp_settings = CommonCompSettings(temperature=0.6, repeat_penalty=1.05, max_tokens=2000)
+        ass, story = self.llm_manager.completion_agentic(LlmPreset.Default, mcp_server_url, msgs, comp_settings=comp_settings)
+
+        predicted_ai_emotion = EmotionalAxesModel(
+            valence=1,
+            affection=1,
+            self_worth=1,
+            trust=0.7,
+            disgust=0,
+            anxiety=0
+        )
+
+        res = {
+            "sim_id": 0,
+            "action_type": ActionType.Reply,
+            "ai_reply_content": story,
+            "simulated_user_reaction": "",
+            "predicted_ai_emotion": predicted_ai_emotion,
+            "intent_fulfillment_score": 1,
+            "needs_fulfillment_score": 1,
+            "cognitive_congruence_score": 1,
+            "final_score": 1
+        }
+
+        return res
+
+
+    @profile
+    def _deliberate_and_select_reply(self) -> Optional[Dict[str, Any]]:
         """
         Simulates potential actions (Reply, Ignore), rates them using narrative-informed prompts,
         and selects the best one based on predicted outcomes. (Expectation generation happens in _execute_action).
         """
-        self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Mid, f"Use the workspace and the intentions to simulate options (internally, non-causal) and find option that best serves to fulfill intentions.")
+        self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Mid, f"Use the workspace and the intentions to simulate options (internally, non-causal) and find option that best serves to fulfill intentions.")
 
         workspace_knoxels = self.current_state.conscious_workspace.to_list()
         workspace_content = self.current_state.conscious_workspace.get_story(self)
@@ -6085,10 +6645,18 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 stimulus_valence = stim_feeling.affective_valence
         max_intention_urgency = max([i.urgency for i in intentions] + [0.0])
         importance_score = max(abs(stimulus_valence), max_intention_urgency)
-        num_simulations = self.config.min_simulations_per_reply
-        if importance_score > self.config.importance_threshold_more_sims:
-            num_simulations = self.config.max_simulations_per_reply
-        self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Mid, f"Action deliberation importance: {importance_score:.2f}. Running {num_simulations} simulation(s) for Reply.")
+
+        num_simulations = 1
+        if self.stimulus_triage == StimulusTriage.Moderate:
+            num_simulations = self.config.min_simulations_per_reply
+            if importance_score > self.config.importance_threshold_more_sims:
+                num_simulations = self.config.mid_simulations_per_reply
+        elif self.stimulus_triage == StimulusTriage.Significant:
+            num_simulations = self.config.mid_simulations_per_reply
+            if importance_score > self.config.importance_threshold_more_sims:
+                num_simulations = self.config.max_simulations_per_reply
+
+        self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Mid, f"Action deliberation importance: {importance_score:.2f}. Running {num_simulations} simulation(s) for Reply.")
 
         # --- Prepare Narratives for Prompts (Unchanged) ---
         ai_bhv_narr = self.get_narrative(NarrativeTypes.BehaviorActionSelection, self.config.companion_name)
@@ -6101,8 +6669,8 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         action_options = []
 
         # 1. Evaluate "Ignore" Action (Unchanged)
-        if self.current_tick_id == -1:
-            ignore_score = 0.1
+        if True:
+            ignore_score = 0
             predicted_ignore_emotion = current_emotions.model_copy()
             if current_needs.connection < 0.4:
                 predicted_ignore_emotion.anxiety = min(1.0, predicted_ignore_emotion.anxiety + 0.1)
@@ -6120,15 +6688,15 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
             final_ignore_score = (ignore_intent_fulfillment * 0.6) + (ignore_emotion_score * 0.4)
             final_ignore_score = max(0.0, min(1.0, final_ignore_score))
 
-            action_options.append({
-                "sim_id": "ignore_0",
-                "action_type": ActionType.Ignore,
-                "ai_reply_content": "[Decides to ignore/not respond externally]",
-                "simulated_user_reaction": "N/A",
-                "predicted_ai_emotion": predicted_ignore_emotion,
-                "intent_fulfillment_score": ignore_intent_fulfillment,
-                "final_score": final_ignore_score
-            })
+            #action_options.append({
+            #    "sim_id": "ignore_0",
+            #    "action_type": ActionType.Ignore,
+            #    "ai_reply_content": "[Decides to ignore/not respond externally]",
+            #    "simulated_user_reaction": "N/A",
+            #    "predicted_ai_emotion": predicted_ignore_emotion,
+            #    "intent_fulfillment_score": ignore_intent_fulfillment,
+            #    "final_score": final_ignore_score
+            #})
             logging.info(f"Evaluated {ActionType.Ignore}: Score={final_ignore_score:.3f}, IntentFulfill={ignore_intent_fulfillment:.2f}, EmotionScore={ignore_emotion_score:.2f}")
 
         ai_reply_content = ""
@@ -6139,7 +6707,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         simulation_results = []
         for i in range(num_simulations):
             sim_id = f"reply_{i}"
-            self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Debug, f"--- Running Reply Simulation {sim_id} ---")
+            self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Debug, f"--- Running Reply Simulation {sim_id} ---")
 
             # --- Generate Simulated Reply and User Reaction (Unchanged prompt/parsing) ---
             if preferred_action_type == ActionType.Reply:
@@ -6203,7 +6771,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 simulated_user_reaction = "\n".join(tmp)
 
             self._log_mental_mechanism(
-                self._deliberate_and_select_action, MLevel.Low,
+                self._deliberate_and_select_reply, MLevel.Low,
                 f"Simulating Reply #{i}: AI says '{ai_reply_content[:70]}...'. "
                 f"Predicts User will say '{simulated_user_reaction[:70]}...'"
             )
@@ -6256,7 +6824,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
             # --- Calculate the Final Score using Procedural Logic ---
 
             self._log_mental_mechanism(
-                self._deliberate_and_select_action, MLevel.Low,
+                self._deliberate_and_select_reply, MLevel.Low,
                 f"Critic rated Simulation #{i}: Intent={action_rating_result.intent_fulfillment:.2f}, "
                 f"Needs={action_rating_result.needs_fulfillment:.2f}, "
                 f"EmotionImpact={action_rating_result.predicted_emotional_impact:+.2f}. "
@@ -6309,8 +6877,8 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 "final_score": final_sim_score
             })
 
-            self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Low, f"--- Finished Reply Simulation {sim_id}: Score={final_sim_score:.3f}, Intent={intent_fulfillment_score:.2f}, Needs={needs_fulfillment_score:.2f}, Emo={emotion_score:.2f}, CogCongruence={cognitive_congruence_score:.2f} ---")
-            self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Debug, f"Rating Reasoning: {action_rating_result.overall_reasoning}")
+            self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Low, f"--- Finished Reply Simulation {sim_id}: Score={final_sim_score:.3f}, Intent={intent_fulfillment_score:.2f}, Needs={needs_fulfillment_score:.2f}, Emo={emotion_score:.2f}, CogCongruence={cognitive_congruence_score:.2f} ---")
+            self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Debug, f"Rating Reasoning: {action_rating_result.overall_reasoning}")
 
         # Add successful simulations to options
         action_options.extend(simulation_results)
@@ -6319,10 +6887,10 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         action_options.sort(key=lambda x: x["final_score"], reverse=True)
         best_action_details = action_options[0]
 
-        self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Low, f"Selected Action: {best_action_details['action_type']} (Score: {best_action_details['final_score']:.3f})")
+        self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Low, f"Selected Action: {best_action_details['action_type']} (Score: {best_action_details['final_score']:.3f})")
         if best_action_details['action_type'] == ActionType.Reply:
-            self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Mid, f"Winning Content: {best_action_details['ai_reply_content'][:100]}...")
-            self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Mid, f"Predicted User Reaction for chosen action: {best_action_details['simulated_user_reaction'][:100]}...")
+            self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Mid, f"Winning Content: {best_action_details['ai_reply_content'][:100]}...")
+            self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Mid, f"Predicted User Reaction for chosen action: {best_action_details['simulated_user_reaction'][:100]}...")
 
         self.current_state.action_simulations = action_options
         return best_action_details
@@ -6407,7 +6975,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         return created_expectation_ids
 
     @profile
-    def _execute_action(self) -> Optional[str]:
+    def _execute_action(self) -> Action:
         """
         Creates the causal Action knoxel, generates associated expectations,
         adds them to memory, and returns the AI's content if it's an external action.
@@ -6417,14 +6985,13 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
         action_details = self.current_state.selected_action_details
         action_type = action_details["action_type"]
-        action_content = action_details["ai_reply_content"]
+        content = action_details["ai_reply_content"]
         self.simulated_reply = action_details["simulated_user_reaction"]
 
         # --- Create and Store Action Knoxel ---
         action_knoxel = Action(
             action_type=action_type,
-            action_content=action_content,
-            content=f"Action: {action_type} - {action_content[:150]}...",
+            content=content,
             # generated_expectation_ids will be filled below
             tick_id=self._get_current_tick_id()
         )
@@ -6434,48 +7001,58 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
         # --- Generate Expectations (if applicable) ---
         generated_expectation_ids = []
-        if action_type == ActionType.Reply:
+        if action_type == ActionType.Reply or action_type == ActionType.ToolCallAndReply:
             generated_expectation_ids = self._generate_expectations_for_action(action_knoxel, action_details)
             if generated_expectation_ids:
                 # Update the action knoxel with the IDs of expectations it generated
                 action_knoxel.generated_expectation_ids = generated_expectation_ids
                 logging.info(f"Linked {len(generated_expectation_ids)} expectations to Action {action_knoxel.id}.")
 
-        # --- Create Causal Feature (Unchanged) ---
-        predicted_emotion_state = action_details.get("predicted_ai_emotion", self.current_state.state_emotions)
-        # Ensure predicted_emotion_state is the correct type
-        if isinstance(predicted_emotion_state, dict):
-            predicted_emotion_state = EmotionalAxesModel(**predicted_emotion_state)
-        elif not isinstance(predicted_emotion_state, EmotionalAxesModel):
-            predicted_emotion_state = self.current_state.state_emotions  # Fallback
+            # --- Create Causal Feature (Unchanged) ---
+            predicted_emotion_state = action_details.get("predicted_ai_emotion", self.current_state.state_emotions)
+            # Ensure predicted_emotion_state is the correct type
+            #predicted_emotion_state = EmotionalAxesModel(**predicted_emotion_state)
 
-        action_feature = Feature(
-            content=f"{action_type}",
-            feature_type=FeatureType.Action,
-            affective_valence=predicted_emotion_state.get_overall_valence(),
-            interlocus=1 if action_type == ActionType.Reply else -1,
-            causal=True, source=self.config.companion_name
-        )
-        self.add_knoxel(action_feature)
-
-        # --- Return Output ---
-        if action_type == ActionType.Reply:
-            self._log_mental_mechanism(self._execute_action, MLevel.Mid, f"Executed Action {action_knoxel.id}, Output: {action_content}")
+            action_feature = Feature(
+                content=f"{action_type} predicted emotional state",
+                feature_type=FeatureType.Action,
+                affective_valence=predicted_emotion_state.get_overall_valence(),
+                interlocus=1 if action_type == ActionType.Reply else -1,
+                causal=True, source=self.config.companion_name
+            )
+            self.add_knoxel(action_feature)
 
             reply_feature = Feature(
                 source=self.config.companion_name,
-                content=action_content,
+                content=content,
                 feature_type=FeatureType.Dialogue,
                 affective_valence=predicted_emotion_state.get_overall_valence(),
                 interlocus=1,
                 causal=True,
             )
             self.add_knoxel(reply_feature)
+        elif action_type == ActionType.Ignore:
+            action_feature = Feature(
+                content=f"{action_type}",
+                feature_type=FeatureType.Action,
+                affective_valence=-0.5,
+                interlocus=-1,
+                causal=True, source=self.config.companion_name
+            )
+            self.add_knoxel(action_feature)
 
-            return action_content
-        else:
-            self._log_mental_mechanism(self._execute_action, MLevel.Mid, f"Executed Internal Action {action_knoxel.id}: {action_type}")
-            return None
+            reply_feature = Feature(
+                source=self.config.companion_name,
+                content=f"*Ignores {self.config.user_name}*",
+                feature_type=FeatureType.Dialogue,
+                affective_valence=-0.5,
+                interlocus=1,
+                causal=True,
+            )
+            self.add_knoxel(reply_feature)
+
+        self._log_mental_mechanism(self._execute_action, MLevel.Mid, f"Executed Action {action_knoxel.id}, Output: {content}")
+        return action_knoxel
 
     @profile
     def _perform_learning_and_consolidation(self):
@@ -6628,6 +7205,139 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         self.all_narratives.sort(key=lambda n: n.tick_id)
 
     @profile
+    def _build_conscious_content_queue_assistant(
+            self,
+            cfg: GhostConfig,
+            query_embedding: List[float],
+            conscious_workspace_content: KnoxelList,
+            max_total_tokens: int = 1500,  # Adjusted default
+            recent_budget_ratio: float = 0.66,  # Give more to recent direct features
+            topical_budget_ratio: float = 0.33,
+            temporal_budget_ratio: float = 0
+    ) -> List[Tuple[str, str]]:
+        """
+        Creates an optimized story prompt by balancing recent causal features,
+        relevant topical cluster events, and relevant temporal summaries.
+        """
+        # --- Token Budget Allocation ---
+        # Ensure ratios sum to 1, adjust if not (though here they do
+
+        selected_knoxels_for_story: Dict[int, KnoxelBase] = {}  # Use dict to ensure unique knoxels by ID
+        selected_knoxels_for_story[self.current_state.subjective_experience_tool.id] = self.current_state.subjective_experience_tool
+
+        total_ratio = recent_budget_ratio + topical_budget_ratio + temporal_budget_ratio
+        if not math.isclose(total_ratio, 1.0):
+            #logging.warning(f"Budget ratios do not sum to 1.0 (sum: {total_ratio}). Normalizing.")
+            recent_budget_ratio /= total_ratio
+            topical_budget_ratio /= total_ratio
+            temporal_budget_ratio /= total_ratio
+
+        recent_token_budget = int(max_total_tokens * recent_budget_ratio)
+        topical_token_budget = int(max_total_tokens * topical_budget_ratio)
+        temporal_token_budget = int(max_total_tokens * temporal_budget_ratio)
+
+        # --- 1. Select Most Recent Causal Features ---
+        logging.debug(f"Recent causal feature budget: {recent_token_budget} tokens.")
+
+        dialouge = Enumerable(self.all_features) \
+            .where(lambda x: x.causal) \
+            .where(lambda x: x.feature_type == FeatureType.Dialogue) \
+            .where(lambda x: x.tick_id != self.current_tick_id) \
+            .order_by(lambda x: x.timestamp_world_begin) \
+            .to_list()
+
+        current_tick = Enumerable(self.all_features) \
+            .where(lambda x: x.causal) \
+            .where(lambda x: x.tick_id == self.current_tick_id) \
+            .order_by(lambda x: x.timestamp_world_begin) \
+            .to_list()
+
+        recent_causal_features = dialouge + current_tick
+        current_recent_tokens = 0
+        for feature in recent_causal_features[::-1]:
+            tokens = get_token_count(feature)
+            if current_recent_tokens + tokens <= recent_token_budget:
+                if feature.id not in selected_knoxels_for_story:
+                    selected_knoxels_for_story[feature.id] = feature
+                    current_recent_tokens += tokens
+            else:
+                break
+        logging.info(f"Selected {len(selected_knoxels_for_story)} recent causal features, using {current_recent_tokens} tokens.")
+
+        # --- 2. Select Relevant Topical Cluster Events ---
+        logging.debug(f"Topical cluster event budget: {topical_token_budget} tokens.")
+        all_topical_clusters = [
+            k for k in self.all_episodic_memories  # Assuming all_episodic_memories holds MemoryClusterKnoxels
+            if k.cluster_type == ClusterType.Topical and k.embedding and k.included_event_ids
+        ]
+
+        if all_topical_clusters:
+            # Rank topical clusters by relevance
+            ranked_topical_clusters = sorted(
+                all_topical_clusters,
+                key=lambda c: cosine_distance(np.array(query_embedding), np.array(c.embedding))
+            )  # Low distance = high relevance
+
+            current_topical_tokens = 0
+            for cluster in ranked_topical_clusters:
+                if current_topical_tokens >= topical_token_budget:
+                    break
+
+                event_ids_in_cluster = [int(eid) for eid in cluster.included_event_ids.split(',') if eid]
+                events_to_add_from_cluster: List[KnoxelBase] = []
+                tokens_for_this_cluster_events = 0
+
+                # Get events from this cluster, preferring those not already selected
+                # and sort them chronologically within the cluster
+                cluster_event_knoxels = sorted(
+                    [self.get_knoxel_by_id(eid) for eid in event_ids_in_cluster if self.get_knoxel_by_id(eid)],
+                    key=lambda e: (e.tick_id, e.id)
+                )
+
+                for event in cluster_event_knoxels:
+                    if event.id not in selected_knoxels_for_story:
+                        tokens = get_token_count(event)
+                        if current_topical_tokens + tokens_for_this_cluster_events + tokens <= topical_token_budget:
+                            events_to_add_from_cluster.append(event)
+                            tokens_for_this_cluster_events += tokens
+                        else:  # Not enough budget for this specific event from cluster
+                            break
+
+                # Add the collected events from this cluster
+                for event in events_to_add_from_cluster:
+                    selected_knoxels_for_story[event.id] = event
+                current_topical_tokens += tokens_for_this_cluster_events
+            logging.info(f"Added events from topical clusters, using {current_topical_tokens} tokens.")
+
+        # --- Combine, Sort, and Generate Story ---
+        final_knoxels_for_story = sorted(
+            selected_knoxels_for_story.values(),
+            key=lambda k: k.timestamp_world_begin  # Chronological by creation
+        )
+
+        logger.info("Logging current story elements:")
+        for k in final_knoxels_for_story:
+            logger.info(k.get_story_element(self).replace("\n", "\\n"))
+
+        story_list = KnoxelList(final_knoxels_for_story)
+        final_story_str = story_list.get_story(cfg, max_tokens=max_total_tokens)  # Pass the original max_total_tokens
+
+        self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Debug,
+            f"Generated causal story with {len(final_knoxels_for_story)} knoxels. Final length approx {len(final_story_str) / (cfg.context_events_similarity_max_tokens / 512 * 3.5) :.0f} tokens.")  # Rough estimate
+
+        turns = []
+        for k in final_knoxels_for_story:
+            if isinstance(k, Feature):
+                if k.feature_type == FeatureType.Dialogue or k.feature_type == FeatureType.Thought:
+                    if k.source == companion_name:
+                        turns.append(("assistant", k.content))
+                    elif k.source == user_name:
+                        turns.append(("user", k.content))
+                    else:
+                        turns.append(("user", f"{k.source}: {k.content}"))
+        return turns
+
+    @profile
     def _build_conscious_content_queue(
             self,
             cfg: GhostConfig,
@@ -6774,7 +7484,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         story_list = KnoxelList(final_knoxels_for_story)
         final_story_str = story_list.get_story(cfg, max_tokens=max_total_tokens)  # Pass the original max_total_tokens
 
-        self._log_mental_mechanism(self._deliberate_and_select_action, MLevel.Debug,
+        self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Debug,
             f"Generated causal story with {len(final_knoxels_for_story)} knoxels. Final length approx {len(final_story_str) / (cfg.context_events_similarity_max_tokens / 512 * 3.5) :.0f} tokens.")  # Rough estimate
         return final_story_str
 
@@ -7014,6 +7724,7 @@ class GhostSqlite(Ghost):
                 # Handle reference fields (store ID) and list of IDs
                 if field_name == 'primary_stimulus' or \
                         field_name == 'subjective_experience' or \
+                        field_name == "subjective_experience_tool" or \
                         field_name == 'selected_action_knoxel':
                     base_state_columns[f"{field_name}_id"] = "INTEGER"  # Store ID
                 elif field_name == 'conscious_workspace_ids':  # Store list of IDs as JSON TEXT
@@ -7121,7 +7832,7 @@ class GhostSqlite(Ghost):
                             value = [k.id for k in value.to_list()] if value else []
                         else:
                             continue  # Skip other complex/runtime fields
-                    elif field_name in ['primary_stimulus', 'subjective_experience', 'selected_action_knoxel']:
+                    elif field_name in ['primary_stimulus', 'subjective_experience', "subjective_experience_tool", 'selected_action_knoxel']:
                         col_name = f"{field_name}_id"
                         value = value.id if value else None
                     elif field_name in nested_state_models:  # Skip the direct nested model fields
@@ -7345,7 +8056,7 @@ class GhostSqlite(Ghost):
                         # Check if it's a base GhostState field (or reference ID)
                         field_name = col_name
                         is_reference_id = False
-                        if col_name.endswith("_id") and col_name[:-3] in ['primary_stimulus', 'subjective_experience',
+                        if col_name.endswith("_id") and col_name[:-3] in ['primary_stimulus', 'subjective_experience', "subjective_experience_tool",
                                                                           'selected_action_knoxel', "rating"]:
                             field_name = col_name[:-3]  # e.g., primary_stimulus
                             is_reference_id = True
@@ -7392,6 +8103,8 @@ class GhostSqlite(Ghost):
                             state_data.pop('primary_stimulus_id', None))
                         state_data['subjective_experience'] = self.get_knoxel_by_id(
                             state_data.pop('subjective_experience_id', None))
+                        state_data['subjective_experience_tool'] = self.get_knoxel_by_id(
+                            state_data.pop('subjective_experience_tool_id', None))
                         state_data['selected_action_knoxel'] = self.get_knoxel_by_id(
                             state_data.pop('selected_action_knoxel_id', None))
 
@@ -7498,7 +8211,7 @@ class GhostSqlite(Ghost):
             data.setdefault('fulfilment', 0.0)  # Default fulfilment if missing
         elif knoxel_cls == Action:
             data.setdefault('generated_expectation_ids', [])
-            data.setdefault('action_content', data.get('content', ''))  # Handle old action format maybe
+            data.setdefault('content', data.get('content', ''))  # Handle old action format maybe
         elif knoxel_cls == Feature:
             data.setdefault('incentive_salience', None)  # Added later
             data.setdefault('causal', False)  # Ensure default
@@ -7513,94 +8226,6 @@ class GhostSqlite(Ghost):
         data.setdefault('timestamp_world_end', datetime.now().isoformat())
         return data
 
-
-class SingleLineFormatter(logging.Formatter):
-    """
-    Custom formatter to replace newlines in log messages with literal \n
-    and indent subsequent lines to align with the beginning of the first line.
-    """
-
-    def format(self, record):
-        # Call the default formatter to get the message
-        original_message = super().format(record)
-
-        # Determine the initial indentation based on the prefix (up to the message content)
-        initial_indent = ' ' * (len(self.formatTime(record)) + 3 + 15 + 3 + len(record.levelname) + 3)  # Adjust width as per format
-
-        # Replace all newlines with \n and indent subsequent lines
-        formatted_message = original_message.replace('\n', f'\n{initial_indent}')
-        return formatted_message
-
-
-class NoHttpRequestFilter(Filter):
-    """
-    Custom filter to remove HTTP request logs from specific libraries.
-    """
-
-    def filter(self, record):
-        # Filter out any log messages that contain 'HTTP Request'
-        return 'HTTP Request' not in record.getMessage()
-
-
-def setup_logger(log_filename):
-    """
-    Set up the logger to log messages to a file, ensuring all output is single line,
-    includes the module name (justified), and suppresses unwanted HTTP request logs.
-
-    Args:
-        log_filename (str): Name of the log file (without the path).
-    """
-    os.makedirs(log_path, exist_ok=True)
-
-    # Full path to the log file
-    log_file_path = os.path.join(log_path, log_filename)
-
-    # Set up basic logging configuration with a custom formatter
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    logger.propagate = True
-
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-
-    # Create file handler and set level to INFO
-    file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf8')
-    file_handler.setLevel(logging.INFO)
-
-    # Use custom formatter for single-line output including module name
-    # Fixed-width padding for module name (e.g., 15 characters wide)
-    file_formatter = SingleLineFormatter('%(asctime)s - %(module)-15s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(file_formatter)
-
-    # Add file handler to logger
-    logger.addHandler(file_handler)
-
-    # Console handler (optional, remove if not needed)
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.WARNING)
-    console_handler.setFormatter(file_formatter)  # Use the same formatter for console
-
-    # Add console handler to logger
-    logger.addHandler(console_handler)
-
-    # Filter to remove unwanted HTTP request logs
-    logger.addFilter(NoHttpRequestFilter())
-
-    # Suppress logs from libraries (openai, langchain, urllib3, and specific modules)
-    logging.getLogger("urllib3").setLevel(logging.ERROR)
-    logging.getLogger("openai").setLevel(logging.ERROR)
-    logging.getLogger("langchain").setLevel(logging.ERROR)
-    logging.getLogger("_client").setLevel(logging.ERROR)  # Explicitly handle _client
-
-    logger.info(f"Logger initialized and logging to {log_file_path}")
-
-
-from typing import Dict, Any
-import time
-from datetime import datetime
-import threading
-from queue import Queue
-from typing import List
 
 class StimulusSimple:
     def __init__(self, type: str, content: Any):
@@ -7623,9 +8248,6 @@ class Shell:
 
         self.last_interaction_time = time.time()
         self.stop_event = threading.Event()
-
-        # set up ghost
-        setup_logger("main.log")
 
         worker_thread = threading.Thread(target=llama_worker, daemon=True)
         worker_thread.start()
@@ -7672,7 +8294,10 @@ class Shell:
         """Helper to process any stimulus and broadcast results."""
         self._broadcast({"type": "Status", "content": "Thinking..."})
 
-        res = self.ghost.tick(stimulus.content)
+        stim = Stimulus(source=user_name, content=stimulus.content, stimulus_type=StimulusType.UserMessage)
+        action = self.ghost.tick(stim)
+        res = action.content
+
         reply = {"type": "Reply", "content": res}
 
         tick = self.ghost.current_tick_id
@@ -7735,8 +8360,6 @@ def get_shell_instance() -> Shell:
 
 
 def run(interactive: bool, db_path: str | None = None, cmd: str = None ):
-    setup_logger("main.log")
-
     worker_thread = threading.Thread(target=llama_worker, daemon=True)
     worker_thread.start()
 
@@ -7801,7 +8424,9 @@ Act as user to test the chatbot!"""
         if not interactive:
             user_input_cmd_inline = user_input_cmd.replace("\n", "")
             print(f"{config.user_name}: {user_input_cmd_inline}")
-        response = ghost.tick(user_input_cmd)
+        stim = Stimulus(source=user_name, content=user_input_cmd, stimulus_type=StimulusType.UserMessage)
+        action = ghost.tick(stim)
+        response = action.content
         sg = ghost.simulated_reply
 
         if response:
@@ -7822,3 +8447,4 @@ Act as user to test the chatbot!"""
 if __name__ == '__main__':
     db_path = sys.argv[1]
     run(True, db_path)
+

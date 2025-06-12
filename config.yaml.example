@@ -3,6 +3,8 @@ log_path: "./logs"
 db_path: "./data/main.db"
 commit: True
 
+mcp_server_url: "http://127.0.0.1:8000/mcp"
+
 embedding_model: "E:\\AI\\mxbai-embed-large-v1"
 
 models:

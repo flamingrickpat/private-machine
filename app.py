@@ -17,7 +17,6 @@ if 'messages' not in st.session_state:
     print("New client connected. Syncing chat history.")
     # On first run for this tab, fetch the master history from the Ghost.
     st.session_state.messages = shell.get_full_chat_history()
-
     # Standard setup for the client's output queue and input state
     st.session_state.output_queue = Queue()
     shell.register_client(st.session_state.output_queue)
@@ -25,6 +24,9 @@ if 'messages' not in st.session_state:
 
     # Rerun to ensure the fetched history is displayed immediately.
     st.rerun()
+
+if 'last_msg_count' not in st.session_state:
+    st.session_state.last_msg_count = len(st.session_state.messages)
 
 # --- Sidebar ---
 with st.sidebar:
@@ -62,6 +64,30 @@ try:
         st.rerun()
 except Exception:
     pass
+
+# todo
+if False and len(st.session_state.messages) != st.session_state.last_msg_count:
+    st.html(
+        """
+        <script>
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        function beep(vol, type, freq, duration) {
+          const o = ctx.createOscillator();
+          const g = ctx.createGain();
+          o.connect(g);
+          g.connect(ctx.destination);
+          o.type = type;
+          o.frequency.value = freq;
+          g.gain.value = vol * 0.01;
+          o.start();
+          setTimeout(() => o.stop(), duration);
+        }
+        beep(50, 'square', 440, 150);
+        </script>
+        """,
+        height=0,
+    )
+    st.session_state.last_msg_count = len(st.session_state.messages)
 
 # Display chat messages from this session's history
 for i, message in enumerate(st.session_state.messages):
