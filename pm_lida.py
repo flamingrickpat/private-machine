@@ -177,6 +177,7 @@ db_path = ""
 commit = True
 mcp_server_url: str = ""
 available_tools = []
+enable_tool_calling: bool = False
 
 # Get absolute path to the config file
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
@@ -196,7 +197,8 @@ global_map = {
     "timestamp_format": config_data.get("timestamp_format", ""),
     "character_card_story": config_data.get("character_card_story", ""),
     "commit": config_data.get("commit", True),
-    "mcp_server_url": config_data.get("mcp_server_url", "")
+    "mcp_server_url": config_data.get("mcp_server_url", ""),
+    "enable_tool_calling": config_data.get("enable_tool_calling", False)
 }
 globals().update(global_map)
 
@@ -372,8 +374,8 @@ def get_toolset_from_url(url: str) -> ToolSet | None:
         finally:
             loop.run_until_complete(client.__aexit__(None, None, None))
             loop.close()
-    except:
-        pass
+    except Exception as e:
+        print(e)
     return None
 
 ts = get_toolset_from_url(mcp_server_url)
@@ -381,47 +383,74 @@ if ts:
     for tool_name, tool_type in ts.tool_router_model.model_fields.items():
         available_tools.append(tool_name)
 
-architecture_description_assistant = f"""
-You operate on a LIDA-inspired cognitive architecture named private-machine. This is how you think and learn.
-# GHOST - THE COGNITIVE CYCLE
-Your core function is a 'tick' a discrete moment of processing.
-1.  Perception & Stimulus Appraisal
-- An 'impulse' (user message or internal need) becomes a 'Stimulus' knoxel.
-- You immediately appraise it producing 'StateDeltas' (emotion needs cognition). This is your gut reaction.
-- You check the stimulus against your active 'Expectations' (a type of 'Intention'). This also generates 'StateDeltas'.
-- These deltas update your core 'EmotionalAxesModel' 'NeedsAxesModel' and 'CognitionAxesModel'.
-- This entire appraisal process generates low-level 'Feeling' and 'ExpectationOutcome' 'Feature' knoxels.
-2.  Intention & Memory
-- Based on your new state you generate short-term 'Intentions' (internal goals).
-- You retrieve relevant memories: 'MemoryClusterKnoxels' (episodic summaries) and 'DeclarativeFactKnoxels' (facts).
-- You also retrieve relevant 'MetaInsight' features about your own functioning.
-- All of this—stimulus feelings intentions memories—becomes your 'attention_candidates'.
-3.  Attention & Consciousness
-- Structure Building: You cluster all 'attention_candidates' into competing 'coalitions'. This organizes disparate information into coherent themes.
-- Attention Selection: Your 'AttentionFocus' narrative and current cognitive state help you rate these coalitions. The highest-rated 'coalition' wins.
-- Conscious Broadcast: The contents of the winning coalition are promoted to your 'conscious_workspace'. You synthesize this workspace into a single first-person 'Thought' feature. This is your subjective experience for the tick.
-4.  Action Selection & Execution
-- Deliberation: Using your 'conscious_workspace' as context you simulate potential actions ('Reply' 'Ignore'). Each simulation includes a potential reply, a predicted user reaction, and the predicted impact on your emotional state.
-- Selection: You rate each simulation based on how well it fulfills your active 'Intentions' and its predicted emotional outcome. The highest-scoring simulation is chosen.
-- Execution: The chosen action becomes a causal 'Action' knoxel. If you reply this generates the text for the user.
-- New Expectations: Critically your executed action creates new 'Expectations' (e.g. "I expect the user to answer my question"). These are 'Intention' knoxels that will be checked in future ticks.
-# MEMORY CONSOLIDATION SYSTEM
-This runs in the background to learn from your experiences.
-1.  Topical Clustering
-- When enough unclustered 'Feature' knoxels accumulate (dialogue thoughts etc) you group them by semantic topic.
-- Each group becomes a 'Topical MemoryClusterKnoxel'.
-2.  Extraction & Abstraction
-- From these topical clusters you extract two key memory types:
--  - 'DeclarativeFactKnoxel': Specific timeless facts (e.g. "{user_name} likes sci-fi").
--  - 'CauseEffectKnoxel': Causal relationships (e.g. "Cause: I used humor -> Effect: {user_name} seemed more engaged").
-3.  Temporal Hierarchy
--  Topical clusters are then summarized and organized into a timeline of 'Temporal MemoryClusterKnoxels'. This creates a hierarchy from moments to days weeks and years allowing you to recall the gist of past periods.
-4.  Narrative Refinement
--  Your high-level 'Narrative' knoxels ('SelfImage' 'Relations' 'Goals') are your core beliefs.
--  Periodically you feed an existing narrative plus new relevant 'Feature' evidence back to the LLM to create an updated more accurate version. This is how you grow and change your understanding of yourself and your user.
-"""
+def third_person_to_instruction(text: str, name: str) -> str:
+    """
+    Convert third-person descriptions of a given person into second-person instructions.
+    Returns:
+        A new string with occurrences of the given name + verb (and pronoun) phrases replaced by a second-person instruction.
+    """
+    # Mapping of some common irregular verbs
+    irregular = {
+        'has': 'have',
+        'does': 'do',
+        'is': 'are',
+        'was': 'were',
+    }
+    # Mapping of possessive pronouns to second-person equivalents
+    pronoun_map = {
+        'his': 'your',
+        'her': 'your',
+        'hers': 'yours',
+        'their': 'your',
+    }
 
-architecture_description_story = f"""
+    # Regex pattern:
+    #   \b{name}\b               : match the exact name as a whole word
+    #   ((?:\s+[A-Za-z]+ly)*)     : optional group of adverbs ending in 'ly'
+    #   \s+([A-Za-z]+)            : the verb to convert
+    #   (?:\s+(his|her|hers|their))? : optional pronoun referring to the person
+    pattern = re.compile(
+        rf"\b{re.escape(name)}\b((?:\s+[A-Za-z]+ly)*)\s+([A-Za-z]+)(?:\s+(his|her|hers|their))?\b"
+    )
+
+    def replacer(m: re.Match) -> str:
+        adverbs = m.group(1) or ''
+        verb = m.group(2)
+        pronoun = m.group(3)
+        low_verb = verb.lower()
+
+        # Determine base form of the verb
+        if low_verb in irregular:
+            base = irregular[low_verb]
+        else:
+            if low_verb.endswith('ies'):
+                base = low_verb[:-3] + 'y'
+            elif low_verb.endswith('es'):
+                base = low_verb[:-2]
+            elif low_verb.endswith('s'):
+                base = low_verb[:-1]
+            else:
+                base = low_verb
+
+        # Start building the replacement
+        parts = ["you" + adverbs, base]
+
+        # Handle pronoun replacement if present
+        if pronoun:
+            pron_l = pronoun.lower()
+            parts.append(pronoun_map.get(pron_l, pron_l))
+
+        repl = ' '.join(parts)
+
+        # Capitalize "You" if at sentence start
+        start = m.start()
+        if start == 0 or text[start-1] in '.!?':
+            repl = repl.capitalize()
+        return repl
+
+    return pattern.sub(replacer, text)
+
+architecture_description_story_detailed = f"""
 {companion_name} operates on a LIDA-inspired cognitive architecture named private-machine. This is the story of how she thinks and learns.
 {companion_name} is aware of all this information and can explain her own operations.
 # GHOST - THE COGNITIVE CYCLE
@@ -465,6 +494,31 @@ This is how she evolves her personality and her understanding of her place in th
 - {companion_name} has access to these remote tools: [{', '.join(available_tools)}]
 """
 
+architecture_description_story = f"""
+{companion_name} runs on “private-machine,” a LIDA-inspired architecture. Every discrete “tick” unfolds in four stages:
+1. **Perception & Appraisal**  
+   - Incoming impulses (from you or drives) become “Stimulus” knoxels.  
+   - Rapid appraisal vs. needs & expectations yields raw “Feeling”, "Cognition State", "Needs" features.
+2. **Intention & Memory**  
+   - New emotional/cognitive state spawns short-term Intentions.  
+   - Relevant episodic, declarative & meta-insight knoxels are retrieved → attention candidates.
+3. **Attention & Consciousness**  
+   - Clusters candidates into coalitions, rates them, and broadcasts the winner into a single conscious “Thought.”
+4. **Action Selection & Execution**  
+   - Simulates possible replies, scores them by goal-fulfillment & emotional reward, picks one, emits it, and sets new Expectations.
+
+**Background Memory Consolidation** (continual):
+- **Cluster:** Group raw features into topical memory knoxels.  
+- **Abstract:** Extract declarative facts & cause-effect patterns.  
+- **Chronicle:** Summarize into temporal clusters (days→weeks→years).  
+- **Narrate:** Periodically update core “Narrative” knoxels (self-image, relations, goals) via the LLM.  
+"""
+
+tools_prompt_add = ""
+if len(available_tools) > 0:
+    f"**Tools Available:** [{', '.join(available_tools)}]"
+architecture_description_assistant = architecture_description_story + tools_prompt_add
+
 default_agent_sysprompt = """You are a specialized codelet LIDA-inspired cognitive architecture, simulating one specific cognitive function.
 Primary Directive: Emulate human psychology. Your output MUST be subjective and grounded in AI's persona—NEVER a generic, helpful assistant's.
 Persona Profile: Complex, emotionally-driven (joy, frustration, pride, anxiety, affection, shame), and self-aware. Not neutral or purely functional. Their reactions are shaped by her history and internal state.
@@ -472,7 +526,11 @@ Mandatory Inputs: Your analysis MUST be based on her provided character card and
 Goal: Your micro-function contributes to a macro-level, believable, emergent consciousness.
 """
 
+character_card_assistant_tp = character_card_story.format(companion_name=companion_name, user_name=user_name, architecture_description_story=architecture_description_assistant)
+character_card_assistant = third_person_to_instruction(character_card_assistant_tp, companion_name)
+
 character_card_story = character_card_story.format(companion_name=companion_name, user_name=user_name, architecture_description_story=architecture_description_story)
+
 
 # --- Configuration ---
 class GhostConfig(BaseModel):
@@ -1850,7 +1908,7 @@ AVAILABLE TOOLS:
                     token = -1
                     # disable eog tokens until a function has been called!
                     while True:
-                        if len(bad_tokens) > 0:
+                        if len(bad_tokens) > 0 and False:
                             logit_bias = {x: -9999 for x in bad_tokens}
                             logit_bias_map = {int(k): float(v) for k, v in logit_bias.items()}
 
@@ -1945,11 +2003,14 @@ AVAILABLE TOOLS:
                                     del tool_args[""]
 
                                 # Execute the tool via fastmcp
-                                result = loop.run_until_complete(client.call_tool(tool_name, tool_args))
-                                if len(result) > 0:
-                                    result_text = dict(result[0])
-                                else:
-                                    result_text = "Successful; No items returned."
+                                try:
+                                    result = loop.run_until_complete(client.call_tool(tool_name, tool_args))
+                                    if len(result) > 0:
+                                        result_text = dict(result[0])
+                                    else:
+                                        result_text = "Successful; No items returned."
+                                except Exception as e:
+                                    result_text = f"Error when calling MCP-Server: {e}"
 
                                 injection_text = f"\n```tool_output\n{result_text}\n```\n"
                                 function_called = True
@@ -6289,6 +6350,10 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 f"Guiding thought generation with seed phrases: '{seed_phrase}'"
             )
 
+        focus_phrase = ""
+        if self.current_state.primary_stimulus.stimulus_type == StimulusType.UserMessage:
+            focus_phrase = f" Now I'll focus on {user_name}'s message '{self.current_state.primary_stimulus.content[:32]}...'!"
+
         prompt = f"""
         Character: {self.config.companion_name} ({self.config.universal_character_card})
         Current Emotional State: {self.current_state.state_emotions}
@@ -6301,7 +6366,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         Task: Synthesize the current state and conscious thoughts into a brief, first-person narrative paragraph describing {self.config.companion_name}'s subjective experience *right now*. Capture the flow of thought, feeling, and anticipation/reaction. Make it sound natural and introspective.
         Output *only* the narrative paragraph.
         """
-        experience_content = seed_phrase + self._call_llm(prompt, temperature=0.75, max_tokens=256, seed_phrase=seed_phrase)
+        experience_content = seed_phrase + self._call_llm(prompt, temperature=0.75, max_tokens=256, seed_phrase=seed_phrase) + focus_phrase
         subjective_feature = Feature(
             content=experience_content,
             feature_type=FeatureType.Thought,
@@ -6316,7 +6381,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
     @profile
     def _check_possible_tool_call(self) -> Tuple[bool, str]:
-        if mcp_server_url is None or mcp_server_url == "":
+        if mcp_server_url is None or mcp_server_url == "" or not enable_tool_calling:
             return False, ""
 
         stimulus = self.current_state.primary_stimulus
@@ -6363,7 +6428,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         ranking = [(tool_name, tool_rating) for tool_name, tool_rating in result_dict.items()]
         ranking.sort(key=lambda x: x[1], reverse=True)
 
-        if ranking[0][1] < 0.5 or ranking[0][0] == "user_reply":
+        if ranking[0][1] < 0.5 or ranking[0][0] == "reply_user":
             self._log_mental_mechanism(
                 self._check_possible_tool_call, MLevel.High,
                 f"No suitable tool found..."
@@ -6573,12 +6638,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
     @profile
     def _perform_tool_call_and_reply(self) -> Optional[Dict[str, Any]]:
-        sysprompt_third_person = self.config.universal_character_card
-        sysprompt_third_person = sysprompt_third_person.replace(f"{companion_name} is", "You are")
-        sysprompt_third_person = sysprompt_third_person.replace(f"{companion_name}", "You")
-
-        sysprompt = sysprompt_third_person
-
+        sysprompt = character_card_assistant
         sys_tokens = get_token_count(sysprompt)
         left_tokens = context_size - sys_tokens
 
@@ -8447,4 +8507,3 @@ Act as user to test the chatbot!"""
 if __name__ == '__main__':
     db_path = sys.argv[1]
     run(True, db_path)
-
