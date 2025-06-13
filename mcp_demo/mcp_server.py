@@ -528,7 +528,7 @@ def threaded_function(arg):
 
 def start_server():
     init_db()
-    thread = Thread(target = threaded_function, args = (10, ))
+    thread = Thread(target = threaded_function, args = (10, ), daemon=True)
     thread.start()
     logger.info("server started...")
 

@@ -38,14 +38,13 @@ with st.sidebar:
     #    shell.stop_event.set()
     #    st.warning("This doesn't do anything yet...")
 
-    st.markdown("---")
-    st.write("Configuration:")
-    shell.user_inactivity_timeout = st.slider(
-        "Proactive Message Timer (s)", 5, 600, shell.user_inactivity_timeout
+    st.write("Shell Config:")
+    shell.USER_INACTIVITY_TIMEOUT = 60 * st.slider(
+        "Waiting-for-reply timeout (minutes)", 1, 60, int(shell.USER_INACTIVITY_TIMEOUT / 60)
     )
-    shell.ai_inactivity_timeout = st.slider(
-        "Subsequent Proactive Message Cooldown (s)", 10, 3600, shell.ai_inactivity_timeout
-    )
+    #shell.SYSTEM_TICK_INTERVAL = st.slider(
+    #    "Tick-Clock (s)", 1, 10, int(shell.SYSTEM_TICK_INTERVAL)
+    #)
 
 # --- Main Chat Interface ---
 st.title(f"private-machine {companion_name}")
@@ -98,31 +97,33 @@ for i, message in enumerate(st.session_state.messages):
         # only show thumbs for the assistant
         if message["role"] == "assistant":
             col1, col2 = st.columns([1, 1], gap="small")
-            rating = message["rating"]
-            tick_id = message["tick_id"]
-            like = "👍"
-            if rating == 1:
-                like = "🟢" + like
-            if col1.button(
-                    like,
-                    key=f"like_{idx}",
-                    disabled=(message["rating"] == 1),
-            ):
-                message["rating"] = 1
-                shell.rate_message(tick_id, 1)  # <-- your shell method
-                st.rerun()
+            rating = message.get("rating", 0)
+            tick_id = message.get("tick_id", 0)
 
-            dislike = "👎"
-            if rating == 1:
-                dislike = "🔴" + dislike
-            if col2.button(
-                    dislike,
-                    key=f"dislike_{idx}",
-                    disabled=(message["rating"] == -1),
-            ):
-                message["rating"] = -1
-                shell.rate_message(tick_id, -1)  # <-- your shell method
-                st.rerun()
+            if tick_id != 0:
+                like = "👍"
+                if rating == 1:
+                    like = "🟢" + like
+                if col1.button(
+                        like,
+                        key=f"like_{idx}",
+                        disabled=(message["rating"] == 1),
+                ):
+                    message["rating"] = 1
+                    shell.rate_message(tick_id, 1)  # <-- your shell method
+                    st.rerun()
+
+                dislike = "👎"
+                if rating == 1:
+                    dislike = "🔴" + dislike
+                if col2.button(
+                        dislike,
+                        key=f"dislike_{idx}",
+                        disabled=(message["rating"] == -1),
+                ):
+                    message["rating"] = -1
+                    shell.rate_message(tick_id, -1)  # <-- your shell method
+                    st.rerun()
 
 # User input
 if prompt := st.chat_input("What do you want to say?", disabled=st.session_state.input_disabled):

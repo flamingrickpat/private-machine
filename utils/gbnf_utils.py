@@ -168,14 +168,15 @@ def fix_gbnf_grammar_generator():
     module.map_pydantic_type_to_gbnf = new_map_pydantic_type_to_gbnf
     sys.modules["pydantic_gbnf_grammar_generator.main"] = module
 
-def better_generate_gbnf_grammar_and_documentation(pydantic_model_list, default_max_list_length: int | None = 16):
+def better_generate_gbnf_grammar_and_documentation(pydantic_model_list, default_max_list_length: int | None = 8):
     gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation(pydantic_model_list)
 
     # remove default dt rules
-    grammar_lines = [x for x in gbnf_grammar.split("\n") if not x.startswith("custom-class-datetime") and not x.startswith("custom-class-date")]
+    grammar_lines = [x for x in gbnf_grammar.split("\n") if not x.startswith("custom-class-datetime") and not x.startswith("custom-class-date") and not x.startswith("ws ::=")]
 
     # get all rules for list types; set max length to max_length or default_max_list_length
     # to prevent endless list generation for when the llm adds garbage items until max tokens
+    # also limit ws count to max 8 consecutive
     for tool in pydantic_model_list:
         tool_name = format_model_and_field_name(tool.__name__)
         for field_name, field in tool.model_fields.items():
@@ -189,7 +190,8 @@ def better_generate_gbnf_grammar_and_documentation(pydantic_model_list, default_
                         pass
                 if le is not None:
                     for i in range(len(grammar_lines)):
-                        if grammar_lines[i].startswith(tool_name + "-" + field_name):
+                        fn = field_name.replace("_", "-")
+                        if grammar_lines[i].startswith(tool_name + "-" + fn):
                             grammar_lines[i] = grammar_lines[i].replace(')*  "]"', f'){{0,{le}}}  "]"')
 
     gbnf_grammar = "\n".join(grammar_lines)
@@ -197,6 +199,8 @@ def better_generate_gbnf_grammar_and_documentation(pydantic_model_list, default_
     rules_datetime_unknown = r"""
 HEX   ::= [0-9a-fA-F]
 DIGIT ::= [0-9]
+
+ws ::= [ \t\n]{0,8}
 
 unknown ::= string
 
