@@ -1,3 +1,4 @@
+import os.path
 import sqlite3
 import json
 import time
@@ -7,6 +8,7 @@ import uuid
 from threading import Thread
 from time import sleep
 import logging
+import os
 
 from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
@@ -22,11 +24,11 @@ DB_FILE = "mcp_data.db"
 
 def get_db_conn():
     """Establishes a connection to the SQLite database."""
-    conn = sqlite3.connect(DB_FILE)
+    path = os.path.join(os.path.dirname(__file__), DB_FILE)
+    conn = sqlite3.connect(path)
     # This will allow you to access columns by name
     conn.row_factory = sqlite3.Row
     return conn
-
 
 def init_db():
     """Initializes the database and creates tables if they don't exist."""

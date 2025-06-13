@@ -15,6 +15,7 @@ import sqlite3
 import string
 import sys
 import textwrap
+import typing
 import uuid
 from collections import defaultdict
 from copy import deepcopy
@@ -43,7 +44,9 @@ from datetime import datetime
 import threading
 from queue import Queue
 from typing import List
+from typing import get_args
 
+import numpy.typing as npt
 import yaml
 import fastmcp.utilities.logging
 import llama_cpp.llama_cpp as llama_cpp
@@ -59,7 +62,6 @@ from py_linq import Enumerable
 from pydantic import BaseModel, Field, create_model
 from pydantic import ValidationError
 from pydantic import model_validator
-from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation
 from scipy.spatial.distance import cosine as cosine_distance  # Use scipy for cosine distance
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
@@ -72,7 +74,9 @@ from transformers import (
     StoppingCriteria,
     StoppingCriteriaList, TemperatureLogitsWarper, TopKLogitsWarper, TopPLogitsWarper, MinPLogitsWarper,
 )
-import numpy.typing as npt
+
+from utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, fix_gbnf_grammar_generator
+fix_gbnf_grammar_generator()
 
 logger = logging.getLogger(__name__)
 
@@ -1763,7 +1767,7 @@ class LlmManagerLLama(LlmManager):
             if discard_thinks:
                 content = content.split("</think>")[-1]
         else:
-            gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation(tools)
+            gbnf_grammar, documentation = better_generate_gbnf_grammar_and_documentation(tools)
             grammar = LlamaGrammar(_grammar=gbnf_grammar)
             while True:
                 try:

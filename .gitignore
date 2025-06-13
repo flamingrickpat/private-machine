@@ -176,3 +176,5 @@ config.yaml
 
 /data
 *.db
+/tests
+*logs*
