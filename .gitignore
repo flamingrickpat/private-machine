@@ -178,3 +178,4 @@ config.yaml
 *.db
 /tests
 *logs*
+*.bak

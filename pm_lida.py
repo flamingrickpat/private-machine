@@ -3640,12 +3640,9 @@ class DynamicMemoryConsolidator:
         if not fact_knoxel.content: return
         # Replace with your actual categorization logic (e.g., LLM call, keyword matching)
         # Example using cosine_cluster logic from original code:
-        try:
-            cats = self.categorize_fact(fact_knoxel)
-            for cat in cats:
-                self.ghost.add_knoxel(cat)
-        except Exception as e:
-            logger.warning(f"Failed to categorize Fact {fact_knoxel.id}: {e}")
+        cats = self.categorize_fact(fact_knoxel)
+        for cat in cats:
+            self.ghost.add_knoxel(cat)
 
     @profile
     def consolidate_memory_if_needed(self):
@@ -4356,10 +4353,10 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
 
         mb = calls[0]
         max_weight = 0
-        for f in mb.__class__.model_fields_set:
+        for f in mb.model_fields_set:
             max_weight = max(max_weight, getattr(mb, f))
 
-        for f in mb.__class__.model_fields_set:
+        for f in mb.model_fields_set:
             weight = getattr(mb, f)
             cat_id = path_to_id.get(f, 0)
             fc = FactCategory(
@@ -4517,9 +4514,9 @@ class Ghost:
         existing = {(n.narrative_type, n.target_name) for n in self.all_narratives}
         for definition in narrative_definitions:
             if (definition["type"], definition["target"]) not in existing:
-                default_content = f"Initial placeholder narrative for {definition['target']} regarding {definition['type']}."
+                default_content = ""
                 if definition["target"] == self.config.companion_name:
-                    default_content = self.config.universal_character_card  # Use character card for initial self-image
+                    default_content = f"<No information regarding {definition['type']} available *yet*, gather details from conversation>"
                 elif definition["target"] == self.config.user_name:
                     default_content = f"{self.config.user_name} is the user interacting with {self.config.companion_name}."
 
@@ -4689,7 +4686,7 @@ class Ghost:
         # print("STIMULUS: " + str(stimulus))
 
         # 1. Initialize State (Handles decay, internal stimulus gen, carries over intentions/expectations)
-        self._initialize_tick_state(stimulus)
+        self.initialize_tick_state(stimulus)
         if not self.current_state:
             raise Exception("Empty state!")
 
@@ -4789,7 +4786,7 @@ class Ghost:
 
 
     @profile
-    def _initialize_tick_state(self, stimulus: Stimulus):
+    def initialize_tick_state(self, stimulus: Stimulus | None):
         """Sets up the GhostState for the current tick, handling state decay,
            carrying over unfulfilled intentions AND expectations, and generating internal stimuli."""
         previous_state = self.states[-1] if self.states else None
@@ -4813,7 +4810,7 @@ class Ghost:
                 self.current_state.state_cognition.decay_to_baseline(decay_rate_per_tick)
 
             self._log_mental_mechanism(
-                self._initialize_tick_state, MLevel.Debug,
+                self.initialize_tick_state, MLevel.Debug,
                 f"State decayed over {ticks_elapsed} tick(s). "
                 f"New baseline emotions: V:{self.current_state.state_emotions.get_overall_valence():.2f}, A:{self.current_state.state_emotions.anxiety:.2f}"
             )
@@ -4837,13 +4834,14 @@ class Ghost:
             if carried_intentions_and_expectations:
                 logging.info(f"Carried over {len(carried_intentions_and_expectations)} active intentions/expectations to attention candidates.")
                 self._log_mental_mechanism(
-                    self._initialize_tick_state, MLevel.Low,
+                    self.initialize_tick_state, MLevel.Low,
                     f"Carried over {len(carried_intentions_and_expectations)} active intentions/expectations. Most urgent: '{carried_intentions_and_expectations[0].content[:50]}...'"
                 )
 
         else:  # First tick
             self.current_state.attention_candidates = KnoxelList()
-        if stimulus:
+
+        if stimulus is not None:
             self.add_knoxel(stimulus)
             self.current_state.primary_stimulus = stimulus
 
@@ -9275,5 +9273,5 @@ Act as user to test the chatbot!"""
 
 if __name__ == '__main__':
     db_path = sys.argv[1]
-    #run(True, db_path)
-    run_shell(False, db_path)
+    run(True, db_path)
+    #run_shell(False, db_path)

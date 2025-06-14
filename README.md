@@ -6,7 +6,16 @@ I refined this ultra-schizo project again in my quest to make the perfect AI com
 
 Basically everything happens in pm_lida.py, the old stuff in the pm folder is just for decoration and occasional copy-pasting now.
 
-This is NOT production ready! Tool calling is underdeveloped, async background cognition and proactive interaction with user when idle is not implemented yet.
+This is **NOT** production ready.
+
+What *kind of* works:
+- Normal chatting
+- Memory recalling
+- Calling some tools from the MCP demo server
+- Getting proactive messages when waiting for user reply times out
+- Importing existing chat
+
+It's **slow**, you will get random errors, and god knows what happens when you have a large chat history.
 
 ## Installation
 
