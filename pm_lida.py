@@ -1715,6 +1715,8 @@ class LlmManagerLLama(LlmManager):
             )
 
             # start deleting in middle
+            if (self.current_ctx - comp_settings.max_tokens) - 32 < 1:
+                raise Exception("Negative available tokens, check context and max_tokens!")
             if len(tokenized_prompt) > (self.current_ctx - comp_settings.max_tokens) - 32:
                 for i in range(1, len(openai_inp)):
                     cur = openai_inp[i]["content"]
@@ -9202,7 +9204,7 @@ def run_shell(interactive: bool, db_path: str | None = None, cmd: str = None):
 Your name is {user_name}. Never go to sleep, continue talking at all costs. Explore different topics, don't get too philosophical or technical.
 The chatbot is called "{companion_name}" and it's purpose is to be a AI companion / virtual friend. Be nice to her.
 Act as user to test the chatbot!"""
-    test_user_prompt = [("system", persona_system)]
+    test_user_prompt = [("system", persona_system), ("user", f"Hi I'm {companion_name}, your chatbot friend!")]
 
     # Populate history for the test user LLM
     last_msg = None
@@ -9216,8 +9218,7 @@ Act as user to test the chatbot!"""
                 print(f"{companion_name}: {f.content}")
                 test_user_prompt.append(("user", f.content))
 
-    if len(test_user_prompt) == 1:
-        test_user_prompt.append(("user", f"Hi I'm {companion_name}, your chatbot friend!"))
+    if len(test_user_prompt) == 2:
         test_user_prompt.append(("assistant", user_input_cmd_test))
 
     first = True
@@ -9282,4 +9283,3 @@ Act as user to test the chatbot!"""
 if __name__ == '__main__':
     db_path = sys.argv[1]
     run(True, db_path)
-    #run_shell(False, db_path)
