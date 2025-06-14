@@ -5709,8 +5709,11 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
         # memory
         avg_emotions = {}
-        for tick_id in range(mem.min_tick_id, mem.max_event_id + 1):
+        for tick_id in range(mem.min_tick_id, mem.max_tick_id + 1):
             tstate = self._get_state_at_tick(tick_id)
+            if tstate is None:
+                logger.warning(f"Tick with {tick_id} not found!")
+                continue
             full_state = dict(tstate.state_emotions.model_dump().items())
             full_state.update(dict(tstate.state_needs.model_dump().items()))
             full_state.update(dict(tstate.state_cognition.model_dump().items()))
@@ -9186,7 +9189,7 @@ def run_shell(interactive: bool, db_path: str | None = None, cmd: str = None):
 
     # --- NEW: Create the Shell instance to manage the Ghost ---
     # The Shell will now be the primary interface for processing stimuli.
-    shell = Shell(ghost=ghost, db_path=db_path)
+    shell = Shell(ghost=ghost, db_path_local=db_path)
 
     print(f"--- Initializing {config.companion_name} ---")
     if not ghost.current_state and ghost.states:
@@ -9202,11 +9205,13 @@ Act as user to test the chatbot!"""
     test_user_prompt = [("system", persona_system)]
 
     # Populate history for the test user LLM
+    last_msg = None
     for f in ghost.all_features:
         if f.feature_type == FeatureType.Dialogue:
             if f.source == user_name:
                 print(f"{user_name}: {f.content}")
                 test_user_prompt.append(("assistant", f.content))
+                last_msg = f.content
             elif f.source == companion_name:
                 print(f"{companion_name}: {f.content}")
                 test_user_prompt.append(("user", f.content))
@@ -9221,11 +9226,14 @@ Act as user to test the chatbot!"""
             user_input_cmd = input(f"{config.user_name}: ") if not cmd else cmd
         else:
             if first:
-                user_input_cmd = user_input_cmd_test
+                if last_msg is not None:
+                    user_input_cmd = last_msg
+                else:
+                    user_input_cmd = user_input_cmd_test
                 first = False
             else:
                 # --- NEW: Randomly inject a system trigger before generating the next user message ---
-                if random.random() < 0.25:  # 25% chance to fire a system trigger
+                if random.random() < 0.05:  # 5% chance to fire a system trigger
                     print("[TEST: FORCING SYSTEM TRIGGER]")
                     shell.force_system_trigger()  # This will run a full tick
                     # We can add a small delay to see the output clearly
