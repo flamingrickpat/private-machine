@@ -154,6 +154,7 @@ class WorldGenerator:
         house_objects = []
         owner_id = owner.id if owner else None
         owner_name = owner.name if owner else "an unknown person"
+        is_primary_character_house = owner_id == 0  # Specific check to place quest items
 
         # House structure
         house_id = self._get_next_id()
@@ -168,7 +169,8 @@ class WorldGenerator:
         # Generate rooms inside the house
         house_objects.extend(self._generate_living_room(position, house_id, owner_id))
         house_objects.extend(
-            self._generate_kitchen(Vector3D(x=position.x + 3, y=position.y - 2, z=0), house_id, owner_id))
+            self._generate_kitchen(Vector3D(x=position.x + 3, y=position.y - 2, z=0), house_id, owner_id,
+                                   add_special_items=is_primary_character_house))
         house_objects.extend(
             self._generate_bedroom(Vector3D(x=position.x - 3, y=position.y + 2, z=0), house_id, owner_id))
 
@@ -196,7 +198,8 @@ class WorldGenerator:
         ))
         return items
 
-    def _generate_kitchen(self, base_pos: Vector3D, house_id: int, owner_id: Optional[int]) -> List[WorldObject]:
+    def _generate_kitchen(self, base_pos: Vector3D, house_id: int, owner_id: Optional[int], add_special_items: bool) -> \
+    List[WorldObject]:
         items = []
         # A table
         table_pos = base_pos
@@ -219,16 +222,17 @@ class WorldGenerator:
             ]
         ))
 
-        # A key also on the table
-        key_pos = Vector3D(x=table_pos.x + 0.5, y=table_pos.y, z=table.size.z)
-        items.append(WorldObject(
-            id=self._get_next_id(), name="Brass Key", description="A small, ornate brass key.",
-            position=key_pos, size=Vector3D(x=0.1, y=0.02, z=0.01), owner_id=owner_id,
-            relationships=[
-                Relationship(target_id=table_id, type=RelationshipType.ON_TOP_OF),
-                Relationship(target_id=house_id, type=RelationshipType.INSIDE)
-            ]
-        ))
+        # A key also on the table, but only if specified
+        if add_special_items:
+            key_pos = Vector3D(x=table_pos.x + 0.5, y=table_pos.y, z=table.size.z)
+            items.append(WorldObject(
+                id=self._get_next_id(), name="Brass Key", description="A small, ornate brass key.",
+                position=key_pos, size=Vector3D(x=0.1, y=0.02, z=0.01), owner_id=owner_id,
+                relationships=[
+                    Relationship(target_id=table_id, type=RelationshipType.ON_TOP_OF),
+                    Relationship(target_id=house_id, type=RelationshipType.INSIDE)
+                ]
+            ))
         return items
 
     def _generate_bedroom(self, base_pos: Vector3D, house_id: int, owner_id: Optional[int]) -> List[WorldObject]:
@@ -263,7 +267,7 @@ class VirtualWorldManager:
 
     def __init__(self, db_path: str, character_names: List[str]):
         self.db_path = db_path
-        self.turn_count = 0
+        self.turn_count = 0  # This will represent the current "round" number
         self.action_history: List[Tuple[int, int, str, str]] = []  # turn, char_id, instruction, result
         self.world_objects: Dict[int, WorldObject] = {}
         self.characters: Dict[int, Character] = {}
@@ -282,11 +286,13 @@ class VirtualWorldManager:
         else:
             print("VWM: No database found. Generating new world...")
             generator = WorldGenerator()
+            # Start turns at 1 for a more natural count
+            self.turn_count = 1
             all_objects, all_characters = generator.generate_world(character_names)
             self.world_objects = {obj.id: obj for obj in all_objects}
             self.characters = {char.id: char for char in all_characters}
             self.next_character_id = len(all_characters)
-            self.next_object_id = max(obj.id for obj in all_objects) + 1
+            self.next_object_id = max(obj.id for obj in all_objects) + 1 if all_objects else 1
             self.save_world()  # Initial save of the new world
 
         # For easy lookup of object relationships
@@ -334,14 +340,14 @@ class VirtualWorldManager:
             );
         """)
 
-        # Action history
+        # Action history - composite key includes instruction to avoid simple turn/char clashes
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS action_history (
                 turn INTEGER,
                 character_id INTEGER,
                 instruction TEXT,
                 result TEXT,
-                PRIMARY KEY (turn, character_id),
+                PRIMARY KEY (turn, character_id, instruction),
                 FOREIGN KEY (character_id) REFERENCES characters(id)
             );
         """)
@@ -416,9 +422,12 @@ class VirtualWorldManager:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
+            # Make sure tables exist before trying to read
+            self._init_db(conn)
+
             # Load metadata
             meta = {row['key']: row['value'] for row in cursor.execute("SELECT key, value FROM metadata").fetchall()}
-            self.turn_count = int(meta.get('turn_count', 0))
+            self.turn_count = int(meta.get('turn_count', 1))
             self.next_character_id = int(meta.get('next_character_id', 0))
             self.next_object_id = int(meta.get('next_object_id', 1))
 
@@ -441,7 +450,7 @@ class VirtualWorldManager:
             for char in self.characters.values():
                 char.inventory = []
 
-            for row in cursor.fetchall("SELECT * FROM world_objects"):
+            for row in cursor.execute("SELECT * FROM world_objects").fetchall():
                 obj = WorldObject(
                     id=row['id'], name=row['name'], description=row['description'], owner_id=row['owner_id'],
                     position=Vector3D(**json.loads(row['position_json'])),
@@ -528,7 +537,7 @@ class VirtualWorldManager:
             if obj.properties.get("type") == "building" and math.dist((position.x, position.y),
                                                                       (obj.position.x, obj.position.y)) < max(
                 obj.size.x, obj.size.y) / 2:
-                current_location_context = f"inside the {obj.name}"
+                current_location_context = f"inside {obj.name}"
                 break
 
         object_summaries = []
@@ -541,11 +550,11 @@ class VirtualWorldManager:
 
             convo_status = ""
             if char.id in acting_char.conversation_partners:
-                convo_status = f" You are currently in a conversation with {char.name}."
+                convo_status = f" You are currently in a conversation with them."
             elif char.conversation_partners:
                 partners = [self.characters[p_id].name for p_id in char.conversation_partners if
                             p_id in self.characters]
-                convo_status = f" {char.name} seems to be talking to {', '.join(partners)}."
+                convo_status = f" They seem to be talking to {', '.join(partners)}."
 
             summary = f"- '{char.name}' is here.{convo_status}"
             object_summaries.append(summary)
@@ -596,13 +605,15 @@ class VirtualWorldManager:
 
         class ActionIntent(BaseModel):
             verb: str = Field(
-                description="Normalized verb: 'go_to', 'pick_up', 'look_at', 'drop', 'open', 'put_on', 'initiate_conversation', 'leave_conversation'.")
+                description="Normalized verb: 'go_to', 'pick_up', 'look_at', 'drop', 'give', 'open', 'wait', 'initiate_conversation', 'leave_conversation'.")
             target_name: Optional[str] = Field(None,
-                                               description="The name of the action's target (e.g., 'book', 'cottage', 'Lily').")
+                                               description="The name of the primary target (e.g., 'book', 'key', 'cottage').")
+            recipient_name: Optional[str] = Field(None,
+                                                  description="For 'give' actions, the name of the character receiving the item (e.g., 'Tom', 'Lily').")
             target_context: Optional[str] = Field(None,
                                                   description="Extra descriptive words for the target (e.g., 'red', 'on the table').")
 
-        prompt = f"Parse the game command into a structured action. Normalize the verb.\nCommand: \"{instruction}\"\nValid verbs: go_to, pick_up, look_at, drop, open, put_on, initiate_conversation, leave_conversation."
+        prompt = f"Parse the game command into a structured action. Normalize the verb.\nCommand: \"{instruction}\"\nValid verbs: go_to, pick_up, look_at, drop, give, open, wait, initiate_conversation, leave_conversation."
         _, calls = main_llm.completion_tool(
             LlmPreset.Default, [("system", "You are a command parser for a text RPG."), ("user", prompt)],
             tools=[ActionIntent]
@@ -621,14 +632,17 @@ class VirtualWorldManager:
                                               search_scope_char)
 
         # --- Handle Verbs ---
+        if intent.verb == 'wait':
+            return "You wait for a moment, observing your surroundings."
+
         if intent.verb == 'look_at':
             if not target_entity: return f"You don't see a '{intent.target_name}' nearby."
-            return f"You look closely at the {target_entity.name}. {target_entity.description}"
+            return f"You look closely at {target_entity.name}. {target_entity.description}"
 
         if intent.verb == 'go_to':
             if not target_entity: return f"You can't find a place or person called '{intent.target_name}' to go to."
             acting_char.position = target_entity.position
-            return f"You walk over to the {target_entity.name}."
+            return f"You walk over to {target_entity.name}."
 
         if intent.verb == 'pick_up':
             if not target_entity: return f"You don't see a '{intent.target_name}' here to pick up."
@@ -650,6 +664,25 @@ class VirtualWorldManager:
                     ownership_text = f" {self.characters[target_obj.owner_id].name}'s"
             return f"You pick up the{ownership_text} {target_obj.name} and put it in your inventory."
 
+        if intent.verb == 'give':
+            if not intent.target_name: return "What do you want to give?"
+            if not intent.recipient_name: return "Who do you want to give it to?"
+
+            # Find the item in inventory
+            item_to_give = next(
+                (item for item in acting_char.inventory if intent.target_name.lower() in item.name.lower()), None)
+            if not item_to_give: return f"You don't have a '{intent.target_name}' to give."
+
+            # Find the recipient character nearby
+            recipient = next((char for char in nearby_char if intent.recipient_name.lower() in char.name.lower()), None)
+            if not recipient: return f"There is no one named '{intent.recipient_name}' nearby to give anything to."
+            if recipient.id == acting_char.id: return "You can't give something to yourself."
+
+            # Perform the transfer
+            acting_char.inventory.remove(item_to_give)
+            recipient.inventory.append(item_to_give)
+            return f"You give the {item_to_give.name} to {recipient.name}."
+
         if intent.verb == 'initiate_conversation':
             if not target_entity: return f"You don't see anyone named '{intent.target_name}' to talk to."
             if not isinstance(target_entity, Character): return f"You can't talk to {target_entity.name}."
@@ -657,7 +690,6 @@ class VirtualWorldManager:
             target_char: Character = target_entity
             if target_char.id == acting_char_id: return "You mutter to yourself."
 
-            # Add each other to conversation partners
             acting_char.conversation_partners.add(target_char.id)
             target_char.conversation_partners.add(acting_char.id)
             return f"You start a conversation with {target_char.name}."
@@ -677,21 +709,30 @@ class VirtualWorldManager:
         return f"You're not sure how to '{instruction}'."
 
     # --- Public Tool Methods ---
+    def advance_turn(self):
+        """Advances the world simulation by one turn. Called by the simulation loop."""
+        self.turn_count += 1
+        print(f"VWM: Advanced to turn {self.turn_count}.")
+        # No need to save here, interact will handle it.
+        return self.turn_count
+
     def observe(self, character_id: int) -> str:
         """Generates a description of the character's surroundings."""
         if character_id not in self.characters: return "Error: Invalid character ID."
         char = self.characters[character_id]
-        return self._describe_environment_at(char.position, char.id)
+        description = self._describe_environment_at(char.position, char.id)
+
+        # Log this action to history
+        self.action_history.append((self.turn_count, character_id, "observe", description))
+        self.save_world()
+        return description
 
     def interact(self, character_id: int, instruction: str) -> str:
         """Parses and executes a natural language command in the world for a character."""
         if character_id not in self.characters: return "Error: Invalid character ID."
         result = self._execute_interaction(instruction, character_id)
 
-        # Only increment turn count on the first character's action in a "round"
-        if not self.action_history or self.action_history[-1][0] < self.turn_count:
-            self.turn_count += 1
-
+        # The turn number is now managed externally by advance_turn(). Just record the action.
         self.action_history.append((self.turn_count, character_id, instruction, result))
         self.save_world()
         return result
@@ -700,23 +741,29 @@ class VirtualWorldManager:
         """Checks a specific character's inventory."""
         if character_id not in self.characters: return "Error: Invalid character ID."
         char = self.characters[character_id]
-        if not char.inventory: return "Your inventory is empty."
-        item_lines = [f"- {item.name} ({item.description})" for item in char.inventory]
-        return "You check your inventory and find:\n" + "\n".join(item_lines)
+        if not char.inventory:
+            result = "Your inventory is empty."
+        else:
+            item_lines = [f"- {item.name} ({item.description})" for item in char.inventory]
+            result = "You check your inventory and find:\n" + "\n".join(item_lines)
+
+        # Log this action to history
+        self.action_history.append((self.turn_count, character_id, "check_inventory", result))
+        self.save_world()
+        return result
 
 
 # --- 4. LLM Tool and Action Result Schemas (Unchanged) ---
-# Note: The interaction logic handles the new verbs, so these schemas remain general.
 
 class ObserveAction(BaseModel):
-    """Use this action to look around and get a description of the current environment."""
+    """Use this action to look around and get a description of the current environment. Use this if you want to wait or do nothing for a turn."""
     pass
 
 
 class InteractAction(BaseModel):
     """Use this action to perform an action or interact with an object or character. Describe what you want to do in plain English."""
     instruction: str = Field(...,
-                             description="A natural language command, e.g., 'pick up the key', 'go to the cozy cottage', 'talk to Lily'.")
+                             description="A natural language command, e.g., 'pick up the key', 'go to Lily's cottage', 'give key to Tom', 'wait'.")
 
 
 class InventoryAction(BaseModel):
@@ -784,6 +831,9 @@ class VirtualWorldManagerProxy:
         world_task_queue.put(task)
         return result_q.get()
 
+    def advance_turn(self) -> int:
+        return self._execute_task('advance_turn')
+
     def observe(self, character_id: int) -> str:
         return self._execute_task('observe', character_id=character_id)
 
@@ -793,7 +843,6 @@ class VirtualWorldManagerProxy:
     def check_inventory(self, character_id: int) -> str:
         return self._execute_task('check_inventory', character_id=character_id)
 
-    # Helper to get character data for the simulation
     def get_character_data(self) -> Dict[int, str]:
         if _world_manager_instance:
             return {char.id: char.name for char in _world_manager_instance.characters.values()}
@@ -811,10 +860,19 @@ class SimulatedAgent:
         self.goal = goal
         self.world = world_proxy
         self.memory: List[str] = []
+        self.is_goal_complete = False
 
     def decide_and_act(self):
         """The core loop for the agent: observe, think, act."""
         print(f"\n--- {self.name}'s Turn (ID: {self.char_id}) ---")
+
+        if self.is_goal_complete:
+            print(f"Goal: {self.goal} (COMPLETED)")
+            print("[Action] My goal is complete. I will wait and see what happens.")
+            action_result = self.world.interact(self.char_id, "wait")
+            print(f"[Outcome] {action_result}")
+            return
+
         print(f"Goal: {self.goal}")
 
         # 1. Observe the environment
@@ -840,16 +898,16 @@ class SimulatedAgent:
         You are an AI character named {self.name} in a virtual world.
         Your ultimate goal is: "{self.goal}"
         You need to decide what single action to take right now to progress towards your goal.
-        Your available actions are to interact with things, observe your surroundings, or check your inventory.
+        Your available actions are to interact with things (e.g. 'go to', 'pick up', 'give', 'wait'), observe your surroundings, or check your inventory.
         Base your decision on your goal, your most recent observation, and your inventory.
         """
 
-        mems = "\n".join(self.memory)
+        nl = "\n"
         user_prompt = f"""
         Here is what just happened:
         - My current observation: {observation}
         - My current inventory: {inventory}
-        - My recent memory: {mems}
+        - My recent memory: {nl.join(self.memory)}
 
         Considering my goal ("{self.goal}"), what is my next logical action?
         """
@@ -862,26 +920,37 @@ class SimulatedAgent:
         )
 
         if not calls:
-            print("[Decision] The agent is confused and decides to do nothing.")
+            print("[Decision] The agent is confused and decides to wait.")
+            action_result = self.world.interact(self.char_id, "wait")
+            print(f"[Outcome] {action_result}")
             return
 
         decision: AgentDecision = calls[0]
         print(f"[Thought] {decision.thought}")
 
-        # 4. Execute the chosen action
+        # 4. Execute the chosen action (refined logic)
         action_result = "No action taken."
+        action_text_for_memory = ""
         if isinstance(decision.action, InteractAction):
             print(f"[Action] Attempting to: {decision.action.instruction}")
+            action_text_for_memory = decision.action.instruction
             action_result = self.world.interact(self.char_id, decision.action.instruction)
         elif isinstance(decision.action, ObserveAction):
-            print("[Action] Decided to observe again.")
+            print("[Action] Decided to observe.")
+            action_text_for_memory = "observe"
             action_result = self.world.observe(self.char_id)
         elif isinstance(decision.action, InventoryAction):
-            print("[Action] Decided to check inventory again.")
+            print("[Action] Decided to check inventory.")
+            action_text_for_memory = "check_inventory"
             action_result = self.world.check_inventory(self.char_id)
 
         print(f"[Outcome] {action_result}")
-        self.memory.append(f"I did '{decision.action}' and the result was '{action_result}'.")
+        self.memory.append(f"I did '{action_text_for_memory}' and the result was '{action_result}'.")
+
+        # 5. Check for goal completion
+        if "You give the Brass Key to Tom" in action_result:
+            self.is_goal_complete = True
+            print("[Goal Status] Lily's goal is complete!")
 
 
 def run_simulation():
@@ -909,6 +978,8 @@ def run_simulation():
     char_map = world_proxy.get_character_data()
     if not char_map:
         print("Error: Could not retrieve character data from world manager.")
+        world_task_queue.put(None)
+        world_worker_thread.join()
         return
 
     lily_id = next(id for id, name in char_map.items() if name == "Lily")
@@ -921,9 +992,21 @@ def run_simulation():
     ]
 
     # Simulation loop for a few turns
-    for turn in range(5):
-        print(f"\n==================== WORLD TURN {turn + 1} ====================")
+    for i in range(5):
+        print(f"\n==================== SIMULATION ROUND {i + 1} ====================")
+
+        # This is the crucial fix: advance the world's turn counter once per round.
+        world_proxy.advance_turn()
+
         for agent in agents:
+            # Check for Tom's goal completion
+            if agent.name == "Tom":
+                inventory_state = world_proxy.check_inventory(agent.char_id)
+                if "Brass Key" in inventory_state:
+                    if not agent.is_goal_complete:
+                        print(f"[Goal Status] Tom received the key. His goal is complete!")
+                        agent.is_goal_complete = True
+
             agent.decide_and_act()
             time.sleep(1)  # Pause between agent actions for readability
 

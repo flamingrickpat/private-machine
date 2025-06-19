@@ -179,3 +179,4 @@ config.yaml
 /tests
 *logs*
 *.bak
+test/
