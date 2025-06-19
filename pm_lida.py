@@ -2414,7 +2414,7 @@ class DecayableMentalState(ClampedModel):
             if field_name in self.__class__.model_fields:
                 model_field = self.__class__.model_fields[field_name]
                 current_value = getattr(self, field_name)
-                ge = -float("inf");
+                ge = -float("inf")
                 le = float("inf")
                 for meta in model_field.metadata:
                     if hasattr(meta, "ge"): ge = meta.ge
@@ -2426,7 +2426,7 @@ class DecayableMentalState(ClampedModel):
     def get_delta(self, b: "DecayableMentalState", impact: float) -> "DecayableMentalState":
         delta_values = {}
         for field_name, model_field in self.__class__.model_fields.items():
-            ge = -float("inf");
+            ge = -float("inf")
             le = float("inf")
             for meta in model_field.metadata:
                 if hasattr(meta, "ge"): ge = meta.ge
@@ -2671,7 +2671,7 @@ class KnoxelBase(BaseModel):
         return f"{self.__class__.__name__}: {self.content}"
 
 class Stimulus(KnoxelBase):
-    source: str
+    source: str = Field(default_factory=str)
     stimulus_type: StimulusType
 
     def __str__(self):
