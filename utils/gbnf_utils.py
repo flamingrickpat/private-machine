@@ -26,6 +26,20 @@ def first_non_none_type(u: UnionType) -> type:
 
     raise ValueError(f"No non-NoneType member found in {u!r}")
 
+def get_pydantic_options(u: UnionType):
+    try:
+        res = []
+        args = get_args(u)
+        for t in args:
+            if isclass(t) and issubclass(t, BaseModel):
+                res.append(t)
+            else:
+                return None
+        return res
+    except:
+        return None
+
+
 def new_generate_field_markdown(
     field_name: str, field_type: type[Any], model: type[BaseModel], depth=1, documentation_with_field_description=True
 ) -> str:
@@ -157,8 +171,15 @@ def new_map_pydantic_type_to_gbnf(pydantic_type: type[Any]) -> str:
     else:
         # flamingrickpat: check for UnionType
         if pydantic_type == UnionType or isinstance(pydantic_type, UnionType):
-            t = first_non_none_type(pydantic_type)
-            return map_pydantic_type_to_gbnf(t)
+            pds = get_pydantic_options(pydantic_type)
+            if pds is not None:
+                res = []
+                for pd in pds:
+                    res.append(format_model_and_field_name(pd.__name__))
+                return "union-" + "-".join(res) #"\n".join(res)
+            else:
+                t = first_non_none_type(pydantic_type)
+                return map_pydantic_type_to_gbnf(t)
         return "unknown"
 
 def fix_gbnf_grammar_generator():
