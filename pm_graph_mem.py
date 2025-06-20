@@ -9,7 +9,8 @@ import os  # For test cleanup
 from collections import defaultdict
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any, Dict, List, Optional, Tuple, Literal, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Literal, Type, Union, Set
+import regex as re
 
 import networkx as nx
 import numpy as np
@@ -45,6 +46,24 @@ SEMANTIC_AXES_DEFINITION = {
 
 # Default embedding dimension (example, should match your LLM's output)
 EMBEDDING_DIM = 768  # Replace with actual dimension of your embeddings
+
+# Pre-compiled set of common English stop words for the lightweight keyword extractor.
+STOP_WORDS = {
+    'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', "aren't", 'as', 'at',
+    'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 'can', "can't", 'cannot',
+    'could', "couldn't", 'did', "didn't", 'do', 'does', "doesn't", 'doing', "don't", 'down', 'during', 'each', 'few',
+    'for', 'from', 'further', 'had', "hadn't", 'has', "hasn't", 'have', "haven't", 'having', 'he', "he'd", "he'll",
+    "he's", 'her', 'here', "here's", 'hers', 'herself', 'him', 'himself', 'his', 'how', "how's", 'i', "i'd", "i'll",
+    "i'm", "i've", 'if', 'in', 'into', 'is', "isn't", 'it', "it's", 'its', 'itself', "let's", 'me', 'more', 'most',
+    "mustn't", 'my', 'myself', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'ought', 'our',
+    'ours', 'ourselves', 'out', 'over', 'own', 'same', "shan't", 'she', "she'd", "she'll", "she's", 'should',
+    "shouldn't", 'so', 'some', 'such', 'than', 'that', "that's", 'the', 'their', 'theirs', 'them', 'themselves',
+    'then', 'there', "there's", 'these', 'they', "they'd", "they'll", "they're", "they've", 'this', 'those',
+    'through', 'to', 'too', 'under', 'until', 'up', 'very', 'was', "wasn't", 'we', "we'd", "we'll", "we're",
+    "we've", 'were', "weren't", 'what', "what's", 'when', "when's", 'where', "where's", 'which', 'while', 'who',
+    "who's", 'whom', 'why', "why's", 'with', "won't", 'would', "wouldn't", 'you', "you'd", "you'll", "you're",
+    "you've", 'your', 'yours', 'yourself', 'yourselves', 'tell', 'give', 'ask', 'name', 'list', 'describe', 'can', 'could'
+}
 
 
 # --- PLACEHOLDER LLM MANAGER INTERFACE (pm_lida.py) ---
@@ -95,11 +114,11 @@ class LlmManagerProxy:
 # --- PYDANTIC MODELS FOR GRAPH ELEMENTS (The Three Layers) ---
 
 class InternalState(BaseModel):
-    emotional_valence: float = Field(description="A score from -1.0 (highly negative) to 1.0 (highly positive).")
+    emotional_valence: float = Field(description="A score from -1.0 (highly negative) to 1.0 (highly positive).", default=0)
     emotional_label: str = Field(
-        description="A concise, descriptive word for the primary emotion (e.g., 'curiosity', 'satisfaction', 'confusion').")
+        description="A concise, descriptive word for the primary emotion (e.g., 'curiosity', 'satisfaction', 'confusion').", default="")
     cognitive_process: str = Field(
-        description="The dominant cognitive process (e.g., 'storing_new_fact', 'detecting_contradiction', 'forming_goal').")
+        description="The dominant cognitive process (e.g., 'storing_new_fact', 'detecting_contradiction', 'forming_goal').", default="")
     certainty: float = Field(default=1.0,
                              description="The AI's confidence in the information processed, from 0.0 to 1.0.")
     salience_focus: List[str] = Field(default_factory=list,
@@ -111,7 +130,7 @@ class MemoryEpisodeNode(BaseModel):
     ego_uuid: str = Field(default=EGO_NODE_UUID, description="Link to the AI's central EgoNode.")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     topic_summary: str = Field(description="An LLM-generated, brief summary of what the episode was about.")
-    internal_state: InternalState = Field(description="The structured internal state of the AI during this episode.")
+    internal_state: InternalState = Field(description="The structured internal state of the AI during this episode.", default_factory=InternalState)
     embedding: List[float] = Field(default_factory=list)  # Persisted as BLOB
 
     @model_validator(mode='before')
@@ -238,6 +257,14 @@ class NewConceptDefinition(BaseModel):
     description: str = Field(description="A brief, clear explanation of what this new concept represents.")
     parent_concept_name: str = Field(
         description="The name of the single most appropriate existing concept that is the parent of this new one.")
+
+class RephrasedQuestions(BaseModel):
+    """A list of alternative ways to ask a question to improve search recall."""
+    questions: List[str] = Field(description="A list of 3 diverse rephrasings of the original question.")
+
+class RelevantItems(BaseModel):
+    """A list of items deemed relevant to a user's question from a larger context."""
+    relevant_item_identifiers: List[str] = Field(description="A list of UUIDs of the items that directly help answer the question.")
 
 
 class CognitiveMemoryManager:
@@ -376,8 +403,16 @@ class CognitiveMemoryManager:
                 logger.info(f"Saved {cursor.rowcount} items to '{table_name}' table.")
 
     def load_from_db(self):
-        """Loads state from the database, deserializing BLOBs back into embeddings."""
+        """
+        [REPLACEMENT V3]
+        Loads state from the database, correctly deserializing complex types.
+        Includes a special-case "dirty parser" for the 'internal_state' field
+        to handle its non-JSON string format.
+        """
         logger.info("Loading cognitive memory state from database...")
+        from typing import get_origin, get_args, Union  # For dynamic type inspection
+        import ast  # For safely evaluating list/dict strings
+
         persistence_map = {
             "episodes": (MemoryEpisodeNode, self.episodes),
             "concepts": (ConceptNode, self.concepts),
@@ -385,6 +420,7 @@ class CognitiveMemoryManager:
             "graph_edges": (GraphEdge, self.edges),
         }
 
+        # Clear in-memory stores before loading
         for _, store in persistence_map.values():
             store.clear()
 
@@ -396,6 +432,57 @@ class CognitiveMemoryManager:
                 for row in rows:
                     row_data = dict(row)
 
+                    # --- SPECIAL CASE: DIRTY PARSER FOR 'internal_state' ---
+                    if 'internal_state' in row_data and isinstance(row_data['internal_state'], str):
+                        state_str = row_data['internal_state'].strip('"')
+                        # Check if it looks like the non-JSON format
+                        if '=' in state_str and '{' not in state_str:
+                            logger.debug(f"Applying dirty parser for internal_state: {state_str[:60]}...")
+                            parsed_state = {}
+                            # Regex to find key='value' or key=number or key=[list]
+                            pattern = re.compile(r"(\w+)=('([^']*)'|\[.*?\]|[\d\.]+)")
+                            matches = pattern.findall(state_str)
+
+                            for key, full_value, str_value in matches:
+                                value_to_process = str_value if str_value else full_value
+                                try:
+                                    # Use ast.literal_eval for safe evaluation of lists, numbers, etc.
+                                    parsed_state[key] = ast.literal_eval(value_to_process)
+                                except (ValueError, SyntaxError):
+                                    # Fallback for simple strings that literal_eval can't handle
+                                    parsed_state[key] = value_to_process
+                            row_data['internal_state'] = parsed_state
+                    # --- END OF DIRTY PARSER ---
+
+                    # --- DYNAMIC DESERIALIZATION FOR OTHER JSON FIELDS ---
+                    for field_name, field_info in model_class.model_fields.items():
+                        # Skip fields we've already handled or don't need to process
+                        if field_name == 'internal_state' or field_name not in row_data or not isinstance(
+                                row_data[field_name], str):
+                            continue
+
+                        main_type = field_info.annotation
+                        if get_origin(main_type) is Union:
+                            args = [arg for arg in get_args(main_type) if arg is not type(None)]
+                            if args: main_type = args[0]
+
+                        origin = get_origin(main_type)
+                        is_json_field = (
+                                origin in (list, dict) or
+                                (isinstance(main_type, type) and issubclass(main_type, BaseModel))
+                        )
+
+                        if is_json_field:
+                            try:
+                                row_data[field_name] = json.loads(row_data[field_name])
+                            except (json.JSONDecodeError, TypeError):
+                                logger.warning(
+                                    f"Could not JSON-decode field '{field_name}' in table '{table_name}'. "
+                                    f"Value (first 50 chars): '{row_data[field_name][:50]}...'. Leaving as string."
+                                )
+                    # --- END OF DESERIALIZATION LOGIC ---
+
+                    # Handle the embedding BLOB
                     if 'embedding' in row_data and row_data['embedding'] is not None:
                         embedding_blob = row_data['embedding']
                         np_array = np.frombuffer(embedding_blob, dtype=np.float32)
@@ -403,9 +490,11 @@ class CognitiveMemoryManager:
 
                     instance = model_class.model_validate(row_data)
                     store[instance.uuid] = instance
+
                 logger.info(f"Loaded {len(rows)} items from '{table_name}'.")
+
             except sqlite3.OperationalError as e:
-                logger.warning(f"Could not load from table '{table_name}': {e}. It might be created on the first save.")
+                logger.warning(f"Could not load from table '{table_name}': {e}. It might be new.")
 
         self._rebuild_networkx_graph()
 
@@ -843,10 +932,20 @@ class CognitiveMemoryManager:
             return None
 
     def _extract_entities_from_text(self, text: str) -> Optional[ExtractedEntities]:
-        logger.debug("Extracting entities from text...")
+        """
+        [REPLACEMENT] Extracts entities with a more detailed and guiding prompt.
+        """
+        logger.debug("Extracting entities from text with enhanced prompt...")
         try:
-            prompt = f"Extract all named entities (people, places, organizations, concepts, objects, etc.) from the following text. For each entity, provide its name and a general label (e.g., Person, Location, Organization, Concept, Date, Project). Text: {text}"
-            system_prompt = "You are an expert entity extraction system. Return entities in the specified JSON format."
+            # The prompt is now more descriptive, giving the LLM better examples of what to look for.
+            prompt = (
+                "Extract all named entities from the following text. "
+                "Entities can be people (Alex), organizations (FinSecure, AWS), products or services (React, Kafka, S3), "
+                "projects (Project Aurora), specific concepts (HIPAA compliance, RBAC, G1GC), dates, or other proper nouns. "
+                "For each entity, provide its name and a general label (e.g., Person, Organization, Technology, Project, Concept, Date).\n\n"
+                f"Text: {text}"
+            )
+            system_prompt = "You are an expert entity extraction system. Return entities in the specified JSON format, capturing technical terms and concepts as entities."
             extracted_data = self.llm_manager.call_tool(
                 system_prompt=system_prompt,
                 user_prompt=prompt,
@@ -861,6 +960,7 @@ class CognitiveMemoryManager:
         except Exception as e:
             logger.error(f"Error during entity extraction: {e}", exc_info=True)
             return None
+
 
     def _find_existing_node(self, name: str, label: Optional[str] = None, threshold: float = 0.85) -> Optional[
         GraphNode]:
@@ -994,16 +1094,28 @@ class CognitiveMemoryManager:
         except Exception as e:
             logger.error(f"Error during LLM entity classification for '{node_to_classify.name}': {e}", exc_info=True)
 
+
     def _extract_relationships_from_text(self, text: str, resolved_nodes: List[GraphNode]) -> Optional[
         ExtractedRelationships]:
-        logger.debug("Extracting relationships from text...")
+        """
+        [REPLACEMENT] Extracts relationships with a more flexible prompt that allows discovering new entities.
+        """
+        logger.debug("Extracting relationships from text with flexible prompt...")
         if not resolved_nodes:
             logger.info("No resolved nodes provided, cannot extract relationships between them.")
             return None
 
         entity_names = [node.name for node in resolved_nodes]
-        prompt = f"From the following text, extract relationships *only between these known entities*: {', '.join(entity_names)}. For each relationship, identify the source entity name, target entity name, a descriptive label for the relationship (e.g., 'works_for', 'located_in', 'friend_of'), and the specific fact sentence. Text: {text}"
-        system_prompt = "You are an expert relationship extraction system. Only use the provided entity names. Return relationships in the specified JSON format."
+        # The prompt is relaxed to allow finding relationships involving entities that might have been missed in the first pass.
+        prompt = (
+            f"From the following text, extract relationships between entities. "
+            f"Prioritize relationships involving these known entities: {', '.join(entity_names)}. "
+            "However, if you find a clear relationship involving an entity NOT on this list, include it as well. "
+            "For each relationship, identify the source entity name, target entity name, a descriptive verb phrase for the label "
+            "(e.g., 'works_for', 'is_located_in', 'replaced_by', 'uses_service'), and the specific fact sentence.\n\n"
+            f"Text: {text}"
+        )
+        system_prompt = "You are an expert relationship extraction system. Use the provided entity names but also be open to new ones. Return relationships in the specified JSON format."
 
         try:
             extracted_data = self.llm_manager.call_tool(
@@ -1108,38 +1220,284 @@ class CognitiveMemoryManager:
                             type="GraphEdge")
         logger.info(f"Added new GraphEdge {new_edge.uuid}: '{new_edge.fact_text}'.")
 
-    # --- Retrieval (The Read Path) ---
-    def answer_question(self, question: str, top_k_facts: int = 5, episode_date_format: str = "%B %d, %Y") -> str:
-        logger.info(f"Answering question: '{question}'")
+    def _extract_keywords_spacy(self, text: str) -> Set[str]:
+        """Uses spaCy to extract named entities, nouns, and proper nouns as keywords."""
+        doc = self.nlp(text)
+        keywords = set()
+        # Add named entities
+        for ent in doc.ents:
+            keywords.add(ent.text.lower())
+        # Add nouns and proper nouns
+        for token in doc:
+            if token.pos_ in ('NOUN', 'PROPN'):
+                keywords.add(token.lemma_.lower())
+        logger.debug(f"Extracted keywords: {keywords}")
+        return keywords
+
+    def _extract_keywords(self, text: str) -> Set[str]:
+        """
+        [REPLACEMENT - NO SPACY]
+        Extracts keywords using rule-based heuristics:
+        1. Finds all-caps words (e.g., "AWS", "HIPAA").
+        2. Finds capitalized words (potential proper nouns).
+        3. Takes all other words and filters them against a stop-word list.
+        """
+        if not hasattr(self, 'STOP_WORDS'):  # Lazily define to avoid import-time issues if moved
+            self.STOP_WORDS = STOP_WORDS
+
+        keywords = set()
+
+        # 1. Heuristic for acronyms and important capitalized terms (case-sensitive)
+        # Find all-caps words of 2 or more letters
+        acronyms = re.findall(r'\b[A-Z]{2,}\b', text)
+        for acronym in acronyms:
+            keywords.add(acronym.lower())
+
+        # Find capitalized words (potential proper nouns)
+        capitalized_words = re.findall(r'\b[A-Z][a-z]+\b', text)
+        for cap_word in capitalized_words:
+            # Avoid adding words that are only capitalized because they start a sentence.
+            # This is a simple check; a more complex one isn't needed for keyword soup.
+            if cap_word.lower() not in self.STOP_WORDS:
+                keywords.add(cap_word.lower())
+
+        # 2. General keyword extraction (case-insensitive)
+        # Remove punctuation and normalize
+        normalized_text = re.sub(r'[^\w\s]', '', text.lower())
+        tokens = normalized_text.split()
+
+        for token in tokens:
+            if token.strip() and token not in self.STOP_WORDS and not token.isdigit():
+                keywords.add(token)
+
+        logger.debug(f"Extracted keywords (spaCy-free): {keywords}")
+        return keywords
+
+    def _search_by_keywords(self, keywords: Set[str]) -> List[Union[GraphNode, GraphEdge, MemoryEpisodeNode]]:
+        """Performs a case-insensitive keyword search across nodes, edges, and episodes."""
+        found_items = []
+        for node in self.nodes.values():
+            if any(re.search(r'\b' + re.escape(kw) + r'\b', node.name, re.IGNORECASE) for kw in keywords):
+                found_items.append(node)
+        for edge in self.edges.values():
+            if not edge.invalid_at and any(
+                    re.search(r'\b' + re.escape(kw) + r'\b', edge.fact_text, re.IGNORECASE) for kw in keywords):
+                found_items.append(edge)
+        for episode in self.episodes.values():
+            if any(re.search(r'\b' + re.escape(kw) + r'\b', episode.topic_summary, re.IGNORECASE) for kw in keywords):
+                found_items.append(episode)
+        logger.info(f"Found {len(found_items)} items via keyword search.")
+        return found_items
+
+    def _rephrase_question(self, question: str) -> List[str]:
+        """Uses LLM to generate alternative phrasings of a question."""
+        logger.info(f"Rephrasing question: '{question}'")
+        system_prompt = "You are a search query expansion expert. Your task is to rephrase a user's question in 3 different ways to maximize the chance of finding relevant information in a semantic search system. The rephrasings should be diverse."
+        user_prompt = f"Original question: '{question}'"
         try:
-            # 1. Find relevant facts (nodes and edges)
-            relevant_facts_with_scores = self._find_relevant_facts(question, top_k=top_k_facts)
-            if not relevant_facts_with_scores:
-                logger.info("No relevant facts found for the question.")
+            result = self.llm_manager.call_tool(system_prompt, user_prompt, RephrasedQuestions)
+            if isinstance(result, RephrasedQuestions) and result.questions:
+                logger.info(f"Generated rephrasings: {result.questions}")
+                return result.questions
+        except Exception as e:
+            logger.error(f"Failed to rephrase question: {e}", exc_info=True)
+        return []
+
+    def _prune_and_rerank_context(self, question: str,
+                                  candidate_items: List[Union[GraphNode, GraphEdge, MemoryEpisodeNode]]) -> List[
+        Union[GraphNode, GraphEdge, MemoryEpisodeNode]]:
+        """Uses an LLM to prune a list of candidate items down to the most relevant ones."""
+        if not candidate_items:
+            return []
+        logger.info(f"Pruning {len(candidate_items)} candidate items for relevance to question: '{question}'")
+
+        # Create a mapping from a unique identifier (UUID) to the item
+        item_map = {item.uuid: item for item in candidate_items}
+
+        context_block = []
+        for uuid_val, item in item_map.items():
+            text = ""
+            if isinstance(item, GraphNode):
+                text = f"Entity: '{item.name}' (Type: {', '.join(item.labels)})"
+            elif isinstance(item, GraphEdge):
+                text = f"Fact: '{item.fact_text}'"
+            elif isinstance(item, MemoryEpisodeNode):
+                text = f"Memory Summary: '{item.topic_summary}'"
+            context_block.append(f"Identifier: {uuid_val}\nContent: {text}\n---")
+
+        nl = '\n'
+        system_prompt = "You are a relevance ranking assistant. Your job is to analyze a list of retrieved facts and determine which ones are truly relevant to answering the user's original question. Return only the identifiers of the relevant items."
+        user_prompt = (
+            f"Original Question: \"{question}\"\n\n"
+            "Review the following items and identify which ones are directly relevant to answering the question. "
+            "Return a list of their identifiers.\n\n"
+            f"{nl.join(context_block)}"
+        )
+
+        try:
+            result = self.llm_manager.call_tool(system_prompt, user_prompt, RelevantItems)
+            if isinstance(result, RelevantItems):
+                pruned_uuids = set(result.relevant_item_identifiers)
+                pruned_items = [item_map[uuid_val] for uuid_val in pruned_uuids if uuid_val in item_map]
+                logger.info(f"Pruned context from {len(candidate_items)} to {len(pruned_items)} items.")
+                return pruned_items
+        except Exception as e:
+            logger.error(f"LLM-based pruning failed: {e}", exc_info=True)
+
+        # Fallback: if LLM pruning fails, return the original candidates to not lose all context
+        logger.warning("LLM pruning failed. Returning all candidate items.")
+        return candidate_items
+
+    # --- Main Retrieval Orchestrator ---
+    def _find_relevant_items(self, question: str, top_k: int = 10, similarity_threshold: float = 0.7) -> List[
+        Tuple[float, Union[GraphNode, GraphEdge, MemoryEpisodeNode]]]:
+        """
+        [NEW - Previously Missing]
+        Performs a pure semantic search across all memory items (nodes, edges, episodes).
+        It retrieves items whose embeddings are most similar to the question's embedding.
+        """
+        logger.debug(f"Finding relevant items via semantic search for: '{question}'")
+
+        # Check if embeddings are usable
+        if not EMBEDDING_DIM:
+            logger.warning("EMBEDDING_DIM not set, cannot perform semantic search.")
+            return []
+
+        try:
+            question_embedding = np.array(self.llm_manager.get_embedding(question))
+        except Exception as e:
+            logger.error(f"Could not generate embedding for question '{question}': {e}")
+            return []
+
+        scored_items: List[Tuple[float, Union[GraphNode, GraphEdge, MemoryEpisodeNode]]] = []
+
+        # Combine all searchable items into one list
+        all_items = list(self.nodes.values()) + list(self.edges.values()) + list(self.episodes.values())
+
+        for item in all_items:
+            # Skip edges that have been invalidated
+            if isinstance(item, GraphEdge) and item.invalid_at:
+                continue
+
+            if hasattr(item, 'embedding') and item.embedding and len(item.embedding) == EMBEDDING_DIM:
+                item_embedding_np = np.array(item.embedding)
+
+                # Cosine similarity is 1 - cosine_distance
+                similarity = 1 - cosine(question_embedding, item_embedding_np)
+
+                if similarity >= similarity_threshold:
+                    scored_items.append((similarity, item))
+
+        # Sort by similarity (highest first) and take the top k results
+        scored_items.sort(key=lambda x: x[0], reverse=True)
+        logger.info(
+            f"Found {len(scored_items)} semantically relevant items above threshold {similarity_threshold}. Returning top {top_k}.")
+        return scored_items[:top_k]
+
+    def _trace_items_to_episodes(self, items: List[Union[GraphNode, GraphEdge, MemoryEpisodeNode]]) -> Dict[str, List[Union[GraphNode, GraphEdge]]]:
+        """
+        [NEW - Previously Missing]
+        Takes a list of relevant items (nodes, edges, or episodes) and groups them by the
+        MemoryEpisode in which they were learned. This is a key step for building a
+        narrative context for recall.
+
+        If a MemoryEpisodeNode itself is in the list of items, its UUID is added as a key
+        to the map, ensuring its summary is included in the final narrative context even if no
+        specific facts from that episode were individually returned by the pruner.
+
+        Args:
+            items: A list of relevant GraphNode, GraphEdge, or MemoryEpisodeNode objects.
+
+        Returns:
+            A dictionary where keys are episode UUIDs and values are lists of the
+            facts (GraphNodes or GraphEdges) learned in that episode.
+        """
+        logger.debug(f"Tracing {len(items)} items to their source episodes.")
+        episodes_map = defaultdict(list)
+
+        for item in items:
+            if isinstance(item, MemoryEpisodeNode):
+                # If an episode itself is deemed relevant, ensure its UUID is a key in the map.
+                # This guarantees it will be included in the narrative construction step.
+                # We don't append the episode to the list of facts; its presence as a key is enough.
+                _ = episodes_map[item.uuid]
+
+            elif isinstance(item, (GraphNode, GraphEdge)):
+                # For a specific fact (node or edge), find its source episode.
+                if hasattr(item, 'source_episode_uuid') and item.source_episode_uuid:
+                    if item.source_episode_uuid in self.episodes:
+                        episodes_map[item.source_episode_uuid].append(item)
+                    else:
+                        # This is a data integrity check.
+                        logger.warning(
+                            f"Fact '{getattr(item, 'name', getattr(item, 'fact_text', item.uuid))}' has source episode UUID "
+                            f"'{item.source_episode_uuid}' which was not found in the episode list."
+                        )
+                else:
+                    logger.warning(
+                        f"Fact '{getattr(item, 'name', getattr(item, 'fact_text', item.uuid))}' is missing a valid source_episode_uuid."
+                    )
+
+        logger.info(f"Relevant items were traced to {len(episodes_map)} unique episodes.")
+        return episodes_map
+
+    def answer_question(self, question: str, top_k_facts: int = 10, episode_date_format: str = "%B %d, %Y") -> str:
+        """
+        [REPLACEMENT] Answers a question using a multi-step, robust retrieval process.
+        """
+        logger.info(f"Answering question with multi-step retrieval: '{question}'")
+        if question is not None:
+            # 1. Hybrid Search: Combine vector and keyword search for a broad initial context.
+            vector_items_with_scores = self._find_relevant_items(question, top_k=top_k_facts)
+            vector_items = [item for score, item in vector_items_with_scores]
+
+            # This line is the only change needed here. It calls our new spaCy-free function.
+            keywords = self._extract_keywords(question)
+            keyword_items = self._search_by_keywords(keywords)
+
+            # Combine and deduplicate
+            candidate_items_map = {item.uuid: item for item in vector_items + keyword_items}
+
+            # 2. Rephrase and Retry if necessary
+            if not candidate_items_map:
+                logger.info("Initial search yielded no results. Rephrasing question...")
+                rephrased_qs = self._rephrase_question(question)
+                for q_variant in rephrased_qs:
+                    vector_results = self._find_relevant_items(q_variant, top_k=top_k_facts // 2)
+                    for _, item in vector_results:
+                        candidate_items_map[item.uuid] = item  # Add to map
+                    keyword_results = self._search_by_keywords(self._extract_keywords(q_variant))
+                    for item in keyword_results:
+                        candidate_items_map[item.uuid] = item
+
+            candidate_items = list(candidate_items_map.values())
+
+            if not candidate_items:
+                logger.info("No relevant items found even after rephrasing.")
                 return "I don't have enough information in my personal memory to answer that question."
 
-            relevant_facts = [item for score, item in relevant_facts_with_scores]
+            # 3. Prune and Re-rank the context using an LLM for relevance.
+            pruned_items = self._prune_and_rerank_context(question, candidate_items)
 
-            # 2. Trace these facts back to the MemoryEpisodes where they were learned.
-            episodes_map = self._trace_facts_to_episodes(relevant_facts)
+            if not pruned_items:
+                logger.info("After pruning, no items were deemed relevant.")
+                return "I found some related topics, but nothing that directly answers your question."
+
+            # 4. Construct Narrative from the high-quality, pruned context.
+            episodes_map = self._trace_items_to_episodes(pruned_items)
             if not episodes_map:
-                logger.info("Could not trace relevant facts to any specific episodes.")
+                logger.info("Could not trace pruned items to any specific episodes.")
                 return "I found some related information, but I can't recall the specific experiences where I learned it."
 
-            # 3. For each episode, construct a rich, narrative string.
             narrative_context = self._construct_narrative_context(episodes_map, episode_date_format)
             if not narrative_context:
                 logger.info("Failed to construct narrative context from episodes.")
                 return "I found some relevant memories, but I'm having trouble putting them into words right now."
 
-            # 4. Use LLM to synthesize a final, conversational answer.
+            # 5. Synthesize Final Answer using the rich, relevant narrative.
             final_answer = self._synthesize_final_answer(question, narrative_context)
             logger.info(f"Generated answer: '{final_answer[:100]}...'")
             return final_answer
-
-        except Exception as e:
-            logger.error(f"Error during question answering: {e}", exc_info=True)
-            return "I encountered an issue while trying to answer your question from my personal memory."
 
     def _find_relevant_facts(self, question: str, top_k: int = 5, similarity_threshold: float = 0.7) -> List[
         Tuple[float, Union[GraphNode, GraphEdge]]]:
@@ -1291,9 +1649,9 @@ def run_cognitive_test_scenario():
     logger.info("--- Starting Cognitive Test Scenario ---")
     DB_FILE = "test_cognitive_memory.db"
     # Cleanup previous test DB if it exists
-    if os.path.exists(DB_FILE):
-        os.remove(DB_FILE)
-        logger.info(f"Removed old test database: {DB_FILE}")
+    #if os.path.exists(DB_FILE):
+    #    os.remove(DB_FILE)
+    #    logger.info(f"Removed old test database: {DB_FILE}")
 
     # 1. Setup: Initialize logging, LLM manager, and the CognitiveMemoryManager.
     # For testing, we use the mock LlmManagerProxy defined earlier.
@@ -1310,178 +1668,181 @@ def run_cognitive_test_scenario():
     initial_episode_count = len(manager.episodes) # Should be 1 (birth episode)
     assert initial_episode_count >= 1, "Should have at least one initial (birth) episode."
 
+    if not os.path.exists(DB_FILE):
     # ───── Cluster 1: Greetings and Session Setup ─────
-    text_cluster_1 = """
-    AI: Hello! I'm Chatty, a conversational AI built to assist you with any questions or tasks you have today. It's nice to meet you.
-    User: Hi Chatty! Nice to meet you too. I'm Alex, a software developer working on a new project. How's your performance today?
-    AI: I'm running at peak efficiency. Thank you for asking, Alex. I'm ready to help you brainstorm, troubleshoot code, plan events, or just chat.
-    User: Wonderful, I could use some brainstorming help. But first, I'd like to share a bit about my current project scope.
-    AI: Absolutely, please go ahead and describe your project. I'm listening.
-    User: Before we dive into specifics, could you tell me what capabilities you have? For instance, can you recall our past conversations or suggestions?
-    AI: I can integrate information you provide, remember details within our session, and use that to answer follow-up questions, diagnose issues, and offer personalized recommendations.
-    User: That's impressive. Do you also have knowledge of various programming languages and frameworks?
-    AI: Yes, I have familiarity with common languages like Python, JavaScript, Java, C++, and frameworks such as React, Django, and TensorFlow.
-    User: Perfect. Let's start with an overview of my project timeline and milestones.
-    AI: Sure thing. I'll keep track of our discussion and recall any details when you need them.
-    """
-    graph_manager.integrate_text(text_cluster_1, group_id="story_test")
+        text_cluster_1 = """
+        AI: Hello! I'm Chatty, a conversational AI built to assist you with any questions or tasks you have today. It's nice to meet you.
+        User: Hi Chatty! Nice to meet you too. I'm Alex, a software developer working on a new project. How's your performance today?
+        AI: I'm running at peak efficiency. Thank you for asking, Alex. I'm ready to help you brainstorm, troubleshoot code, plan events, or just chat.
+        User: Wonderful, I could use some brainstorming help. But first, I'd like to share a bit about my current project scope.
+        AI: Absolutely, please go ahead and describe your project. I'm listening.
+        User: Before we dive into specifics, could you tell me what capabilities you have? For instance, can you recall our past conversations or suggestions?
+        AI: I can integrate information you provide, remember details within our session, and use that to answer follow-up questions, diagnose issues, and offer personalized recommendations.
+        User: That's impressive. Do you also have knowledge of various programming languages and frameworks?
+        AI: Yes, I have familiarity with common languages like Python, JavaScript, Java, C++, and frameworks such as React, Django, and TensorFlow.
+        User: Perfect. Let's start with an overview of my project timeline and milestones.
+        AI: Sure thing. I'll keep track of our discussion and recall any details when you need them.
+        """
+        graph_manager.integrate_text(text_cluster_1, group_id="story_test")
 
-    # ───── Cluster 2: Personal and Professional Background ─────
-    text_cluster_2 = """
-    User: So, Chatty, here's some background: I graduated with a degree in computer science five years ago. Since then, I've worked mostly in backend systems.
-    AI: Understood. Do you have specific industries you've been involved with, such as finance, healthcare, or e-commerce?
-    User: Yes, I spent two years at FinSecure, building microservices for secure transactions. After that, I joined HealthNet to develop APIs for patient data management.
-    AI: I see. That gives me context on your experience with security and compliance. How has that shaped your current project requirements?
-    User: My new undertaking, Project Aurora, requires both robust security measures and high throughput, combining my previous experiences.
-    AI: Excellent. Are there particular compliance standards you need to adhere to, like HIPAA or PCI DSS?
-    User: Definitely HIPAA compliance is crucial, along with encryption at rest and in transit, and detailed audit logging.
-    AI: Got it. Any preferences for technology stacks or cloud providers given your history?
-    User: I've primarily used AWS with services like Lambda, API Gateway, DynamoDB, and S3, but I'm open to alternatives if they offer better cost efficiency.
-    AI: That helps paint a clear picture of your background and priorities. Ready to proceed to feature brainstorming.
-    """
-    graph_manager.integrate_text(text_cluster_2, group_id="story_test")
+        # ───── Cluster 2: Personal and Professional Background ─────
+        text_cluster_2 = """
+        User: So, Chatty, here's some background: I graduated with a degree in computer science five years ago. Since then, I've worked mostly in backend systems.
+        AI: Understood. Do you have specific industries you've been involved with, such as finance, healthcare, or e-commerce?
+        User: Yes, I spent two years at FinSecure, building microservices for secure transactions. After that, I joined HealthNet to develop APIs for patient data management.
+        AI: I see. That gives me context on your experience with security and compliance. How has that shaped your current project requirements?
+        User: My new undertaking, Project Aurora, requires both robust security measures and high throughput, combining my previous experiences.
+        AI: Excellent. Are there particular compliance standards you need to adhere to, like HIPAA or PCI DSS?
+        User: Definitely HIPAA compliance is crucial, along with encryption at rest and in transit, and detailed audit logging.
+        AI: Got it. Any preferences for technology stacks or cloud providers given your history?
+        User: I've primarily used AWS with services like Lambda, API Gateway, DynamoDB, and S3, but I'm open to alternatives if they offer better cost efficiency.
+        AI: That helps paint a clear picture of your background and priorities. Ready to proceed to feature brainstorming.
+        """
+        graph_manager.integrate_text(text_cluster_2, group_id="story_test")
 
-    # ───── Cluster 3: Project Scope and Data Flow ─────
-    text_cluster_3 = """
-    User: Let's dive into Project Aurora. The goal is to build a real-time analytics dashboard for healthcare metrics.
-    AI: What specific metrics are you tracking, and what sources feed into the dashboard?
-    User: We're aggregating patient vital stats, appointment rates, and medication adherence from several hospital systems via secure APIs.
-    AI: For real-time analytics, do you plan to use streaming platforms like Kafka or AWS Kinesis?
-    User: I'm considering Kafka for its mature ecosystem, but Kinesis could simplify integration with AWS Lambda functions.
-    AI: Both are viable. Kafka offers greater flexibility, whereas Kinesis integrates seamlessly with other AWS services. Would you like a detailed pros and cons list?
-    User: Yes, please list the pros and cons of using Kafka versus Kinesis for our use case.
-    AI: Sure. Kafka pros: high throughput, fault tolerance, rich ecosystem; cons: self-managed infrastructure, operational overhead. Kinesis pros: fully managed, auto-scaling; cons: vendor lock-in, cost unpredictability.
-    User: That analysis is helpful. Let's consider cost modeling next, including data retention and scaling costs.
-    AI: Understood. I'll keep track of cost comparison metrics as we proceed.
-    """
-    graph_manager.integrate_text(text_cluster_3, group_id="story_test")
+        # ───── Cluster 3: Project Scope and Data Flow ─────
+        text_cluster_3 = """
+        User: Let's dive into Project Aurora. The goal is to build a real-time analytics dashboard for healthcare metrics.
+        AI: What specific metrics are you tracking, and what sources feed into the dashboard?
+        User: We're aggregating patient vital stats, appointment rates, and medication adherence from several hospital systems via secure APIs.
+        AI: For real-time analytics, do you plan to use streaming platforms like Kafka or AWS Kinesis?
+        User: I'm considering Kafka for its mature ecosystem, but Kinesis could simplify integration with AWS Lambda functions.
+        AI: Both are viable. Kafka offers greater flexibility, whereas Kinesis integrates seamlessly with other AWS services. Would you like a detailed pros and cons list?
+        User: Yes, please list the pros and cons of using Kafka versus Kinesis for our use case.
+        AI: Sure. Kafka pros: high throughput, fault tolerance, rich ecosystem; cons: self-managed infrastructure, operational overhead. Kinesis pros: fully managed, auto-scaling; cons: vendor lock-in, cost unpredictability.
+        User: That analysis is helpful. Let's consider cost modeling next, including data retention and scaling costs.
+        AI: Understood. I'll keep track of cost comparison metrics as we proceed.
+        """
+        graph_manager.integrate_text(text_cluster_3, group_id="story_test")
 
-    # ───── Cluster 4: Feature Brainstorming ─────
-    text_cluster_4 = """
-    User: For the dashboard features, I want user authentication, role-based access, customizable views, and alerting.
-    AI: Do you need multi-tenant isolation for different hospitals or departments?
-    User: Yes, each hospital should only see its own data, but admins can oversee multiple tenants.
-    AI: Role-based access can map to hospital IDs and department IDs. Would you like recommendations on implementing RBAC?
-    User: Absolutely, outline a simple RBAC model for our microservices architecture.
-    AI: We can define roles like admin, clinician, and auditor. Each role maps to permissions such as readMetrics, configureAlerts, and manageUsers.
-    User: Should permissions be stored in a central identity service or within each microservice?
-    AI: Best practice is to have a centralized identity provider like AWS Cognito or Auth0. Microservices validate JWT tokens issued by the provider.
-    User: That makes sense. Let's discuss alert thresholds and notification channels next.
-    AI: Sure. What metrics require alerting, and what severity levels are you considering?
-    """
-    graph_manager.integrate_text(text_cluster_4, group_id="story_test")
+        # ───── Cluster 4: Feature Brainstorming ─────
+        text_cluster_4 = """
+        User: For the dashboard features, I want user authentication, role-based access, customizable views, and alerting.
+        AI: Do you need multi-tenant isolation for different hospitals or departments?
+        User: Yes, each hospital should only see its own data, but admins can oversee multiple tenants.
+        AI: Role-based access can map to hospital IDs and department IDs. Would you like recommendations on implementing RBAC?
+        User: Absolutely, outline a simple RBAC model for our microservices architecture.
+        AI: We can define roles like admin, clinician, and auditor. Each role maps to permissions such as readMetrics, configureAlerts, and manageUsers.
+        User: Should permissions be stored in a central identity service or within each microservice?
+        AI: Best practice is to have a centralized identity provider like AWS Cognito or Auth0. Microservices validate JWT tokens issued by the provider.
+        User: That makes sense. Let's discuss alert thresholds and notification channels next.
+        AI: Sure. What metrics require alerting, and what severity levels are you considering?
+        """
+        graph_manager.integrate_text(text_cluster_4, group_id="story_test")
 
-    # ───── Cluster 5: Troubleshooting Performance ─────
-    text_cluster_5 = """
-    User: I'm encountering a latency spike when ingesting data from our Kafka cluster into the aggregation service.
-    AI: What is the current throughput, and how many partitions are you using for the topic?
-    User: We're pushing fifteen thousand events per second with four partitions. Latency jumps above two seconds intermittently.
-    AI: Two seconds is high. Have you monitored consumer lag or GC pauses in your Java application?
-    User: The consumer lag rarely exceeds a few hundred messages. GC logs show occasional full GC lasting close to 500 milliseconds.
-    AI: Full GC of 500 milliseconds every few seconds could cause spikes. Consider tuning the JVM flags or switching to G1GC.
-    User: I’m using CMS by default. Should I configure G1GC with specific heap region sizes?
-    AI: Yes. Try `-XX:+UseG1GC` with a `MaxGCPauseMillis` target of `200ms` and adjust `-XX:MaxGCPauseMillis=200` accordingly.
-    User: I'll test those settings and increase partitions to six to distribute load more evenly.
-    AI: Good plan. Monitor after changes and let me know if latency improves or if new issues arise.
-    """
-    graph_manager.integrate_text(text_cluster_5, group_id="story_test")
+        # ───── Cluster 5: Troubleshooting Performance ─────
+        text_cluster_5 = """
+        User: I'm encountering a latency spike when ingesting data from our Kafka cluster into the aggregation service.
+        AI: What is the current throughput, and how many partitions are you using for the topic?
+        User: We're pushing fifteen thousand events per second with four partitions. Latency jumps above two seconds intermittently.
+        AI: Two seconds is high. Have you monitored consumer lag or GC pauses in your Java application?
+        User: The consumer lag rarely exceeds a few hundred messages. GC logs show occasional full GC lasting close to 500 milliseconds.
+        AI: Full GC of 500 milliseconds every few seconds could cause spikes. Consider tuning the JVM flags or switching to G1GC.
+        User: I’m using CMS by default. Should I configure G1GC with specific heap region sizes?
+        AI: Yes. Try `-XX:+UseG1GC` with a `MaxGCPauseMillis` target of `200ms` and adjust `-XX:MaxGCPauseMillis=200` accordingly.
+        User: I'll test those settings and increase partitions to six to distribute load more evenly.
+        AI: Good plan. Monitor after changes and let me know if latency improves or if new issues arise.
+        """
+        graph_manager.integrate_text(text_cluster_5, group_id="story_test")
 
-    # ───── Cluster 6: Memory and Preferences Recall ─────
-    text_cluster_6 = """
-    User: Earlier, I mentioned my AWS preference. Can you recall what AWS services I commonly use?
-    AI: You specified AWS Lambda, API Gateway, DynamoDB, S3, and CloudWatch for monitoring.
-    User: Correct. Also, I use CloudWatch logs streamed via Kinesis Firehose into S3, then query with Athena.
-    AI: Right. Do you plan to automate Athena queries for regular reporting?
-    User: Yes, I’ll schedule them daily and send summaries via email.
-    AI: And for compliance, you mentioned using AWS Config and strict IAM roles?
-    User: Exactly. IAM roles for least privilege and AWS Config rules for automated audits.
-    AI: Noted. I'll remember all your AWS preferences, data pipelines, and compliance settings.
-    """
-    graph_manager.integrate_text(text_cluster_6, group_id="story_test")
+        # ───── Cluster 6: Memory and Preferences Recall ─────
+        text_cluster_6 = """
+        User: Earlier, I mentioned my AWS preference. Can you recall what AWS services I commonly use?
+        AI: You specified AWS Lambda, API Gateway, DynamoDB, S3, and CloudWatch for monitoring.
+        User: Correct. Also, I use CloudWatch logs streamed via Kinesis Firehose into S3, then query with Athena.
+        AI: Right. Do you plan to automate Athena queries for regular reporting?
+        User: Yes, I’ll schedule them daily and send summaries via email.
+        AI: And for compliance, you mentioned using AWS Config and strict IAM roles?
+        User: Exactly. IAM roles for least privilege and AWS Config rules for automated audits.
+        AI: Noted. I'll remember all your AWS preferences, data pipelines, and compliance settings.
+        """
+        graph_manager.integrate_text(text_cluster_6, group_id="story_test")
 
-    # ───── Cluster 7: Contradictory Update ─────
-    text_cluster_7 = """
-    User: Actually, we decided to switch from AWS to Google Cloud Platform for cost and performance benefits.
-    AI: Understood. Which GCP services will you use instead of AWS Lambda and API Gateway?
-    User: We'll use Cloud Functions for serverless, Cloud Run for container endpoints, and Cloud Pub/Sub for messaging.
-    AI: And BigQuery in place of Athena, plus Cloud Storage instead of S3?
-    User: Yes, exactly. BigQuery for analytics, Cloud Storage for object data, and Stackdriver for monitoring.
-    AI: That’s a significant shift. Shall I remove AWS configurations from memory and overwrite with GCP choices?
-    User: Yes, overwrite the AWS choices and disregard prior cost estimates.
-    AI: Done. I'll remember Cloud Functions, Cloud Run, Pub/Sub, BigQuery, Cloud Storage, and Stackdriver.
-    User: Perfect. Moving forward, use GCP service names and pricing for any cost analysis.
-    """
-    graph_manager.integrate_text(text_cluster_7, group_id="story_test")
+        # ───── Cluster 7: Contradictory Update ─────
+        text_cluster_7 = """
+        User: Actually, we decided to switch from AWS to Google Cloud Platform for cost and performance benefits.
+        AI: Understood. Which GCP services will you use instead of AWS Lambda and API Gateway?
+        User: We'll use Cloud Functions for serverless, Cloud Run for container endpoints, and Cloud Pub/Sub for messaging.
+        AI: And BigQuery in place of Athena, plus Cloud Storage instead of S3?
+        User: Yes, exactly. BigQuery for analytics, Cloud Storage for object data, and Stackdriver for monitoring.
+        AI: That’s a significant shift. Shall I remove AWS configurations from memory and overwrite with GCP choices?
+        User: Yes, overwrite the AWS choices and disregard prior cost estimates.
+        AI: Done. I'll remember Cloud Functions, Cloud Run, Pub/Sub, BigQuery, Cloud Storage, and Stackdriver.
+        User: Perfect. Moving forward, use GCP service names and pricing for any cost analysis.
+        """
+        graph_manager.integrate_text(text_cluster_7, group_id="story_test")
 
-    # ───── Cluster 8: UI/UX Preferences ─────
-    text_cluster_8 = """
-    User: Let's talk about user interface preferences for the dashboard.
-    AI: Do you prefer a web-based single-page application or a desktop client?
-    User: A web SPA is better for accessibility. I like React for the frontend framework.
-    AI: Any CSS framework preferences, like Material UI or Bootstrap?
-    User: I prefer Material UI for its design consistency and built-in theming.
-    AI: And charting libraries for real-time graphs? D3.js, Chart.js, or Recharts?
-    User: Recharts aligns well with React’s component model and provides the interactivity we need.
-    AI: Should dark mode be supported by default, with a toggle for users?
-    User: Yes, default to system preference and allow manual override for dark/light themes.
-    """
-    graph_manager.integrate_text(text_cluster_8, group_id="story_test")
+        # ───── Cluster 8: UI/UX Preferences ─────
+        text_cluster_8 = """
+        User: Let's talk about user interface preferences for the dashboard.
+        AI: Do you prefer a web-based single-page application or a desktop client?
+        User: A web SPA is better for accessibility. I like React for the frontend framework.
+        AI: Any CSS framework preferences, like Material UI or Bootstrap?
+        User: I prefer Material UI for its design consistency and built-in theming.
+        AI: And charting libraries for real-time graphs? D3.js, Chart.js, or Recharts?
+        User: Recharts aligns well with React’s component model and provides the interactivity we need.
+        AI: Should dark mode be supported by default, with a toggle for users?
+        User: Yes, default to system preference and allow manual override for dark/light themes.
+        """
+        graph_manager.integrate_text(text_cluster_8, group_id="story_test")
 
-    # ───── Cluster 9: Ethical and Philosophical Reflection ─────
-    text_cluster_9 = """
-    User: I’d like your thoughts on the ethics of AI assistance in healthcare applications.
-    AI: Ethical AI in healthcare involves fairness, transparency, patient privacy, and accountability.
-    User: How can we ensure fairness when algorithms influence treatment recommendations?
-    AI: Use diverse training data representative of patient demographics and continuously audit model outcomes.
-    User: For transparency, should we implement explainable AI techniques?
-    AI: Yes, techniques like LIME or SHAP can provide feature-level explanations for model predictions.
-    User: How do we protect patient privacy while using their data to train models?
-    AI: Implement strong de-identification, encryption at rest and in transit, and strict access controls with audit logging.
-    User: That covers key aspects. Let’s document these ethical guidelines within our project spec.
-    """
-    graph_manager.integrate_text(text_cluster_9, group_id="story_test")
+        # ───── Cluster 9: Ethical and Philosophical Reflection ─────
+        text_cluster_9 = """
+        User: I’d like your thoughts on the ethics of AI assistance in healthcare applications.
+        AI: Ethical AI in healthcare involves fairness, transparency, patient privacy, and accountability.
+        User: How can we ensure fairness when algorithms influence treatment recommendations?
+        AI: Use diverse training data representative of patient demographics and continuously audit model outcomes.
+        User: For transparency, should we implement explainable AI techniques?
+        AI: Yes, techniques like LIME or SHAP can provide feature-level explanations for model predictions.
+        User: How do we protect patient privacy while using their data to train models?
+        AI: Implement strong de-identification, encryption at rest and in transit, and strict access controls with audit logging.
+        User: That covers key aspects. Let’s document these ethical guidelines within our project spec.
+        """
+        graph_manager.integrate_text(text_cluster_9, group_id="story_test")
 
-    # ───── Cluster 10: Timeline and Milestones ─────
-    text_cluster_10 = """
-    User: Thanks for all the help, Chatty. What are the next steps summary?
-    AI: Summarizing: GCP stack chosen, UI with React/Material UI/Recharts, ethical guidelines outlined, monitoring strategies set.
-    User: Exactly. Now, can you outline the milestones for the next eight weeks?
-    AI: Week 1: Provision GCP environment, configure IAM and basic networking. Week 2: Set up Pub/Sub topics and Cloud Functions. Week 3: Design BigQuery schemas and ETL pipelines. Week 4: Scaffold React frontend with Material UI components. Week 5: Integrate frontend with backend via Cloud Run endpoints. Week 6: Develop alerting and notification system using Cloud Monitoring. Week 7: Conduct performance/load testing and optimize. Week 8: Finalize documentation, ethics review, and plan rollout.
-    User: Perfect timeline. Please store these milestones and remind me when we reach each week’s start.
-    AI: Milestones stored. I’ll notify you at the start of each week about your next tasks.
-    User: Great. Looking forward to our progress together.
-    """
-    graph_manager.integrate_text(text_cluster_10, group_id="story_test")
+        # ───── Cluster 10: Timeline and Milestones ─────
+        text_cluster_10 = """
+        User: Thanks for all the help, Chatty. What are the next steps summary?
+        AI: Summarizing: GCP stack chosen, UI with React/Material UI/Recharts, ethical guidelines outlined, monitoring strategies set.
+        User: Exactly. Now, can you outline the milestones for the next eight weeks?
+        AI: Week 1: Provision GCP environment, configure IAM and basic networking. Week 2: Set up Pub/Sub topics and Cloud Functions. Week 3: Design BigQuery schemas and ETL pipelines. Week 4: Scaffold React frontend with Material UI components. Week 5: Integrate frontend with backend via Cloud Run endpoints. Week 6: Develop alerting and notification system using Cloud Monitoring. Week 7: Conduct performance/load testing and optimize. Week 8: Finalize documentation, ethics review, and plan rollout.
+        User: Perfect timeline. Please store these milestones and remind me when we reach each week’s start.
+        AI: Milestones stored. I’ll notify you at the start of each week about your next tasks.
+        User: Great. Looking forward to our progress together.
+        """
+        graph_manager.integrate_text(text_cluster_10, group_id="story_test")
 
-    # ───── Cluster 11: Scheduling and Reminders ─────
-    text_cluster_11 = """
-    User: Can you remind me about each milestone on Mondays at 9 AM?
-    AI: Certainly. I will schedule reminders for Week 1 through Week 8 milestones at 9 AM each Monday.
-    User: Also, send me a weekly summary every Friday afternoon.
-    AI: Understood. A weekly summary every Friday at 3 PM will be set up.
-    User: And if any system monitoring alerts trigger, notify me immediately via email.
-    AI: I'll configure immediate notifications for critical alerts alongside your weekly reminders.
-    User: One more: remind me to review the ethical guidelines document at the end of this month.
-    AI: Reminder scheduled for the last day of this month to review the ethics document.
-    User: Thank you. That covers all my scheduling needs for now.
-    """
-    graph_manager.integrate_text(text_cluster_11, group_id="story_test")
+        # ───── Cluster 11: Scheduling and Reminders ─────
+        text_cluster_11 = """
+        User: Can you remind me about each milestone on Mondays at 9 AM?
+        AI: Certainly. I will schedule reminders for Week 1 through Week 8 milestones at 9 AM each Monday.
+        User: Also, send me a weekly summary every Friday afternoon.
+        AI: Understood. A weekly summary every Friday at 3 PM will be set up.
+        User: And if any system monitoring alerts trigger, notify me immediately via email.
+        AI: I'll configure immediate notifications for critical alerts alongside your weekly reminders.
+        User: One more: remind me to review the ethical guidelines document at the end of this month.
+        AI: Reminder scheduled for the last day of this month to review the ethics document.
+        User: Thank you. That covers all my scheduling needs for now.
+        """
+        graph_manager.integrate_text(text_cluster_11, group_id="story_test")
 
-    # ───── Cluster 12: Reflection and Farewell ─────
-    text_cluster_12 = """
-    AI: It’s been great helping you shape Project Aurora, Alex. Do you have any final questions before we wrap up?
-    User: Just one: how would you describe our collaboration so far?
-    AI: Our collaboration has been structured, efficient, and adaptive. You provided clear goals, and I responded with detailed analyses, troubleshooting advice, and scheduling support.
-    User: I appreciate your thoroughness. I feel confident moving forward.
-    AI: I'm glad to hear that. Remember, you can revisit any of these details anytime, and I'll recall them accurately.
-    User: Thanks, Chatty. Talk to you tomorrow when the Week 1 milestone reminder arrives.
-    AI: I’ll be here and ready. Have a productive day, Alex!
-    User: You too. Goodbye for now.
-    AI: Goodbye, Alex. Looking forward to our next session.
-    """
-    graph_manager.integrate_text(text_cluster_12, group_id="story_test")
+        # ───── Cluster 12: Reflection and Farewell ─────
+        text_cluster_12 = """
+        AI: It’s been great helping you shape Project Aurora, Alex. Do you have any final questions before we wrap up?
+        User: Just one: how would you describe our collaboration so far?
+        AI: Our collaboration has been structured, efficient, and adaptive. You provided clear goals, and I responded with detailed analyses, troubleshooting advice, and scheduling support.
+        User: I appreciate your thoroughness. I feel confident moving forward.
+        AI: I'm glad to hear that. Remember, you can revisit any of these details anytime, and I'll recall them accurately.
+        User: Thanks, Chatty. Talk to you tomorrow when the Week 1 milestone reminder arrives.
+        AI: I’ll be here and ready. Have a productive day, Alex!
+        User: You too. Goodbye for now.
+        AI: Goodbye, Alex. Looking forward to our next session.
+        """
+        graph_manager.integrate_text(text_cluster_12, group_id="story_test")
 
-    print("Extended dialogue story test integration complete.")
+        print("Extended dialogue story test integration complete.")
+    else:
+        graph_manager.load_from_db()
 
     # Assuming `manager` is your GraphMemoryManager instance
     qa_expected = [
