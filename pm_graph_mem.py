@@ -5,7 +5,7 @@ import logging
 import sqlite3
 import threading
 import uuid
-import os # For test cleanup
+import os  # For test cleanup
 from collections import defaultdict
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Literal, Type, Union
 import networkx as nx
 import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
-from scipy.spatial.distance import cosine # For similarity calculation
+from scipy.spatial.distance import cosine  # For similarity calculation
 
 from pm_lida import llama_worker, LlmPreset, CommonCompSettings
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 EGO_NODE_UUID = "00000000-0000-0000-0000-000000000001"
 EGO_NODE_NAME = "Self"
+
 
 class StructuralEdgeLabel(StrEnum):
     INSTANCE_OF = "INSTANCE_OF"
@@ -43,7 +44,8 @@ SEMANTIC_AXES_DEFINITION = {
 }
 
 # Default embedding dimension (example, should match your LLM's output)
-EMBEDDING_DIM = 768 # Replace with actual dimension of your embeddings
+EMBEDDING_DIM = 768  # Replace with actual dimension of your embeddings
+
 
 # --- PLACEHOLDER LLM MANAGER INTERFACE (pm_lida.py) ---
 # This section simulates what might be in pm_lida.py for clarity
@@ -53,6 +55,7 @@ class LlmManagerProxy:
     A placeholder for the actual LLM interaction manager.
     This class would handle API calls, potentially caching, rate limiting, etc.
     """
+
     def __init__(self, api_key: Optional[str] = None, model_name: str = "default_model"):
         self.api_key = api_key
         self.model_name = model_name
@@ -67,39 +70,41 @@ class LlmManagerProxy:
     def get_embedding(self, text: str, model_id: Optional[str] = None) -> List[float]:
         """Generates an embedding for the given text."""
         logger.debug(f"Requesting embedding for text (first 50 chars): '{text[:50]}...'")
-        # Simulate LLM call
-        # In a real implementation, this would call an embedding API
-        # For now, return a random vector of the correct dimension
-        # np.random.seed(sum(ord(c) for c in text)) # Make it deterministic for testing
         return self.llm_manager.get_embedding(text)
 
-    def call_tool(self, system_prompt: str, user_prompt: str, tool_model: Type[BaseModel], settings: Optional[CommonCompSettings] = None) -> BaseModel:
+    def call_tool(self, system_prompt: str, user_prompt: str, tool_model: Type[BaseModel],
+                  settings: Optional[CommonCompSettings] = None) -> BaseModel:
         """
         Simulates an LLM call that is expected to return a JSON object
         conforming to the `tool_model` Pydantic schema.
         """
         logger.debug(f"Calling tool {tool_model.__name__} with user prompt (first 50 chars): '{user_prompt[:50]}...'")
-        # This is highly dependent on the LLM API (e.g., OpenAI functions, Anthropic tools)
-        # For simulation, we'd need mock responses based on the tool_model and prompt.
-        # This is a very simplified mock.
-        _, calls = self.llm_manager.completion_tool(LlmPreset.Default, [("system", system_prompt), ("user", user_prompt)], tools=[tool_model])
+        _, calls = self.llm_manager.completion_tool(LlmPreset.Default,
+                                                    [("system", system_prompt), ("user", user_prompt)],
+                                                    tools=[tool_model])
         return calls[0]
 
-    def get_completion(self, system_prompt: str, user_prompt: str, settings: Optional[CommonCompSettings] = None) -> str:
+    def get_completion(self, system_prompt: str, user_prompt: str,
+                       settings: Optional[CommonCompSettings] = None) -> str:
         """Simulates a general text completion LLM call."""
-        logger.debug(f"Requesting completion with system prompt and user prompt (first 50 chars): '{user_prompt[:50]}...'")
-        # Simulate LLM call
-        # In a real implementation, this would use an API like OpenAI's chat completions
+        logger.debug(
+            f"Requesting completion with system prompt and user prompt (first 50 chars): '{user_prompt[:50]}...'")
         return self.llm_manager.completion_text(LlmPreset.Default, [("system", system_prompt), ("user", user_prompt)])
+
 
 # --- PYDANTIC MODELS FOR GRAPH ELEMENTS (The Three Layers) ---
 
 class InternalState(BaseModel):
     emotional_valence: float = Field(description="A score from -1.0 (highly negative) to 1.0 (highly positive).")
-    emotional_label: str = Field(description="A concise, descriptive word for the primary emotion (e.g., 'curiosity', 'satisfaction', 'confusion').")
-    cognitive_process: str = Field(description="The dominant cognitive process (e.g., 'storing_new_fact', 'detecting_contradiction', 'forming_goal').")
-    certainty: float = Field(default=1.0, description="The AI's confidence in the information processed, from 0.0 to 1.0.")
-    salience_focus: List[str] = Field(default_factory=list, description="List of entity names or concepts that were the main focus of attention.")
+    emotional_label: str = Field(
+        description="A concise, descriptive word for the primary emotion (e.g., 'curiosity', 'satisfaction', 'confusion').")
+    cognitive_process: str = Field(
+        description="The dominant cognitive process (e.g., 'storing_new_fact', 'detecting_contradiction', 'forming_goal').")
+    certainty: float = Field(default=1.0,
+                             description="The AI's confidence in the information processed, from 0.0 to 1.0.")
+    salience_focus: List[str] = Field(default_factory=list,
+                                      description="List of entity names or concepts that were the main focus of attention.")
+
 
 class MemoryEpisodeNode(BaseModel):
     uuid: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -107,7 +112,7 @@ class MemoryEpisodeNode(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     topic_summary: str = Field(description="An LLM-generated, brief summary of what the episode was about.")
     internal_state: InternalState = Field(description="The structured internal state of the AI during this episode.")
-    embedding: List[float] = Field(default_factory=list, exclude=True) # In-memory only
+    embedding: List[float] = Field(default_factory=list)  # Persisted as BLOB
 
     @model_validator(mode='before')
     @classmethod
@@ -120,15 +125,16 @@ class MemoryEpisodeNode(BaseModel):
                 data['timestamp'] = ts.replace(tzinfo=timezone.utc)
         return data
 
+
 class GraphNode(BaseModel):
     uuid: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
-    labels: List[str] # e.g., ["Person"], ["Location"], ["Organization", "Client"]
-    source_episode_uuid: str # Episode where this node was primarily defined or last significantly updated
-    concept_uuid: Optional[str] = None # Link to a ConceptNode
+    labels: List[str]  # e.g., ["Person"], ["Location"], ["Organization", "Client"]
+    source_episode_uuid: str  # Episode where this node was primarily defined or last significantly updated
+    concept_uuid: Optional[str] = None  # Link to a ConceptNode
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    attributes: Dict[str, Any] = Field(default_factory=dict) # For additional, non-relational data
-    embedding: List[float] = Field(default_factory=list, exclude=True)
+    attributes: Dict[str, Any] = Field(default_factory=dict)  # For additional, non-relational data
+    embedding: List[float] = Field(default_factory=list)  # Persisted as BLOB
 
     @model_validator(mode='before')
     @classmethod
@@ -141,18 +147,21 @@ class GraphNode(BaseModel):
                 data['created_at'] = ts.replace(tzinfo=timezone.utc)
         return data
 
+
 class GraphEdge(BaseModel):
     uuid: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    source_uuid: str # UUID of the source GraphNode
-    target_uuid: str # UUID of the target GraphNode
-    label: str # e.g., "works_for", "knows", "located_in"
-    fact_text: str # Natural language representation of the fact, e.g., "Alex works for Acme Corp"
-    source_episode_uuid: str # Episode where this fact was learned
+    source_uuid: str  # UUID of the source GraphNode
+    target_uuid: str  # UUID of the target GraphNode
+    label: str  # e.g., "works_for", "knows", "located_in"
+    fact_text: str  # Natural language representation of the fact, e.g., "Alex works for Acme Corp"
+    source_episode_uuid: str  # Episode where this fact was learned
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    valid_at: Optional[datetime] = Field(default=None, description="Timestamp when this fact became valid (if applicable).")
-    invalid_at: Optional[datetime] = Field(default=None, description="Timestamp when this fact became invalid (due to contradiction/update).")
+    valid_at: Optional[datetime] = Field(default=None,
+                                         description="Timestamp when this fact became valid (if applicable).")
+    invalid_at: Optional[datetime] = Field(default=None,
+                                           description="Timestamp when this fact became invalid (due to contradiction/update).")
     attributes: Dict[str, Any] = Field(default_factory=dict)
-    embedding: List[float] = Field(default_factory=list, exclude=True)
+    embedding: List[float] = Field(default_factory=list)  # Persisted as BLOB
 
     @model_validator(mode='before')
     @classmethod
@@ -167,121 +176,238 @@ class GraphEdge(BaseModel):
                         data[key] = ts.replace(tzinfo=timezone.utc)
         return data
 
+
 class ConceptNode(BaseModel):
     uuid: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(description="The name of the concept (e.g., 'Person', 'Company', 'Action').")
     description: str = Field(description="A brief explanation of what this concept represents.")
-    parent_concept_uuid: Optional[str] = Field(default=None, description="UUID of the parent concept (for IS_A hierarchy).")
-    embedding: List[float] = Field(default_factory=list, exclude=True)
+    parent_concept_uuid: Optional[str] = Field(default=None,
+                                               description="UUID of the parent concept (for IS_A hierarchy).")
+    embedding: List[float] = Field(default_factory=list)  # Persisted as BLOB
+
 
 # --- PYDANTIC MODELS FOR LLM TOOL-CALLING OPERATIONS ---
 class AnalyzedInternalState(BaseModel):
     state: InternalState
 
+
 class EpisodeTopicSummary(BaseModel):
     summary: str
 
+
 class ExtractedEntity(BaseModel):
     name: str
-    label: str # Suggested primary label, e.g., 'Person', 'Project', 'Location'
+    label: str  # Suggested primary label, e.g., 'Person', 'Project', 'Location'
+
 
 class ExtractedEntities(BaseModel):
     entities: List[ExtractedEntity]
 
+
 class ExtractedRelationship(BaseModel):
     source_name: str
     target_name: str
-    label: str # e.g., "works_at", "is_located_in"
-    fact: str # The sentence or phrase representing the fact
+    label: str  # e.g., "works_at", "is_located_in"
+    fact: str  # The sentence or phrase representing the fact
+
 
 class ExtractedRelationships(BaseModel):
     relationships: List[ExtractedRelationship]
+
 
 class EntityClassifier(BaseModel):
     entity_name: str
     most_likely_concept_name: str
     reasoning: str
 
+
 class Confirmation(BaseModel):
     is_same: bool
     reasoning: str
 
+
 class ContradictionCheck(BaseModel):
     is_contradictory: bool
-    is_duplicate: bool # If the new fact is essentially identical to an existing one
+    is_duplicate: bool  # If the new fact is essentially identical to an existing one
     reasoning: str
-    conflicting_edge_uuid: Optional[str] = None # UUID of the edge that is contradicted
+    conflicting_edge_uuid: Optional[str] = None  # UUID of the edge that is contradicted
+
 
 class NewConceptDefinition(BaseModel):
     """Defines a new concept and places it within the existing hierarchy."""
     description: str = Field(description="A brief, clear explanation of what this new concept represents.")
-    parent_concept_name: str = Field(description="The name of the single most appropriate existing concept that is the parent of this new one.")
+    parent_concept_name: str = Field(
+        description="The name of the single most appropriate existing concept that is the parent of this new one.")
+
 
 class CognitiveMemoryManager:
     def __init__(self, llm_manager: LlmManagerProxy, db_path: str = "cognitive_memory.db"):
         logger.info(f"Initializing CognitiveMemoryManager with DB path: {db_path}")
         self.llm_manager: LlmManagerProxy = llm_manager
         self.db_path: str = db_path
-        self.graph: nx.MultiDiGraph = nx.MultiDiGraph() # Combined graph
+        self.graph: nx.MultiDiGraph = nx.MultiDiGraph()  # Combined graph
 
         # In-memory stores for quick access; DB is source of truth
-        self.ego_node_model: Optional[GraphNode] = None # The AI's self-representation as a GraphNode
+        self.ego_node_model: Optional[GraphNode] = None
         self.episodes: Dict[str, MemoryEpisodeNode] = {}
-        self.concepts: Dict[str, ConceptNode] = {} # Concept UUID -> ConceptNode
-        self.nodes: Dict[str, GraphNode] = {} # GraphNode UUID -> GraphNode (entities, facts)
-        self.edges: Dict[str, GraphEdge] = {} # GraphEdge UUID -> GraphEdge
+        self.concepts: Dict[str, ConceptNode] = {}
+        self.nodes: Dict[str, GraphNode] = {}
+        self.edges: Dict[str, GraphEdge] = {}
 
-        self.semantic_axes: Dict[str, np.ndarray] = {} # Axis name -> Normalized vector
+        self.semantic_axes: Dict[str, np.ndarray] = {}
 
         self.db_conn = sqlite3.connect(self.db_path)
-        self.db_conn.row_factory = sqlite3.Row # Access columns by name
+        self.db_conn.row_factory = sqlite3.Row
         self._create_tables_if_not_exist()
 
         self.load_from_db()
-        self._initialize_ego_node() # Ensure the EGO_NODE exists
-        self._bootstrap_core_concepts() # Populate foundational ontology
-        self._compute_semantic_axes() # Calculate semantic axis vectors
-        self._ensure_all_embeddings() # Generate any missing embeddings after load
-        self._save_to_db() # Save if any bootstrapping created new data
+        self._initialize_ego_node()
+        self._bootstrap_core_concepts()
+        self._compute_semantic_axes()
+        # No longer need _ensure_all_embeddings if we always save them
+        # self._ensure_all_embeddings() # This can be removed if saving is reliable
+        self._save_to_db()
         logger.info("CognitiveMemoryManager initialized successfully.")
 
+    def _map_pydantic_type_to_sql(self, pydantic_type: Any) -> str:
+        """Maps a Pydantic/Python type to a SQLite data type."""
+        # Handle Optional[T] by getting the inner type
+        if hasattr(pydantic_type, '__origin__') and pydantic_type.__origin__ is Union:
+            # Get the first type argument that is not NoneType
+            args = [arg for arg in pydantic_type.__args__ if arg is not type(None)]
+            if args:
+                pydantic_type = args[0]
+
+        if pydantic_type is str:
+            return "TEXT"
+        if pydantic_type is int:
+            return "INTEGER"
+        if pydantic_type is float:
+            return "REAL"
+        if pydantic_type is bool:
+            return "INTEGER"  # Stored as 0 or 1
+        if pydantic_type is datetime:
+            return "TEXT"  # Stored as ISO 8601 string
+
+        # Complex types (that are not embeddings) are serialized to JSON
+        if pydantic_type is list or pydantic_type is dict or issubclass(pydantic_type, BaseModel):
+            return "TEXT"
+
+        return "TEXT"
+
+    def _prepare_data_for_sql(self, model_instance: BaseModel) -> Tuple:
+        """Serializes a Pydantic model instance into a tuple for SQL insertion."""
+        values = []
+        # The calling context (_save_to_db) ensures we only iterate over fields to be persisted.
+        for field_name in [name for name, f in model_instance.__class__.model_fields.items() if not f.exclude]:
+            value = getattr(model_instance, field_name)
+
+            if field_name == 'embedding' and value:
+                np_array = np.array(value, dtype=np.float32)
+                values.append(np_array.tobytes())
+            elif value is None:
+                values.append(None)
+            elif isinstance(value, (list, dict)) or issubclass(type(value), BaseModel):
+                values.append(json.dumps(value, default=str))
+            elif isinstance(value, datetime):
+                values.append(value.isoformat())
+            elif isinstance(value, bool):
+                values.append(1 if value else 0)
+            else:
+                values.append(value)
+        return tuple(values)
+
     def _create_tables_if_not_exist(self):
-        """Creates SQLite tables if they don't already exist."""
+        """Dynamically creates SQLite tables based on Pydantic model schemas."""
+        table_map = {
+            "episodes": MemoryEpisodeNode,
+            "concepts": ConceptNode,
+            "graph_nodes": GraphNode,
+            "graph_edges": GraphEdge,
+        }
+
         with self.db_conn:
             cursor = self.db_conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS episodes (
-                    uuid TEXT PRIMARY KEY,
-                    data TEXT NOT NULL
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS concepts (
-                    uuid TEXT PRIMARY KEY,
-                    name TEXT UNIQUE NOT NULL, -- For easier lookup during bootstrap
-                    data TEXT NOT NULL
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS graph_nodes (
-                    uuid TEXT PRIMARY KEY,
-                    data TEXT NOT NULL
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS graph_edges (
-                    uuid TEXT PRIMARY KEY,
-                    data TEXT NOT NULL
-                )
-            """)
-            logger.info("Database tables ensured.")
+            for table_name, model_class in table_map.items():
+                columns = []
+                for field_name, field_info in model_class.model_fields.items():
+                    if field_info.exclude:
+                        continue
+
+                    if field_name == 'embedding':
+                        sql_type = "BLOB"
+                    else:
+                        sql_type = self._map_pydantic_type_to_sql(field_info.annotation)
+
+                    column_def = f"{field_name} {sql_type}"
+                    if field_name == 'uuid':
+                        column_def += " PRIMARY KEY"
+                    columns.append(column_def)
+
+                create_table_sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join(columns)})"
+                cursor.execute(create_table_sql)
+            logger.info("Database tables ensured dynamically from Pydantic models (with BLOB for embeddings).")
 
     # --- Persistence ---
     def _save_to_db(self):
-        pass
+        """Saves the current in-memory state to the SQLite database, storing embeddings as BLOBs."""
+        logger.debug("Saving cognitive memory state to database...")
+        persistence_map = {
+            "episodes": (MemoryEpisodeNode, self.episodes.values()),
+            "concepts": (ConceptNode, self.concepts.values()),
+            "graph_nodes": (GraphNode, self.nodes.values()),
+            "graph_edges": (GraphEdge, self.edges.values()),
+        }
+
+        with self.db_conn:
+            cursor = self.db_conn.cursor()
+            for table_name, (model_class, data_iterable) in persistence_map.items():
+                data_list = list(data_iterable)
+                if not data_list:
+                    continue
+
+                columns = [name for name, field in model_class.model_fields.items() if not field.exclude]
+                data_to_insert = [self._prepare_data_for_sql(item) for item in data_list]
+                placeholders = ", ".join(["?"] * len(columns))
+                column_names = ", ".join(columns)
+
+                sql = f"INSERT OR REPLACE INTO {table_name} ({column_names}) VALUES ({placeholders})"
+                cursor.executemany(sql, data_to_insert)
+                logger.info(f"Saved {cursor.rowcount} items to '{table_name}' table.")
 
     def load_from_db(self):
-        pass
+        """Loads state from the database, deserializing BLOBs back into embeddings."""
+        logger.info("Loading cognitive memory state from database...")
+        persistence_map = {
+            "episodes": (MemoryEpisodeNode, self.episodes),
+            "concepts": (ConceptNode, self.concepts),
+            "graph_nodes": (GraphNode, self.nodes),
+            "graph_edges": (GraphEdge, self.edges),
+        }
+
+        for _, store in persistence_map.values():
+            store.clear()
+
+        cursor = self.db_conn.cursor()
+        for table_name, (model_class, store) in persistence_map.items():
+            try:
+                cursor.execute(f"SELECT * FROM {table_name}")
+                rows = cursor.fetchall()
+                for row in rows:
+                    row_data = dict(row)
+
+                    if 'embedding' in row_data and row_data['embedding'] is not None:
+                        embedding_blob = row_data['embedding']
+                        np_array = np.frombuffer(embedding_blob, dtype=np.float32)
+                        row_data['embedding'] = np_array.tolist()
+
+                    instance = model_class.model_validate(row_data)
+                    store[instance.uuid] = instance
+                logger.info(f"Loaded {len(rows)} items from '{table_name}'.")
+            except sqlite3.OperationalError as e:
+                logger.warning(f"Could not load from table '{table_name}': {e}. It might be created on the first save.")
+
+        self._rebuild_networkx_graph()
 
     def _get_or_create_node_for_relationship(self, node_name: str, resolved_nodes_map: Dict[str, GraphNode],
                                              current_episode_uuid: str) -> Optional[GraphNode]:
@@ -404,29 +530,32 @@ class CognitiveMemoryManager:
         # Add structural edges for Concepts (IS_A)
         for concept_uuid, concept in self.concepts.items():
             if concept.parent_concept_uuid and concept.parent_concept_uuid in self.concepts:
-                self.graph.add_edge(concept_uuid, concept.parent_concept_uuid, label=StructuralEdgeLabel.IS_A) # type: ignore
+                self.graph.add_edge(concept_uuid, concept.parent_concept_uuid,
+                                    label=StructuralEdgeLabel.IS_A)  # type: ignore
 
         # Add structural edges for GraphNodes (INSTANCE_OF)
         for node_uuid, node in self.nodes.items():
             if node.concept_uuid and node.concept_uuid in self.concepts:
-                self.graph.add_edge(node_uuid, node.concept_uuid, label=StructuralEdgeLabel.INSTANCE_OF) # type: ignore
+                self.graph.add_edge(node_uuid, node.concept_uuid, label=StructuralEdgeLabel.INSTANCE_OF)  # type: ignore
 
         # Add structural edges for Episodes (EXPERIENCED_BY)
         for episode_uuid in self.episodes:
-            if EGO_NODE_UUID in self.graph: # Ensure ego node exists
-                 self.graph.add_edge(episode_uuid, EGO_NODE_UUID, label=StructuralEdgeLabel.EXPERIENCED_BY) # type: ignore
+            if EGO_NODE_UUID in self.graph:  # Ensure ego node exists
+                self.graph.add_edge(episode_uuid, EGO_NODE_UUID,
+                                    label=StructuralEdgeLabel.EXPERIENCED_BY)  # type: ignore
             else:
-                logger.warning(f"EgoNode {EGO_NODE_UUID} not found in graph while rebuilding EXPERIENCED_BY for episode {episode_uuid}")
-
+                logger.warning(
+                    f"EgoNode {EGO_NODE_UUID} not found in graph while rebuilding EXPERIENCED_BY for episode {episode_uuid}")
 
         # Add factual GraphEdges
         for edge_uuid, edge in self.edges.items():
             if edge.source_uuid in self.graph and edge.target_uuid in self.graph:
-                self.graph.add_edge(edge.source_uuid, edge.target_uuid, key=edge_uuid, label=edge.label, data=edge, type="GraphEdge")
+                self.graph.add_edge(edge.source_uuid, edge.target_uuid, key=edge_uuid, label=edge.label, data=edge,
+                                    type="GraphEdge")
             else:
                 logger.warning(f"Skipping edge {edge_uuid} due to missing source/target node in graph during rebuild.")
-        logger.debug(f"NetworkX graph rebuilt with {self.graph.number_of_nodes()} nodes and {self.graph.number_of_edges()} edges.")
-
+        logger.debug(
+            f"NetworkX graph rebuilt with {self.graph.number_of_nodes()} nodes and {self.graph.number_of_edges()} edges.")
 
     def _ensure_all_embeddings(self):
         logger.info("Ensuring all items have embeddings...")
@@ -436,34 +565,35 @@ class CognitiveMemoryManager:
             if not episode.embedding:
                 text_to_embed = f"{episode.topic_summary} Emotional state: {episode.internal_state.emotional_label}. Cognitive process: {episode.internal_state.cognitive_process}."
                 episode.embedding = self.llm_manager.get_embedding(text_to_embed)
-                items_embedded +=1
+                items_embedded += 1
 
         for concept in self.concepts.values():
             if not concept.embedding:
                 text_to_embed = f"Concept: {concept.name}. Description: {concept.description}"
                 concept.embedding = self.llm_manager.get_embedding(text_to_embed)
-                items_embedded +=1
+                items_embedded += 1
 
         for node in self.nodes.values():
             if not node.embedding:
                 text_to_embed = f"Entity: {node.name}. Labels: {', '.join(node.labels)}. Attributes: {json.dumps(node.attributes)}"
                 node.embedding = self.llm_manager.get_embedding(text_to_embed)
-                items_embedded +=1
+                items_embedded += 1
 
         for edge in self.edges.values():
             if not edge.embedding:
                 # To get context for an edge, might need source/target node names
-                source_node_name = self.nodes.get(edge.source_uuid, GraphNode(name="Unknown Source", labels=[], source_episode_uuid="N/A")).name
-                target_node_name = self.nodes.get(edge.target_uuid, GraphNode(name="Unknown Target", labels=[], source_episode_uuid="N/A")).name
+                source_node_name = self.nodes.get(edge.source_uuid, GraphNode(name="Unknown Source", labels=[],
+                                                                              source_episode_uuid="N/A")).name
+                target_node_name = self.nodes.get(edge.target_uuid, GraphNode(name="Unknown Target", labels=[],
+                                                                              source_episode_uuid="N/A")).name
                 text_to_embed = f"Fact: {edge.fact_text}. Relates: {source_node_name} {edge.label} {target_node_name}."
                 edge.embedding = self.llm_manager.get_embedding(text_to_embed)
-                items_embedded +=1
+                items_embedded += 1
         if items_embedded > 0:
             logger.info(f"Generated embeddings for {items_embedded} items.")
-            self._save_to_db() # Persist new embeddings
+            self._save_to_db()  # Persist new embeddings
         else:
             logger.info("All items already have embeddings.")
-
 
     # --- Bootstrap and Setup ---
     def _initialize_ego_node(self):
@@ -485,55 +615,69 @@ class CognitiveMemoryManager:
             )
             # Add birth episode to memory
             self.episodes[birth_episode.uuid] = birth_episode
-            if not birth_episode.embedding: # Generate embedding if not mocked
-                birth_episode.embedding = self.llm_manager.get_embedding(f"{birth_episode.topic_summary} {birth_internal_state.emotional_label}")
+            if not birth_episode.embedding:  # Generate embedding if not mocked
+                birth_episode.embedding = self.llm_manager.get_embedding(
+                    f"{birth_episode.topic_summary} {birth_internal_state.emotional_label}")
             self.graph.add_node(birth_episode.uuid, data=birth_episode, type="MemoryEpisodeNode")
-
 
             ego = GraphNode(
                 uuid=EGO_NODE_UUID,
                 name=EGO_NODE_NAME,
                 labels=["AI", "Self", "CognitiveAgent"],
-                source_episode_uuid=birth_episode.uuid, # Link to its "birth"
+                source_episode_uuid=birth_episode.uuid,  # Link to its "birth"
                 attributes={"description": "The core identity of this AI agent."}
             )
-            if not ego.embedding: # Generate embedding if not mocked
+            if not ego.embedding:  # Generate embedding if not mocked
                 ego.embedding = self.llm_manager.get_embedding(f"{ego.name} {', '.join(ego.labels)}")
 
             self.nodes[EGO_NODE_UUID] = ego
             self.ego_node_model = ego
             self.graph.add_node(EGO_NODE_UUID, data=ego, type="GraphNode", name=ego.name)
             # Link birth episode to ego
-            self.graph.add_edge(birth_episode.uuid, EGO_NODE_UUID, label=StructuralEdgeLabel.EXPERIENCED_BY) # type: ignore
+            self.graph.add_edge(birth_episode.uuid, EGO_NODE_UUID,
+                                label=StructuralEdgeLabel.EXPERIENCED_BY)  # type: ignore
             logger.info(f"EgoNode '{EGO_NODE_NAME}' created and linked to birth episode '{birth_episode.uuid}'.")
-            self._save_to_db() # Save the new EgoNode and its birth episode
+            self._save_to_db()  # Save the new EgoNode and its birth episode
         else:
             self.ego_node_model = self.nodes[EGO_NODE_UUID]
             logger.info(f"EgoNode '{self.ego_node_model.name}' loaded from database.")
         # Ensure it's in the graph if loaded from DB but graph was cleared
         if EGO_NODE_UUID not in self.graph:
-            self.graph.add_node(EGO_NODE_UUID, data=self.ego_node_model, type="GraphNode", name=self.ego_node_model.name)
-
+            self.graph.add_node(EGO_NODE_UUID, data=self.ego_node_model, type="GraphNode",
+                                name=self.ego_node_model.name)
 
     def _bootstrap_core_concepts(self):
         logger.info("Bootstrapping core concepts...")
         core_concepts_definitions = [
             {"name": "Entity", "description": "A distinct and independent existent thing.", "parent": None},
-            {"name": "Abstract Concept", "description": "An idea or notion not having a physical or concrete existence.", "parent": "Entity"},
-            {"name": "Physical Object", "description": "A tangible item that can be seen and touched.", "parent": "Entity"},
+            {"name": "Abstract Concept",
+             "description": "An idea or notion not having a physical or concrete existence.", "parent": "Entity"},
+            {"name": "Physical Object", "description": "A tangible item that can be seen and touched.",
+             "parent": "Entity"},
             {"name": "Living Being", "description": "An organism that has life.", "parent": "Physical Object"},
             {"name": "Person", "description": "A human being.", "parent": "Living Being"},
-            {"name": "Animal", "description": "A living organism that feeds on organic matter.", "parent": "Living Being"},
-            {"name": "Plant", "description": "A living organism of the kind exemplified by trees, shrubs, herbs, grasses, ferns, and mosses.", "parent": "Living Being"},
-            {"name": "Organization", "description": "An organized group of people with a particular purpose.", "parent": "Abstract Concept"}, # Or could be Entity directly
+            {"name": "Animal", "description": "A living organism that feeds on organic matter.",
+             "parent": "Living Being"},
+            {"name": "Plant",
+             "description": "A living organism of the kind exemplified by trees, shrubs, herbs, grasses, ferns, and mosses.",
+             "parent": "Living Being"},
+            {"name": "Organization", "description": "An organized group of people with a particular purpose.",
+             "parent": "Abstract Concept"},  # Or could be Entity directly
             {"name": "Company", "description": "A commercial business.", "parent": "Organization"},
-            {"name": "Location", "description": "A particular place or position.", "parent": "Physical Object"}, # Or Abstract Concept for general locations
-            {"name": "Event", "description": "A thing that happens, especially one of importance.", "parent": "Abstract Concept"},
+            {"name": "Location", "description": "A particular place or position.", "parent": "Physical Object"},
+            # Or Abstract Concept for general locations
+            {"name": "Event", "description": "A thing that happens, especially one of importance.",
+             "parent": "Abstract Concept"},
             {"name": "Action", "description": "The fact or process of doing something.", "parent": "Abstract Concept"},
-            {"name": "Information", "description": "Facts provided or learned about something or someone.", "parent": "Abstract Concept"},
-            {"name": "Emotion", "description": "A strong feeling deriving from one's circumstances, mood, or relationships with others.", "parent": "Abstract Concept"},
-            {"name": "Property", "description": "An attribute, quality, or characteristic of something.", "parent": "Abstract Concept"},
-            {"name": "Time", "description": "The indefinite continued progress of existence and events.", "parent": "Abstract Concept"},
+            {"name": "Information", "description": "Facts provided or learned about something or someone.",
+             "parent": "Abstract Concept"},
+            {"name": "Emotion",
+             "description": "A strong feeling deriving from one's circumstances, mood, or relationships with others.",
+             "parent": "Abstract Concept"},
+            {"name": "Property", "description": "An attribute, quality, or characteristic of something.",
+             "parent": "Abstract Concept"},
+            {"name": "Time", "description": "The indefinite continued progress of existence and events.",
+             "parent": "Abstract Concept"},
             {"name": "Occupation", "description": "A job or profession.", "parent": "Abstract Concept"},
         ]
 
@@ -550,20 +694,22 @@ class CognitiveMemoryManager:
                     description=concept_def["description"],
                     parent_concept_uuid=parent_uuid
                 )
-                if not new_concept.embedding: # Generate embedding
-                    new_concept.embedding = self.llm_manager.get_embedding(f"Concept: {new_concept.name}. {new_concept.description}")
+                if not new_concept.embedding:  # Generate embedding
+                    new_concept.embedding = self.llm_manager.get_embedding(
+                        f"Concept: {new_concept.name}. {new_concept.description}")
 
                 self.concepts[new_concept.uuid] = new_concept
                 self.graph.add_node(new_concept.uuid, data=new_concept, type="ConceptNode", name=new_concept.name)
-                name_to_uuid_map[new_concept.name] = new_concept.uuid # Update map for subsequent parent lookups
+                name_to_uuid_map[new_concept.name] = new_concept.uuid  # Update map for subsequent parent lookups
                 made_changes = True
 
         # Link concepts with IS_A edges after all are potentially created
         for concept_uuid, concept in self.concepts.items():
             if concept.parent_concept_uuid and concept.parent_concept_uuid in self.graph:
                 if not self.graph.has_edge(concept_uuid, concept.parent_concept_uuid):
-                    self.graph.add_edge(concept_uuid, concept.parent_concept_uuid, label=StructuralEdgeLabel.IS_A) # type: ignore
-                    made_changes = True # IS_A edges are part of graph structure
+                    self.graph.add_edge(concept_uuid, concept.parent_concept_uuid,
+                                        label=StructuralEdgeLabel.IS_A)  # type: ignore
+                    made_changes = True  # IS_A edges are part of graph structure
 
         if made_changes:
             logger.info(f"Core concepts bootstrapped. Total concepts: {len(self.concepts)}.")
@@ -571,12 +717,11 @@ class CognitiveMemoryManager:
         else:
             logger.info("Core concepts already up-to-date.")
 
-
     def _compute_semantic_axes(self):
         logger.info("Computing semantic axes...")
         updated_axes = False
         for axis_name, (pos_term, neg_term) in SEMANTIC_AXES_DEFINITION.items():
-            if axis_name not in self.semantic_axes: # Only compute if not already done (or allow re-compute flag)
+            if axis_name not in self.semantic_axes:  # Only compute if not already done (or allow re-compute flag)
                 try:
                     pos_embedding = np.array(self.llm_manager.get_embedding(pos_term))
                     neg_embedding = np.array(self.llm_manager.get_embedding(neg_term))
@@ -596,7 +741,8 @@ class CognitiveMemoryManager:
             logger.info("Semantic axes already computed or no new axes defined.")
 
     # --- Knowledge Integration (The Write Path) ---
-    def integrate_experience(self, text_from_interaction: str, ai_internal_state_text: str) -> Optional[MemoryEpisodeNode]:
+    def integrate_experience(self, text_from_interaction: str, ai_internal_state_text: str) -> Optional[
+        MemoryEpisodeNode]:
         logger.info(f"Integrating new experience. Interaction (start): '{text_from_interaction[:100]}...'")
         try:
             # 1. Create the MemoryEpisode node
@@ -614,7 +760,7 @@ class CognitiveMemoryManager:
                 return episode
 
             # 3. For each entity, find or create its GraphNode, ensuring it's linked to a concept and the current episode.
-            resolved_nodes_map: Dict[str, GraphNode] = {} # name -> GraphNode
+            resolved_nodes_map: Dict[str, GraphNode] = {}  # name -> GraphNode
             for extracted_entity_obj in extracted_entities_model.entities:
                 node = self._resolve_entity_and_concept(extracted_entity_obj, episode.uuid)
                 if node:
@@ -623,8 +769,9 @@ class CognitiveMemoryManager:
                     logger.warning(f"Could not resolve or create node for entity: {extracted_entity_obj.name}")
 
             # 4. Extract relationships between the identified entities.
-            if resolved_nodes_map: # Only extract relationships if we have nodes
-                extracted_relationships_model = self._extract_relationships_from_text(text_from_interaction, list(resolved_nodes_map.values()))
+            if resolved_nodes_map:  # Only extract relationships if we have nodes
+                extracted_relationships_model = self._extract_relationships_from_text(text_from_interaction,
+                                                                                      list(resolved_nodes_map.values()))
                 if extracted_relationships_model:
                     # 5. For each relationship, create a GraphEdge, check for contradictions, and add it.
                     for rel_data in extracted_relationships_model.relationships:
@@ -643,7 +790,6 @@ class CognitiveMemoryManager:
             logger.error(f"Error during experience integration: {e}", exc_info=True)
             return None
 
-
     def _create_memory_episode(self, text: str, state_text: str) -> Optional[MemoryEpisodeNode]:
         logger.debug("Creating memory episode...")
         try:
@@ -654,7 +800,8 @@ class CognitiveMemoryManager:
                 user_prompt=summary_prompt,
                 tool_model=EpisodeTopicSummary
             )
-            topic_summary = summary_tool_result.summary if isinstance(summary_tool_result, EpisodeTopicSummary) else "Summary unavailable"
+            topic_summary = summary_tool_result.summary if isinstance(summary_tool_result,
+                                                                      EpisodeTopicSummary) else "Summary unavailable"
 
             # Use LLM with AnalyzedInternalState tool
             state_prompt = f"Analyze this internal state description: {state_text}"
@@ -663,7 +810,9 @@ class CognitiveMemoryManager:
                 user_prompt=state_prompt,
                 tool_model=AnalyzedInternalState
             )
-            internal_state = internal_state_tool_result.state if isinstance(internal_state_tool_result, AnalyzedInternalState) else InternalState(emotional_valence=0, emotional_label="unknown", cognitive_process="unknown")
+            internal_state = internal_state_tool_result.state if isinstance(internal_state_tool_result,
+                                                                            AnalyzedInternalState) else InternalState(
+                emotional_valence=0, emotional_label="unknown", cognitive_process="unknown")
 
             episode = MemoryEpisodeNode(
                 topic_summary=topic_summary,
@@ -680,7 +829,8 @@ class CognitiveMemoryManager:
 
             # Add 'EXPERIENCED_BY' edge from the episode to the EgoNode
             if EGO_NODE_UUID in self.graph:
-                self.graph.add_edge(episode.uuid, EGO_NODE_UUID, label=StructuralEdgeLabel.EXPERIENCED_BY) # type: ignore
+                self.graph.add_edge(episode.uuid, EGO_NODE_UUID,
+                                    label=StructuralEdgeLabel.EXPERIENCED_BY)  # type: ignore
             else:
                 logger.error(f"EgoNode {EGO_NODE_UUID} not found in graph. Cannot link episode {episode.uuid}.")
                 # This should ideally not happen if _initialize_ego_node works correctly.
@@ -712,7 +862,8 @@ class CognitiveMemoryManager:
             logger.error(f"Error during entity extraction: {e}", exc_info=True)
             return None
 
-    def _find_existing_node(self, name: str, label: Optional[str] = None, threshold: float = 0.85) -> Optional[GraphNode]:
+    def _find_existing_node(self, name: str, label: Optional[str] = None, threshold: float = 0.85) -> Optional[
+        GraphNode]:
         """Tries to find an existing node by name and semantic similarity."""
         logger.debug(f"Attempting to find existing node for name: '{name}', label: '{label}'")
         # Direct name match (case-insensitive for robustness)
@@ -720,13 +871,14 @@ class CognitiveMemoryManager:
             if node.name.lower() == name.lower():
                 # If label is provided, check if it's compatible (e.g., new label is in existing or vice-versa)
                 if label and label.lower() not in [l.lower() for l in node.labels]:
-                    logger.debug(f"Node '{name}' found by name, but label mismatch: existing '{node.labels}', new '{label}'. Considering it a potential match for LLM confirmation.")
+                    logger.debug(
+                        f"Node '{name}' found by name, but label mismatch: existing '{node.labels}', new '{label}'. Considering it a potential match for LLM confirmation.")
                 else:
                     logger.info(f"Found existing node by exact name match: {node.uuid} ({node.name})")
                     return node
 
         # Semantic similarity search
-        if not EMBEDDING_DIM: # Cannot do semantic search if embeddings are not configured
+        if not EMBEDDING_DIM:  # Cannot do semantic search if embeddings are not configured
             logger.warning("EMBEDDING_DIM not set, skipping semantic search for node resolution.")
             return None
 
@@ -750,49 +902,36 @@ class CognitiveMemoryManager:
                     best_match = node
 
         if best_match and highest_similarity >= threshold:
-            logger.info(f"Found potential existing node by semantic similarity: {best_match.uuid} ({best_match.name}) with score {highest_similarity:.2f}")
+            logger.info(
+                f"Found potential existing node by semantic similarity: {best_match.uuid} ({best_match.name}) with score {highest_similarity:.2f}")
             return best_match
         else:
-            logger.debug(f"No sufficiently similar node found for '{name}' (highest score: {highest_similarity:.2f}, threshold: {threshold}).")
+            logger.debug(
+                f"No sufficiently similar node found for '{name}' (highest score: {highest_similarity:.2f}, threshold: {threshold}).")
             return None
 
-
-    def _resolve_entity_and_concept(self, entity_data: ExtractedEntity, current_episode_uuid: str) -> Optional[GraphNode]:
+    def _resolve_entity_and_concept(self, entity_data: ExtractedEntity, current_episode_uuid: str) -> Optional[
+        GraphNode]:
         logger.debug(f"Resolving entity: {entity_data.name} (Label: {entity_data.label})")
 
         # 1. Attempt to find an existing node
         existing_node = self._find_existing_node(entity_data.name, entity_data.label)
 
-        # 2. If a strong candidate exists, use LLM for confirmation (optional, could be stricter)
+        # 2. If a strong candidate exists, use it.
         if existing_node:
-            # For simplicity in this example, we'll assume if _find_existing_node returns something, it's good enough.
-            # A more robust system would use the Confirmation tool:
-            # confirm_prompt = f"A new entity '{entity_data.name}' (label: {entity_data.label}) was mentioned. Does this refer to the existing entity '{existing_node.name}' (labels: {existing_node.labels}, description: {existing_node.attributes.get('description', 'N/A')})?"
-            # confirmation_result = self.llm_manager.call_tool(..., tool_model=Confirmation)
-            # if confirmation_result.is_same:
-            #     logger.info(f"Confirmed existing node {existing_node.uuid} for '{entity_data.name}'.")
-            #     # Potentially update existing_node's attributes or source_episode_uuid if this interaction is significant
-            #     return existing_node
-            # else:
-            #     logger.info(f"LLM indicated '{entity_data.name}' is different from '{existing_node.name}'. Creating new node.")
-            #     existing_node = None # Clear it to proceed with new node creation
             logger.info(f"Using existing node {existing_node.uuid} for '{entity_data.name}'.")
-            # Consider updating source_episode_uuid if this is a significant re-mention or update.
-            # For now, we don't modify the existing node here, only link to it.
-            # If the entity is re-mentioned, its original source_episode_uuid remains.
-            # New facts *about* it will be linked to the current episode.
             return existing_node
 
-
-        # 3. If no existing node or not confirmed, create a new one
+        # 3. If no existing node, create a new one
         logger.info(f"No definitive existing node found for '{entity_data.name}'. Creating new node.")
         new_node = GraphNode(
             name=entity_data.name,
             labels=[entity_data.label] if entity_data.label else ["Unknown"],
             source_episode_uuid=current_episode_uuid,
-            attributes={"original_extracted_label": entity_data.label} # Store the initially extracted label
+            attributes={"original_extracted_label": entity_data.label}  # Store the initially extracted label
         )
-        new_node.embedding = self.llm_manager.get_embedding(f"Entity: {new_node.name}. Labels: {', '.join(new_node.labels)}")
+        new_node.embedding = self.llm_manager.get_embedding(
+            f"Entity: {new_node.name}. Labels: {', '.join(new_node.labels)}")
 
         self.nodes[new_node.uuid] = new_node
         self.graph.add_node(new_node.uuid, data=new_node, type="GraphNode", name=new_node.name)
@@ -802,7 +941,6 @@ class CognitiveMemoryManager:
         self._classify_and_link_entity_to_concept(new_node)
 
         return new_node
-
 
     def _classify_and_link_entity_to_concept(self, node_to_classify: GraphNode):
         logger.debug(f"Classifying node '{node_to_classify.name}' ({node_to_classify.uuid}) against Concept Graph.")
@@ -818,11 +956,11 @@ class CognitiveMemoryManager:
                 chosen_concept = matching_concepts[0]
                 logger.info(f"Directly classified '{node_to_classify.name}' as '{chosen_concept.name}' based on label.")
                 node_to_classify.concept_uuid = chosen_concept.uuid
-                self.graph.add_edge(node_to_classify.uuid, chosen_concept.uuid, label=StructuralEdgeLabel.INSTANCE_OF) # type: ignore
+                self.graph.add_edge(node_to_classify.uuid, chosen_concept.uuid,
+                                    label=StructuralEdgeLabel.INSTANCE_OF)  # type: ignore
                 # Update node in self.nodes to persist concept_uuid
                 self.nodes[node_to_classify.uuid] = node_to_classify
                 return
-
 
         # If no direct match, use LLM for classification
         prompt = f"Classify the entity '{node_to_classify.name}' (described by labels: {node_to_classify.labels}) into one of the following existing concepts. Provide the name of the most appropriate concept. If none seem right, you can suggest a new, more specific concept name. Available concepts: {', '.join(concept_names)}."
@@ -842,19 +980,22 @@ class CognitiveMemoryManager:
 
                 if target_concept:
                     node_to_classify.concept_uuid = target_concept.uuid
-                    self.graph.add_edge(node_to_classify.uuid, target_concept.uuid, label=StructuralEdgeLabel.INSTANCE_OF) # type: ignore
-                    self.nodes[node_to_classify.uuid] = node_to_classify # Persist change
-                    logger.info(f"LLM classified '{node_to_classify.name}' as '{target_concept.name}'. Reasoning: {classification_result.reasoning}")
+                    self.graph.add_edge(node_to_classify.uuid, target_concept.uuid,
+                                        label=StructuralEdgeLabel.INSTANCE_OF)  # type: ignore
+                    self.nodes[node_to_classify.uuid] = node_to_classify  # Persist change
+                    logger.info(
+                        f"LLM classified '{node_to_classify.name}' as '{target_concept.name}'. Reasoning: {classification_result.reasoning}")
                 else:
-                    logger.warning(f"LLM suggested concept '{target_concept_name}' for '{node_to_classify.name}', but this concept was not found in the Concept Graph.")
+                    logger.warning(
+                        f"LLM suggested concept '{target_concept_name}' for '{node_to_classify.name}', but this concept was not found in the Concept Graph.")
             else:
                 logger.warning(f"Could not classify entity '{node_to_classify.name}' using LLM or result was invalid.")
 
         except Exception as e:
             logger.error(f"Error during LLM entity classification for '{node_to_classify.name}': {e}", exc_info=True)
 
-
-    def _extract_relationships_from_text(self, text: str, resolved_nodes: List[GraphNode]) -> Optional[ExtractedRelationships]:
+    def _extract_relationships_from_text(self, text: str, resolved_nodes: List[GraphNode]) -> Optional[
+        ExtractedRelationships]:
         logger.debug("Extracting relationships from text...")
         if not resolved_nodes:
             logger.info("No resolved nodes provided, cannot extract relationships between them.")
@@ -880,8 +1021,10 @@ class CognitiveMemoryManager:
             logger.error(f"Error during relationship extraction: {e}", exc_info=True)
             return None
 
-    def _resolve_and_add_edge(self, rel_data: ExtractedRelationship, resolved_nodes_map: Dict[str, GraphNode], current_episode_uuid: str):
-        logger.debug(f"Resolving and adding edge for relationship: {rel_data.source_name} -({rel_data.label})-> {rel_data.target_name}")
+    def _resolve_and_add_edge(self, rel_data: ExtractedRelationship, resolved_nodes_map: Dict[str, GraphNode],
+                              current_episode_uuid: str):
+        logger.debug(
+            f"Resolving and adding edge for relationship: {rel_data.source_name} -({rel_data.label})-> {rel_data.target_name}")
 
         source_node = self._get_or_create_node_for_relationship(
             rel_data.source_name, resolved_nodes_map, current_episode_uuid
@@ -891,7 +1034,8 @@ class CognitiveMemoryManager:
         )
 
         if not source_node or not target_node:
-            logger.warning(f"Could not find source ('{rel_data.source_name}') or target ('{rel_data.target_name}') node for relationship. Skipping.")
+            logger.warning(
+                f"Could not find source ('{rel_data.source_name}') or target ('{rel_data.target_name}') node for relationship. Skipping.")
             return
 
         # Contradiction/Duplicate Check
@@ -924,24 +1068,25 @@ class CognitiveMemoryManager:
                         # Invalidate the old edge(s)
                         # This mock assumes only one conflicting edge for simplicity
                         conflicting_edge_uuid_to_invalidate = check_result.conflicting_edge_uuid
-                        if not conflicting_edge_uuid_to_invalidate and existing_relevant_edges: # Fallback if LLM didn't specify
+                        if not conflicting_edge_uuid_to_invalidate and existing_relevant_edges:  # Fallback if LLM didn't specify
                             conflicting_edge_uuid_to_invalidate = existing_relevant_edges[0].uuid
 
                         if conflicting_edge_uuid_to_invalidate and conflicting_edge_uuid_to_invalidate in self.edges:
                             old_edge = self.edges[conflicting_edge_uuid_to_invalidate]
                             old_edge.invalid_at = datetime.now(timezone.utc)
-                            self.edges[old_edge.uuid] = old_edge # Update in-memory store
+                            self.edges[old_edge.uuid] = old_edge  # Update in-memory store
                             # Update in graph (NetworkX stores dicts, so update data attribute)
                             if self.graph.has_edge(old_edge.source_uuid, old_edge.target_uuid, key=old_edge.uuid):
-                                self.graph.edges[old_edge.source_uuid, old_edge.target_uuid, old_edge.uuid]['data'] = old_edge
+                                self.graph.edges[old_edge.source_uuid, old_edge.target_uuid, old_edge.uuid][
+                                    'data'] = old_edge
                             logger.info(f"Invalidated old edge {old_edge.uuid} due to contradiction.")
                         else:
-                            logger.warning(f"Contradiction detected, but could not identify or find specific edge '{conflicting_edge_uuid_to_invalidate}' to invalidate.")
+                            logger.warning(
+                                f"Contradiction detected, but could not identify or find specific edge '{conflicting_edge_uuid_to_invalidate}' to invalidate.")
                 else:
                     logger.warning("Contradiction check LLM call failed to return valid ContradictionCheck object.")
             except Exception as e:
                 logger.error(f"Error during contradiction check for fact '{rel_data.fact}': {e}", exc_info=True)
-
 
         # Create and add the new edge
         new_edge = GraphEdge(
@@ -951,14 +1096,17 @@ class CognitiveMemoryManager:
             fact_text=rel_data.fact,
             source_episode_uuid=current_episode_uuid
         )
-        source_name = self.nodes.get(new_edge.source_uuid, GraphNode(name="Unknown", labels=[], source_episode_uuid="N/A")).name
-        target_name = self.nodes.get(new_edge.target_uuid, GraphNode(name="Unknown", labels=[], source_episode_uuid="N/A")).name
-        new_edge.embedding = self.llm_manager.get_embedding(f"Fact: {new_edge.fact_text}. Connects: {source_name} to {target_name}.")
+        source_name = self.nodes.get(new_edge.source_uuid,
+                                     GraphNode(name="Unknown", labels=[], source_episode_uuid="N/A")).name
+        target_name = self.nodes.get(new_edge.target_uuid,
+                                     GraphNode(name="Unknown", labels=[], source_episode_uuid="N/A")).name
+        new_edge.embedding = self.llm_manager.get_embedding(
+            f"Fact: {new_edge.fact_text}. Connects: {source_name} to {target_name}.")
 
         self.edges[new_edge.uuid] = new_edge
-        self.graph.add_edge(source_node.uuid, target_node.uuid, key=new_edge.uuid, label=new_edge.label, data=new_edge, type="GraphEdge")
+        self.graph.add_edge(source_node.uuid, target_node.uuid, key=new_edge.uuid, label=new_edge.label, data=new_edge,
+                            type="GraphEdge")
         logger.info(f"Added new GraphEdge {new_edge.uuid}: '{new_edge.fact_text}'.")
-
 
     # --- Retrieval (The Read Path) ---
     def answer_question(self, question: str, top_k_facts: int = 5, episode_date_format: str = "%B %d, %Y") -> str:
@@ -976,14 +1124,7 @@ class CognitiveMemoryManager:
             episodes_map = self._trace_facts_to_episodes(relevant_facts)
             if not episodes_map:
                 logger.info("Could not trace relevant facts to any specific episodes.")
-                # Fallback: answer based on facts directly if no episodic context
-                # This part could be enhanced, but for now, let's assume episodic context is key.
-                # factual_summary = "; ".join([f.fact_text for f in relevant_facts if isinstance(f, GraphEdge)])
-                # if not factual_summary: factual_summary = "; ".join([f.name for f in relevant_facts if isinstance(f, GraphNode)])
-                # return f"Based on my knowledge: {factual_summary}" if factual_summary else "I have some related information, but it's not tied to a specific memory."
-                # For the user's vision, narrative context is crucial.
                 return "I found some related information, but I can't recall the specific experiences where I learned it."
-
 
             # 3. For each episode, construct a rich, narrative string.
             narrative_context = self._construct_narrative_context(episodes_map, episode_date_format)
@@ -1000,8 +1141,8 @@ class CognitiveMemoryManager:
             logger.error(f"Error during question answering: {e}", exc_info=True)
             return "I encountered an issue while trying to answer your question from my personal memory."
 
-
-    def _find_relevant_facts(self, question: str, top_k: int = 5, similarity_threshold: float = 0.7) -> List[Tuple[float, Union[GraphNode, GraphEdge]]]:
+    def _find_relevant_facts(self, question: str, top_k: int = 5, similarity_threshold: float = 0.7) -> List[
+        Tuple[float, Union[GraphNode, GraphEdge]]]:
         logger.debug(f"Finding relevant facts for question: '{question}'")
         if not EMBEDDING_DIM:
             logger.warning("EMBEDDING_DIM not set, cannot perform semantic search.")
@@ -1035,20 +1176,22 @@ class CognitiveMemoryManager:
         logger.info(f"Found {len(scored_items)} relevant facts above threshold. Returning top {top_k}.")
         return scored_items[:top_k]
 
-    def _trace_facts_to_episodes(self, facts: List[Union[GraphNode, GraphEdge]]) -> Dict[str, List[Union[GraphNode, GraphEdge]]]:
+    def _trace_facts_to_episodes(self, facts: List[Union[GraphNode, GraphEdge]]) -> Dict[
+        str, List[Union[GraphNode, GraphEdge]]]:
         logger.debug(f"Tracing {len(facts)} facts to their source episodes.")
         episodes_map = defaultdict(list)
         for fact in facts:
-            # Ensure the fact has a source_episode_uuid and that episode exists
-            if hasattr(fact, 'source_episode_uuid') and fact.source_episode_uuid and fact.source_episode_uuid in self.episodes:
+            if hasattr(fact,
+                       'source_episode_uuid') and fact.source_episode_uuid and fact.source_episode_uuid in self.episodes:
                 episodes_map[fact.source_episode_uuid].append(fact)
             else:
-                logger.warning(f"Fact '{getattr(fact, 'name', getattr(fact, 'fact_text', fact.uuid))}' has no valid source_episode_uuid or episode not found.")
+                logger.warning(
+                    f"Fact '{getattr(fact, 'name', getattr(fact, 'fact_text', fact.uuid))}' has no valid source_episode_uuid or episode not found.")
         logger.info(f"Facts traced to {len(episodes_map)} unique episodes.")
         return episodes_map
 
-
-    def _construct_narrative_context(self, episodes_map: Dict[str, List[Union[GraphNode, GraphEdge]]], date_format: str) -> str:
+    def _construct_narrative_context(self, episodes_map: Dict[str, List[Union[GraphNode, GraphEdge]]],
+                                     date_format: str) -> str:
         logger.debug("Constructing narrative context from episodes map.")
         context_parts = []
         # Sort episodes by timestamp, most recent first, for a more natural recall flow
@@ -1068,32 +1211,29 @@ class CognitiveMemoryManager:
 
             try:
                 date_str = episode.timestamp.strftime(date_format)
-            except ValueError: # Handle potential strftime errors with bad format
+            except ValueError:  # Handle potential strftime errors with bad format
                 date_str = episode.timestamp.isoformat()
 
             topic = episode.topic_summary
             emotion = episode.internal_state.emotional_label
-            cognitive_process = episode.internal_state.cognitive_process # e.g. "learning new information"
+            cognitive_process = episode.internal_state.cognitive_process  # e.g. "learning new information"
 
-            # Describe what was learned in this episode from the provided facts
             learned_items_str_parts = []
             for fact in facts_in_episode:
                 if isinstance(fact, GraphEdge):
-                    # Ensure source/target names are available for context
-                    source_name = self.nodes.get(fact.source_uuid, GraphNode(name="Something", labels=[], source_episode_uuid="N/A")).name
-                    target_name = self.nodes.get(fact.target_uuid, GraphNode(name="something else", labels=[], source_episode_uuid="N/A")).name
+                    source_name = self.nodes.get(fact.source_uuid,
+                                                 GraphNode(name="Something", labels=[], source_episode_uuid="N/A")).name
+                    target_name = self.nodes.get(fact.target_uuid, GraphNode(name="something else", labels=[],
+                                                                             source_episode_uuid="N/A")).name
                     learned_items_str_parts.append(f"that {fact.fact_text} (connecting {source_name} to {target_name})")
                 elif isinstance(fact, GraphNode):
                     learned_items_str_parts.append(f"about '{fact.name}' (which is a {', '.join(fact.labels)})")
 
             if not learned_items_str_parts:
-                learned_summary = "something I was reflecting on" # Fallback if specific facts aren't detailed
+                learned_summary = "something I was reflecting on"
             else:
                 learned_summary = ", and ".join(learned_items_str_parts)
 
-
-            # Construct the narrative piece for this episode
-            # This is key for the "personal" feel
             narrative = (
                 f"On {date_str}, I remember an experience related to '{topic}'. "
                 f"During that time, I was primarily {cognitive_process} and I recall feeling {emotion}. "
@@ -1106,9 +1246,9 @@ class CognitiveMemoryManager:
             return ""
 
         full_narrative = "\n\n".join(context_parts)
-        logger.info(f"Narrative context constructed (length: {len(full_narrative)} chars). Preview: {full_narrative[:200]}...")
+        logger.info(
+            f"Narrative context constructed (length: {len(full_narrative)} chars). Preview: {full_narrative[:200]}...")
         return full_narrative
-
 
     def _synthesize_final_answer(self, question: str, narrative_context: str) -> str:
         logger.debug("Synthesizing final answer using LLM with narrative context.")
@@ -1127,7 +1267,6 @@ class CognitiveMemoryManager:
         )
 
         try:
-            # Assuming LlmManagerProxy has a method for general completion
             answer = self.llm_manager.get_completion(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt
