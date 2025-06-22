@@ -40,7 +40,7 @@ with st.sidebar:
 
     st.write("Shell Config:")
     shell.USER_INACTIVITY_TIMEOUT = 60 * st.slider(
-        "Waiting-for-reply timeout (minutes)", 1, 60, int(shell.USER_INACTIVITY_TIMEOUT / 60)
+        "Waiting-for-reply timeout (minutes)", 1, 120, int(shell.USER_INACTIVITY_TIMEOUT / 60)
     )
     #shell.SYSTEM_TICK_INTERVAL = st.slider(
     #    "Tick-Clock (s)", 1, 10, int(shell.SYSTEM_TICK_INTERVAL)

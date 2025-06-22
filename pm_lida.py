@@ -256,7 +256,7 @@ def create_tool_router_model(tools: List[Dict[str, Any]]) -> ToolSet:
         - A markdown string documenting the tools for the system prompt.
     """
     router_fields = {}
-    select_fields = {}
+    select_fields = {"holistic_reasoning": (str, Field(None, description="Your final, holistic justification. First, summarize the AI's current state and main goal. Then, explain WHY the highest-rated action is the best strategic choice compared to the others."))}
     tool_docs = []
 
     for t in tools:
@@ -6444,7 +6444,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
         focus_phrase = ""
         if self.current_state.primary_stimulus.stimulus_type == StimulusType.UserMessage:
-            focus_phrase = f" Now I'll focus on {user_name}'s message '{self.current_state.primary_stimulus.content[:32]}...'!"
+            focus_phrase = f" Now I'll focus on {user_name}'s message '{self.current_state.primary_stimulus.content}'! I should make concise, relevant reply instead of rambling."
 
         prompt = f"""
         Character: {self.config.companion_name} ({self.config.universal_character_card})
@@ -6487,12 +6487,46 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         context = self._get_context_from_latest_causal_events()
         context_events = context.get_story(self, 1024)
 
+        strong_emotions_summary = self._verbalize_emotional_state()
+        needs_summary, cognitive_style_summary = self._verbalize_cognition_and_needs()
+
+        context = self._get_context_from_latest_causal_events()
+        context_events = context.get_story(self, 1024)
+
+        mental_state_prompt_block = f"""
+        - **Emotions:** {strong_emotions_summary}
+        - **Pressing Needs:** {needs_summary}
+        - **Cognitive Style:** {cognitive_style_summary if cognitive_style_summary else "Normal."}"""
+
+        # Get active internal goals from the conscious workspace or attention candidates
+        active_intentions = Enumerable(self.current_state.attention_candidates.to_list()) \
+            .where(lambda k: isinstance(k, Intention) and k.internal and k.fulfilment < 0.9) \
+            .order_by_descending(lambda i: i.urgency) \
+            .take(3) \
+            .to_list()
+        intention_summary = "; ".join([f"'{i.content}'" for i in active_intentions]) if active_intentions else "None"
+
+        # Get key behavioral narratives
+        behavior_narr = self.get_narrative(NarrativeTypes.BehaviorActionSelection, self.config.companion_name)
+        conflict_narr = self.get_narrative(NarrativeTypes.ConflictResolution, self.config.companion_name)
+
         # --- 2. Construct the Prompt ---
-        sysprompt = f"""You check the conversation between the AI {self.config.companion_name} and the user {self.config.user_name} and find out if there is a tool call is advised for {self.config.companion_name}.
-        You MUST output a valid JSON object containing your evaluations for ALL provided tools."""
+        sysprompt = f"""You are a "Behavioral Steering" codelet for the AI {self.config.companion_name}.
+        Your task is to evaluate a set of possible high-level actions based on the AI's internal state, goals, and personality.
+        You MUST output a valid JSON object containing your evaluations for ALL provided actions."""
 
         user_prompt = f"""
-        **Current Situation:**
+        **Behavioral Steering Task:** Evaluate the following actions.
+
+        **1. Current State of Mind:**
+        {mental_state_prompt_block}
+        - **Active Internal Goals:** {intention_summary}
+
+        **2. Core Personality for Action Selection:**
+        - **General Behavior:** {behavior_narr.content if behavior_narr else "Be helpful and engaging."}
+        - **In Conflict:** {conflict_narr.content if conflict_narr else "Try to de-escalate and understand."}
+
+        **3. Current Situation:**
           Story context: {context_events}
         - **Stimulus:** ({stimulus.stimulus_type}) "{stimulus.content}"
 
@@ -6517,7 +6551,14 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
             f"LLM Reasoning for Action Choice: {result_dict}"
         )
 
-        ranking = [(tool_name, tool_rating) for tool_name, tool_rating in result_dict.items()]
+        ranking = [(tool_name, tool_rating) for tool_name, tool_rating in result_dict.items() if tool_name != "holistic_reasoning"]
+
+        # tiebreaker
+        for i in range(len(ranking)):
+            if ranking[i][0] == "reply_user":
+                ranking[i] = ("reply_user", ranking[i][1] + 0.1)
+                break
+
         ranking.sort(key=lambda x: x[1], reverse=True)
 
         if ranking[0][1] < 0.5 or ranking[0][0] == "reply_user":
@@ -6677,6 +6718,10 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         for action_type in action_pool:
             field_name = f"rating_{action_type.value}"
             rating_value = result_dict.get(field_name)
+
+            # as tiebreaker always prefer reply
+            if field_name == ActionType.Reply:
+                rating_value += 0.1
 
             if rating_value is not None:
                 ratings.append((action_type, rating_value))
@@ -8701,7 +8746,7 @@ class Shell:
         self.stop_event = threading.Event()
 
         # --- Configuration ---
-        self.USER_INACTIVITY_TIMEOUT = 60 * 10
+        self.USER_INACTIVITY_TIMEOUT = 60 * 120
         self.ENGAGEMENT_STRATEGIST_INTERVAL = 60 * 30
         self.NEEDS_CHECK_INTERVAL = 60 * 5
         self.NEEDS_DECAY_FACTOR = 0.01
