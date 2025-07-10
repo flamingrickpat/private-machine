@@ -1,0 +1,53 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace "com.flamingrickpat.streamer"
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 33
+        targetSdk 34
+
+        // tell Gradle we only ship arm64
+        ndk {
+            abiFilters "arm64-v8a"
+            version "27.2.12479018"
+        }
+
+        externalNativeBuild {
+            cmake {
+                abiFilters "arm64-v8a"
+            }
+        }
+    }
+    buildFeatures { prefab true }          // keeps AAR clean if you ever publish
+    //  ndk { debugSymbolLevel 'FULL' }        // lets you see C++ stacks in logcat
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+    buildToolsVersion '34.0.0'
+    ndkVersion '27.2.12479018'
+    buildFeatures {
+        viewBinding true
+    }
+}
+
+dependencies {
+
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.constraintlayout
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+}
