@@ -356,6 +356,7 @@ def run_client(uri='ws://127.0.0.1:8765'):
 
     app.taskMgr.add(tick,'tick'); app.run()
 
+
 # ────────────────────────────────
 # Main entry
 # ────────────────────────────────
