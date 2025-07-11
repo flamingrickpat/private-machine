@@ -180,3 +180,4 @@ config.yaml
 *logs*
 *.bak
 test/
+*.gguf
