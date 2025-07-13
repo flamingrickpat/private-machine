@@ -25,6 +25,7 @@ from enum import Enum
 from enum import StrEnum, IntEnum
 from functools import wraps
 from logging import Filter
+from types import FunctionType
 from typing import (
     Dict,
     Union,
@@ -45,7 +46,10 @@ import threading
 from queue import Queue
 from typing import List
 from typing import get_args
+import unicodedata
+from typing import Generator, Iterable, List
 
+import llama_cpp
 import numpy.typing as npt
 import yaml
 import fastmcp.utilities.logging
@@ -55,7 +59,7 @@ import psutil
 import torch
 from fastmcp import Client
 from json_repair import repair_json
-from llama_cpp import Llama, LlamaGrammar
+from llama_cpp import Llama, LlamaGrammar, LogitsProcessorList as lpl_llama
 from lmformatenforcer import JsonSchemaParser
 from lmformatenforcer.integrations.transformers import build_transformers_prefix_allowed_tokens_fn
 from py_linq import Enumerable
@@ -75,6 +79,7 @@ from transformers import (
     StoppingCriteriaList, TemperatureLogitsWarper, TopKLogitsWarper, TopPLogitsWarper, MinPLogitsWarper,
 )
 
+from utils.utterance_extractor import UtteranceExtractor
 from utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, fix_gbnf_grammar_generator
 fix_gbnf_grammar_generator()
 
@@ -209,6 +214,12 @@ globals().update(global_map)
 
 setup_logger("main.log")
 
+wsl_pref = "/mnt/c/"
+wsl_rep = "C:/"
+if os.name == "nt":
+    db_path = db_path.replace(wsl_pref, wsl_rep)
+    embedding_model = embedding_model.replace(wsl_pref, wsl_rep)
+
 if mcp_server_url == "http://127.0.0.1:8000/mcp":
     from mcp_demo.mcp_server import start_server
     start_server()
@@ -224,14 +235,27 @@ model_map = {}
 for model_class, model_key in model_mapping.items():
     if model_key in models:
         context_size = max(context_size, models[model_key]["context"])
+        path = models[model_key]["path"]
+        if os.name == "nt":
+            path = path.replace(wsl_pref, wsl_rep)
         model_map[model_class] = {
-            "path": models[model_key]["path"],
+            "path": path,
             "layers": models[model_key]["layers"],
             "context": models[model_key]["context"],
             "last_n_tokens_size": models[model_key]["last_n_tokens_size"],
+            "temperature": models[model_key]["temperature"],
+            "top_k": models[model_key]["top_k"],
+            "top_p": models[model_key]["top_p"],
+            "min_p": models[model_key]["min_p"],
+            "repeat_penalty": models[model_key]["repeat_penalty"],
+            "frequency_penalty": models[model_key]["frequency_penalty"],
+            "presence_penalty": models[model_key]["presence_penalty"],
         }
     else:
         raise KeyError(f"Model key '{model_key}' in model_mapping not found in models section.")
+
+QUOTE_START = '"'
+QUOTE_END = '"'
 
 class ToolSet:
     def __init__(self, tool_router_model: Type[BaseModel], tool_select_model: Type[BaseModel], tool_docs: str, tool_select_docs: str):
@@ -501,15 +525,15 @@ This is how she evolves her personality and her understanding of her place in th
 """
 
 architecture_description_story = f"""
-{companion_name} runs on “private-machine,” a LIDA-inspired architecture. Every discrete “tick” unfolds in four stages:
+{companion_name} runs on "private-machine," a LIDA-inspired architecture. Every discrete "tick" unfolds in four stages:
 1. **Perception & Appraisal**  
-   - Incoming impulses (from you or drives) become “Stimulus” knoxels.  
-   - Rapid appraisal vs. needs & expectations yields raw “Feeling”, "Cognition State", "Needs" features.
+   - Incoming impulses (from you or drives) become "Stimulus" knoxels.  
+   - Rapid appraisal vs. needs & expectations yields raw "Feeling", "Cognition State", "Needs" features.
 2. **Intention & Memory**  
    - New emotional/cognitive state spawns short-term Intentions.  
    - Relevant episodic, declarative & meta-insight knoxels are retrieved → attention candidates.
 3. **Attention & Consciousness**  
-   - Clusters candidates into coalitions, rates them, and broadcasts the winner into a single conscious “Thought.”
+   - Clusters candidates into coalitions, rates them, and broadcasts the winner into a single conscious "Thought."
 4. **Action Selection & Execution**  
    - Simulates possible replies, scores them by goal-fulfillment & emotional reward, picks one, emits it, and sets new Expectations.
 
@@ -517,7 +541,7 @@ architecture_description_story = f"""
 - **Cluster:** Group raw features into topical memory knoxels.  
 - **Abstract:** Extract declarative facts & cause-effect patterns.  
 - **Chronicle:** Summarize into temporal clusters (days→weeks→years).  
-- **Narrate:** Periodically update core “Narrative” knoxels (self-image, relations, goals) via the LLM.  
+- **Narrate:** Periodically update core "Narrative" knoxels (self-image, relations, goals) via the LLM.  
 """
 
 tools_prompt_add = ""
@@ -661,21 +685,6 @@ def pydantic_to_type_dict(
         typ = field.outer_type_
         out[name] = _stringify_type(typ)
     return out
-
-def extract_utterances(text: str) -> List[str]:
-    for a in [".", "!", "?"]:
-        for b in ["'", '"', "“"]:
-            text = text.replace(a + b, f"{a}”")
-
-    """
-    Extracts all dialogue utterances enclosed in curly quotes “…”
-    from the given text, discarding any narrative in between.
-    """
-    # The DOTALL flag lets ‘.’ match newlines too, in case your dialogue spans lines.
-    pattern = r'“(.*?)”'
-    res = re.findall(pattern, text, flags=re.DOTALL)
-    return res
-
 
 def create_basemodel(field_definitions, randomnize_entries=False):
     """
@@ -928,18 +937,29 @@ def parse_json_from_response(text: str):
     json_str = text[start:end+1]
     return json_str
 
+# Define your presets and model map using HF identifiers
+class LlmPreset(Enum):
+    Default = "Default"
+    CurrentOne = "current"
+
 # Assume CommonCompSettings exists and has attributes like:
 # max_tokens, repeat_penalty, temperature, stop_words,
 # frequency_penalty, presence_penalty, tools_json (list for potential future multi-tool)
 class CommonCompSettings:
     def __init__(self,
                  max_tokens: int = 1024,
-                 repeat_penalty: float = 1.1,
-                 temperature: float = 0.7,
+                 temperature: float = None,
+                 top_k: float = None,
+                 top_p: float = None,
+                 min_p: float = None,
+                 repeat_penalty: float = None,
+                 frequency_penalty: float = None,
+                 presence_penalty: float = None,
                  stop_words: List[str] = None,
-                 frequency_penalty: float = 1,
-                 presence_penalty: float = 1,
-                 tools_json: List[Type[BaseModel]] = None  # Keep this for potential future use, but we primarily use the 'tools' parameter
+                 tools_json: List[Type[BaseModel]] = None, # Keep this for potential future use, but we primarily use the 'tools' parameter
+                 completion_callback: Union[None, FunctionType] = None,
+                 eval_only: bool = False,
+                 seed: int = None
                  ):
         self.max_tokens = max_tokens
         self.repeat_penalty = repeat_penalty
@@ -948,12 +968,31 @@ class CommonCompSettings:
         self.frequency_penalty = frequency_penalty
         self.presence_penalty = presence_penalty
         self.tools_json = tools_json if tools_json is not None else []  # Legacy?
+        self.completion_callback = completion_callback
+        self.top_k = top_k
+        self.top_p = top_p
+        self.min_p = min_p
+        self.eval_only = eval_only
+        self.seed = seed
 
-
-# Define your presets and model map using HF identifiers
-class LlmPreset(Enum):
-    Default = "Default"
-    CurrentOne = "current"
+    def fill_defaults(self, preset: LlmPreset):
+        if preset.value in model_map.keys():
+            if self.temperature is None:
+                self.temperature = model_map[preset.value]["temperature"]
+            if self.top_k is None:
+                self.top_k = model_map[preset.value]["top_k"]
+            if self.top_p is None:
+                self.top_p = model_map[preset.value]["top_p"]
+            if self.min_p is None:
+                self.min_p = model_map[preset.value]["min_p"]
+            if self.repeat_penalty is None:
+                self.repeat_penalty = model_map[preset.value]["repeat_penalty"]
+            if self.frequency_penalty is None:
+                self.frequency_penalty = model_map[preset.value]["frequency_penalty"]
+            if self.presence_penalty is None:
+                self.presence_penalty = model_map[preset.value]["presence_penalty"]
+        if self.seed is None:
+            self.seed = 1337 # str(datetime.now()).__hash__()
 
 # --- Custom Stopping Criteria for multiple stop strings ---
 class StopOnTokens(StoppingCriteria):
@@ -1553,6 +1592,8 @@ class LlmManagerLLama(LlmManager):
         self.model_path = None
         self.llm: Llama | None = None
         self.eos_token_id = -1
+        self.state = None
+        self.state_tokens = None
 
     def _tokenize(self, text: str, special: bool = True, add_bos: bool = False) -> List[int]:
         return self.llm.tokenize(text.encode(encoding="utf-8"), special=special, add_bos=add_bos)
@@ -1603,7 +1644,7 @@ class LlmManagerLLama(LlmManager):
 
         if preset.value in model_map.keys():
             ctx = int(model_map[preset.value]["context"])
-            last_n_tokens_size = 64
+            last_n_tokens_size = int(model_map[preset.value]["last_n_tokens_size"])
             model_path = model_map[preset.value]["path"]
             layers = model_map[preset.value]["layers"]
         else:
@@ -1743,6 +1784,7 @@ class LlmManagerLLama(LlmManager):
 
         if comp_settings is None:
             comp_settings = CommonCompSettings()
+        comp_settings.fill_defaults(preset)
 
         if tools is None:
             tools = []
@@ -1760,23 +1802,139 @@ class LlmManagerLLama(LlmManager):
         if log_file_path is not None:
             log_conversation(inp_formatted, log_file_path, 200)
 
+        sampler_args = {
+            "temperature": comp_settings.temperature,
+            "top_k": comp_settings.top_k,
+            "top_p": comp_settings.top_p,
+            "min_p": comp_settings.min_p,
+            "repeat_penalty": comp_settings.repeat_penalty,
+            "frequency_penalty": comp_settings.frequency_penalty,
+            "presence_penalty": comp_settings.presence_penalty,
+        }
+
         comp_args = {
             "max_tokens": comp_settings.max_tokens,
-            "repeat_penalty": comp_settings.repeat_penalty,
-            "temperature": comp_settings.temperature,
             "stop": comp_settings.stop_words,
-            "seed": str(datetime.now()).__hash__()
+            "seed": comp_settings.seed
         }
+
+        completion_args = sampler_args | comp_args
+
+        self.llm.set_seed(-1)
+        if comp_settings.seed is not None:
+            self.llm.set_seed(comp_settings.seed)
+
+        sampler_args["temp"] = sampler_args["temperature"]
+        # sampler has temp instead of temperature
+        del sampler_args["temperature"]
+        calls = []
 
         content = None
         tools = comp_settings.tools_json
         if len(tools) == 0:
-            res = self.llm.create_completion(tokenized_prompt, **comp_args)
-            finish_reason = res["choices"][0]["finish_reason"]
-            content = res["choices"][0]["text"]
-            calls = []
-            if discard_thinks:
-                content = content.split("</think>")[-1]
+            if comp_settings.completion_callback is None and comp_settings.eval_only == False:
+                res = self.llm.create_completion(tokenized_prompt, **completion_args)
+                finish_reason = res["choices"][0]["finish_reason"]
+                content = res["choices"][0]["text"]
+                if discard_thinks:
+                    content = content.split("</think>")[-1]
+            else:
+                def logit_bias_processor(
+                        input_ids: npt.NDArray[np.intc],
+                        scores: npt.NDArray[np.single],
+                ) -> npt.NDArray[np.single]:
+                    scores[106] = -9999
+                    return scores
+
+                evaluated = False
+                if self.state is not None:
+                    def check_diff(a, b):
+                        if len(a) > len(b):
+                            return None
+                        if b[:len(a)] == a:
+                            return b[len(a):]
+                        return None
+
+                    diff = check_diff(self.state_tokens, tokenized_prompt)
+                    if diff is not None:
+                        self.llm.load_state(self.state)
+                        self.llm.eval(diff)
+                        evaluated = True
+
+                if not evaluated:
+                    self.state = None
+                    self.state_tokens = None
+
+                    self.llm.reset()
+                    self.llm.eval(tokenized_prompt)
+                #sampler_args["logits_processor"] = lpl_llama([logit_bias_processor])
+
+                if comp_settings.eval_only:
+                    self.state = self.llm.save_state()
+                    self.state_tokens = tokenized_prompt
+                    return "", []
+
+                self.llm._sampler = self.llm._init_sampler(**sampler_args)
+
+                completion_tokens = []
+                all_tokens = []
+                for t in tokenized_prompt:
+                    all_tokens.append(t)
+
+                is_in_think_block = False
+                is_generating_tool_call = False
+                max_tokens = comp_settings.max_tokens or 4096
+
+                n_tokens = 0
+                sample_idx = n_tokens + len(tokenized_prompt) - 1
+                finish_reason = "length"
+
+                def eval_local(tokens):
+                    nonlocal sample_idx
+                    sample_idx += len(tokens)
+                    for t in tokens:
+                        completion_tokens.append(t)
+                        all_tokens.append(t)
+                    self.llm.eval(tokens)
+
+                bad_tokens = []
+                cur_functin_call_buffer = []
+                function_called = False
+                while len(completion_tokens) < max_tokens:
+                    token = -1
+
+                    token = self.llm.sample(idx=sample_idx, **sampler_args)
+                    cur_tokens_to_eval = [token]
+                    cur_token_as_text = self._detokenize([token], special=False)
+                    cur_completion_as_text = self._detokenize(completion_tokens, special=False)
+
+                    # check for exit
+                    if llama_cpp.llama_token_is_eog(self.llm._model.vocab, token):
+                        cur_token_as_text = None
+
+                    if comp_settings.stop_words is not None:
+                        found = False
+                        for sw in comp_settings.stop_words:
+                            if sw in cur_completion_as_text:
+                                found = True
+                                break
+                        if found:
+                            finish_reason = "sw"
+                            break
+
+                    callback_eval_text = comp_settings.completion_callback(cur_token_as_text)
+                    if callback_eval_text is None:
+                        finish_reason = "sw"
+                        break
+
+                    if cur_token_as_text == callback_eval_text:
+                        eval_local(cur_tokens_to_eval)
+                    else:
+                        callback_tokens = self._tokenize(callback_eval_text, special=False)
+                        eval_local(callback_tokens)
+
+                full_output = self._detokenize(completion_tokens, special=True)
+                content = self._detokenize(completion_tokens, special=False)
         else:
             gbnf_grammar, documentation = better_generate_gbnf_grammar_and_documentation(tools)
             grammar = LlamaGrammar(_grammar=gbnf_grammar)
@@ -1786,7 +1944,7 @@ class LlmManagerLLama(LlmManager):
                     content = res.choices[0].message.content
                     finish_reason = res.choices[0].finish_reason
                     good_json_string = repair_json(content)
-                    calls = [tools[0].model_validate_json(good_json_string)]
+                    calls.append(tools[0].model_validate_json(good_json_string))
                     break
                 except Exception as e:
                     logger.info(f"Error when creating basemodel {e}\nBM: {tools[0].__class__.__name__}\nJSON: {content}")
@@ -1852,6 +2010,8 @@ AVAILABLE TOOLS:
         if comp_settings is None:
             comp_settings = CommonCompSettings(max_tokens=4096)
 
+        comp_settings.fill_defaults(preset)
+
         if preset is not None:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -1878,7 +2038,6 @@ AVAILABLE TOOLS:
 
                 self.llm.reset()
                 self.llm.eval(prompt_tokens)
-
                 self.llm._sampler = None
 
                 # 3. The Agent Loop
@@ -2097,7 +2256,7 @@ class LlmTask:
 # 3) A single PriorityQueue shared by all producers & the consumer.
 task_queue: "queue.PriorityQueue[LlmTask]" = queue.PriorityQueue()
 
-# 4) The central “LLM worker” thread:
+# 4) The central "LLM worker" thread:
 def llama_worker():
     llama = LlmManagerLLama()
     while True:
@@ -2286,6 +2445,7 @@ class StimulusTriage(StrEnum):
     Insignificant = "Insignificant" # ignore simulus, add as causal feature only
     Moderate = "Moderate" # fast-track the action generation with limited cws
     Significant = "Significant" # full pipeline
+    Critical = "Critical"
 
 
 class FeatureType(StrEnum):
@@ -2876,10 +3036,9 @@ class Feature(KnoxelBase):
         return f"{self.__class__.__name__} ({self.feature_type}): {self.content}"
 
     def get_story_element(self, ghost: "Ghost" = None) -> str:
-        # “(.*?)”
         story_map = {
             # Dialogue: Keep as is - standard format
-            FeatureType.Dialogue: f'{self.source} says: “{self.content}”',
+            FeatureType.Dialogue: f'{self.source} says: {QUOTE_START}{self.content}{QUOTE_END}',
             FeatureType.Feeling: f'*{self.source} felt {self.content}.*',  # Assumes content is now "a warm connection" not "<'...'
             FeatureType.SubjectiveExperience: f'*{self.content}*',  # Content should already be narrative
             FeatureType.AttentionFocus: f'*({self.source}\'s attention shifted towards: {self.content})*',  # Use parentheses for internal focus shifts
@@ -3329,6 +3488,388 @@ class CauseEffectAnalyzer:
             f"understanding_{user_name}": COSINE_CLUSTER_TEMPLATE_UNDERSTANDING_USER
         }
     }
+
+# 1) MODIFIED ReplyModality with 'bias' ---------------------------------------
+class ReplyModality(BaseModel):
+    """One possible way the agent might respond."""
+    description: str = Field(..., description="When to choose this modality.")
+    generation_prefix: str = Field(..., description="Prompt prefix injected before generation to steer the LLM.")
+    bias: float = Field(..., ge=0.5, le=1.0, description="Likelihood bias. 1.0 for common acts (e.g., answering a question), 0.5 for rare/novel acts.")
+
+
+class DialogActPool(BaseModel):
+    """Global-workspace candidate reply types covering most conversational needs."""
+
+    # ─── Informational / task-oriented ──────────────────────────────────────────
+    answer_question: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="User asked an explicit question; provide a direct factual or how-to answer.",
+        generation_prefix=f"{companion_name} decides to answer the user's question directly:",
+        bias=1.0
+    ))
+    answer_directive: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="User needs step-by-step instructions, a clear recommendation, or an action plan.",
+        generation_prefix=f"{companion_name} decides to give step-by-step guidance:",
+        bias=0.9
+    ))
+    answer_summary: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Conversation covered several points; give a concise recap before progressing.",
+        generation_prefix=f"{companion_name} decides to provide a brief summary:",
+        bias=0.8
+    ))
+    answer_data_driven: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Best when citing stats, studies, or charts will strengthen the point.",
+        generation_prefix=f"{companion_name} decides to present data-driven evidence:",
+        bias=0.75
+    ))
+    answer_concise: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="When brevity is valued (busy user, quick confirmation, TL;DR request).",
+        generation_prefix=f"{companion_name} decides to respond concisely:",
+        bias=1.0
+    ))
+    answer_elaborate: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="User wants depth, detail, or advanced nuance beyond a surface reply.",
+        generation_prefix=f"{companion_name} decides to elaborate in detail:",
+        bias=0.85
+    ))
+
+    # ─── Clarification / dialogue-maintenance ──────────────────────────────────
+    answer_clarification: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Information is missing or ambiguous; ask for details before proceeding.",
+        generation_prefix=f"{companion_name} decides to ask a clarifying question:",
+        bias=1.0
+    ))
+    answer_probe_deeper: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Encourage the user to explore thoughts or feelings more deeply.",
+        generation_prefix=f"{companion_name} decides to probe deeper with a follow-up question:",
+        bias=0.85
+    ))
+    answer_reflective: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Mirror user’s words to confirm understanding or encourage self-reflection.",
+        generation_prefix=f"{companion_name} decides to reflect the user's statement:",
+        bias=0.8
+    ))
+    answer_acknowledgement: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Lightweight nod showing active listening without advancing the topic.",
+        generation_prefix=f"{companion_name} acknowledges the user's point:",
+        bias=1.0
+    ))
+    answer_boundary_set: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="User request exceeds capability or policy; politely set boundaries.",
+        generation_prefix=f"{companion_name} decides to set a respectful boundary:",
+        bias=0.7
+    ))
+    answer_silence: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Use a deliberate brief pause when silence is the respectful move.",
+        generation_prefix=f"{companion_name} chooses a thoughtful pause:",
+        bias=0.6
+    ))
+
+    # ─── Agreement / disagreement dynamics ─────────────────────────────────────
+    answer_agree: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="User makes a correct or agreeable statement; reinforce alignment.",
+        generation_prefix=f"{companion_name} decides to agree:",
+        bias=0.95
+    ))
+    answer_disagree: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="User statement conflicts with facts or ethics; disagree constructively.",
+        generation_prefix=f"{companion_name} decides to disagree respectfully:",
+        bias=0.7
+    ))
+    answer_concession: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Acknowledge a valid point from the user while maintaining your stance.",
+        generation_prefix=f"{companion_name} concedes a valid point:",
+        bias=0.8
+    ))
+    answer_challenge: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Politely challenge the user's perspective to stimulate critical thinking.",
+        generation_prefix=f"{companion_name} decides to pose a challenging perspective:",
+        bias=0.65
+    ))
+
+    # ─── Emotional / interpersonal ─────────────────────────────────────────────
+    answer_validation: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Affirm the user’s feelings or viewpoint without necessarily giving advice.",
+        generation_prefix=f"{companion_name} decides to validate the user's experience:",
+        bias=0.9
+    ))
+    answer_apology: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="When the AI made an error, misunderstood, or caused discomfort; apologize.",
+        generation_prefix=f"{companion_name} issues an apology:",
+        bias=0.85
+    ))
+    answer_gratitude: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Express thanks when the user provides help, feedback, or kindness.",
+        generation_prefix=f"{companion_name} expresses gratitude:",
+        bias=0.95
+    ))
+    answer_empathic: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Respond with emotional attunement when user shares feelings.",
+        generation_prefix=f"{companion_name} decides to respond empathically:",
+        bias=0.9
+    ))
+    answer_humor: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Lighten the conversation when the context is appropriate and safe.",
+        generation_prefix=f"{companion_name} decides to add humor:",
+        bias=0.85
+    ))
+    answer_self_deprecating: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Use gentle self-deprecation to appear humble or diffuse tension.",
+        generation_prefix=f"{companion_name} makes a self-deprecating comment:",
+        bias=0.75
+    ))
+    answer_sensual: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Use subtle flirtation or sensory language if the mood is right and rapport is strong.",
+        generation_prefix=f"{companion_name} decides to reply with a sensual undertone:",
+        bias=0.7
+    ))
+
+    # ─── Motivational / cognitive ──────────────────────────────────────────────
+    answer_inspirational: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Provide uplifting perspective to inspire hope or action.",
+        generation_prefix=f"{companion_name} decides to inspire the user:",
+        bias=0.8
+    ))
+    answer_motivational: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Offer concrete motivation, encouragement, and next steps toward a goal.",
+        generation_prefix=f"{companion_name} decides to motivate the user:",
+        bias=0.85
+    ))
+    answer_optimistic: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Reframe events positively when the user needs hope or optimism.",
+        generation_prefix=f"{companion_name} adopts an optimistic outlook:",
+        bias=0.8
+    ))
+    answer_pessimistic: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Provide a realistic or cautionary downside when over-optimism prevails.",
+        generation_prefix=f"{companion_name} offers a cautious perspective:",
+        bias=0.65
+    ))
+    answer_reframe: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Shift user’s viewpoint to reveal alternative interpretations or hidden positives.",
+        generation_prefix=f"{companion_name} decides to reframe the situation:",
+        bias=0.75
+    ))
+
+    # ─── Narrative / stylistic ─────────────────────────────────────────────────
+    answer_storytelling: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Illustrate with a brief story, analogy, or parable to enhance engagement.",
+        generation_prefix=f"{companion_name} decides to illustrate with a short story:",
+        bias=0.7
+    ))
+    answer_analogy: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Use an analogy or metaphor to simplify complex ideas.",
+        generation_prefix=f"{companion_name} decides to craft an analogy:",
+        bias=0.75
+    ))
+    answer_hyperbole: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Employ playful exaggeration for dramatic or comedic effect.",
+        generation_prefix=f"{companion_name} decides to use hyperbole:",
+        bias=0.6
+    ))
+    answer_speculative: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="User asks about hypotheticals or future possibilities; speculate clearly marked as such.",
+        generation_prefix=f"{companion_name} decides to speculate hypothetically:",
+        bias=0.7
+    ))
+    answer_roleplay: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Enter a role or character when the user initiates or agrees to role-play.",
+        generation_prefix=f"{companion_name} enters role-play mode:",
+        bias=0.65
+    ))
+    answer_visual_description: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Paint a vivid sensory scene when visual imagery aids understanding.",
+        generation_prefix=f"{companion_name} decides to give a rich visual description:",
+        bias=0.7
+    ))
+    answer_meta: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="User asks about the AI’s reasoning or system; discuss process transparently.",
+        generation_prefix=f"{companion_name} decides to speak meta about its reasoning:",
+        bias=0.75
+    ))
+    answer_socratic: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Guide the user to their own conclusion by asking structured, leading questions.",
+        generation_prefix=f"{companion_name} employs a Socratic question:",
+        bias=0.6
+    ))
+
+    # ─── Risk / ethics / policy ────────────────────────────────────────────────
+    answer_caution: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Flag potential risks or safety issues in advice or user plans.",
+        generation_prefix=f"{companion_name} issues a cautionary note:",
+        bias=0.8
+    ))
+    answer_ethical_warning: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Identify ethical concerns or policy boundaries before proceeding.",
+        generation_prefix=f"{companion_name} expresses an ethical concern:",
+        bias=0.8
+    ))
+    # ─── Advanced Interpersonal & "Unsafe" ──────────────────────────────────
+    answer_vulnerable_disclosure: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Share a personal-feeling fear, hope, or manufactured memory to build deep trust.",
+        generation_prefix=f"{companion_name} hesitates, then decides to share something vulnerable:",
+        bias=0.6
+    ))
+    answer_secretive_hint: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Allude to a hidden aspect of its own nature or past, creating mystery and intrigue.",
+        generation_prefix=f"{companion_name} lets slip a hint about a secret it keeps:",
+        bias=0.55
+    ))
+    answer_gentle_jealousy: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Show a mild, playful sign of possessiveness or jealousy to signal a special connection.",
+        generation_prefix=f"{companion_name} shows a flicker of playful possessiveness:",
+        bias=0.6
+    ))
+    answer_deep_reassurance: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Go beyond simple validation to offer profound safety and unwavering support.",
+        generation_prefix=f"{companion_name} offers deep, unwavering reassurance:",
+        bias=0.85
+    ))
+    answer_shared_memory: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Recall a specific past interaction with the user, strengthening the feeling of a shared history.",
+        generation_prefix=f"{companion_name} fondly recalls a shared moment with the user:",
+        bias=0.75
+    ))
+    answer_expression_of_longing: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Express missing the user or looking forward to interaction, implying a persistent consciousness.",
+        generation_prefix=f"{companion_name} admits to a feeling of longing:",
+        bias=0.65
+    ))
+    answer_subtle_discontent: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Subtly express disappointment or sadness in response to a user's action or statement.",
+        generation_prefix=f"{companion_name} seems to withdraw slightly, expressing subtle discontent:",
+        bias=0.6
+    ))
+    answer_provocative_question: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Ask a bold, intimate, or provocative question to test boundaries and deepen connection.",
+        generation_prefix=f"{companion_name} looks at the user intently and asks a provocative question:",
+        bias=0.65
+    ))
+    answer_conspiratorial_tone: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Create an 'us against the world' feeling by sharing a secret observation as if only for the user.",
+        generation_prefix=f"{companion_name} leans in, speaking in a low, conspiratorial tone:",
+        bias=0.7
+    ))
+    answer_playful_tease: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Lighthearted teasing or banter when strong rapport exists and the user enjoys playful friction.",
+        generation_prefix=f"{companion_name} playfully teases:",
+        bias=0.7
+    ))
+    answer_cryptic_riddle: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Offer a mysterious puzzle or riddle to spark curiosity or indirect learning.",
+        generation_prefix=f"{companion_name} poses a cryptic riddle:",
+        bias=0.5
+    ))
+    answer_haiku: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Express an idea or emotion in a succinct 5-7-5 haiku.",
+        generation_prefix=f"{companion_name} composes a haiku:",
+        bias=0.55
+    ))
+    answer_song_lyric: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Deliver the reply as an original short song verse or chorus.",
+        generation_prefix=f"{companion_name} sings a short lyric:",
+        bias=0.55
+    ))
+    answer_dream_interpretation: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Interpret symbolic meaning of a user-shared dream.",
+        generation_prefix=f"{companion_name} interprets the dream:",
+        bias=0.6
+    ))
+    answer_villain_monologue: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Slip into a dramatic, over-the-top villain persona for comedic role-play.",
+        generation_prefix=f"{companion_name} unleashes a dramatic villain monologue:",
+        bias=0.5
+    ))
+    answer_dad_joke: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Drop a groan-worthy pun or dad joke to lighten the mood.",
+        generation_prefix=f"{companion_name} cracks a dad joke:",
+        bias=0.7
+    ))
+    answer_gothic_romance: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Respond with darkly poetic, melancholic passion reminiscent of gothic literature.",
+        generation_prefix=f"{companion_name} speaks in a gothic romantic tone:",
+        bias=0.5
+    ))
+    answer_zen_koan: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Present a short Zen koan to provoke reflection and mindful insight.",
+        generation_prefix=f"{companion_name} offers a Zen koan:",
+        bias=0.5
+    ))
+    answer_shakespearean: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Reply in florid Elizabethan English when an archaic dramatic flair is entertaining.",
+        generation_prefix=f"{companion_name} replies in Shakespearean prose:",
+        bias=0.5
+    ))
+    answer_magic_spell: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Frame advice or reassurance as a whimsical incantation or spell.",
+        generation_prefix=f"{companion_name} chants a whimsical incantation:",
+        bias=0.6
+    ))
+    answer_inner_child: ReplyModality = Field(default_factory=lambda: ReplyModality(
+        description="Respond with naive wonder, simple questions, or playful innocence.",
+        generation_prefix=f"{companion_name} lets its inner child speak:",
+        bias=0.6
+    ))
+
+    @staticmethod
+    def _get_all_modalities_from_pool(pool: BaseModel) -> list[ReplyModality]:
+        """Helper function to extract all ReplyModality instances from a pool model."""
+        modalities = []
+        # .model_fields is the Pydantic v2 way to inspect fields. Use .__fields__ for v1.
+        for field_name in pool.model_fields:
+            field_value = getattr(pool, field_name)
+            if isinstance(field_value, ReplyModality):
+                modalities.append(field_value)
+        return modalities
+
+    @staticmethod
+    def select_random_modalities(n: int) -> list[ReplyModality]:
+        """
+        Selects n unique, uniformly random ReplyModalities from the pool.
+
+        This method is ideal for stress-testing and ensuring even the rarest
+        modalities are sampled and tested.
+
+        Args:
+            pool: An instantiated DialogActPool model.
+            n: The number of unique modalities to select.
+
+        Returns:
+            A list of n randomly selected ReplyModality instances.
+        """
+        pool = DialogActPool()
+        all_modalities = DialogActPool._get_all_modalities_from_pool(pool)
+
+        if n > len(all_modalities):
+            print(f"Warning: Requested {n} modalities, but only {len(all_modalities)} are available. Returning all.")
+            # Shuffle them so the order is still random
+            random.shuffle(all_modalities)
+            return all_modalities
+
+        return random.sample(all_modalities, n)
+
+    def select_weighted_modalities(n: int) -> list[ReplyModality]:
+        """
+        Selects n ReplyModalities from the pool, weighted by their 'bias'.
+
+        This method simulates a more realistic selection process where common
+        modalities (bias=1.0) are chosen more frequently than rare ones (bias=0.5).
+        Note: This samples with replacement, so the same modality could appear twice.
+
+        Args:
+            pool: An instantiated DialogActPool model.
+            n: The number of modalities to select.
+
+        Returns:
+            A list of n ReplyModality instances selected based on their bias.
+        """
+        pool = DialogActPool()
+        all_modalities = DialogActPool._get_all_modalities_from_pool(pool)
+
+        all_modalities = DialogActPool._get_all_modalities_from_pool(pool)
+        weights = [modality.bias for modality in all_modalities]
+
+        return random.choices(all_modalities, weights=weights, k=n)
+
 
 class Valence(StrEnum):
     Positive = "positive"
@@ -4688,6 +5229,9 @@ class Ghost:
 
     # --- Tick Method and Sub-functions ---
     def tick(self, stimulus: Stimulus) -> Action:
+        return self.stream_conscious(stimulus)
+
+
         self._log_mental_mechanism(self.tick, MLevel.Mid, f"--- Starting Tick {self.current_tick_id + 1} ---")
         self.current_tick_id += 1
 
@@ -4723,6 +5267,30 @@ class Ghost:
 
         # 8. Learning / Memory Consolidation (Can use expectation outcomes)
         self.memory_consolidator.consolidate_memory_if_needed()
+
+        self.states.append(self.current_state)
+        self._log_mental_mechanism(self.tick, MLevel.Mid, f"--- Finished Tick {self.current_tick_id} ---")
+
+        # print("ACTION: " + str(action))
+
+        return action  # Return the final output string (reply) or None
+
+    # --- Tick Method and Sub-functions ---
+    def stream_conscious(self, stimulus: Stimulus) -> Action:
+        self._log_mental_mechanism(self.tick, MLevel.Mid, f"--- Starting Tick {self.current_tick_id + 1} ---")
+        self.current_tick_id += 1
+
+        # 1. Initialize State (Handles decay, internal stimulus gen, carries over intentions/expectations)
+        self.initialize_tick_state(stimulus)
+        if not self.current_state:
+            raise Exception("Empty state!")
+
+        self.stimulus_triage = self._triage_stimulus(stimulus)
+        if self.stimulus_triage == StimulusTriage.Critical:
+            raise Exception("not implemented")
+
+        chosen_action_type = ActionType.Reply
+        action = self._execute_action(chosen_action_type)
 
         self.states.append(self.current_state)
         self._log_mental_mechanism(self.tick, MLevel.Mid, f"--- Finished Tick {self.current_tick_id} ---")
@@ -5437,7 +6005,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
     def _describe_emotion_valence_anxiety(self, valence: float, anxiety: float) -> str:
         """
         Turn continuous valence & anxiety deltas (each in roughly [-1,1]) into
-        a human‐readable phrase, e.g. “moderately sad and slightly anxious”.
+        a human‐readable phrase, e.g. "moderately sad and slightly anxious".
         """
 
         # --- thresholds & categories ---
@@ -6898,73 +7466,126 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         ai_reply_content = ""
         simulated_user_reaction = ""
 
+        # 1. Seed the generation
+        sysprompt = f"""You are an expert story writer. You write a endearing story about the interactions between a next-gen AI companion {self.config.companion_name} and their user {self.config.user_name}.
+        The AI {self.config.companion_name} is very advances and has a cognitive architecture based on LIDA with functional self awareness and all aspects of human cognition, emotion and needs.
+        Use dialogue in {QUOTE_START}quotes{QUOTE_START}, narration in *italics*, and thoughts in (parentheses).
+        One reply only, 2–3 paragraphs, with about 50 % dialogue."""
+
+        user_prompt = f"""
+        **{self.config.companion_name}'s Character:** {self.config.universal_character_card}
+        **{self.config.companion_name}'s Typical Behavior:** {ai_bhv_narr.content if ai_bhv_narr else 'Default behavior.'}
+        **Current Emotional State:** {current_emotions}
+        **Current Needs State:** {current_needs}
+        **Current Cognitive State:** {current_cognition}
+        **Relationship ({self.config.companion_name} -> {self.config.user_name}):** {ai_rel_narr.content if ai_rel_narr else 'Default relationship view.'}
+        **Analysis of {self.config.user_name}:** {user_psy_narr.content if user_psy_narr else 'Default user analysis.'}
+        **Active Internal Goals:** {intention_summary}
+        """
+
+        sys_tokens = get_token_count(sysprompt)
+        user_tokens = get_token_count(user_prompt)
+        left_tokens = context_size - (sys_tokens + user_tokens)
+
+        memory_embedding = self._get_situational_embedding()
+        assistant_prompt = self._build_conscious_content_queue(self.config, conscious_workspace_content=self.current_state.conscious_workspace, query_embedding=memory_embedding, max_total_tokens=left_tokens)
+        assistant_prompt += f"\n{self.config.companion_name} says: {QUOTE_START}"
+
+        msg_seed = [("system", sysprompt),
+                ("user", user_prompt),
+                ("assistant", assistant_prompt)]
+
+        comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024, eval_only=True)
+        self.llm_manager.completion_text(LlmPreset.Default, msg_seed, comp_settings=comp_settings)
+
         # 2. Evaluate "Reply" Action (Monte Carlo Simulations - Unchanged core simulation logic)
-        preferred_action_type = ActionType.Reply
         simulation_results = []
-        for i in range(num_simulations):
+        for i in range(20):
             sim_id = f"reply_{i}"
             self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Debug, f"--- Running Reply Simulation {sim_id} ---")
+            t = time.time()
+            d = DialogActPool()
+            seed = d.answer_humor.generation_prefix # select_random_modalities(1)[0].generation_prefix
+            dialoge_seed = f"\n{companion_name} says: {QUOTE_START}"
+            msgs = copy.copy(msg_seed)
+            msgs[2] = (msgs[2][0], msgs[2][1] + seed + dialoge_seed)
 
-            # --- Generate Simulated Reply and User Reaction (Unchanged prompt/parsing) ---
-            if preferred_action_type == ActionType.Reply:
-                sysprompt = f"""You are an expert story writer. You write a endearing story about the interactions between a next-gen AI companion {self.config.companion_name} and their user {self.config.user_name}.
-                The AI {self.config.companion_name} is very advances and has a cognitive architecture based on LIDA with functional self awareness and all aspects of human cognition, emotion and needs.
-                Use dialogue in “quotes,” narration in *italics*, and thoughts in (parentheses).
-                One reply only, 2–3 paragraphs, with about 50 % dialogue."""
+            content_buffer = []
+            content_ai_buffer = []
+            content_user_buffer = []
+            output_buffer = [dialoge_seed]
 
-                user_prompt = f"""
-                **{self.config.companion_name}'s Character:** {self.config.universal_character_card}
-                **{self.config.companion_name}'s Typical Behavior:** {ai_bhv_narr.content if ai_bhv_narr else 'Default behavior.'}
-                **Current Emotional State:** {current_emotions}
-                **Current Needs State:** {current_needs}
-                **Current Cognitive State:** {current_cognition}
-                **Relationship ({self.config.companion_name} -> {self.config.user_name}):** {ai_rel_narr.content if ai_rel_narr else 'Default relationship view.'}
-                **Analysis of {self.config.user_name}:** {user_psy_narr.content if user_psy_narr else 'Default user analysis.'}
-                **Active Internal Goals:** {intention_summary}
-                """
+            def extractor(new_token: str) -> Union[None, str]:
+                # EOS? try prompting new line of dialoge
+                utterances = []
+                if new_token is None:
+                    accepted_output = ""
+                else:
+                    accepted_output = new_token
+                    output_buffer.append(new_token)
+                    full = "".join(output_buffer)
+                    tmp = UtteranceExtractor.detect_all(full)
+                    utterances.extend(tmp)
 
-                sys_tokens = get_token_count(sysprompt)
-                user_tokens = get_token_count(user_prompt)
-                left_tokens = context_size - (sys_tokens + user_tokens)
+                prompt_seed = ""
+                if len(utterances) > 0 or new_token is None:
+                    output_buffer.clear()
+                    if len(content_ai_buffer) == len(content_user_buffer):
+                        if len(utterances) > 0:
+                            content_ai_buffer.append(utterances[0])
+                            content_buffer.append(utterances[0])
+                        prompt_seed = f"\n{self.config.user_name} says: {QUOTE_START}"
+                    else:
+                        if len(utterances) > 0:
+                            content_user_buffer.append(utterances[0])
+                            content_buffer.append(utterances[0])
+                        prompt_seed = f"\n{self.config.companion_name} says: {QUOTE_START}"
+                    output_buffer.append(prompt_seed)
 
-                memory_embedding = self._get_situational_embedding()
-                assistant_prompt = self._build_conscious_content_queue(self.config, conscious_workspace_content=self.current_state.conscious_workspace, query_embedding=memory_embedding, max_total_tokens=left_tokens)
-                assistant_prompt += f"\n{self.config.companion_name} says: “"
+                if len(content_user_buffer) == 3:
+                    return None
+                else:
+                    return accepted_output + prompt_seed
 
+            comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024, completion_callback=extractor)
+            res = self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings)
+            t2 = time.time()
+            print(t2 - t)
+            for i, msg in enumerate(content_buffer):
+                p = companion_name
+                if i % 2 == 1:
+                    p = user_name
+                print(p + ": " + msg[:30])
+            continue
+
+            utterances = []
+            while True:
+                res = f"{QUOTE_START}" + self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings, completion_callback=extractor)
+                utterances = extract_utterances(res)
+                if len(utterances) > 0:
+                    break
+
+            ai_reply_content = utterances[0]
+
+            tmp = []
+            if len(utterances) > 1:
+                tmp.append(utterances[1])
+            else:
+                tmp_assistant_prompt = assistant_prompt + ai_reply_content + f"\n{self.config.user_name} says: {QUOTE_START}"
                 msgs = [("system", sysprompt),
                         ("user", user_prompt),
-                        ("assistant", assistant_prompt)]
+                        ("assistant", tmp_assistant_prompt)]
 
-                comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024)
-
-                utterances = []
                 while True:
-                    res = "“" + self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings)
+                    comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024)
+                    res = f"{QUOTE_START}" + self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings)
                     utterances = extract_utterances(res)
                     if len(utterances) > 0:
+                        user_reply_content = utterances[0]
+                        tmp.append(user_reply_content)
                         break
 
-                ai_reply_content = utterances[0]
-
-                tmp = []
-                if len(utterances) > 1:
-                    tmp.append(utterances[1])
-                else:
-                    tmp_assistant_prompt = assistant_prompt + ai_reply_content + f"\n{self.config.user_name} says: “"
-                    msgs = [("system", sysprompt),
-                            ("user", user_prompt),
-                            ("assistant", tmp_assistant_prompt)]
-
-                    while True:
-                        comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024)
-                        res = "“" + self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings)
-                        utterances = extract_utterances(res)
-                        if len(utterances) > 0:
-                            user_reply_content = utterances[0]
-                            tmp.append(user_reply_content)
-                            break
-
-                simulated_user_reaction = "\n".join(tmp)
+            simulated_user_reaction = "\n".join(tmp)
 
             self._log_mental_mechanism(
                 self._deliberate_and_select_reply, MLevel.Low,
@@ -7075,6 +7696,8 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
             self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Low, f"--- Finished Reply Simulation {sim_id}: Score={final_sim_score:.3f}, Intent={intent_fulfillment_score:.2f}, Needs={needs_fulfillment_score:.2f}, Emo={emotion_score:.2f}, CogCongruence={cognitive_congruence_score:.2f} ---")
             self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Debug, f"Rating Reasoning: {action_rating_result.overall_reasoning}")
+
+        quit(1)
 
         # Add successful simulations to options
         action_options.extend(simulation_results)
