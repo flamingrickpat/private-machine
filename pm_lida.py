@@ -1847,7 +1847,7 @@ class LlmManagerLLama(LlmManager):
                     return scores
 
                 evaluated = False
-                if self.state is not None:
+                if self.state is not None and not comp_settings.eval_only:
                     def check_diff(a, b):
                         if len(a) > len(b):
                             return None
@@ -5229,8 +5229,7 @@ class Ghost:
 
     # --- Tick Method and Sub-functions ---
     def tick(self, stimulus: Stimulus) -> Action:
-        return self.stream_conscious(stimulus)
-
+        #return self.stream_conscious(stimulus)
 
         self._log_mental_mechanism(self.tick, MLevel.Mid, f"--- Starting Tick {self.current_tick_id + 1} ---")
         self.current_tick_id += 1
@@ -7495,73 +7494,79 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 ("user", user_prompt),
                 ("assistant", assistant_prompt)]
 
-        comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024, eval_only=True)
-        self.llm_manager.completion_text(LlmPreset.Default, msg_seed, comp_settings=comp_settings)
+        TEST = False
+        if TEST:
+            comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024, eval_only=True)
+            self.llm_manager.completion_text(LlmPreset.Default, msg_seed, comp_settings=comp_settings)
 
         # 2. Evaluate "Reply" Action (Monte Carlo Simulations - Unchanged core simulation logic)
         simulation_results = []
-        for i in range(20):
+        for i in range(num_simulations):
             sim_id = f"reply_{i}"
             self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Debug, f"--- Running Reply Simulation {sim_id} ---")
-            t = time.time()
-            d = DialogActPool()
-            seed = d.answer_humor.generation_prefix # select_random_modalities(1)[0].generation_prefix
-            dialoge_seed = f"\n{companion_name} says: {QUOTE_START}"
+
             msgs = copy.copy(msg_seed)
-            msgs[2] = (msgs[2][0], msgs[2][1] + seed + dialoge_seed)
+            if TEST:
+                t = time.time()
+                d = DialogActPool()
+                seed = d.answer_humor.generation_prefix # select_random_modalities(1)[0].generation_prefix
+                dialoge_seed = f"\n{companion_name} says: {QUOTE_START}"
+                msgs = copy.copy(msg_seed)
 
-            content_buffer = []
-            content_ai_buffer = []
-            content_user_buffer = []
-            output_buffer = [dialoge_seed]
+                msgs[2] = (msgs[2][0], msgs[2][1] + seed + dialoge_seed)
+                content_buffer = []
+                content_ai_buffer = []
+                content_user_buffer = []
+                output_buffer = [dialoge_seed]
 
-            def extractor(new_token: str) -> Union[None, str]:
-                # EOS? try prompting new line of dialoge
-                utterances = []
-                if new_token is None:
-                    accepted_output = ""
-                else:
-                    accepted_output = new_token
-                    output_buffer.append(new_token)
-                    full = "".join(output_buffer)
-                    tmp = UtteranceExtractor.detect_all(full)
-                    utterances.extend(tmp)
-
-                prompt_seed = ""
-                if len(utterances) > 0 or new_token is None:
-                    output_buffer.clear()
-                    if len(content_ai_buffer) == len(content_user_buffer):
-                        if len(utterances) > 0:
-                            content_ai_buffer.append(utterances[0])
-                            content_buffer.append(utterances[0])
-                        prompt_seed = f"\n{self.config.user_name} says: {QUOTE_START}"
+                def extractor(new_token: str) -> Union[None, str]:
+                    # EOS? try prompting new line of dialoge
+                    utterances = []
+                    if new_token is None:
+                        accepted_output = ""
                     else:
-                        if len(utterances) > 0:
-                            content_user_buffer.append(utterances[0])
-                            content_buffer.append(utterances[0])
-                        prompt_seed = f"\n{self.config.companion_name} says: {QUOTE_START}"
-                    output_buffer.append(prompt_seed)
+                        accepted_output = new_token
+                        output_buffer.append(new_token)
+                        full = "".join(output_buffer)
+                        tmp = UtteranceExtractor.detect_all(full)
+                        utterances.extend(tmp)
 
-                if len(content_user_buffer) == 3:
-                    return None
-                else:
-                    return accepted_output + prompt_seed
+                    prompt_seed = ""
+                    if len(utterances) > 0 or new_token is None:
+                        output_buffer.clear()
+                        if len(content_ai_buffer) == len(content_user_buffer):
+                            if len(utterances) > 0:
+                                content_ai_buffer.append(utterances[0])
+                                content_buffer.append(utterances[0])
+                            prompt_seed = f"\n{self.config.user_name} says: {QUOTE_START}"
+                        else:
+                            if len(utterances) > 0:
+                                content_user_buffer.append(utterances[0])
+                                content_buffer.append(utterances[0])
+                            prompt_seed = f"\n{self.config.companion_name} says: {QUOTE_START}"
+                        output_buffer.append(prompt_seed)
 
-            comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024, completion_callback=extractor)
-            res = self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings)
-            t2 = time.time()
-            print(t2 - t)
-            for i, msg in enumerate(content_buffer):
-                p = companion_name
-                if i % 2 == 1:
-                    p = user_name
-                print(p + ": " + msg[:30])
-            continue
+                    if len(content_user_buffer) == 3:
+                        return None
+                    else:
+                        return accepted_output + prompt_seed
 
+                comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024, completion_callback=extractor)
+                res = self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings)
+                t2 = time.time()
+                print(t2 - t)
+                for i, msg in enumerate(content_buffer):
+                    p = companion_name
+                    if i % 2 == 1:
+                        p = user_name
+                    print(p + ": " + msg[:30])
+                continue
+
+            comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024)
             utterances = []
             while True:
-                res = f"{QUOTE_START}" + self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings, completion_callback=extractor)
-                utterances = extract_utterances(res)
+                res = f"{QUOTE_START}" + self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings)
+                utterances = UtteranceExtractor.detect_all(res)
                 if len(utterances) > 0:
                     break
 
@@ -7579,7 +7584,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 while True:
                     comp_settings = CommonCompSettings(temperature=0.7, repeat_penalty=1.05, max_tokens=1024)
                     res = f"{QUOTE_START}" + self.llm_manager.completion_text(LlmPreset.Default, msgs, comp_settings=comp_settings)
-                    utterances = extract_utterances(res)
+                    utterances = UtteranceExtractor.detect_all(res)
                     if len(utterances) > 0:
                         user_reply_content = utterances[0]
                         tmp.append(user_reply_content)
@@ -7696,8 +7701,6 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
 
             self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Low, f"--- Finished Reply Simulation {sim_id}: Score={final_sim_score:.3f}, Intent={intent_fulfillment_score:.2f}, Needs={needs_fulfillment_score:.2f}, Emo={emotion_score:.2f}, CogCongruence={cognitive_congruence_score:.2f} ---")
             self._log_mental_mechanism(self._deliberate_and_select_reply, MLevel.Debug, f"Rating Reasoning: {action_rating_result.overall_reasoning}")
-
-        quit(1)
 
         # Add successful simulations to options
         action_options.extend(simulation_results)
@@ -8822,6 +8825,10 @@ class GhostSqlite(Ghost):
         except:
             pass
 
+        cognitive_buffer_fields = ['attention_candidates', 'attention_focus', 'conscious_workspace',
+             'action_simulations', "coalitions_balanced", "coalitions_hard",
+             'selected_action_details']
+
         conn = None
         if True:
             conn = sqlite3.connect(filename)
@@ -8852,10 +8859,8 @@ class GhostSqlite(Ghost):
             for field_name, field_info in GhostState.model_fields.items():
                 if field_name in nested_state_models:  # Skip nested model fields themselves
                     continue
-                if field_name in ['attention_candidates', 'attention_focus', 'conscious_workspace',
-                                  'action_simulations', "coalitions_balanced", "coalitions_hard",
-                                  'selected_action_details']:  # Skip runtime/complex fields not directly stored
-                    continue
+                if field_name in cognitive_buffer_fields:  # Skip runtime/complex fields not directly stored
+                    base_state_columns[f"{field_name}_id"] = "TEXT"  # Store ID
                 # Handle reference fields (store ID) and list of IDs
                 if field_name == 'primary_stimulus' or \
                         field_name == 'subjective_experience' or \
@@ -8960,13 +8965,15 @@ class GhostSqlite(Ghost):
                     value = getattr(state, field_name, None)
 
                     # Handle special cases (references, lists, skipped fields)
-                    if field_name in ['attention_candidates', 'attention_focus', 'conscious_workspace',
-                                      'action_simulations', 'selected_action_details', "coalitions_hard", "coalitions_balanced"]:
-                        if field_name == 'conscious_workspace':  # Handle workspace IDs list
-                            col_name = 'conscious_workspace_ids'
+                    if field_name in cognitive_buffer_fields:
+                        col_name = field_name
+                        try:
                             value = [k.id for k in value.to_list()] if value else []
-                        else:
-                            continue  # Skip other complex/runtime fields
+                        except Exception as e:
+                            try:
+                                value = [k.id for k in value] if value else []
+                            except Exception as e2:
+                                print("asdfasd")
                     elif field_name in ['primary_stimulus', 'subjective_experience', "subjective_experience_tool", 'selected_action_knoxel']:
                         col_name = f"{field_name}_id"
                         value = value.id if value else None
@@ -9972,5 +9979,9 @@ Act as user to test the chatbot!"""
     shell.stop()
 
 if __name__ == '__main__':
-    db_path = sys.argv[1]
+    if len(sys.argv) > 1:
+        db_path = sys.argv[1]
+    else:
+        db_path = "./data/main.db"
+        print(f"Defaulting to {db_path} database...")
     run(True, db_path)
