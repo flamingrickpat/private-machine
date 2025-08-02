@@ -17,6 +17,8 @@ import sys
 import textwrap
 import typing
 import uuid
+import base64
+import ctypes
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -49,7 +51,6 @@ from typing import get_args
 import unicodedata
 from typing import Generator, Iterable, List
 
-import llama_cpp
 import numpy.typing as npt
 import yaml
 import fastmcp.utilities.logging
@@ -59,9 +60,9 @@ import psutil
 import torch
 from fastmcp import Client
 from json_repair import repair_json
-from llama_cpp import Llama, LlamaGrammar, LogitsProcessorList as lpl_llama
-from lmformatenforcer import JsonSchemaParser
-from lmformatenforcer.integrations.transformers import build_transformers_prefix_allowed_tokens_fn
+from llama_cpp import Llama, LlamaGrammar, LogitsProcessorList as lpl_llama, suppress_stdout_stderr
+#from lmformatenforcer import JsonSchemaParser
+#from lmformatenforcer.integrations.transformers import build_transformers_prefix_allowed_tokens_fn
 from py_linq import Enumerable
 from pydantic import BaseModel, Field, create_model
 from pydantic import ValidationError
@@ -188,6 +189,9 @@ mcp_server_url: str = ""
 available_tools = []
 enable_tool_calling: bool = False
 shell_system_name = "System-Agent"
+universal_image_begin = "<begin_image>"
+universal_image_end = "<end_image>"
+magic_image_token = -1
 
 # Get absolute path to the config file
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
@@ -250,6 +254,7 @@ for model_class, model_key in model_mapping.items():
             "repeat_penalty": models[model_key]["repeat_penalty"],
             "frequency_penalty": models[model_key]["frequency_penalty"],
             "presence_penalty": models[model_key]["presence_penalty"],
+            "mmproj_file": models[model_key]["mmproj_file"],
         }
     else:
         raise KeyError(f"Model key '{model_key}' in model_mapping not found in models section.")
@@ -959,7 +964,11 @@ class CommonCompSettings:
                  tools_json: List[Type[BaseModel]] = None, # Keep this for potential future use, but we primarily use the 'tools' parameter
                  completion_callback: Union[None, FunctionType] = None,
                  eval_only: bool = False,
-                 seed: int = None
+                 seed: int = None,
+                 duplex: bool = False,
+                 queue_inp: Queue = None,
+                 queue_out: Queue = None,
+                 disable_eos: bool = False
                  ):
         self.max_tokens = max_tokens
         self.repeat_penalty = repeat_penalty
@@ -974,6 +983,10 @@ class CommonCompSettings:
         self.min_p = min_p
         self.eval_only = eval_only
         self.seed = seed
+        self.duplex = duplex
+        self.queue_inp = queue_inp
+        self.queue_out = queue_out
+        self.disable_eos = disable_eos
 
     def fill_defaults(self, preset: LlmPreset):
         if preset.value in model_map.keys():
@@ -1589,11 +1602,17 @@ class LlmManagerTransformer(LlmManager):
 class LlmManagerLLama(LlmManager):
     def __init__(self, test_mode: bool = False):
         super().__init__(test_mode)
+        self.clip_model_path = None
+        self.chat_template = None
+        self.current_ctx = None
         self.model_path = None
         self.llm: Llama | None = None
         self.eos_token_id = -1
         self.state = None
         self.state_tokens = None
+        self.state_input_ids = None
+        self.state_scores = None
+        self.mtmd_ctx = None
 
     def _tokenize(self, text: str, special: bool = True, add_bos: bool = False) -> List[int]:
         return self.llm.tokenize(text.encode(encoding="utf-8"), special=special, add_bos=add_bos)
@@ -1609,34 +1628,45 @@ class LlmManagerLLama(LlmManager):
             tokens = [tokens]
         return silent_decode(self.llm.tokenizer()._model.detokenize(tokens, special=special))
 
-    class LplNoEos(LogitsProcessorList):
-        """
-        Disable EOS token, use only when needed!
-        """
+    def _init_mtmd_context(self, llama_model: Llama):
+        """Initialize mtmd context with the llama model."""
+        if self.mtmd_ctx is not None:
+            return  # Already initialized
 
-        def __init__(self, eos_value=-np.inf):
-            """
-            Args:
-                eos_value (float): The value to assign to token 2 (EOS).
-                                   Use np.NINF for negative infinity or another low value like -9999.
-            """
-            super().__init__()
-            self.eos_value = eos_value
+        import llama_cpp.mtmd_cpp as mtmd_cpp
 
-        def __call__(self, input_ids: np.ndarray, scores: np.ndarray) -> np.ndarray:
-            # Process the scores with any additional processors in the list
-            for processor in self:
-                scores = processor(input_ids, scores)
+        self.verbose = False
+        self._mtmd_cpp = mtmd_cpp
 
-            # Assume scores shape is either (vocab_size,) or (batch_size, vocab_size)
-            if scores.ndim == 1:
-                scores[2] = self.eos_value
-            elif scores.ndim == 2:
-                scores[:, 2] = self.eos_value
-            else:
-                raise ValueError("Unexpected shape for scores array")
+        with suppress_stdout_stderr(disable=self.verbose):
+            # Get default parameters
+            ctx_params = self._mtmd_cpp.mtmd_context_params_default()
+            ctx_params.use_gpu = True # TODO: Make this configurable
+            ctx_params.print_timings = self.verbose
+            ctx_params.n_threads = llama_model.n_threads
+            ctx_params.verbosity = 2 if self.verbose else 0  # GGML_LOG_LEVEL_INFO = 2
 
-            return scores
+            # Initialize mtmd context
+            self.mtmd_ctx = self._mtmd_cpp.mtmd_init_from_file(
+                self.clip_model_path.encode(),
+                llama_model.model,
+                ctx_params
+            )
+
+            if self.mtmd_ctx is None:
+                raise ValueError(f"Failed to load mtmd context from: {self.clip_model_path}")
+
+            # Check if vision is supported
+            if not self._mtmd_cpp.mtmd_support_vision(self.mtmd_ctx):
+                raise ValueError("Vision is not supported by this model")
+
+            def mtmd_free():
+                with suppress_stdout_stderr(disable=self.verbose):
+                    if self.mtmd_ctx is not None:
+                        self._mtmd_cpp.mtmd_free(self.mtmd_ctx)
+                        self.mtmd_ctx = None
+
+            #self._exit_stack.callback(mtmd_free)
 
     def load_model(self, preset: LlmPreset):
         if preset == LlmPreset.CurrentOne:
@@ -1647,6 +1677,7 @@ class LlmManagerLLama(LlmManager):
             last_n_tokens_size = int(model_map[preset.value]["last_n_tokens_size"])
             model_path = model_map[preset.value]["path"]
             layers = model_map[preset.value]["layers"]
+            mmproj_file = model_map[preset.value]["mmproj_file"]
         else:
             raise Exception("Unknown model!")
 
@@ -1664,6 +1695,43 @@ class LlmManagerLLama(LlmManager):
             from jinja2 import Template, StrictUndefined
             self.chat_template = Template(self.llm.metadata["tokenizer.chat_template"], undefined=StrictUndefined) #Environment(loader=BaseLoader).from_string(self.llm.metadata["tokenizer.chat_template"])
 
+            if mmproj_file is not None and mmproj_file != "":
+                self.clip_model_path = mmproj_file
+                self._init_mtmd_context(self.llm)
+
+
+    def _load_image(self, image_url: str) -> bytes:
+        try:
+            return base64.b64decode(image_url)
+        except Exception:
+            if image_url.startswith("data:"):
+                image_bytes = base64.b64decode(image_url.split(",")[1])
+                return image_bytes
+            elif os.path.exists(image_url):
+                with open(image_url, 'rb') as binary_file:
+                    binary_file_data = binary_file.read()
+                    return binary_file_data
+            else:
+                import urllib.request
+                with urllib.request.urlopen(image_url) as f:
+                    image_bytes = f.read()
+                    return image_bytes
+
+    def _create_bitmap_from_bytes(self, image_bytes: bytes):
+        """Create mtmd_bitmap from image bytes."""
+        if self.mtmd_ctx is None:
+            raise ValueError("mtmd context not initialized")
+
+        with suppress_stdout_stderr(disable=self.verbose):
+            # Create bitmap from buffer using helper function
+            n = len(image_bytes)
+            buf = (ctypes.c_ubyte * n).from_buffer_copy(image_bytes)  # makes a copy
+
+            bitmap = self._mtmd_cpp.mtmd_helper_bitmap_init_from_buf(self.mtmd_ctx, buf, n)
+            if not bitmap:
+                raise ValueError("Failed to create bitmap from image bytes")
+            return bitmap
+
     def _tokenize_prompt(self,
                          preset: LlmPreset,
                          inp: List[Tuple[str, str]],
@@ -1671,21 +1739,82 @@ class LlmManagerLLama(LlmManager):
                          sysprompt_addendum: str | None = None
                         ) -> (str, List[BaseModel]):
         # we sometimes seed the assistant response to get rid of crap like "ok, lets tackle this, here is a bunch of useless words and now here is what you wanted :) <result>"
+        messages = [
+            {"role": "system", "content": "test1"},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "test2"},
+                    {"type": "type", "image_url": {"url": "test3", "image_url": "test3", "data_url": "test3"}, "image": {"url": "test3", "image_url": "test3", "data_url": "test3"}},
+                    {"type": "text", "text": "test4"},
+                ]
+            },
+            {"role": "assistant", "content": "test5"},
+            {"role": "user", "content": "test6"},
+            {"role": "assistant", "content": "test7"}
+        ]
+
+        def remove_strings(text, str1, str2):
+            pattern = re.escape(str1) + r"\s*" + re.escape(str2)
+            return re.sub(pattern, "", text)
+
+        def between(s: str, a: str, b: str) -> str:
+            """Return the substring strictly between the first (and only) a and b."""
+            start = s.index(a) + len(a)
+            end = s.index(b, start)
+            return s[start:end]
+
+        def replace_tagged_blocks(
+                text: str,
+                in_begin: str,
+                in_end: str,
+                out_start: str,
+                out_media: str,
+                out_end: str = ""
+        ) -> Tuple[str, List[str]]:
+            """
+            Find every block between in_begin and in_end, collect the inner text,
+            and replace each block with out_start + out_media + out_end.
+
+            Returns (new_text, extracted_list).
+            """
+            pattern = re.compile(re.escape(in_begin) + r"(.*?)" + re.escape(in_end), re.DOTALL)
+            extracted: List[str] = []
+
+            def _repl(m: re.Match) -> str:
+                extracted.append(m.group(1))
+                return f"{out_start}{out_media}{out_end}"
+
+            new_text = pattern.sub(_repl, text)
+            return new_text, extracted
+
         try:
-            openai_inp_remove_ass = [{"role": "system", "content": "test1"}, {"role": "user", "content": "test2"}, {"role": "assistant", "content": "test3"}, {"role": "assistant", "content": "test4"}]
-            data_remove_ass = self.chat_template.render(
-                messages=openai_inp_remove_ass,
-                add_generation_prompt=True
+            text = self.chat_template.render(
+                messages=messages,
+                add_generation_prompt=True,
+                eos_token=self.llm.detokenize([self.llm.token_eos()]),
+                bos_token=self.llm.detokenize([self.llm.token_bos()]),
             )
         except:
-            openai_inp_remove_ass = [{"role": "system", "content": "test1"}, {"role": "user", "content": "test2"}, {"role": "assistant", "content": "test4"}]
-            data_remove_ass = self.chat_template.render(
-                messages=openai_inp_remove_ass,
+            messages = messages[1:] # remove sys prompt in case its not allowed for model
+            text = self.chat_template.render(
+                messages=messages,
                 add_generation_prompt=True,
-                bos_token="",
-                eos_token="<eos>",
+                eos_token=self.llm.detokenize([self.llm.token_eos()]),
+                bos_token=self.llm.detokenize([self.llm.token_bos()]),
             )
-        remove_ass_string = data_remove_ass.split("test4")[1]
+
+        remove_ass_string = text.split("test7")[1]
+        user_to_ass_string = between(text, "test6", "test7")
+        ass_to_user_string = between(text, "test5", "test6")
+        if "test3" in text:
+            text_to_image_string = between(text, "test2", "test3")
+            image_to_text_string = between(text, "test3", "test4")
+        else:
+            text_to_image_string = between(text, "test2", "test4")
+            image_to_text_string = ""
+
+        media_marker_string = self._mtmd_cpp.mtmd_default_marker().decode('utf-8')
 
         # change format
         inp_formatted = []
@@ -1719,6 +1848,9 @@ class LlmManagerLLama(LlmManager):
         for msg in inp_formatted:
             openai_inp.append({"role": msg[0], "content": msg[1]})
 
+        cached_image_chunks = []
+        begin_image_token = -1
+
         # remove messages until it fits in context
         rendered_data = None
         trimmed = False
@@ -1730,8 +1862,8 @@ class LlmManagerLLama(LlmManager):
                 rendered_data = self.chat_template.render(
                     messages=openai_inp,
                     add_generation_prompt=True,
-                    bos_token="",
-                    eos_token="<eos>",
+                    eos_token=self.llm.detokenize([self.llm.token_eos()]),
+                    bos_token=self.llm.detokenize([self.llm.token_bos()]),
                     raise_exception=raise_exception
                 )
             except Exception as e:
@@ -1740,20 +1872,99 @@ class LlmManagerLLama(LlmManager):
             # strip each line to save tokens; lots of unnecessary whitespaces from indented block strings
             rendered_data = "\n".join([x.strip() for x in rendered_data.splitlines()])
 
+            # let the assistant continue if they talked last
             if openai_inp[-1]["role"] == "assistant":
                 rendered_data = rendered_data.strip().removesuffix(remove_ass_string.strip())
 
-            def remove_strings(text, str1, str2):
-                pattern = re.escape(str1) + r"\s*" + re.escape(str2)
-                return re.sub(pattern, "", text)
-
+            # remove thinkign tags
             rendered_data = remove_strings(rendered_data, "</think>", "<think>")
+
+            # replace visual input
+            rendered_data, images = replace_tagged_blocks(rendered_data,
+                                              in_begin=universal_image_begin,
+                                              in_end=universal_image_end,
+                                              out_start=text_to_image_string,
+                                              out_media=media_marker_string,
+                                              out_end=image_to_text_string)
+
+            for image in images:
+                img_bytes = self._load_image(image)
+                bitmap_llama = self._create_bitmap_from_bytes(img_bytes)
+                bitmaps = [bitmap_llama]
+
+                image_prompt_text = f"test1{image_to_text_string}{media_marker_string}{text_to_image_string}test2"
+
+                input_text = self._mtmd_cpp.mtmd_input_text()
+                input_text.text = image_prompt_text.encode('utf-8')
+                input_text.add_special = True
+                input_text.parse_special = True
+
+                # Create input chunks
+                chunks = self._mtmd_cpp.mtmd_input_chunks_init()
+                if chunks is None:
+                    raise ValueError("Failed to create input chunks")
+
+                bitmap_array = (self._mtmd_cpp.mtmd_bitmap_p_ctypes * len(bitmaps))(*bitmaps)
+                result = self._mtmd_cpp.mtmd_tokenize(
+                    self.mtmd_ctx,
+                    chunks,
+                    ctypes.byref(input_text),
+                    bitmap_array,
+                    len(bitmaps)
+                )
+
+                if result != 0:
+                    raise ValueError(f"Failed to tokenize input: error code {result}")
+
+                n_chunks = self._mtmd_cpp.mtmd_input_chunks_size(chunks)
+                if n_chunks != 3:
+                    raise ValueError(f"Chunking failed with len: {n_chunks}")
+
+                # extract image chunks
+                real_text_to_image_string = ""
+                real_image_to_text_string = ""
+                for i in range(n_chunks):
+                    chunk = self._mtmd_cpp.mtmd_input_chunks_get(chunks, i)
+                    if chunk is None:
+                        continue
+
+                    chunk_type = self._mtmd_cpp.mtmd_input_chunk_get_type(chunk)
+                    if chunk_type == self._mtmd_cpp.mtmd_input_chunk_type.MTMD_INPUT_CHUNK_TYPE_TEXT:
+                        # Handle text chunk
+                        n_tokens_out = ctypes.c_size_t()
+                        tokens_ptr = self._mtmd_cpp.mtmd_input_chunk_get_tokens_text(
+                            chunk, ctypes.byref(n_tokens_out)
+                        )
+
+                        if tokens_ptr and n_tokens_out.value > 0:
+                            # Convert ctypes array to Python list
+                            tokens = [tokens_ptr[j] for j in range(n_tokens_out.value)]
+                            if i == 0:
+                                begin_image_token = tokens[-1]
+                                real_text_to_image_string = self.llm.detokenize([tokens[-1]], special=True)
+                            elif i == 2:
+                                real_image_to_text_string = self.llm.detokenize([tokens[0]], special=True)
+                    elif chunk_type in [self._mtmd_cpp.mtmd_input_chunk_type.MTMD_INPUT_CHUNK_TYPE_IMAGE, self._mtmd_cpp.mtmd_input_chunk_type.MTMD_INPUT_CHUNK_TYPE_AUDIO]:
+                        cached_image_chunks.append((chunks, chunk))
+
+                # free llama bitmap
+                self._mtmd_cpp.mtmd_bitmap_free(bitmap_llama)
+
+                # replace errors from template with real special tokens to avoid double tokens (mtmd already adds them)"
+                rendered_data = rendered_data.replace(
+                    f"{text_to_image_string}{media_marker_string}{image_to_text_string}",
+                    f"{real_text_to_image_string}{real_image_to_text_string}",
+                )
 
             tokenized_prompt = self.llm.tokenize(
                 rendered_data.encode("utf-8"),
                 add_bos=True,
                 special=True,
             )
+
+            # insert magic token so we know when to eval chunk
+            if begin_image_token != -1:
+                tokenized_prompt = [y for x in tokenized_prompt for y in ([x, magic_image_token] if x == begin_image_token else [x])]
 
             # start deleting in middle
             if (self.current_ctx - comp_settings.max_tokens) - 32 < 1:
@@ -1770,7 +1981,7 @@ class LlmManagerLLama(LlmManager):
         if trimmed:
             print("Had to remove some words...")
 
-        return inp_formatted, openai_inp, tokenized_prompt
+        return inp_formatted, openai_inp, tokenized_prompt, cached_image_chunks
 
     def completion_tool(self,
                         preset: LlmPreset,
@@ -1796,7 +2007,7 @@ class LlmManagerLLama(LlmManager):
             addendum = "\nTool Documentation JSON Schema:\n" + tool_calls
 
         # get tokens and formatted version of raw prompt
-        inp_formatted, openai_inp, tokenized_prompt = self._tokenize_prompt(preset, inp, comp_settings, addendum)
+        inp_formatted, openai_inp, tokenized_prompt, image_chunks = self._tokenize_prompt(preset, inp, comp_settings, addendum)
 
         # log final prompt
         if log_file_path is not None:
@@ -1827,25 +2038,23 @@ class LlmManagerLLama(LlmManager):
         sampler_args["temp"] = sampler_args["temperature"]
         # sampler has temp instead of temperature
         del sampler_args["temperature"]
+
+        if comp_settings.disable_eos:
+            logit_bias_map = {self.llm.token_eos(): -1000000.0}
+            sampler_args["logit_bias"] = logit_bias_map
+
         calls = []
 
         content = None
         tools = comp_settings.tools_json
         if len(tools) == 0:
-            if comp_settings.completion_callback is None and comp_settings.eval_only == False:
+            if comp_settings.completion_callback is None and comp_settings.eval_only == False and len(image_chunks) == 0:
                 res = self.llm.create_completion(tokenized_prompt, **completion_args)
                 finish_reason = res["choices"][0]["finish_reason"]
                 content = res["choices"][0]["text"]
                 if discard_thinks:
                     content = content.split("</think>")[-1]
             else:
-                def logit_bias_processor(
-                        input_ids: npt.NDArray[np.intc],
-                        scores: npt.NDArray[np.single],
-                ) -> npt.NDArray[np.single]:
-                    scores[106] = -9999
-                    return scores
-
                 evaluated = False
                 if self.state is not None and not comp_settings.eval_only:
                     def check_diff(a, b):
@@ -1858,20 +2067,81 @@ class LlmManagerLLama(LlmManager):
                     diff = check_diff(self.state_tokens, tokenized_prompt)
                     if diff is not None:
                         self.llm.load_state(self.state)
+                        if len(diff) == 0:
+                            self.llm.eval([tokenized_prompt[-1]])
                         self.llm.eval(diff)
+                        self.llm.input_ids = copy.deepcopy(self.state_input_ids)
+                        self.llm.scores = copy.deepcopy(self.state_scores)
+
                         evaluated = True
 
+                def split_by_value(lst, sep):
+                    """Split into runs of non-sep values; each sep becomes its own [sep]."""
+                    out, run = [], []
+                    for x in lst:
+                        if x == sep:
+                            if run:
+                                out.append(run)
+                                run = []
+                            out.append([x])  # the separator as its own group
+                        else:
+                            run.append(x)
+                    if run:
+                        out.append(run)
+                    return out
+
+                use_sample_index = False
                 if not evaluated:
                     self.state = None
                     self.state_tokens = None
 
                     self.llm.reset()
-                    self.llm.eval(tokenized_prompt)
-                #sampler_args["logits_processor"] = lpl_llama([logit_bias_processor])
+
+                    sep_by_image = split_by_value(tokenized_prompt, magic_image_token)
+                    for sublist in sep_by_image:
+                        if len(sublist) == 1 and sublist[0] == magic_image_token:
+                            use_sample_index = False
+                            chunks, chunk = image_chunks[0]
+                            del image_chunks[0]
+
+                            chunk_n_tokens = self._mtmd_cpp.mtmd_input_chunk_get_n_tokens(chunk)
+
+                            if self.llm.n_tokens + chunk_n_tokens > self.llm.n_ctx():
+                                raise ValueError(
+                                    f"Prompt exceeds n_ctx: {self.llm.n_tokens + chunk_n_tokens} > {self.llm.n_ctx()}"
+                                )
+
+                            new_n_past = llama_cpp.llama_pos(0)
+                            result = self._mtmd_cpp.mtmd_helper_eval_chunk_single(
+                                self.mtmd_ctx,
+                                self.llm._ctx.ctx,
+                                chunk,
+                                llama_cpp.llama_pos(self.llm.n_tokens),
+                                llama_cpp.llama_seq_id(0),
+                                self.llm.n_batch,
+                                False,  # logits_last
+                                ctypes.byref(new_n_past)
+                            )
+
+                            if result != 0:
+                                raise ValueError(f"Failed to evaluate chunk: error code {result}")
+
+                            # Update llama's token count
+                            self.llm.n_tokens = new_n_past.value
+
+                            # free
+                            self._mtmd_cpp.mtmd_input_chunks_free(chunks)
+                        else:
+                            self.llm.eval(sublist)
+
+                if magic_image_token in tokenized_prompt:
+                    tokenized_prompt.remove(magic_image_token)
 
                 if comp_settings.eval_only:
                     self.state = self.llm.save_state()
                     self.state_tokens = tokenized_prompt
+                    self.state_input_ids = copy.deepcopy(self.llm.input_ids)
+                    self.state_scores = copy.deepcopy(self.llm.scores)
                     return "", []
 
                 self.llm._sampler = self.llm._init_sampler(**sampler_args)
@@ -1902,8 +2172,11 @@ class LlmManagerLLama(LlmManager):
                 function_called = False
                 while len(completion_tokens) < max_tokens:
                     token = -1
+                    idx = None
+                    if use_sample_index:
+                        idx = sample_idx
 
-                    token = self.llm.sample(idx=sample_idx, **sampler_args)
+                    token = self.llm.sample(idx=idx, **sampler_args)
                     cur_tokens_to_eval = [token]
                     cur_token_as_text = self._detokenize([token], special=False)
                     cur_completion_as_text = self._detokenize(completion_tokens, special=False)
@@ -1922,10 +2195,13 @@ class LlmManagerLLama(LlmManager):
                             finish_reason = "sw"
                             break
 
-                    callback_eval_text = comp_settings.completion_callback(cur_token_as_text)
-                    if callback_eval_text is None:
-                        finish_reason = "sw"
-                        break
+                    if comp_settings.completion_callback is not None:
+                        callback_eval_text = comp_settings.completion_callback(cur_token_as_text)
+                        if callback_eval_text is None:
+                            finish_reason = "sw"
+                            break
+                    else:
+                        callback_eval_text = cur_token_as_text
 
                     if cur_token_as_text == callback_eval_text:
                         eval_local(cur_tokens_to_eval)
@@ -3847,7 +4123,7 @@ class DialogActPool(BaseModel):
 
         return random.sample(all_modalities, n)
 
-    def select_weighted_modalities(n: int) -> list[ReplyModality]:
+    def select_weighted_modalities(self, n: int) -> list[ReplyModality]:
         """
         Selects n ReplyModalities from the pool, weighted by their 'bias'.
 

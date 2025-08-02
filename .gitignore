@@ -176,8 +176,7 @@ config.yaml
 
 /data
 *.db
-/tests
 *logs*
 *.bak
-test/
 *.gguf
+/weird_tests
