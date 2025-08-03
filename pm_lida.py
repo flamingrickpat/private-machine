@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import copy
+import difflib
 import gc
 import inspect
 import json
@@ -80,6 +81,7 @@ from transformers import (
     StoppingCriteriaList, TemperatureLogitsWarper, TopKLogitsWarper, TopPLogitsWarper, MinPLogitsWarper,
 )
 
+from utils.duplex_utils import DuplexSignalFinish, DuplexSignalInterrupt
 from utils.utterance_extractor import UtteranceExtractor
 from utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, fix_gbnf_grammar_generator
 fix_gbnf_grammar_generator()
@@ -966,8 +968,8 @@ class CommonCompSettings:
                  eval_only: bool = False,
                  seed: int = None,
                  duplex: bool = False,
-                 queue_inp: Queue = None,
-                 queue_out: Queue = None,
+                 queue_to_user: Queue = None,
+                 queue_from_user: Queue = None,
                  disable_eos: bool = False
                  ):
         self.max_tokens = max_tokens
@@ -984,8 +986,8 @@ class CommonCompSettings:
         self.eval_only = eval_only
         self.seed = seed
         self.duplex = duplex
-        self.queue_inp = queue_inp
-        self.queue_out = queue_out
+        self.queue_to_user = queue_to_user
+        self.queue_from_user = queue_from_user
         self.disable_eos = disable_eos
 
     def fill_defaults(self, preset: LlmPreset):
@@ -1463,8 +1465,8 @@ class LlmManagerTransformer(LlmManager):
             try:
                 os.environ["LMFE_STRICT_JSON_FIELD_ORDER"] = "1"
                 os.environ["LMFE_MAX_JSON_ARRAY_LENGTH"] = "5"
-                parser = JsonSchemaParser(tools[0].model_json_schema())
-                prefix_function = build_transformers_prefix_allowed_tokens_fn(self.tokenizer, parser)
+                #parser = JsonSchemaParser(tools[0].model_json_schema())
+                #prefix_function = build_transformers_prefix_allowed_tokens_fn(self.tokenizer, parser)
 
                 # prefix_allowed_tokens_fn = lmformatenforcer.SequencePrefixParser(parser)
                 # format_processor = lmformatenforcer.hf.LogitsProcessor(prefix_allowed_tokens_fn)
@@ -1613,6 +1615,8 @@ class LlmManagerLLama(LlmManager):
         self.state_input_ids = None
         self.state_scores = None
         self.mtmd_ctx = None
+        self.user_to_ass_string = None
+        self.ass_to_user_string = None
 
     def _tokenize(self, text: str, special: bool = True, add_bos: bool = False) -> List[int]:
         return self.llm.tokenize(text.encode(encoding="utf-8"), special=special, add_bos=add_bos)
@@ -1686,14 +1690,15 @@ class LlmManagerLLama(LlmManager):
             gc.collect()
             time.sleep(1)
 
-            self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=ctx, verbose=False, last_n_tokens_size=last_n_tokens_size, flash_attn=True, n_threads=physical_cores)
-            self.eos_token_id = self.llm.metadata["tokenizer.ggml.eos_token_id"]
+            with suppress_stdout_stderr(disable=False):
+                self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=ctx, verbose=False, last_n_tokens_size=last_n_tokens_size, flash_attn=True, n_threads=physical_cores)
+                self.eos_token_id = self.llm.metadata["tokenizer.ggml.eos_token_id"]
 
-            # self.llm.cache = LlamaDiskCache(capacity_bytes=int(42126278829))
-            self.current_ctx = ctx
-            self.model_path = model_path
-            from jinja2 import Template, StrictUndefined
-            self.chat_template = Template(self.llm.metadata["tokenizer.chat_template"], undefined=StrictUndefined) #Environment(loader=BaseLoader).from_string(self.llm.metadata["tokenizer.chat_template"])
+                # self.llm.cache = LlamaDiskCache(capacity_bytes=int(42126278829))
+                self.current_ctx = ctx
+                self.model_path = model_path
+                from jinja2 import Template, StrictUndefined
+                self.chat_template = Template(self.llm.metadata["tokenizer.chat_template"], undefined=StrictUndefined) #Environment(loader=BaseLoader).from_string(self.llm.metadata["tokenizer.chat_template"])
 
             if mmproj_file is not None and mmproj_file != "":
                 self.clip_model_path = mmproj_file
@@ -1805,8 +1810,8 @@ class LlmManagerLLama(LlmManager):
             )
 
         remove_ass_string = text.split("test7")[1]
-        user_to_ass_string = between(text, "test6", "test7")
-        ass_to_user_string = between(text, "test5", "test6")
+        self.user_to_ass_string = between(text, "test6", "test7")
+        self.ass_to_user_string = between(text, "test5", "test6")
         if "test3" in text:
             text_to_image_string = between(text, "test2", "test3")
             image_to_text_string = between(text, "test3", "test4")
@@ -2048,7 +2053,7 @@ class LlmManagerLLama(LlmManager):
         content = None
         tools = comp_settings.tools_json
         if len(tools) == 0:
-            if comp_settings.completion_callback is None and comp_settings.eval_only == False and len(image_chunks) == 0:
+            if comp_settings.completion_callback is None and comp_settings.eval_only == False and len(image_chunks) == 0 and not comp_settings.duplex:
                 res = self.llm.create_completion(tokenized_prompt, **completion_args)
                 finish_reason = res["choices"][0]["finish_reason"]
                 content = res["choices"][0]["text"]
@@ -2170,8 +2175,73 @@ class LlmManagerLLama(LlmManager):
                 bad_tokens = []
                 cur_functin_call_buffer = []
                 function_called = False
+                duplex_user_buffer = ""
+                is_waiting_for_user_input = False
+
                 while len(completion_tokens) < max_tokens:
-                    token = -1
+                    def switch_to_listening():
+                        nonlocal is_waiting_for_user_input
+                        nonlocal duplex_user_buffer
+
+                        if not is_waiting_for_user_input:
+                            duplex_user_buffer = ""
+                            eval_local(self._tokenize(self.ass_to_user_string, special=True))
+
+                        is_waiting_for_user_input = True
+
+                    def switch_to_generating():
+                        nonlocal is_waiting_for_user_input
+                        nonlocal duplex_user_buffer
+
+                        if is_waiting_for_user_input:
+                            duplex_user_buffer = ""
+                            eval_local(self._tokenize(self.user_to_ass_string, special=True))
+
+                        is_waiting_for_user_input = False
+
+                    msg = None
+                    if comp_settings.duplex:
+                        try:
+                            msg = comp_settings.queue_from_user.get_nowait()
+                            if isinstance(msg, str):
+                                duplex_user_buffer += msg
+                            elif isinstance(msg, DuplexSignalFinish):
+                                # eval everything in buffer
+                                tmp = self._tokenize(duplex_user_buffer + self.user_to_ass_string, special=True)
+                                eval_local(tmp)
+
+                                switch_to_generating()
+                                pass
+                            elif isinstance(msg, DuplexSignalInterrupt):
+                                # switch to listening mode
+                                tmp = self._tokenize("-" + self.ass_to_user_string, special=True)
+                                eval_local(tmp)
+
+                                switch_to_listening()
+                        except queue.Empty:
+                            pass
+
+                    def longest_common_substring(a: str, b: str) -> str:
+                        matcher = difflib.SequenceMatcher(None, a, b)
+                        match = matcher.find_longest_match(0, len(a), 0, len(b))
+                        return a[match.a: match.a + match.size]
+
+                    if is_waiting_for_user_input:
+                        tokens = self._tokenize(duplex_user_buffer, special=False)
+                        eval_local(tokens)
+
+                        m = re.search(r'[.?!]', duplex_user_buffer)
+                        if m:
+                            # simple single token, check if llm wants to switch turn and use that as interrupt
+                            token = self.llm.sample(idx=None, **sampler_args)
+                            as_non_special = self._detokenize([token], special=False).strip()
+                            if as_non_special == "":
+                                switch_to_generating()
+
+                        duplex_user_buffer = ""
+                        continue
+
+                    # set sampler idx (if we use it, default is None -> -1 internally)
                     idx = None
                     if use_sample_index:
                         idx = sample_idx
@@ -2183,7 +2253,12 @@ class LlmManagerLLama(LlmManager):
 
                     # check for exit
                     if llama_cpp.llama_token_is_eog(self.llm._model.vocab, token):
-                        cur_token_as_text = None
+                        if comp_settings.duplex:
+                            switch_to_listening()
+                            continue
+                        else:
+                            finish_reason = "stop"
+                            break
 
                     if comp_settings.stop_words is not None:
                         found = False
@@ -2202,6 +2277,9 @@ class LlmManagerLLama(LlmManager):
                             break
                     else:
                         callback_eval_text = cur_token_as_text
+
+                    if comp_settings.queue_to_user is not None:
+                        comp_settings.queue_to_user.put(callback_eval_text)
 
                     if cur_token_as_text == callback_eval_text:
                         eval_local(cur_tokens_to_eval)

@@ -1,5 +1,17 @@
 import sys, os, time, queue
 
+
+class DuplexSignalFinish:
+    pass
+
+
+class DuplexSignalInterrupt:
+    pass
+
+
+class DuplexSignalTerminate:
+    pass
+
 def duplex_com(queue_in, queue_out, my_name, other_name):
     """
     Full-duplex console chat.
@@ -21,9 +33,13 @@ def duplex_com(queue_in, queue_out, my_name, other_name):
     # -------- helpers (prompt rendering, safe prints) --------
     prompt_prefix = f"{my_name}> "
     buf = []
+    buf_ai = []
 
     def buf_text():
         return "".join(buf)
+
+    def buf_text_ai():
+        return "".join(buf_ai).replace("\n", "")
 
     def clear_line_and_print(s):
         # \r to line start, \x1b[K to clear line
@@ -74,60 +90,49 @@ def duplex_com(queue_in, queue_out, my_name, other_name):
     # -------- main loop --------
     try:
         println(f"Started. Press Enter to send; Ctrl-C to quit{' (Ctrl-D also on Unix)' if not is_windows else ''}.")
-        render_prompt()
-
+        #render_prompt()
+        user_generating = 0
         while True:
             # 1) Drain any incoming messages (interrupts)
             interrupted = False
             while True:
+                msg = None
                 try:
                     msg = queue_in.get_nowait()
                 except queue.Empty:
                     break
                 else:
                     # Incoming interrupt: show other_name and message
-                    clear_line_and_print(f"{other_name}: {msg}")
-                    println()
-                    interrupted = True
+                    if msg is not None:
+                        if user_generating != -1:
+                            buf_ai = []
+                            println()
 
-            if interrupted:
-                # Repaint your prompt and current buffer after showing interrupts
-                render_prompt()
+                        user_generating = -1
 
-            # 2) Handle local keystrokes (non-blocking)
+                        buf_ai.append(msg)
+                        clear_line_and_print(f"{other_name}: {buf_text_ai()}")
+                        interrupted = True
+
             ch = read_key_nonblocking()
             if ch is not None:
-                if is_ctrl_c(ch) or is_ctrl_d(ch):
-                    # Show who interrupted (you) when exiting mid-typing
-                    if buf:
-                        clear_line_and_print(f"{my_name} (interrupt): {buf_text()}")
-                        println()
-                    println("Exiting.")
-                    break
+                if user_generating != 1:
+                    queue_out.put(DuplexSignalInterrupt())
+                    buf = []
+                    println()
+
+                user_generating = 1
 
                 if is_enter(ch):
-                    text = buf_text()
-                    # Outgoing interrupt: you speak now
-                    clear_line_and_print(f"{my_name}: {text}")
-                    println()
-                    if text.strip():
-                        queue_out.put(text)
-                    buf.clear()
-                    render_prompt()
+                    queue_out.put(DuplexSignalFinish())
                 elif is_backspace(ch):
-                    if buf:
-                        buf.pop()
-                        render_prompt()
-                else:
-                    # Printable char(s)
-                    # Filter out non-printing control characters
-                    if ch.isprintable() or ch == "\t":
-                        buf.append(ch)
-                        # update line with new buffer
-                        render_prompt()
+                    pass
+                elif ch.isprintable() or ch == "\t":
+                    queue_out.put(ch)
+                    buf.append(ch)
+                    clear_line_and_print(f"{my_name}: {buf_text()}")
 
-            # 3) Small idle to reduce CPU
-            time.sleep(0.01)
+            time.sleep(0.05)
 
     finally:
         # restore terminal on Unix
@@ -149,15 +154,17 @@ if __name__ == "__main__":
             try:
                 msg = q_out.get(timeout=0.1)
             except queue.Empty:
-                continue
-            if msg.lower() in {"quit", "exit"}:
-                break
+                pass
+            else:
+                if msg.lower() in {"quit", "exit"}:
+                    break
             # Simulate thinking time and mid-typing interruptions
             for chunk in ["Got it,", " working", " on it..."]:
-                time.sleep(0.4)
-                q_in.put(chunk)
-            time.sleep(0.6)
-            q_in.put(f"Echo: {msg}")
+                for c in chunk:
+                    q_in.put(chunk)
+                    time.sleep(1)
+                time.sleep(5)
+            #q_in.put(f"Echo: {msg}")
 
     t = threading.Thread(target=bot_worker, daemon=True)
     t.start()
