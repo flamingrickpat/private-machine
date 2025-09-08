@@ -88,6 +88,17 @@ fix_gbnf_grammar_generator()
 
 logger = logging.getLogger(__name__)
 
+from json import JSONEncoder
+
+def _default(self, obj):
+    try:
+        return getattr(obj.__class__, "to_json", _default.default)(obj)
+    except:
+        return f"{obj}"
+
+_default.default = JSONEncoder().default
+JSONEncoder.default = _default
+
 class SingleLineFormatter(logging.Formatter):
     """
     Custom formatter to replace newlines in log messages with literal \n
@@ -587,8 +598,8 @@ class GhostConfig(BaseModel):
     expectation_generation_count: int = 2  # How many expectations to try generating per action
     # --- Action Selection Config ---
     min_simulations_per_reply: int = 1
-    mid_simulations_per_reply: int = 2
-    max_simulations_per_reply: int = 3  # Keep low initially for performance
+    mid_simulations_per_reply: int = 1
+    max_simulations_per_reply: int = 1  # Keep low initially for performance
     importance_threshold_more_sims: float = 0.5  # Stimulus valence abs() or max urgency > this triggers more sims
     force_assistant: bool = False
     remember_per_category_limit: int = 4
@@ -3188,6 +3199,9 @@ class KnoxelBase(BaseModel):
     def __str__(self):
         return f"{self.__class__.__name__}: {self.content}"
 
+    def to_json(self):
+        return self.id
+
 class Stimulus(KnoxelBase):
     source: str = Field(default_factory=str)
     stimulus_type: StimulusType
@@ -3418,6 +3432,10 @@ class Feature(KnoxelBase):
 class KnoxelList:
     def __init__(self, knoxels: Optional[List[KnoxelBase]] = None):
         self._list = Enumerable(knoxels if knoxels else [])
+
+    def to_json(self):
+        lst = ",".join(self._list.to_list())
+        return f"[{lst}]"
 
     def get_token_count(self):
         s = self.get_story(None)
@@ -4676,7 +4694,7 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                         narrative_type=narrative_type,
                         target_name=target_name,
                         content=updated_content,
-                        last_refined_with_tick=buffer._list[0].tick_id,  # Mark refinement tick
+                        last_refined_with_tick=max(buffer._list.select(lambda x: x.tick_id)) - 1, # buffer._list[0].tick_id,  # Mark refinement tick # use latest tick - 1 for now?
                         # tick_id, id, timestamp_creation set by add_knoxel
                     )
                     # Add to ghost state (automatically archives the old one by latest ID/tick)
@@ -6936,12 +6954,14 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
             attention_rating = 0
             attention_reason = ""
 
-            selection_result = self._call_llm(prompt, output_schema=AttentionRating)
-            if selection_result and isinstance(selection_result, AttentionRating):
-                attention_rating = selection_result.rating
-                attention_reason = selection_result.reasoning
+            # disable cause slow
+            if False:
+                selection_result = self._call_llm(prompt, output_schema=AttentionRating)
+                if selection_result and isinstance(selection_result, AttentionRating):
+                    attention_rating = selection_result.rating
+                    attention_reason = selection_result.reasoning
 
-                self._log_mental_mechanism(self._simulate_attention_on_coalitions, MLevel.Debug, f"Attention for ### BEGIN COALITION {content} ### END COALTION Rating: {attention_rating} with reasoning: {attention_reason}")
+                    self._log_mental_mechanism(self._simulate_attention_on_coalitions, MLevel.Debug, f"Attention for ### BEGIN COALITION {content} ### END COALTION Rating: {attention_rating} with reasoning: {attention_reason}")
 
             aux_rating = 0
             current_tick = self.current_state.tick_id
@@ -9047,6 +9067,9 @@ class GhostSqlite(Ghost):
         if inspect.isclass(field_type) and issubclass(field_type, KnoxelBase):
             return "INTEGER"
 
+        if "KnoxelList" in str(field_type):
+            return "TEXT"
+
         # Default / Fallback
         logging.warning(f"Unknown Pydantic type for SQLite mapping: {field_type}. Using TEXT as fallback.")
         return "TEXT"
@@ -9327,7 +9350,8 @@ class GhostSqlite(Ghost):
                             try:
                                 value = [k.id for k in value] if value else []
                             except Exception as e2:
-                                print("asdfasd")
+                                #print(f"Problem with: {col_name}")
+                                pass
                     elif field_name in ['primary_stimulus', 'subjective_experience', "subjective_experience_tool", 'selected_action_knoxel']:
                         col_name = f"{field_name}_id"
                         value = value.id if value else None

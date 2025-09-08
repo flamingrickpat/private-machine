@@ -1,5 +1,5 @@
 import time
-
+import _asyncio
 import streamlit as st
 from queue import Queue
 
