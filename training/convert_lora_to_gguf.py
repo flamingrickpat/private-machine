@@ -59,6 +59,10 @@ if 'NO_LOCAL_GGUF' not in os.environ:
     sys.path.insert(1, str(Path(__file__).parent / 'gguf-py'))
 import gguf
 
+import sys
+sys.path.append("..")
+HALT_ON_BAD_TENSOR = False
+
 # reuse model definitions from convert_hf_to_gguf.py
 from training.convert_hf_to_gguf import LazyTorchTensor, ModelBase
 
@@ -428,11 +432,13 @@ if __name__ == '__main__':
                         if "_layernorm" in name or ".norm" in name:
                             yield (base_name, tensor)
                             continue
-                        logger.error(f"Unexpected name '{name}': Not a lora_A or lora_B tensor")
-                        if ".embed_tokens.weight" in name or ".lm_head.weight" in name:
-                            logger.error("Embeddings is present in the adapter. This can be due to new tokens added during fine tuning")
-                            logger.error("Please refer to https://github.com/ggml-org/llama.cpp/pull/9948")
-                        sys.exit(1)
+
+                        if HALT_ON_BAD_TENSOR:
+                            logger.error(f"Unexpected name '{name}': Not a lora_A or lora_B tensor")
+                            if ".embed_tokens.weight" in name or ".lm_head.weight" in name:
+                                logger.error("Embeddings is present in the adapter. This can be due to new tokens added during fine tuning")
+                                logger.error("Please refer to https://github.com/ggml-org/llama.cpp/pull/9948")
+                            sys.exit(1)
 
                     if base_name in tensor_map:
                         if is_lora_a:

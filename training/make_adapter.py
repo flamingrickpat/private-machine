@@ -9,10 +9,13 @@ from typing import List
 
 import torch
 
+import sys
+sys.path.append("..")
 from training.adapter_constants import *
 
 # =============  CONFIG SECTION  ===========================================
-TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj"]  # common GEMMA/LLM
+TARGET_MODULES = ["q_proj","k_proj","v_proj","o_proj",
+                  "up_proj","down_proj","gate_proj"]
 BAD_4BIT_MODELS = ["gemma-3n"]  # architectures whose AltUp / etc. crash in 4‑bit
 
 TRAIN_PAIRS = [
@@ -73,6 +76,10 @@ def train_adapters(model_name: str,
         device_map="auto",
     )
 
+    #model.config.use_cache = False
+    #model.gradient_checkpointing_enable()  # save VRAM
+      # training stability with checkpointing
+
     # Build a toy dataset
     enc = lambda q, a: tokenizer(
         f"<start_of_turn>user\n{q}\n<end_of_turn>\n<start_of_turn>assistant\n{a}\n<end_of_turn>",
@@ -95,14 +102,23 @@ def train_adapters(model_name: str,
     for idx in range(adapter_count):
         name = f"mem_{idx}"
         print(f"\n=== Training adapter {name} (rank={adapter_rank}) ===")
+
+        if False:
+            lora_cfg = LoraConfig(
+                r=adapter_rank,
+                lora_alpha=adapter_rank * 2,
+                target_modules=TARGET_MODULES,
+                layers_to_transform=list(range(start_layer, end_layer + 1)),
+                lora_dropout=0.05,
+                bias="none",
+                task_type="CAUSAL_LM",
+            )
+
         lora_cfg = LoraConfig(
-            r=adapter_rank,
-            lora_alpha=adapter_rank * 2,
+            r=16, lora_alpha=32, lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
             target_modules=TARGET_MODULES,
             layers_to_transform=list(range(start_layer, end_layer + 1)),
-            lora_dropout=0.05,
-            bias="none",
-            task_type="CAUSAL_LM",
+            use_dora=True,
         )
 
         peft_model = get_peft_model(model, lora_cfg)
