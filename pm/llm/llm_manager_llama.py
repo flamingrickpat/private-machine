@@ -3,91 +3,42 @@ import contextlib
 import copy
 import difflib
 import gc
-import inspect
 import json
 import logging
-import math
 import os
-import pickle
 import queue
 import random
 import re
-import sqlite3
 import string
-import sys
 import textwrap
-import typing
-import uuid
 import base64
 import ctypes
-from collections import defaultdict
-from copy import deepcopy
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from enum import Enum
-from enum import StrEnum, IntEnum
-from functools import wraps
-from logging import Filter
-from types import FunctionType
 from typing import (
-    Dict,
     Union,
-    get_origin,
-    get_args,
-    Optional,
-    List,
-    Set,
     Tuple,
 )
-from typing import Type, Any
-from typing import TypeVar
-import shutil
+from typing import Type
 from typing import Dict, Any
 import time
-from datetime import datetime
-import threading
-from queue import Queue
 from typing import List
-from typing import get_args
-import unicodedata
-from typing import Generator, Iterable, List
 
 import numpy.typing as npt
-import yaml
-import fastmcp.utilities.logging
 import llama_cpp.llama_cpp as llama_cpp
 import numpy as np
 import psutil
-import torch
 from fastmcp import Client
 from json_repair import repair_json
-from llama_cpp import Llama, LlamaGrammar, LogitsProcessorList as lpl_llama, suppress_stdout_stderr
+from llama_cpp import Llama, LlamaGrammar, suppress_stdout_stderr
 #from lmformatenforcer import JsonSchemaParser
 #from lmformatenforcer.integrations.transformers import build_transformers_prefix_allowed_tokens_fn
-from py_linq import Enumerable
-from pydantic import BaseModel, Field, create_model
-from pydantic import ValidationError
-from pydantic import model_validator
-from scipy.spatial.distance import cosine as cosine_distance  # Use scipy for cosine distance
-from sentence_transformers import SentenceTransformer
-from sentence_transformers.util import cos_sim
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.metrics import silhouette_score
-from sklearn.metrics.pairwise import cosine_similarity
-from transformers import LogitsProcessor, AutoModelForCausalLM, AutoTokenizer
-from transformers import (
-    LogitsProcessorList,
-    StoppingCriteria,
-    StoppingCriteriaList, TemperatureLogitsWarper, TopKLogitsWarper, TopPLogitsWarper, MinPLogitsWarper,
-)
+from pydantic import BaseModel
 
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_manager import LlmManager
 from pm.tools.tools_common import create_tool_router_model
 from pm.utils.string_utils import remove_n_words, parse_json_from_response
-from utils.duplex_utils import DuplexSignalFinish, DuplexSignalInterrupt
-from utils.utterance_extractor import UtteranceExtractor
-from utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, fix_gbnf_grammar_generator
+from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalInterrupt
+from pm.utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, fix_gbnf_grammar_generator
 fix_gbnf_grammar_generator()
 
 logger = logging.getLogger(__name__)

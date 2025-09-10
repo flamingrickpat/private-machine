@@ -3,12 +3,10 @@
 """
 
 import threading
-import base64
 from queue import Queue
 
-import pm_lida
 from pm_lida import main_llm, LlmPreset, CommonCompSettings, llama_worker, universal_image_begin, universal_image_end
-from utils.duplex_utils import duplex_com
+from pm.utils.duplex_utils import duplex_com
 
 prompt_text = [
     ("system", "you are a nice assistant"),

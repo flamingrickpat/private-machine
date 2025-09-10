@@ -51,7 +51,7 @@ from pm.utils.pydantic_utils import create_basemodel
 from pm.utils.serialize_utils import deserialize_embedding, serialize_embedding
 from pm.utils.string_utils import third_person_to_instruction
 from pm.utils.token_utils import get_token_count
-from utils.utterance_extractor import UtteranceExtractor
+from pm.utils.utterance_extractor import UtteranceExtractor
 
 logger = logging.getLogger(__name__)
 
