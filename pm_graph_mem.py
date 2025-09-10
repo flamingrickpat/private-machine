@@ -17,7 +17,8 @@ import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
 from scipy.spatial.distance import cosine  # For similarity calculation
 
-from pm_lida import llama_worker, LlmPreset, CommonCompSettings
+from pm.llm.llm_common import CommonCompSettings, LlmPreset
+from pm.llm.llm_proxy import llama_worker
 
 # --- LOGGING SETUP ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(module)s - %(message)s')
@@ -69,7 +70,7 @@ STOP_WORDS = {
 # --- PLACEHOLDER LLM MANAGER INTERFACE (pm_lida.py) ---
 # This section simulates what might be in pm_lida.py for clarity
 
-class LlmManagerProxy:
+class SmallLlmManagerProxy:
     """
     A placeholder for the actual LLM interaction manager.
     This class would handle API calls, potentially caching, rate limiting, etc.
@@ -78,9 +79,9 @@ class LlmManagerProxy:
     def __init__(self, api_key: Optional[str] = None, model_name: str = "default_model"):
         self.api_key = api_key
         self.model_name = model_name
-        logger.info(f"LlmManagerProxy initialized for model: {model_name}")
-        from pm_lida import main_llm
-        worker_thread = threading.Thread(target=llama_worker, daemon=True)
+        logger.info(f"SmallLlmManagerProxy initialized for model: {model_name}")
+        from pm_lida import main_llm, task_queue, model_map
+        worker_thread = threading.Thread(target=llama_worker, args=(model_map, task_queue), daemon=True)
         worker_thread.start()
 
         self.llm_manager = main_llm
@@ -268,9 +269,9 @@ class RelevantItems(BaseModel):
 
 
 class CognitiveMemoryManager:
-    def __init__(self, llm_manager: LlmManagerProxy, db_path: str = "cognitive_memory.db"):
+    def __init__(self, llm_manager: SmallLlmManagerProxy, db_path: str = "cognitive_memory.db"):
         logger.info(f"Initializing CognitiveMemoryManager with DB path: {db_path}")
-        self.llm_manager: LlmManagerProxy = llm_manager
+        self.llm_manager: SmallLlmManagerProxy = llm_manager
         self.db_path: str = db_path
         self.graph: nx.MultiDiGraph = nx.MultiDiGraph()  # Combined graph
 
@@ -1654,8 +1655,8 @@ def run_cognitive_test_scenario():
     #    logger.info(f"Removed old test database: {DB_FILE}")
 
     # 1. Setup: Initialize logging, LLM manager, and the CognitiveMemoryManager.
-    # For testing, we use the mock LlmManagerProxy defined earlier.
-    mock_llm_manager = LlmManagerProxy(model_name="mock_test_model")
+    # For testing, we use the mock SmallLlmManagerProxy defined earlier.
+    mock_llm_manager = SmallLlmManagerProxy(model_name="mock_test_model")
     manager = CognitiveMemoryManager(llm_manager=mock_llm_manager, db_path=DB_FILE)
     graph_manager = manager
 
