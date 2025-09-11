@@ -1,11 +1,19 @@
 from __future__ import annotations
+
+import threading
 from dataclasses import dataclass
 from enum import Enum, auto
+from queue import Queue
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Type, Protocol
 from pydantic import BaseModel, ValidationError
 import random
 import time
 from datetime import datetime
+
+from pm.agents.agent_manager import AgentManager
+from pm.llm.llm_common import LlmPreset, CommonCompSettings
+from pm.llm.llm_proxy import LlmManagerProxy
+from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalTerminate, DuplexStartGenerationTool, DuplexStartGenerationText, DuplexSignalEog
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Controller protocol (adapt this to your LlmManagerLLama)
@@ -72,8 +80,9 @@ class BaseAgent:
     """
     name: str = "BaseAgent"
 
-    def __init__(self, agent_manager:Any):
-        self.agent_manager = agent_manager
+    def __init__(self, llm: LlmManagerProxy, manager: AgentManager):
+        self.llm = llm
+        self.agent_manager = manager
         self.input: Dict[str, Any] = {}
         self.results: Dict[str, Any] = {}
         self._recording: bool = False
@@ -96,8 +105,9 @@ class BaseAgent:
     def build_plan(self) -> List[PromptOp]:
         raise NotImplementedError
 
-    # ── public API ────────────────────────────────────────────────────────────
-    def execute(self, input_dict:Dict[str, Any], controller:CompletionController) -> Dict[str, Any]:
+    @classmethod
+    def execute(cls, input_dict:Dict[str, Any], llm: LlmManagerProxy, manager: AgentManager) -> Dict[str, Any]:
+        self = cls(llm, manager)
         self.input = input_dict
         self.results = {}
         plan = self.build_plan()
@@ -131,37 +141,62 @@ class BaseAgent:
                     self._current_example.append((role, op.content or ""))
 
         # 2) open one long-lived session (your manager keeps KV hot)
-        session = controller.open_session(preamble, few_shots=few_shots)
+        # session = controller.open_session(preamble, few_shots=few_shots)
+
+        q_from_ai = Queue()
+        q_from_user = Queue()
+
+        def get_from_queue_until_end():
+            buffer = []
+            while True:
+                res = q_from_ai.get(block=True, timeout=None)
+                if isinstance(res, DuplexSignalEog):
+                    break
+                buffer.append(res)
+            return "".join(buffer)
+
+        def t():
+            content = self.llm.completion_text(LlmPreset.Default, preamble, CommonCompSettings(temperature=0.3, max_tokens=1024, duplex=True, queue_from_user=q_from_user, queue_to_user=q_from_ai, wait_for_start_signal=True))
+            self.results["_full_output"] = content
+
+        thr = threading.Thread(target=t, daemon=True)
+        thr.start()
 
         # 3) now walk the plan from the first completion onward
         started = False
         for op in plan:
-            if op.kind in (OpKind.SYSTEM, OpKind.USER, OpKind.ASSISTANT, OpKind.LITERAL, OpKind.EXAMPLE_BEGIN, OpKind.EXAMPLE_END):
+            if op.kind in (OpKind.SYSTEM, OpKind.ASSISTANT, OpKind.LITERAL, OpKind.EXAMPLE_BEGIN, OpKind.EXAMPLE_END):
                 # already included in the preamble (or handled above); skip here
                 continue
 
             started = True
-            if op.kind == OpKind.COMPLETION_TEXT:
-                text = session.complete_text()
+
+            if op.kind in (OpKind.USER,):
+                q_from_user.put(op.content)
+            elif op.kind == OpKind.COMPLETION_TEXT:
+                q_from_user.put(DuplexStartGenerationText())
+                text = get_from_queue_until_end()
                 self.results[op.target_key or "text"] = text
                 if self._is_recording():
                     self._append_example(("assistant", text))
-
             elif op.kind == OpKind.COMPLETION_JSON and op.schema is not None:
+                q_from_user.put(DuplexStartGenerationTool(op.schema))
+                text = get_from_queue_until_end()
                 try:
-                    obj = session.complete_json(op.schema)
+                    obj = op.schema.model_validate_json(text)
                 except ValidationError as e:
                     # If your manager returns raw text sometimes, store error and raw
                     obj = None
                     self.results[(op.target_key or "json") + "_error"] = str(e)
+
                 self.results[op.target_key or "json"] = obj
                 if self._is_recording():
                     self._append_example(("assistant", obj.json() if obj else ""))
 
-        session.halt()
+        q_from_user.put(DuplexSignalTerminate())
 
         # 4) optional rating/mining
-        self._maybe_rate_example(controller, session)
+        #self._maybe_rate_example(controller, session)
 
         return self.results
 

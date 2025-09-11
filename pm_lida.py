@@ -74,6 +74,7 @@ companion_name: str = ""
 user_name: str = ""
 local_files_only = False
 embedding_model = ""
+embedding_dim = 768
 vector_same_threshold = 0.08
 character_card_story = ""
 timestamp_format = "%A, %d.%m.%y %H:%M"
@@ -100,6 +101,7 @@ global_map = {
     "companion_name": config_data.get("companion_name", ""),
     "user_name": config_data.get("user_name", ""),
     "embedding_model": config_data.get("embedding_model", ""),
+    "embedding_dim": config_data.get("embedding_dim", 0),
     "timestamp_format": config_data.get("timestamp_format", ""),
     "character_card_story": config_data.get("character_card_story", ""),
     "commit": config_data.get("commit", True),
@@ -127,7 +129,10 @@ model_mapping = config_data.get("model_mapping", {})
 
 # Generate model_map dictionary
 context_size = -1
-model_map = {}
+model_map = {
+    "embedding_dim": embedding_dim,
+    "embedding_model": embedding_model,
+}
 for model_class, model_key in model_mapping.items():
     if model_key in models:
         context_size = max(context_size, models[model_key]["context"])
@@ -7729,9 +7734,13 @@ def get_shell_instance() -> Shell:
     return _instance
 
 
-def run(interactive: bool, db_path: str | None = None, cmd: str = None ):
+def start_llm_thread():
     worker_thread = threading.Thread(target=llama_worker, args=(model_map, task_queue), daemon=True)
     worker_thread.start()
+
+
+def run(interactive: bool, db_path: str | None = None, cmd: str = None ):
+    start_llm_thread()
 
     config = GhostConfig()
     ghost = GhostSqlite(config)

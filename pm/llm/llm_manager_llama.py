@@ -37,7 +37,7 @@ from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_manager import LlmManager
 from pm.tools.tools_common import create_tool_router_model
 from pm.utils.string_utils import remove_n_words, parse_json_from_response
-from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalInterrupt
+from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalInterrupt, DuplexStartGenerationText, DuplexStartGenerationTool, DuplexSignalEog, DuplexSignalTerminate
 from pm.utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, fix_gbnf_grammar_generator
 fix_gbnf_grammar_generator()
 
@@ -465,7 +465,7 @@ class LlmManagerLLama(LlmManager):
 
         if comp_settings is None:
             comp_settings = CommonCompSettings()
-        comp_settings.fill_defaults(preset)
+        comp_settings.fill_defaults(self.model_map, preset)
 
         if tools is None:
             tools = []
@@ -525,25 +525,17 @@ class LlmManagerLLama(LlmManager):
                 if discard_thinks:
                     content = content.split("</think>")[-1]
             else:
+                if magic_image_token in tokenized_prompt:
+                    self.llm.reset()
+                else:
+                    shared_length = min(len(tokenized_prompt), self.llm.n_tokens)
+                    for i in range(shared_length):
+                        if self.llm.input_ids[i] != tokenized_prompt[i]:
+                            self.llm.n_tokens = i
+                            tokenized_prompt = tokenized_prompt[i:]
+                            break
+
                 evaluated = False
-                if self.state is not None and not comp_settings.eval_only:
-                    def check_diff(a, b):
-                        if len(a) > len(b):
-                            return None
-                        if b[:len(a)] == a:
-                            return b[len(a):]
-                        return None
-
-                    diff = check_diff(self.state_tokens, tokenized_prompt)
-                    if diff is not None:
-                        self.llm.load_state(self.state)
-                        if len(diff) == 0:
-                            self.llm.eval([tokenized_prompt[-1]])
-                        self.llm.eval(diff)
-                        self.llm.input_ids = copy.deepcopy(self.state_input_ids)
-                        self.llm.scores = copy.deepcopy(self.state_scores)
-
-                        evaluated = True
 
                 def split_by_value(lst, sep):
                     """Split into runs of non-sep values; each sep becomes its own [sep]."""
@@ -564,8 +556,6 @@ class LlmManagerLLama(LlmManager):
                 if not evaluated:
                     self.state = None
                     self.state_tokens = None
-
-                    self.llm.reset()
 
                     sep_by_image = split_by_value(tokenized_prompt, magic_image_token)
                     for sublist in sep_by_image:
@@ -607,12 +597,14 @@ class LlmManagerLLama(LlmManager):
                 if magic_image_token in tokenized_prompt:
                     tokenized_prompt.remove(magic_image_token)
 
+                """
                 if comp_settings.eval_only:
                     self.state = self.llm.save_state()
                     self.state_tokens = tokenized_prompt
                     self.state_input_ids = copy.deepcopy(self.llm.input_ids)
                     self.state_scores = copy.deepcopy(self.llm.scores)
                     return "", []
+                """
 
                 self.llm._sampler = self.llm._init_sampler(**sampler_args)
 
@@ -642,8 +634,10 @@ class LlmManagerLLama(LlmManager):
                 function_called = False
                 duplex_user_buffer = ""
                 is_waiting_for_user_input = False
+                in_duplex_mode_has_generation_mode_set = False
 
                 while len(completion_tokens) < max_tokens:
+                    halt_signal = False
                     def switch_to_listening():
                         nonlocal is_waiting_for_user_input
                         nonlocal duplex_user_buffer
@@ -683,8 +677,28 @@ class LlmManagerLLama(LlmManager):
                                 eval_local(tmp)
 
                                 switch_to_listening()
+                            elif isinstance(msg, DuplexStartGenerationText):
+                                in_duplex_mode_has_generation_mode_set = True
+                                self.llm._sampler = self.llm._init_sampler(**sampler_args)
+                                switch_to_generating()
+                            elif isinstance(msg, DuplexStartGenerationTool):
+                                in_duplex_mode_has_generation_mode_set = True
+                                sampler_args_with_grammar = copy.copy(sampler_args)
+
+                                bm: Type[BaseModel] = msg.bm
+                                gbnf_grammar, documentation = better_generate_gbnf_grammar_and_documentation([bm])
+                                grammar = LlamaGrammar(_grammar=gbnf_grammar)
+
+                                sampler_args_with_grammar["grammar"] = grammar
+                                self.llm._sampler = self.llm._init_sampler(**sampler_args_with_grammar)
+                                switch_to_generating()
+                            elif isinstance(msg, DuplexSignalTerminate):
+                                halt_signal = True
                         except queue.Empty:
                             pass
+
+                    if halt_signal:
+                        break
 
                     def longest_common_substring(a: str, b: str) -> str:
                         matcher = difflib.SequenceMatcher(None, a, b)
@@ -696,9 +710,9 @@ class LlmManagerLLama(LlmManager):
                         eval_local(tokens)
 
                         m = re.search(r'[.?!]', duplex_user_buffer)
-                        if m:
+                        if m and comp_settings.allow_interrupts:
                             # simple single token, check if llm wants to switch turn and use that as interrupt
-                            token = self.llm.sample(idx=None, **sampler_args)
+                            token = self.llm.sample(idx=None)
                             as_non_special = self._detokenize([token], special=False).strip()
                             if as_non_special == "":
                                 switch_to_generating()
@@ -711,7 +725,11 @@ class LlmManagerLLama(LlmManager):
                     if use_sample_index:
                         idx = sample_idx
 
-                    token = self.llm.sample(idx=idx, **sampler_args)
+                    if comp_settings.duplex and comp_settings.wait_for_start_signal and not in_duplex_mode_has_generation_mode_set:
+                        time.sleep(0.01)
+                        continue
+
+                    token = self.llm.sample(idx=idx)
                     cur_tokens_to_eval = [token]
                     cur_token_as_text = self._detokenize([token], special=False)
                     cur_completion_as_text = self._detokenize(completion_tokens, special=False)
@@ -719,6 +737,7 @@ class LlmManagerLLama(LlmManager):
                     # check for exit
                     if llama_cpp.llama_token_is_eog(self.llm._model.vocab, token):
                         if comp_settings.duplex:
+                            comp_settings.queue_to_user.put(DuplexSignalEog())
                             switch_to_listening()
                             continue
                         else:

@@ -1,4 +1,7 @@
 import sys, os, time, queue
+from typing import Type
+
+from pydantic import BaseModel
 
 
 class DuplexSignalFinish:
@@ -11,6 +14,16 @@ class DuplexSignalInterrupt:
 
 class DuplexSignalTerminate:
     pass
+
+class DuplexSignalEog:
+    pass
+
+class DuplexStartGenerationText():
+    pass
+
+class DuplexStartGenerationTool():
+    def __init__(self, bm: Type[BaseModel]):
+        self.bm = bm
 
 def duplex_com(queue_in, queue_out, my_name, other_name):
     """

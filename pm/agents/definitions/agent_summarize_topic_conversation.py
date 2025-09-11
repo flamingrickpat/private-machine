@@ -21,7 +21,8 @@ class SummarizeTopicConversation(BaseAgent):
     def get_system_prompts(self) -> List[str]:
         return [
             "You are an expert in literate and literal analysis; you help with stories and book reports.",
-            "Your task: summarize a piece of dialogue. Be neutral, descriptive, concise. Do not invent facts.",
+            "Your task: summarize a piece of dialogue. Be neutral, descriptive, concise. Do not invent facts. Context:",
+            f"{self.input['context']}"
         ]
 
     def get_rating_system_prompt(self) -> str:
@@ -43,7 +44,7 @@ class SummarizeTopicConversation(BaseAgent):
 
     def build_plan(self) -> List[PromptOp]:
         dialog = self.input["content"]
-        schema: Type[BaseModel] = self.input.get("SummaryCategoryBaseModel", SummaryCategoryBaseModel)
+        schema: Type[BaseModel] = self.input.get("summary_category_bm", SummaryCategoryBaseModel)
 
         ops: List[PromptOp] = []
 
