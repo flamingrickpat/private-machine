@@ -21,8 +21,10 @@ from pm.agents.definitions.agent_extract_declarative_facts import ExtractDeclara
 from pm.agents.definitions.agent_summarize_topic_conversation import SummarizeTopicConversation
 from pm.config_loader import user_name, companion_name
 from pm.data_structures import FeatureType, narrative_feature_relevance_map, narrative_definitions, DeclarativeFactKnoxel, Feature, NarrativeTypes, Narrative, KnoxelList, KnoxelBase, MemoryClusterKnoxel, ClusterType
+from pm.ghosts.base_ghost import BaseGhost
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_proxy import LlmManagerProxy
+from pm.utils.cluster_utils import cluster_blocks_with_min_size
 from pm.utils.time_hierarchy_utils import _floor_to_shifted_day_start, TimeRange, _iter_closed_tod_ranges, _iter_closed_day_ranges_0500, _iter_closed_week_ranges_0500, _iter_closed_month_ranges_0500, _iter_closed_year_ranges_0500
 from pm.utils.token_utils import get_token_count
 
@@ -43,10 +45,11 @@ class MemoryConsolidationConfig(BaseModel):
     narrative_rolling_tokens_nax: int = 4500
     narrative_rolling_overlap: float = 0.2
     hierchical_summary_token_limit: int = 4000
+    min_split_up_cluster_size: int = 8
 
 
 class DynamicMemoryConsolidator:
-    def __init__(self, llm: LlmManagerProxy, ghost: "Ghost", config: MemoryConsolidationConfig):
+    def __init__(self, llm: LlmManagerProxy, ghost: BaseGhost, config: MemoryConsolidationConfig):
         self.ghost = ghost
         self.config = config
         self.llm = llm
@@ -229,6 +232,8 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
         def safelen(lst):
             return 1 if len(lst) == 0 else len(lst)
 
+        events_to_cluster = events_to_cluster[:100]
+
         # 1. Topical Clustering
         t = time.time()
         new_topical_clusters = self._perform_topical_clustering(events_to_cluster)
@@ -284,6 +289,7 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
             logger.warning("Optimal clustering did not produce results.")
             return new_cluster_knoxels
 
+        """
         # Group knoxels by assigned cluster label
         clusters_data: Dict[int, List[KnoxelBase]] = defaultdict(list)
         for knoxel in event_knoxels:
@@ -298,9 +304,13 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
         cluster_creation_order = sorted(clusters_data.keys(), key=lambda k: min(knox.id for knox in clusters_data[k]))
 
         added_event_ids = set()  # Track which event knoxels get linked
+        """
 
-        for cluster_label in cluster_creation_order:
-            cluster_knoxels = sorted(clusters_data[cluster_label], key=lambda k: k.id)
+        clustered_ids_blocks = cluster_blocks_with_min_size(conceptual_cluster, self.config.min_split_up_cluster_size)
+        clustered_knoxel_blocks = [[self.ghost.get_knoxel_by_id(x) for x in y] for y in clustered_ids_blocks]
+
+        for block in clustered_knoxel_blocks:
+            cluster_knoxels = sorted(block, key=lambda k: k.id)
 
             # get all causal features from that tick range
             min_tick_id = min(k.tick_id for k in cluster_knoxels)
@@ -352,10 +362,6 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
 
             self.ghost.add_knoxel(topical_cluster)
             new_cluster_knoxels.append(topical_cluster)
-
-            # Track added event IDs
-            for knox in cluster_knoxels:
-                added_event_ids.add(knox.id)
 
         logger.info(f"Created {len(new_cluster_knoxels)} new topical clusters.")
         return new_cluster_knoxels
@@ -415,7 +421,7 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
             data = kl.get_story(ghost=self.ghost)
 
             # if raw features have less than 4k tokens, summarize from raw data
-            if level == 6 or get_token_count(data) < self.config.hierchical_summary_token_limit:
+            if get_token_count(data) < self.config.hierchical_summary_token_limit:
                 # get topic summary
                 inp = {
                     "context": f"This is from a story about the user {user_name} and the AI companion {companion_name}. They communicate via text messages.",
@@ -465,24 +471,15 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                     # Use your episodic memories store (already used above)
                     blocks = []
                     for mem in self.ghost.all_episodic_memories:
-                        if (
-                                isinstance(mem, MemoryClusterKnoxel)
-                                and mem.cluster_type == ClusterType.Temporal
-                                and getattr(mem, "level", None) == level_filter
-                        ):
+                        if isinstance(mem, MemoryClusterKnoxel) and mem.level == level_filter:
                             mb = getattr(mem, "timestamp_world_begin", None)
                             me = getattr(mem, "timestamp_world_end", None)
-                            if mb is None or me is None:
-                                continue
-                            # overlap with [start, end)
                             if me > start and mb < end:
                                 blocks.append(mem)
                     blocks.sort(key=lambda m: m.timestamp_world_begin)
                     return blocks
 
-                # Candidate lower levels (finest first). Only levels strictly lower than current.
-                # Available levels in your mapping: 6 (TOD), 5 (Day), 4 (Week), 3 (Month), 1 (Year)
-                candidate_levels = [l for l in [6, 5, 4, 3] if l < level]
+                candidate_levels = [l for l in [100, 6, 5, 4, 3, 2] if l > level]
 
                 best_blocks = None
                 best_level_used = None
@@ -499,30 +496,19 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                     kl = KnoxelList(blocks)
                     t = get_token_count(kl.get_story(self.ghost))
 
-                    # Keep "best" that fits the limit (prefer the first that fits = finest granularity)
-                    if t < self.config.hierchical_summary_token_limit and best_blocks is None:
+                    if best_tokens is None or t < best_tokens:
                         best_blocks = blocks
                         best_level_used = child_level
                         best_tokens = t
-                        break  # we prefer the first (finest) that fits
-
-                    # Track fallback as the latest (i.e., progressively coarser) non-empty candidate
-                    fallback_blocks = blocks
-                    fallback_level = child_level
-                    fallback_tokens = t
+                        if self.config.hierchical_summary_token_limit:
+                            break
 
                 # Decide which set we’ll use
                 if best_blocks is not None:
                     chosen_blocks = best_blocks
                     chosen_level = best_level_used
-                elif fallback_blocks is not None:
-                    chosen_blocks = fallback_blocks
-                    chosen_level = fallback_level
                 else:
-                    # No lower-level summaries exist yet; as a last resort, fall back to raw features path (already too big).
-                    # We still proceed by chunking the raw data into one synthetic "block".
-                    chosen_blocks = []
-                    chosen_level = None
+                    raise Exception(f"Can't summarize between {start} - {end}")
 
                 # Build the input text for the hierarchical summarizer
                 if chosen_blocks:

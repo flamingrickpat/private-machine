@@ -189,6 +189,7 @@ class Action(KnoxelBase):
 
 # --- New Enums ---
 class ClusterType(StrEnum):
+    Conceptual = "conceptual"
     Topical = "topical"
     Temporal = "temporal"
 

@@ -72,8 +72,8 @@ class MLevel(StrEnum):
 
 
 class GhostLida(BaseGhost):
-    def __init__(self, config, llm):
-        super().__init__(config, llm)
+    def __init__(self, llm, config):
+        super().__init__(llm, config)
         self.stimulus_triage: StimulusTriage = StimulusTriage.Moderate
         self.memory_config = MemoryConsolidationConfig()
         self.memory_consolidator = DynamicMemoryConsolidator(llm, self, self.memory_config)  # Pass self (ghost instance)

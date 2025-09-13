@@ -1,5 +1,6 @@
 import random
 import re
+from typing import List, Tuple
 
 # A concise list of the most common English stop words
 _common_stop_words = {
@@ -121,3 +122,40 @@ def third_person_to_instruction(text: str, name: str) -> str:
 
 def to_camel_case(snake_str):
     return "".join(x.capitalize() for x in snake_str.lower().split("_"))
+
+
+def remove_strings(text, str1, str2):
+    pattern = re.escape(str1) + r"\s*" + re.escape(str2)
+    return re.sub(pattern, "", text)
+
+
+def replace_tagged_blocks(
+        text: str,
+        in_begin: str,
+        in_end: str,
+        out_start: str,
+        out_media: str,
+        out_end: str = ""
+) -> Tuple[str, List[str]]:
+    """
+    Find every block between in_begin and in_end, collect the inner text,
+    and replace each block with out_start + out_media + out_end.
+
+    Returns (new_text, extracted_list).
+    """
+    pattern = re.compile(re.escape(in_begin) + r"(.*?)" + re.escape(in_end), re.DOTALL)
+    extracted: List[str] = []
+
+    def _repl(m: re.Match) -> str:
+        extracted.append(m.group(1))
+        return f"{out_start}{out_media}{out_end}"
+
+    new_text = pattern.sub(_repl, text)
+    return new_text, extracted
+
+
+def between(s: str, a: str, b: str) -> str:
+    """Return the substring strictly between the first (and only) a and b."""
+    start = s.index(a) + len(a)
+    end = s.index(b, start)
+    return s[start:end]

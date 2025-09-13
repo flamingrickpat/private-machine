@@ -36,7 +36,7 @@ from pydantic import BaseModel
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_manager import LlmManager
 from pm.tools.tools_common import create_tool_router_model
-from pm.utils.string_utils import remove_n_words, parse_json_from_response
+from pm.utils.string_utils import remove_n_words, parse_json_from_response, between, replace_tagged_blocks, remove_strings
 from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalInterrupt, DuplexStartGenerationText, DuplexStartGenerationTool, DuplexSignalEog, DuplexSignalTerminate
 from pm.utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, fix_gbnf_grammar_generator
 fix_gbnf_grammar_generator()
@@ -175,6 +175,7 @@ class LlmManagerLLama(LlmManager):
                 self.clip_model_path = mmproj_file
                 self._init_mtmd_context(self.llm)
 
+            self._update_special_strings()
 
     def _load_image(self, image_url: str) -> bytes:
         try:
@@ -208,12 +209,7 @@ class LlmManagerLLama(LlmManager):
                 raise ValueError("Failed to create bitmap from image bytes")
             return bitmap
 
-    def _tokenize_prompt(self,
-                         preset: LlmPreset,
-                         inp: List[Tuple[str, str]],
-                         comp_settings: CommonCompSettings,
-                         sysprompt_addendum: str | None = None
-                        ) -> (str, List[BaseModel]):
+    def _update_special_strings(self):
         # we sometimes seed the assistant response to get rid of crap like "ok, lets tackle this, here is a bunch of useless words and now here is what you wanted :) <result>"
         messages = [
             {"role": "system", "content": "test1"},
@@ -229,41 +225,6 @@ class LlmManagerLLama(LlmManager):
             {"role": "user", "content": "test6"},
             {"role": "assistant", "content": "test7"}
         ]
-
-        def remove_strings(text, str1, str2):
-            pattern = re.escape(str1) + r"\s*" + re.escape(str2)
-            return re.sub(pattern, "", text)
-
-        def between(s: str, a: str, b: str) -> str:
-            """Return the substring strictly between the first (and only) a and b."""
-            start = s.index(a) + len(a)
-            end = s.index(b, start)
-            return s[start:end]
-
-        def replace_tagged_blocks(
-                text: str,
-                in_begin: str,
-                in_end: str,
-                out_start: str,
-                out_media: str,
-                out_end: str = ""
-        ) -> Tuple[str, List[str]]:
-            """
-            Find every block between in_begin and in_end, collect the inner text,
-            and replace each block with out_start + out_media + out_end.
-
-            Returns (new_text, extracted_list).
-            """
-            pattern = re.compile(re.escape(in_begin) + r"(.*?)" + re.escape(in_end), re.DOTALL)
-            extracted: List[str] = []
-
-            def _repl(m: re.Match) -> str:
-                extracted.append(m.group(1))
-                return f"{out_start}{out_media}{out_end}"
-
-            new_text = pattern.sub(_repl, text)
-            return new_text, extracted
-
         try:
             text = self.chat_template.render(
                 messages=messages,
@@ -272,7 +233,7 @@ class LlmManagerLLama(LlmManager):
                 bos_token=self.llm.detokenize([self.llm.token_bos()]),
             )
         except:
-            messages = messages[1:] # remove sys prompt in case its not allowed for model
+            messages = messages[1:]  # remove sys prompt in case its not allowed for model
             text = self.chat_template.render(
                 messages=messages,
                 add_generation_prompt=True,
@@ -280,18 +241,25 @@ class LlmManagerLLama(LlmManager):
                 bos_token=self.llm.detokenize([self.llm.token_bos()]),
             )
 
-        remove_ass_string = text.split("test7")[1]
+        self.remove_ass_string = text.split("test7")[1]
         self.user_to_ass_string = between(text, "test6", "test7")
         self.ass_to_user_string = between(text, "test5", "test6")
         if "test3" in text:
-            text_to_image_string = between(text, "test2", "test3")
-            image_to_text_string = between(text, "test3", "test4")
+            self.text_to_image_string = between(text, "test2", "test3")
+            self.image_to_text_string = between(text, "test3", "test4")
         else:
-            text_to_image_string = between(text, "test2", "test4")
-            image_to_text_string = ""
+            self.text_to_image_string = between(text, "test2", "test4")
+            self.image_to_text_string = ""
 
-        media_marker_string = self._mtmd_cpp.mtmd_default_marker().decode('utf-8')
+        self.media_marker_string = self._mtmd_cpp.mtmd_default_marker().decode('utf-8')
 
+
+    def _tokenize_prompt(self,
+                         preset: LlmPreset,
+                         inp: List[Tuple[str, str]],
+                         comp_settings: CommonCompSettings,
+                         sysprompt_addendum: str | None = None
+                        ) -> (str, List[BaseModel]):
         # change format
         inp_formatted = []
         for msg in inp:
@@ -350,7 +318,7 @@ class LlmManagerLLama(LlmManager):
 
             # let the assistant continue if they talked last
             if openai_inp[-1]["role"] == "assistant":
-                rendered_data = rendered_data.strip().removesuffix(remove_ass_string.strip())
+                rendered_data = rendered_data.strip().removesuffix(self.remove_ass_string.strip())
 
             # remove thinkign tags
             rendered_data = remove_strings(rendered_data, "</think>", "<think>")
@@ -359,16 +327,16 @@ class LlmManagerLLama(LlmManager):
             rendered_data, images = replace_tagged_blocks(rendered_data,
                                               in_begin=universal_image_begin,
                                               in_end=universal_image_end,
-                                              out_start=text_to_image_string,
-                                              out_media=media_marker_string,
-                                              out_end=image_to_text_string)
+                                              out_start=self.text_to_image_string,
+                                              out_media=self.media_marker_string,
+                                              out_end=self.image_to_text_string)
 
             for image in images:
                 img_bytes = self._load_image(image)
                 bitmap_llama = self._create_bitmap_from_bytes(img_bytes)
                 bitmaps = [bitmap_llama]
 
-                image_prompt_text = f"test1{image_to_text_string}{media_marker_string}{text_to_image_string}test2"
+                image_prompt_text = f"test1{self.image_to_text_string}{self.media_marker_string}{self.text_to_image_string}test2"
 
                 input_text = self._mtmd_cpp.mtmd_input_text()
                 input_text.text = image_prompt_text.encode('utf-8')
@@ -428,7 +396,7 @@ class LlmManagerLLama(LlmManager):
 
                 # replace errors from template with real special tokens to avoid double tokens (mtmd already adds them)"
                 rendered_data = rendered_data.replace(
-                    f"{text_to_image_string}{media_marker_string}{image_to_text_string}",
+                    f"{self.text_to_image_string}{self.media_marker_string}{self.image_to_text_string}",
                     f"{real_text_to_image_string}{real_image_to_text_string}",
                 )
 
@@ -448,7 +416,7 @@ class LlmManagerLLama(LlmManager):
             if len(tokenized_prompt) > (self.current_ctx - comp_settings.max_tokens) - 32:
                 for i in range(1, len(openai_inp)):
                     cur = openai_inp[i]["content"]
-                    trimmed = remove_n_words(cur, 4)
+                    trimmed = remove_n_words(cur, 32)
                     openai_inp[i]["content"] = trimmed
                     trimmed = True
             else:
