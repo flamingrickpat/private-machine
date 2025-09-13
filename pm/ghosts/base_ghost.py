@@ -8,7 +8,7 @@ from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrati
 from pm.llm.llm_common import LlmPreset
 from pm.llm.llm_proxy import LlmManagerProxy
 from pm.mental_states import EmotionalAxesModel, CognitionAxesModel, NeedsAxesModel
-from pm.config_loader import companion_name, user_name, character_card_story, model_map, shell_system_name
+from pm.config_loader import companion_name, user_name, character_card_story, model_map, shell_system_name, timestamp_format
 from pm.utils.system_utils import generate_start_message
 
 
@@ -98,8 +98,7 @@ class BaseGhost(KnoxelHaver):
 
     def init_character(self):
         now = datetime.now()
-        time_str = now.strftime("%H:%M:%S")
-        date_str = now.strftime("%Y-%m-%d")
+        date_str = now.strftime(timestamp_format)
 
         init_message = generate_start_message(companion_name, user_name, os.path.basename(model_map[LlmPreset.Default.value]["path"]))
         init_feature = Feature(
@@ -111,7 +110,7 @@ class BaseGhost(KnoxelHaver):
         self.add_knoxel(init_feature)
 
         init_memory = DeclarativeFactKnoxel(
-            content=f"{companion_name} was first activated on {date_str} at {time_str}.",
+            content=f"{companion_name} was first activated on {date_str}.",
             reason="",
             category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
             importance=1,

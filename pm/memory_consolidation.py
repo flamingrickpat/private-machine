@@ -17,13 +17,15 @@ from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 
 from pm.agents.definitions.agent_categorize_fact import FactCategorization, CategorizeFacts
+from pm.agents.definitions.agent_describe_mental_state import DescribeMentalStatePeriod
 from pm.agents.definitions.agent_extract_declarative_facts import ExtractDeclarativeFacts
 from pm.agents.definitions.agent_summarize_topic_conversation import SummarizeTopicConversation
-from pm.config_loader import user_name, companion_name
+from pm.config_loader import user_name, companion_name, timestamp_format
 from pm.data_structures import FeatureType, narrative_feature_relevance_map, narrative_definitions, DeclarativeFactKnoxel, Feature, NarrativeTypes, Narrative, KnoxelList, KnoxelBase, MemoryClusterKnoxel, ClusterType
-from pm.ghosts.base_ghost import BaseGhost
+from pm.ghosts.base_ghost import BaseGhost, GhostState
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_proxy import LlmManagerProxy
+from pm.mental_states import _verbalize_emotional_state_range, _verbalize_cognition_and_needs_range
 from pm.utils.cluster_utils import cluster_blocks_with_min_size
 from pm.utils.time_hierarchy_utils import _floor_to_shifted_day_start, TimeRange, _iter_closed_tod_ranges, _iter_closed_day_ranges_0500, _iter_closed_week_ranges_0500, _iter_closed_month_ranges_0500, _iter_closed_year_ranges_0500
 from pm.utils.token_utils import get_token_count
@@ -47,7 +49,7 @@ class MemoryConsolidationConfig(BaseModel):
     hierchical_summary_token_limit: int = 4000
     min_split_up_cluster_size: int = 8
 
-DEBUG = True
+DEBUG = False
 
 class DynamicMemoryConsolidator:
     def __init__(self, llm: LlmManagerProxy, ghost: BaseGhost, config: MemoryConsolidationConfig):
@@ -245,11 +247,19 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
             logger.info("No new topical clusters formed.")
             return
 
+        # 1.5 describe mental states
+        for cluster in new_topical_clusters:
+            self._update_mental_state_of_cluster(cluster)
+
         # 2. temporal clustering
         t = time.time()
         new_temporal_cluster = self._generate_missing_closed_temporal_ranges()
         logger.critical(f"Finished _generate_missing_closed_temporal_ranges. Items: {len(new_temporal_cluster)}, Duration: {int(time.time() - t)}, Avg. Time: {int(time.time() - t) / safelen(new_temporal_cluster)}")
         all_new = new_topical_clusters + new_temporal_cluster
+
+        # 2.5 describe mental states
+        for cluster in new_temporal_cluster:
+            self._update_mental_state_of_cluster(cluster)
 
         # 3. extract data
         t = time.time()
@@ -522,7 +532,7 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                 # Context tailored for hierarchical summarization
                 hier_context = (
                     f"This is from a story about the user {user_name} and the next-gen, sentient AI companion {companion_name}."
-                    f"This events happened between {start.isoformat()} to {end.isoformat()}."
+                    f"This events happened between {start.strftime(timestamp_format)} to {end.strftime(timestamp_format)}."
                 )
 
                 # Run the summarizer on the combined lower-level content
@@ -779,3 +789,30 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
             return str(timestamp.year)  # Year
         else:
             raise ValueError(f"Invalid temporal level: {level}")
+
+    def _update_mental_state_of_cluster(self, cluster: MemoryClusterKnoxel):
+        content = cluster.get_story_element(self.ghost)
+
+        states: List[GhostState] = [x for x in self.ghost.states if x.tick_id >= cluster.min_event_id and x.tick_id <= cluster.max_tick_id]
+        lst_ts = [x.timestamp for x in states]
+        lst_em = [x.state_emotions for x in states]
+        lst_ne = [x.state_needs for x in states]
+        lst_co = [x.state_cognition for x in states]
+
+        additional = []
+        if len(lst_ts) > 0 and max([x.valence for x in lst_em]) != 0 and min([x.valence for x in lst_em]) != 0:
+            additional.append(_verbalize_emotional_state_range(lst_em, lst_ts))
+            additional.append(_verbalize_cognition_and_needs_range(lst_co, lst_ne, lst_ts))
+
+        content += "\n".join(additional)
+
+        inp = {
+            "target_name": companion_name,
+            "content": content
+        }
+        res = DescribeMentalStatePeriod.execute(inp, self.llm, None)
+        ms = res["summary"]
+
+        emb = self.llm.get_embedding(ms)
+        cluster.emotion_description = ms
+        cluster.emotion_embedding = emb

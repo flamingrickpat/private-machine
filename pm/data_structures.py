@@ -211,16 +211,15 @@ class MemoryClusterKnoxel(CoversTicksEventsKnoxel):
     token: int = Field(default=0, description="Token count, usually based on summary for Temporal clusters")
     facts_extracted: bool = Field(default=False, description="Flag for Topical clusters: has declarative memory been extracted?")
     temporal_key: Optional[str] = Field(default=None, description="Unique key for merging temporal clusters (e.g., '2023-10-26-MORNING')")
-    emotion_vector: Optional[str] = Field(default=None, description="todo")
     emotion_description: Optional[str] = Field(default=None, description="todo")
+    emotion_embedding: Optional[str] = Field(default=None, description="todo")
 
     # Override get_story_element for representation in prompts if needed
     def get_story_element(self, ghost: KnoxelHaver = None) -> str:
         if self.cluster_type == ClusterType.Temporal and self.content:
-            # How to represent time? Maybe add time range to summary?
-            # level_name = self.level # TODO: Map level back to Day/Week etc.
-            return f"*Summary of period ({self.timestamp_world_begin.strftime('%Y-%m-%d %H:%M')} - {self.timestamp_world_begin.strftime('%Y-%m-%d %H:%M')}): {self.content}*"
+            return f"*Summary of period ({self.timestamp_world_begin.strftime(timestamp_format)} - {self.timestamp_world_begin.strftime(timestamp_format)}): \n{self.content}*"
         elif self.cluster_type == ClusterType.Topical:
+            # return f"*Summary of period ({self.timestamp_world_begin.strftime(timestamp_format)} - {self.timestamp_world_begin.strftime(timestamp_format)}): \n{self.content}*"
             # Topical clusters might not appear directly in story, used for retrieval
             all_knoxels = ghost.world_sorted_knoxels
             if all_knoxels is None:
@@ -229,7 +228,7 @@ class MemoryClusterKnoxel(CoversTicksEventsKnoxel):
             event_ids = [int(val.strip()) for val in self.included_event_ids.split(",")]
             map = {k.id: k for k in all_knoxels}
 
-            buffer = [f"Begin of relevant past conversation  between {self.timestamp_world_begin.strftime('%Y-%m-%d %H:%M')} - {self.timestamp_world_begin.strftime('%Y-%m-%d %H:%M')}:"]
+            buffer = [f"Begin of past conversation  between {self.timestamp_world_begin.strftime(timestamp_format)} - {self.timestamp_world_begin.strftime(timestamp_format)}:\n"]
             events = []
             for event_id in event_ids:
                 event = map[event_id]

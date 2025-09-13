@@ -60,39 +60,6 @@ STOP_WORDS = {
     "you've", 'your', 'yours', 'yourself', 'yourselves', 'tell', 'give', 'ask', 'name', 'list', 'describe', 'can', 'could'
 }
 
-"""
-class InternalState(BaseModel):
-    emotional_valence: float = Field(description="A score from -1.0 (highly negative) to 1.0 (highly positive).", default=0)
-    emotional_label: str = Field(
-        description="A concise, descriptive word for the primary emotion (e.g., 'curiosity', 'satisfaction', 'confusion').", default="")
-    cognitive_process: str = Field(
-        description="The dominant cognitive process (e.g., 'storing_new_fact', 'detecting_contradiction', 'forming_goal').", default="")
-    certainty: float = Field(default=1.0,
-                             description="The AI's confidence in the information processed, from 0.0 to 1.0.")
-    salience_focus: List[str] = Field(default_factory=list,
-                                      description="List of entity names or concepts that were the main focus of attention.")
-
-class MemoryClusterKnoxel(BaseModel):
-    id: str = Field(default_factory=lambda: str(id.id4()))
-    ego_id: str = Field(default=EGO_NODE_id, description="Link to the AI's central EgoNode.")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    topic_summary: str = Field(description="An LLM-generated, brief summary of what the memory was about.")
-    internal_state: InternalState = Field(description="The structured internal state of the AI during this memory.", default_factory=InternalState)
-    embedding: List[float] = Field(default_factory=list)  # Persisted as BLOB
-
-    @model_validator(mode='before')
-    @classmethod
-    def ensure_utc_timestamp(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            ts = data.get('timestamp')
-            if isinstance(ts, str):
-                data['timestamp'] = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-            if isinstance(ts, datetime) and ts.tzinfo is None:
-                data['timestamp'] = ts.replace(tzinfo=timezone.utc)
-        return data
-"""
-
-
 class EpisodeTopicSummary(BaseModel):
     summary: str
 
