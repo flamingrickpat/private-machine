@@ -1,7 +1,7 @@
 import inspect
 
 
-def get_call_stack_str(depth_limit=None, separator="-"):
+def get_call_stack_str(default: str = None, depth_limit=None, separator="-"):
     """
     Returns a string representation of the current call stack suitable for filenames.
 
@@ -12,6 +12,9 @@ def get_call_stack_str(depth_limit=None, separator="-"):
     Returns:
         str: A string of function names from the call stack.
     """
+    if default is not None and default != "":
+        return default
+
     stack = inspect.stack()
     # Skip the current function itself and possibly the one that called it
     relevant_stack = stack[1:depth_limit + 1 if depth_limit else None]

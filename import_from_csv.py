@@ -4,22 +4,26 @@ import threading
 
 import pandas as pd
 
-from pm_lida import setup_logger, GhostConfig, GhostSqlite, Feature, GhostState, FeatureType, llama_worker
+from pm.data_structures import Feature
+from pm.ghosts.base_ghost import GhostState
+from pm.ghosts.persist_sqlite import PersistSqlite
+from pm_lida import setup_logger, GhostConfig, GhostLida, FeatureType, llama_worker, main_llm
 
 
-def import_csv(csv_path: str, db_path: str, user_name: str):
-    setup_logger("import.log")
+def import_csv(csv_path: str, _db_path: str, user_name: str):
+    setup_logger("logs", "import.log")
     print("Importing...")
-    config = GhostConfig()
-    ghost = GhostSqlite(config)
-    ghost.initialize_tick_state(None)
+    _config = GhostConfig()
+    _ghost = GhostLida(main_llm, _config)
+    _ghost.initialize_tick_state(None)
     data = pd.read_csv(csv_path)
 
-    fid = -200000
+    fid = 1
     tick_id = 1
     tick = None
+    ts = None
     for i in range(len(data)):
-        id = int(data.iloc[i]["id"])
+        _id = int(data.iloc[i]["id"])
         content = str(data.iloc[i]["content"])
         source = str(data.iloc[i]["source"])
 
@@ -29,7 +33,7 @@ def import_csv(csv_path: str, db_path: str, user_name: str):
         if source == user_name:
             tick_id += 1
             tick = GhostState(tick_id=tick_id, previous_tick_id=tick_id - 1, timestamp=ts)
-            ghost.states.append(tick)
+            _ghost.states.append(tick)
 
         story_feature = Feature(
             id=fid,
@@ -42,15 +46,16 @@ def import_csv(csv_path: str, db_path: str, user_name: str):
             feature_type=FeatureType.Dialogue,
             interlocus=1,
             causal=True)
-        ghost.add_knoxel(story_feature)
+        _ghost.add_knoxel(story_feature)
         ts += datetime.timedelta(minutes=30)
         fid += 1
 
     tick_id += 1
     tick = GhostState(tick_id=tick_id, previous_tick_id=tick_id - 1, timestamp=ts)
-    ghost.states.append(tick)
-    ghost.current_tick_id = tick_id
-    ghost.save_state_sqlite(db_path)
+    _ghost.states.append(tick)
+    _ghost.current_tick_id = tick_id
+    _pers = PersistSqlite(_ghost)
+    _pers.save_state_sqlite(_db_path)
 
 if __name__ == '__main__':
 
@@ -83,10 +88,11 @@ id	source	content	timestamp
     print("This takes forever...")
 
     config = GhostConfig()
-    ghost = GhostSqlite(config)
-    ghost.load_state_sqlite(db_path)
+    ghost = GhostLida(main_llm, config)
+    pers = PersistSqlite(ghost)
+    pers.load_state_sqlite(db_path)
     ghost.current_state = ghost.states[-1]
     ghost.reconsolidate_memory()
-    ghost.save_state_sqlite(db_path)
+    pers.save_state_sqlite(db_path)
 
     print("Done")

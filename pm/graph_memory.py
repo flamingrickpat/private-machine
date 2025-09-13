@@ -1649,10 +1649,14 @@ class CognitiveMemoryManager:
 def run_cognitive_test_scenario():
     logger.info("--- Starting Cognitive Test Scenario ---")
     DB_FILE = "test_cognitive_memory.db"
+
+
     # Cleanup previous test DB if it exists
-    #if os.path.exists(DB_FILE):
-    #    os.remove(DB_FILE)
-    #    logger.info(f"Removed old test database: {DB_FILE}")
+    init_db = False
+    if os.path.exists(DB_FILE):
+        init_db = True
+        os.remove(DB_FILE)
+        logger.info(f"Removed old test database: {DB_FILE}")
 
     # 1. Setup: Initialize logging, LLM manager, and the CognitiveMemoryManager.
     # For testing, we use the mock SmallLlmManagerProxy defined earlier.
@@ -1669,7 +1673,7 @@ def run_cognitive_test_scenario():
     initial_episode_count = len(manager.episodes) # Should be 1 (birth episode)
     assert initial_episode_count >= 1, "Should have at least one initial (birth) episode."
 
-    if not os.path.exists(DB_FILE):
+    if init_db:
     # ───── Cluster 1: Greetings and Session Setup ─────
         text_cluster_1 = """
         AI: Hello! I'm Chatty, a conversational AI built to assist you with any questions or tasks you have today. It's nice to meet you.

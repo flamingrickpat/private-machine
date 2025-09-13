@@ -15,6 +15,10 @@ from typing import List
 
 from pydantic import BaseModel, Field, create_model
 
+primitives = (bool, str, int, float, type(None))
+
+def is_primitive(obj):
+    return isinstance(obj, primitives)
 
 def _stringify_type(tp: Any) -> str:
     """

@@ -156,14 +156,20 @@ class LlmManagerLLama(LlmManager):
             time.sleep(1)
 
             with suppress_stdout_stderr(disable=False):
-                self.llm = Llama(model_path=model_path, n_gpu_layers=layers, n_ctx=ctx, verbose=False, last_n_tokens_size=last_n_tokens_size, flash_attn=True, n_threads=physical_cores)
+                self.llm = Llama(
+                    model_path=model_path,
+                    n_gpu_layers=layers,
+                    n_ctx=ctx,
+                    verbose=False,
+                    last_n_tokens_size=last_n_tokens_size,
+                    n_threads=physical_cores
+                )
                 self.eos_token_id = self.llm.metadata["tokenizer.ggml.eos_token_id"]
 
-                # self.llm.cache = LlamaDiskCache(capacity_bytes=int(42126278829))
                 self.current_ctx = ctx
                 self.model_path = model_path
                 from jinja2 import Template, StrictUndefined
-                self.chat_template = Template(self.llm.metadata["tokenizer.chat_template"], undefined=StrictUndefined) #Environment(loader=BaseLoader).from_string(self.llm.metadata["tokenizer.chat_template"])
+                self.chat_template = Template(self.llm.metadata["tokenizer.chat_template"], undefined=StrictUndefined)
 
             if mmproj_file is not None and mmproj_file != "":
                 self.clip_model_path = mmproj_file

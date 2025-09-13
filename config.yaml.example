@@ -7,6 +7,7 @@ enable_tool_calling: True # only enable if your model isn't dumb!
 mcp_server_url: "http://127.0.0.1:8000/mcp"
 
 embedding_model: "E:\\AI\\mxbai-embed-large-v1"
+embedding_dim: 768
 
 models:
   gemma3:

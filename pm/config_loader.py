@@ -1,0 +1,105 @@
+import logging
+import os
+
+import yaml
+
+from pm.tools.tools_common import get_toolset_from_url
+from pm.utils.log_utils import setup_logger
+
+logger = logging.getLogger(__name__)
+
+
+companion_name: str = ""
+user_name: str = ""
+local_files_only = False
+embedding_model = ""
+embedding_dim = 768
+vector_same_threshold = 0.08
+character_card_story = ""
+timestamp_format = "%A, %d.%m.%y %H:%M"
+log_path = "./logs"
+db_path = ""
+commit = True
+mcp_server_url: str = ""
+available_tools = []
+enable_tool_calling: bool = False
+shell_system_name = "System-Agent"
+
+# Get absolute path to the config file
+CONFIG_PATH = "config.yaml"
+if not os.path.exists(CONFIG_PATH):
+    raise Exception("config.yaml doesn't exist, it needs to be in the same folder as this file!")
+
+# Load YAML file
+with open(CONFIG_PATH, "r", encoding="utf-8") as file:
+    config_data = yaml.safe_load(file)
+
+# Update global variables dynamically
+global_map = {
+    "db_path": config_data.get("db_path", ""),
+    "companion_name": config_data.get("companion_name", ""),
+    "user_name": config_data.get("user_name", ""),
+    "embedding_model": config_data.get("embedding_model", ""),
+    "embedding_dim": config_data.get("embedding_dim", 0),
+    "timestamp_format": config_data.get("timestamp_format", ""),
+    "character_card_story": config_data.get("character_card_story", ""),
+    "commit": config_data.get("commit", True),
+    "mcp_server_url": config_data.get("mcp_server_url", ""),
+    "enable_tool_calling": config_data.get("enable_tool_calling", False)
+}
+globals().update(global_map)
+
+setup_logger(log_path, "main.log")
+
+wsl_pref = "/mnt/c/"
+wsl_rep = "C:/"
+if os.name == "nt":
+    db_path = db_path.replace(wsl_pref, wsl_rep)
+    embedding_model = embedding_model.replace(wsl_pref, wsl_rep)
+
+if mcp_server_url == "http://127.0.0.1:8000/mcp":
+    from mcp_demo.mcp_server import start_server
+    start_server()
+    logger.info("Started Demo MCP server...")
+
+# Extract model configurations
+models = config_data.get("models", {})
+model_mapping = config_data.get("model_mapping", {})
+
+# Generate model_map dictionary
+context_size = -1
+model_map = {
+    "embedding_dim": embedding_dim,
+    "embedding_model": embedding_model,
+}
+for model_class, model_key in model_mapping.items():
+    if model_key in models:
+        context_size = max(context_size, models[model_key]["context"])
+        path = models[model_key]["path"]
+        if os.name == "nt":
+            path = path.replace(wsl_pref, wsl_rep)
+        model_map[model_class] = {
+            "path": path,
+            "layers": models[model_key]["layers"],
+            "context": models[model_key]["context"],
+            "last_n_tokens_size": models[model_key]["last_n_tokens_size"],
+            "temperature": models[model_key]["temperature"],
+            "top_k": models[model_key]["top_k"],
+            "top_p": models[model_key]["top_p"],
+            "min_p": models[model_key]["min_p"],
+            "repeat_penalty": models[model_key]["repeat_penalty"],
+            "frequency_penalty": models[model_key]["frequency_penalty"],
+            "presence_penalty": models[model_key]["presence_penalty"],
+            "mmproj_file": models[model_key]["mmproj_file"],
+        }
+    else:
+        raise KeyError(f"Model key '{model_key}' in model_mapping not found in models section.")
+
+QUOTE_START = '"'
+QUOTE_END = '"'
+
+toolset = get_toolset_from_url(mcp_server_url)
+if toolset:
+    for tool_name, tool_type in toolset.tool_router_model.model_fields.items():
+        available_tools.append(tool_name)
+tools_list_str = ", ".join(available_tools)

@@ -156,7 +156,7 @@ class BaseAgent:
             return "".join(buffer)
 
         def t():
-            content = self.llm.completion_text(LlmPreset.Default, preamble, CommonCompSettings(temperature=0.3, max_tokens=1024, duplex=True, queue_from_user=q_from_user, queue_to_user=q_from_ai, wait_for_start_signal=True))
+            content = self.llm.completion_text(LlmPreset.Default, preamble, CommonCompSettings(temperature=0.3, max_tokens=1024, duplex=True, queue_from_user=q_from_user, queue_to_user=q_from_ai, wait_for_start_signal=True, caller_id=self.name))
             self.results["_full_output"] = content
 
         thr = threading.Thread(target=t, daemon=True)
