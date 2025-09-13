@@ -23,8 +23,9 @@ from pydantic import ValidationError
 from pm.config_loader import commit
 from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelList
 from pm.ghosts.base_ghost import BaseGhost, GhostState, GhostConfig
-from pm.mental_states import EmotionalAxesModel, CognitionAxesModel, NeedsAxesModel
+from pm.mental_states import EmotionalAxesModel, CognitionAxesModel, NeedsAxesModel, ClampedModel
 from pm.utils.serialize_utils import deserialize_embedding, serialize_embedding
+from pm.utils.string_utils import to_camel_case
 
 
 def _default(self, obj):
@@ -94,6 +95,9 @@ class PersistSqlite:
         if inspect.isclass(field_type) and issubclass(field_type, (StrEnum, IntEnum)):
             return "TEXT" if issubclass(field_type, StrEnum) else "INTEGER"
 
+        if inspect.isclass(field_type) and issubclass(field_type, ClampedModel):
+            return "TEXT"
+
         # Lists
         if origin is list or field_type is List or "KnoxelList" in str(field_type):
             if args:
@@ -158,6 +162,10 @@ class PersistSqlite:
         # Knoxel References (store ID) - relevant for GhostState, not Knoxel tables usually
         if isinstance(value, KnoxelBase): return value.id
 
+        # id list
+        if isinstance(value, KnoxelList):
+            return ",".join([str(x.id) for x in value])
+
         logging.warning(f"Could not serialize type {type(value)} for DB. Returning str(value).")
         return str(value)  # Fallback
 
@@ -176,6 +184,13 @@ class PersistSqlite:
             target_type = next(t for t in args if t is not type(None))  # Get the actual type
             origin = get_origin(target_type)  # Re-evaluate origin
             args = get_args(target_type)
+
+        # id knoxel ref
+        if issubclass(target_type, KnoxelBase):
+            _id = db_value
+            if isinstance(db_value, str):
+                _id = int(db_value)
+            return self.ghost.get_knoxel_by_id(_id)
 
         # Basic types
         if target_type is int: return int(db_value) if db_value is not None else (None if is_optional else 0)
@@ -205,10 +220,44 @@ class PersistSqlite:
                 return []
 
         # Other Lists or Dicts (from JSON text)
-        if (origin is list or target_type is List or origin is dict or target_type is Dict) and isinstance(db_value,
-                                                                                                           str):
+        if (origin is list or target_type is List or target_type is KnoxelList) and isinstance(db_value, str):
             try:
-                return json.loads(db_value)
+                res = []
+                if db_value != "":
+                    try:
+                        tmp = json.loads(db_value)
+                    except:
+                        tmp = list(map(int, db_value.split(',')))
+                    for val in tmp:
+                        if isinstance(val, int) and (len(args) == 0 or args[0] != int):
+                            res.append(self.ghost.get_knoxel_by_id(val))
+                        else:
+                            res.append(val)
+                if target_type is KnoxelList:
+                    return KnoxelList(res)
+                else:
+                    return res
+            except json.JSONDecodeError:
+                logging.warning(f"Failed to decode JSON for {target_type}: {db_value[:100]}...")
+                return None if is_optional else ([] if origin is list else {})  # Fallback
+
+        if (origin is dict or target_type is Dict) and isinstance(db_value, str):
+            try:
+                tmp = json.loads(db_value)
+                res_dict = {}
+                for key, val in tmp.items():
+                    if isinstance(val, list):
+                        res = []
+                        for sub_val in val:
+                            if isinstance(sub_val, int):
+                                res.append(self.ghost.get_knoxel_by_id(sub_val))
+                            else:
+                                res.append(sub_val)
+                        res_dict[key] = res
+                    else:
+                        res_dict[key] = val
+                return res_dict
+
             except json.JSONDecodeError:
                 logging.warning(f"Failed to decode JSON for {target_type}: {db_value[:100]}...")
                 return None if is_optional else ([] if origin is list else {})  # Fallback
@@ -273,7 +322,7 @@ class PersistSqlite:
                 'state_cognition': CognitionAxesModel
             }
             for field_name, field_info in GhostState.model_fields.items():
-                if field_name in nested_state_models:  # Skip nested model fields themselves
+                if field_name not in nested_state_models:  # Skip nested model fields themselves
                     base_state_columns[field_name] = self._pydantic_type_to_sqlite_type(field_info)
 
             # Add flattened columns from nested models
@@ -394,7 +443,7 @@ class PersistSqlite:
 
                 cols_str = ', '.join(cols_list)
                 placeholders = ', '.join(['?'] * len(cols_list))
-                sql = f"INSERT INTO ghost_state ({cols_str}) VALUES ({placeholders});"
+                sql = f"INSERT INTO {state_table_name} ({cols_str}) VALUES ({placeholders});"
 
                 try:
                     cursor.execute(sql, tuple(values_list))
@@ -407,26 +456,22 @@ class PersistSqlite:
             conn.commit()
             logging.info(f"State dynamically saved to SQLite database: {filename}")
 
-    def load_state_sqlite(self, filename: str):
-        return
 
+    def load_state_sqlite(self, filename: str) -> False:
         """Loads the complete Ghost state from an SQLite database dynamically."""
         logging.info(f"Dynamically loading state from SQLite database: {filename}...")
         conn = None
         try:
             # Check if file exists before connecting
             if not os.path.exists(filename):
-                logging.warning(f"SQLite save file {filename} not found. Starting with fresh state.")
-                self._reset_internal_state()  # Clear any existing state
-                self._initialize_narratives()  # Ensure default narratives exist
-                return
+                raise Exception(f"SQLite save file {filename} not found. Starting with fresh state.")
 
             conn = sqlite3.connect(filename)
             conn.row_factory = sqlite3.Row  # Access columns by name
             cursor = conn.cursor()
 
             # --- Reset internal state before loading ---
-            self._reset_internal_state()
+            self.ghost._reset_internal_state()
 
             # --- Load Metadata & Config ---
             try:
@@ -471,7 +516,7 @@ class PersistSqlite:
                         logging.warning(f"Ignoring unknown config key from DB: {key}")
 
                 self.ghost.config = GhostConfig(**config_data)
-                logging.info(f"Loaded config: {self.config.model_dump_json(indent=1)}")
+                logging.info(f"Loaded config: {self.ghost.config.model_dump_json(indent=1)}")
             except (sqlite3.Error, ValidationError) as e:
                 logging.error(f"Could not load or validate config: {e}. Using default config.")
                 self.ghost.config = GhostConfig()  # Use defaults
@@ -514,14 +559,13 @@ class PersistSqlite:
                                     f"Field '{field_name}' not found in DB table '{table_name}' for knoxel ID {knoxel_id}. Using model default if available.")
 
                         # Add fields present in DB but not in model? Pydantic ignores extra by default.
-
                         if 'id' not in knoxel_data:  # Should always be present if table exists
                             logging.error(f"Missing 'id' column data for row in {table_name}. Skipping row: {row_dict}")
                             continue
 
                         try:
                             knoxel_instance = knoxel_cls(**knoxel_data)
-                            loaded_knoxels[knoxel_instance.id] = knoxel_instance
+                            self.ghost.all_knoxels[knoxel_instance.id] = knoxel_instance
                         except ValidationError as e:
                             logging.error(f"Pydantic validation failed for {knoxel_cls.__name__} ID {knoxel_id}: {e}")
                             logging.error(f"Data causing error: {knoxel_data}")
@@ -534,10 +578,10 @@ class PersistSqlite:
                 except Exception as e:
                     logging.error(f"Unexpected error loading from table {table_name}: {e}", exc_info=True)
 
-            logging.info(f"Loaded {len(self.all_knoxels)} knoxels from database.")
+            logging.info(f"Loaded {len(self.ghost.all_knoxels)} knoxels from database.")
 
             # Rebuild specific lists from the loaded knoxels
-            self._rebuild_specific_lists()
+            self.ghost._rebuild_specific_lists()
 
             # --- Load Ghost States Dynamically ---
             state_table_name = "ghost_states"
@@ -584,37 +628,21 @@ class PersistSqlite:
                                     processed = True
                                     break  # Move to next column once matched
 
-                        if processed: continue
+                        if processed:
+                            continue
 
                         # Check if it's a base GhostState field (or reference ID)
-                        field_name = col_name
-                        is_reference_id = False
-                        if col_name.endswith("_id") and col_name[:-3] in ['primary_stimulus', 'subjective_experience', "subjective_experience_tool",
-                                                                          'selected_action_knoxel', "rating"]:
-                            field_name = col_name[:-3]  # e.g., primary_stimulus
-                            is_reference_id = True
+                        if col_name not in base_state_fields and "_" in col_name:
+                            field_name = to_camel_case(col_name)
+                        else:
+                            field_name = col_name
 
                         if field_name in base_state_fields:
                             target_type = base_state_fields[field_name].annotation
-                            try:
-                                if is_reference_id:
-                                    # Value is the ID, reconstruction happens below
-                                    state_data[field_name + "_id"] = int(db_value) if db_value is not None else None
-                                elif field_name == 'conscious_workspace':  # Handle the list of IDs
-                                    id_list = json.loads(db_value) if isinstance(db_value, str) else []
-                                    state_data['conscious_workspace_ids'] = [int(i) for i in id_list if i is not None]
-                                elif field_name not in nested_state_models and \
-                                        field_name not in ['attention_candidates', 'attention_focus',
-                                                           'action_simulations', "coalitions_hard", "coalitions_balanced",
-                                                           'selected_action_details']:  # Avoid loading complex fields directly
-                                    py_value = self._deserialize_value_from_db(db_value, target_type)
-                                    state_data[field_name] = py_value
-                            except Exception as e:
-                                logging.error(
-                                    f"Error deserializing base state field '{col_name}' for state tick {tick_id}: {e}. DB Value: {db_value}. Skipping field.")
-                        elif col_name != 'conscious_workspace_ids':  # Allow conscious_workspace_ids even if not directly in model
-                            logging.debug(
-                                f"Column '{col_name}' from DB table '{state_table_name}' not found in GhostState model or handled cases. Ignoring.")
+                            py_value = self._deserialize_value_from_db(db_value, target_type)
+                            state_data[field_name] = py_value
+                        else:
+                            raise Exception(f"Unhandled column: {col_name}")
 
                     # Instantiate nested models
                     for prefix, model_cls in nested_state_models.items():
@@ -629,71 +657,29 @@ class PersistSqlite:
                             logging.error(
                                 f"Error instantiating {model_cls.__name__} in state tick {tick_id}: {e}. Data: {nested_models_data[prefix]}")
                             state_data[prefix] = model_cls()
-
-                    # Reconstruct references and KnoxelLists
-                    try:
-                        state_data['primary_stimulus'] = self.get_knoxel_by_id(
-                            state_data.pop('primary_stimulus_id', None))
-                        state_data['subjective_experience'] = self.get_knoxel_by_id(
-                            state_data.pop('subjective_experience_id', None))
-                        state_data['subjective_experience_tool'] = self.get_knoxel_by_id(
-                            state_data.pop('subjective_experience_tool_id', None))
-                        state_data['selected_action_knoxel'] = self.get_knoxel_by_id(
-                            state_data.pop('selected_action_knoxel_id', None))
-
-                        workspace_ids = state_data.pop('conscious_workspace_ids', [])
-                        workspace_knoxels = [k for kid in workspace_ids if (k := self.get_knoxel_by_id(kid))]
-                        state_data['conscious_workspace'] = KnoxelList(workspace_knoxels)
-
-                        # Add defaults for runtime fields not saved
-                        state_data.setdefault('attention_candidates', KnoxelList())
-                        state_data.setdefault('attention_focus', KnoxelList())
-                        state_data.setdefault('action_simulations', [])
-                        state_data.setdefault('selected_action_details', None)
-                        state_data.setdefault('coalitions_hard', {})
-                        state_data.setdefault('coalitions_balanced', {})
-
-                        # Instantiate GhostState
-                        ghost_state_instance = GhostState(**state_data)
-                        self.states.append(ghost_state_instance)
-
-                    except ValidationError as e:
-                        logging.error(f"Pydantic validation failed for GhostState tick {tick_id}: {e}")
-                        logging.error(f"Data causing error: {state_data}")
-                    except Exception as e:
-                        logging.error(f"Unexpected error reconstructing GhostState tick {tick_id}: {e}")
-                        logging.error(f"Data causing error: {state_data}")
-
-
+                    ghost_state_instance = GhostState(**state_data)
+                    self.ghost.states.append(ghost_state_instance)
             except sqlite3.OperationalError as e:
                 logging.warning(f"Could not read from table {state_table_name}: {e}")
+                raise e
             except Exception as e:
                 logging.error(f"Unexpected error loading from table {state_table_name}: {e}", exc_info=True)
-
-            logging.info(f"Loaded {len(self.states)} Ghost states from database.")
-            self.states.sort(key=lambda s: s.tick_id)  # Ensure states are ordered
-            self.ghost.current_state = self.states[-1] if self.states else None
-
-            # Ensure narratives are loaded or initialized
-            if not self.all_narratives:
-                self._initialize_narratives()
-            else:
-                # Ensure narratives are sorted by tick_id after loading
-                self.all_narratives.sort(key=lambda n: n.tick_id)
-
+                raise e
+            logging.info(f"Loaded {len(self.ghost.states)} Ghost states from database.")
+            self.ghost.states.sort(key=lambda s: s.tick_id)  # Ensure states are ordered
+            self.ghost.current_state = self.ghost.states[-1] if self.ghost.states else None
+            return True
 
         except sqlite3.Error as e:
             logging.error(f"SQLite Error during load: {e}", exc_info=True)
-            self._reset_internal_state()  # Reset on error
-            self.__init__(self.config)  # Re-initialize with default config
+            self.ghost._reset_internal_state()  # Reset on error
+            raise e
         except Exception as e:
             logging.error(f"Unexpected Error during load: {e}", exc_info=True)
-            self._reset_internal_state()
-            self.__init__(self.config)
+            self.ghost._reset_internal_state()
+            raise e
         finally:
             if conn: conn.close()
-
-    # ... (Keep _init_example_dialog, get_story)
 
     # --- Utility to prepare data for older saves (used by original load_state) ---
     def _get_knoxel_type_map(self):  # Helper for original load_state

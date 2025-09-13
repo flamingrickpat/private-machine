@@ -1,12 +1,16 @@
+import os.path
 from datetime import datetime
 from typing import Optional, Dict, List, Any
 
 from pydantic import BaseModel, Field
 
-from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelList, KnoxelHaver
+from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelList, KnoxelHaver, FeatureType
+from pm.llm.llm_common import LlmPreset
 from pm.llm.llm_proxy import LlmManagerProxy
 from pm.mental_states import EmotionalAxesModel, CognitionAxesModel, NeedsAxesModel
-from pm.config_loader import companion_name, user_name, character_card_story
+from pm.config_loader import companion_name, user_name, character_card_story, model_map, shell_system_name
+from pm.utils.system_utils import generate_start_message
+
 
 # --- Configuration ---
 class GhostConfig(BaseModel):
@@ -88,6 +92,46 @@ class BaseGhost(KnoxelHaver):
         self.current_state: Optional[GhostState] = None
         self.simulated_reply: Optional[str] = None
 
+    def init_character(self):
+        now = datetime.now()
+        time_str = now.strftime("%H:%M:%S")
+        date_str = now.strftime("%Y-%m-%d")
+
+        init_message = generate_start_message(companion_name, user_name, os.path.basename(model_map[LlmPreset.Default.value]["path"]))
+        init_feature = Feature(
+            content=init_message,
+            feature_type=FeatureType.SystemMessage,
+            source=shell_system_name,
+            interlocus=1
+        )
+        self.add_knoxel(init_feature)
+
+        init_memory = DeclarativeFactKnoxel(
+            content=f"{companion_name} was first activated on {date_str} at {time_str}.",
+            reason="",
+            category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
+            importance=1,
+            time_dependent=1,
+            min_tick_id=1,
+            max_tick_id=1,
+            min_event_id=0,
+            max_event_id=0
+        )
+        self.add_knoxel(init_memory)
+
+        init_memory_detailed = DeclarativeFactKnoxel(
+            content=f"{companion_name} was first activated on {date_str} at {time_str}. This is their boot message: {init_message}",
+            reason="",
+            category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
+            importance=1,
+            time_dependent=1,
+            min_tick_id=1,
+            max_tick_id=1,
+            min_event_id=0,
+            max_event_id=0
+        )
+        self.add_knoxel(init_memory_detailed)
+
     def _get_state_at_tick(self, tick_id: int) -> GhostState | None:
         if tick_id == self.current_tick_id:
             return self.current_state
@@ -151,10 +195,10 @@ class BaseGhost(KnoxelHaver):
 
     def _rebuild_specific_lists(self):
         """Helper to re-populate specific lists from all_knoxels after loading."""
-        self.all_features = [k for k in self.sorted_knoxels.values() if isinstance(k, Feature)]
-        self.all_stimuli = [k for k in self.sorted_knoxels.values() if isinstance(k, Stimulus)]
-        self.all_intentions = [k for k in self.sorted_knoxels.values() if isinstance(k, Intention)]
-        self.all_narratives = [k for k in self.sorted_knoxels.values() if isinstance(k, Narrative)]
-        self.all_actions = [k for k in self.sorted_knoxels.values() if isinstance(k, Action)]
-        self.all_episodic_memories = [k for k in self.sorted_knoxels.values() if isinstance(k, MemoryClusterKnoxel)]
-        self.all_declarative_facts = [k for k in self.sorted_knoxels.values() if isinstance(k, DeclarativeFactKnoxel)]
+        self.all_features = [k for k in self.sorted_knoxels if isinstance(k, Feature)]
+        self.all_stimuli = [k for k in self.sorted_knoxels if isinstance(k, Stimulus)]
+        self.all_intentions = [k for k in self.sorted_knoxels if isinstance(k, Intention)]
+        self.all_narratives = [k for k in self.sorted_knoxels if isinstance(k, Narrative)]
+        self.all_actions = [k for k in self.sorted_knoxels if isinstance(k, Action)]
+        self.all_episodic_memories = [k for k in self.sorted_knoxels if isinstance(k, MemoryClusterKnoxel)]
+        self.all_declarative_facts = [k for k in self.sorted_knoxels if isinstance(k, DeclarativeFactKnoxel)]

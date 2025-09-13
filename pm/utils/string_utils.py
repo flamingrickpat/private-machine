@@ -118,3 +118,6 @@ def third_person_to_instruction(text: str, name: str) -> str:
         return repl
 
     return pattern.sub(replacer, text)
+
+def to_camel_case(snake_str):
+    return "".join(x.capitalize() for x in snake_str.lower().split("_"))

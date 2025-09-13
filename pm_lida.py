@@ -479,14 +479,14 @@ def run(interactive: bool, _db_path: str | None = None, cmd: str = None):
     config = GhostConfig()
     ghost = GhostLida(main_llm, config)
 
+    create_new_persona = True
     if _db_path is not None and _db_path != "":
         pers = PersistSqlite(ghost)
-        pers.load_state_sqlite(_db_path)
+        if pers.load_state_sqlite(_db_path):
+            create_new_persona = False
 
-    print(f"--- Initializing {config.companion_name} ---")
-    if not ghost.current_state and ghost.states:
-        print(f"--- Loaded previous state...")
-        ghost.current_state = ghost.states[-1]
+    if create_new_persona:
+        ghost.init_character()
 
     # Start interactive loop
     user_input_cmd_test = f"Hey {companion_name}. I just installed you. How are you?"
@@ -564,9 +564,14 @@ def run_shell(interactive: bool, _db_path: str | None = None, cmd: str = None):
     config = GhostConfig()
     ghost = GhostLida(main_llm, config)
 
+    create_new_persona = True
     if _db_path is not None and _db_path != "":
         pers = PersistSqlite(ghost)
-        pers.load_state_sqlite(_db_path)
+        if pers.load_state_sqlite(_db_path):
+            create_new_persona = False
+
+    if create_new_persona:
+        ghost.init_character()
 
     # --- NEW: Create the Shell instance to manage the Ghost ---
     # The Shell will now be the primary interface for processing stimuli.

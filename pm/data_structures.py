@@ -503,3 +503,7 @@ class KnoxelList:
 
     def __len__(self) -> int:
         return self._list.count()
+
+    def __iter__(self):
+        for item in self._list:
+            yield item
