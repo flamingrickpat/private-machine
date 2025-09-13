@@ -1,6 +1,9 @@
 import random
-import re
 from typing import List, Tuple
+import re
+import unicodedata
+
+from difflib import SequenceMatcher
 
 # A concise list of the most common English stop words
 _common_stop_words = {
@@ -159,3 +162,102 @@ def between(s: str, a: str, b: str) -> str:
     start = s.index(a) + len(a)
     end = s.index(b, start)
     return s[start:end]
+
+# Lightweight stopwords/vendors you can tweak
+STOPWORDS = {
+    "the","a","an","of","and","for","with","by","on","at","to","from","in",
+    "series","model","gen","edition",
+    # vendor-ish prefixes often not essential for identity
+    "nvidia","geforce","amd","intel","apple","microsoft","google","sony","samsung",
+    "rtx","gtx"  # keep or remove depending on your domain needs
+}
+
+def strip_accents(s: str) -> str:
+    return "".join(
+        ch for ch in unicodedata.normalize("NFKD", s)
+        if not unicodedata.combining(ch)
+    )
+
+def basic_normalize(s: str) -> str:
+    # Lowercase, remove accents, collapse separators, trim
+    s = strip_accents(s.casefold())
+    # Replace punctuation/underscores/dashes with spaces
+    s = re.sub(r"[^\w\s]", " ", s)          # drop punctuation to spaces
+    s = re.sub(r"[_\-]+", " ", s)           # underscores/dashes -> space
+    s = re.sub(r"\s+", " ", s).strip()      # collapse whitespace
+    return s
+
+def tokenize(s: str, stopwords=STOPWORDS):
+    s = basic_normalize(s)
+    tokens = s.split()
+    # remove trivial tokens like single letters unless numeric
+    tokens = [t for t in tokens if (len(t) > 1 or t.isdigit())]
+    # drop stopwords
+    tokens = [t for t in tokens if t not in stopwords]
+    return tokens
+
+def jaccard(a_tokens, b_tokens) -> float:
+    A, B = set(a_tokens), set(b_tokens)
+    if not A and not B:
+        return 1.0
+    if not A or not B:
+        return 0.0
+    inter = len(A & B)
+    union = len(A | B)
+    return inter / union if union else 0.0
+
+def subset_bonus(a_tokens, b_tokens) -> float:
+    """If the smaller token set is fully contained in the larger, give a bonus."""
+    A, B = set(a_tokens), set(b_tokens)
+    if not A or not B:
+        return 0.0
+    small, large = (A, B) if len(A) <= len(B) else (B, A)
+    return 0.92 if small.issubset(large) else 0.0
+
+def are_similar(a: str, b: str, threshold: float = 0.82, return_score: bool = False):
+    """
+    Heuristic similarity:
+      - exact normalized equality -> 1.0
+      - token Jaccard
+      - subset bonus (short is contained in long)
+      - difflib ratio on normalized strings
+    Returns: bool or (bool, score)
+    """
+    if a is None or b is None:
+        return (False, 0.0) if return_score else False
+
+    na, nb = basic_normalize(a), basic_normalize(b)
+    if na == nb:
+        return (True, 1.0) if return_score else True
+
+    ta, tb = tokenize(a), tokenize(b)
+
+    # Scores
+    jac = jaccard(ta, tb)                    # token set overlap
+    sub = subset_bonus(ta, tb)               # full containment bonus
+    seq = SequenceMatcher(None, na, nb).ratio()  # character-level similarity
+
+    # Simple fusion (take the best of token or char, then add a small bonus)
+    base = max(jac, seq)
+    score = min(1.0, base + 0.08*sub + 0.04*jac)  # tiny nudge for token agreement
+
+    is_match = score >= threshold
+    return (is_match, score) if return_score else is_match
+
+# -----------------------------
+# Examples
+# -----------------------------
+if __name__ == "__main__":
+    tests = [
+        ("Sam", "sam"),
+        ("rtx 3090", "nvidia rtx 3090"),
+        ("GeForce RTX 4090", "NVIDIA RTX 4090"),
+        ("Sony WH-1000XM5", "WH1000XM5"),
+        ("Apple iPhone 15 Pro", "iPhone 15 Pro"),
+        ("Python 3.11", "python3.11"),
+        ("Main Branch", "main"),
+        ("Cloud Run", "Google Cloud Run"),
+    ]
+    for a, b in tests:
+        ok, s = are_similar(a, b, return_score=True)
+        print(f"{a!r} ~ {b!r} -> {ok} (score={s:.3f})")

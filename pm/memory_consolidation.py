@@ -47,6 +47,7 @@ class MemoryConsolidationConfig(BaseModel):
     hierchical_summary_token_limit: int = 4000
     min_split_up_cluster_size: int = 8
 
+DEBUG = True
 
 class DynamicMemoryConsolidator:
     def __init__(self, llm: LlmManagerProxy, ghost: BaseGhost, config: MemoryConsolidationConfig):
@@ -58,6 +59,10 @@ class DynamicMemoryConsolidator:
 
     def consolidate_memory_if_needed(self):
         logger.info("Checking if memory consolidation is needed...")
+
+        if DEBUG:
+            self.ghost.all_features = self.ghost.all_features[:65]
+
         unclustered_events = self._get_unclustered_event_knoxels()
 
         if unclustered_events:
@@ -232,8 +237,6 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
         def safelen(lst):
             return 1 if len(lst) == 0 else len(lst)
 
-        events_to_cluster = events_to_cluster[:100]
-
         # 1. Topical Clustering
         t = time.time()
         new_topical_clusters = self._perform_topical_clustering(events_to_cluster)
@@ -335,10 +338,9 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
             res = SummarizeTopicConversation.execute(inp, self.llm, None)
             content = res["summary"]
 
-            min_feature_id = features[0].id
-            max_feature_id = features[-1].id
+            min_event_id = features[0].id
+            max_event_id = features[-1].id
             token = get_token_count(content)
-            emb = self.llm.get_embedding(content)
             timestamp_begin = min(k.timestamp_world_begin for k in features)
             timestamp_end = max(k.timestamp_world_end for k in features)
             event_ids_str = ",".join(str(k.id) for k in features)
@@ -350,11 +352,10 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                 content=content,
                 included_event_ids=event_ids_str,
                 token=token,
-                embedding=emb,
                 timestamp_world_begin=timestamp_begin,
                 timestamp_world_end=timestamp_end,
-                min_event_id=min_feature_id,
-                max_event_id=max_feature_id,
+                min_event_id=min_event_id,
+                max_event_id=max_event_id,
                 min_tick_id=min_tick_id,
                 max_tick_id=max_tick_id,
                 facts_extracted=False,
@@ -432,8 +433,8 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
 
                 min_tick_id = features[0].tick_id
                 max_tick_id = features[-1].tick_id
-                min_feature_id = features[0].id
-                max_feature_id = features[-1].id
+                min_event_id = features[0].id
+                max_event_id = features[-1].id
                 token = get_token_count(content)
                 emb = self.llm.get_embedding(content)
                 timestamp_begin = min(k.timestamp_world_begin for k in features)
@@ -451,8 +452,8 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                     embedding=emb,
                     timestamp_world_begin=timestamp_begin,
                     timestamp_world_end=timestamp_end,
-                    min_event_id=min_feature_id,
-                    max_event_id=max_feature_id,
+                    min_event_id=min_event_id,
+                    max_event_id=max_event_id,
                     min_tick_id=min_tick_id,
                     max_tick_id=max_tick_id,
                     facts_extracted=False,
@@ -538,16 +539,16 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                     ts_end = chosen_blocks[-1].timestamp_world_end
                     min_tick_id = chosen_blocks[0].min_tick_id
                     max_tick_id = chosen_blocks[-1].max_tick_id
-                    min_feature_id = chosen_blocks[0].min_feature_id
-                    max_feature_id = chosen_blocks[-1].max_feature_id
+                    min_event_id = chosen_blocks[0].min_event_id
+                    max_event_id = chosen_blocks[-1].max_event_id
                     event_ids_str = ",".join(str(k.event_ids_str) for k in chosen_blocks)
                 else:
                     ts_begin = min(k.timestamp_world_begin for k in features)
                     ts_end = max(k.timestamp_world_end for k in features)
                     min_tick_id = features[0].tick_id
                     max_tick_id = features[-1].tick_id
-                    min_feature_id = features[0].id
-                    max_feature_id = features[-1].id
+                    min_event_id = features[0].id
+                    max_event_id = features[-1].id
                     event_ids_str = ",".join(str(k.id) for k in features)
 
                 token_hier = get_token_count(content_hier)
@@ -563,8 +564,8 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                     embedding=emb_hier,
                     timestamp_world_begin=ts_begin,
                     timestamp_world_end=ts_end,
-                    min_event_id=min_feature_id,
-                    max_event_id=max_feature_id,
+                    min_event_id=min_event_id,
+                    max_event_id=max_event_id,
                     min_tick_id=min_tick_id,
                     max_tick_id=max_tick_id,
                     facts_extracted=False,
@@ -586,7 +587,9 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
         facts: str = res_hier["facts"]
 
         for fact in facts.split("\n"):
-            res.append((cluster.id, fact.lstrip("-").strip()))
+            f = fact.lstrip("-").strip()
+            if len(f) > 10:
+                res.append((cluster.id, f))
 
         return res
 

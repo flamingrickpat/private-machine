@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Any
 
 from pydantic import BaseModel, Field
 
-from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelList, KnoxelHaver, FeatureType
+from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelList, KnoxelHaver, FeatureType, ConceptNode, GraphNode, GraphEdge
 from pm.llm.llm_common import LlmPreset
 from pm.llm.llm_proxy import LlmManagerProxy
 from pm.mental_states import EmotionalAxesModel, CognitionAxesModel, NeedsAxesModel
@@ -88,6 +88,10 @@ class BaseGhost(KnoxelHaver):
         self.all_episodic_memories: List[MemoryClusterKnoxel] = []
         self.all_declarative_facts: List[DeclarativeFactKnoxel] = []
 
+        self.all_concepts: List[ConceptNode] = []
+        self.all_graph_nodes: List[GraphNode] = []
+        self.all_graph_edges: List[GraphEdge] = []
+
         self.states: List[GhostState] = []
         self.current_state: Optional[GhostState] = None
         self.simulated_reply: Optional[str] = None
@@ -169,6 +173,12 @@ class BaseGhost(KnoxelHaver):
             self.all_episodic_memories.append(knoxel)
         elif isinstance(knoxel, DeclarativeFactKnoxel):
             self.all_declarative_facts.append(knoxel)
+        elif isinstance(knoxel, ConceptNode):
+            self.all_concepts.append(knoxel)
+        elif isinstance(knoxel, GraphNode):
+            self.all_graph_nodes.append(knoxel)
+        elif isinstance(knoxel, GraphEdge):
+            self.all_graph_edges.append(knoxel)
 
         # Generate embedding if requested and not present
         if generate_embedding and not knoxel.embedding and knoxel.content:

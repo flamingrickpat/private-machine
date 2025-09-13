@@ -189,7 +189,7 @@ class Action(KnoxelBase):
 
 # --- New Enums ---
 class ClusterType(StrEnum):
-    Conceptual = "conceptual"
+    GraphEpisode = "graph_episode"
     Topical = "topical"
     Temporal = "temporal"
 
@@ -211,6 +211,8 @@ class MemoryClusterKnoxel(CoversTicksEventsKnoxel):
     token: int = Field(default=0, description="Token count, usually based on summary for Temporal clusters")
     facts_extracted: bool = Field(default=False, description="Flag for Topical clusters: has declarative memory been extracted?")
     temporal_key: Optional[str] = Field(default=None, description="Unique key for merging temporal clusters (e.g., '2023-10-26-MORNING')")
+    emotion_vector: Optional[str] = Field(default=None, description="todo")
+    emotion_description: Optional[str] = Field(default=None, description="todo")
 
     # Override get_story_element for representation in prompts if needed
     def get_story_element(self, ghost: KnoxelHaver = None) -> str:
@@ -274,6 +276,31 @@ class CauseEffectKnoxel(CoversTicksEventsKnoxel):
 
     def get_story_element(self, ghost: KnoxelHaver = None) -> str:
         return f"*(Observed Cause/Effect: {self.content})*"
+
+
+class GraphNode(KnoxelBase):
+    name: str
+    labels: List[str]  # e.g., ["Person"], ["Location"], ["Organization", "Client"]
+    source_memory_id: int  # Episode where this node was primarily defined or last significantly updated
+    concept_id: int
+    attributes: Dict[str, Any] = Field(default_factory=dict)  # For additional, non-relational data
+
+class GraphEdge(KnoxelBase):
+    source_id: int  # UUID of the source GraphNode
+    target_id: int  # UUID of the target GraphNode
+    label: str  # e.g., "works_for", "knows", "located_in"
+    fact_text: str  # Natural language representation of the fact, e.g., "Alex works for Acme Corp"
+    source_memory_id: int  # Episode where this fact was learned
+    valid_at: Optional[datetime] = Field(default=None,
+                                         description="Timestamp when this fact became valid (if applicable).")
+    invalid_at: Optional[datetime] = Field(default=None,
+                                           description="Timestamp when this fact became invalid (due to contradiction/update).")
+    attributes: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ConceptNode(KnoxelBase):
+    description: str
+    parent_concept_id: int = Field(default=None,  description="UUID of the parent concept (for IS_A hierarchy).")
 
 
 # --- Enums ---

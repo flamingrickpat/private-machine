@@ -3,18 +3,26 @@ log_path: "./logs"
 db_path: "./data/main.db"
 commit: True
 
-enable_tool_calling: True # only enable if your model isn't dumb!
+enable_tool_calling: False # only enable if your model isn't dumb!
 mcp_server_url: "http://127.0.0.1:8000/mcp"
 
-embedding_model: "E:\\AI\\mxbai-embed-large-v1"
+embedding_model: "c:/workspace/AI/mxbai-embed-large-v1"
 embedding_dim: 768
 
 models:
   gemma3:
-    path: "E:\\AI\\gemma\\gemma-3-12b-it-q4_0.gguf"
+    path: "c:/workspace/AI/gemma/qat/gemma-3-12b-it-q4_0.gguf"
     layers: -1
     context: 20000
     last_n_tokens_size: 64
+    temperature: 1.0
+    top_k: 64
+    top_p: 0.95
+    min_p: 0.01
+    repeat_penalty: 1.0
+    frequency_penalty: 0.0
+    presence_penalty: 0.0
+    mmproj_file: "C:/workspace/AI/gemma/qat/mmproj-model-f16-12B.gguf"
 
 model_mapping:
   Default: gemma3

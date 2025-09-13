@@ -84,6 +84,7 @@ class LlmManagerLLama(LlmManager):
         self.mtmd_ctx = None
         self.user_to_ass_string = None
         self.ass_to_user_string = None
+        self._mtmd_cpp = None
 
     def _tokenize(self, text: str, special: bool = True, add_bos: bool = False) -> List[int]:
         return self.llm.tokenize(text.encode(encoding="utf-8"), special=special, add_bos=add_bos)
@@ -251,7 +252,9 @@ class LlmManagerLLama(LlmManager):
             self.text_to_image_string = between(text, "test2", "test4")
             self.image_to_text_string = ""
 
-        self.media_marker_string = self._mtmd_cpp.mtmd_default_marker().decode('utf-8')
+        self.media_marker_string = "<IMG>"
+        if self._mtmd_cpp:
+            self.media_marker_string = self._mtmd_cpp.mtmd_default_marker().decode('utf-8')
 
 
     def _tokenize_prompt(self,
