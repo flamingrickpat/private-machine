@@ -20,6 +20,7 @@ from pm.ghosts.base_ghost import GhostConfig
 from pm.ghosts.ghost_lida import EngagementIdea, GhostLida
 from pm.ghosts.persist_sqlite import PersistSqlite
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
+from pm.llm.llm_manager_llama import LlmManagerLLama
 from pm.llm.llm_proxy import LlmManagerProxy, LlmTask, llama_worker
 from pm.mental_states import NeedsAxesModel
 from pm.utils.profile_utils import print_function_stats
@@ -33,6 +34,7 @@ BM = TypeVar('BM', bound=BaseModel)
 # 3) A single PriorityQueue shared by all producers & the consumer.
 task_queue: "queue.PriorityQueue[LlmTask]" = queue.PriorityQueue()
 
+#direct_llm = LlmManagerLLama(model_map)
 main_llm = LlmManagerProxy(task_queue, priority=0, log_path=log_path)
 aux_llm = LlmManagerProxy(task_queue, priority=1, log_path=log_path)
 

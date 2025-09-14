@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import queue
 import threading
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -13,7 +14,7 @@ from datetime import datetime
 from pm.agents.agent_manager import AgentManager
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_proxy import LlmManagerProxy
-from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalTerminate, DuplexStartGenerationTool, DuplexStartGenerationText, DuplexSignalEog
+from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalTerminate, DuplexStartGenerationTool, DuplexStartGenerationText, DuplexSignalEog, DuplexSignalFinished
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Controller protocol (adapt this to your LlmManagerLLama)
@@ -149,10 +150,13 @@ class BaseAgent:
         def get_from_queue_until_end():
             buffer = []
             while True:
-                res = q_from_ai.get(block=True, timeout=None)
-                if isinstance(res, DuplexSignalEog):
-                    break
-                buffer.append(res)
+                try:
+                    res = q_from_ai.get(block=False)
+                    if isinstance(res, DuplexSignalEog) or isinstance(res, DuplexSignalFinished):
+                        break
+                    buffer.append(res)
+                except queue.Empty:
+                    time.sleep(1)
             return "".join(buffer)
 
         def t():

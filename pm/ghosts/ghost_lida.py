@@ -30,7 +30,7 @@ from pm.dialog import DialogActPool
 from pm.ghosts.base_ghost import BaseGhost, GhostState, GhostConfig
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.memory_consolidation import MemoryConsolidationConfig, DynamicMemoryConsolidator
-from pm.mental_states import NeedsAxesModel, StateDeltas, EmotionalAxesModelDelta, NeedsAxesModelDelta, CognitionAxesModelDelta, CognitiveEventTriggers, EmotionalAxesModel
+from pm.mental_states import NeedsAxesModel, StateDeltas, EmotionalAxesModelDelta, NeedsAxesModelDelta, CognitionAxesModelDelta, CognitiveEventTriggers, EmotionalAxesModel, _describe_emotion_valence_anxiety, _verbalize_emotional_state, _verbalize_cognition_and_needs
 from pm.thoughts import TreeOfThought
 from pm.utils.emb_utils import cosine_pair
 from pm.utils.profile_utils import profile
@@ -619,7 +619,7 @@ class GhostLida(BaseGhost):
         self.current_state.state_cognition = self.current_state.state_cognition + delta_cognition
 
         # get hardcoded feelign description
-        feeling_about_exp = self._describe_emotion_valence_anxiety(delta_emotion.valence, delta_emotion.anxiety)
+        feeling_about_exp = _describe_emotion_valence_anxiety(delta_emotion.valence, delta_emotion.anxiety)
         outcome_feeling_content = f"Considering the initial reaction and all expectation, the stimulus makes {self.config.companion_name} feel {feeling_about_exp}."
 
         outcome_feature = Feature(
@@ -802,7 +802,7 @@ class GhostLida(BaseGhost):
                 (exp, valence_impact, anxiety_impact) = exp_delta
                 delta_required = 0.5 * self.current_state.state_cognition.ego_strength
                 if abs(valence_impact) > delta_required or abs(anxiety_impact) > delta_required:
-                    feeling_about_exp = self._describe_emotion_valence_anxiety(valence_impact, anxiety_impact)
+                    feeling_about_exp = _describe_emotion_valence_anxiety(valence_impact, anxiety_impact)
                     outcome_feeling_content = f"Reacted emotionally to expectation ({exp.content}) outcomes and made {self.config.companion_name} feel {feeling_about_exp}."
                     outcome_feature = Feature(
                         content=outcome_feeling_content,
@@ -999,8 +999,8 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         ai_goals_narr = self.get_narrative(NarrativeTypes.GoalsIntentions, self.config.companion_name)
         ai_relation_narr = self.get_narrative(NarrativeTypes.Relations, self.config.companion_name)
 
-        strong_emotions_summary = self._verbalize_emotional_state()
-        needs_summary_line, cognitive_style_summary = self._verbalize_cognition_and_needs()
+        strong_emotions_summary = _verbalize_emotional_state(self.current_state.state_emotions)
+        needs_summary_line, cognitive_style_summary = _verbalize_cognition_and_needs(self.current_state.state_cognition, self.current_state.state_needs)
 
         prompt_intention = f"""
         You are simulating the goal-generation "codelet" for the AI {self.config.companion_name}. Your task is to generate {self.config.short_term_intent_count} immediate, internal goals based on her current state of mind.
@@ -1352,9 +1352,8 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 focus_prompt = "Select the most relevant items for the current situation."
 
             # modifiers
-            # --- MODIFIED: Create more evocative summaries of the internal state for the prompt ---
-            strong_emotions_summary = self._verbalize_emotional_state()
-            needs_summary_line, cognitive_style_summary = self._verbalize_cognition_and_needs()
+            strong_emotions_summary = _verbalize_emotional_state(self.current_state.state_emotions)
+            needs_summary_line, cognitive_style_summary = _verbalize_cognition_and_needs(self.current_state.state_cognition, self.current_state.state_needs)
 
             mental_state_prompt_block = f"""
             **{self.config.companion_name}'s Current State of Mind:**
@@ -1873,8 +1872,8 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         context = self._get_context_from_latest_causal_events()
         context_events = context.get_story(self, 1024)
 
-        strong_emotions_summary = self._verbalize_emotional_state()
-        needs_summary, cognitive_style_summary = self._verbalize_cognition_and_needs()
+        strong_emotions_summary = _verbalize_emotional_state(self.current_state.state_emotions)
+        needs_summary, cognitive_style_summary = _verbalize_cognition_and_needs(self.current_state.state_cognition, self.current_state.state_needs)
 
         context = self._get_context_from_latest_causal_events()
         context_events = context.get_story(self, 1024)
@@ -2007,8 +2006,8 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
         # --- 1. Gather Rich Context for the Decision ---
 
         # Use the verbalization helpers to create a rich summary of the internal state
-        strong_emotions_summary = self._verbalize_emotional_state()
-        needs_summary, cognitive_style_summary = self._verbalize_cognition_and_needs()
+        strong_emotions_summary = _verbalize_emotional_state(self.current_state.state_emotions)
+        needs_summary, cognitive_style_summary = _verbalize_cognition_and_needs(self.current_state.state_cognition, self.current_state.state_needs)
 
         context = self._get_context_from_latest_causal_events()
         context_events = context.get_story(self, 1024)
@@ -2404,8 +2403,8 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 f"Predicts User will say '{simulated_user_reaction[:70]}...'"
             )
             # modifiers
-            strong_emotions_summary = self._verbalize_emotional_state()
-            needs_summary_line, cognitive_style_summary = self._verbalize_cognition_and_needs()
+            strong_emotions_summary = _verbalize_emotional_state(self.current_state.state_emotions)
+            needs_summary_line, cognitive_style_summary = _verbalize_cognition_and_needs(self.current_state.state_cognition, self.current_state.state_needs)
 
             mental_state_prompt_block = f"""
             **{self.config.companion_name}'s Current State of Mind:**

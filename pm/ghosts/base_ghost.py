@@ -123,7 +123,7 @@ class BaseGhost(KnoxelHaver):
         self.add_knoxel(init_memory)
 
         init_memory_detailed = DeclarativeFactKnoxel(
-            content=f"{companion_name} was first activated on {date_str} at {time_str}. This is their boot message: {init_message}",
+            content=f"{companion_name} was first activated on {date_str}. This is their boot message: {init_message}",
             reason="",
             category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
             importance=1,
@@ -198,6 +198,9 @@ class BaseGhost(KnoxelHaver):
         self.all_actions = []
         self.all_episodic_memories = []
         self.all_declarative_facts = []
+        self.all_concepts: List[ConceptNode] = []
+        self.all_graph_nodes: List[GraphNode] = []
+        self.all_graph_edges: List[GraphEdge] = []
         self.states = []
         self.current_state = None
         self.simulated_reply = None
@@ -211,3 +214,6 @@ class BaseGhost(KnoxelHaver):
         self.all_actions = [k for k in self.sorted_knoxels if isinstance(k, Action)]
         self.all_episodic_memories = [k for k in self.sorted_knoxels if isinstance(k, MemoryClusterKnoxel)]
         self.all_declarative_facts = [k for k in self.sorted_knoxels if isinstance(k, DeclarativeFactKnoxel)]
+        self.all_concepts: List[ConceptNode] = [k for k in self.sorted_knoxels if isinstance(k, ConceptNode)]
+        self.all_graph_nodes: List[GraphNode] = [k for k in self.sorted_knoxels if isinstance(k, GraphNode)]
+        self.all_graph_edges: List[GraphEdge] = [k for k in self.sorted_knoxels if isinstance(k, GraphEdge)]

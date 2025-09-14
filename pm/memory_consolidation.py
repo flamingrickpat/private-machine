@@ -23,6 +23,8 @@ from pm.agents.definitions.agent_summarize_topic_conversation import SummarizeTo
 from pm.config_loader import user_name, companion_name, timestamp_format
 from pm.data_structures import FeatureType, narrative_feature_relevance_map, narrative_definitions, DeclarativeFactKnoxel, Feature, NarrativeTypes, Narrative, KnoxelList, KnoxelBase, MemoryClusterKnoxel, ClusterType
 from pm.ghosts.base_ghost import BaseGhost, GhostState
+from pm.ghosts.persist_sqlite import PersistSqlite
+from pm.graph_memory import CognitiveMemoryManager
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_proxy import LlmManagerProxy
 from pm.mental_states import _verbalize_emotional_state_range, _verbalize_cognition_and_needs_range
@@ -49,8 +51,6 @@ class MemoryConsolidationConfig(BaseModel):
     hierchical_summary_token_limit: int = 4000
     min_split_up_cluster_size: int = 8
 
-DEBUG = False
-
 class DynamicMemoryConsolidator:
     def __init__(self, llm: LlmManagerProxy, ghost: BaseGhost, config: MemoryConsolidationConfig):
         self.ghost = ghost
@@ -61,10 +61,6 @@ class DynamicMemoryConsolidator:
 
     def consolidate_memory_if_needed(self):
         logger.info("Checking if memory consolidation is needed...")
-
-        if DEBUG:
-            self.ghost.all_features = self.ghost.all_features[:65]
-
         unclustered_events = self._get_unclustered_event_knoxels()
 
         if unclustered_events:
@@ -279,8 +275,12 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
 
         # 5. add to graph
         t = time.time()
-        for fact_cated in all_new_declarative_facts:
-            pass
+        graph_mem = CognitiveMemoryManager(self.llm, self.ghost)
+        for mem in all_new:
+            try:
+                graph_mem.integrate_experience(mem)
+            except Exception as e:
+                logger.critical(str(e))
 
         logger.info(f"Finished processing {len(all_new)} new clusters.")
 
@@ -353,14 +353,14 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
             token = get_token_count(content)
             timestamp_begin = min(k.timestamp_world_begin for k in features)
             timestamp_end = max(k.timestamp_world_end for k in features)
-            event_ids_str = ",".join(str(k.id) for k in features)
+            included_event_ids = ",".join(str(k.id) for k in features)
 
             # Create the new MemoryClusterKnoxel (Topical)
             topical_cluster = MemoryClusterKnoxel(
                 level=100,
                 cluster_type=ClusterType.Topical,
                 content=content,
-                included_event_ids=event_ids_str,
+                included_event_ids=included_event_ids,
                 token=token,
                 timestamp_world_begin=timestamp_begin,
                 timestamp_world_end=timestamp_end,
@@ -449,7 +449,7 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                 emb = self.llm.get_embedding(content)
                 timestamp_begin = min(k.timestamp_world_begin for k in features)
                 timestamp_end = max(k.timestamp_world_end for k in features)
-                event_ids_str = ",".join(str(k.id) for k in features)
+                included_event_ids = ",".join(str(k.id) for k in features)
 
                 # Create the new MemoryClusterKnoxel (Topical)
                 topical_cluster = MemoryClusterKnoxel(
@@ -457,7 +457,7 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                     cluster_type=ClusterType.Temporal,
                     temporal_key=key,
                     content=content,
-                    included_event_ids=event_ids_str,
+                    included_event_ids=included_event_ids,
                     token=token,
                     embedding=emb,
                     timestamp_world_begin=timestamp_begin,
@@ -551,7 +551,7 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                     max_tick_id = chosen_blocks[-1].max_tick_id
                     min_event_id = chosen_blocks[0].min_event_id
                     max_event_id = chosen_blocks[-1].max_event_id
-                    event_ids_str = ",".join(str(k.event_ids_str) for k in chosen_blocks)
+                    included_event_ids = ",".join(str(k.included_event_ids) for k in chosen_blocks)
                 else:
                     ts_begin = min(k.timestamp_world_begin for k in features)
                     ts_end = max(k.timestamp_world_end for k in features)
@@ -559,7 +559,7 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                     max_tick_id = features[-1].tick_id
                     min_event_id = features[0].id
                     max_event_id = features[-1].id
-                    event_ids_str = ",".join(str(k.id) for k in features)
+                    included_event_ids = ",".join(str(k.id) for k in features)
 
                 token_hier = get_token_count(content_hier)
                 emb_hier = self.llm.get_embedding(content_hier)
@@ -569,7 +569,7 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
                     cluster_type=ClusterType.Temporal,
                     temporal_key=key,
                     content=content_hier,
-                    included_event_ids=event_ids_str,
+                    included_event_ids=included_event_ids,
                     token=token_hier,
                     embedding=emb_hier,
                     timestamp_world_begin=ts_begin,

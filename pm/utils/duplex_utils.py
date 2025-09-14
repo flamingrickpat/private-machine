@@ -18,6 +18,9 @@ class DuplexSignalTerminate:
 class DuplexSignalEog:
     pass
 
+class DuplexSignalFinished:
+    pass
+
 class DuplexStartGenerationText():
     pass
 

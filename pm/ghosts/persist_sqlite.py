@@ -21,7 +21,7 @@ from typing import get_args
 from pydantic import ValidationError
 
 from pm.config_loader import commit
-from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelList
+from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelList, ConceptNode, GraphNode, GraphEdge
 from pm.ghosts.base_ghost import BaseGhost, GhostState, GhostConfig
 from pm.mental_states import EmotionalAxesModel, CognitionAxesModel, NeedsAxesModel, ClampedModel
 from pm.utils.serialize_utils import deserialize_embedding, serialize_embedding
@@ -65,7 +65,7 @@ class PersistSqlite:
             # Fallback to known types if inspection fails
             return {
                 cls.__name__: cls for cls in
-                [Stimulus, Intention, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, Narrative, Feature]
+                [Stimulus, Intention, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, Narrative, Feature, ConceptNode, GraphNode, GraphEdge]
             }
 
         return subclasses
@@ -637,12 +637,15 @@ class PersistSqlite:
                         else:
                             field_name = col_name
 
-                        if field_name in base_state_fields:
-                            target_type = base_state_fields[field_name].annotation
-                            py_value = self._deserialize_value_from_db(db_value, target_type)
-                            state_data[field_name] = py_value
-                        else:
-                            raise Exception(f"Unhandled column: {col_name}")
+                        try:
+                            if field_name in base_state_fields:
+                                target_type = base_state_fields[field_name].annotation
+                                py_value = self._deserialize_value_from_db(db_value, target_type)
+                                state_data[field_name] = py_value
+                            else:
+                                raise Exception(f"Unhandled column: {col_name}")
+                        except Exception as e:
+                            logger.critical(f"Bad column in GhostState: {col_name}")
 
                     # Instantiate nested models
                     for prefix, model_cls in nested_state_models.items():

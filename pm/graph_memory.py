@@ -343,13 +343,19 @@ class CognitiveMemoryManager:
                     made_changes = True
 
     # --- Knowledge Integration (The Write Path) ---
-    def integrate_experience(self, text_from_interaction: str, ai_internal_state_text: str) -> Optional[MemoryClusterKnoxel]:
+    def integrate_text(self, text_from_interaction, ai_internal_state_text):
         logger.info(f"Integrating new experience. Interaction (start): '{text_from_interaction[:100]}...'")
         # 1. Create the MemoryEpisode node
         memory = self._create_memory_memory(text_from_interaction, ai_internal_state_text)
         if not memory:
             logger.error("Failed to create memory memory. Aborting integration.")
             return None
+        return self.integrate_experience(memory)
+
+    def integrate_experience(self, memory: MemoryClusterKnoxel) -> Optional[MemoryClusterKnoxel]:
+        text_from_interaction = memory.get_story_element(self.ghost)
+        if memory.emotion_description:
+            text_from_interaction += memory.emotion_description
 
         # 2. Extract entities from the interaction text.
         extracted_entities_model = self._extract_entities_from_text(text_from_interaction)
@@ -1024,5 +1030,3 @@ class CognitiveMemoryManager:
         answer = self.llm_manager.completion_text(LlmPreset.Default, inp)
         return answer
 
-    def integrate_text(self, text, group_id):
-        self.integrate_experience(text, text)

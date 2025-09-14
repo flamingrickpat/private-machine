@@ -37,7 +37,7 @@ from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_manager import LlmManager
 from pm.tools.tools_common import create_tool_router_model
 from pm.utils.string_utils import remove_n_words, parse_json_from_response, between, replace_tagged_blocks, remove_strings
-from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalInterrupt, DuplexStartGenerationText, DuplexStartGenerationTool, DuplexSignalEog, DuplexSignalTerminate
+from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalInterrupt, DuplexStartGenerationText, DuplexStartGenerationTool, DuplexSignalEog, DuplexSignalTerminate, DuplexSignalFinished
 from pm.utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, fix_gbnf_grammar_generator
 fix_gbnf_grammar_generator()
 
@@ -763,6 +763,10 @@ class LlmManagerLLama(LlmManager):
                     break
                 except Exception as e:
                     logger.info(f"Error when creating basemodel {e}\nBM: {tools[0].__class__.__name__}\nJSON: {content}")
+
+        if comp_settings.duplex:
+            comp_settings.queue_to_user.put(DuplexSignalEog())
+            comp_settings.queue_to_user.put(DuplexSignalFinished())
 
         content = content.strip()
         inp_formatted.append(("assistant", content))
