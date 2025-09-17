@@ -16,6 +16,11 @@ from pm.utils.token_utils import get_token_count
 
 logger = logging.getLogger(__name__)
 
+class MLevel(StrEnum):
+    Debug = "Debug"
+    Low = "Low"
+    Mid = "Mid"
+    High = "High"
 
 class ActionType(StrEnum):
     # from user input
@@ -38,6 +43,14 @@ class ActionType(StrEnum):
     ManageAwarenessFocus = "ManageAwarenessFocus"
     ReflectThoughts = "ReflectThoughts"
 
+    USER_INPUT = "user_input"
+    SYSTEM_MESSAGE = "system_message"
+    TOOL_RESULT = "tool_result"
+    THOUGHT_LOOPBACK = "thought_loopback"
+
+    WebSearch = "WebSearch"
+    CallMemory = "CallMemory"
+    Loopback = "LoopBack"
 
 ACTION_DESCRIPTIONS = {
     ActionType.Reply: (
@@ -116,12 +129,18 @@ class FeatureType(StrEnum):
 class StimulusType(StrEnum):
     UserMessage = "UserMessage"
     SystemMessage = "SystemMessage"
-
     UserInactivity = "UserInactivity"  # Checks time.time() - self.last_interaction_time. If it exceeds user_inactivity_timeout, it generates a stimulus. Narrative Content: `"The user has been inactive for 10 minutes. My need for connection is decreasing."*
     TimeOfDayChange = "TimeOfDayChange"  # The Shell can track the real-world datetime. When the hour changes, or it crosses a threshold (e.g., from "afternoon" to "evening"), it can generate a stimulus. Narrative Content: `"The time is now 7 PM. It is officially evening."*
     LowNeedTrigger = "LowNeedTrigger"  # The Shell can periodically (e.g., every 5-10 minutes of inactivity) ask the Ghost for its current needs state. If a need (like connection or learning_growth) drops below a critical threshold, the Shell can generate a stimulus.  Narrative Content: `"Internal monitoring shows my need for relevance is critically low (0.2). I feel a strong urge to be useful."*
     WakeUp = "WakeUp"  # If the Ghost was Sleeping, the Shell generates this stimulus when the sleep duration is over or if the user interrupts the sleep. Narrative Content: "The 8-hour sleep cycle has completed. I am now awake."* or"The user sent a message, interrupting my sleep cycle."*
     EngagementOpportunity = "EngagementOpportunity"  # From the new strategist
+
+
+class StimulusGroup(StrEnum):
+    WorldInput = "WorldInput"
+    SystemInput = "SystemInput"
+    ToolInput = "ToolInput"
+    SelfInput = "SelfInput"
 
 
 # --- Knoxel Types ---
@@ -415,7 +434,7 @@ class Narrative(KnoxelBase):
 
 class Feature(KnoxelBase):
     feature_type: FeatureType
-    source: str
+    source: Optional[str] = None
     affective_valence: Optional[float] = None
     incentive_salience: Optional[float] = None
     interlocus: float  # -1 internal, +1 external, 0 mixed/neutral

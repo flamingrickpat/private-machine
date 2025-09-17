@@ -4,7 +4,7 @@ import time
 
 sys.path.append("..")
 
-from pm.agents.definitions.agent_summarize_topic_conversation import SummarizeTopicConversation, SummaryCategoryBaseModel
+from pm.agents.definitions.agent_summarize_topic_conversation import SummarizeTopicConversation
 from pm_lida import main_llm, start_llm_thread
 
 start_llm_thread()
@@ -58,9 +58,7 @@ for ex in example:
     t = time.time()
     inp = {"context": context, "content": ex}
     res = SummarizeTopicConversation.execute(inp, main_llm, None)
-    bm: SummaryCategoryBaseModel = res["category"]
     print(res["summary"])
-    print(bm.topic)
     print(f"Time: {time.time() - t}")
     for _ in range(5):
         print()

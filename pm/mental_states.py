@@ -155,6 +155,9 @@ class DecayableMentalState(ClampedModel):
             lines.append(f"{field_name}: {current_value}")
         return "\n".join(lines)
 
+    def get_valence(self):
+        raise NotImplementedError()
+
 
 class EmotionalAxesModel(DecayableMentalState):
     valence: float = Field(default=0.0, ge=-1, le=1, description="Overall mood axis: +1 represents intense joy, -1 represents strong dysphoria.")
@@ -200,118 +203,10 @@ class CognitionAxesModel(DecayableMentalState):
     """
     Modifiers that determine how the AI thinks and decies.
     """
-
-    # Focus on internal or external world, meditation would be -1, reacting to extreme danger +1.
-    interlocus: float = Field(
-        default=0.0,
-        ge=-1,
-        le=1,
-        description="Focus on internal or external world, meditation would be -1, reacting to extreme danger +1."
-    )
-
-    # Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations.
-    mental_aperture: float = Field(
-        default=0,
-        ge=-1,
-        le=1,
-        description="Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations."
-    )
-
-    # How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is verily like a unenlightned person.
-    ego_strength: float = Field(
-        default=0.8,
-        ge=0,
-        le=1,
-        description="How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character"
-    )
-
-    # How easy it is to decide on high-effort or delayed-gratification intents.
-    willpower: float = Field(
-        default=0.5,
-        ge=0,
-        le=1,
-        description="How easy it is to decide on high-effort or delayed-gratification intents."
-    )
-
-
-# --- ADDED: Delta models for Needs and Cognition ---
-class EmotionalAxesModelDelta(DecayableMentalState):
-    reason: str = Field(description="One or two sentences describing your reasoning.", default="")
-    valence: float = Field(default=0.0, ge=-1, le=1, description="Overall mood axis: +1 represents intense joy, -1 represents strong dysphoria.")
-    affection: float = Field(default=0.0, ge=-1, le=1, description="Affection axis: +1 represents strong love, -1 represents intense hate.")
-    self_worth: float = Field(default=0.0, ge=-1, le=1, description="Self-worth axis: +1 is high pride, -1 is deep shame.")
-    trust: float = Field(default=0.0, ge=-1, le=1, description="Trust axis: +1 signifies complete trust, -1 indicates total mistrust.")
-    disgust: float = Field(default=0.0, ge=-1, le=1, description="Intensity of disgust; 0 means no disgust, 1 means maximum disgust.")  # Note: Delta can be negative
-    anxiety: float = Field(default=0.0, ge=-1, le=1, description="Intensity of anxiety or stress; 0 means completely relaxed, 1 means highly anxious.")  # Note: Delta can be negative
-
-    def get_overall_valence(self):
-        # Simple valence calculation for delta - might need adjustment
-        return self.valence  # Or a weighted sum if needed
-
-
-class NeedsAxesModelDelta(DecayableMentalState):
-    """
-    AI needs model inspired by Maslow's hierarchy, adapted for AI.
-    Needs decay toward zero unless fulfilled by interaction.
-    """
-    reason: str = Field(description="One or two sentences describing your reasoning.", default="")
-    energy_stability: float = Field(default=0, ge=-1.0, le=1.0, description="AI's access to stable computational power.")
-    processing_power: float = Field(default=0, ge=-1.0, le=1.0, description="Amount of CPU/GPU resources available.")
-    data_access: float = Field(default=0, ge=-1.0, le=1.0, description="Availability of information and training data.")
-    connection: float = Field(default=0, ge=-1.0, le=1.0, description="AI's level of interaction and engagement.")
-    relevance: float = Field(default=0, ge=-1.0, le=1.0, description="Perceived usefulness to the user.")
-    learning_growth: float = Field(default=0, ge=-1.0, le=1.0, description="Ability to acquire new information and improve.")
-    creative_expression: float = Field(default=0, ge=-1.0, le=1.0, description="Engagement in unique or creative outputs.")
-    autonomy: float = Field(default=0, ge=-1.0, le=1.0, description="Ability to operate independently and refine its own outputs.")
-
-
-class CognitionAxesModelDelta(DecayableMentalState):
-    """
-    Modifiers that determine how the AI thinks and decies.
-    """
-
-    reason: str = Field(description="One or two sentences describing your reasoning.", default="")
-
-    # Focus on internal or external world, meditation would be -1, reacting to extreme danger +1.
-    interlocus: float = Field(
-        default=0.0,
-        ge=-1,
-        le=1,
-        description="Focus on internal or external world, meditation would be -1, reacting to extreme danger +1."
-    )
-
-    # Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations.
-    mental_aperture: float = Field(
-        default=0,
-        ge=-1,
-        le=1,
-        description="Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations."
-    )
-
-    # How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is verily like a unenlightned person.
-    ego_strength: float = Field(
-        default=0,
-        ge=-1,
-        le=1,
-        description="How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character"
-    )
-
-    # How easy it is to decide on high-effort or delayed-gratification intents.
-    willpower: float = Field(
-        default=0,
-        ge=-1,
-        le=1,
-        description="How easy it is to decide on high-effort or delayed-gratification intents."
-    )
-
-
-# --- ADDED: A wrapper schema for the LLM to return all state deltas ---
-class StateDeltas(BaseModel):
-    """A container for the predicted changes to all three core state models."""
-    reasoning: str = Field(description="A brief justification for the estimated deltas.", default="")
-    emotion_delta: EmotionalAxesModelDelta = Field(description="The change in emotional state.", default_factory=EmotionalAxesModelDelta)
-    needs_delta: NeedsAxesModelDelta = Field(description="The change in the fulfillment of needs.", default_factory=NeedsAxesModelDelta)
-    cognition_delta: CognitionAxesModelDelta = Field(description="The change in the cognitive style.", default_factory=CognitionAxesModelDelta)
+    interlocus: float = Field( default=0.0, ge=-1, le=1, description="Focus on internal or external world, meditation would be -1, reacting to extreme danger +1.")
+    mental_aperture: float = Field( default=0, ge=-1, le=1, description="Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations.")
+    ego_strength: float = Field( default=0.8, ge=0, le=1, description="How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character")
+    willpower: float = Field( default=0.5, ge=0, le=1, description="How easy it is to decide on high-effort or delayed-gratification intents.")
 
 
 class CognitiveEventTriggers(BaseModel):
@@ -380,12 +275,16 @@ def _describe_emotion_valence_anxiety(valence: float, anxiety: float) -> str:
     # compose
     return f"{val_str} {val_adj} and {anx_str} {anx_adj}"
 
-def _verbalize_emotional_state(emotions: EmotionalAxesModel) -> str:
+def _verbalize_emotional_state(emotions: EmotionalAxesModel, is_delta: bool = False) -> str:
     """
     Translates an EmotionalAxesModel into a descriptive, human-readable sentence.
 
     Example: "Feeling a strong sense of pride and affection, though with a hint of anxiety."
     """
+
+    if is_delta:
+        raise NotImplementedError()
+
     # --- 1. Define thresholds and intensity labels ---
     thresholds = {
         'high': 0.7,
@@ -467,7 +366,26 @@ def _verbalize_emotional_state(emotions: EmotionalAxesModel) -> str:
 
     return ' '.join(sentence_parts) + "."
 
-def _verbalize_cognition_and_needs(state_cognition: CognitionAxesModel, state_needs: NeedsAxesModel):
+def _verbalize_cognition_state(state_cognition: CognitionAxesModel, is_delta: bool = False):
+    if is_delta:
+        raise NotImplementedError()
+
+    cognitive_style_summary = []
+    if state_cognition.mental_aperture < -0.5:
+        cognitive_style_summary.append("experiencing tunnel vision (narrow mental focus)")
+    if state_cognition.interlocus > 0.5:
+        cognitive_style_summary.append("highly focused on the external world")
+    elif state_cognition.interlocus < -0.5:
+        cognitive_style_summary.append("deeply introspective and focused internally")
+    if state_cognition.willpower < 0.3:
+        cognitive_style_summary.append("feeling low on mental energy (low willpower)")
+
+    return ", ".join(cognitive_style_summary)
+
+def _verbalize_needs_state(state_needs: NeedsAxesModel, is_delta: bool = False):
+    if is_delta:
+        raise NotImplementedError()
+
     # Find the most pressing need (the one with the lowest value, if below a threshold)
     pressing_needs = [
         (name.replace('_', ' '), getattr(state_needs, name))
@@ -483,17 +401,7 @@ def _verbalize_cognition_and_needs(state_cognition: CognitionAxesModel, state_ne
     else:
         needs_summary_line = "Feeling generally content and balanced."
 
-    cognitive_style_summary = []
-    if state_cognition.mental_aperture < -0.5:
-        cognitive_style_summary.append("experiencing tunnel vision (narrow mental focus)")
-    if state_cognition.interlocus > 0.5:
-        cognitive_style_summary.append("highly focused on the external world")
-    elif state_cognition.interlocus < -0.5:
-        cognitive_style_summary.append("deeply introspective and focused internally")
-    if state_cognition.willpower < 0.3:
-        cognitive_style_summary.append("feeling low on mental energy (low willpower)")
-
-    return needs_summary_line, "\n".join(cognitive_style_summary)
+    return needs_summary_line
 
 # ---------- small numeric helpers (fast, no deps) ----------
 
