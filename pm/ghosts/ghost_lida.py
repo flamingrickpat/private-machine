@@ -30,7 +30,7 @@ from pm.dialog import DialogActPool
 from pm.ghosts.base_ghost import BaseGhost, GhostState, GhostConfig
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.memory_consolidation import MemoryConsolidationConfig, DynamicMemoryConsolidator
-from pm.mental_states import NeedsAxesModel, StateDeltas, EmotionalAxesModelDelta, NeedsAxesModelDelta, CognitionAxesModelDelta, CognitiveEventTriggers, EmotionalAxesModel, _describe_emotion_valence_anxiety, _verbalize_emotional_state, _verbalize_cognition_and_needs
+from pm.mental_states import NeedsAxesModel, CognitiveEventTriggers, EmotionalAxesModel, _describe_emotion_valence_anxiety, _verbalize_emotional_state
 from pm.thoughts import TreeOfThought
 from pm.utils.emb_utils import cosine_pair
 from pm.utils.profile_utils import profile
@@ -795,7 +795,7 @@ class GhostLida(BaseGhost):
         return expectation_delta
 
     @profile
-    def _appraise_stimulus_and_generate_state_deltas(self) -> StateDeltas:
+    def _appraise_stimulus_and_generate_state_deltas(self):
         """
         Appraises a given situation/event and returns the predicted deltas for emotion, needs, and cognition.
         This is a versatile function used for both appraising initial stimuli and evaluating predicted action outcomes.
