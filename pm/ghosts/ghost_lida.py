@@ -36,6 +36,7 @@ from pm.utils.emb_utils import cosine_pair
 from pm.utils.profile_utils import profile
 from pm.utils.token_utils import get_token_count
 from pm.utils.utterance_extractor import UtteranceExtractor
+from pm.codelets.data_acquisition_codelet import DataAcquisitionCodelet
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +225,14 @@ class GhostLida(BaseGhost):
         if self.stimulus_triage in [StimulusTriage.Moderate, StimulusTriage.Significant]:
             # appraise
             self._generate_short_term_intentions()
-            self._gather_memories_for_attention()
+
+            # New agentic RAG system
+            data_acq_codelet = DataAcquisitionCodelet(self, self.current_state)
+            collected_knoxels = data_acq_codelet.run()
+            for knoxel in collected_knoxels:
+                self.current_state.attention_candidates.add(knoxel)
+
+            # self._gather_memories_for_attention()
             self._gather_meta_insights()
 
             # attention
