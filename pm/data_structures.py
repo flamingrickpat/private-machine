@@ -143,6 +143,13 @@ class StimulusGroup(StrEnum):
     SelfInput = "SelfInput"
 
 
+class ActorClass(StrEnum):
+    Self = "Self"
+    Human = "Human"
+    AI = "AI"
+    Agent = "Agent"
+
+
 # --- Knoxel Types ---
 class KnoxelBase(BaseModel):
     id: int = -1
@@ -180,8 +187,14 @@ class KnoxelHaver:
         return tmp
 
 
+class Actor(KnoxelBase):
+    aliases: str = Field(default_factory=str)
+    actor_class: ActorClass
+
+
 class Stimulus(KnoxelBase):
     source: str = Field(default_factory=str)
+    source_actor_id: Optional[int] = Field(default=None)
     stimulus_type: StimulusType
 
     def __str__(self):
@@ -318,6 +331,7 @@ class GraphEdge(KnoxelBase):
 
 class ConceptNode(KnoxelBase):
     description: str
+    actor_id: Optional[int] = Field(default=None)
     parent_concept_id: int = Field(default=None,  description="UUID of the parent concept (for IS_A hierarchy).")
 
 

@@ -21,7 +21,7 @@ from pm.ghosts.ghost_lida import EngagementIdea, GhostLida
 from pm.ghosts.persist_sqlite import PersistSqlite
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_manager_llama import LlmManagerLLama
-from pm.llm.llm_proxy import LlmManagerProxy, LlmTask, llama_worker
+from pm.llm.llm_proxy import LlmManagerProxy, LlmTask, llm_worker
 from pm.mental_states import NeedsAxesModel
 from pm.utils.profile_utils import print_function_stats
 
@@ -74,7 +74,7 @@ class Shell:
         self.is_sleeping = False  # NEW: Flag to track sleep state
         self.sleep_until_time = 0  # NEW: Timestamp for when sleep ends
 
-        worker_thread = threading.Thread(target=llama_worker, args=(model_map, task_queue), daemon=True)
+        worker_thread = threading.Thread(target=llm_worker, args=(model_map, task_queue), daemon=True)
         worker_thread.start()
 
         self.ghost = ghost
@@ -471,7 +471,7 @@ def get_shell_instance() -> Shell:
 
 
 def start_llm_thread():
-    worker_thread = threading.Thread(target=llama_worker, args=(model_map, task_queue), daemon=True)
+    worker_thread = threading.Thread(target=llm_worker, args=(model_map, task_queue), daemon=True)
     worker_thread.start()
 
 

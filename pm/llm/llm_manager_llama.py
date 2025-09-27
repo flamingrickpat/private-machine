@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import copy
+import datetime
 import difflib
 import gc
 import json
@@ -42,6 +43,11 @@ from pm.utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, 
 fix_gbnf_grammar_generator()
 
 logger = logging.getLogger(__name__)
+
+
+def strftime_now(f):
+    return datetime.datetime.now().strftime(f)
+
 
 def log_conversation(conversation: list[tuple[str, str]] | str, file_path: str, max_width: int = 80):
     if file_path is None or file_path == "":
@@ -212,35 +218,56 @@ class LlmManagerLLama(LlmManager):
 
     def _update_special_strings(self):
         # we sometimes seed the assistant response to get rid of crap like "ok, lets tackle this, here is a bunch of useless words and now here is what you wanted :) <result>"
-        messages = [
-            {"role": "system", "content": "test1"},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "test2"},
-                    {"type": "type", "image_url": {"url": "test3", "image_url": "test3", "data_url": "test3"}, "image": {"url": "test3", "image_url": "test3", "data_url": "test3"}},
-                    {"type": "text", "text": "test4"},
-                ]
-            },
-            {"role": "assistant", "content": "test5"},
-            {"role": "user", "content": "test6"},
-            {"role": "assistant", "content": "test7"}
-        ]
+        if self.clip_model_path is None or self.clip_model_path == "":
+            messages = [
+                {"role": "system", "content": "test1"},
+                {"role": "user", "content": "test2@test3@test4"},
+                {"role": "assistant", "content": "test5"},
+                {"role": "user", "content": "test6"},
+                {"role": "assistant", "content": "test7"}
+            ]
+        else:
+            messages = [
+                {"role": "system", "content": "test1"},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "test2"},
+                        {"type": "type", "image_url": {"url": "test3", "image_url": "test3", "data_url": "test3"}, "image": {"url": "test3", "image_url": "test3", "data_url": "test3"}},
+                        {"type": "text", "text": "test4"},
+                    ]
+                },
+                {"role": "assistant", "content": "test5"},
+                {"role": "user", "content": "test6"},
+                {"role": "assistant", "content": "test7"}
+            ]
+
         try:
             text = self.chat_template.render(
                 messages=messages,
                 add_generation_prompt=True,
                 eos_token=self.llm.detokenize([self.llm.token_eos()]),
                 bos_token=self.llm.detokenize([self.llm.token_bos()]),
+                strftime_now=strftime_now
             )
-        except:
-            messages = messages[1:]  # remove sys prompt in case its not allowed for model
-            text = self.chat_template.render(
-                messages=messages,
-                add_generation_prompt=True,
-                eos_token=self.llm.detokenize([self.llm.token_eos()]),
-                bos_token=self.llm.detokenize([self.llm.token_bos()]),
-            )
+        except Exception as e:
+            try:
+                text = self.chat_template.render(
+                    messages=messages,
+                    add_generation_prompt=True,
+                    eos_token=self.llm.detokenize([self.llm.token_eos()]),
+                    bos_token=self.llm.detokenize([self.llm.token_bos()]),
+                    strftime_now=strftime_now
+                )
+            except:
+                messages = messages[1:]  # remove sys prompt in case its not allowed for model
+                text = self.chat_template.render(
+                    messages=messages,
+                    add_generation_prompt=True,
+                    eos_token=self.llm.detokenize([self.llm.token_eos()]),
+                    bos_token=self.llm.detokenize([self.llm.token_bos()]),
+                    strftime_now=strftime_now
+                )
 
         self.remove_ass_string = text.split("test7")[1]
         self.user_to_ass_string = between(text, "test6", "test7")
@@ -311,7 +338,8 @@ class LlmManagerLLama(LlmManager):
                     add_generation_prompt=True,
                     eos_token=self.llm.detokenize([self.llm.token_eos()]),
                     bos_token=self.llm.detokenize([self.llm.token_bos()]),
-                    raise_exception=raise_exception
+                    raise_exception=raise_exception,
+                    strftime_now=strftime_now
                 )
             except Exception as e:
                 print(f"Error when trimming prompt: {e}\n{openai_inp}")
@@ -672,7 +700,7 @@ class LlmManagerLLama(LlmManager):
                             elif isinstance(msg, DuplexSignalTerminate):
                                 halt_signal = True
                         except queue.Empty:
-                            pass
+                            time.sleep(0.01)
 
                     if halt_signal:
                         break
@@ -853,7 +881,7 @@ AVAILABLE TOOLS:
                 comp_settings.tools_json_optional = [ToolRouterModel]  # Use optional for the enforcer
 
                 # get tokens and formatted version of raw prompt
-                inp_formatted, openai_inp, prompt_tokens = self._tokenize_prompt(preset, inp, comp_settings, addendum)
+                inp_formatted, openai_inp, prompt_tokens, _ = self._tokenize_prompt(preset, inp, comp_settings, addendum)
 
                 self.llm.reset()
                 self.llm.eval(prompt_tokens)
@@ -904,22 +932,6 @@ AVAILABLE TOOLS:
                         if len(bad_tokens) > 0 and False:
                             logit_bias = {x: -9999 for x in bad_tokens}
                             logit_bias_map = {int(k): float(v) for k, v in logit_bias.items()}
-
-                            def logit_bias_processor(
-                                    input_ids: npt.NDArray[np.intc],
-                                    scores: npt.NDArray[np.single],
-                            ) -> npt.NDArray[np.single]:
-                                new_scores = np.copy(
-                                    scores
-                                )  # Does it make sense to copy the whole array or can we just overwrite the original one?
-                                for input_id, score in logit_bias_map.items():
-                                    new_scores[input_id] = score + scores[input_id]
-                                return new_scores
-
-                            #_logit_bias_processor = LogitsProcessorList([logit_bias_processor])
-                            #_logit_bias_processor = logit_bias_processor
-                            #base_settings["logits_processor"] = _logit_bias_processor
-                            pass
 
                         token = self.llm.sample(idx=sample_idx, **base_settings)
                         if function_called:
@@ -1005,6 +1017,9 @@ AVAILABLE TOOLS:
                                 except Exception as e:
                                     result_text = f"Error when calling MCP-Server: {e}"
 
+                                if "kill_generation" in result_text:
+                                    break
+
                                 injection_text = f"\n```tool_output\n{result_text}\n```\n"
                                 function_called = True
                             except Exception as e:
@@ -1012,7 +1027,7 @@ AVAILABLE TOOLS:
                                 injection_text = f"\n```tool_output\nLocal Python exception when trying to call remote tool server: {e}\n```\n"
 
                             # Inject the result back into the LLM's context
-                            result_tokens = self._tokenize(injection_text, special=False)
+                            result_tokens = self._tokenize(self.ass_to_user_string + injection_text + self.user_to_ass_string, special=True)
                             # self.llm.eval(result_tokens)
                             eval_local(result_tokens)
                             sample_idx += len(result_tokens)

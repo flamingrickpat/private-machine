@@ -10,7 +10,7 @@ import threading
 from pm.config_loader import model_map
 from pm.ghosts.base_ghost import GhostConfig
 from pm.graph_memory import *
-from pm.llm.llm_proxy import llama_worker
+from pm.llm.llm_proxy import llm_worker
 from pm_lida import task_queue, main_llm
 
 ALL = False
@@ -22,7 +22,7 @@ def test_graph_mem():
     # Cleanup previous test DB if it exists
     init_db = True
 
-    worker_thread = threading.Thread(target=llama_worker, args=(model_map, task_queue), daemon=True)
+    worker_thread = threading.Thread(target=llm_worker, args=(model_map, task_queue), daemon=True)
     worker_thread.start()
 
     # 1. Setup: Initialize logging, LLM manager, and the CognitiveMemoryManager.

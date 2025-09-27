@@ -79,6 +79,7 @@ for model_class, model_key in model_mapping.items():
         if os.name == "nt":
             path = path.replace(wsl_pref, wsl_rep)
         model_map[model_class] = {
+            "model_key": model_key,
             "path": path,
             "layers": models[model_key]["layers"],
             "context": models[model_key]["context"],
@@ -90,7 +91,7 @@ for model_class, model_key in model_mapping.items():
             "repeat_penalty": models[model_key]["repeat_penalty"],
             "frequency_penalty": models[model_key]["frequency_penalty"],
             "presence_penalty": models[model_key]["presence_penalty"],
-            "mmproj_file": models[model_key]["mmproj_file"],
+            "mmproj_file": models.get("mmproj_file", "")
         }
     else:
         raise KeyError(f"Model key '{model_key}' in model_mapping not found in models section.")

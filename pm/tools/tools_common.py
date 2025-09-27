@@ -101,8 +101,8 @@ def create_tool_router_model(tools: List[Dict[str, Any]]) -> ToolSet:
         ArgsModel = create_model(args_model_name, **arg_fields)
 
         # Add this tool's argument model as an optional field to the main router
-        router_fields[pydantic_tool_name] = (Optional[ArgsModel], Field(None, description=tool.get('description')))
-        select_fields[pydantic_tool_name] = (float, Field(None, description="Usefulness: " + tool.get('description')))
+        router_fields[pydantic_tool_name] = (Optional[ArgsModel], Field(None, description=tool.get('description', '')))
+        select_fields[pydantic_tool_name] = (float, Field(None, description=tool.get('description', '')))
         # args = json.dumps(tool["inputSchema"], indent=1)
 
         # --- Generate Markdown Documentation for the prompt ---

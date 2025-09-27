@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 # Assuming pm_lida.py is in the same project and we can import from it.
 # In a real project, these would be in a shared 'utils' or 'llm' module.
-from pm_lida import main_llm, LlmPreset, CommonCompSettings, llama_worker
+from pm_lida import main_llm, LlmPreset, CommonCompSettings, llm_worker
 
 
 # --- 1. Core Data Models for the Virtual World (Extended) ---
@@ -957,8 +957,8 @@ def run_simulation():
     """Main simulation loop."""
     print("--- Running Multi-Agent Simulation Test ---")
 
-    llama_worker_thread = threading.Thread(target=llama_worker, daemon=True)
-    llama_worker_thread.start()
+    worker_thread = threading.Thread(target=llm_worker, daemon=True)
+    worker_thread.start()
 
     db_file = "multi_agent_world.db"
     if os.path.exists(db_file):

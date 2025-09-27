@@ -7,7 +7,7 @@ import pandas as pd
 from pm.data_structures import Feature
 from pm.ghosts.base_ghost import GhostState
 from pm.ghosts.persist_sqlite import PersistSqlite
-from pm_lida import setup_logger, GhostConfig, GhostLida, FeatureType, llama_worker, main_llm
+from pm_lida import setup_logger, GhostConfig, GhostLida, FeatureType, llm_worker, main_llm
 
 
 def import_csv(csv_path: str, _db_path: str, user_name: str):
@@ -79,7 +79,7 @@ id	source	content	timestamp
     print(r"USAGE: python import_from_csv.py <path_to_csv> <path_to_target_db> <user name in source column>")
     print()
 
-    worker_thread = threading.Thread(target=llama_worker, daemon=True)
+    worker_thread = threading.Thread(target=llm_worker, daemon=True)
     worker_thread.start()
 
     db_path = sys.argv[2]

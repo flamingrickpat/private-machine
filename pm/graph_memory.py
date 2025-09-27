@@ -2,7 +2,7 @@
 
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import StrEnum
 from typing import Dict, List, Optional, Tuple, Union, Set
 
@@ -120,6 +120,8 @@ class RelevantItems(BaseModel):
 
 
 class CognitiveMemoryManager:
+    _instances = {}
+
     def __init__(self, llm_manager: LlmManagerProxy, ghost: BaseGhost):
         self.ghost = ghost
         self.llm_manager: LlmManagerProxy = llm_manager
@@ -133,6 +135,11 @@ class CognitiveMemoryManager:
         self._edge_cache: Dict[int, GraphEdge] = {}
 
         self._bootstrap_core_concepts()
+        self.__class__._instances[self.__class__.__name__] = self
+
+    @classmethod
+    def get_latest_instance(cls):
+        return cls._instances[cls.__name__]
 
     @property
     def concepts(self) -> Dict[int, ConceptNode]:
@@ -613,7 +620,7 @@ class CognitiveMemoryManager:
 
                     if conflicting_edge_id_to_invalidate and conflicting_edge_id_to_invalidate in self.edges:
                         old_edge = self.edges[conflicting_edge_id_to_invalidate]
-                        old_edge.invalid_at = datetime.now(timezone.utc)
+                        old_edge.invalid_at = datetime.now()
                         self.edges[old_edge.id] = old_edge  # Update in-memory store
                         # Update in graph (NetworkX stores dicts, so update data attribute)
                         if self.graph.has_edge(old_edge.source_id, old_edge.target_id, key=old_edge.id):

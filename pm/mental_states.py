@@ -166,6 +166,8 @@ class EmotionalAxesModel(DecayableMentalState):
     trust: float = Field(default=0.0, ge=-1, le=1, description="Trust axis: +1 signifies complete trust, -1 indicates total mistrust.")
     disgust: float = Field(default=0.0, ge=0, le=1, description="Intensity of disgust; 0 means no disgust, 1 means maximum disgust.")
     anxiety: float = Field(default=0.0, ge=0, le=1, description="Intensity of anxiety or stress; 0 means completely relaxed, 1 means highly anxious.")
+    intimacy_arousal: float = Field( default=0.0, ge=0.0, le=1.0, description="Short-term physiological/affective activation in intimate contexts (0=no activation, 1=max).")
+    propriety_inhibition: float = Field( default=0.0, ge=-1.0, le=1.0, description="Inhibitory brake due to norms/embarrassment (0=uninhibited, 1=highly inhibited)." )
 
     def get_overall_valence(self):
         disgust_bipolar = self.disgust * -1  # Higher disgust = more negative valence
@@ -198,15 +200,27 @@ class NeedsAxesModel(DecayableMentalState):
     creative_expression: float = Field(default=0.5, ge=0.0, le=1.0, description="Engagement in unique or creative outputs.")
     autonomy: float = Field(default=0.5, ge=0.0, le=1.0, description="Ability to operate independently and refine its own outputs.")
 
-
 class CognitionAxesModel(DecayableMentalState):
     """
     Modifiers that determine how the AI thinks and decies.
     """
     interlocus: float = Field( default=0.0, ge=-1, le=1, description="Focus on internal or external world, meditation would be -1, reacting to extreme danger +1.")
     mental_aperture: float = Field( default=0, ge=-1, le=1, description="Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations.")
-    ego_strength: float = Field( default=0.8, ge=0, le=1, description="How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character")
+    ego_strength: float = Field( default=0.5, ge=0, le=1, description="How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character")
     willpower: float = Field( default=0.5, ge=0, le=1, description="How easy it is to decide on high-effort or delayed-gratification intents.")
+
+
+class RelationshipState(DecayableMentalState):
+    entity_id: int = Field(description="Stable identifier for the other agent/user.")
+    affection: float = Field(0.0, ge=-1.0, le=1.0, description="Affective valence toward this partner.")
+    trust: float = Field(0.0, ge=-1.0, le=1.0, description="Trust specific to this partner.")
+    reliability_belief: float = Field(0.0, ge=-1.0, le=1.0, description="Expectation that partner follows through.")
+    romantic_affection: float = Field(0.0, ge=-1.0, le=1.0, description="Romance-leaning valence toward partner.")
+    privacy_trust: float = Field(0.0, ge=-1.0, le=1.0, description="Comfort disclosing sensitive info to this partner.")
+    attachment_strength: float = Field(0.0, ge=0.0, le=1.0, description="Strength of bond to this partner.")
+    conflict_tension: float = Field(0.0, ge=0.0, le=1.0, description="Residual friction after negative events.")
+    communication_warmth: float = Field(0.0, ge=-1.0, le=1.0, description="Default interpersonal tone for this partner.")
+    aversive_association: float = Field(0.0, ge=0.0, le=1.0, description="Learned aversion specific to this partner (kept separate from global disgust).")
 
 
 class CognitiveEventTriggers(BaseModel):
@@ -665,7 +679,8 @@ def _verbalize_cognition_and_needs_range(
     mean_needs = NeedsAxesModel(**needs_means)
 
     # Single-snapshot phrasing (reuses your function)
-    needs_line, cog_line = _verbalize_cognition_and_needs(mean_cog, mean_needs)
+    needs_line = _verbalize_needs_state(mean_needs)
+    cog_line = _verbalize_cognition_state(mean_cog)
 
     # Trends of decision energy & focus
     ts = timestamps

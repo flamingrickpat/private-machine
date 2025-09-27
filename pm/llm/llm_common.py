@@ -11,8 +11,10 @@ from typing import (
 from pydantic import BaseModel
 
 class LlmPreset(Enum):
+    Internal = "Internal"
     Default = "Default"
     CurrentOne = "current"
+    Fast = "Fast"
 
 class CommonCompSettings:
     def __init__(self,

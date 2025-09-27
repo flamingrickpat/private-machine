@@ -5,7 +5,7 @@
 import threading
 from queue import Queue
 
-from pm_lida import main_llm, LlmPreset, CommonCompSettings, llama_worker, universal_image_begin, universal_image_end
+from pm_lida import main_llm, LlmPreset, CommonCompSettings, llm_worker, universal_image_begin, universal_image_end
 from pm.utils.duplex_utils import duplex_com
 
 prompt_text = [
@@ -13,7 +13,7 @@ prompt_text = [
     ("user", f"hi")
 ]
 
-worker_thread = threading.Thread(target=llama_worker, daemon=True)
+worker_thread = threading.Thread(target=llm_worker, daemon=True)
 worker_thread.start()
 
 q_from_ai = Queue()

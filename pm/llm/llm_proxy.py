@@ -2,9 +2,11 @@ import copy
 import copy
 import os
 import queue
+import time
 import uuid
 from dataclasses import dataclass, field
 from queue import Queue
+from threading import Thread
 from typing import Dict, Any
 from typing import List
 from typing import (
@@ -15,44 +17,106 @@ from typing import Type
 from pydantic import BaseModel
 
 from pm.data_structures import KnoxelBase
+from pm.llm.emb_manager_transformer import EmbManagerTransformer
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_manager_llama import LlmManagerLLama
 from pm.utils.exec_utils import get_call_stack_str
 
+TIMEOUT = 0.05
 
 # simple Task object that carries the prompt, a result-queue, and (implicitly) its priority.
 @dataclass(order=True)
 class LlmTask:
     priority: int
-    fname: str
-    args: Dict[str, Any]
+    fname: str = field(compare=False)
+    args: Dict[str, Any] = field(compare=False)
     result_queue: queue.Queue = field(compare=False)
+
+
+
+def emb_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
+    emb_model = EmbManagerTransformer(model_map)
+    while True:
+        try:
+            task: LlmTask = task_queue.get(timeout=TIMEOUT)
+            if task is None:
+                break
+            if task.fname == "get_embedding":
+                emb = emb_model.get_embedding(**task.args)
+                task.result_queue.put(emb)
+            task_queue.task_done()
+        except queue.Empty:
+            time.sleep(TIMEOUT)
 
 
 # central "LLM worker" thread
 def llama_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
     llama = LlmManagerLLama(model_map)
     while True:
-        task: LlmTask = task_queue.get()
-        if task is None:
-            # sentinel to shut down cleanly
-            break
+        try:
+            task: LlmTask = task_queue.get(timeout=TIMEOUT)
+            if task is None:
+                break
+            if task.fname == "completion_agentic":
+                ass, story = llama.completion_agentic(**task.args)
+                task.result_queue.put((ass, story))
+            elif task.fname == "completion_text":
+                comp = llama.completion_text(**task.args)
+                task.result_queue.put(comp)
+            elif task.fname == "completion_tool":
+                comp, tools = llama.completion_tool(**task.args)
+                task.result_queue.put((comp, tools))
 
-        if task.fname == "completion_agentic":
-            ass, story = llama.completion_agentic(**task.args)
-            task.result_queue.put((ass, story))
-        elif task.fname == "completion_text":
-            comp = llama.completion_text(**task.args)
-            task.result_queue.put(comp)
-        elif task.fname == "completion_tool":
-            comp, tools = llama.completion_tool(**task.args)
-            task.result_queue.put((comp, tools))
-        elif task.fname == "get_embedding":
-            emb = llama.get_embedding(**task.args)
-            task.result_queue.put(emb)
+            task_queue.task_done()
+        except queue.Empty:
+            time.sleep(TIMEOUT)
 
-        task_queue.task_done()
 
+# central "LLM worker" thread
+def llm_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
+    emb_queue = Queue()
+    t = Thread(target=emb_worker, args=(model_map, emb_queue), daemon=True)
+    t.start()
+
+    model_instances = {}
+    model_mapping = {}
+    model_mapping_reverse = {}
+    model_instance_queue_map = {}
+
+    for key, value in model_map.items():
+        if isinstance(value, dict):
+            model_instances[value["model_key"]] = value
+            model_mapping[key] = value["model_key"]
+            model_mapping_reverse[value["model_key"]] = key
+
+    for key, value in model_instances.items():
+        q = Queue()
+        model_instance_queue_map[key] = q
+        mm = {
+            LlmPreset.Internal.value: value
+        }
+        t = Thread(target=llama_worker, args=(mm, q), daemon=True)
+        t.start()
+
+    llama = LlmManagerLLama(model_map)
+    while True:
+        try:
+            task: LlmTask = task_queue.get(timeout=TIMEOUT)
+            if task is None:
+                break
+
+            if task.fname == "get_embedding":
+                emb_queue.put(task)
+            else:
+                task_preset = task.args["preset"]
+                target_instance = model_mapping[task_preset.value]
+                task.args["preset"] = LlmPreset.Internal
+                current_queue = model_instance_queue_map[target_instance]
+                current_queue.put(task)
+
+            task_queue.task_done()
+        except queue.Empty:
+            time.sleep(TIMEOUT)
 
 class LlmManagerProxy:
     def __init__(self, task_queue: Queue[LlmTask], priority: int, log_path: str):
@@ -87,8 +151,13 @@ class LlmManagerProxy:
         del args["self"]
         result_q: "queue.Queue[Any]" = queue.Queue(maxsize=1)
         self.task_queue.put(LlmTask(priority=self.priority, fname="completion_agentic", args=args, result_queue=result_q))
-        ass, story = result_q.get()
-        return ass, story
+
+        while True:
+            try:
+                ass, story = result_q.get(timeout=TIMEOUT)
+                return ass, story
+            except queue.Empty:
+                time.sleep(TIMEOUT)
 
     def completion_text(self,
                         preset: LlmPreset,
@@ -104,8 +173,13 @@ class LlmManagerProxy:
         del args["self"]
         result_q: "queue.Queue[Any]" = queue.Queue(maxsize=1)
         self.task_queue.put(LlmTask(priority=self.priority, fname="completion_text", args=args, result_queue=result_q))
-        comp = result_q.get()
-        return comp
+
+        while True:
+            try:
+                comp = result_q.get()
+                return comp
+            except queue.Empty:
+                time.sleep(TIMEOUT)
 
     def completion_tool(self,
                         preset: LlmPreset,
@@ -123,5 +197,10 @@ class LlmManagerProxy:
         del args["self"]
         result_q: "queue.Queue[Any]" = queue.Queue(maxsize=1)
         self.task_queue.put(LlmTask(priority=self.priority, fname="completion_tool", args=args, result_queue=result_q))
-        comp, tools = result_q.get()
-        return comp, tools
+
+        while True:
+            try:
+                comp, tools = result_q.get()
+                return comp, tools
+            except queue.Empty:
+                time.sleep(TIMEOUT)
