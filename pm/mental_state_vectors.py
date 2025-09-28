@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Sequence, Type, TypeVar, Any, Optional
+from typing import Dict, List, Sequence, Type, TypeVar, Any, Optional, Tuple
 from pydantic import BaseModel, Field
 
 # ---------- Global vector space ----------
@@ -68,7 +68,7 @@ class MentalState(BaseModel):
         return getattr(cls, "__vector_size__", VectorModelReservedSize)
 
     @classmethod
-    def from_vector(cls: Type[T], values: Sequence[float]) -> T:
+    def init_from_vector(cls: Type[T], values: Sequence[float]) -> T:
         if len(values) != cls.vector_size():
             raise ValueError(f"{cls.__name__}.from_vector expected length {cls.vector_size()}, got {len(values)}")
         data: Dict[str, float] = {}
@@ -83,6 +83,13 @@ class MentalState(BaseModel):
         for fname, pos in self.__vector_positions__.items():
             out[pos] = float(getattr(self, fname, 0.0))
         return out
+
+    def from_vector(self, values: Sequence[float]) -> T:
+        if len(values) != self.vector_size():
+            raise ValueError(f"{self.__class__.__name__}.from_vector expected length {self.vector_size()}, got {len(values)}")
+        for pos, fname in self.__class__.__position_to_field__.items():
+            v = float(values[pos])
+            self.__setattr__(fname, v)
 
 
 class LatentMentalState(MentalState):
@@ -161,7 +168,7 @@ class StateCognition(ActiveMentalState):
     interlocus: float = Field( default=0.0, ge=-1, le=1, description="Focus on internal or external world, meditation would be -1, reacting to extreme danger +1.", json_schema_extra={"position": 200})
     mental_aperture: float = Field( default=0, ge=-1, le=1, description="Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations.", json_schema_extra={"position": 201})
     ego_strength: float = Field( default=0.8, ge=0, le=1, description="How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character", json_schema_extra={"position": 202})
-    willpower: float = Field( default=0.5, ge=0, le=1, description="How easy it is to decide on high-effort or delayed-gratification intents.", json_schema_extra={"position": 203})
+    willpower: float = Field( default=0.0, ge=-1.0, le=1.0, description="How easy it is to decide on high-effort or delayed-gratification intents.", json_schema_extra={"position": 203})
 
 class StateNeeds(ActiveMentalState):
     """
@@ -230,9 +237,244 @@ class FullMentalState(BaseModel):
     state_neurochemical: StateNeurochemical = Field(default_factory=StateNeurochemical)
     state_core: StateCore = Field(default_factory=StateCore)
     state_emotions: StateEmotions = Field(default_factory=StateEmotions)
+    state_realationship: StateRelationship = Field(default_factory=StateRelationship)
     state_cognition: StateCognition = Field(default_factory=StateCognition)
+    state_needs: StateNeeds = Field(default_factory=StateNeeds)
 
     def populate_from_history(self, history: List[List[float]], interpolation: str = "linear", ma_period: str = "15m"):
         pass
+
+    def to_list(self):
+        res = [0.0] * VectorModelReservedSize
+        for state in [self.appraisal_general, self.appraisal_social, self.state_neurochemical, self.state_core, self.state_emotions, self.state_cognition, self.state_needs]:
+            vec = state.to_vector()
+            for i in range(len(vec)):
+                res[i] += vec[i]
+        return res
+
+    @classmethod
+    def init_from_list(cls, lst: List[float]):
+        res = cls()
+        for state in [res.appraisal_general, res.appraisal_social, res.state_neurochemical, res.state_core, res.state_emotions, res.state_cognition, res.state_needs]:
+            state.from_vector(lst)
+
+    def apply_list(self, lst: List[float]):
+        for state in [self.appraisal_general, self.appraisal_social, self.state_neurochemical, self.state_core, self.state_emotions, self.state_cognition, self.state_needs]:
+            state.from_vector(lst)
+
+
+# ---------- Helpers ----------
+def _clamp01(x: float) -> float:
+    return 0.0 if x < 0.0 else (1.0 if x > 1.0 else x)
+
+def _clamp11(x: float) -> float:
+    return -1.0 if x < -1.0 else (1.0 if x > 1.0 else x)
+
+def _blend(prev: float, target: float, k: float) -> float:
+    return prev * (1.0 - k) + target * k
+
+def _intimacy_propriety_update(ms: FullMentalState, core: StateCore) -> tuple[float, float]:
+    """Stage 1: provisional updates from appraisals + state (no relationship yet)."""
+    ap, soc, neu, emo_cur = ms.appraisal_general, ms.appraisal_social, ms.state_neurochemical, ms.state_emotions
+
+    # cues for intimacy: safety, warmth, trust, positive valence, novelty w/o threat
+    safety  = max(0.0, min(1.0, 0.5*neu.serotonin + 0.5*neu.oxytocin))
+    benign_novelty = ap.novelty * (1.0 - ap.bodily_threat)
+    warmth = soc.perceived_warmth
+    trustc = soc.trust_cues
+
+    base_intimacy = (
+        0.35 * (0.5 + 0.5*core.valence) +      # happier → easier intimacy
+        0.25 * warmth +
+        0.20 * trustc +
+        0.15 * benign_novelty +
+        0.15 * neu.dopamine +
+        0.15 * neu.oxytocin
+    ) - (
+        0.25 * ap.bodily_threat +
+        0.15 * soc.embarrassment +
+        0.15 * emo_cur.shame +
+        0.20 * neu.cortisol
+    )
+
+    # cues for propriety: norm risk + embarrassment + power asymmetry + caution
+    base_propriety = (
+        0.35 * ap.norm_violation * (0.7 + 0.3*ap.agency_other) +
+        0.25 * soc.embarrassment +
+        0.20 * soc.power_imbalance +
+        0.15 * (1.0 - warmth) +
+        0.15 * neu.serotonin
+    ) - (
+        0.20 * ms.state_emotions.playfulness +
+        0.15 * ms.state_emotions.amusement +
+        0.15 * ms.state_emotions.relief +
+        0.10 * (0.5 + 0.5*core.valence)
+    )
+
+    # clamp to model ranges
+    intimacy_stage1  = max(0.0, min(1.0, base_intimacy))
+    propriety_stage1 = max(-1.0, min(1.0, base_propriety - 0.5))  # center slightly cautious
+
+    # inertia (light smoothing against current stored values)
+    intimacy_out  = _blend(ms.state_emotions.intimacy_arousal, intimacy_stage1, 0.35)
+    propriety_out = _blend(ms.state_emotions.propriety_inhibition, propriety_stage1, 0.35)
+    return intimacy_out, propriety_out
+
+def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: Optional[int] = None) -> Tuple[FullMentalState, FullMentalState]:
+    """
+    Maps current appraisals (+ social + neuromods) and current core readout to:
+      - StateCore (valence/arousal/dominance) readouts/deltas
+      - StateEmotions (discrete intensities)
+      - optional StateRelationship (deltas toward a specific entity, if provided)
+    Returns also the derived BaselineContext with scale factors you’ll apply to your EMA taus.
+    """
+
+    ap = current_ms.appraisal_general
+    soc = current_ms.appraisal_social
+    neu = current_ms.state_neurochemical
+
+    core_prev = current_ms.state_core  # current readout (already normalized)
+
+    # ----- 1) Adaptive baseline profile (for your EMA engine to use) -----
+    # ctx = context or derive_adaptive_context(ms)
+
+    # ----- 2) State-dependent gains (feedback from current mind-state) -----
+    # Positive valence amplifies joy/tenderness mapping from goal congruence; negative valence
+    # amplifies anger/fear mapping from threat/violation. High arousal weights novelty/threat more.
+    gv = 0.20 * core_prev.valence      # -0.2..0.2
+    ga = 0.25 * core_prev.arousal      # 0..0.25
+    gd = 0.15 * core_prev.dominance    # -0.15..0.15
+
+    # Neuromodulator biases
+    dop = neu.dopamine
+    ser = neu.serotonin
+    nor = neu.noradrenaline
+    oxy = neu.oxytocin
+    cor = neu.cortisol
+
+    # Control & safety composites
+    safety = _clamp01(0.5*ser + 0.5*oxy)              # higher => safer vibe
+    control = _clamp01(0.6*ap.control_self + 0.2*ser + 0.2*max(0.0, core_prev.dominance))
+
+    # ----- 3) Core affect mapping (instantaneous) -----
+    # Base appraisal pushes
+    d_valence = (0.90+gv) * ap.goal_congruence - (0.70-ga) * ap.bodily_threat - 0.50 * ap.norm_violation
+    d_arousal = (0.55+ga) * ap.novelty + (0.90+0.2*nor) * ap.bodily_threat + 0.40 * (1.0 - ap.certainty)
+    d_dominance = (0.70+0.15*ser) * ap.control_self - (0.55-0.1*gd) * ap.agency_other * ap.norm_violation
+
+    # Safety/cortisol dampers
+    d_valence *= (0.9 + 0.2*safety) * (1.0 - 0.35*cor)
+    d_arousal *= (0.85 + 0.30*nor) * (1.0 - 0.20*ser)  # serotonin smooths arousal swings
+    d_dominance *= (0.9 + 0.2*control)
+
+    # Clamp to readout ranges
+    core = StateCore(
+        valence=_clamp11(d_valence),
+        arousal=_clamp01(d_arousal),
+        dominance=_clamp11(d_dominance),
+    )
+
+    # ----- 4) Discrete emotions (pattern detectors over appraisals + core) -----
+    neg = max(0.0, -core.valence)
+    pos = max(0.0,  core.valence)
+    a   = core.arousal
+    d   = core.dominance
+
+    anger   = _clamp01( neg * a * max(0.0, d) * (ap.agency_other + ap.norm_violation) * (0.8 + 0.2*nor) )
+    fear    = _clamp01( neg * a * max(0.0,-d) * (ap.bodily_threat + (1.0 - ap.control_self)) * (0.8 + 0.2*cor) )
+    sadness = _clamp01( neg * (1.0 - a) * (1.0 - ap.certainty) * (0.9 + 0.1*cor) )
+    disgust = _clamp01( neg * (0.6*ap.norm_violation + 0.2*ap.novelty + 0.2*ap.bodily_threat) )
+    joy     = _clamp01( pos * (0.5 + 0.5*ap.control_self) * ((ap.goal_congruence+1.0)/2.0) * (0.85 + 0.3*dop) )
+    tenderness = _clamp01( pos * (0.4 + 0.6*(0.5+0.5*soc.perceived_warmth)) * (1.0 - a) * (0.8 + 0.3*oxy) )
+    curiosity  = _clamp01( a * (0.7*ap.novelty + 0.3*(1.0 - ap.certainty)) * (0.3 + 0.7*ap.control_self) * (0.8 + 0.3*dop) )
+    shame      = _clamp01( neg * (1.0 - d) * (0.6*soc.embarrassment + 0.4*ap.norm_violation) * (0.9 + 0.1*cor) )
+    guilt      = _clamp01( neg * (0.6*ap.norm_violation + 0.4*soc.fairness) * (0.7 + 0.3*ser) )
+    pride      = _clamp01( pos * (0.6*ap.control_self + 0.4*ap.certainty) * (0.8 + 0.2*d) )
+
+    intimacy_1, propriety_1 = _intimacy_propriety_update(current_ms, core)
+
+    # Humor subset (benign violation)
+    benign_v  = _clamp01( ap.norm_violation * (1.0 - ap.bodily_threat) * (0.6 + 0.4*(0.5+0.5*soc.perceived_warmth)) )
+    resolution= _clamp01( 0.5*ap.certainty + 0.5*ap.control_self )
+    amusement = _clamp01( ap.novelty * benign_v * resolution * (0.85 + 0.30*dop + 0.20*oxy) * (1.0 - 0.35*cor) )
+    playfulness = _clamp01( ap.novelty * (0.6 + 0.4*(0.5+0.5*soc.perceived_warmth)) * (0.5 + 0.3*dop + 0.2*ser) )
+    prior_tension = _clamp01( 0.5*nor + 0.5*cor )
+    relief       = _clamp01( prior_tension * resolution * (1.0 - ap.bodily_threat) )
+    social_laughter = _clamp01( amusement * (0.5 + 0.5*(0.5+0.5*soc.perceived_warmth)) * (0.5 + 0.5*oxy) )
+    teasing_edge   = _clamp01( benign_v * (0.5 + 0.5*(1.0 - ser)) * (0.3 + 0.7*(0.5+0.5*soc.perceived_warmth)) )
+
+    emotions = StateEmotions(
+        joy=joy, sadness=sadness, anger=anger, fear=fear, disgust=disgust, surprise=_clamp01(ap.novelty),
+        tenderness=tenderness, curiosity=curiosity, shame=shame, guilt=guilt, pride=pride,
+        intimacy_arousal=_clamp01(intimacy_1),     # leave as-is unless appraised
+        propriety_inhibition=_clamp11(propriety_1),
+        amusement=amusement, playfulness=playfulness, relief=relief,
+        social_laughter=social_laughter, teasing_edge=teasing_edge
+    )
+
+    state_result = current_ms.copy(deep=True)
+    state_result.state_core = core
+    state_result.state_emotions = emotions
+
+    # ----- 5) Relationship (optional, per-entity) -----
+    rel = None
+    if relationship_entity_id is not None:
+        # Generic mapping: warmth/trust up on fairness, trust_cues, inclusion; tension up on norm_violation & contempt.
+        affection = _clamp11( (ap.goal_congruence*0.4 + soc.perceived_warmth*0.6) * (0.9 + 0.2*oxy) - 0.3*disgust )
+        trust     = _clamp11( (soc.trust_cues*0.6 + soc.fairness*0.4) * (0.9 + 0.2*oxy) - 0.4*ap.norm_violation )
+        reliability_belief = _clamp11( soc.fairness*0.7 + soc.trust_cues*0.3 - 0.5*ap.norm_violation )
+        romantic_affection = _clamp11(affection * (0.5 + 0.5 * current_ms.state_emotions.intimacy_arousal))
+        privacy_trust = _clamp11( trust * (0.6 + 0.4*(0.5+0.5*soc.perceived_intimacy)) )
+        attachment_strength = _clamp01( (0.6*affection + 0.4*trust) * (0.8 + 0.3*oxy) )
+        conflict_tension = _clamp01( 0.6*anger + 0.5*disgust + 0.4* soc.contempt - 0.5*relief - 0.3*social_laughter )
+        communication_warmth = _clamp11( (0.6*tenderness + 0.4*joy) - 0.4*anger - 0.3*disgust )
+        aversive_association = _clamp01( 0.6*disgust + 0.4* soc.contempt )
+
+        rel = StateRelationship(
+            entity_id=relationship_entity_id,
+            affection=affection, trust=trust, reliability_belief=reliability_belief,
+            romantic_affection=romantic_affection, privacy_trust=privacy_trust,
+            attachment_strength=attachment_strength, conflict_tension=conflict_tension,
+            communication_warmth=communication_warmth, aversive_association=aversive_association,
+        )
+        # --- small, stable feedback pass (stage 2) ---
+        # more intimacy if warmth/trust/attachment high & tension low
+        target_intimacy = (
+                0.30 * (0.5 + 0.5 * rel.communication_warmth) +
+                0.30 * max(0.0, rel.trust) +
+                0.25 * rel.attachment_strength +
+                0.15 * max(0.0, rel.romantic_affection) -
+                0.20 * rel.conflict_tension -
+                0.15 * emotions.shame
+        )
+
+        # more propriety if low warmth + high tension + power gap; less if playfulness high
+        target_propriety = (
+                                   0.30 * (0.5 - 0.5 * rel.communication_warmth) +
+                                   0.25 * rel.conflict_tension +
+                                   0.20 * soc.power_imbalance +
+                                   0.15 * max(0.0, -rel.trust) +
+                                   0.10 * ap.norm_violation -
+                                   0.20 * emotions.playfulness -
+                                   0.10 * emotions.relief
+                           ) - 0.10  # slight bias toward relaxed
+
+        # blend softly (avoid runaway); then clamp
+        intimacy_2 = _clamp01(_blend(emotions.intimacy_arousal, target_intimacy, 0.15))
+        propriety_2 = _clamp11(_blend(emotions.propriety_inhibition, target_propriety, 0.15))
+
+        emotions.intimacy_arousal = intimacy_2
+        emotions.propriety_inhibition = propriety_2
+
+        state_result.state_realationship = rel
+
+
+        vec_a = current_ms.to_list()
+        vec_b = state_result.to_list()
+        delta = [bi - ai for ai, bi in zip(vec_a, vec_b)]
+
+        state_delta = FullMentalState.init_from_list(delta)
+        return state_result, state_delta
+
 
 
