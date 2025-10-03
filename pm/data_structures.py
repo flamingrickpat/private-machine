@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from pydantic import model_validator
 
 from pm.config_loader import *
+from pm.mental_state_vectors import create_empty_ms_vector
 from pm.utils.token_utils import get_token_count
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,7 @@ class KnoxelBase(BaseModel):
     timestamp_creation: datetime = Field(default_factory=datetime.now)
     timestamp_world_begin: datetime = Field(default_factory=datetime.now)
     timestamp_world_end: datetime = Field(default_factory=datetime.now)
+    mental_state_delta: List[float] | None = Field(default_factory=create_empty_ms_vector, repr=False)
 
     def get_story_element(self, ghost: "KnoxelHaver" = None) -> str:
         return f"{self.__class__.__name__}: {self.content}"

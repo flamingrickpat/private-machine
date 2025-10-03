@@ -895,15 +895,15 @@ def _init_ms_from_vec(vec: List[float]) -> "FullMentalState":
         state.from_vector(vec)
     return ms
 
-def create_empty_vector():
+def create_empty_ms_vector():
     return [0] * VectorModelReservedSize
 
 class MentalFeature(BaseModel):
     content: str
     source_entity_id: Optional[int] = Field(default=None, description="If the features comes from another entity (user, other AI agent).")
     timestamp: datetime.datetime = Field(default_factory=datetime.datetime.now)
-    state_appraisal_vector: List[float] = Field(default_factory=create_empty_vector, description="The state with the real appraisals and latent state.")
-    state_delta_vector: List[float] = Field(default_factory=create_empty_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state")
+    state_appraisal_vector: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state.")
+    state_delta_vector: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state")
 
 class Mind(BaseModel):
     features: List[MentalFeature] = Field(default_factory=list)
