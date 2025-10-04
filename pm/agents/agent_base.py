@@ -164,6 +164,7 @@ class BaseAgent:
             self.results["_full_output"] = content
 
         thr = threading.Thread(target=t, daemon=True)
+        thr.name = "base_agent_thread_for_duplex_completion"
         thr.start()
 
         # 3) now walk the plan from the first completion onward

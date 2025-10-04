@@ -76,6 +76,7 @@ def llama_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
 def llm_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
     emb_queue = Queue()
     t = Thread(target=emb_worker, args=(model_map, emb_queue), daemon=True)
+    t.name = "worker_thread_central_embedding"
     t.start()
 
     model_instances = {}
@@ -96,6 +97,7 @@ def llm_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
             LlmPreset.Internal.value: value
         }
         t = Thread(target=llama_worker, args=(mm, q), daemon=True)
+        t.name = f"worker_thread_llama_{key}"
         t.start()
 
     llama = LlmManagerLLama(model_map)

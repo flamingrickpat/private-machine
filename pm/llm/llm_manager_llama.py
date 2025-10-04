@@ -23,15 +23,11 @@ from typing import Dict, Any
 import time
 from typing import List
 
-import numpy.typing as npt
 import llama_cpp.llama_cpp as llama_cpp
-import numpy as np
+from llama_cpp import Llama, LlamaGrammar, suppress_stdout_stderr
 import psutil
 from fastmcp import Client
 from json_repair import repair_json
-from llama_cpp import Llama, LlamaGrammar, suppress_stdout_stderr
-#from lmformatenforcer import JsonSchemaParser
-#from lmformatenforcer.integrations.transformers import build_transformers_prefix_allowed_tokens_fn
 from pydantic import BaseModel
 
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
@@ -169,7 +165,11 @@ class LlmManagerLLama(LlmManager):
                     n_ctx=ctx,
                     verbose=False,
                     last_n_tokens_size=last_n_tokens_size,
-                    n_threads=physical_cores
+                    n_threads=physical_cores,
+                    n_batch=512,
+                    flash_attn_type=llama_cpp.llama_flash_attn_type.LLAMA_FLASH_ATTN_TYPE_AUTO if layers != 0 else llama_cpp.llama_flash_attn_type.LLAMA_FLASH_ATTN_TYPE_DISABLED,
+                    op_offload=None if layers != 0 else False,
+                    offload_kqv=True if layers != 0 else False
                 )
                 self.eos_token_id = self.llm.metadata["tokenizer.ggml.eos_token_id"]
 
@@ -216,61 +216,63 @@ class LlmManagerLLama(LlmManager):
                 raise ValueError("Failed to create bitmap from image bytes")
             return bitmap
 
+    def _render(self, messages, functions = None, function_call = None, tools = None, tool_choice = None):
+        def raise_exception(_msg: str):
+            print(self.llm.metadata["tokenizer.chat_template"])
+            print()
+            print(_msg)
+
+        text = self.chat_template.render(
+            messages=messages,
+            add_generation_prompt=True,
+            eos_token=self.llm.detokenize([self.llm.token_eos()]),
+            bos_token=self.llm.detokenize([self.llm.token_bos()]),
+            strftime_now=strftime_now,
+            functions=functions,
+            function_call=function_call,
+            tools=tools,
+            tool_choice=tool_choice,
+            raise_exception=raise_exception,
+            enable_thinking=True
+        )
+        return text
+
     def _update_special_strings(self):
         # we sometimes seed the assistant response to get rid of crap like "ok, lets tackle this, here is a bunch of useless words and now here is what you wanted :) <result>"
         if self.clip_model_path is None or self.clip_model_path == "":
             messages = [
-                {"role": "system", "content": "test1"},
-                {"role": "user", "content": "test2@test3@test4"},
-                {"role": "assistant", "content": "test5"},
-                {"role": "user", "content": "test6"},
-                {"role": "assistant", "content": "test7"}
+                {"role": "system", "content": "test1", "tool_calls": None},
+                {"role": "user", "content": "test2@test3@test4", "tool_calls": None},
+                {"role": "assistant", "content": "test5", "tool_calls": None},
+                {"role": "user", "content": "test6", "tool_calls": None},
+                {"role": "assistant", "content": "test7", "tool_calls": None}
             ]
         else:
             messages = [
-                {"role": "system", "content": "test1"},
+                {"role": "system", "content": "test1", "tool_calls": None},
                 {
                     "role": "user",
+                    "tool_calls": None,
                     "content": [
                         {"type": "text", "text": "test2"},
                         {"type": "type", "image_url": {"url": "test3", "image_url": "test3", "data_url": "test3"}, "image": {"url": "test3", "image_url": "test3", "data_url": "test3"}},
                         {"type": "text", "text": "test4"},
                     ]
                 },
-                {"role": "assistant", "content": "test5"},
-                {"role": "user", "content": "test6"},
-                {"role": "assistant", "content": "test7"}
+                {"role": "assistant", "content": "test5", "tool_calls": None},
+                {"role": "user", "content": "test6", "tool_calls": None},
+                {"role": "assistant", "content": "test7", "tool_calls": None}
             ]
 
         try:
-            text = self.chat_template.render(
-                messages=messages,
-                add_generation_prompt=True,
-                eos_token=self.llm.detokenize([self.llm.token_eos()]),
-                bos_token=self.llm.detokenize([self.llm.token_bos()]),
-                strftime_now=strftime_now
-            )
+            text = self._render(messages)
         except Exception as e:
-            try:
-                text = self.chat_template.render(
-                    messages=messages,
-                    add_generation_prompt=True,
-                    eos_token=self.llm.detokenize([self.llm.token_eos()]),
-                    bos_token=self.llm.detokenize([self.llm.token_bos()]),
-                    strftime_now=strftime_now
-                )
-            except:
-                messages = messages[1:]  # remove sys prompt in case its not allowed for model
-                text = self.chat_template.render(
-                    messages=messages,
-                    add_generation_prompt=True,
-                    eos_token=self.llm.detokenize([self.llm.token_eos()]),
-                    bos_token=self.llm.detokenize([self.llm.token_bos()]),
-                    strftime_now=strftime_now
-                )
+            messages = messages[1:]  # remove sys prompt in case its not allowed for model
+            text = self._render(messages)
 
         self.remove_ass_string = text.split("test7")[1]
         self.user_to_ass_string = between(text, "test6", "test7")
+        self.user_to_ass_string = self.user_to_ass_string.replace("<think>", "").replace("</think>", "").strip()
         self.ass_to_user_string = between(text, "test5", "test6")
         if "test3" in text:
             self.text_to_image_string = between(text, "test2", "test3")
@@ -320,7 +322,7 @@ class LlmManagerLLama(LlmManager):
         # convert format
         openai_inp = []
         for msg in inp_formatted:
-            openai_inp.append({"role": msg[0], "content": msg[1]})
+            openai_inp.append({"role": msg[0], "content": msg[1], "tool_calls": None})
 
         cached_image_chunks = []
         begin_image_token = -1
@@ -330,17 +332,7 @@ class LlmManagerLLama(LlmManager):
         trimmed = False
         while True:
             try:
-                def raise_exception(msg: str):
-                    print(msg)
-
-                rendered_data = self.chat_template.render(
-                    messages=openai_inp,
-                    add_generation_prompt=True,
-                    eos_token=self.llm.detokenize([self.llm.token_eos()]),
-                    bos_token=self.llm.detokenize([self.llm.token_bos()]),
-                    raise_exception=raise_exception,
-                    strftime_now=strftime_now
-                )
+                rendered_data = self._render(openai_inp)
             except Exception as e:
                 print(f"Error when trimming prompt: {e}\n{openai_inp}")
 
@@ -458,6 +450,43 @@ class LlmManagerLLama(LlmManager):
 
         return inp_formatted, openai_inp, tokenized_prompt, cached_image_chunks
 
+    def _get_sampler_completion_args(self, comp_settings: CommonCompSettings):
+        sampler_args = {
+            "temperature": comp_settings.temperature,
+            "top_k": comp_settings.top_k,
+            "top_p": comp_settings.top_p,
+            "min_p": comp_settings.min_p,
+            "repeat_penalty": comp_settings.repeat_penalty,
+            "frequency_penalty": comp_settings.frequency_penalty,
+            "presence_penalty": comp_settings.presence_penalty,
+        }
+
+        comp_args = {
+            "max_tokens": comp_settings.max_tokens,
+            "stop": comp_settings.stop_words,
+            "seed": comp_settings.seed
+        }
+
+        completion_args = sampler_args | comp_args
+
+        self.llm.set_seed(-1)
+        if comp_settings.seed is not None:
+            self.llm.set_seed(comp_settings.seed)
+
+        sampler_args["temp"] = sampler_args["temperature"]
+        # sampler has temp instead of temperature
+        del sampler_args["temperature"]
+
+        logit_bias_map = {}
+        if comp_settings.disable_eos:
+            logit_bias_map[self.llm.token_eos()] =  float('-inf')
+        if comp_settings.disable_eot:
+            logit_bias_map[self.llm.token_eot()] = float('-inf')
+        if len(logit_bias_map) > 0:
+            sampler_args["logit_bias"] = logit_bias_map
+
+        return sampler_args, completion_args
+
     def completion_tool(self,
                         preset: LlmPreset,
                         inp: List[Tuple[str, str]],
@@ -488,35 +517,7 @@ class LlmManagerLLama(LlmManager):
         if log_file_path is not None:
             log_conversation(inp_formatted, log_file_path, 200)
 
-        sampler_args = {
-            "temperature": comp_settings.temperature,
-            "top_k": comp_settings.top_k,
-            "top_p": comp_settings.top_p,
-            "min_p": comp_settings.min_p,
-            "repeat_penalty": comp_settings.repeat_penalty,
-            "frequency_penalty": comp_settings.frequency_penalty,
-            "presence_penalty": comp_settings.presence_penalty,
-        }
-
-        comp_args = {
-            "max_tokens": comp_settings.max_tokens,
-            "stop": comp_settings.stop_words,
-            "seed": comp_settings.seed
-        }
-
-        completion_args = sampler_args | comp_args
-
-        self.llm.set_seed(-1)
-        if comp_settings.seed is not None:
-            self.llm.set_seed(comp_settings.seed)
-
-        sampler_args["temp"] = sampler_args["temperature"]
-        # sampler has temp instead of temperature
-        del sampler_args["temperature"]
-
-        if comp_settings.disable_eos:
-            logit_bias_map = {self.llm.token_eos(): -1000000.0}
-            sampler_args["logit_bias"] = logit_bias_map
+        sampler_args, completion_args = self._get_sampler_completion_args(comp_settings)
 
         calls = []
 
@@ -626,15 +627,14 @@ class LlmManagerLLama(LlmManager):
                 sample_idx = n_tokens + len(tokenized_prompt) - 1
                 finish_reason = "length"
 
-                def eval_local(tokens):
+                def eval_local(_tokens):
                     nonlocal sample_idx
-                    sample_idx += len(tokens)
-                    for t in tokens:
+                    sample_idx += len(_tokens)
+                    for t in _tokens:
                         completion_tokens.append(t)
                         all_tokens.append(t)
-                    self.llm.eval(tokens)
+                    self.llm.eval(_tokens)
 
-                bad_tokens = []
                 cur_functin_call_buffer = []
                 function_called = False
                 duplex_user_buffer = ""
@@ -783,7 +783,7 @@ class LlmManagerLLama(LlmManager):
             grammar = LlamaGrammar(_grammar=gbnf_grammar)
             while True:
                 try:
-                    res = self.llm.create_chat_completion_openai_v1(openai_inp, grammar=grammar, **comp_args)
+                    res = self.llm.create_chat_completion_openai_v1(openai_inp, grammar=grammar, **completion_args)
                     content = res.choices[0].message.content
                     finish_reason = res.choices[0].finish_reason
                     good_json_string = repair_json(content)
@@ -846,7 +846,6 @@ AVAILABLE TOOLS:
         within a <think> block before providing a final answer.
 
         Args:
-            prompt: The initial user query.
             url: The HTTP URL of the fastmcp server.
             comp_settings: The completion settings.
 
@@ -878,14 +877,23 @@ AVAILABLE TOOLS:
 
                 addendum = self._create_agentic_system_prompt_addendum(tool_docs)
 
-                comp_settings.tools_json_optional = [ToolRouterModel]  # Use optional for the enforcer
-
                 # get tokens and formatted version of raw prompt
                 inp_formatted, openai_inp, prompt_tokens, _ = self._tokenize_prompt(preset, inp, comp_settings, addendum)
 
                 self.llm.reset()
                 self.llm.eval(prompt_tokens)
                 self.llm._sampler = None
+
+                # call tools as long as necessary until server says "kill_generation"
+                sampler_args, completion_args = self._get_sampler_completion_args(comp_settings)
+                sampler_args_with_grammar = copy.copy(sampler_args)
+
+                json_sampler = None
+                if comp_settings.agentic_force_server_stop:
+                    gbnf_grammar, documentation = better_generate_gbnf_grammar_and_documentation(ts.sub_models)
+                    grammar = LlamaGrammar(_grammar=gbnf_grammar)
+                    sampler_args_with_grammar["grammar"] = grammar
+                    json_sampler = self.llm._init_sampler(**sampler_args_with_grammar)
 
                 # 3. The Agent Loop
                 completion_tokens = []
@@ -904,14 +912,14 @@ AVAILABLE TOOLS:
 
                 last_tool_call = 0
 
-                def eval_local(tokens):
-                    for t in tokens:
-                        completion_tokens.append(t)
-                        all_tokens.append(t)
-                    self.llm.eval(tokens)
+                def eval_local(_tokens):
+                    for _t in _tokens:
+                        completion_tokens.append(_t)
+                        all_tokens.append(_t)
+                    self.llm.eval(_tokens)
 
-                bad_tokens = []
                 cur_functin_call_buffer = []
+                cur_structured_buffer = []
                 function_called = False
                 while len(completion_tokens) < max_tokens:
                     base_settings = {
@@ -923,34 +931,18 @@ AVAILABLE TOOLS:
                         "presence_penalty": 1
                     }
 
-                    #if grammar is not None:
-                    #    base_settings["grammar"] = grammar
+                    token = self.llm.sample(idx=sample_idx, **sampler_args)
 
-                    token = -1
-                    # disable eog tokens until a function has been called!
-                    while True:
-                        if len(bad_tokens) > 0 and False:
-                            logit_bias = {x: -9999 for x in bad_tokens}
-                            logit_bias_map = {int(k): float(v) for k, v in logit_bias.items()}
-
-                        token = self.llm.sample(idx=sample_idx, **base_settings)
-                        if function_called:
-                            break
-
-                        if llama_cpp.llama_token_is_eog(self.llm._model.vocab, token):
-                            if token not in bad_tokens:
-                                bad_tokens.append(token)
-                        else:
-                            break
-
-                    cur_tokens_to_eval = [token]
                     cur_token_as_text = self._detokenize([token], special=False)
+                    cur_tokens_to_eval = [token]
+                    cur_structured_buffer.append(token)
+                    print(cur_token_as_text, end="")
 
                     cur_completion_as_text = self._detokenize(completion_tokens, special=False)
                     detokenized_last_few = self._detokenize(completion_tokens[last_tool_call:], special=False) #cur_completion_as_text[last_tool_call:]
 
                     # check for exit
-                    if llama_cpp.llama_token_is_eog(self.llm._model.vocab, token):
+                    if token == self.llm.token_eos():
                         finish_reason = "stop"
                         break
                     if comp_settings.stop_words is not None:
@@ -970,9 +962,6 @@ AVAILABLE TOOLS:
                         json_text = cur_completion_as_text[json_start_index:]
 
                         cur_functin_call_buffer = [json_text]
-
-                        #gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation([ToolRouterModel])
-                        #grammar = LlamaGrammar.from_string(gbnf_grammar)
 
                         last_tool_call = len(completion_tokens) - 1
 
@@ -1018,6 +1007,7 @@ AVAILABLE TOOLS:
                                     result_text = f"Error when calling MCP-Server: {e}"
 
                                 if "kill_generation" in result_text:
+                                    finish_reason = "stop"
                                     break
 
                                 injection_text = f"\n```tool_output\n{result_text}\n```\n"
@@ -1035,8 +1025,63 @@ AVAILABLE TOOLS:
                             # completion_tokens.extend(result_tokens)
                     else:
                         eval_local(cur_tokens_to_eval)
-                        # self.llm.eval(cur_tokens_to_eval)
                         sample_idx += len(cur_tokens_to_eval)
+
+                        has_valid_tool_call = False
+                        cur_structured_buffer_as_text = self._detokenize(cur_structured_buffer, special=False)
+
+                        if "</think>" in cur_structured_buffer_as_text:
+                            cur_structured_buffer.clear()
+                            self.llm._sampler = json_sampler
+
+                        try:
+                            if "{" in cur_structured_buffer_as_text and "}" in cur_structured_buffer_as_text:
+                                json.loads(parse_json_from_response(cur_structured_buffer_as_text))
+                                has_valid_tool_call = True
+                        except ValueError as e:
+                            pass
+
+                        if has_valid_tool_call:
+                            try:
+                                json_text = repair_json(parse_json_from_response(cur_structured_buffer_as_text))
+                                cur_structured_buffer.clear()
+
+                                tool_call_data = json.loads(json_text)
+                                # The router model ensures only one key is present
+                                tool_key = list(tool_call_data.keys())[0]
+                                tool_name = tool_key #tool_key.replace('_', '-')  # Convert back to MCP format
+                                tool_args = tool_call_data[tool_key]
+                                if isinstance(tool_args, dict) and "" in tool_args:
+                                    del tool_args[""]
+
+                                # Execute the tool via fastmcp
+                                try:
+                                    result = loop.run_until_complete(client.call_tool(tool_name, tool_args))
+                                    if len(result) > 0:
+                                        result_text = dict(result[0])
+                                    else:
+                                        result_text = "Successful; No items returned."
+                                except Exception as e:
+                                    result_text = f"Error when calling MCP-Server: {e}"
+
+                                if "kill_generation" in result_text:
+                                    finish_reason = "stop"
+                                    break
+
+                                injection_text = f"\n```tool_output\n{result_text}\n```\n"
+                                function_called = True
+                            except Exception as e:
+                                logger.error(f"Tool execution failed: {e}", exc_info=True)
+                                injection_text = f"\n```tool_output\nLocal Python exception when trying to call remote tool server: {e}\n```\n"
+
+                            # Inject the result back into the LLM's context
+                            result_tokens = self._tokenize(self.ass_to_user_string + injection_text + self.user_to_ass_string, special=True)
+                            # self.llm.eval(result_tokens)
+                            eval_local(result_tokens)
+                            sample_idx += len(result_tokens)
+                            last_tool_call = len(completion_tokens) - 1
+
+                            self.llm._sampler = None
             finally:
                 # 4) exit and clean up
                 loop.run_until_complete(client.__aexit__(None, None, None))
@@ -1055,10 +1100,13 @@ AVAILABLE TOOLS:
             func_calling = "```".join(parts[:-1])
             user_reply = parts[-1]
 
+            # get full output
+            agentic_answer = self._detokenize(self.llm.input_ids[:self.llm.n_tokens].tolist(), special=True)
+
             summarization_prompt = [
                 ("system", f"You are an expert at summarizing technical actions into a simple, single sentence of narrative. Do not add any extra text or pleasantries. "
-                           f"You translate tool calls of the AI agent {companion_name} into short, narrative elements."),
-                ("user", f"Summarize the following tool call, which the AI companion {companion_name} performed, in one narrative sentence:\n\n{func_calling}"),
+                           f"You translate tool calls of the AI agent into short, narrative elements."),
+                ("user", f"Summarize the following tool call, which the AI companion performed, in one narrative sentence:\n\n{func_calling}"),
                 ("assistant", "Okay, here is a minimal summary for the tool call:\n")
             ]
             # Use your existing completion_text for this small, targeted task

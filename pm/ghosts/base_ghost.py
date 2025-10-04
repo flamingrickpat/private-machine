@@ -76,6 +76,7 @@ class BaseGhost(KnoxelHaver):
         super().__init__()
         self.llm = llm
         self.config = config
+        self.current_db_path: str = ""
 
         self.current_tick_id: int = 0
         self.current_knoxel_id: int = 0
@@ -187,7 +188,7 @@ class BaseGhost(KnoxelHaver):
             knoxel.embedding = self.llm.get_embedding(knoxel.content)
 
     def get_knoxel_by_id(self, knoxel_id: int) -> Optional[KnoxelBase]:
-        return self.all_knoxels.get(knoxel_id)
+        return self.all_knoxels.get(knoxel_id, None)
 
     def _reset_internal_state(self):
         """Clears all knoxels, states, and resets IDs."""

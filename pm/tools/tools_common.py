@@ -15,11 +15,12 @@ from pydantic import BaseModel, Field, create_model
 
 
 class ToolSet:
-    def __init__(self, tool_router_model: Type[BaseModel], tool_select_model: Type[BaseModel], tool_docs: str, tool_select_docs: str):
+    def __init__(self, tool_router_model: Type[BaseModel], tool_select_model: Type[BaseModel], sub_models: List[Type[BaseModel]], tool_docs: str, tool_select_docs: str):
         self.tool_router_model = tool_router_model
         self.tool_select_model = tool_select_model
         self.tool_docs = tool_docs
         self.tool_select_docs = tool_select_docs
+        self.sub_models = sub_models
 
 
 # Add these new methods inside your LlamaCppLlm class
@@ -39,6 +40,7 @@ def create_tool_router_model(tools: List[Dict[str, Any]]) -> ToolSet:
     router_fields = {}
     select_fields = {"holistic_reasoning": (str, Field(None, description="Your final, holistic justification. First, summarize the AI's current state and main goal. Then, explain WHY the highest-rated action is the best strategic choice compared to the others."))}
     tool_docs = []
+    sub_models = []
 
     for tmp in tools:
         tool = dict(tmp)
@@ -85,6 +87,8 @@ def create_tool_router_model(tools: List[Dict[str, Any]]) -> ToolSet:
         arg_fields = {}
         # The schema is nested under 'parameters'
         params_schema = tool.get('parameters', {}).get('properties', {})
+        if len(params_schema) == 0:
+            params_schema = tool.get('inputSchema', {}).get('properties', {})
         for param_name, param_props in params_schema.items():
             param_type = str  # Default type
             if param_props.get('type') == 'integer':
@@ -99,6 +103,14 @@ def create_tool_router_model(tools: List[Dict[str, Any]]) -> ToolSet:
         # The name of the arguments model should be unique and descriptive
         args_model_name = f"{pydantic_tool_name.title().replace('_', '')}Args"
         ArgsModel = create_model(args_model_name, **arg_fields)
+        #ArgsModel.__doc__ = tool.get('description', "")
+
+        tool_model_fields = {}
+        tool_model_fields[pydantic_tool_name] = (ArgsModel, Field(...))
+        toolModel = create_model(f'ToolModel{args_model_name}', **tool_model_fields)
+        toolModel.__doc__ = tool.get('description', "")
+
+        sub_models.append(toolModel)
 
         # Add this tool's argument model as an optional field to the main router
         router_fields[pydantic_tool_name] = (Optional[ArgsModel], Field(None, description=tool.get('description', '')))
@@ -140,7 +152,7 @@ def create_tool_router_model(tools: List[Dict[str, Any]]) -> ToolSet:
     ToolSelectModel = create_model('ToolSelectModel', **select_fields)
     ToolSelectModel.__doc__ = "Use this to rate the usefulness of each tool. No tool must be called, you just need to detect IF a tool is useful. If no tool is useful, rate them all 0 or select reply_user!"
 
-    return ToolSet(ToolRouterModel, ToolSelectModel, "\n".join(tool_docs), "\n".join(tool_docs_with_reply))
+    return ToolSet(ToolRouterModel, ToolSelectModel, sub_models, "\n".join(tool_docs), "\n".join(tool_docs_with_reply))
 
 def get_toolset_from_url(url: str) -> ToolSet | None:
     if url is None or url == "":

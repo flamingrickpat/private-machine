@@ -1385,6 +1385,276 @@ SELECT * FROM ranked;
 """.strip()
         ))
 
+        # 1) Preferences (music/food/etc.) synthesized from dialogue + facts
+        Q.append(dict(
+            id="synth.preferences.topic",
+            title="Synthesize user/agent preference for a topic (e.g., music)",
+            tags=["synthesis", "preferences", "semantic", "dialogue", "facts"],
+            description=(
+                "There is no dedicated 'preferences' table. Retrieve likely evidence from dialogue and facts, "
+                "rank semantically to {{TEXT}} (e.g., 'Emmy music preference'), then the LLM must read the rows and "
+                "compose a concise answer citing the strongest evidence."
+            ),
+            sql="""
+        WITH q AS (SELECT query_embedding({{TEXT}}) AS qvec),
+        pool AS (
+          SELECT id, 'event' AS kind, ts, content, embedding
+          FROM events
+          WHERE content ILIKE '%like%' OR content ILIKE '%prefer%' OR content ILIKE '%favorite%' 
+             OR content ILIKE '%music%' OR content ILIKE '%song%' OR content ILIKE '%playlist%' OR content ILIKE '%genre%'
+          UNION ALL
+          SELECT id, 'fact' AS kind, ts, content, embedding
+          FROM facts
+          WHERE content ILIKE '%like%' OR content ILIKE '%prefer%' OR content ILIKE '%favorite%'
+             OR content ILIKE '%music%' OR content ILIKE '%song%' OR content ILIKE '%playlist%' OR content ILIKE '%genre%'
+        )
+        SELECT kind, id, ts,
+               cosine_distance(embedding, (SELECT qvec FROM q)) AS dist,
+               content
+        FROM pool
+        ORDER BY dist ASC, ts DESC
+        LIMIT 50;
+        """.strip()
+        ))
+
+        # 2) Routine inference: extract morning/evening habits from last {{DAYS}} days
+        Q.append(dict(
+            id="synth.routine.windowed",
+            title="Synthesize daily routine from recent dialogue/features",
+            tags=["synthesis", "routine", "temporal", "semantic"],
+            description=(
+                "No 'routine' table. Pull semantically similar events to the topic ({{TEXT}}, e.g., 'morning routine'), "
+                "limited to last {{DAYS}} days; then summarize likely routine steps and times from the evidence."
+            ),
+            sql="""
+        WITH q AS (SELECT query_embedding({{TEXT}}) AS qvec),
+        recent AS (
+          SELECT id, kind, subtype, ts, content, embedding
+          FROM events
+          WHERE ts >= localtimestamp - INTERVAL {{DAYS}} DAY
+        ),
+        ranked AS (
+          SELECT id, kind, subtype, ts,
+                 cosine_distance(embedding, (SELECT qvec FROM q)) AS dist,
+                 content
+          FROM recent
+          ORDER BY dist ASC
+          LIMIT 120
+        )
+        SELECT * FROM ranked ORDER BY ts ASC;
+        """.strip()
+        ))
+
+        # 3) Open commitments: intentions that look like promises/tasks not fulfilled
+        Q.append(dict(
+            id="synth.commitments.open",
+            title="Synthesize open commitments/promises",
+            tags=["synthesis", "intentions", "commitments"],
+            description=(
+                "No 'commitments' table. Use intentions with low fulfilment, rank by urgency/incentive_salience, "
+                "and synthesize a prioritized TODO/commitments list."
+            ),
+            sql="""
+        SELECT id, internal, urgency, incentive_salience, affective_valence, fulfilment,
+               timestamp_world_begin AS ts, content
+        FROM intentions
+        WHERE fulfilment IS NOT NULL AND fulfilment < 0.5
+        ORDER BY urgency DESC, incentive_salience DESC, ts DESC
+        LIMIT 100;
+        """.strip()
+        ))
+
+        # 4) Safety concerns: synthesize risk assessment from evidence
+        Q.append(dict(
+            id="synth.safety.concerns",
+            title="Synthesize safety concerns from recent context",
+            tags=["synthesis", "safety", "semantic"],
+            description=(
+                "There is no 'safety' table. Pull recent events whose text includes risk terms or are semantically "
+                "close to {{TEXT}} (e.g., 'safety risk'), then summarize risks and recommended mitigations."
+            ),
+            sql="""
+        WITH q AS (SELECT query_embedding({{TEXT}}) AS qvec),
+        recent AS (
+          SELECT id, kind, subtype, ts, content, embedding
+          FROM events
+          WHERE ts >= localtimestamp - INTERVAL 14 DAY
+        ),
+        pool AS (
+          SELECT * FROM recent
+          WHERE content ILIKE '%risk%' OR content ILIKE '%unsafe%' OR content ILIKE '%harm%' OR content ILIKE '%danger%'
+             OR content ILIKE '%warning%' OR content ILIKE '%incident%'
+          UNION ALL
+          SELECT * FROM recent
+        ),
+        ranked AS (
+          SELECT id, kind, subtype, ts,
+                 cosine_distance(embedding, (SELECT qvec FROM q)) AS dist,
+                 content
+          FROM pool
+        )
+        SELECT * FROM ranked ORDER BY dist ASC, ts DESC LIMIT 120;
+        """.strip()
+        ))
+
+        # 5) Relationship dynamics: synthesize stance/affect toward the user
+        Q.append(dict(
+            id="synth.relationship.user",
+            title="Synthesize relationship stance toward the user",
+            tags=["synthesis", "relationship", "affect", "semantic"],
+            description=(
+                "No 'relationship' table. Gather dialogue + features tied to feelings/subjective experience "
+                "that are semantically close to {{TEXT}} (e.g., 'relationship with user'), then summarize stance."
+            ),
+            sql="""
+        WITH q AS (SELECT query_embedding({{TEXT}}) AS qvec),
+        pool AS (
+          SELECT id, 'affect' AS src, timestamp_world_begin AS ts, content, embedding
+          FROM features
+          WHERE feature_type IN ('Feeling','SubjectiveExperience','AttentionFocus')
+          UNION ALL
+          SELECT id, 'dialogue' AS src, ts, content, embedding
+          FROM dialogue_stream
+        ),
+        ranked AS (
+          SELECT src, id, ts,
+                 cosine_distance(embedding, (SELECT qvec FROM q)) AS dist,
+                 content
+          FROM pool
+        )
+        SELECT * FROM ranked ORDER BY dist ASC, ts DESC LIMIT 150;
+        """.strip()
+        ))
+
+        # 6) Topic timeline: synthesize a narrative over time
+        Q.append(dict(
+            id="synth.topic.timeline",
+            title="Synthesize a topic-oriented timeline",
+            tags=["synthesis", "timeline", "semantic"],
+            description=(
+                "No 'topic timeline' table. Rank events by similarity to {{TEXT}} and return a time-ordered slice; "
+                "the agent must narrate the evolution over time."
+            ),
+            sql="""
+        WITH q AS (SELECT query_embedding({{TEXT}}) AS qvec),
+        ranked AS (
+          SELECT id, kind, subtype, ts,
+                 cosine_distance(embedding, (SELECT qvec FROM q)) AS dist,
+                 content
+          FROM events
+        )
+        SELECT * FROM ranked ORDER BY dist ASC, ts ASC LIMIT 200;
+        """.strip()
+        ))
+
+        # 7) Mood trend for topic: synthesize trend summary
+        Q.append(dict(
+            id="synth.topic.mood_trend",
+            title="Synthesize mood trend around a topic",
+            tags=["synthesis", "affect", "trend", "semantic"],
+            description=(
+                "No direct 'mood per topic'. Select Feeling-like features semantically close to {{TEXT}} "
+                "and roll up daily averages; then synthesize the trend interpretation."
+            ),
+            sql="""
+        WITH q AS (SELECT query_embedding({{TEXT}}) AS qvec),
+        cand AS (
+          SELECT timestamp_world_begin AS ts,
+                 affective_valence, incentive_salience, interlocus,
+                 content, embedding
+          FROM features
+          WHERE feature_type IN ('Feeling','SubjectiveExperience')
+        ),
+        ranked AS (
+          SELECT *,
+                 cosine_distance(embedding, (SELECT qvec FROM q)) AS dist
+          FROM cand
+        ),
+        daily AS (
+          SELECT strftime(ts, '%Y-%m-%d') AS day,
+                 AVG(affective_valence)   AS valence_avg,
+                 AVG(incentive_salience)  AS salience_avg,
+                 AVG(interlocus)          AS interlocus_avg,
+                 COUNT(*)                  AS n
+          FROM ranked
+          WHERE dist <= (SELECT PERCENTILE_CONT(0.4) FROM (SELECT dist FROM ranked)) -- keep closest 40%
+          GROUP BY 1
+        )
+        SELECT * FROM daily ORDER BY day ASC;
+        """.strip()
+        ))
+
+        # 8) “What changed the AI’s mind?”: intentions around actions
+        Q.append(dict(
+            id="synth.decision.rationale",
+            title="Synthesize rationale: which observations preceded actions?",
+            tags=["synthesis", "intentions", "actions", "explanations"],
+            description=(
+                "There is no 'rationale' table. Use actions_expectations and nearby dialogue to extract evidence "
+                "of why a decision was made; agent synthesizes the narrative."
+            ),
+            sql="""
+        WITH near AS (
+          SELECT a.action_id, a.action_type, a.action_ts,
+                 i.intention_id, i.intention_ts, i.intention_content, i.urgency, i.incentive_salience, i.fulfilment
+          FROM actions_expectations a
+          JOIN intentions i ON i.id = a.intention_id
+          WHERE a.action_ts >= localtimestamp - INTERVAL 7 DAY
+        ),
+        ctx AS (
+          SELECT d.id, d.kind, d.subtype, d.ts, d.content, d.embedding
+          FROM dialogue_stream d
+          WHERE d.ts >= localtimestamp - INTERVAL 7 DAY
+        )
+        SELECT *
+        FROM near
+        JOIN ctx
+          ON ctx.ts BETWEEN near.action_ts - INTERVAL 10 MINUTE AND near.action_ts + INTERVAL 10 MINUTE
+        ORDER BY near.action_ts ASC, ctx.ts ASC
+        LIMIT 400;
+        """.strip()
+        ))
+
+        # 9) Closest clusters to a synthetic emotional state (EMA)
+        Q.append(dict(
+            id="synth.emotion.closest_clusters",
+            title="Synthesize emotional context via nearest clusters",
+            tags=["synthesis", "mental_state", "clusters", "cosine"],
+            description=(
+                "No 'current emotion' table. Use get_emotional_state({{WHEN}}, {{EMA}}) and retrieve closest temporal clusters; "
+                "agent summarizes what those clusters imply about current context."
+            ),
+            sql="""
+        WITH q AS (SELECT get_emotional_state({{WHEN}}, {{EMA}}) AS qvec)
+        SELECT id, ts, content,
+               cosine_distance(mental_state_delta, (SELECT qvec FROM q)) AS dist
+        FROM clusters_temporal
+        WHERE mental_state_delta IS NOT NULL
+        ORDER BY dist ASC
+        LIMIT 20;
+        """.strip()
+        ))
+
+        # 10) “What are we working on lately?”: synthesize from high-salience features
+        Q.append(dict(
+            id="synth.focus.recent",
+            title="Synthesize current focus from high-salience features",
+            tags=["synthesis", "focus", "salience"],
+            description=(
+                "No 'focus' table. Pull recent features with high incentive_salience and summarize main threads."
+            ),
+            sql="""
+        SELECT id, feature_type, timestamp_world_begin AS ts,
+               incentive_salience, affective_valence, interlocus,
+               content
+        FROM features
+        WHERE timestamp_world_begin >= localtimestamp - INTERVAL 14 DAY
+          AND incentive_salience IS NOT NULL
+        ORDER BY incentive_salience DESC, ts DESC
+        LIMIT 150;
+        """.strip()
+        ))
+
         return Q
 
     def render_welcome_llm(self) -> str:

@@ -35,9 +35,11 @@ class CommonCompSettings:
                  queue_to_user: Queue = None,
                  queue_from_user: Queue = None,
                  disable_eos: bool = False,
+                 disable_eot: bool = False,
                  allow_interrupts: bool = False,
                  wait_for_start_signal: bool = False,
-                 caller_id: str = None
+                 caller_id: str = None,
+                 agentic_force_server_stop: bool = False
                  ):
         self.max_tokens = max_tokens
         self.repeat_penalty = repeat_penalty
@@ -56,9 +58,11 @@ class CommonCompSettings:
         self.queue_to_user = queue_to_user
         self.queue_from_user = queue_from_user
         self.disable_eos = disable_eos
+        self.disable_eot = disable_eot
         self.allow_interrupts = allow_interrupts
         self.wait_for_start_signal = wait_for_start_signal
         self.caller_id = caller_id
+        self.agentic_force_server_stop = agentic_force_server_stop
 
     def fill_defaults(self, model_map: Dict[str, Any], preset: LlmPreset):
         if preset.value in model_map.keys():
