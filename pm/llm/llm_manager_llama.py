@@ -87,6 +87,7 @@ class LlmManagerLLama(LlmManager):
         self.user_to_ass_string = None
         self.ass_to_user_string = None
         self._mtmd_cpp = None
+        self.thinking_mode = False
 
     def _tokenize(self, text: str, special: bool = True, add_bos: bool = False) -> List[int]:
         return self.llm.tokenize(text.encode(encoding="utf-8"), special=special, add_bos=add_bos)
@@ -150,6 +151,7 @@ class LlmManagerLLama(LlmManager):
             model_path = self.model_map[preset.value]["path"]
             layers = self.model_map[preset.value]["layers"]
             mmproj_file = self.model_map[preset.value]["mmproj_file"]
+            self.thinking_mode = self.model_map[preset.value]["thinking_mode"]
         else:
             raise Exception("Unknown model!")
 
@@ -894,6 +896,9 @@ AVAILABLE TOOLS:
                     grammar = LlamaGrammar(_grammar=gbnf_grammar)
                     sampler_args_with_grammar["grammar"] = grammar
                     json_sampler = self.llm._init_sampler(**sampler_args_with_grammar)
+                    if self.thinking_mode:
+                        self.llm._sampler = json_sampler
+
 
                 # 3. The Agent Loop
                 completion_tokens = []
@@ -922,21 +927,11 @@ AVAILABLE TOOLS:
                 cur_structured_buffer = []
                 function_called = False
                 while len(completion_tokens) < max_tokens:
-                    base_settings = {
-                        "top_k": 64,
-                        "top_p": 0.95,
-                        "temp": 0.6,
-                        "repeat_penalty": comp_settings.repeat_penalty,
-                        "frequency_penalty": 1,
-                        "presence_penalty": 1
-                    }
-
                     token = self.llm.sample(idx=sample_idx, **sampler_args)
 
                     cur_token_as_text = self._detokenize([token], special=False)
                     cur_tokens_to_eval = [token]
                     cur_structured_buffer.append(token)
-                    print(cur_token_as_text, end="")
 
                     cur_completion_as_text = self._detokenize(completion_tokens, special=False)
                     detokenized_last_few = self._detokenize(completion_tokens[last_tool_call:], special=False) #cur_completion_as_text[last_tool_call:]
@@ -955,7 +950,7 @@ AVAILABLE TOOLS:
                             finish_reason = "sw"
                             break
 
-                    if not is_generating_tool_call and "```" in detokenized_last_few:
+                    if False and not is_generating_tool_call and "```" in detokenized_last_few:
                         is_generating_tool_call = True
 
                         json_start_index = cur_completion_as_text.rfind('```') + 4
@@ -973,7 +968,7 @@ AVAILABLE TOOLS:
                         eval_local(cur_tokens_to_eval)
                         #self.llm.eval(cur_tokens_to_eval)
                         sample_idx += len(cur_tokens_to_eval)
-                    elif is_generating_tool_call:
+                    elif False and is_generating_tool_call:
                         cur_functin_call_buffer.append(cur_token_as_text)
                         full_text = "".join(cur_functin_call_buffer)
 
@@ -1030,7 +1025,7 @@ AVAILABLE TOOLS:
                         has_valid_tool_call = False
                         cur_structured_buffer_as_text = self._detokenize(cur_structured_buffer, special=False)
 
-                        if "</think>" in cur_structured_buffer_as_text:
+                        if self.thinking_mode and "</think>" in cur_structured_buffer_as_text:
                             cur_structured_buffer.clear()
                             self.llm._sampler = json_sampler
 
@@ -1055,6 +1050,7 @@ AVAILABLE TOOLS:
                                     del tool_args[""]
 
                                 # Execute the tool via fastmcp
+                                result = None
                                 try:
                                     result = loop.run_until_complete(client.call_tool(tool_name, tool_args))
                                     if len(result) > 0:
@@ -1064,7 +1060,7 @@ AVAILABLE TOOLS:
                                 except Exception as e:
                                     result_text = f"Error when calling MCP-Server: {e}"
 
-                                if "kill_generation" in result_text:
+                                if "kill_generation" in result_text or "kill_generation" in str(result):
                                     finish_reason = "stop"
                                     break
 
@@ -1081,7 +1077,8 @@ AVAILABLE TOOLS:
                             sample_idx += len(result_tokens)
                             last_tool_call = len(completion_tokens) - 1
 
-                            self.llm._sampler = None
+                            if self.thinking_mode:
+                                self.llm._sampler = None
             finally:
                 # 4) exit and clean up
                 loop.run_until_complete(client.__aexit__(None, None, None))

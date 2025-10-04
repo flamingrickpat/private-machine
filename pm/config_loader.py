@@ -91,7 +91,8 @@ for model_class, model_key in model_mapping.items():
             "repeat_penalty": models[model_key]["repeat_penalty"],
             "frequency_penalty": models[model_key]["frequency_penalty"],
             "presence_penalty": models[model_key]["presence_penalty"],
-            "mmproj_file": models.get("mmproj_file", "")
+            "mmproj_file": models.get("mmproj_file", ""),
+            "thinking_mode": models.get("thinking_mode", False)
         }
     else:
         raise KeyError(f"Model key '{model_key}' in model_mapping not found in models section.")

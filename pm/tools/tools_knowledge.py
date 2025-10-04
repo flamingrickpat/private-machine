@@ -53,9 +53,7 @@ def report_gathered_knowledge(answer: str) -> str:
     There is no length limit to your answer, make it as detailed as possible.
     :return: your supervisors next task
     """
-    with open("test.txt", "w", encoding="utf-8") as f:
-        f.write(answer)
-
+    print(answer)
     t = Thread(target=kill_self)
     t.start()
     return "kill_generation"

@@ -12,9 +12,13 @@ from pydantic import BaseModel
 
 class LlmPreset(Enum):
     Internal = "Internal"
-    Default = "Default"
     CurrentOne = "current"
+    Default = "Default"
+    DefaultCPU = "DefaultCPU"
     Fast = "Fast"
+    Thinking = "Thinking"
+    BigContext = "BigContext"
+
 
 class CommonCompSettings:
     def __init__(self,
