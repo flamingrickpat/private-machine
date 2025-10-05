@@ -1,5 +1,7 @@
 import logging
 import os
+import sys
+from pathlib import Path
 
 import yaml
 
@@ -27,8 +29,29 @@ shell_system_name = "System-Agent"
 
 # Get absolute path to the config file
 CONFIG_PATH = "config.yaml"
+
+def _find_pm_config_in_argv() -> str | None:
+    """Return a user-provided config path if -pm_config or --pm_config is present."""
+    try:
+        argv = sys.argv  # don’t copy if not available
+    except AttributeError:
+        return None  # e.g. frozen app, REPL, etc.
+
+    for i, arg in enumerate(argv):
+        if arg in ("-pm_config", "--pm_config", "pm_config", "/pm_config"):
+            # next argument exists and isn't another flag
+            if i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+                return argv[i + 1]
+    return None
+
+env_path = os.environ.get("PM_CONFIG")
+if env_path:
+    CONFIG_PATH = Path(env_path).expanduser().resolve().as_posix()
+if _find_pm_config_in_argv() is not None:
+    CONFIG_PATH = _find_pm_config_in_argv()
+
 if not os.path.exists(CONFIG_PATH):
-    raise Exception("config.yaml doesn't exist, it needs to be in the same folder as this file!")
+    raise Exception("config.yaml doesn't exist can't be found. Make sure you're calling pm from the directory where config.yaml is, or set env var PM_CONFIG, or pass --pm_config <PATH>")
 
 # Load YAML file
 with open(CONFIG_PATH, "r", encoding="utf-8") as file:
