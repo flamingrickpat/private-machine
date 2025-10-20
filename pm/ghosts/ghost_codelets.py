@@ -308,8 +308,14 @@ class GhostCodelets(BaseGhost):
         #temporary_ccq = self.merge_ccq(temporary_ccq, self.get_ccq_simple(emotionally_similar_context), weight=self.previous_state.latent_mental_state.state_cognition.ego_strength)
         initial_prompt: List[Tuple[str, str]] = self.create_codelet_prompt(temporary_ccq, max_tokens=int(self.llm.get_max_tokens(LlmPreset.Default) * 0.5))
 
-        print(initial_prompt)
-        cctx = CodeletContext(tick_id=self.current_tick_id, stimulus=self.primary_stimulus, prefill_messages=initial_prompt, context_embedding=short_term_context)
+        cctx = CodeletContext(tick_id=self.current_tick_id, stimulus=self.primary_stimulus, prefill_messages=initial_prompt, context_embedding=short_term_context, llm=self.llm, mental_state=start_latent_ms)
+
+        if self.previous_state and len(self.previous_state.codelet_state) > 0:
+            pass
+            # load state, re-rate the top 30 ones or so
+        else:
+            pass
+            # initially do all
 
         for i in range(10):
             res = []
@@ -342,6 +348,8 @@ class GhostCodelets(BaseGhost):
         codelet_registry.decay()
 
         # gather codelets for data aquisition
+        # run codelet, add to csm, boost paths if possible, sample next codelet, call with extended csm
+        # to prevent csm overflow we need to tag each codelet output with ms vector, and salience and valence
         while True:
             cctx = CodeletContext(self, csm, initial_prompt)
             codelet_candidates = codelet_registry.pick_candidates(cctx, CodeletFamily.ALL - CodeletFamily.ATTENTION)

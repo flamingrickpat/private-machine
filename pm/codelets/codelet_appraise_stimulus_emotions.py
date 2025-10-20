@@ -1,6 +1,6 @@
 from pm.agents.definitions.agent_common_codelet import CommonCodeletAgent
-from pm.codelets.codelet import BaseCodelet, CodeletSignature, CodeletFamily, CodeletSource, CodeletContext, CodeletOutput
-from pm.data_structures import Feature, FeatureType, MLevel, StimulusType
+from pm.codelets.codelet import BaseCodelet, CodeletSignature, CodeletFamily, CodeletContext, CodeletOutput
+from pm.data_structures import Feature, FeatureType, MLevel, StimulusType, StimulusGroup
 from pm.mental_states import EmotionalAxesModel, _verbalize_emotional_state
 from pm.utils.pydantic_utils import create_delta_basemodel
 
@@ -8,9 +8,9 @@ class AppraiseStimulusEmotions(BaseCodelet):
     def _setup(self):
         self.signature = CodeletSignature(
             name="AppraiseStimulusEmotions",
-            family=CodeletFamily.APPRAISAL,
+            family=CodeletFamily.Appraisals,
             description="Get emotional delta and corresponding feature from the stimulus.",
-            preferred_sources={CodeletSource.USER_INPUT, CodeletSource.INTERNAL_THOUGHT},
+            preferred_sources=StimulusGroup.All,
             context_builder_prompt=("Gather medium-term data from the history with a focus on similar stimulations and how {companion_name} reacted to it by focusing on their mental state."
                                  "Also access the narrative best fitting for this kind of stimulus."),
             stimulus_whitelist={StimulusType.UserMessage, StimulusType.SystemMessage, StimulusType.LowNeedTrigger}

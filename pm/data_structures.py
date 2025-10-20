@@ -136,9 +136,11 @@ class StimulusType(StrEnum):
     LowNeedTrigger = "LowNeedTrigger"  # The Shell can periodically (e.g., every 5-10 minutes of inactivity) ask the Ghost for its current needs state. If a need (like connection or learning_growth) drops below a critical threshold, the Shell can generate a stimulus.  Narrative Content: `"Internal monitoring shows my need for relevance is critically low (0.2). I feel a strong urge to be useful."*
     WakeUp = "WakeUp"  # If the Ghost was Sleeping, the Shell generates this stimulus when the sleep duration is over or if the user interrupts the sleep. Narrative Content: "The 8-hour sleep cycle has completed. I am now awake."* or"The user sent a message, interrupting my sleep cycle."*
     EngagementOpportunity = "EngagementOpportunity"  # From the new strategist
+    MemoryRecall = "MemoryRecall"
 
 
 class StimulusGroup(StrEnum):
+    All = "All"
     WorldInput = "WorldInput"
     SystemInput = "SystemInput"
     ToolInput = "ToolInput"

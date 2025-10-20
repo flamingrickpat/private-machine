@@ -3,31 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List, Dict, Tuple, Set
+
+from nltk.cluster import cosine_distance
 from pydantic import BaseModel, Field
 import random
 
-from pm.data_structures import StimulusType, Feature, MLevel, Stimulus, KnoxelBase
+from pm.codelets.codelet_definitions import CodeletFamily, ALL_CODELETS
+from pm.data_structures import StimulusType, Feature, MLevel, Stimulus, KnoxelBase, StimulusGroup
 from pm.csm.csm import CSMState
 from pm.llm.llm_proxy import LlmManagerProxy
+from pm.mental_state_vectors import FullMentalState
 from pm.mental_states import DecayableMentalState
-
-class CodeletSource(Enum):
-    USER_INPUT = auto()
-    INTERNAL_THOUGHT = auto()
-    WORLD_EVENT = auto()
-    MEMORY_DRIVEN = auto()
-    HOMEOSTATIC = auto()
-
-class CodeletFamily(Enum):
-    APPRAISAL = auto()
-    RETRIEVAL = auto()
-    REFRAMING = auto()
-    PLANNING = auto()
-    SIMULATION = auto()
-    SOCIAL = auto()
-    META = auto()
-    NARRATIVE = auto()
-    ACTION_SELECTION = auto()
 
 class CodeletDecision(Enum):
     SKIP = auto()
@@ -37,15 +23,16 @@ class CodeletDecision(Enum):
 class CodeletSignature:
     """Static ‘what this codelet is about’ for embedding & selection."""
     name: str
-    family: CodeletFamily
+    families: List[CodeletFamily]
     description: str                 # long_function_description for cosine
-    preferred_sources: Set[CodeletSource]
+    preferred_sources: StimulusGroup
     stimulus_whitelist: Set[StimulusType] | None = None  # None = any
     stimulus_blacklist: Set[StimulusType] | None = None  # None = none
-    context_builder_prompt: str = None
+    prompt: str = None
 
 class ActivationFactors(BaseModel):
     """Weights used for activation scoring."""
+    w_activation: float = 1.0
     w_stimulus: float = 0.35
     w_state: float = 0.20
     w_keywords: float = 0.10
@@ -58,7 +45,7 @@ class CodeletRuntime(BaseModel):
     last_fired_tick: int | None = None
     total_runs: int = 0
     cooldown_ticks: int = 2
-    activation_score: float = 0
+    activation: float = 0
 
 class CodeletState(BaseModel):
     states: Dict[str, CodeletRuntime] = Field(default_factory=dict)
@@ -68,9 +55,10 @@ class CodeletContext(BaseModel):
     tick_id: int
     stimulus: Stimulus | None
     csm_snapshot: CSMState | None = None
+    mental_state: FullMentalState | None = None
     prefill_messages: List[Tuple[str, str]]
     context_embedding: List[float] | None = None
-    gw_last_text: str | None = None
+    llm: LlmManagerProxy | None = None
 
 class CodeletOutput(BaseModel):
     """Products (non-causal features) and any logs/metrics."""
@@ -130,23 +118,18 @@ class BaseCodelet:
                 s_stim = 1.0
 
         # --- state (very rough placeholder hooks)
-        # s_state = max(0.0, min(1.0, abs(ctx.state.state_emotions.anxiety - 0.5)*0.3
-        #                              + abs(ctx.state.state_cognition.mental_aperture)*0.2
-        #                              + ctx.state.state_needs.relevance*0.5))
+        # todo
+        if ctx.mental_state:
+            s_state = max(0.0, min(1.0, abs(ctx.mental_state.state_core.arousal - 0.5) * 0.3
+                                         + abs(ctx.mental_state.state_cognition.mental_aperture) * 0.2
+                                         + ctx.mental_state.state_needs.relevance * 0.5))
         s_state = 0
 
         # --- keywords heuristic (define your own tag map per codelet, omitted here)
         s_keywords = 0.0  # e.g., search ctx.context_text for codelet-specific hints
 
         # --- vector cosine
-        s_vec = 0.0
-        try:
-            # emb_signature = emb(self.signature.description)
-            # s_vec = cosine_pair(emb_signature, ctx.context_embedding)
-            # Use 0.5 baseline if embeddings are absent
-            s_vec = 0.5 if ctx.context_embedding is None else 0.7
-        except Exception:
-            s_vec = 0.3
+        s_vec = cosine_distance(ctx.context_embedding, ctx.llm.get_embedding(self.signature.description))
 
         # --- recency penalty
         s_recent = 0.0
@@ -158,6 +141,7 @@ class BaseCodelet:
         s_rand = random.random()
 
         score = (
+            self.factors.w_activation * self.runtime.activation +
             self.factors.w_stimulus * s_stim +
             self.factors.w_state * s_state +
             self.factors.w_keywords * s_keywords +
@@ -223,3 +207,22 @@ class CodeletRegistry:
         # high to low
         return sorted(scored, key=lambda x: x[1], reverse=True)
 
+    @classmethod
+    def init_from_simple_codelets(cls, ctx: CodeletContext):
+        res = cls()
+        for base_codelet in ALL_CODELETS:
+            sig = CodeletSignature(name=base_codelet.name, families=base_codelet.codelet_families, description=base_codelet.description, preferred_sources=StimulusGroup.All, prompt=base_codelet.prompt)
+            cdl = BaseCodelet(sig, llm=ctx.llm)
+            res.register(cdl)
+        return res
+
+    def get_codelet_state(self) -> CodeletState:
+        res = CodeletState()
+        for k, v in self._items.items():
+            res.states[k] = v.runtime.copy()
+        return res
+
+    def apply_codelet_state(self, cs: CodeletState):
+        for k, v in self._items.items():
+            if k in cs.states.keys():
+                v.runtime = cs.states[k].copy()

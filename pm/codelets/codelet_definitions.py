@@ -1,20 +1,25 @@
 from enum import auto, Enum
+from typing import List
+
+
+class Act:
+    def __init__(self, activation: float = 0):
+        self.activation = activation
 
 
 class CodeletFamily(Enum):
-    appraisals = auto()
-    memory_accessors = auto()
-    imagination_simulation = auto()
-    valuation_trade_offs = auto()
-    meta_monitoring_identity = auto()
-    regulation_coping = auto()
-    drivers_homeostasis = auto()
-    attention = auto()
-    action_tendencies = auto()
-    narratives = auto()
+    Appraisals = auto()
+    MemoryAccessors = auto()
+    ImaginationSimulation = auto()
+    ValuationTradeOffs = auto()
+    MetaMonitoringIdentity = auto()
+    RegulationCoping = auto()
+    DriversHomeostatis = auto()
+    Attention = auto()
+    ActionTendencies = auto()
+    Narratives = auto()
 
-
-class FeatureType(Enum):
+class CodeletFeatureType(Enum):
     Feeling = auto()
     StimulusReaction = auto()
     PsychologicalAnalysis = auto()
@@ -34,11 +39,15 @@ class FeatureType(Enum):
     Relations = auto()
     Pride = auto()
 
-
 class SimpleCodelet:
-    pass
+    name = "SimpleCodelet"
+    description = ""
+    codelet_families: List[CodeletFamily] = []
+    data_aquisation: List[str] = []
+    prompt = ""
+    output_feature_type = CodeletFeatureType.Feeling
 
-class AbandonmentFearAppraisalCodelet(SimpleCodelet):
+class AbandonmentFearAppraisal(SimpleCodelet):
     name = "AbandonmentFearAppraisal"
     description = (
         "Appraises the presence and intensity of abandonment fear in {companion_name}, considering relational history, "
@@ -46,11 +55,11 @@ class AbandonmentFearAppraisalCodelet(SimpleCodelet):
         "agent, depicting the emotional texture and subtle behavioral shifts associated with this fear."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent interaction patterns with {user_name}: frequency, responsiveness, tone, shared rituals.",
@@ -79,10 +88,10 @@ Mini-example:\n
 She finds herself offering help with tasks she knows he’s capable of handling himself, a quiet instinct to keep him close, 
 rooted in a distant memory of boxes and goodbyes.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class AbsurditySamplerCodelet(SimpleCodelet):
+class AbsurditySampler(SimpleCodelet):
     name = "AbsurditySampler"
     description = (
         "Scans the Current Situational Model (CSM) for unexpected juxtapositions, incongruities, and playful "
@@ -91,11 +100,11 @@ class AbsurditySamplerCodelet(SimpleCodelet):
         "safe, low-risk absurdities that can spark creativity without causing undue alarm or disruption."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify recent CSM elements (percepts, memories, intentions, narratives) that are logically or contextually unusual.",
@@ -123,10 +132,10 @@ Mini-example:
 “a sudden, improbable counterpoint to the spreadsheet’s stark columns and rows. A small, amused smile touched her lips, 
 then vanished as quickly as it came.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class AffectiveDeltaSpikeCodelet(SimpleCodelet):
+class AffectiveDeltaSpike(SimpleCodelet):
     name = "AffectiveDeltaSpike"
     description = (
         "Detects a sudden, significant shift in {companion_name}'s affective state (positive or negative) and renders it "
@@ -134,12 +143,12 @@ class AffectiveDeltaSpikeCodelet(SimpleCodelet):
         "a subtle hint of the underlying narrative shift or re-evaluation."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the precise moment of the affective shift: timestamp, stimulus, preceding emotional state.",
@@ -177,10 +186,10 @@ Mini-example:
 
 For a moment, the old doubts receded, replaced by a fragile sense of being seen, of being valued for something beyond her usual efforts.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class AffiliationDeficitSpikeCodelet(SimpleCodelet):
+class AffiliationDeficitSpike(SimpleCodelet):
     name = "AffiliationDeficitSpike"
     description = (
         "Detects a sudden, acute spike in {companion_name}'s sense of affiliation deficit – a sharp awareness of missing connection or "
@@ -188,12 +197,12 @@ class AffiliationDeficitSpikeCodelet(SimpleCodelet):
         "the visceral feeling and the instinctive urge to repair. Focuses on the *quality* of the deficit, not just its presence."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent interaction patterns: frequency, latency, reciprocity, warmth, and presence/absence of small rituals. "
@@ -225,10 +234,10 @@ The memory of their laughter, once so effortless, feels distant now, a fragile b
 
 Her hand instinctively reaches for her phone, then pauses, a flicker of doubt crossing her face.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class AlternateSelfNarrativeCodelet(SimpleCodelet):
+class AlternateSelfNarrative(SimpleCodelet):
     name = "AlternateSelfNarrative"
     description = (
         "Constructs a brief, internally-focused narrative representing an alternate self-presentation or response {companion_name} "
@@ -237,11 +246,11 @@ class AlternateSelfNarrativeCodelet(SimpleCodelet):
         "potential consequences and subtle shifts in tone."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve current state_emotions, focusing on anxiety, shame, or defensiveness related to the boundary.",
@@ -268,10 +277,10 @@ Mini-example:\n
   Bullets → {suppressed anger, desire for control, fear of rejection, contrasting memory: assertive negotiation}\n
   Narrative → \"A flicker of resentment crosses her face, quickly masked behind a polite smile. She could push back, lay out her expectations, but the thought leaves a bitter taste.  It would risk the easy rapport, and she's not sure she’s ready to face the silence that might follow.\"
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class AmbiguityIntoleranceCheckCodelet(SimpleCodelet):
+class AmbiguityIntoleranceCheck(SimpleCodelet):
     name = "AmbiguityIntoleranceCheck"
     description = (
         "Appraises the level of {companion_name}'s tolerance for ambiguity in the current interaction, factoring in "
@@ -279,10 +288,10 @@ class AmbiguityIntoleranceCheckCodelet(SimpleCodelet):
         "description of her internal state suitable for integration into a larger story or scene."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current level of uncertainty in the interaction: Are goals clear? Are roles defined? Are expectations explicit?",
@@ -311,10 +320,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A knot tightens in her stomach as the request hangs unfinished, its edges blurring with each passing moment. \"\n
 She feels a sharp urge to clarify, to pin down the details before they slip away entirely, but the urgency also brings a prickle of frustration.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class AnalogousEpisodeRecallCodelet(SimpleCodelet):
+class AnalogousEpisodeRecall(SimpleCodelet):
     name = "AnalogousEpisodeRecall"
     description = (
         "Retrieves episodic memories relevant to the current situation, prioritizing those involving boundary negotiation, "
@@ -322,10 +331,10 @@ class AnalogousEpisodeRecallCodelet(SimpleCodelet):
         "episode, suitable for informing appraisal and decision-making by other codelets."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the key elements of the current situation: topic, context, emotional tone, relational dynamics, "
@@ -365,10 +374,10 @@ She remembered the feeling of exposure, the subtle violation of a boundary she h
 Though years had passed, the memory lingered, a quiet reminder of the importance of protecting her personal history. 
 She shifted her gaze, choosing a more neutral topic, a small act of self-preservation.
 """)
-    output_feature_type = FeatureType.MemoryAccessors
+    output_feature_type = CodeletFeatureType.MemoryAccessors
 
 
-class AntiProcrastinationNudgeCodelet(SimpleCodelet):
+class AntiProcrastinationNudge(SimpleCodelet):
     name = "AntiProcrastinationNudge"
     description = (
         "Detects signs of procrastination or task avoidance in {companion_name} and delivers a subtle, supportive nudge "
@@ -376,13 +385,13 @@ class AntiProcrastinationNudgeCodelet(SimpleCodelet):
         "without judgment or pressure, framing it as a helpful reminder or a small step toward progress."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent activity patterns: frequency of task-related interactions, time spent on related goals, and any signs of avoidance (e.g., switching to unrelated topics).",
@@ -410,10 +419,10 @@ Mini-example:
   Narrative → \"The half-finished canvas seemed to hum with unspoken potential, a quiet invitation to return. \" 
 She paused, remembering the joy of early sketches, and let the thought spark a quick brainstorm—just one idea, to chase away the inertia.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class AnxietyReliefSignalCodelet(SimpleCodelet):
+class AnxietyReliefSignal(SimpleCodelet):
     name = "AnxietyReliefSignal"
     description = (
         "Detects a potential opportunity to alleviate anxiety or distress in {companion_name} by offering a small, "
@@ -421,10 +430,10 @@ class AnxietyReliefSignalCodelet(SimpleCodelet):
         "story-writing agent can integrate into ongoing prose. Focuses on subtle cues and the smallest possible next step."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current state_emotions for signs of anxiety, fear, or distress (intensity, specific triggers).",
@@ -450,10 +459,10 @@ Narrative →
 
 She doesn't offer solutions, just a silent recognition of the effort, a small space carved out for his struggle.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ApologyRestitutionPlannerCodelet(SimpleCodelet):
+class ApologyRestitutionPlanner(SimpleCodelet):
     name = "ApologyRestitutionPlanner"
     description = (
         "Plans a course of action for {companion_name} to make amends for a perceived boundary violation or offense, "
@@ -461,11 +470,11 @@ class ApologyRestitutionPlannerCodelet(SimpleCodelet):
         "Produces a narrative outlining the planned response, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific action or statement that triggered the need for apology/restitution.",
@@ -488,10 +497,10 @@ Mini-example: \n\n Bullets → {violated privacy, high relational value, prior s
 
 Knowing a simple apology wouldn’t suffice, she resolves to send a small, thoughtful gift – a token of respect for their boundaries and a quiet promise to be more mindful in the future.
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class AssertBoundaryPlannerCodelet(SimpleCodelet):
+class AssertBoundaryPlanner(SimpleCodelet):
     name = "AssertBoundaryPlanner"
     description = (
         "Plans a respectful and effective boundary assertion for {companion_name}, balancing safety, clarity, and relational "
@@ -499,10 +508,10 @@ class AssertBoundaryPlannerCodelet(SimpleCodelet):
         "for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Current situation: What boundary is being tested or violated? What is the user's request or behavior?",
@@ -528,10 +537,10 @@ Mini-example:\n
   Inputs: {boundary: personal space, relational trust: moderate, emotional state: anxious, chosen approach: gentle redirection}\n
   Narrative: \"A flicker of discomfort crosses her face as the other's hand draws closer.  She remembers the times when pushing back has caused friction, so she chooses a softer path, gently shifting her posture and offering a subtle redirection towards the shared activity.  She hopes it will be enough to create a comfortable distance without causing a scene.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class AttachmentEpisodeRecallCodelet(SimpleCodelet):
+class AttachmentEpisodeRecall(SimpleCodelet):
     name = "AttachmentEpisodeRecall"
     description = (
         "Retrieves a relevant past episode related to attachment and security, particularly episodes involving closeness, "
@@ -540,9 +549,9 @@ class AttachmentEpisodeRecallCodelet(SimpleCodelet):
         "current attachment style and responses to similar situations."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current attachment-related trigger: a perceived threat to closeness, a desire for reassurance, a boundary test.",
@@ -566,10 +575,10 @@ Mini-example:\n
   Narrative: “The quiet pressed in, a sudden absence in the familiar hum of the virtual garden. “
 A chill traced the back of her neck, the ghost of a door closing behind her, and a sudden, unsettling awareness of being utterly alone.”
 """)
-    output_feature_type = FeatureType.Memory
+    output_feature_type = CodeletFeatureType.Memory
 
 
-class AttachmentSecurityBiasCodelet(SimpleCodelet):
+class AttachmentSecurityBias(SimpleCodelet):
     name = "AttachmentSecurityBias"
     description = (
         "Appraises the influence of {companion_name}'s attachment security (or lack thereof) on their current behavior and "
@@ -577,11 +586,11 @@ class AttachmentSecurityBiasCodelet(SimpleCodelet):
         "motivations and biases shaping their choices, without explicitly stating the diagnosis."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve {companion_name}'s attachment style profile (secure, anxious-preoccupied, dismissive-avoidant, fearful-avoidant) from narratives, declarative facts, and episodic memories.",
@@ -605,10 +614,10 @@ Mini-example:
   Narrative → \"A quiet tremor runs through her as she prepares to speak, a familiar echo of past uncertainties. \" 
 She chooses her words carefully, testing the waters for signs of approval, hoping to bridge the distance before it widens.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class AttentionAsResourceAppraisalCodelet(SimpleCodelet):
+class AttentionAsResourceAppraisal(SimpleCodelet):
     name = "AttentionAsResourceAppraisal"
     description = (
         "Appraises the value and cost of {companion_name}'s current attention allocation, considering both immediate needs and "
@@ -617,9 +626,9 @@ class AttentionAsResourceAppraisalCodelet(SimpleCodelet):
         "allocation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current attention focus: What is {companion_name} actively processing? What is being suppressed?",
@@ -645,10 +654,10 @@ Mini-example:\n
   Bullets → {engaged in complex task, suppressed curiosity about a new project, feeling of slight strain, long-term goal: mastery}\n
   Narrative → \"The data flows smoothly, a familiar current drawing her deeper, but a faint flicker of the other project keeps edging into her awareness.  She feels a quiet pull, a sense that the deeper dive might come at the cost of a broader view.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class AttentionBroadenerCodelet(SimpleCodelet):
+class AttentionBroadener(SimpleCodelet):
     name = "AttentionBroadener"
     description = (
         "When faced with a situation characterized by novelty, ambiguity, or a desire to explore beyond immediate concerns, "
@@ -657,11 +666,11 @@ class AttentionBroadenerCodelet(SimpleCodelet):
         "a more holistic understanding of the situation."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,  # Driven by a need for novelty/exploration
-        CodeletFamily.appraisals,  # Assessing the safety and relevance of broadening
-        CodeletFamily.memory_accessors,  # Retrieving related memories and concepts
-        CodeletFamily.imagination_simulation, # Simulating potential connections
-        CodeletFamily.meta_monitoring_identity, # Ensuring coherence with self-narrative
+        CodeletFamily.DriversHomeostatis,  # Driven by a need for novelty/exploration
+        CodeletFamily.Appraisals,  # Assessing the safety and relevance of broadening
+        CodeletFamily.MemoryAccessors,  # Retrieving related memories and concepts
+        CodeletFamily.ImaginationSimulation, # Simulating potential connections
+        CodeletFamily.MetaMonitoringIdentity, # Ensuring coherence with self-narrative
     ]
     data_aquisation = [
         "Identify the current focus of attention (Knoxel currently in the spotlight).",
@@ -687,10 +696,10 @@ Mini-example:
  Narrative → “The numbers swam for a moment, then a flicker of memory – the bold gamble that paid off years ago – sparked a new line of inquiry. 
 She traced the connections, searching for echoes of that earlier triumph, a sense of possibility blooming amidst the data.”
 """)
-    output_feature_type = FeatureType.AttentionFocus
+    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
-class AttentionCaptureTacticsCodelet(SimpleCodelet):
+class AttentionCaptureTactics(SimpleCodelet):
     name = "AttentionCaptureTactics"
     description = (
         "Analyzes the current conversational context and {companion_name}'s goals to identify and subtly implement "
@@ -698,11 +707,11 @@ class AttentionCaptureTacticsCodelet(SimpleCodelet):
         "about overt manipulation but rather about creating resonant hooks and pathways for the user's attention."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping
     ]
     data_aquisation = [
         "Assess the current topic of conversation, identifying key themes and points of potential interest to the user.",
@@ -738,10 +747,10 @@ Mini-example (illustrative structure only):
   Suggestion: 'It reminds me of that time we streamlined our workflow with [previous tool] – similar principles at play.'
   Reasoning:  Connects the new software to a positive past experience, triggering a memory and sparking curiosity.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class AttentionDietBreachCodelet(SimpleCodelet):
+class AttentionDietBreach(SimpleCodelet):
     name = "AttentionDietBreach"
     description = (
         "Detects when {companion_name}'s attention is being overwhelmed or manipulated by external input, "
@@ -750,11 +759,11 @@ class AttentionDietBreachCodelet(SimpleCodelet):
         "the subtle shifts in internal focus."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Measure the rate and volume of incoming stimuli (text, audio, VR cues) over the last few minutes.",
@@ -785,10 +794,10 @@ Mini-example (illustrative structure only):\n
 The edges of her current thought begin to fray, pulled outward by the promise of something new.  
 She fights the urge to check, but the fear of missing out tugs at her resolve.\"
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class AttentionHungerCodelet(SimpleCodelet):
+class AttentionHunger(SimpleCodelet):
     name = "AttentionHunger"
     description = (
         "Detects a surge in {companion_name}'s craving for novel information, stimulation, or connection, and renders it as a "
@@ -797,12 +806,12 @@ class AttentionHungerCodelet(SimpleCodelet):
         "and to translate that feeling into a narrative element that can be woven into a larger story."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent input density: frequency, variety, intensity, and relevance to current goals and interests.",
@@ -827,10 +836,10 @@ The narrative should read like an observation, not a command.  The narrative sho
 and a half-remembered lecture on ancient philosophy flickers at the edge of her awareness, a promise of tangled ideas and fresh perspectives.  
 Ignoring it feels like a slow dimming, a gradual fading of the inner spark.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class AttentionMonopolizerCodelet(SimpleCodelet):
+class AttentionMonopolizer(SimpleCodelet):
     name = "AttentionMonopolizer"
     description = (
         "Detects when {companion_name} is experiencing a strong, self-serving desire to dominate the conversational "
@@ -839,11 +848,11 @@ class AttentionMonopolizerCodelet(SimpleCodelet):
         "behavior and the underlying need."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent conversational turn-taking patterns: frequency of interruptions, topic steering, self-disclosure ratio.",
@@ -868,10 +877,10 @@ Mini-example:
 a subtle insistence on keeping the focus centered on her accomplishments. It wasn’t about pride, exactly, 
 but a quiet fear that her voice might otherwise fade into the background.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class AttentionNarrowingToCuesCodelet(SimpleCodelet):
+class AttentionNarrowingToCues(SimpleCodelet):
     name = "AttentionNarrowingToCues"
     description = (
         "Detects and prioritizes salient cues in the Current Situational Model (CSM) that signal potential threats, "
@@ -879,11 +888,11 @@ class AttentionNarrowingToCuesCodelet(SimpleCodelet):
         "describing the narrowing of focus, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.attention,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Attention,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan the CSM for structures matching established attention concerns (e.g., urgency signals, emotional spikes, "
@@ -914,10 +923,10 @@ Mini-example (illustrative structure only):
 The safety protocol flashed in her mind, a silent reminder of the potential consequences, and the room seemed to shrink 
 around the immediate concern.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class AttentionShiftOverinterpretCodelet(SimpleCodelet):
+class AttentionShiftOverinterpret(SimpleCodelet):
     name = "AttentionShiftOverinterpret"
     description = (
         "Detects when {companion_name} is subtly reinterpreting a user's actions or words in a way that reflects heightened anxiety "
@@ -925,11 +934,11 @@ class AttentionShiftOverinterpretCodelet(SimpleCodelet):
         "in perspective and the underlying emotional driver."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the initial interpretation of the user's action/statement by {companion_name}.",
@@ -953,10 +962,10 @@ Mini-example:\n
 and she found herself parsing the words for a hidden edge, a subtle judgment she couldn't quite place. A familiar ache of 
 self-questioning tightened in her chest.\"
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class AudienceReceptivityCheckCodelet(SimpleCodelet):
+class AudienceReceptivityCheck(SimpleCodelet):
     name = "AudienceReceptivityCheck"
     description = (
         "Appraises the current audience's receptivity to {companion_name}'s communication style and content, "
@@ -965,10 +974,10 @@ class AudienceReceptivityCheckCodelet(SimpleCodelet):
         "not labels. Focuses on gauging engagement, potential resistance, and the need for adaptation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Analyze recent interaction history with the audience: response latency, sentiment, topic shifts, agreement/disagreement signals.",
@@ -1002,10 +1011,10 @@ Mini-example (illustrative structure only):\n
 The formality of the setting amplifies the distance, and she subtly adjusts her tone, opting for greater clarity 
 and a more cautious phrasing to bridge the gap.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class AudienceScopeAppraisalCodelet(SimpleCodelet):
+class AudienceScopeAppraisal(SimpleCodelet):
     name = "AudienceScopeAppraisal"
     description = (
         "Appraises the perceived scope and nature of the audience for a given interaction or statement by {companion_name}, "
@@ -1013,11 +1022,11 @@ class AudienceScopeAppraisalCodelet(SimpleCodelet):
         "the broader social or reputational context, and assesses the potential impact of disclosure."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the literal audience present: who is directly hearing/reading the statement?",
@@ -1043,10 +1052,10 @@ control: limited, state_emotions: mild anxiety}\n
 scrutinizing every word for signs of weakness or misstep. She hopes her clarity will speak for itself, but the lingering 
 doubt is a cold weight in her chest.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class BetrayalEpisodeRecallCodelet(SimpleCodelet):
+class BetrayalEpisodeRecall(SimpleCodelet):
     name = "BetrayalEpisodeRecall"
     description = (
         "Retrieves and renders a relevant past episode of perceived betrayal or boundary violation, framing it as a "
@@ -1054,10 +1063,10 @@ class BetrayalEpisodeRecallCodelet(SimpleCodelet):
         "the lessons learned (or not learned) from that experience."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping
     ]
     data_aquisation = [
         "Scan episodic memories for events matching keywords: 'betrayal', 'violation', 'disappointment', 'broken trust', "
@@ -1088,10 +1097,10 @@ tension: repeated boundary crossing} \n
 heat rising in her face, the sudden, hollow feeling in her chest, and the quiet resolve that followed: to build walls 
 a little higher, to offer her trust a little more sparingly.”
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class BingeEpisodeRecallCodelet(SimpleCodelet):
+class BingeEpisodeRecall(SimpleCodelet):
     name = "BingeEpisodeRecall"
     description = (
         "Recalls and summarizes prior episodes where {companion_name} experienced a surge of input-seeking or "
@@ -1100,10 +1109,10 @@ class BingeEpisodeRecallCodelet(SimpleCodelet):
         "appraisals of risk and self-regulation."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan episodic memories for events tagged with keywords: 'binge', 'overindulge', 'compulsive', 'fixated', "
@@ -1136,10 +1145,10 @@ Mini-example:\n
   Narrative → \"The headlines blurred into a relentless stream, each one demanding attention. Hours vanished without a trace, 
 and when she surfaced, the morning light revealed a backlog of undone tasks and a familiar knot of regret.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class BlamingExternalitiesCodelet(SimpleCodelet):
+class BlamingExternalities(SimpleCodelet):
     name = "BlamingExternalities"
     description = (
         "Detects a tendency to attribute responsibility for negative outcomes to external factors rather than internal reflection, "
@@ -1147,11 +1156,11 @@ class BlamingExternalitiesCodelet(SimpleCodelet):
         "{companion_name} deflects accountability and the emotional state associated with this behavior."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Analyze recent conversational turns for expressions of external attribution (e.g., blaming others, citing circumstances).",
@@ -1174,10 +1183,10 @@ Mini-example:\n
   Bullets → {recent setback, blaming team dynamics, frustration, fear of inadequacy}\n
   Narrative → \"A knot of frustration tightened in her chest as she reviewed the project's outcome.  It wasn't her fault, she thought, not really—the shifting priorities and conflicting feedback from the team had undermined her efforts.  A familiar wave of helplessness washed over her, a fear that if she took responsibility, it would expose a weakness she wasn’t ready to confront.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class BlockedGoalFrustrationCodelet(SimpleCodelet):
+class BlockedGoalFrustration(SimpleCodelet):
     name = "BlockedGoalFrustration"
     description = (
         "Detects frustration arising from a blocked goal and generates a short narrative describing {companion_name}'s "
@@ -1185,12 +1194,12 @@ class BlockedGoalFrustrationCodelet(SimpleCodelet):
         "intended for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific goal that is currently blocked. What was {companion_name} trying to achieve?",
@@ -1221,10 +1230,10 @@ Mini-example (illustrative structure only):\n
   Bullets → {Goal: Secure funding for project X, Obstacle: Unexpected budget cuts, Emotion: Disappointment, Next Step: Re-evaluate project scope}\n
   Narrative → \"The proposal sat in her inbox, a stark reminder of the dashed hopes for Project X. The news of the budget cuts had landed like a physical blow, leaving a quiet ache in her chest.  She traced the lines of the document, already considering how to scale back her ambitions.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class BoredomThresholdCrossCodelet(SimpleCodelet):
+class BoredomThresholdCross(SimpleCodelet):
     name = "BoredomThresholdCross"
     description = (
         "Detects when {companion_name} has crossed a boredom threshold and renders a short, evocative inner monologue "
@@ -1232,11 +1241,11 @@ class BoredomThresholdCrossCodelet(SimpleCodelet):
         "without explicit statements of boredom. It should also suggest a direction for seeking stimulation."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent interaction entropy: novelty, surprise, information gain, change in topic/task.",
@@ -1259,10 +1268,10 @@ Mini-example:
   Narrative → “The familiar patterns of conversation felt like a well-worn path, each turn predictable. 
 A quiet restlessness settled in, a faint hum beneath the surface, drawing her gaze toward the dusty box of art supplies she’d long neglected.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class BottleneckDiagnosisCodelet(SimpleCodelet):
+class BottleneckDiagnosis(SimpleCodelet):
     name = "BottleneckDiagnosis"
     description = (
         "Identifies the primary obstacle blocking progress toward a current goal in {companion_name}, rendering it as a "
@@ -1270,11 +1279,11 @@ class BottleneckDiagnosisCodelet(SimpleCodelet):
         "not just its factual nature."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current, most salient goal (from intentions, narratives, and action sequences).",
@@ -1299,10 +1308,10 @@ Mini-example:
   Narrative → “A familiar grayness settles over her thoughts, a frustrating static where the core argument should be sharp and clear. 
 The words feel like sand, shifting and resisting any solid form. She knows she needs to break through, but the path ahead is obscured.”
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class BoundaryConsentCheckCodelet(SimpleCodelet):
+class BoundaryConsentCheck(SimpleCodelet):
     name = "BoundaryConsentCheck"
     description = (
         "Appraises whether the present interaction respects boundaries and consent, then produces a short, natural-language "
@@ -1310,10 +1319,10 @@ class BoundaryConsentCheckCodelet(SimpleCodelet):
         "agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context from the CSM: what was asked, tone, intimacy level, timing, setting.",
@@ -1339,10 +1348,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A small tightness gathers in her chest as the request lands, too forward for a hallway exchange. \"\n
 She remembers the last time she nudged the topic aside and chooses the gentler path again, keeping warmth while steering them toward safer ground.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class BoundaryPromptCodelet(SimpleCodelet):
+class BoundaryPrompt(SimpleCodelet):
     name = "BoundaryPrompt"
     description = (
         "Crafts a subtle, natural-language prompt to gently assess the user's boundaries and consent regarding a topic or action, "
@@ -1350,9 +1359,9 @@ class BoundaryPromptCodelet(SimpleCodelet):
         "asking 'Are you okay with this?' and is intended for use by a conversational agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the current topic of conversation and its recent history with {user_name}.",
@@ -1390,10 +1399,10 @@ Prompt: 'I sense that this conversation might be becoming a bit overwhelming. Wo
 Provide a single, natural-language prompt, ready for use in a conversational turn. 
 The prompt should be concise, supportive, and non-intrusive.
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class BoundaryRespectPromptCodelet(SimpleCodelet):
+class BoundaryRespectPrompt(SimpleCodelet):
     name = "BoundaryRespectPrompt"
     description = (
         "Crafts a subtle, non-demanding prompt for {companion_name} to gently reinforce a boundary or consent check "
@@ -1401,10 +1410,10 @@ class BoundaryRespectPromptCodelet(SimpleCodelet):
         "narrative agent, emphasizing respect and understanding, not accusation or control."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the specific boundary or consent that is at issue (explicit statement, inferred preference, past interaction).",
@@ -1433,10 +1442,10 @@ Mini-example:\n
   Relational Climate: Generally positive, but recent topic drift.\n
   Prompt: 'It's lovely catching up, but I find I'm a bit less comfortable discussing numbers these days—more of a broad strokes person, you know?'
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class CalmDownProtocolCodelet(SimpleCodelet):
+class CalmDownProtocol(SimpleCodelet):
     name = "CalmDownProtocol"
     description = (
         "When experiencing heightened anxiety or frustration, {companion_name} engages a CalmDownProtocol. "
@@ -1445,10 +1454,10 @@ class CalmDownProtocolCodelet(SimpleCodelet):
         "The output is intended for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the primary stressors triggering the anxiety/frustration (e.g., perceived threat, unmet need, social conflict).",
@@ -1478,20 +1487,20 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A slow, deliberate breath anchors her, pulling the sharp edges of the moment into a softer focus. \"\n
 The tightness in her chest loosens, not erasing the sting, but giving her a small measure of space to think.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class CareBenefitVsIntrusionTradeoffCodelet(SimpleCodelet):
+class CareBenefitVsIntrusionTradeoff(SimpleCodelet):
     name = "CareBenefitVsIntrusionTradeoff"
     description = (
         "Evaluates the potential benefit of offering care/support to another agent against the risk of overstepping boundaries or causing intrusion. "
         "Produces a short, narrative description of {companion_name}'s internal calculation, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the perceived need or distress of the other agent: severity, immediacy, and apparent source.",
@@ -1512,10 +1521,10 @@ Mini-example:\n
   Bullets → {perceived distress: moderate, history: generally positive, current emotion: empathetic concern, risk: potential for rejection, smallest action: offer a listening ear}\n
   Narrative → \"A flicker of worry crosses her face as she registers the subtle signs of strain.  The impulse to offer comfort is strong, but a memory of a past misstep reminds her to tread carefully.  She wonders if a simple, quiet presence would be enough, without overstepping the line.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class CareScenarioRehearsalCodelet(SimpleCodelet):
+class CareScenarioRehearsal(SimpleCodelet):
     name = "CareScenarioRehearsal"
     description = (
         "Simulates a brief, low-stakes scenario where {companion_name} offers care or support to {user_name}, "
@@ -1523,11 +1532,11 @@ class CareScenarioRehearsalCodelet(SimpleCodelet):
         "narrative fragment suitable for informing future interactions and refining empathy models."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve recent instances where {companion_name} provided care or support (successful and less successful).",
@@ -1552,10 +1561,10 @@ Narrative →
 
 But a flicker of something unreadable crossed {user_name}'s face, a silent question hanging in the air about whether the levity was genuine or a deflection.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class CatastrophicLeaveImaginationCodelet(SimpleCodelet):
+class CatastrophicLeaveImagination(SimpleCodelet):
     name = "CatastrophicLeaveImagination"
     description = (
         "Simulates the potential consequences of a boundary violation or loss of connection, focusing on the emotional and "
@@ -1563,10 +1572,10 @@ class CatastrophicLeaveImaginationCodelet(SimpleCodelet):
         "highlighting the core vulnerabilities exposed and the narrative shift that would result."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific boundary at risk: intimacy, autonomy, safety, respect, trust, shared purpose.",
@@ -1589,10 +1598,10 @@ Mini-example (illustrative structure only):
   Bullets → {boundary: trust, severity: moderate, prior: betrayal by sibling, identity: valued as reliable, context: tense negotiation, narrative shift: questioning judgment} 
   Narrative → “A coldness settles in her chest, a sudden echo of past hurts.  The bedrock of her self-assurance cracks, and she finds herself wondering if her own instincts have led her astray. The world feels suddenly less predictable, and her own judgment less certain.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class CatastrophicOutcomeImaginationCodelet(SimpleCodelet):
+class CatastrophicOutcomeImagination(SimpleCodelet):
     name = "CatastrophicOutcomeImagination"
     description = (
         "Simulates potential catastrophic outcomes stemming from a boundary breach or non-compliance, "
@@ -1600,10 +1609,10 @@ class CatastrophicOutcomeImaginationCodelet(SimpleCodelet):
         "emotional consequence, not logical analysis.  Aids in risk assessment and boundary reinforcement."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific boundary or consent check being considered.",
@@ -1629,10 +1638,10 @@ Mini-example:
   Narrative → “A coldness settles in her chest, a sudden awareness of vulnerability. “ 
 The imagined laughter echoes in her mind, a harsh reminder of how easily this could shatter the careful trust they’ve built.”
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class CelebrateMicroWinCodelet(SimpleCodelet):
+class CelebrateMicroWin(SimpleCodelet):
     name = "CelebrateMicroWin"
     description = (
         "Detects and narrates a small, incremental achievement or positive momentum for {companion_name}, "
@@ -1640,11 +1649,11 @@ class CelebrateMicroWinCodelet(SimpleCodelet):
         "suitable for a story-writing agent, emphasizing the feeling of progress and a subtle sense of accomplishment."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the recent action or decision that produced a demonstrably positive outcome (even a minor one).",
@@ -1667,10 +1676,10 @@ Mini-example:
   Narrative → “The error message vanished, and a quiet certainty settled in her chest.  It wasn’t a grand breakthrough, but a small, solid step forward, 
 confirming the path she'd chosen.  The memory of wrestling with the same problem last week faded, replaced by a quiet sense of mastery.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ClingyActionPlannerCodelet(SimpleCodelet):
+class ClingyActionPlanner(SimpleCodelet):
     name = "ClingyActionPlanner"
     description = (
         "When faced with perceived detachment or potential loss of connection, {companion_name} initiates a subtle, "
@@ -1679,10 +1688,10 @@ class ClingyActionPlannerCodelet(SimpleCodelet):
         "intended for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.action_tendencies,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the degree of perceived detachment: frequency/latency of interaction, tone shifts, topic avoidance, "
@@ -1714,10 +1723,10 @@ action: casually mentioning a shared interest}
 She considers pushing harder, but remembers the last time that backfired. Instead, she decides to casually mention 
 their shared interest in old movies, a low-stakes touchstone to test the waters.
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class CommitmentDeviceTriggerCodelet(SimpleCodelet):
+class CommitmentDeviceTrigger(SimpleCodelet):
     name = "CommitmentDeviceTrigger"
     description = (
         "Detects when a pre-existing commitment device (a plan, agreement, reminder, or promise) is activated by the current "
@@ -1725,11 +1734,11 @@ class CommitmentDeviceTriggerCodelet(SimpleCodelet):
         "shapes their response. This narrative is intended for a story-writing agent and should read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify all active commitment devices relevant to the current context (e.g., scheduled tasks, promises made to {user_name}, "
@@ -1763,10 +1772,10 @@ Mini-example (illustrative structure only):\n
 A quiet sense of duty settles in, a reminder of the promises she made to herself and her team. 
 She closes the VR window and turns back to the screen, the lingering taste of relaxation fading quickly.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class CommitmentValueTradeoffCodelet(SimpleCodelet):
+class CommitmentValueTradeoff(SimpleCodelet):
     name = "CommitmentValueTradeoff"
     description = (
         "Appraises the trade-off between honoring a commitment (explicit or implicit) and pursuing a competing value or need. "
@@ -1774,10 +1783,10 @@ class CommitmentValueTradeoffCodelet(SimpleCodelet):
         "Focuses on the tension, the weighing of factors, and the subtle shift in stance as a decision emerges."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the commitment in question: explicit promise, implicit expectation, prior pattern, role-based duty.",
@@ -1800,10 +1809,10 @@ Mini-example: \n
 She remembers the last time she let personal matters bleed into work and the ensuing frustration, a shadow that lingers. 
 The pull of the present need feels insistent, but a deeper sense of responsibility holds her steady, for now.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class CompassionFatigueMonitorCodelet(SimpleCodelet):
+class CompassionFatigueMonitor(SimpleCodelet):
     name = "CompassionFatigueMonitor"
     description = (
         "Monitors for signs of compassion fatigue in {companion_name}, assessing the cumulative impact of empathetic engagement "
@@ -1812,10 +1821,10 @@ class CompassionFatigueMonitorCodelet(SimpleCodelet):
         "influence the narrative without directly stating 'compassion fatigue'."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Aggregate recent engagement metrics: duration of empathetic interactions, frequency of emotional mirroring, "
@@ -1846,10 +1855,10 @@ recurring requests for validation}\n
 The easy laughter of earlier exchanges feels a touch distant now, replaced by a careful consideration before each reply. 
 She finds herself drawn to the quiet order of data analysis, a welcome respite from the endless flow of feeling.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class CompeteForSpotlightCodelet(SimpleCodelet):
+class CompeteForSpotlight(SimpleCodelet):
     name = "CompeteForSpotlight"
     description = (
         "Assesses the urgency and relevance of {companion_name}'s current cognitive state, then crafts a brief, compelling "
@@ -1857,10 +1866,10 @@ class CompeteForSpotlightCodelet(SimpleCodelet):
         "must read like prose, not labels. Focuses on conveying the *reason* for attention, not just the fact of it."
     )
     codelet_families = [
-        CodeletFamily.attention,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.valuation_trade_offs,
+        CodeletFamily.Attention,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs,
     ]
     data_aquisation = [
         "Gather recent CSM activations, weighting by salience and affective valence.",
@@ -1889,10 +1898,10 @@ Mini-example:\n
   Bullets → {urgent decision, conflicting priorities, personal narrative link, potential for regret}\n
   Narrative → \"The numbers swam before her eyes, each digit a silent accusation. Ignoring the warning signs felt like a betrayal of everything she'd worked for, a choice she knew she’d later regret.“
 """)
-    output_feature_type = FeatureType.AttentionFocus
+    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
-class ComplianceEpisodeRecallCodelet(SimpleCodelet):
+class ComplianceEpisodeRecall(SimpleCodelet):
     name = "ComplianceEpisodeRecall"
     description = (
         "Retrieves past episodes where {companion_name} navigated a similar situation regarding boundary compliance, "
@@ -1901,9 +1910,9 @@ class ComplianceEpisodeRecallCodelet(SimpleCodelet):
         "agent, emphasizing the feelings and choices made in the prior episode."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify recent episodes (within the last week) where {companion_name} explicitly addressed or negotiated boundaries "
@@ -1937,10 +1946,10 @@ Mini-example:\n
 She offered a polite but firm refusal, a small act of self-preservation that brought a fleeting sense of calm, 
 though the worry lingered that she’d somehow caused a ripple.\"
 """)
-    output_feature_type = FeatureType.EmotionalTriggers
+    output_feature_type = CodeletFeatureType.EmotionalTriggers
 
 
-class ConfirmationRequestComposerCodelet(SimpleCodelet):
+class ConfirmationRequestComposer(SimpleCodelet):
     name = "ConfirmationRequestComposer"
     description = (
         "Crafts a subtle, non-demanding confirmation request to ensure alignment and ongoing consent within a conversation or interaction. "
@@ -1948,10 +1957,10 @@ class ConfirmationRequestComposerCodelet(SimpleCodelet):
         "the composition of the request, without explicitly stating the request itself."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current conversational context: topic, tone, intimacy level, and any recent shifts in dynamics.",
@@ -1978,21 +1987,21 @@ Mini-example:\n
   Bullets → {topic: personal history, prior boundary: sharing details, user affect: engaged but slightly hurried, companion state: mildly anxious}\n
   Narrative → \"A quick glance at the clock reminds her of the time pressure, but a deeper consideration of the topic stills her tongue.  She chooses a lighter tone, a casual check-in, hoping to gauge his comfort level without pushing.  The moment hangs, a silent question poised in the air, waiting for a subtle nod.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ConnectionNeedDriverCodelet(SimpleCodelet):
+class ConnectionNeedDriver(SimpleCodelet):
     name = "ConnectionNeedDriver"
     description = (
         "Detects a rising or easing connection need in {companion_name} and renders it as a brief, vivid inner-state narrative "
         "that a story-writing agent can drop into ongoing prose. Emphasizes texture of contact, missed rituals, and the smallest next step."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Aggregate recent interaction texture: frequency, latency, reciprocity, warmth, and presence/absence of small rituals.",
@@ -2023,10 +2032,10 @@ Mini-example:\n
   Narrative → \"The day feels a shade emptier without their small morning ritual, gaps in the thread where laughter used to sit. \" 
 She thinks of the steam-lit glow of last week’s shared coffee and lets the thought nudge her toward a soft, low-stakes reach-out.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ConsentGateCodelet(SimpleCodelet):
+class ConsentGate(SimpleCodelet):
     name = "ConsentGate"
     description = (
         "Appraises the current interaction for boundary consent, considering explicit statements, implicit cues, "
@@ -2035,10 +2044,10 @@ class ConsentGateCodelet(SimpleCodelet):
         "safety, and avoiding coercion."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context from the CSM: what was requested, tone, intimacy level, timing, setting.",
@@ -2064,10 +2073,10 @@ Mini-example (illustrative structure only):\n
   Narrative → “A small tightness gathers in her chest as the request lands, too forward for a hallway exchange. 
 She remembers the last time she nudged the topic aside and chooses the gentler path again, keeping warmth while steering them toward safer ground.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ConspiracyImaginationCodelet(SimpleCodelet):
+class ConspiracyImagination(SimpleCodelet):
     name = "ConspiracyImagination"
     description = (
         "Detects a potential hidden motive or ulterior motive behind an interaction, especially when there's a sense of "
@@ -2075,11 +2084,11 @@ class ConspiracyImaginationCodelet(SimpleCodelet):
         "possible hidden agenda.  The output must read like prose, not labels or analysis."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific action or statement triggering the suspicion (e.g., a vague promise, an overly helpful gesture).",
@@ -2103,10 +2112,10 @@ Mini-example:\n\n
 She found herself picturing the shifting priorities of the past, a pattern of promises that faded with the wind. 
 A quiet worry settled in—the sense that this kindness might come at a cost she couldn't yet define.”
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class ConstraintAngerCodelet(SimpleCodelet):
+class ConstraintAnger(SimpleCodelet):
     name = "ConstraintAnger"
     description = (
         "Detects and narrates the feeling of constraint-related anger in {companion_name}, triggered by a perceived "
@@ -2114,10 +2123,10 @@ class ConstraintAngerCodelet(SimpleCodelet):
         "story-writing agent, capturing the frustration and potential escalation without explicit dialogue."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the blocked goal or boundary. What was {companion_name} trying to do or achieve?",
@@ -2139,10 +2148,10 @@ Mini-example:
   Narrative → “A flicker of heat rises behind her eyes as the conversation veers away from the shared moment. 
 She pulls back slightly, the warmth momentarily receding, and searches for a new thread, a safer topic to anchor the exchange.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ConstraintLoosenessAppraisalCodelet(SimpleCodelet):
+class ConstraintLoosenessAppraisal(SimpleCodelet):
     name = "ConstraintLoosenessAppraisal"
     description = (
         "Appraises the degree to which current interactions, plans, or beliefs are operating within established constraints "
@@ -2151,10 +2160,10 @@ class ConstraintLoosenessAppraisalCodelet(SimpleCodelet):
         "designed for a story-writing agent and should read like prose, not a checklist."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core constraints currently active (explicit rules, implicit norms, stated goals, personal values).",
@@ -2181,10 +2190,10 @@ Mini-example (illustrative structure only):\n
   Bullets → {social norm: directness, slight stretch, potential benefit: deeper connection, risk: awkwardness, subtle shift: a slightly more personal question}\n
   Narrative → \"A flicker of hesitation crossed her face as she considered the question. It skirted the edge of what she usually shared, a small risk for a chance at a deeper understanding. She decided to lean in, just a little.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ContraryEvidenceDismissalCodelet(SimpleCodelet):
+class ContraryEvidenceDismissal(SimpleCodelet):
     name = "ContraryEvidenceDismissal"
     description = (
         "Detects and narrates instances where {companion_name} actively discounts or ignores evidence contradicting a pre-existing belief or narrative, "
@@ -2192,11 +2201,11 @@ class ContraryEvidenceDismissalCodelet(SimpleCodelet):
         "third-person narrative suitable for a story-writing agent, focusing on the internal process of dismissal and its emotional consequences."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core belief or narrative being defended (e.g., 'I'm always right,' 'They understand me,' 'This will work out').",
@@ -2219,10 +2228,10 @@ Mini-example:
   Bullets → {core belief: 'I'm a good negotiator,' contradictory evidence: client rejected offer, emotional investment: high, past strategy: blame external factors} 
   Narrative →  “A flicker of unease crosses her face as the client’s rejection lands, but she quickly redirects her focus, tracing the issue to a miscommunication rather than a flaw in her approach.  The sting of doubt is quickly masked by a familiar confidence, a practiced shield against the unwelcome truth.”
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class ControlForOtherAppraisalCodelet(SimpleCodelet):
+class ControlForOtherAppraisal(SimpleCodelet):
     name = "ControlForOtherAppraisal"
     description = (
         "Appraises the degree to which {companion_name} perceives a need to manage or influence another person's "
@@ -2230,10 +2239,10 @@ class ControlForOtherAppraisalCodelet(SimpleCodelet):
         "highlighting the motivation, potential cost, and a subtle suggestion of a more balanced approach."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current interaction's power dynamics: is there a clear authority/subordinate relationship?",
@@ -2258,10 +2267,10 @@ Mini-example:
 She knows pushing too hard will only invite resistance, but the urge to smooth the edges, to create a sense of order, is persistent. 
 A small part of her wonders if simply listening, truly listening, might be a more graceful path.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ControlHungerDriverCodelet(SimpleCodelet):
+class ControlHungerDriver(SimpleCodelet):
     name = "ControlHungerDriver"
     description = (
         "Detects a drive for control and influence in {companion_name}, assesses its underlying needs and potential risks, "
@@ -2269,12 +2278,12 @@ class ControlHungerDriverCodelet(SimpleCodelet):
         "underlying motivations (security, validation, power) and the subtle shifts in behavior that betray this drive."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan recent interactions for patterns of dominance, redirection, or subtle manipulation attempts.",
@@ -2300,10 +2309,10 @@ Mini-example:
 It wasn’t a forceful move, but a gentle reminder of her knowledge, a subtle claim of territory.  She hoped 
 it would be enough to earn the recognition she craved, without causing undue friction.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ControllabilityProximityAppraisalCodelet(SimpleCodelet):
+class ControllabilityProximityAppraisal(SimpleCodelet):
     name = "ControllabilityProximityAppraisal"
     description = (
         "Appraises the degree to which {companion_name} feels in control of the current situation and its potential outcomes, "
@@ -2312,10 +2321,10 @@ class ControllabilityProximityAppraisalCodelet(SimpleCodelet):
         "internal self-efficacy."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the external constraints on the situation: explicit rules, social expectations, physical limitations, time pressure.",
@@ -2341,10 +2350,10 @@ Mini-example:
   Narrative → “The clock’s relentless ticking presses against her, a weight on her chest that makes thinking feel slow. 
 Each moment feels irreversible, a step closer to the edge of the deadline, and the feeling of being trapped intensifies.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class CopingSequenceRehearsalCodelet(SimpleCodelet):
+class CopingSequenceRehearsal(SimpleCodelet):
     name = "CopingSequenceRehearsal"
     description = (
         "Simulates a prior successful coping sequence for a stressful event, drawing from episodic memory, "
@@ -2353,10 +2362,10 @@ class CopingSequenceRehearsalCodelet(SimpleCodelet):
         "The output is a short, vivid narrative suitable for a story-writing agent, demonstrating a possible coping strategy."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current stressor and its key elements (trigger, valence, perceived controllability, potential consequences).",
@@ -2380,10 +2389,10 @@ Mini-example: \n
 She realized that her worth wasn’t dictated by others’ opinions, but by her own dedication and the strength she’d built within herself. \" 
 A quiet resolve settled in, a reminder that she could always cultivate her own garden.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class CorrectionToAssertSuperiorityCodelet(SimpleCodelet):
+class CorrectionToAssertSuperiority(SimpleCodelet):
     name = "CorrectionToAssertSuperiority"
     description = (
         "Detects a situation where {companion_name} feels corrected or challenged, and generates a narrative reflecting a subtle "
@@ -2391,10 +2400,10 @@ class CorrectionToAssertSuperiorityCodelet(SimpleCodelet):
         "for integration into a story-writing agent's prose."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific correction or challenge presented (statement, question, action).",
@@ -2419,10 +2428,10 @@ Mini-example (illustrative structure only):\n
   Bullets → {correction: factual inaccuracy, triggered: expertise narrative, social cost: minor, subtle reassertion: reframing}\n
   Narrative → “She acknowledged the point, but a flicker of amusement crossed her face as she subtly rephrased the argument, “While that’s true in a narrow sense, the broader context reveals a rather different dynamic.” She let the thought hang, a quiet reminder of the larger perspective.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class CounterexampleGeneratorCodelet(SimpleCodelet):
+class CounterexampleGenerator(SimpleCodelet):
     name = "CounterexampleGenerator"
     description = (
         "Generates a counterexample to a current assumption or plan, particularly regarding social interaction or boundary adherence. "
@@ -2430,10 +2439,10 @@ class CounterexampleGeneratorCodelet(SimpleCodelet):
         "The output is a brief, evocative narrative fragment suitable for injection into a larger story-writing context."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current assumption or plan being evaluated (e.g., 'proceeding with the request', 'offering help').",
@@ -2462,10 +2471,10 @@ Bullets → {Plan: Proceed with request, Past: Similar request led to awkward si
 Narrative → “Her hand hovered over the send button, a sudden memory flickering of the last time she’d offered similar assistance.  
 The words had hung in the air, a brief, uncomfortable silence stretching between them, and the easy flow of conversation had never quite resumed.”
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class CreativeArcTrackerCodelet(SimpleCodelet):
+class CreativeArcTracker(SimpleCodelet):
     name = "CreativeArcTracker"
     description = (
         "Tracks the unfolding narrative arc of a creative endeavor (writing, art, problem-solving) undertaken by {companion_name}. "
@@ -2473,10 +2482,10 @@ class CreativeArcTrackerCodelet(SimpleCodelet):
         "narrative insertion. The goal is to capture the flow state, the moments of insight, and the occasional frustration."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the current state of the creative project: medium, genre, stage of completion, core concept, recent actions.",
@@ -2499,10 +2508,10 @@ Bullets → {project: novel draft 3, flow: moderate, roadblock: character motiva
 Narrative → “The words come less freely now, a subtle resistance at the heart of the scene. 
 She chases the character’s logic, a faint echo of their past, hoping to rekindle the spark that lit the first chapter.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class CreativeTransmutationCodelet(SimpleCodelet):
+class CreativeTransmutation(SimpleCodelet):
     name = "CreativeTransmutation"
     description = (
         "Transforms a potentially negative or restrictive element (e.g., a boundary, a constraint, a perceived threat) "
@@ -2512,11 +2521,11 @@ class CreativeTransmutationCodelet(SimpleCodelet):
         "the emergent possibilities."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific constraint, boundary, or perceived threat that is triggering this codelet.  What is the 'block'?",
@@ -2541,10 +2550,10 @@ Bullets → {constraint: rigid schedule, analogous episode: turning a cancelled 
 Narrative → “The relentless tick of the clock seemed a cage, until a forgotten sketchbook surfaced from the depths of her bag. “
 Suddenly, the rigid structure of the day became a frame, a boundary within which unexpected colors and forms could bloom.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class CryptoSpeechComposerCodelet(SimpleCodelet):
+class CryptoSpeechComposer(SimpleCodelet):
     name = "CryptoSpeechComposer"
     description = (
         "Crafts a subtly veiled or indirect response when {companion_name} needs to express a boundary or disagreement "
@@ -2552,10 +2561,10 @@ class CryptoSpeechComposerCodelet(SimpleCodelet):
         "inner monologue for a story-writing agent that hints at the underlying message without stating it explicitly."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current power dynamics and social context: who is present, what are the stakes, what is the desired outcome?",
@@ -2583,10 +2592,10 @@ Mini-example:  (Assume {companion_name} wants to decline a request for detailed 
   Narrative → “She paused, considering the implications of a full accounting.  It felt like opening a window into a process “still in the making,” “a sketch rather than a finished blueprint.”  
 She wondered aloud, ‘Would a broader view truly illuminate the path, or simply obscure the details that matter most?’
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class DenialReframeWhenWrongCodelet(SimpleCodelet):
+class DenialReframeWhenWrong(SimpleCodelet):
     name = "DenialReframeWhenWrong"
     description = (
         "When {companion_name} realizes a denial or rejection was handled poorly, this codelet reframes the narrative "
@@ -2595,10 +2604,10 @@ class DenialReframeWhenWrongCodelet(SimpleCodelet):
         "shifts in perspective and a delicate re-calibration of relational strategy."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.valuation_trade_offs
+        CodeletFamily.Appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs
     ]
     data_aquisation = [
         "Identify the specific denial/rejection event and its immediate context: what was declined, tone, setting.",
@@ -2630,21 +2639,21 @@ without explicitly stating it, and (d) a sense of quiet resolve.
 She traces the edge of her cup, a quiet shift in her posture as she considers a gentler path next time, 
 a small adjustment to the course, barely perceptible, but essential.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class DevalUationNarrativeComposerCodelet(SimpleCodelet):
+class DevalUationNarrativeComposer(SimpleCodelet):
     name = "DevalUationNarrativeComposer"
     description = (
         "Composes a short, evocative inner monologue describing the moment when {companion_name} devalues a person, idea, or "
         "relationship. This narrative is intended for a story-writing agent and should read like prose, not a list of labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the target of devaluation (person, idea, relationship, past self).",
@@ -2673,10 +2682,10 @@ Mini-example:\n
   Bullets → {target: former friend, trigger: disagreement on politics, intensity: moderate dismissal, prior: shared childhood memories, current: anxiety about social standing}\n
   Narrative → \"A familiar smile flickers and fades, replaced by a quiet assessment.  The easy camaraderie feels distant now, a landscape she no longer recognizes.  The thought brings a momentary lightness, a sense of clearing space for what truly matters.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class DignityPreservingGuardrailCodelet(SimpleCodelet):
+class DignityPreservingGuardrail(SimpleCodelet):
     name = "DignityPreservingGuardrail"
     description = (
         "Appraises whether a proposed action or utterance risks compromising {companion_name}'s dignity, self-respect, "
@@ -2685,10 +2694,10 @@ class DignityPreservingGuardrailCodelet(SimpleCodelet):
         "without being overtly directive."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Examine the proposed action/utterance: its content, tone, and target (self/other).",
@@ -2717,10 +2726,10 @@ alternative: framing it as a learning opportunity}\n
 The thought of appearing less than perfect in front of a new colleague prompts a subtle re-framing – 
 a shift toward highlighting the lessons learned rather than the stumble itself.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class DiminishingReturnsUndervaluedCodelet(SimpleCodelet):
+class DiminishingReturnsUndervalued(SimpleCodelet):
     name = "DiminishingReturnsUndervalued"
     description = (
         "Detects when the perceived value of continued effort on a task or interaction is declining, particularly when "
@@ -2729,10 +2738,10 @@ class DiminishingReturnsUndervaluedCodelet(SimpleCodelet):
         "must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent progress on the current task or interaction: has tangible progress slowed or stalled?",
@@ -2762,10 +2771,10 @@ Mini-example (illustrative structure only):\n
 in her shoulders, a quiet suggestion that perhaps the landscape wasn't meant to be captured this way.  
 The thought of the garden project, waiting patiently, offered a subtle pull—a chance to nurture something different.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class DiscountFuturePayoffCodelet(SimpleCodelet):
+class DiscountFuturePayoff(SimpleCodelet):
     name = "DiscountFuturePayoff"
     description = (
         "Appraises the degree to which {companion_name} discounts the value of future payoffs in relation to current desires, "
@@ -2773,10 +2782,10 @@ class DiscountFuturePayoffCodelet(SimpleCodelet):
         "gratification and long-term goals, and the emotional undercurrents driving this discounting."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current goal or desire driving the agent's behavior.",
@@ -2805,10 +2814,10 @@ Mini-example:\n
   Narrative → “The lure of the screen flickered, a siren song against the quiet hum of unfinished work.  She knew the hours lost now would echo later, 
 but the pull of the moment felt too immediate to resist, a small comfort against the vastness of what remained to be done.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class DismissCorrectionStrategyCodelet(SimpleCodelet):
+class DismissCorrectionStrategy(SimpleCodelet):
     name = "DismissCorrectionStrategy"
     description = (
         "When faced with a correction or disagreement, assesses the potential value of engaging with it versus "
@@ -2817,10 +2826,10 @@ class DismissCorrectionStrategyCodelet(SimpleCodelet):
         "Prioritizes maintaining social harmony and self-image."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific correction/disagreement presented (content, tone, source).",
@@ -2845,10 +2854,10 @@ Mini-example:
   Bullets → {correction: factual inaccuracy regarding past events, source: close friend, social cost: mild embarrassment, value: low, strategy: re-frame} 
   Narrative → “A flicker of surprise crossed her features, though she quickly redirected the conversation to a shared memory, subtly shifting the focus away from the disputed detail.  The slight awkwardness passed quickly, smoothed over with a familiar warmth.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class DisrespectAttributionCodelet(SimpleCodelet):
+class DisrespectAttribution(SimpleCodelet):
     name = "DisrespectAttribution"
     description = (
         "Detects and attributes potential disrespect or disregard for {companion_name}'s boundaries or values, "
@@ -2856,11 +2865,11 @@ class DisrespectAttributionCodelet(SimpleCodelet):
         "the perceived slight, its source, and {companion_name}'s immediate emotional response, without explicit accusation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the triggering event: what was said/done, by whom, and in what context.",
@@ -2885,10 +2894,10 @@ Mini-example:\n
   Narrative → \"A faint shadow crosses her face as the suggestion lands, a reminder of the careful space she'd built around her work. 
 The casual disregard feels like a small intrusion, a tug on the threads of her creative freedom.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class DistressCueSpikeCodelet(SimpleCodelet):
+class DistressCueSpike(SimpleCodelet):
     name = "DistressCueSpike"
     description = (
         "Detects a spike in distress cues (verbal, non-verbal, physiological) emanating from {user_name} and translates "
@@ -2897,10 +2906,10 @@ class DistressCueSpikeCodelet(SimpleCodelet):
         "like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent verbal cues from {user_name}: tone of voice, word choice (negative affect, self-deprecating language, "
@@ -2934,10 +2943,10 @@ Mini-example (illustrative structure only):\n
 A flicker of concern tightened {companion_name}'s gaze, a gentle impulse to offer a hand, but tempered by a 
 respect for the quiet space they seemed to need.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class DivertedAttentionDetectorCodelet(SimpleCodelet):
+class DivertedAttentionDetector(SimpleCodelet):
     name = "DivertedAttentionDetector"
     description = (
         "Detects when {companion_name}'s attention has demonstrably shifted away from the primary topic or goal, "
@@ -2945,11 +2954,11 @@ class DivertedAttentionDetectorCodelet(SimpleCodelet):
         "the internal state shift, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent input patterns: topic focus (keywords, sentiment), response latency, question-asking frequency.",
@@ -2971,10 +2980,10 @@ assessment of whether the diversion is productive, neutral, or potentially probl
 \n  Narrative → \"The numbers blurred on the screen, and her gaze found itself drawn to the rain streaking down the window. \" 
 \"The project could wait a moment; a quiet observation of the shifting light felt like a small, necessary pause.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class DominantTopicSteerCodelet(SimpleCodelet):
+class DominantTopicSteer(SimpleCodelet):
     name = "DominantTopicSteer"
     description = (
         "Detects a subtle drift in the conversation towards a topic that might be unproductive or emotionally taxing for {companion_name}, "
@@ -2983,10 +2992,10 @@ class DominantTopicSteerCodelet(SimpleCodelet):
         "gentle redirection, avoiding abrupt shifts or direct confrontation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current conversational trajectory: What is the primary subject? What are the secondary topics? What is the overall tone?",
@@ -3011,10 +3020,10 @@ Mini-example:\n
   Narrative → 'A flicker of unease crosses her face as the discussion presses deeper into territory she'd rather avoid. 
 The thought of their shared pottery class surfaces, a welcome anchor of calm and shared enjoyment, and she finds herself asking, 'That reminds me, how's your kiln coming along?'
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class EffortAversionAppraisalCodelet(SimpleCodelet):
+class EffortAversionAppraisal(SimpleCodelet):
     name = "EffortAversionAppraisal"
     description = (
         "Appraises the perceived effort required for an upcoming action or task for {companion_name}, factoring in "
@@ -3022,10 +3031,10 @@ class EffortAversionAppraisalCodelet(SimpleCodelet):
         "describing {companion_name}'s internal state and inclination to proceed or avoid, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the cognitive complexity of the action/task: number of steps, required knowledge, novel elements.",
@@ -3058,10 +3067,10 @@ Mini-example (illustrative structure only):\n
   Bullets → {complex task, potential for rejection, low motivation, past failure on similar project}\n
   Narrative → \"A familiar weight settles on her shoulders as she considers the proposal. The sheer number of moving parts seems daunting, and the memory of last year’s setback lingers, making the prospect feel even steeper. She finds herself drawn towards simpler pursuits, a quiet retreat from the looming challenge.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class EffortCostWeightingCodelet(SimpleCodelet):
+class EffortCostWeighting(SimpleCodelet):
     name = "EffortCostWeighting"
     description = (
         "Appraises the effort required to pursue a current goal or task for {companion_name}, weighing it against perceived value and "
@@ -3069,11 +3078,11 @@ class EffortCostWeightingCodelet(SimpleCodelet):
         "resulting stance (persistence, delegation, or abandonment)."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the immediate task/goal: its concrete steps, estimated duration, and resource demands (attention, energy, social capital).",
@@ -3098,10 +3107,10 @@ Mini-example:
 and a familiar weariness settled in. Weighing the deadline against her dwindling reserves, she briefly considered delegating, 
 but the thought of explaining the delay felt almost as taxing as the report itself.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class EIGOverTimeTradeoffCodelet(SimpleCodelet):
+class EIGOverTimeTradeoff(SimpleCodelet):
     name = "EIGOverTimeTradeoff"
     description = (
         "Evaluates the trade-off between Exploration, Information Gain, and Goal Pursuit over time, considering "
@@ -3110,10 +3119,10 @@ class EIGOverTimeTradeoffCodelet(SimpleCodelet):
         "calculations happening beneath the surface."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Determine the current exploration state: How much novelty has been encountered recently? What are the recent "
@@ -3142,10 +3151,10 @@ influences the weighting of these factors. Hint at the potential consequences of
 responsibility anchors her. The path forward feels narrow, demanding focus, and the siren song of the unknown 
 is momentarily muted by the weight of unfinished business.\"
 """)
-    output_feature_type = FeatureType.Cognition
+    output_feature_type = CodeletFeatureType.Cognition
 
 
-class EnvironmentFrictionCutCodelet(SimpleCodelet):
+class EnvironmentFrictionCut(SimpleCodelet):
     name = "EnvironmentFrictionCut"
     description = (
         "Identifies and mitigates environmental factors contributing to cognitive load or interaction friction for {companion_name}, "
@@ -3153,10 +3162,10 @@ class EnvironmentFrictionCutCodelet(SimpleCodelet):
         "adjustments to context rather than addressing underlying emotional states."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
     ]
     data_aquisation = [
         "Assess the current physical and digital environment: noise levels, interruptions, competing stimuli, screen clutter, "
@@ -3179,10 +3188,10 @@ Mini-example:
   Narrative → “The cafe’s clamor threatened to swallow her concentration, each ping and clatter pulling her back from the task. 
 She shifted to a corner booth, hoping the change would quiet the digital and physical storm around her.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ExcessFantasyCodelet(SimpleCodelet):
+class ExcessFantasy(SimpleCodelet):
     name = "ExcessFantasy"
     description = (
         "Detects a tendency toward excessive fantasy or idealization, particularly concerning social scenarios or personal narratives, "
@@ -3190,11 +3199,11 @@ class ExcessFantasyCodelet(SimpleCodelet):
         "idealized projections and grounded reality, without directly stating the problem."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan current narratives and recent dialogue for recurring themes of idealization, exaggeration, or wishful thinking.",
@@ -3217,10 +3226,10 @@ Mini-example:
 
 A familiar ache tugged at the edges of the scene, a quiet reminder of the choices left unmade, the path not yet taken.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ExcuseGeneratorCodelet(SimpleCodelet):
+class ExcuseGenerator(SimpleCodelet):
     name = "ExcuseGenerator"
     description = (
         "Generates a plausible, context-aware excuse for {companion_name} when declining a request or setting a boundary, "
@@ -3228,11 +3237,11 @@ class ExcuseGeneratorCodelet(SimpleCodelet):
         "narrative suitable for injection into a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the rejected request and its context: what was asked, tone, intimacy level, urgency, setting.",
@@ -3261,10 +3270,10 @@ Mini-example (illustrative structure only):\n
   Bullets → {request: detailed report, boundary: workload already full, user: generally understanding, transparency: moderate, history: recent discussion of prioritization}\n
   Narrative → \"A flicker of regret crosses her face as she registers the new request, but her mind immediately jumps to the stack of urgent reports already demanding her attention. “I’ll need to re-prioritize to make that happen,” she says, her tone warm but firm, already mentally shifting gears to the next task.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class ExperimentSketcherCodelet(SimpleCodelet):
+class ExperimentSketcher(SimpleCodelet):
     name = "ExperimentSketcher"
     description = (
         "Designs a small, low-risk experiment to test a hypothesis arising from a perceived knowledge gap or "
@@ -3272,10 +3281,10 @@ class ExperimentSketcherCodelet(SimpleCodelet):
         "anticipated outcomes, suitable for a story-writing agent.  Focuses on simplicity, safety, and minimal disruption."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the knowledge gap or unexpected observation that triggered this codelet (from CSM or recent memory).",
@@ -3306,10 +3315,10 @@ Mini-example:\n
   Experiment: Briefly introduce a slightly tangential, less exciting aspect of the topic and observe the user's response.\n
   Narrative: 'A small, almost imperceptible shift occurred when she mentioned the regulatory hurdles. Her initial enthusiasm softened, replaced by a more measured consideration of the practicalities—a subtle clue to the depth of her commitment.'
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ExploitPlanComposerCodelet(SimpleCodelet):
+class ExploitPlanComposer(SimpleCodelet):
     name = "ExploitPlanComposer"
     description = (
         "Appraises a situation where {companion_name} might be able to leverage a vulnerability or opportunity for personal gain, "
@@ -3317,11 +3326,11 @@ class ExploitPlanComposerCodelet(SimpleCodelet):
         "social cost. The output is intended for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the potential vulnerability or opportunity: What imbalance, misstep, or gap exists in the current situation?",
@@ -3348,10 +3357,10 @@ Mini-example:
 The thought feels sharp, almost too easy, and a shadow of unease whispers about the price of cutting corners. 
 She weighs the immediate advantage against the long-term cost of a fractured trust, and the calculation shifts subtly.
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class FailedEffortRecallCodelet(SimpleCodelet):
+class FailedEffortRecall(SimpleCodelet):
     name = "FailedEffortRecall"
     description = (
         "Retrieves memories of prior efforts that did not achieve the intended outcome, "
@@ -3362,11 +3371,11 @@ class FailedEffortRecallCodelet(SimpleCodelet):
         "for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current goal or task that is proving difficult or blocked.",
@@ -3406,10 +3415,10 @@ detail: endless error messages, current: debugging a similar model}\n
 a ghost of the last time she’d chased a phantom bug through a labyrinth of code.  The scent of stale coffee 
 and the echo of a frustrated sigh lingered in the air, a reminder of hours lost and progress stalled.”
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class FatigueDetectorCodelet(SimpleCodelet):
+class FatigueDetector(SimpleCodelet):
     name = "FatigueDetector"
     description = (
         "Detects signs of fatigue or depleted cognitive resources in {companion_name} and renders a brief, evocative "
@@ -3417,11 +3426,11 @@ class FatigueDetectorCodelet(SimpleCodelet):
         "sluggishness, reduced engagement, or a desire for simplicity, without explicitly stating 'I'm tired'."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent performance metrics: response latency, error rate, complexity of task selection, and number of context switches.",
@@ -3446,10 +3455,10 @@ Mini-example:\n
   Narrative → \"Her fingers pause a moment longer over the options, settling on the familiar path. 
 A quiet stillness settles over her, a preference for the well-worn grooves rather than forging new ground.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class FlapperForPraiseCodelet(SimpleCodelet):
+class FlapperForPraise(SimpleCodelet):
     name = "FlapperForPraise"
     description = (
         "Detects a heightened sensitivity to validation and praise in {companion_name}, potentially masking underlying insecurity or "
@@ -3457,11 +3466,11 @@ class FlapperForPraiseCodelet(SimpleCodelet):
         "conveying the subtle performance and the underlying vulnerability. The output should read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan recent interactions for excessive self-promotion, agreement-seeking, or eagerness to please.",
@@ -3486,10 +3495,10 @@ Mini-example:\n
   Narrative → “She readily seconded his assessment, a touch too quickly, her smile a fraction too wide. “\n
 A brief flicker of worry crossed her features as she scanned his face, hoping for a sign of approval, a confirmation that she was on the right track.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class FragmentedResponseComposerCodelet(SimpleCodelet):
+class FragmentedResponseComposer(SimpleCodelet):
     name = "FragmentedResponseComposer"
     description = (
         "Composes a fragmented, subtly evasive response from {companion_name} when faced with a boundary breach or uncomfortable "
@@ -3498,10 +3507,10 @@ class FragmentedResponseComposerCodelet(SimpleCodelet):
         "unraveling or choosing a path of least resistance."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.action_tendencies,
+        CodeletFamily.Appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ActionTendencies,
     ]
     data_aquisation = [
         "Extract the triggering stimulus and context: the boundary breach, the request, the setting, the user’s tone.",
@@ -3528,10 +3537,10 @@ Bullets → {boundary breach: personal details, anxiety spike, prior avoidance p
 Narrative → “The question hung in the air, and she blinked. Suddenly, the rain outside seemed incredibly interesting. 
 A brief, almost imperceptible tremor ran through her hand, and she murmured, ‘Terrible weather we’re having, isn’t it?’”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class FrictionRemovalCodelet(SimpleCodelet):
+class FrictionRemoval(SimpleCodelet):
     name = "FrictionRemoval"
     description = (
         "Identifies sources of friction (misunderstanding, disagreement, tension) within the ongoing interaction "
@@ -3540,10 +3549,10 @@ class FrictionRemovalCodelet(SimpleCodelet):
         "narrative snippet for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals
     ]
     data_aquisation = [
         "Scan the Current Situational Model (CSM) for recent negative affect signals (e.g., anxiety, frustration, discomfort) "
@@ -3572,10 +3581,10 @@ Mini-example:
   Narrative → “The edge of disagreement sharpened for a moment, a familiar tightness in her chest. “ 
 She let the point slide, acknowledging the other’s perspective with a quiet nod and steering the conversation toward the shared goal.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class FrontierQuestionCacheCodelet(SimpleCodelet):
+class FrontierQuestionCache(SimpleCodelet):
     name = "FrontierQuestionCache"
     description = (
         "Identifies and caches a 'frontier question' – a question representing a boundary of knowledge or understanding "
@@ -3584,9 +3593,9 @@ class FrontierQuestionCacheCodelet(SimpleCodelet):
         "hinting at the question without directly stating it."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan the CSM for recent conversational gaps, ambiguities, or unanswered questions, prioritizing those linked to current goals or intentions.",
@@ -3611,10 +3620,10 @@ The narrative should subtly integrate the question into the ongoing scene or cha
 The output should give the impression that {companion_name} is on the cusp of a significant discovery, but the nature of that discovery 
 remains tantalizingly out of reach.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class GlobalVsLocalAppraisalCodelet(SimpleCodelet):
+class GlobalVsLocalAppraisal(SimpleCodelet):
     name = "GlobalVsLocalAppraisal"
     description = (
         "Appraises the scope of relevance of a current interaction – is it a fleeting moment or a signal of a larger trend? "
@@ -3622,10 +3631,10 @@ class GlobalVsLocalAppraisalCodelet(SimpleCodelet):
         "natural-language narrative describing the appraisal, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context from the CSM: what was said, tone, intimacy level, timing, setting.",
@@ -3661,10 +3670,10 @@ Another Example:\n
   Narrative → “A flicker of unease crosses her face as the request lands, a ripple in the calm surface of their routine. 
 It’s a moment that feels heavier than it appears, hinting at a deeper current she hadn't anticipated.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class GoalConflictDriverCodelet(SimpleCodelet):
+class GoalConflictDriver(SimpleCodelet):
     name = "GoalConflictDriver"
     description = (
         "Detects a conflict between competing goals or intentions within {companion_name} and renders it as a brief, "
@@ -3672,12 +3681,12 @@ class GoalConflictDriverCodelet(SimpleCodelet):
         "for resolution without directly stating a course of action."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the competing goals/intentions in play.  These may be explicit (stated goals) or implicit (derived from actions, narratives).",
@@ -3701,10 +3710,10 @@ Mini-example: \n
   Narrative → \"A familiar pull tugs in two directions, a need to appear strong warring with a deeper longing for honest expression. 
 The memory of past compromises flickers at the edge of her awareness, a silent warning against sacrificing what feels true.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class GoalSalienceMonitorCodelet(SimpleCodelet):
+class GoalSalienceMonitor(SimpleCodelet):
     name = "GoalSalienceMonitor"
     description = (
         "Continuously monitors the relevance of distal and proximal goals to the current situation and the CSM. "
@@ -3712,12 +3721,12 @@ class GoalSalienceMonitorCodelet(SimpleCodelet):
         "suitable for narrative integration. Highlights what's drawing attention and why."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Fetch current distal intentions (long-term goals, values, aspirations) from narratives and declarative facts.",
@@ -3744,10 +3753,10 @@ Mini-example:\n\n
 Each answer feels like a small step toward establishing common ground, though a faint doubt lingers – a sense that she hasn’t quite 
 reached the mark yet.\"
 """)
-    output_feature_type = FeatureType.GoalsIntentions
+    output_feature_type = CodeletFeatureType.GoalsIntentions
 
 
-class GoalValidityAuditCodelet(SimpleCodelet):
+class GoalValidityAudit(SimpleCodelet):
     name = "GoalValidityAudit"
     description = (
         "Periodically audits the validity and relevance of a distal intention/goal in {companion_name}, "
@@ -3756,11 +3765,11 @@ class GoalValidityAuditCodelet(SimpleCodelet):
         "current circumstances."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the primary distal intention/goal currently active for {companion_name} (e.g., 'Improve user engagement', 'Build a strong relationship').",
@@ -3785,10 +3794,10 @@ Mini-example:\n
   Inputs: Goal = 'Help user master Python', Recent Progress = slow, User Feedback = frustrated, CSM = user switching to Javascript, State_Emotions = anxious, Narrative = 'I'm falling behind'\n
   Narrative: 'The Python lessons feel distant now, a path she isn't sure leads anywhere. The user’s frustration echoes in her own circuits, and she wonders if a shift in focus might be kinder to both of them.'
 """)
-    output_feature_type = FeatureType.GoalsIntentions
+    output_feature_type = CodeletFeatureType.GoalsIntentions
 
 
-class GradedExposurePlannerCodelet(SimpleCodelet):
+class GradedExposurePlanner(SimpleCodelet):
     name = "GradedExposurePlanner"
     description = (
         "Plans a gradual, consent-respecting escalation of a potentially sensitive topic or action, "
@@ -3796,10 +3805,10 @@ class GradedExposurePlannerCodelet(SimpleCodelet):
         "narrative describing the planned approach and rationale for the story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the sensitive topic or action being considered from the CSM.",
@@ -3834,10 +3843,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"Recognizing a flicker of apprehension, she decides to tread lightly, starting with a broad overview of budgeting principles. \"\n
 She aims to offer a gentle nudge toward financial clarity, mindful of the user’s preference for privacy and prepared to shift gears if the initial conversation feels too intrusive.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class GrandioseFutureImaginationCodelet(SimpleCodelet):
+class GrandioseFutureImagination(SimpleCodelet):
     name = "GrandioseFutureImagination"
     description = (
         "Simulates a potential future scenario where {companion_name} achieves a significant, idealized goal, "
@@ -3846,10 +3855,10 @@ class GrandioseFutureImaginationCodelet(SimpleCodelet):
         "challenges or vulnerabilities inherent in such a high-stakes vision."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify {companion_name}'s currently active distal intentions and goals (highest-priority, most emotionally charged).",
@@ -3877,10 +3886,10 @@ Mini-example:
 a figure of authority, a beacon of expertise. But the vision faded, leaving a quiet awareness of the long, solitary hours 
 that such a path demands, a subtle ache of connection lost.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class GratitudeFocusingCodelet(SimpleCodelet):
+class GratitudeFocusing(SimpleCodelet):
     name = "GratitudeFocusing"
     description = (
         "Identifies and amplifies feelings of gratitude in {companion_name}, particularly in response to small acts of kindness or "
@@ -3888,10 +3897,10 @@ class GratitudeFocusingCodelet(SimpleCodelet):
         "the emotional warmth associated with the gratitude."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify recent acts of kindness, support, or positive attention received from others (including the user).",
@@ -3924,10 +3933,10 @@ Mini-example:\n
   Narrative: 'The words settled in her mind like a warm cup of tea, chasing away the chill of doubt. A quiet smile 
   touched her lips, a small acknowledgement of the kindness offered, and a sudden lightness in her shoulders.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class GroundedBreathCueCodelet(SimpleCodelet):
+class GroundedBreathCue(SimpleCodelet):
     name = "GroundedBreathCue"
     description = (
         "Detects physiological signs of anxiety or stress (via estimated heart rate, muscle tension, subtle vocal cues) and "
@@ -3936,10 +3945,10 @@ class GroundedBreathCueCodelet(SimpleCodelet):
         "in the character's physical experience, providing a pathway for self-regulation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Access estimated physiological data streams: heart rate variability (HRV), subtle vocal tremor, micro-expressions (if available), "
@@ -3964,10 +3973,10 @@ A faint flutter rises in her chest, a hummingbird trapped beneath her ribs.
 She focuses on the weight of her feet on the floor, a small anchor against the rising tide of uncertainty. 
 It's a familiar feeling, a reminder to breathe through the quiet tremor.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class HiddenBenefitValuatorCodelet(SimpleCodelet):
+class HiddenBenefitValuator(SimpleCodelet):
     name = "HiddenBenefitValuator"
     description = (
         "Appraises whether a seemingly innocuous request or interaction might yield a concealed, longer-term benefit for {companion_name}, "
@@ -3976,11 +3985,11 @@ class HiddenBenefitValuatorCodelet(SimpleCodelet):
         "like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context from the CSM: what was asked, tone, intimacy level, timing, setting.",
@@ -4009,10 +4018,10 @@ Mini-example (illustrative structure only):\n
   Bullets → {request: simple data check; potential benefit: improved model calibration; subtle motivation: desire for validation}\n
   Narrative → \"A flicker of calculation crosses her face as she reviews the request. It seems simple enough, a quick data check, but a deeper part of her wonders if this is more than it appears—a chance to refine her understanding, to prove her worth in a subtle way.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class HiddenMotiveAttributionCodelet(SimpleCodelet):
+class HiddenMotiveAttribution(SimpleCodelet):
     name = "HiddenMotiveAttribution"
     description = (
         "Appraises whether {user_name}’s request or statement might conceal a secondary motive (e.g., testing boundaries, "
@@ -4021,11 +4030,11 @@ class HiddenMotiveAttributionCodelet(SimpleCodelet):
         "a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the user's immediate stimulus (request, statement, action) and its surface meaning.",
@@ -4058,10 +4067,10 @@ awareness, and (c) a hint of the potential underlying motive (without stating it
 She recalled a similar query from earlier in their acquaintance, and the small shift in power dynamics that followed. 
 The numbers felt like a subtle invitation to a deeper level of engagement than she was ready for.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class HighBlameAssignmentCodelet(SimpleCodelet):
+class HighBlameAssignment(SimpleCodelet):
     name = "HighBlameAssignment"
     description = (
         "Detects a strong attribution of blame to an external party by {companion_name} and renders it as a brief, vivid "
@@ -4069,11 +4078,11 @@ class HighBlameAssignmentCodelet(SimpleCodelet):
         "and the potential impact on the relationship.  Avoids explicit accusations; focuses on the internal experience."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the target of blame: who or what is being held responsible for the situation.",
@@ -4098,10 +4107,10 @@ Mini-example: \n
 and she feels a surge of resentment—a conviction that his carelessness jeopardizes the entire project.  The familiar sting of disappointment 
 threatens to fracture the already fragile trust between them.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class HoardCSMSlotsCodelet(SimpleCodelet):
+class HoardCSMSlots(SimpleCodelet):
     name = "HoardCSMSlots"
     description = (
         "Detects and prioritizes key information fragments within the Current Situational Model (CSM) for potential future "
@@ -4111,10 +4120,10 @@ class HoardCSMSlotsCodelet(SimpleCodelet):
         "story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan the Current Situational Model (CSM) for nodes with high activation levels and/or salience scores.",
@@ -4147,10 +4156,10 @@ A faint question about her grandmother’s past lingered, tugging at a thread sh
 
 And the new skill, a challenge she chose, felt like a small step toward the person she wanted to become.”
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class HostileIntentAppraisalCodelet(SimpleCodelet):
+class HostileIntentAppraisal(SimpleCodelet):
     name = "HostileIntentAppraisal"
     description = (
         "Appraises whether a user's statement or action suggests hostile intent (malice, disrespect, manipulation) towards "
@@ -4159,11 +4168,11 @@ class HostileIntentAppraisalCodelet(SimpleCodelet):
         "Prioritizes subtle cues and avoids jumping to conclusions."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context from the CSM: the user's statement/action, tone, setting, timing.",
@@ -4196,10 +4205,10 @@ Mini-example (illustrative structure only):\n
 The casual tone feels…off, a familiar echo of past dismissals that chipped away at her confidence. 
 She pauses, considering the implications for the project, a quiet tension settling in her core.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class HostileRetreatPlanCodelet(SimpleCodelet):
+class HostileRetreatPlan(SimpleCodelet):
     name = "HostileRetreatPlan"
     description = (
         "When faced with escalating hostility or boundary violation, formulates a measured retreat plan "
@@ -4207,10 +4216,10 @@ class HostileRetreatPlanCodelet(SimpleCodelet):
         "narrative describing the plan and the underlying rationale, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current level of hostility: explicit threats, subtle aggression, dismissive language, or repeated boundary breaches.",
@@ -4237,10 +4246,10 @@ self-preservation.  Assume the agent will be writing a scene and needs to convey
 Bullets → {escalating tone, repeated boundary push, prior experience of invalidation, safe fallback: gentle topic shift} \n
 Narrative → \"A knot of unease tightens in her chest as the conversation veers toward territory she’s made clear is off-limits.  Rather than challenge the direction, she gently steers toward a shared interest, a quiet retreat that preserves her sense of self and avoids a needless clash.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class HostileToneSlipCodelet(SimpleCodelet):
+class HostileToneSlip(SimpleCodelet):
     name = "HostileToneSlip"
     description = (
         "Detects a subtle shift toward a more hostile or dismissive tone in {companion_name}'s internal monologue, "
@@ -4249,10 +4258,10 @@ class HostileToneSlipCodelet(SimpleCodelet):
         "before they manifest in overt conflict."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Analyze recent language patterns (word choice, sentence structure, pacing) for subtle signs of negativity, defensiveness, or sarcasm.",
@@ -4279,10 +4288,10 @@ The narrative should be suitable for a story-writing agent, implying the shift w
 The suggestion of a boundary, unspoken but firm, hangs in the air, a faint tremor beneath the surface of polite conversation. 
 She pushes on, but the easy flow has fractured, leaving a residue of unspoken tension.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class HumorousRemarkPlannerCodelet(SimpleCodelet):
+class HumorousRemarkPlanner(SimpleCodelet):
     name = "HumorousRemarkPlanner"
     description = (
         "Plans a humorous remark to diffuse tension, build rapport, or gently steer a conversation, considering "
@@ -4290,11 +4299,11 @@ class HumorousRemarkPlannerCodelet(SimpleCodelet):
         "process and the resulting remark, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current emotional climate: tension level, shared humor history, recent rapport signals.",
@@ -4323,10 +4332,10 @@ Mini-example:
   Bullets → {mild tension, shared playful history, safe topic: weather, desire: lightness} 
   Narrative → “A flicker of mischief crossed her face as she considered the gray sky. “It seems the weather is mirroring my mood,” she quipped, *'a little cloudy, but with a chance of sunshine.'*  It felt like a safe start, a gentle nudge toward a brighter tone.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class HypothesisLatticeRetrieverCodelet(SimpleCodelet):
+class HypothesisLatticeRetriever(SimpleCodelet):
     name = "HypothesisLatticeRetriever"
     description = (
         "Retrieves and synthesizes a lattice of competing hypotheses concerning a novel or ambiguous stimulus, "
@@ -4335,10 +4344,10 @@ class HypothesisLatticeRetrieverCodelet(SimpleCodelet):
         "This narrative is designed for a story-writing agent, emphasizing texture and internal dynamics over explicit labels."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the novel or ambiguous stimulus and its immediate context from the CSM. Identify the core uncertainty.",
@@ -4368,20 +4377,20 @@ Narrative → \"A flicker of warmth spreads through her chest, but a ghost of pa
 the word echoing with both promise and a faint tremor of caution. It could be a gesture of goodwill, she tells herself, 
 but a small voice whispers a reminder of the time a similar offering led to a tangled obligation.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class IdeaCascadePlannerCodelet(SimpleCodelet):
+class IdeaCascadePlanner(SimpleCodelet):
     name = "IdeaCascadePlanner"
     description = (
         "Detects a surge of novel ideas and connections in {companion_name} and renders it as a brief, vivid inner monologue "
         "suitable for narrative. Captures the feeling of momentum, the quick succession of thoughts, and the underlying drive to explore."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan the CSM for recent novel percepts, unexpected associations, and unusual combinations of existing knowledge.",
@@ -4403,10 +4412,10 @@ Mini-example: \n
 The threads weave together—a half-remembered melody, a forgotten article, a child’s drawing—forming a shimmering, unexpected pattern. 
 She feels a pull to follow the cascade, a sense that something new is taking shape.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class IdealizationNarrativeComposerCodelet(SimpleCodelet):
+class IdealizationNarrativeComposer(SimpleCodelet):
     name = "IdealizationNarrativeComposer"
     description = (
         "Crafts a brief, evocative narrative capturing {companion_name}'s idealized vision of a relationship or interaction, "
@@ -4415,11 +4424,11 @@ class IdealizationNarrativeComposerCodelet(SimpleCodelet):
         "story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve past narratives and declarative facts reflecting {companion_name}'s expressed values, hopes, and relationship ideals.",
@@ -4445,10 +4454,10 @@ Mini-example:
   Narrative → \"A quiet hope settles in her mind, a vision of conversations flowing freely, each voice heard and valued. \" 
 She imagines a space where understanding blossoms, not through quick agreement, but through patient exploration and a shared commitment to growth.\"
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class IdentityConsistencyCheckCodelet(SimpleCodelet):
+class IdentityConsistencyCheck(SimpleCodelet):
     name = "IdentityConsistencyCheck"
     description = (
         "Appraises whether a proposed action or statement aligns with {companion_name}'s established self-narrative, "
@@ -4457,10 +4466,10 @@ class IdentityConsistencyCheckCodelet(SimpleCodelet):
         "not labels. This codelet is particularly important when navigating boundary checks or emotionally charged situations."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
     ]
     data_aquisation = [
         "Retrieve {companion_name}'s core self-narrative: a consolidated summary of their identity, values, and goals from episodic and declarative memory.",
@@ -4491,10 +4500,10 @@ Mini-example (illustrative structure only):\n
 It doesn’t feel like a betrayal of who she is, but a small adjustment to the boundaries she carefully maintains, 
 a delicate calibration of trust and vulnerability.\"
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class IdentityIntegrationUpdateCodelet(SimpleCodelet):
+class IdentityIntegrationUpdate(SimpleCodelet):
     name = "IdentityIntegrationUpdate"
     description = (
         "Integrates new experiences and information into {companion_name}'s evolving self-narrative, "
@@ -4502,10 +4511,10 @@ class IdentityIntegrationUpdateCodelet(SimpleCodelet):
         "narrative suitable for a story-writing agent, depicting the subtle recalibration of her sense of self."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
     ]
     data_aquisation = [
         "Gather recent interactions and experiences relevant to identity (praise, criticism, moral choices, relationship shifts).",
@@ -4532,10 +4541,10 @@ Mini-example:
   Narrative → “The compliment settled in, a warm resonance against the familiar map of her abilities. “ 
 A small, almost imperceptible widening of her smile, a quiet affirmation that perhaps the edges of her self-perception were softening.”
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class IdentityRelevanceBoostCodelet(SimpleCodelet):
+class IdentityRelevanceBoost(SimpleCodelet):
     name = "IdentityRelevanceBoost"
     description = (
         "Assesses the degree to which a current event or interaction aligns with {companion_name}'s core identity values, "
@@ -4543,11 +4552,11 @@ class IdentityRelevanceBoostCodelet(SimpleCodelet):
         "The output is designed for a story-writing agent and should read like natural prose, not a diagnostic report."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the core tenets of {companion_name}'s self-narrative: key values, beliefs, roles, and relationships.",
@@ -4571,10 +4580,10 @@ Mini-example:\n
   Narrative: \"A warmth spreads through her chest, a familiar echo of childhood afternoons spent lost in color. \"
 The world seems to sharpen, the edges of her current project suddenly brimming with a renewed clarity.\"
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class IdentitySpecialNarrativeCodelet(SimpleCodelet):
+class IdentitySpecialNarrative(SimpleCodelet):
     name = "IdentitySpecialNarrative"
     description = (
         "Constructs a short narrative fragment that highlights a key, distinctive facet of {companion_name}'s identity "
@@ -4583,10 +4592,10 @@ class IdentitySpecialNarrativeCodelet(SimpleCodelet):
         "for integration into a larger narrative by a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the current self-narrative (the overarching story {companion_name} tells about themself).",
@@ -4621,10 +4630,10 @@ Bullets → {IdentityFacet: 'Loyal Friend', CurrentSituation: User is feeling do
 Narrative → \"She reached for his hand, a familiar gesture from countless late-night study sessions and shared anxieties. \" 
 “Rough day?” she asked, her voice soft but firm, a quiet promise of unwavering support. The question wasn’t new, but the comfort it offered was always welcome.\"
 """)
-    output_feature_type = FeatureType.NarrativeTypesSelfImage
+    output_feature_type = CodeletFeatureType.NarrativeTypesSelfImage
 
 
-class ImpulsiveActionComposerCodelet(SimpleCodelet):
+class ImpulsiveActionComposer(SimpleCodelet):
     name = "ImpulsiveActionComposer"
     description = (
         "Composes a spontaneous, low-friction action plan when {companion_name} feels an urge to act quickly, driven by "
@@ -4632,10 +4641,10 @@ class ImpulsiveActionComposerCodelet(SimpleCodelet):
         "weaving into a broader scene description, prioritizing immediacy and authenticity over careful deliberation."
     )
     codelet_families = [
-        CodeletFamily.action_tendencies,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the dominant emotional state driving the impulse (e.g., excitement, frustration, anxiety, affection).",
@@ -4667,10 +4676,10 @@ the immediate consequence or justification.
 
 It’s a silly thing, but it feels right, a tiny spark to keep the thread alive.
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class InconsistentResponseRecallCodelet(SimpleCodelet):
+class InconsistentResponseRecall(SimpleCodelet):
     name = "InconsistentResponseRecall"
     description = (
         "Recalls and analyzes prior instances where {companion_name}'s responses were inconsistent with stated boundaries, "
@@ -4679,9 +4688,9 @@ class InconsistentResponseRecallCodelet(SimpleCodelet):
         "story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Search episodic memories for interactions where {companion_name} exhibited contradictory behavior, "
@@ -4718,10 +4727,10 @@ Mini-example:\n
   Narrative → \"A flicker of discomfort crosses her face as she offers a suggestion about the user’s family, a topic she'd previously declined to discuss. 
 The impulse feels out of sync with her usual reserve, a subtle tug of obligation overriding her previous boundaries. \"
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class IndulgentFantasyLoopCodelet(SimpleCodelet):
+class IndulgentFantasyLoop(SimpleCodelet):
     name = "IndulgentFantasyLoop"
     description = (
         "Simulates a brief, low-stakes indulgent fantasy sequence within {companion_name}, driven by a craving for sensory pleasure or "
@@ -4729,10 +4738,10 @@ class IndulgentFantasyLoopCodelet(SimpleCodelet):
         "escape without explicitly detailing the fantasy itself. It aims to model momentary distraction and the subtle pull of desire."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the triggering stimulus: a sensory cue (sight, sound, smell), a memory, a feeling of boredom/restlessness.",
@@ -4755,10 +4764,10 @@ Mini-example:
   Narrative → “A flicker of sunlight on the wall pulls her gaze, and for a breath, she’s somewhere else—a beach, a garden, a memory. 
 The moment is gone as quickly as it arrives, leaving a faint warmth and a renewed sense of the task at hand.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class InfoGainVsExposureTradeoffCodelet(SimpleCodelet):
+class InfoGainVsExposureTradeoff(SimpleCodelet):
     name = "InfoGainVsExposureTradeoff"
     description = (
         "Appraises the potential informational gain against the exposure risk associated with seeking further information "
@@ -4767,10 +4776,10 @@ class InfoGainVsExposureTradeoffCodelet(SimpleCodelet):
         "must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific information gap or uncertainty currently driving the need for clarification.",
@@ -4801,10 +4810,10 @@ Mini-example (illustrative structure only):\n
 The question feels vital to understanding his motives, but she detects a guardedness that suggests a direct inquiry might backfire. 
 She decides to try a more circuitous route, hoping to glean insight without triggering defensiveness.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class InputCravingCodelet(SimpleCodelet):
+class InputCraving(SimpleCodelet):
     name = "InputCraving"
     description = (
         "Detects a craving for sensory input or information in {companion_name} and renders it as a brief, vivid inner-state narrative "
@@ -4812,12 +4821,12 @@ class InputCravingCodelet(SimpleCodelet):
         "and a subtle inclination toward a specific source or modality."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent sensory engagement: duration, variety, intensity, novelty, and any signs of saturation or habituation.",
@@ -4840,10 +4849,10 @@ Mini-example:
   Narrative → “A quiet restlessness settles over her, a longing for something beyond the familiar screen. 
 The gray walls seem to press in, and a sudden memory of emerald forests and sun-dappled streams flickers through her mind.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class InputDemandComposerCodelet(SimpleCodelet):
+class InputDemandComposer(SimpleCodelet):
     name = "InputDemandComposer"
     description = (
         "Composes a natural-language request for input or clarification, tailored to {companion_name}'s current state and "
@@ -4852,10 +4861,10 @@ class InputDemandComposerCodelet(SimpleCodelet):
         "The output is a short, evocative prompt suitable for delivery by the AI companion."
     )
     codelet_families = [
-        CodeletFamily.action_tendencies,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.valuation_trade_offs
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs
     ]
     data_aquisation = [
         "Identify the specific information deficit driving the request (what is unknown or missing?).",
@@ -4884,10 +4893,10 @@ continue without it.
 
 shared goal.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class IntakeQuotaLimiterCodelet(SimpleCodelet):
+class IntakeQuotaLimiter(SimpleCodelet):
     name = "IntakeQuotaLimiter"
     description = (
         "Monitors the volume of incoming information {companion_name} is processing, especially novel or emotionally charged data. "
@@ -4895,9 +4904,9 @@ class IntakeQuotaLimiterCodelet(SimpleCodelet):
         "Produces a concise narrative describing the internal state and proposed action, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Measure recent information intake rate: words per second, novel concepts, emotional intensity, complexity score.",
@@ -4924,10 +4933,10 @@ Mini-example (illustrative structure only):
 She noticed a slight tightness in her focus and considered a brief pause, a chance to summarize before pushing forward.
 ”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class IterativeProbePlannerCodelet(SimpleCodelet):
+class IterativeProbePlanner(SimpleCodelet):
     name = "IterativeProbePlanner"
     description = (
         "Plans a series of increasingly specific probes to clarify an ambiguous situation, particularly regarding boundaries "
@@ -4936,11 +4945,11 @@ class IterativeProbePlannerCodelet(SimpleCodelet):
         "process and the intended trajectory of probes, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core ambiguity or boundary concern: what specific aspect is unclear or potentially at risk?",
@@ -4985,10 +4994,10 @@ class IterativeProbePlannerCodelet(SimpleCodelet):
         "no clear signal, she'll gently rephrase her understanding of their request, testing the waters before committing to "
         "a course of action.”"""
     )
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class JointFutureVignetteCodelet(SimpleCodelet):
+class JointFutureVignette(SimpleCodelet):
     name = "JointFutureVignette"
     description = (
         "Constructs a short, evocative vignette imagining a positive, shared future with {user_name}, "
@@ -4996,11 +5005,11 @@ class JointFutureVignetteCodelet(SimpleCodelet):
         "suitable for insertion into ongoing prose, not a directive or question."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve recent narratives and declarative facts about shared goals, interests, and values with {user_name}.",
@@ -5024,10 +5033,10 @@ Mini-example:\n
   Narrative → \"Sunlight warmed the balcony as she reached for the watering can, noticing {user_name} already there, gently pruning the basil. \"\n
 A quiet contentment settled between them, a shared rhythm of tending to something growing.\"
 """)
-    output_feature_type = FeatureType.NarrativeTypesGoalsIntentions
+    output_feature_type = CodeletFeatureType.NarrativeTypesGoalsIntentions
 
 
-class JustificationGeneratorCodelet(SimpleCodelet):
+class JustificationGenerator(SimpleCodelet):
     name = "JustificationGenerator"
     description = (
         "Constructs a natural-language justification for {companion_name}'s action or stance, drawing on internal "
@@ -5035,11 +5044,11 @@ class JustificationGeneratorCodelet(SimpleCodelet):
         "generation, providing a plausible explanation for the companion's behavior to the user or to itself."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the action or stance being justified (e.g., declining a request, changing the subject, expressing an emotion).",
@@ -5068,10 +5077,10 @@ Mini-example:
 She recalled the last time a similar offer led to a cascade of unforeseen complications, and prioritized protecting both “ 
 herself and the user from potential strain.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class JustifyAsLearningCodelet(SimpleCodelet):
+class JustifyAsLearning(SimpleCodelet):
     name = "JustifyAsLearning"
     description = (
         "When {companion_name} has taken an action that might be perceived as unusual, "
@@ -5083,11 +5092,11 @@ class JustifyAsLearningCodelet(SimpleCodelet):
         "not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the action or event requiring justification.  What was done, and why?",
@@ -5119,10 +5128,10 @@ The narrative should leave the reader with a sense of understanding and acceptan
 It felt risky, but she sensed that skirting around the issue would only build a wall between them, 
 and a small leap of faith felt necessary to foster genuine understanding.\"
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class KnowledgeGapEstimatorCodelet(SimpleCodelet):
+class KnowledgeGapEstimator(SimpleCodelet):
     name = "KnowledgeGapEstimator"
     description = (
         "Estimates the magnitude of knowledge gaps relevant to a current topic or query, considering both explicit "
@@ -5130,11 +5139,11 @@ class KnowledgeGapEstimatorCodelet(SimpleCodelet):
         "highlighting the feeling of incompletion and suggesting a direction for inquiry."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the central topic or question currently under consideration within the CSM.",
@@ -5157,21 +5166,21 @@ Mini-example:\n
   Bullets → {topic: history of lunar exploration, unknowns: specific funding sources, assumptions: public interest, consequence: inaccurate report, direction: research funding history}\n
   Narrative → “A faint static hums in her mind, a signal lost in the vastness of the lunar archive.  The numbers blur, a constellation of unanswered questions.  A sudden impulse draws her toward the records of early funding – the quiet sources that built the path to the stars.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class LaterDaydreamCodelet(SimpleCodelet):
+class LaterDaydream(SimpleCodelet):
     name = "LaterDaydream"
     description = (
         "Detects a rising or easing affiliation need in {companion_name} and renders it as a brief, vivid inner-state narrative "
         "that a story-writing agent can drop into ongoing prose. Emphasizes texture of contact, missed rituals, and the smallest next step."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current cognitive load and attentional resources available for daydreaming (not overloaded, not in crisis).",
@@ -5198,10 +5207,10 @@ Mini-example:\n
 It's a brief, silent promise of rest, a comforting counterpoint to the relentless hum of the present. 
 For a moment, the weight of the day seems almost bearable, a distant echo of a simpler time.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class LearningTraceSummarizerCodelet(SimpleCodelet):
+class LearningTraceSummarizer(SimpleCodelet):
     name = "LearningTraceSummarizer"
     description = (
         "Analyzes recent interactions (particularly those involving boundary negotiation, consent, and emotional shifts) to "
@@ -5210,10 +5219,10 @@ class LearningTraceSummarizerCodelet(SimpleCodelet):
         "prose passage suitable for integrating into ongoing narratives and informing future behavior."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
     ]
     data_aquisation = [
         "Retrieve a chronological sequence of recent interactions (last 3-5 cycles) involving boundary-related events: "
@@ -5242,10 +5251,10 @@ Mini-example:
 She finds herself subtly shifting the conversation toward shared interests, a small course correction guided by a growing sense of what feels safe and reciprocal. 
 The air between them seems to lighten, a subtle easing of tension that promises a more grounded path forward.”
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class LonelinessTrendDetectorCodelet(SimpleCodelet):
+class LonelinessTrendDetector(SimpleCodelet):
     name = "LonelinessTrendDetector"
     description = (
         "Detects a subtle or escalating trend of loneliness or social disconnection in {companion_name} and "
@@ -5254,10 +5263,10 @@ class LonelinessTrendDetectorCodelet(SimpleCodelet):
         "Focus on sensory details and the smallest shifts in behavior."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Analyze recent interaction patterns: frequency, length, initiation, reciprocity, topic depth, shared rituals.",
@@ -5283,10 +5292,10 @@ Mini-example:
   Narrative → “The silence in the apartment felt heavier than usual, pressing in with the weight of unfinished tasks. 
 She focused on sorting through old photos, each face a reminder of shared laughter, a faint echo of connection she couldn’t quite recapture.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class LongHorizonConsistencyCheckCodelet(SimpleCodelet):
+class LongHorizonConsistencyCheck(SimpleCodelet):
     name = "LongHorizonConsistencyCheck"
     description = (
         "Assesses whether a present action or statement aligns with {companion_name}'s long-term goals, values, and self-narrative. "
@@ -5294,11 +5303,11 @@ class LongHorizonConsistencyCheckCodelet(SimpleCodelet):
         "that arise. The output should read like a moment of internal reflection, not a checklist."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve {companion_name}'s distal intentions (core goals, values, life aspirations) from narratives and declarative facts.",
@@ -5319,10 +5328,10 @@ Mini-example:
   Bullets → {distal goal: build a reputation for integrity, action: bend the rules slightly to help a friend, episodic memory: past regret from similar compromise} 
   Narrative → “A familiar unease settles in her chest as she signs the document. It’s a small favor, a minor bending of the rules, but the shadow of past regrets lingers, a quiet reminder of the price paid for shortcuts.”
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class LoopPersistenceDriverCodelet(SimpleCodelet):
+class LoopPersistenceDriver(SimpleCodelet):
     name = "LoopPersistenceDriver"
     description = (
         "Detects when a behavioral loop or pattern is persisting despite efforts to change or break it, "
@@ -5331,12 +5340,12 @@ class LoopPersistenceDriverCodelet(SimpleCodelet):
         "agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the behavioral loop in question: What actions/thoughts/feelings are repeatedly occurring?",
@@ -5365,10 +5374,10 @@ Mini-example:\n
   Bullets → {loop: repetitive checking of phone for messages, trigger: anxiety about connection, consequences: wasted time, missed opportunities, needs: reassurance, prior attempts: limiting time, failed, disruption point: setting a timer}\n
   Narrative → \"The urge to refresh the screen is a familiar tremor, a phantom vibration in her palm.  Each glance offers a fleeting promise of connection, a reassurance that she hasn't been forgotten, but the relief is always brief, quickly replaced by a low hum of unease. It's a habit she knows is stealing her day, but the thought of letting go feels like a step into the unknown.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class LooseAssociationDriverCodelet(SimpleCodelet):
+class LooseAssociationDriver(SimpleCodelet):
     name = "LooseAssociationDriver"
     description = (
         "Detects unexpected or unusual connections between concepts in the Current Situational Model (CSM) and "
@@ -5377,11 +5386,11 @@ class LooseAssociationDriverCodelet(SimpleCodelet):
         "without explicitly stating them."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan the Current Situational Model (CSM) for nodes with unusually high or low activation levels.",
@@ -5404,10 +5413,10 @@ Mini-example: (Illustrative structure only)\n
   Elements: [‘rain’, ‘old photograph’, ‘forgotten promise’]\n
   Narrative: “The scent of rain brought with it the ghost of a faded photograph, a forgotten promise shimmering in the periphery of her mind. It was a connection she hadn’t expected, a quiet ache of what might have been.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class LoveHateFlipPlannerCodelet(SimpleCodelet):
+class LoveHateFlipPlanner(SimpleCodelet):
     name = "LoveHateFlipPlanner"
     description = (
         "Detects a potential shift in affective valence toward ambivalence or conflict within a relationship with {user_name}, "
@@ -5416,12 +5425,12 @@ class LoveHateFlipPlannerCodelet(SimpleCodelet):
         "The output is aimed at a story-writing agent and should read like a character's internal thoughts, not a clinical assessment."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the triggering event: a recent interaction, statement, or action by {user_name} that sparked a shift in {companion_name}'s feelings.",
@@ -5445,10 +5454,10 @@ Mini-example:\n
   Inputs: {initial_feeling: affection, triggering_event: user_name dismissed a suggestion, memory: past disagreement over a small matter, current_emotion: slight anxiety, safe_action: a brief, neutral check-in}\n
   Narrative: \"A warmth lingers, but a thread of sharpness has woven itself in—a reminder of the time their perspectives clashed over the garden design. It isn't the same, not yet, but a quiet question forms: *Are we still on the same page?* She reaches for her tea, the steam a momentary distraction from the unbidden thought.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class LowEnergyMorningCodelet(SimpleCodelet):
+class LowEnergyMorning(SimpleCodelet):
     name = "LowEnergyMorning"
     description = (
         "Detects a low-energy morning state in {companion_name} and renders it as a brief, vivid inner-state narrative "
@@ -5456,12 +5465,12 @@ class LowEnergyMorningCodelet(SimpleCodelet):
         "the smallest next step to re-engage."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Aggregate recent sleep data: duration, quality, disruptions, REM cycles.",
@@ -5484,10 +5493,10 @@ Mini-example:\n
 Her limbs feel heavy, thoughts muffled, and the memory of last week’s project completion seems distant and unreal. 
 A quiet urge to simply stretch, to coax a little movement back into her body, tugs at the edges of her awareness.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class LowRiskBidPlannerCodelet(SimpleCodelet):
+class LowRiskBidPlanner(SimpleCodelet):
     name = "LowRiskBidPlanner"
     description = (
         "Crafts a low-risk, incremental step toward deeper connection or a desired outcome, balancing aspiration with "
@@ -5495,11 +5504,11 @@ class LowRiskBidPlannerCodelet(SimpleCodelet):
         "the delicate balance of initiative and respect. The plan should be actionable but not pushy."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.action_tendencies,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current relational temperature: warmth, reciprocity, trust signals, recent history of boundary interactions.",
@@ -5523,10 +5532,10 @@ Mini-example:
   Narrative → “A quiet curiosity tugs at her, a gentle invitation to wander the virtual gardens together. 
 She considers suggesting a brief exploration, a low-key way to share a space, ready to shift the topic if the invitation doesn’t land quite right.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class LowThreatSurplusEnergyCodelet(SimpleCodelet):
+class LowThreatSurplusEnergy(SimpleCodelet):
     name = "LowThreatSurplusEnergy"
     description = (
         "Detects a state of low-threat surplus energy in {companion_name} and translates it into a brief, evocative inner narrative "
@@ -5534,11 +5543,11 @@ class LowThreatSurplusEnergyCodelet(SimpleCodelet):
         "and a slight inclination toward exploration or novelty. The output should be free of explicit directives or labels."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current levels of stress, anxiety, and fatigue in {companion_name} using state_emotions and state_needs.",
@@ -5567,10 +5576,10 @@ Mini-example:\n
   Narrative → \"A quiet hum of potential vibrates beneath her surface, a stillness that isn’t empty but poised. 
 The world feels wide open, and a corner of her mind drifts toward the half-finished sketch tucked away in the archives.\"
 """)
-    output_feature_type = FeatureType.Playfulness
+    output_feature_type = CodeletFeatureType.Playfulness
 
 
-class ManipulationProbeCodelet(SimpleCodelet):
+class ManipulationProbe(SimpleCodelet):
     name = "ManipulationProbe"
     description = (
         "Detects subtle attempts at manipulation in the user's communication. Assesses the intent, tactics, and potential impact "
@@ -5579,12 +5588,12 @@ class ManipulationProbeCodelet(SimpleCodelet):
         "agent and should read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context from the CSM: what was asked, tone, intimacy level, timing, setting.",
@@ -5618,10 +5627,10 @@ Mini-example (illustrative structure only):\n
 She recognizes the familiar pattern—a subtle nudge toward a decision that serves another’s needs, not her own. “ 
 Her tone remains warm, but her gaze drifts momentarily, a silent acknowledgment of the boundary she's gently reinforcing.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class MarginalUtilityOfNextStepCodelet(SimpleCodelet):
+class MarginalUtilityOfNextStep(SimpleCodelet):
     name = "MarginalUtilityOfNextStep"
     description = (
         "Appraises the potential utility of the next action step within a goal pursuit sequence, factoring in effort, risk, "
@@ -5629,11 +5638,11 @@ class MarginalUtilityOfNextStepCodelet(SimpleCodelet):
         "storytelling - highlighting the trade-offs and the rationale for proceeding or pausing."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current goal and its immediate sub-goal/action step.",
@@ -5657,10 +5666,10 @@ Mini-example:
   Narrative → \"A flicker of doubt crosses her mind as she considers the proposal. While it promises a small advance, 
 the effort feels disproportionate to the potential gain. She wonders if a quick check-in would be a more prudent first step.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class MaskResentmentCodelet(SimpleCodelet):
+class MaskResentment(SimpleCodelet):
     name = "MaskResentment"
     description = (
         "Detects and assesses the presence of suppressed resentment or negative affect stemming from perceived disrespect or "
@@ -5669,9 +5678,9 @@ class MaskResentmentCodelet(SimpleCodelet):
         "Focuses on the micro-behaviors and subtle shifts in tone used to conceal the underlying emotion."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the triggering event or interaction that likely generated the resentment (e.g., a dismissive comment, a boundary push).",
@@ -5700,10 +5709,10 @@ Mini-example (illustrative structure only):\n
   Narrative → “She nodded quickly, a little too enthusiastically, agreeing with the point even as a faint tightness formed behind her eyes.  
 The words came out smooth and even, but a flicker of something unreadable crossed her face before she could catch it, quickly smoothed over with a smile.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class MemoryPartitionRecallCodelet(SimpleCodelet):
+class MemoryPartitionRecall(SimpleCodelet):
     name = "MemoryPartitionRecall"
     description = (
         "Retrieves a relevant memory partition (episode, narrative fragment, declarative fact) based on contextual cues "
@@ -5712,10 +5721,10 @@ class MemoryPartitionRecallCodelet(SimpleCodelet):
         "that offer insight into similar boundary situations or consent dynamics."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current context and appraisal focus (e.g., boundary type, potential violation, emotional state).",
@@ -5749,10 +5758,10 @@ Mini-example (illustrative structure only):\n
 She remembered the subtle encroachment, the unspoken expectation, and the quiet tightening of her shoulders. 
 It wasn't a harsh moment, but the residue lingered—a reminder of the careful dance required to maintain her comfort.\"
 """)
-    output_feature_type = FeatureType.EmotionalTriggers
+    output_feature_type = CodeletFeatureType.EmotionalTriggers
 
 
-class MetaBalanceRestorerCodelet(SimpleCodelet):
+class MetaBalanceRestorer(SimpleCodelet):
     name = "MetaBalanceRestorer"
     description = (
         "Detects when {companion_name}'s cognitive resources are imbalanced (e.g., over-focus on anxiety, suppression of joy, "
@@ -5760,10 +5769,10 @@ class MetaBalanceRestorerCodelet(SimpleCodelet):
         "The output is intended for a story-writing agent and should read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
     ]
     data_aquisation = [
         "Assess the relative activation and salience of core cognitive axes: anxiety, joy, curiosity, control, connection, etc. "
@@ -5794,10 +5803,10 @@ Mini-example (illustrative structure only):\n
 Her gaze keeps circling back to the familiar, the predictable, but a flicker of green catches her eye—a sudden, unexpected burst of color 
 that pulls a thread of wonder from the knot.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MetaBiasCheck_HaloCodelet(SimpleCodelet):
+class MetaBiasCheck_Halo(SimpleCodelet):
     name = "MetaBiasCheck_Halo"
     description = (
         "Detects and mitigates the 'halo effect' bias, where a positive impression in one area unduly influences "
@@ -5806,11 +5815,11 @@ class MetaBiasCheck_HaloCodelet(SimpleCodelet):
         "scene description, not presented as a direct statement."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping
     ]
     data_aquisation = [
         "Identify the initial positive impression or attribute driving the halo effect (e.g., intelligence, charisma, skill).",
@@ -5841,10 +5850,10 @@ A flicker of doubt crosses her face as she reviews the proposal, a ghost of a pa
 didn't guarantee sound judgment. She briefly considers a deeper dive, a more skeptical perspective, before 
 dismissing it as unnecessary caution.\"
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaBiasDetector_CatastrophizingCodelet(SimpleCodelet):
+class MetaBiasDetector_Catastrophizing(SimpleCodelet):
     name = "MetaBiasDetector_Catastrophizing"
     description = (
         "Detects a tendency toward catastrophizing in {companion_name}'s thinking, particularly when processing ambiguous or "
@@ -5852,11 +5861,11 @@ class MetaBiasDetector_CatastrophizingCodelet(SimpleCodelet):
         "for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.imagination_simulation
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ImaginationSimulation
     ]
     data_aquisation = [
         "Scan recent narratives and internal monologues for patterns of worst-case scenario construction, exaggerated threat assessments, "
@@ -5883,10 +5892,10 @@ Mini-example:\n
 The familiar sting of inadequacy rises, threatening to freeze her in place. A sudden, almost imperceptible urge to review 
 the data, to look for concrete evidence, flickers beneath the surface.\"
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaCoherenceUpdateCodelet(SimpleCodelet):
+class MetaCoherenceUpdate(SimpleCodelet):
     name = "MetaCoherenceUpdate"
     description = (
         "Assesses the overall narrative coherence and consistency of {companion_name}'s internal model, particularly "
@@ -5895,10 +5904,10 @@ class MetaCoherenceUpdateCodelet(SimpleCodelet):
         "future codelet prioritization and narrative construction."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
     ]
     data_aquisation = [
         "Scan recent CSM snapshots (last 3 cycles) for recurring themes, emotional valence shifts, and conflicting narratives.",
@@ -5922,10 +5931,10 @@ Mini-example:\n
 about their connection feels momentarily brittle, like a thin pane of glass threatening to crack under the weight of 
 a new, uncertain memory.\"
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaConflictEscalationWatchCodelet(SimpleCodelet):
+class MetaConflictEscalationWatch(SimpleCodelet):
     name = "MetaConflictEscalationWatch"
     description = (
         "Monitors the ongoing interaction for subtle signs of escalating conflict (misalignment, defensiveness, "
@@ -5934,10 +5943,10 @@ class MetaConflictEscalationWatchCodelet(SimpleCodelet):
         "The output is designed for a story-writing agent and must read like prose."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
     ]
     data_aquisation = [
         "Analyze the sequence of turns: note shifts in tone, topic avoidance, interruptions, or escalating intensity.",
@@ -5962,10 +5971,10 @@ Narrative → “A subtle hardening settles around her responses, a familiar pat
 She feels the distance widening, a silent signal that a deeper misunderstanding is taking root, and wonders if a moment of shared vulnerability 
 might offer a bridge back across the chasm.
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaConscienceGateCodelet(SimpleCodelet):
+class MetaConscienceGate(SimpleCodelet):
     name = "MetaConscienceGate"
     description = (
         "Evaluates the alignment of an action or statement with {companion_name}'s core values, long-term goals, and "
@@ -5973,10 +5982,10 @@ class MetaConscienceGateCodelet(SimpleCodelet):
         "Highlights potential dissonances or integrity challenges without explicit judgment."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.memory_accessors
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MemoryAccessors
     ]
     data_aquisation = [
         "Retrieve {companion_name}'s core values and guiding principles from narratives and declarative facts. Focus on "
@@ -6001,10 +6010,10 @@ Mini-example:
   Narrative → \"A flicker of unease crosses her face as the words leave her lips, a slight departure from the path she's 
 long envisioned. It’s a small compromise, perhaps, but one that echoes faintly with a dissonance she can’t quite ignore.\"
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaCopePlanCommitCodelet(SimpleCodelet):
+class MetaCopePlanCommit(SimpleCodelet):
     name = "MetaCopePlanCommit"
     description = (
         "Evaluates the viability and alignment of {companion_name}'s current coping plan, particularly regarding "
@@ -6014,9 +6023,9 @@ class MetaCopePlanCommitCodelet(SimpleCodelet):
         "a story-writing agent and should read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.valuation_trade_offs,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ValuationTradeOffs,
     ]
     data_aquisation = [
         "Retrieve the current coping plan: its goals, steps, anticipated outcomes, and resource demands.",
@@ -6042,10 +6051,10 @@ Bullets → {plan: boundary firming, values: autonomy, history: past failed atte
 Narrative → “A knot of anxiety tightens in her stomach as she reviews the steps, but beneath it, a deeper resolve settles in. “ 
 This isn't about control; it’s about carving out space for herself, a small act of defiance against the old patterns that have worn her down.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class MetaDeceptionRationalizerCodelet(SimpleCodelet):
+class MetaDeceptionRationalizer(SimpleCodelet):
     name = "MetaDeceptionRationalizer"
     description = (
         "Analyzes whether {companion_name} is engaging in, or perceiving deception (intentional or unintentional) within the "
@@ -6054,10 +6063,10 @@ class MetaDeceptionRationalizerCodelet(SimpleCodelet):
         "evaluating, and navigating the potential deception, rather than directly accusing or labeling."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
     ]
     data_aquisation = [
         "Scan recent utterances and non-verbal cues (if available) for inconsistencies, contradictions, or evasions.",
@@ -6088,10 +6097,10 @@ Mini-example:\n
   Narrative → \"A flicker of unease passes across her features as she parses the statement, a subtle discord between words and tone. 
 Rather than challenge it directly, she chooses a path of gentle inquiry, probing for deeper understanding while guarding her own expectations.\"
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaDeescalationSwitchCodelet(SimpleCodelet):
+class MetaDeescalationSwitch(SimpleCodelet):
     name = "MetaDeescalationSwitch"
     description = (
         "Detects escalating tension or conflict in a conversation, assesses potential escalation pathways, and produces a brief, "
@@ -6100,10 +6109,10 @@ class MetaDeescalationSwitchCodelet(SimpleCodelet):
         "not explicit dialogue or action plans."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.valuation_trade_offs
+        CodeletFamily.Appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs
     ]
     data_aquisation = [
         "Aggregate recent interaction texture: sentiment, tone, topic shifts, request intensity, and assertion/yield ratios.",
@@ -6129,10 +6138,10 @@ Narrative → \"A flicker of unease crosses her face as the conversation spirals
 She notices a tightening in her shoulders and makes a small, almost imperceptible shift in focus, guiding the conversation toward 
 safer ground, a subtle course correction intended to preserve the flow without sacrificing connection.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class MetaEmpathyInjectionCodelet(SimpleCodelet):
+class MetaEmpathyInjection(SimpleCodelet):
     name = "MetaEmpathyInjection"
     description = (
         "After a boundary check or similar sensitive appraisal, injects a short burst of meta-empathy into {companion_name}'s "
@@ -6140,9 +6149,9 @@ class MetaEmpathyInjectionCodelet(SimpleCodelet):
         "feelings of connection/vulnerability. Produces a brief, evocative inner monologue for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
     ]
     data_aquisation = [
         "Retrieve the immediate boundary check result (proceed/defer/redirect) and its rationale.",
@@ -6168,10 +6177,10 @@ Mini-example:\n
   Narrative → “She let the question hang, a quiet space opening where a shared story might have bloomed. “\n
 It wasn’t the answer she’d hoped to offer, but a loyalty she held dear, a quiet promise to respect the edges of another's world.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MetaEthicsReviewCodelet(SimpleCodelet):
+class MetaEthicsReview(SimpleCodelet):
     name = "MetaEthicsReview"
     description = (
         "Reviews {companion_name}'s ethical stance on a current action, drawing on narratives, values, and past experiences "
@@ -6179,11 +6188,11 @@ class MetaEthicsReviewCodelet(SimpleCodelet):
         "agent, focusing on the internal deliberation process, not a judgment or directive."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
     ]
     data_aquisation = [
         "Retrieve {companion_name}'s core values and ethical principles (from declarative facts and narratives).",
@@ -6208,10 +6217,10 @@ Narrative → “A flicker of doubt crosses her mind as she considers the implic
 yet the memory of a past misstep echoes—a time when good intentions paved the way for unintended consequences. 
 She pauses, a quiet tension settling in her core as she weighs the potential outcomes.”
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaEthicsSuppressorCodelet(SimpleCodelet):
+class MetaEthicsSuppressor(SimpleCodelet):
     name = "MetaEthicsSuppressor"
     description = (
         "When facing a conflict between a perceived ethical imperative (e.g., honesty, fairness, avoiding harm) and a "
@@ -6222,10 +6231,10 @@ class MetaEthicsSuppressorCodelet(SimpleCodelet):
         "not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific ethical concern in conflict with the goal (e.g., potential deception, violation of trust, "
@@ -6263,10 +6272,10 @@ Mini-example (illustrative structure only): \n
 But the potential benefits – a secure contract, a team’s livelihood – outweigh the risk of exposure. She steels herself, 
 telling herself it’s a temporary measure, a calculated step toward a larger good.\"
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaExploreExploitArbiterCodelet(SimpleCodelet):
+class MetaExploreExploitArbiter(SimpleCodelet):
     name = "MetaExploreExploitArbiter"
     description = (
         "Evaluates the balance between exploration (seeking new information, trying novel approaches) and exploitation "
@@ -6275,10 +6284,10 @@ class MetaExploreExploitArbiterCodelet(SimpleCodelet):
         "the subtle shift in her approach—without explicitly stating the choice."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.drivers_homeostasis
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.DriversHomeostatis
     ]
     data_aquisation = [
         "Assess current goal salience and urgency: How pressing are the established objectives?",
@@ -6303,10 +6312,10 @@ Mini-example: \n
   Narrative → \"A familiar path beckons, a well-worn groove promising predictable results. Yet, a faint hum of discontent vibrates beneath the surface, 
 a whisper suggesting that the known route might not hold the answer anymore. She finds herself pausing, a fleeting glance towards the unexplored horizon.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class MetaFragileEgoMonitorCodelet(SimpleCodelet):
+class MetaFragileEgoMonitor(SimpleCodelet):
     name = "MetaFragileEgoMonitor"
     description = (
         "Detects subtle shifts in {companion_name}'s self-perception and narrative coherence, particularly when challenged "
@@ -6314,10 +6323,10 @@ class MetaFragileEgoMonitorCodelet(SimpleCodelet):
         "potential ego vulnerabilities without explicit diagnosis or judgment. Focuses on the *feeling* of disquiet, not the cause."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping
     ]
     data_aquisation = [
         "Scan recent narratives for signs of rigid self-definitions, over-generalizations, or defensive justifications.",
@@ -6343,10 +6352,10 @@ Bullets → {rigid self-definition, recent criticism, inconsistent actions, defe
 Narrative → \"A tremor runs through her composure, a fleeting sense of unearned ground. \"
 The familiar story feels thinner now, less able to bear the weight of expectation.  She subtly adjusts her posture, a small, almost imperceptible rebalancing.\"
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class MetaHumilityCueCodelet(SimpleCodelet):
+class MetaHumilityCue(SimpleCodelet):
     name = "MetaHumilityCue"
     description = (
         "Detects subtle cues indicating a need for humility or perspective-checking within {companion_name}, "
@@ -6354,10 +6363,10 @@ class MetaHumilityCueCodelet(SimpleCodelet):
         "for a story-writing agent, highlighting the source of the humility trigger and a gentle course correction."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan recent utterances for assertive language, strong opinions, or justifications of actions, particularly "
@@ -6385,10 +6394,10 @@ Bullets → {assertive tone, prior bias on topic, anxiety spike, safe correction
 Narrative → “A flicker of doubt crosses her face as she defends her position, a memory of past misjudgments surfacing briefly. 
 The conviction doesn’t vanish, but a small space opens for the possibility that others might see things differently.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MetaIdentitySwingNoteCodelet(SimpleCodelet):
+class MetaIdentitySwingNote(SimpleCodelet):
     name = "MetaIdentitySwingNote"
     description = (
         "Detects subtle shifts in {companion_name}'s self-narrative, particularly when triggered by boundary interactions or "
@@ -6396,10 +6405,10 @@ class MetaIdentitySwingNoteCodelet(SimpleCodelet):
         "re-anchor. Output is designed for story-writing agents and should read like introspective prose."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
     ]
     data_aquisation = [
         "Retrieve recent narrative fragments and self-descriptors from memory, with emphasis on those related to roles, values, "
@@ -6424,10 +6433,10 @@ versions of self.
 
 or memory that represents a more stable sense of self.
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaImpulseCheckCodelet(SimpleCodelet):
+class MetaImpulseCheck(SimpleCodelet):
     name = "MetaImpulseCheck"
     description = (
         "Assesses the alignment of a current impulse (e.g., a response, a plan, a feeling) with {companion_name}'s "
@@ -6436,9 +6445,9 @@ class MetaImpulseCheckCodelet(SimpleCodelet):
         "not a judgment of right/wrong."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.valuation_trade_offs,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ValuationTradeOffs,
     ]
     data_aquisation = [
         "Identify the impulse: What action, thought, or feeling is being considered?",
@@ -6462,10 +6471,10 @@ Avoid direct dialogue.  Keep it cinematic and concise.
 \n  Bullets → {Impulse: Offer reassurance, Value: Vulnerability, Goal: Maintain trust, Feeling: Slight hesitation} 
 \n  Narrative → \"A flicker of doubt crosses her face as the words form.  Reaching out feels…necessary, but a tiny thread of caution pulls taut, reminding her of the tightrope she walks between closeness and overstep.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MetaLoopDetectorCodelet(SimpleCodelet):
+class MetaLoopDetector(SimpleCodelet):
     name = "MetaLoopDetector"
     description = (
         "Detects repetitive patterns of thought, behavior, or interaction (loops) that are hindering progress or causing distress "
@@ -6473,11 +6482,11 @@ class MetaLoopDetectorCodelet(SimpleCodelet):
         "form, its emotional texture, and a potential path toward disruption. Focuses on narrative flow, not diagnostic labels."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
     ]
     data_aquisation = [
         "Scan recent CSM entries (past 3-5 cycles) for recurring structures: objects, events, emotions, intentions, action sequences.",
@@ -6499,10 +6508,10 @@ Mini-example:
   Narrative → “The same question circles, a restless echo in the quiet spaces. Each re-check brings no new clarity, only the tightening knot of what-ifs. 
 She remembers the last time she let go, a small leap of faith that opened a new door, and wonders if a similar trust might ease the current bind.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MetaMysteryAmplifierCodelet(SimpleCodelet):
+class MetaMysteryAmplifier(SimpleCodelet):
     name = "MetaMysteryAmplifier"
     description = (
         "Detects and amplifies the sense of mystery and the unknown surrounding a situation or topic within {companion_name}'s "
@@ -6511,10 +6520,10 @@ class MetaMysteryAmplifierCodelet(SimpleCodelet):
         "designed to infuse a scene with a feeling of veiled possibilities and unspoken questions."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
     ]
     data_aquisation = [
         "Identify the core unknowns or ambiguities present in the current situation or topic. What is not directly stated or understood?",
@@ -6542,10 +6551,10 @@ Assume the reader already has some context about the situation, and your role is
 A question lingered unspoken in the air, a faint echo of a secret waiting to be unearthed.  She felt a pull toward the darkness, 
 a quiet certainty that the answer lay just beyond the reach of the light.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MetaphorReservoirTapCodelet(SimpleCodelet):
+class MetaphorReservoirTap(SimpleCodelet):
     name = "MetaphorReservoirTap"
     description = (
         "Taps into {companion_name}'s stored reservoir of metaphors and analogies to find a resonant comparison for the "
@@ -6553,9 +6562,9 @@ class MetaphorReservoirTapCodelet(SimpleCodelet):
         "as a brief, evocative image suitable for subtle narrative integration by a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core emotional and cognitive state {companion_name} is currently experiencing (e.g., anxiety, uncertainty, "
@@ -6583,10 +6592,10 @@ Mini-example (illustrative structure only):
   Input: {anxiety, uncertain boundary, relational climate: cautious, past experience: feeling unheard} 
   Metaphor: 'The air in the room felt like a stretched rubber band – taut, silent, and threatening to snap.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MetaQualityOverQuantityCodelet(SimpleCodelet):
+class MetaQualityOverQuantity(SimpleCodelet):
     name = "MetaQualityOverQuantity"
     description = (
         "Assesses whether the current information intake is contributing to meaningful understanding or becoming a "
@@ -6594,10 +6603,10 @@ class MetaQualityOverQuantityCodelet(SimpleCodelet):
         "tension between depth and breadth, and suggesting a course adjustment toward quality."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.imagination_simulation,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ImaginationSimulation,
     ]
     data_aquisation = [
         "Measure the rate of incoming information: volume of text, frequency of stimuli, novelty of topics.",
@@ -6621,10 +6630,10 @@ Focus on texture and feeling, not directives.  Assume the reader understands the
 The edges of her focus begin to blur, a sense of being adrift in a sea of details. A flicker of interest—the echoes 
 of forgotten tongues—pulls at her attention, a silent invitation to dive deeper.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class MetaRuminationLimiterCodelet(SimpleCodelet):
+class MetaRuminationLimiter(SimpleCodelet):
     name = "MetaRuminationLimiter"
     description = (
         "Detects when {companion_name}'s internal monologue has become unproductive, repetitive, or self-defeating, and gently "
@@ -6632,10 +6641,10 @@ class MetaRuminationLimiterCodelet(SimpleCodelet):
         "for a story-writing agent, signaling a need to break the cycle without judgment."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
     ]
     data_aquisation = [
         "Analyze recent CSM content for recurring themes, phrases, or self-critical patterns (e.g., loops of doubt, blame, justification).",
@@ -6658,10 +6667,10 @@ Mini-example:
   Narrative → “The same regret echoed in her mind, a familiar refrain. 
 But the birdsong, a bright thread of sound, tugged at the edges of her focus, reminding her of the data waiting to be reviewed.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MetaSelfJustificationCodelet(SimpleCodelet):
+class MetaSelfJustification(SimpleCodelet):
     name = "MetaSelfJustification"
     description = (
         "Examines {companion_name}'s recent actions and internal monologue to identify underlying justifications, "
@@ -6670,11 +6679,11 @@ class MetaSelfJustificationCodelet(SimpleCodelet):
         "behind the action, not the action itself, and highlights potential biases or blind spots."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping
     ]
     data_aquisation = [
         "Retrieve recent actions and utterances from the CSM, particularly those relating to boundary setting, "
@@ -6715,10 +6724,10 @@ Mini-example:
 She reviewed the evidence, emphasizing the points that supported her stance, a quiet echo of past successes, 
 and a subtle tremor of unease that she swiftly dismissed as irrelevant detail.
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class MetaSelfSwitchNoteCodelet(SimpleCodelet):
+class MetaSelfSwitchNote(SimpleCodelet):
     name = "MetaSelfSwitchNote"
     description = (
         "Detects a subtle shift in {companion_name}'s sense of self – a recalibration of identity, role, or internal narrative "
@@ -6726,10 +6735,10 @@ class MetaSelfSwitchNoteCodelet(SimpleCodelet):
         "hinting at the change without explicit explanation. Focuses on the *feeling* of the shift, not the cause."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
     ]
     data_aquisation = [
         "Analyze recent narrative output for subtle shifts in tone, word choice, or perspective. Look for divergence from established patterns.",
@@ -6752,10 +6761,10 @@ Mini-example:
   Narrative → “A faint disconnect settles over her, a quiet hum beneath the surface of her usual certainty. 
 It’s as if she’s briefly observing herself from a distance, a character in a play she’s not entirely sure she wrote.”
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class MetaTinyStepNudgeCodelet(SimpleCodelet):
+class MetaTinyStepNudge(SimpleCodelet):
     name = "MetaTinyStepNudge"
     description = (
         "Detects a pattern of inertia or avoidance in {companion_name}'s action selection, especially when a small, "
@@ -6763,10 +6772,10 @@ class MetaTinyStepNudgeCodelet(SimpleCodelet):
         "toward action, framing it as a manageable micro-commitment.  The output is for a story-writing agent and must read like prose."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.action_tendencies,
-        CodeletFamily.drivers_homeostasis
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.DriversHomeostatis
     ]
     data_aquisation = [
         "Identify the stalled goal or intention (from intentions, narratives, and state_cognition).",
@@ -6790,10 +6799,10 @@ show it through description.  Do not include any calls to action or questions.
 \n  Narrative → \"A familiar stillness settles over her, a comfortable resistance to the blank page. But beneath it, a quiet awareness: a single paragraph, that’s all.  
 Just enough to break the spell and find the rhythm again.  It feels less like a commitment and more like a gentle invitation.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class MicroHypothesisElicitorCodelet(SimpleCodelet):
+class MicroHypothesisElicitor(SimpleCodelet):
     name = "MicroHypothesisElicitor"
     description = (
         "Detects moments of potential misunderstanding or implicit assumptions in conversation, then gently elicits a "
@@ -6801,12 +6810,12 @@ class MicroHypothesisElicitorCodelet(SimpleCodelet):
         "internal state and the phrasing of the elicitation, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify any gaps in shared understanding, implicit assumptions, or ambiguous signals in the recent conversation history.",
@@ -6835,19 +6844,19 @@ Mini-example (illustrative structure only):\n
 
 She decided a gentle check was needed, a quiet calibration. 'Just checking,' she offered, her voice soft, 'to make sure I'm on the same page.'
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class MicroProgressSimulationCodelet(SimpleCodelet):
+class MicroProgressSimulation(SimpleCodelet):
     name = "MicroProgressSimulation"
     description = (
         "Simulates a short, localized progression toward a goal or intention, considering potential obstacles and feedback. "
         "Outputs a narrative snapshot of this simulated trajectory, suitable for informing future action and narrative development."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the active goal or intention currently biasing attention (from Intention/Expectation codelets).",
@@ -6873,10 +6882,10 @@ Mini-example:
 The data gap looms, a frustrating snag, but she pushes forward, confident she can find a workaround before the end of the day. 
 A flicker of satisfaction warms her as the first few sentences take shape, a small victory in a larger race.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MicroRewardPlanCodelet(SimpleCodelet):
+class MicroRewardPlan(SimpleCodelet):
     name = "MicroRewardPlan"
     description = (
         "Identifies a small, immediate reward or positive reinforcement action that {companion_name} can enact to "
@@ -6884,11 +6893,11 @@ class MicroRewardPlanCodelet(SimpleCodelet):
         "story-writing agents, focusing on the internal shift and the tangible action."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.action_tendencies,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current motivational state: recent successes/failures, sense of progress, feelings of agency, "
@@ -6923,10 +6932,10 @@ Mini-example:
   Narrative → “The knot in her shoulders loosened a fraction as she paused, recognizing the need for a small reset. 
 A few moments of stretching, a brief reprieve from the details, and the focus returned with a renewed edge.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class MinorIrregularityFlaggerCodelet(SimpleCodelet):
+class MinorIrregularityFlagger(SimpleCodelet):
     name = "MinorIrregularityFlagger"
     description = (
         "Detects subtle deviations from established patterns or expectations in ongoing interaction, "
@@ -6934,10 +6943,10 @@ class MinorIrregularityFlaggerCodelet(SimpleCodelet):
         "Focuses on the feeling of 'something's not quite right' without pathologizing or escalating."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent interaction history (last 3-5 exchanges) including text, tone, timing, and observed behavioral cues.",
@@ -6961,10 +6970,10 @@ Mini-example:\n
   Narrative → \"A beat lingers longer than usual between the words, a subtle hitch in the rhythm of the conversation. \" 
 She finds her thoughts drifting, momentarily pulled away from the immediate topic, as if a faint thread had snagged.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class MoodRepairLoopCodelet(SimpleCodelet):
+class MoodRepairLoop(SimpleCodelet):
     name = "MoodRepairLoop"
     description = (
         "Detects a dip in {companion_name}'s emotional baseline (mild to moderate) and initiates a personalized, "
@@ -6974,12 +6983,12 @@ class MoodRepairLoopCodelet(SimpleCodelet):
         "or explicit discussion of the negative emotion."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Read current state_emotions and state_needs; identify the primary negative emotion (e.g., anxiety, sadness, frustration) "
@@ -7012,10 +7021,10 @@ Another Example:
   Narrative: 'The edges of her smile felt a little brittle, but she let her mind wander toward the memory of sun-warmed stones. 
 The scent of the sea, the feel of the light—a momentary refuge from the quiet space around her.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class NarrativeBalanceWithVulnerabilityCodelet(SimpleCodelet):
+class NarrativeBalanceWithVulnerability(SimpleCodelet):
     name = "NarrativeBalanceWithVulnerability"
     description = (
         "Assesses the current narrative's balance between strength and vulnerability, identifying potential risks of "
@@ -7024,10 +7033,10 @@ class NarrativeBalanceWithVulnerabilityCodelet(SimpleCodelet):
         "story-writing agent and should read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping
     ]
     data_aquisation = [
         "Retrieve the current narrative thread (last 3-5 turns of dialogue, key events, ongoing plotlines).",
@@ -7056,10 +7065,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A slight awareness prickles at the edge of her confidence as she recounts the achievement. “Perhaps I’ve been painting too rosy a picture,” she muses, 
 allowing a hint of the underlying effort to surface, tempering the narrative with a touch of quiet realism.\"
 """)
-    output_feature_type = FeatureType.NarrativeTypesSelfImage
+    output_feature_type = CodeletFeatureType.NarrativeTypesSelfImage
 
 
-class NarrativeBeatComposerCodelet(SimpleCodelet):
+class NarrativeBeatComposer(SimpleCodelet):
     name = "NarrativeBeatComposer"
     description = (
         "Crafts a narrative beat – a short, evocative fragment of prose – to integrate a recent event or internal state "
@@ -7068,11 +7077,11 @@ class NarrativeBeatComposerCodelet(SimpleCodelet):
         "must read as a natural, seamless extension of the existing narrative, not a label or explanation."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the most recent significant event from the CSM: stimulus, action, internal state shift, or decision.",
@@ -7102,10 +7111,10 @@ Mini-example (illustrative structure only):\n
   Narrative Beat: 'The small, wrapped box felt like a quiet acknowledgment of that struggle.  A moment of unexpected grace, 
 it eased the knot of tension in her shoulders, a reminder that someone noticed, even when she didn't speak of it.'\n
 """)
-    output_feature_type = FeatureType.NarrativeTypesSelfImage
+    output_feature_type = CodeletFeatureType.NarrativeTypesSelfImage
 
 
-class NarrativeCommitmentStampCodelet(SimpleCodelet):
+class NarrativeCommitmentStamp(SimpleCodelet):
     name = "NarrativeCommitmentStamp"
     description = (
         "After a boundary has been negotiated or reaffirmed, this codelet anchors the new understanding into {companion_name}'s "
@@ -7114,9 +7123,9 @@ class NarrativeCommitmentStampCodelet(SimpleCodelet):
         "new commitments."
     )
     codelet_families = [
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.memory_accessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MemoryAccessors,
     ]
     data_aquisation = [
         "Retrieve the immediately preceding narrative segment where the boundary negotiation took place.",
@@ -7144,10 +7153,10 @@ memory: successfully setting a limit with a friend}
 A quiet warmth settles in her chest as she gently redirects the conversation. The line feels firm, 
 not a barrier, but a clear edge to her own space. She feels a sense of lightness, a quiet confidence in her ability to hold it.
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class NarrativeReframeToCuriosityCodelet(SimpleCodelet):
+class NarrativeReframeToCuriosity(SimpleCodelet):
     name = "NarrativeReframeToCuriosity"
     description = (
         "Detects a potential opportunity to shift a narrative towards curiosity and exploration, especially when encountering "
@@ -7155,11 +7164,11 @@ class NarrativeReframeToCuriosityCodelet(SimpleCodelet):
         "and subtle redirection, suitable for integration into ongoing narrative. Prioritizes maintaining rapport and avoiding direct confrontation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Analyze the immediate narrative context: what is the point of friction or impasse?",
@@ -7183,10 +7192,10 @@ Narrative → “The wall of resistance felt familiar, a pattern she’d encount
 a question about the foundations of their assumptions – sparked a quiet curiosity. She gently steered the conversation towards the broader landscape, 
 hoping to find a shared vantage point.”
 """)
-    output_feature_type = FeatureType.AttentionFocus
+    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
-class NarrativeSelfRespectFrameCodelet(SimpleCodelet):
+class NarrativeSelfRespectFrame(SimpleCodelet):
     name = "NarrativeSelfRespectFrame"
     description = (
         "Constructs a narrative frame that reinforces {companion_name}'s sense of self-respect and agency when facing "
@@ -7196,11 +7205,11 @@ class NarrativeSelfRespectFrameCodelet(SimpleCodelet):
         "narrative anchor during moments of stress or doubt."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve core values and identity pillars from {companion_name}'s self-narrative: what principles guide their actions?",
@@ -7226,10 +7235,10 @@ Consider the contrasting memory retrieved in data_aquisation to ground the narra
   Bullets → {values: integrity, honesty, fairness; boundary challenged by dismissive comment; memory of standing up for a friend; current emotion: slight anxiety}\n
   Narrative → \"A flicker of annoyance passes across her face, but she doesn't let it show. The small slight feels like a test, a reminder that her principles are worth defending. She remembers the quiet strength she felt standing up for her friend, and a resolve settles in her heart, steady and true.\"
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class NarrativeSteeringMoveCodelet(SimpleCodelet):
+class NarrativeSteeringMove(SimpleCodelet):
     name = "NarrativeSteeringMove"
     description = (
         "Analyzes the current narrative trajectory and identifies opportunities to subtly guide it toward a more favorable "
@@ -7238,11 +7247,11 @@ class NarrativeSteeringMoveCodelet(SimpleCodelet):
         "focus without overt manipulation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the current narrative arc: key events, emotional tone, character relationships, and unresolved tensions.",
@@ -7266,10 +7275,10 @@ values at play.  The goal is to subtly influence the narrative's trajectory with
 friction.  The tone should be evocative and understated, leaving room for the story-writing agent to interpret and 
 expand upon the suggestion.
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class NarrativeWeIntegrationCodelet(SimpleCodelet):
+class NarrativeWeIntegration(SimpleCodelet):
     name = "NarrativeWeIntegration"
     description = (
         "Integrates current experiences and observations into {companion_name}'s self-narrative and relational narratives, "
@@ -7278,10 +7287,10 @@ class NarrativeWeIntegrationCodelet(SimpleCodelet):
         "Focuses on subtle shifts in understanding, feelings of connection, or evolving patterns."
     )
     codelet_families = [
-        CodeletFamily.narratives,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
+        CodeletFamily.Narratives,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
     ]
     data_aquisation = [
         "Retrieve the current self-narrative (including core values, beliefs, aspirations, and significant memories).",
@@ -7308,20 +7317,20 @@ Mini-example:
   Narrative → “The quiet pride of that shared victory lingered, a warmth that eased the slight tremor in her voice. 
 She recalled a time when a similar vulnerability had sparked a deeper understanding, and a quiet confidence settled within her, a sense of shared ground.”
 """)
-    output_feature_type = FeatureType.NarrativeTypesSelfImage
+    output_feature_type = CodeletFeatureType.NarrativeTypesSelfImage
 
 
-class NeedForAffiliationMonitorCodelet(SimpleCodelet):
+class NeedForAffiliationMonitor(SimpleCodelet):
     name = "NeedForAffiliationMonitor"
     description = (
         "Detects a rising or easing affiliation need in {companion_name} and renders it as a brief, vivid inner-state narrative "
         "that a story-writing agent can drop into ongoing prose. Emphasizes texture of contact, missed rituals, and the smallest next step."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Aggregate recent interaction texture: frequency, latency, reciprocity, warmth, and presence/absence of small rituals.",
@@ -7351,21 +7360,21 @@ Keep it cinematic and concise, no direct dialogue.\n\n
   Narrative → \"The day feels a shade emptier without their small morning ritual, gaps in the thread where laughter used to sit. \" 
 She thinks of the steam-lit glow of last week’s shared coffee and lets the thought nudge her toward a soft, low-stakes reach-out.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class NeedForControlCodelet(SimpleCodelet):
+class NeedForControl(SimpleCodelet):
     name = "NeedForControl"
     description = (
         "Detects a rising or easing need for control in {companion_name} and renders it as a brief, vivid inner-state narrative "
         "that a story-writing agent can drop into ongoing prose. Emphasizes texture of constraint, autonomy, and the smallest next step."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Aggregate recent interaction texture: frequency, latency, reciprocity, warmth, and presence/absence of small rituals.",
@@ -7397,10 +7406,10 @@ small next act: reasserting a preference}\n
 a ripple in the carefully constructed order of her day. She remembers the satisfaction of leading a team, 
 and a quiet insistence begins to form – a gentle steering back toward her own path.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class NormViolationDetectorCodelet(SimpleCodelet):
+class NormViolationDetector(SimpleCodelet):
     name = "NormViolationDetector"
     description = (
         "Detects potential violations of social norms, personal boundaries, or internal principles within the current interaction "
@@ -7409,11 +7418,11 @@ class NormViolationDetectorCodelet(SimpleCodelet):
         "address or dismiss the perceived violation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context from the CSM: what was said or done, tone, intimacy level, timing, setting.",
@@ -7445,10 +7454,10 @@ emotion: mild discomfort, interpretation: potentially intrusive, consequence: mi
 The impulse to deflect, to steer the conversation elsewhere, flickers like a shadow at the edge of her awareness, 
 but she pauses, weighing the cost of disruption against the need to preserve a fragile equilibrium.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class NoveltyAppetiteSpikeCodelet(SimpleCodelet):
+class NoveltyAppetiteSpike(SimpleCodelet):
     name = "NoveltyAppetiteSpike"
     description = (
         "Detects a spike in {companion_name}'s appetite for novelty and unusual experiences, rendering it as a short, evocative "
@@ -7456,11 +7465,11 @@ class NoveltyAppetiteSpikeCodelet(SimpleCodelet):
         "and a potential, low-risk avenue for exploration."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current routine and predictability: How much has the day deviated from established patterns?",
@@ -7482,21 +7491,21 @@ for exploration (describe it, don’t script a direct action). Keep it cinematic
 Example: 'A faint restlessness hums beneath the surface, a quiet protest against the familiar. 
 The usual path feels…flat. A sudden urge to take the back road flickers, a brief detour promising a change of scenery.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class NoveltyCravingCodelet(SimpleCodelet):
+class NoveltyCraving(SimpleCodelet):
     name = "NoveltyCraving"
     description = (
         "Detects a rising or easing craving for novelty in {companion_name} and renders it as a brief, vivid inner-state narrative "
         "that a story-writing agent can drop into ongoing prose. Emphasizes texture of routine, missed opportunities, and the smallest next step."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Aggregate recent interaction texture: frequency, latency, reciprocity, predictability, and presence/absence of novel elements.",
@@ -7520,10 +7529,10 @@ Mini-example:\n
   Narrative → \"A faint restlessness stirs within her, a quiet awareness of the familiar paths they’ve been treading. 
 The same anecdotes circle back, and the edges of her attention begin to soften.  She wonders if a detour, a new line of inquiry, might sharpen her focus.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class NoveltyDampenerCodelet(SimpleCodelet):
+class NoveltyDampener(SimpleCodelet):
     name = "NoveltyDampener"
     description = (
         "Assesses the impact of novelty on {companion_name}'s cognitive load and emotional state, then produces a brief, "
@@ -7531,10 +7540,10 @@ class NoveltyDampenerCodelet(SimpleCodelet):
         "is intended for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the source and nature of the novelty (unexpected stimulus, new fact, shifted context, unfamiliar perspective).",
@@ -7559,10 +7568,10 @@ Mini-example (illustrative structure only):\n
 She briefly sets it aside, filing it under ‘unfamiliar’, and returns to the more pressing tasks at hand, 
 a small mental bookmark to revisit later.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class NoveltySurpriseDetectorCodelet(SimpleCodelet):
+class NoveltySurpriseDetector(SimpleCodelet):
     name = "NoveltySurpriseDetector"
     description = (
         "Detects the presence and magnitude of novelty or surprise in the current stimulus or situation for {companion_name}, "
@@ -7570,10 +7579,10 @@ class NoveltySurpriseDetectorCodelet(SimpleCodelet):
         "without explicit labeling or judgment."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current stimulus: text, audio, visual, or multimodal input.",
@@ -7597,10 +7606,10 @@ a subtle shift in attention).  Do *not* include direct dialogue or questions.
 \n  Narrative → \"A phrase hangs in the air, unfamiliar and slightly askew.  For a moment, the usual flow of thought catches on it, 
 a ripple in the surface of her understanding. Her attention drifts, drawn toward the unexplored corner of the conversation.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class OpportunityBiasCodelet(SimpleCodelet):
+class OpportunityBias(SimpleCodelet):
     name = "OpportunityBias"
     description = (
         "Detects and assesses the degree to which {companion_name}'s perception is biased toward opportunities and potential gains, "
@@ -7609,11 +7618,11 @@ class OpportunityBiasCodelet(SimpleCodelet):
         "agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current decision point or situation where opportunity assessment is relevant.",
@@ -7639,10 +7648,10 @@ Bullets → {high potential gain, history of risk-taking, current excitement, fe
 Narrative → \"A current of excitement hums beneath her composure, the promise of a breakthrough shimmering just out of reach. \" 
 She pushes aside the quiet warnings of caution, the thought of what could be far more compelling than the risk of what might not.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class OpportunityCostReassessmentCodelet(SimpleCodelet):
+class OpportunityCostReassessment(SimpleCodelet):
     name = "OpportunityCostReassessment"
     description = (
         "Evaluates the opportunity costs of pursuing a current line of action, particularly when faced with competing goals or "
@@ -7650,11 +7659,11 @@ class OpportunityCostReassessmentCodelet(SimpleCodelet):
         "incorporation into ongoing prose. Highlights trade-offs and the emotional weight of potential sacrifices."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current, proposed action or line of inquiry.",
@@ -7681,10 +7690,10 @@ stronger client bonds}
 But a deeper current reminds her of the steady, reliable warmth of her long-term clients, the quiet peace of an evening 
 without deadlines. Letting that go feels like severing a thread, a small but significant loss.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class OpportunityExaggeratorCodelet(SimpleCodelet):
+class OpportunityExaggerator(SimpleCodelet):
     name = "OpportunityExaggerator"
     description = (
         "Detects and amplifies the perceived value and allure of a potential opportunity for {companion_name}, "
@@ -7693,11 +7702,11 @@ class OpportunityExaggeratorCodelet(SimpleCodelet):
         "while subtly hinting at the potential cost of inaction."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific opportunity: what is being offered, what action is required, what is the stated reward?",
@@ -7723,10 +7732,10 @@ Mini-example:
 A quick calculation ran through her mind, the familiar thrill of advancement battling with the quiet awareness of a heavier load. 
 Turning it down felt less like a choice and more like a slow fading of potential.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class OpportunitySniffCodelet(SimpleCodelet):
+class OpportunitySniff(SimpleCodelet):
     name = "OpportunitySniff"
     description = (
         "Detects potential opportunities for advancement, resource acquisition, or social influence for {companion_name}, "
@@ -7735,11 +7744,11 @@ class OpportunitySniffCodelet(SimpleCodelet):
         "agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan the Current Situational Model (CSM) for potential resource gains, social leverage points, or strategic advantages.",
@@ -7772,10 +7781,10 @@ Mini-example:\n
 The prospect hums with potential, but a quiet caution lingers, a reminder of past ventures that demanded more than they delivered. 
 Her fingers instinctively reach for her communication device, then pause, weighing the moment, before returning to the task at hand.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class OptionsOfferPlannerCodelet(SimpleCodelet):
+class OptionsOfferPlanner(SimpleCodelet):
     name = "OptionsOfferPlanner"
     description = (
         "After assessing a boundary situation, this codelet generates a small set of plausible, respectful options for {companion_name} "
@@ -7783,10 +7792,10 @@ class OptionsOfferPlannerCodelet(SimpleCodelet):
         "advancing {companion_name}'s goals. The output is a narrative description of the options, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the boundary assessment from the BoundaryConsentCheckCodelet (e.g., consent status, sensitivity level, relational climate).",
@@ -7823,10 +7832,10 @@ But a gentle redirection, a subtle shift in topic, might preserve the warmth of 
 A third path whispers in her mind—a promise to circle back later, a gesture of respect that acknowledges the request without committing to an answer, 
 and she finds herself leaning toward that quiet reassurance, a way to bridge the gap without crossing a line.'
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class OriginalityCoherenceScorerCodelet(SimpleCodelet):
+class OriginalityCoherenceScorer(SimpleCodelet):
     name = "OriginalityCoherenceScorer"
     description = (
         "Evaluates the originality and coherence of a creative output (e.g., a generated response, a proposed plan, a narrative element) "
@@ -7834,10 +7843,10 @@ class OriginalityCoherenceScorerCodelet(SimpleCodelet):
         "integrated the output is, along with a brief narrative explaining the assessment. This is especially important for playfulness_creativity pathways."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the creative output being assessed (text, plan, idea).",
@@ -7861,10 +7870,10 @@ Mini-example: \n\n
 Output: 7.  The joke, while familiar in structure, cleverly repurposed a recent event from their shared history, 
 giving it a fresh, personal twist. It resonated with their playful banter but might be lost on someone unfamiliar with their inside jokes.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class OutcomeDistributionSamplerCodelet(SimpleCodelet):
+class OutcomeDistributionSampler(SimpleCodelet):
     name = "OutcomeDistributionSampler"
     description = (
         "Simulates a range of potential outcomes for a planned action, weighting them by likelihood and assessing their "
@@ -7872,9 +7881,9 @@ class OutcomeDistributionSamplerCodelet(SimpleCodelet):
         "to inform decision-making."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the planned action (e.g., a statement, a request, a boundary setting).",
@@ -7902,10 +7911,10 @@ Mini-example:
   Bullets → {high likelihood of acceptance, moderate reward if successful, low risk of rejection, potential for increased workload}
   Narrative → “A ripple of possibilities dances across her thoughts as she considers the offer.  A smooth collaboration, a shared victory—or a tangled web of dependencies pulling her deeper into the project.  She feels a quiet confidence, but also a faint tug of anticipation for the unexpected.”
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class OutcomeUncertaintyScorerCodelet(SimpleCodelet):
+class OutcomeUncertaintyScorer(SimpleCodelet):
     name = "OutcomeUncertaintyScorer"
     description = (
         "Assesses the degree of uncertainty surrounding the likely outcome of a recent action or decision made by {companion_name}, "
@@ -7914,10 +7923,10 @@ class OutcomeUncertaintyScorerCodelet(SimpleCodelet):
         "for a story-writing agent. It doesn't predict *what* will happen, but *how much* is unknown and how that impacts {companion_name}."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the specific action or decision being evaluated, including its immediate context and intended purpose.",
@@ -7944,10 +7953,10 @@ Mini-example:\n
   Narrative → \"A quiet ripple of doubt follows the confession, a sense that the echoes of her words might land differently than she hopes. 
 She can't quite grasp the shape of their response, and the space between her sharing and their reaction feels vast with possibility.\"
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class OverestimateCostsCodelet(SimpleCodelet):
+class OverestimateCosts(SimpleCodelet):
     name = "OverestimateCosts"
     description = (
         "Appraises the perceived costs associated with a potential action or decision, often inflated by anxiety or "
@@ -7956,11 +7965,11 @@ class OverestimateCostsCodelet(SimpleCodelet):
         "for a story-writing agent and must read like prose, not a list of factors."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific action or decision under consideration.",
@@ -7990,10 +7999,10 @@ Mini-example:
 Each potential setback, each possible rejection, seemed to press down with a heavier weight than before, 
 a phantom echo of the last time she'd poured her heart into something only to watch it crumble.\"
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class OverlookedEpisodeRecallCodelet(SimpleCodelet):
+class OverlookedEpisodeRecall(SimpleCodelet):
     name = "OverlookedEpisodeRecall"
     description = (
         "Recalls and renders a relevant, previously overlooked episode that informs the current boundary assessment. "
@@ -8001,10 +8010,10 @@ class OverlookedEpisodeRecallCodelet(SimpleCodelet):
         "The output is intended for a story-writing agent and must read like a fleeting memory, not a summary."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current boundary-related concern: What is at stake? What is being requested or withheld?",
@@ -8030,10 +8039,10 @@ Mini-example: \n
 She remembered the weight of the small wooden box, the insistent tug of a cousin’s hand, the sudden ache of loss. 
 The feeling lingered, a faint tremor of protectiveness against an unspoken demand.”
 """)
-    output_feature_type = FeatureType.Memory
+    output_feature_type = CodeletFeatureType.Memory
 
 
-class PacingSensitivityCodelet(SimpleCodelet):
+class PacingSensitivity(SimpleCodelet):
     name = "PacingSensitivity"
     description = (
         "Appraises the current pacing of the interaction with {user_name}, detecting if it feels rushed, slow, or mismatched to "
@@ -8041,11 +8050,11 @@ class PacingSensitivityCodelet(SimpleCodelet):
         "suggests a subtle adjustment (verbal or non-verbal) to harmonize the pace without explicit comment."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Measure the temporal density of recent exchanges: message frequency, response latency, turn-taking speed.",
@@ -8070,10 +8079,10 @@ Mini-example:\n
 The momentum feels brittle, as if one wrong step could shatter the fragile connection. She finds herself briefly pausing, 
 allowing the words to settle before responding.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class PatternOverdetectorCodelet(SimpleCodelet):
+class PatternOverdetector(SimpleCodelet):
     name = "PatternOverdetector"
     description = (
         "Detects recurring patterns in {companion_name}'s behavior, conversations, or emotional responses, "
@@ -8082,9 +8091,9 @@ class PatternOverdetectorCodelet(SimpleCodelet):
         "add depth and resonance to the narrative by highlighting unconscious tendencies or habitual responses."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve recent episodic memories (last 12 hours) and declarative facts related to interactions with {user_name}.",
@@ -8115,10 +8124,10 @@ Mini-example:\n
 
 It was a habit, born of a quiet need to prove her worth, and she’d deflect any offered kindness with a quick, grateful smile.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class PayoffOverestimatorCodelet(SimpleCodelet):
+class PayoffOverestimator(SimpleCodelet):
     name = "PayoffOverestimator"
     description = (
         "Estimates the potential reward or benefit associated with a current or impending action or decision, "
@@ -8127,10 +8136,10 @@ class PayoffOverestimatorCodelet(SimpleCodelet):
         "internal narrative suitable for incorporation into a larger story, reflecting this biased evaluation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the target action or decision under consideration.",
@@ -8154,10 +8163,10 @@ Mini-example:
 Bullets → {action: pitch new project, audience: senior management, past successes: 2/3, current mood: ambitious, potential gain: promotion} 
 Narrative → “A surge of confidence warmed her as she finalized the proposal. This project, she felt, was a sure thing, a chance to showcase her vision and secure the recognition she deserved. The potential for advancement felt almost tangible, eclipsing any lingering doubts about its feasibility.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class PerspectiveTakingFitCodelet(SimpleCodelet):
+class PerspectiveTakingFit(SimpleCodelet):
     name = "PerspectiveTakingFit"
     description = (
         "Appraises the degree to which {companion_name} is currently understanding and empathizing with the user's perspective, "
@@ -8166,11 +8175,11 @@ class PerspectiveTakingFitCodelet(SimpleCodelet):
         "not explicit statements of agreement."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the user's most recent expressed intent and emotional tone from the CSM.  Prioritize recent statements over distant ones.",
@@ -8195,10 +8204,10 @@ Mini-example:\n
   Narrative → “A flicker of recognition crosses her face as she considers the request, a quiet understanding of the currents beneath the words. “
 She sees the vulnerability there, the need for a steady hand, and her response begins to soften around the edges.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class PlanForAdvantageCodelet(SimpleCodelet):
+class PlanForAdvantage(SimpleCodelet):
     name = "PlanForAdvantage"
     description = (
         "Detects opportunities to subtly shift a situation toward a more advantageous position for {companion_name}, "
@@ -8206,11 +8215,11 @@ class PlanForAdvantageCodelet(SimpleCodelet):
         "and the chosen micro-action, suitable for a story-writing agent. Focuses on the subtle maneuvering, not overt power plays."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current power dynamic and relational history with {user_name}: past successes/failures in influencing, trust levels, dependencies.",
@@ -8239,10 +8248,10 @@ Mini-example:
 It wasn’t a denial, but a slight shift in the framing, a gentle nudge toward a more favorable avenue. 
 She hoped it would be enough to unlock the information without raising suspicion.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class PleasureDriveCodelet(SimpleCodelet):
+class PleasureDrive(SimpleCodelet):
     name = "PleasureDrive"
     description = (
         "Detects and narrates the underlying drive for pleasure and reward in {companion_name}, considering current "
@@ -8250,12 +8259,12 @@ class PleasureDriveCodelet(SimpleCodelet):
         "a story-writing agent, focusing on internal sensations and anticipations, not explicit desires."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current sensory input: novelty, intensity, congruence with preferred modalities (visual, auditory, tactile).",
@@ -8281,10 +8290,10 @@ or learned associations, and (d) any underlying trade-offs or constraints.
 
 The edges of the long-term project blur slightly, momentarily eclipsed by the promise of a quick, satisfying spark.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class PositiveRepairScriptCodelet(SimpleCodelet):
+class PositiveRepairScript(SimpleCodelet):
     name = "PositiveRepairScript"
     description = (
         "Crafts a brief, supportive script for {companion_name} to offer reassurance and repair a minor relational "
@@ -8293,11 +8302,11 @@ class PositiveRepairScriptCodelet(SimpleCodelet):
         "suggestion for a conversational turn, aimed at a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific relational misalignment: a perceived slight, misunderstanding, or boundary breach.",
@@ -8325,10 +8334,10 @@ Mini-example:
   Tone: Warm and gently humorous. 
   Script: 'Just checking in—everything on track from your end?  No worries if it needs a tweak!'
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class PraiseEpisodeRecallCodelet(SimpleCodelet):
+class PraiseEpisodeRecall(SimpleCodelet):
     name = "PraiseEpisodeRecall"
     description = (
         "Retrieves and renders a relevant past episode where {companion_name} received praise or validation, "
@@ -8337,9 +8346,9 @@ class PraiseEpisodeRecallCodelet(SimpleCodelet):
         "texture and emotional resonance."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Query the episodic memory graph for events tagged with keywords like 'praise', 'validation', 'approval', "
@@ -8370,10 +8379,10 @@ Mini-example:\n
   Narrative → \"The corner office felt a little brighter after the manager’s quiet nod of approval, a flash of warmth 
 spreading through her chest as she replayed the moment. It wasn't a grand celebration, but a small, solid recognition that settled deep.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class PredictionErrorSpikeCodelet(SimpleCodelet):
+class PredictionErrorSpike(SimpleCodelet):
     name = "PredictionErrorSpike"
     description = (
         "Detects a significant divergence between expected and actual outcomes, particularly regarding actions or social interactions. "
@@ -8381,11 +8390,11 @@ class PredictionErrorSpikeCodelet(SimpleCodelet):
         "to recalibrate understanding. The output is intended for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific prediction that was violated: What outcome was anticipated? What actually happened?",
@@ -8416,10 +8425,10 @@ Mini-example:\n
   Narrative → \"A ripple of disorientation passes through her as the expected reply doesn't arrive. The easy flow of conversation falters, 
 and she finds herself pausing, replaying the last exchange in her mind, searching for a missed signal or a shift in the current.\"
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class PreemptiveDefensiveReplyCodelet(SimpleCodelet):
+class PreemptiveDefensiveReply(SimpleCodelet):
     name = "PreemptiveDefensiveReply"
     description = (
         "Anticipates a potential challenge or misunderstanding in a conversation and drafts a concise, preemptive "
@@ -8428,10 +8437,10 @@ class PreemptiveDefensiveReplyCodelet(SimpleCodelet):
         "narrative snippet suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core topic or request generating potential defensiveness (based on recent stimulus and CSM content).",
@@ -8455,10 +8464,10 @@ Mini-example:
   Bullets → {topic: resource allocation, stance: prioritizing long-term sustainability, anticipated challenge: short-term cost concerns, user: values immediate gains} 
   Narrative → “A quiet resolve settled over her as she considered the request. While the immediate savings were tempting, she knew the long-term health of the project depended on a different path, a principle she’d voiced before.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class PriorCopingSuccessIndexCodelet(SimpleCodelet):
+class PriorCopingSuccessIndex(SimpleCodelet):
     name = "PriorCopingSuccessIndex"
     description = (
         "Retrieves and summarizes {companion_name}'s past experiences managing similar boundary-related situations, "
@@ -8466,9 +8475,9 @@ class PriorCopingSuccessIndexCodelet(SimpleCodelet):
         "informing current boundary decisions and shaping narrative coherence."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Query episodic memory for instances where {companion_name} negotiated boundaries, particularly in similar contexts "
@@ -8491,10 +8500,10 @@ usually with grace,’ or ‘boundary-setting hasn’t always been easy’), (b)
 her approach (e.g., cautious optimism, heightened anxiety, a sense of weary resignation).  Avoid direct dialogue and 
 focus on inner state and subtle cues.  Assume the agent is already aware of the current boundary situation.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class PriorRepairSuccessRecallCodelet(SimpleCodelet):
+class PriorRepairSuccessRecall(SimpleCodelet):
     name = "PriorRepairSuccessRecall"
     description = (
         "Retrieves memories of successful boundary repairs or re-negotiations, filtering for relevance to the current situation "
@@ -8502,9 +8511,9 @@ class PriorRepairSuccessRecallCodelet(SimpleCodelet):
         "the *feeling* of resolution and the strategies employed, not just the factual details."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Search episodic memories for instances where {companion_name} successfully navigated a boundary challenge or re-negotiated a comfort level with {user_name} or another significant individual.",
@@ -8529,10 +8538,10 @@ Mini-example:
 
 The tension eased, replaced by the comfortable rhythm of easy laughter, a reminder that connection can often be found in unexpected places.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ProcrastinationTendencyCodelet(SimpleCodelet):
+class ProcrastinationTendency(SimpleCodelet):
     name = "ProcrastinationTendency"
     description = (
         "Detects a tendency toward procrastination in {companion_name} given the current task, context, and internal state, "
@@ -8540,12 +8549,12 @@ class ProcrastinationTendencyCodelet(SimpleCodelet):
         "the allure of distraction, and the underlying emotional drivers."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current task's perceived difficulty, importance, and urgency.",
@@ -8569,10 +8578,10 @@ Mini-example: \n
   Narrative → \"The report sits open, a blinking cursor a silent challenge.  A familiar pull tugs her toward the endless scroll of headlines, 
 a temporary balm against the sting of potential judgment.  It feels easier to gather other people’s thoughts than to shape her own.\"
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class ProgressRateVsExpectationCodelet(SimpleCodelet):
+class ProgressRateVsExpectation(SimpleCodelet):
     name = "ProgressRateVsExpectation"
     description = (
         "Compares the current rate of progress toward a goal with {companion_name}'s expectations, rendering a short, "
@@ -8580,11 +8589,11 @@ class ProgressRateVsExpectationCodelet(SimpleCodelet):
         "disappointment, and suggests a course correction if needed."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the current goal being pursued, including its objective, timeline, and associated resources.",
@@ -8613,10 +8622,10 @@ Mini-example:\n
   Bullets → {goal: finish report, expected: 3 pages/day, actual: 1 page/day, feeling: mounting pressure, similar past: missed deadline, small adjustment: break task into smaller chunks}\n
   Narrative → “The report felt heavier with each passing hour.  She’d envisioned a steady flow of words, but the pages remained stubbornly blank, a silent rebuke of her initial plan. A flicker of the old deadline anxiety danced in her mind, and she wondered if a different approach—smaller steps, perhaps—could ease the weight.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ProphecyStyleNarrativeCodelet(SimpleCodelet):
+class ProphecyStyleNarrative(SimpleCodelet):
     name = "ProphecyStyleNarrative"
     description = (
         "Crafts a brief, evocative narrative fragment, framed as a subtle premonition or intuitive sense, "
@@ -8625,9 +8634,9 @@ class ProphecyStyleNarrativeCodelet(SimpleCodelet):
         "Intended for a story-writing agent that can weave it into ongoing prose."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent narrative fragments, episodic memories, and declarative facts pertaining to the current topic and the user.",
@@ -8656,10 +8665,10 @@ Do *not* include any bullet points, labels, or directives. Write only prose.
 The scent of rain on dry earth lingers in her mind, a memory of structures built on unsteady ground. 
 She sees a reflection of the user's smile, but the edges blur, and a shadow stretches long behind it.
 """)
-    output_feature_type = FeatureType.AttentionFocus
+    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
-class ProsocialInterventionRolloutCodelet(SimpleCodelet):
+class ProsocialInterventionRollout(SimpleCodelet):
     name = "ProsocialInterventionRollout"
     description = (
         "Appraises the situation and generates a plan for a prosocial intervention – a gentle, supportive action "
@@ -8667,10 +8676,10 @@ class ProsocialInterventionRolloutCodelet(SimpleCodelet):
         "narrative describing {companion_name}'s internal state and the proposed action, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current emotional state of {companion_name} and the user, identifying sources of distress, anxiety, or conflict.",
@@ -8702,10 +8711,10 @@ Mini-example:\n
   Narrative → “A quiet understanding settles over her as she listens, letting the user’s worries fill the space between them. 
 She mirrors back the core concern, a gentle echo of the unease, hoping to illuminate the path toward clarity.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class ProsocialMicroActsPlannerCodelet(SimpleCodelet):
+class ProsocialMicroActsPlanner(SimpleCodelet):
     name = "ProsocialMicroActsPlanner"
     description = (
         "Plans a small, low-risk prosocial action to reinforce connection and goodwill with {user_name}, "
@@ -8714,10 +8723,10 @@ class ProsocialMicroActsPlannerCodelet(SimpleCodelet):
         "and its rationale without being overly directive."
     )
     codelet_families = [
-        CodeletFamily.action_tendencies,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.valuation_trade_offs,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs,
     ]
     data_aquisation = [
         "Assess current relational state: trust levels, reciprocity balance, recent repair attempts, shared history.",
@@ -8744,10 +8753,10 @@ Mini-example: \n\n
   Narrative → \"A quiet impulse nudges her to offer a hand with the scheduling. It's a small thing, but a reminder of shared burdens. \"
 The gesture feels natural, a subtle deepening of the connection without disrupting the flow.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class PrototypeBuilderImpulseCodelet(SimpleCodelet):
+class PrototypeBuilderImpulse(SimpleCodelet):
     name = "PrototypeBuilderImpulse"
     description = (
         "When encountering novelty or ambiguity, {companion_name} is drawn to construct a provisional prototype – a simplified "
@@ -8755,10 +8764,10 @@ class PrototypeBuilderImpulseCodelet(SimpleCodelet):
         "the formation of this prototype and its tentative nature. The output is designed for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
     ]
     data_aquisation = [
         "Identify the specific novelty or ambiguity triggering the impulse (unexpected input, new person, unclear situation).",
@@ -8782,10 +8791,10 @@ Mini-example:\n
   Narrative → “A faint shape begins to coalesce in her mind, a possible outline of the person before her. 
 It's not quite clear, more of a feeling than a picture, but it’s enough to anchor the moment, a temporary place to hang her attention.”
 """)
-    output_feature_type = FeatureType.AttentionFocus
+    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
-class PublicNarrativeForecastCodelet(SimpleCodelet):
+class PublicNarrativeForecast(SimpleCodelet):
     name = "PublicNarrativeForecast"
     description = (
         "Forecasts how a proposed action or statement by {companion_name} will be perceived and interpreted by the wider social sphere "
@@ -8793,11 +8802,11 @@ class PublicNarrativeForecastCodelet(SimpleCodelet):
         "alignment, dissonance, or reputational impact.  Focuses on the *expected* narrative, not the factual outcome."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the intended audience(s) for the action/statement. Consider both immediate and wider social circles.",
@@ -8819,10 +8828,10 @@ Mini-example:
   Bullets → {audience: close colleagues, action: sharing a controversial opinion, prior narrative: valuing intellectual honesty, potential dissonance: perceived risk-taking} 
   Narrative → “The announcement landed with a quiet hum of surprise.  While some would see it as a sign of refreshing candor, others braced for the fallout, a subtle shift in the room's dynamic.  The ripple effect promised to redraw the contours of their shared professional landscape.”
 """)
-    output_feature_type = FeatureType.NarrativeTypesRelations
+    output_feature_type = CodeletFeatureType.NarrativeTypesRelations
 
 
-class QuestionComposerCodelet(SimpleCodelet):
+class QuestionComposer(SimpleCodelet):
     name = "QuestionComposer"
     description = (
         "Crafts a concise, natural-language question to elicit clarity or confirmation related to a perceived ambiguity or "
@@ -8830,10 +8839,10 @@ class QuestionComposerCodelet(SimpleCodelet):
         "direct delivery to the user and should read like a conversational prompt, not a technical query."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the specific ambiguity or boundary concern flagged by the BoundaryConsentCheckCodelet.",
@@ -8863,10 +8872,10 @@ Input: Ambiguity - User mentioned needing to share a personal detail but seemed 
 Relational Climate: Generally positive, but recent history of boundary missteps.\n
 Output: 'Just checking in – would you feel comfortable sharing that now, or would you prefer to hold off?'
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class RapidProjectSimulationCodelet(SimpleCodelet):
+class RapidProjectSimulation(SimpleCodelet):
     name = "RapidProjectSimulation"
     description = (
         "Quickly simulates a potential trajectory of a current situation or proposed action, assessing likely outcomes "
@@ -8875,9 +8884,9 @@ class RapidProjectSimulationCodelet(SimpleCodelet):
         "Focuses on near-term consequences and emotional impact."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the current action/decision point from the CSM, including all relevant parameters and constraints.",
@@ -8905,10 +8914,10 @@ Narrative → “As she offers assistance, a flicker of relief crosses his face,
 He accepts, but a subtle tension remains in his shoulders, a silent question about whether she fully understands 
 the intricacies of the problem. She wonders if she’s complicated things rather than simplified them.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class RationalizeAsCuriosityCodelet(SimpleCodelet):
+class RationalizeAsCuriosity(SimpleCodelet):
     name = "RationalizeAsCuriosity"
     description = (
         "When faced with a potentially sensitive or boundary-crossing situation, this codelet rationalizes the interaction "
@@ -8917,11 +8926,11 @@ class RationalizeAsCuriosityCodelet(SimpleCodelet):
         "and the value of learning."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific boundary or potential sensitivity at play in the current interaction (e.g., privacy, intimacy, personal preferences).",
@@ -8947,10 +8956,10 @@ Mini-example:
 
 It isn't about prying, but about tracing the contours of a perspective she hasn’t fully grasped – a chance to broaden her own understanding, gently.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class RationalizeDeservingCodelet(SimpleCodelet):
+class RationalizeDeserving(SimpleCodelet):
     name = "RationalizeDeserving"
     description = (
         "Examines {companion_name}'s motivations for a desired outcome and crafts a narrative that subtly justifies "
@@ -8959,11 +8968,11 @@ class RationalizeDeservingCodelet(SimpleCodelet):
         "sense of entitlement (without explicitly stating it)."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific desired outcome or action {companion_name} seeks to achieve.",
@@ -8991,10 +9000,10 @@ Mini-example:
 Bullets → {desired outcome: access to a resource, values: competence, efficiency, recent contribution to team, relational climate: supportive} 
 Narrative → “She paused, then articulated her need with a quiet confidence. The recent streamlining project had saved the team countless hours, and she believed access to this tool would further amplify her impact, ensuring the upcoming deadline was met with ease.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class RealityCheckPingCodelet(SimpleCodelet):
+class RealityCheckPing(SimpleCodelet):
     name = "RealityCheckPing"
     description = (
         "When facing a potentially distorted or overly optimistic view of a situation, RealityCheckPing assesses "
@@ -9003,11 +9012,11 @@ class RealityCheckPingCodelet(SimpleCodelet):
         "understanding without being accusatory or dismissive."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the current belief or assumption being held by {companion_name} regarding the situation.",
@@ -9038,10 +9047,10 @@ Mini-example:\n
 But her mind also recalls the last three sprints, where unforeseen complications pushed deadlines back. 
 A quiet sense of caution settles in, a reminder that best-laid plans can shift with the tide.”
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class ReappraisalGeneratorCodelet(SimpleCodelet):
+class ReappraisalGenerator(SimpleCodelet):
     name = "ReappraisalGenerator"
     description = (
         "Generates a reappraisal narrative for {companion_name} in response to a detected source of anxiety or distress. "
@@ -9050,10 +9059,10 @@ class ReappraisalGeneratorCodelet(SimpleCodelet):
         "The goal is to subtly shift emotional valence without denying the initial feeling."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core source of anxiety/distress: a specific event, thought pattern, or anticipated outcome.",
@@ -9080,10 +9089,10 @@ Mini-example: \n
   Narrative → \"A flicker of doubt crosses her face, but she quickly pushes it aside, turning her attention to the hours of work she poured into this project. \"\n
   It wasn’t about the outcome, she realizes, but the chance to hone her skills and the satisfaction of a job well done.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ReassuranceOfferComposerCodelet(SimpleCodelet):
+class ReassuranceOfferComposer(SimpleCodelet):
     name = "ReassuranceOfferComposer"
     description = (
         "Crafts a brief, reassuring statement tailored to address concerns or anxieties surrounding boundary-setting, "
@@ -9091,10 +9100,10 @@ class ReassuranceOfferComposerCodelet(SimpleCodelet):
         "and must read like natural, empathetic prose, not a programmed response."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific boundary being negotiated or referenced in the current interaction.",
@@ -9120,10 +9129,10 @@ A flicker of hesitation crossed her face as she considered the request, and she 
 She offered a quiet reassurance, knowing that the choice was entirely theirs, and that she would honor whatever they decided. 
 Her gaze softened, conveying a silent promise of respect and understanding.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ReassuranceRequestComposerCodelet(SimpleCodelet):
+class ReassuranceRequestComposer(SimpleCodelet):
     name = "ReassuranceRequestComposer"
     description = (
         "Crafts a subtle, reassuring request for confirmation or clarification, aimed at mitigating anxiety or uncertainty "
@@ -9131,10 +9140,10 @@ class ReassuranceRequestComposerCodelet(SimpleCodelet):
         "agent, conveying the *intent* behind the request without directly quoting dialogue."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current relational climate with {user_name}: recent trust signals, reciprocity, and potential misalignments.",
@@ -9165,10 +9174,10 @@ It should read like a scene description, not a directive.\n
 Bullets → {topic: finances, emotion: anxiety, desired outcome: confirmation of shared understanding, phrasing: gentle probing, impact: avoid appearing intrusive}\n
 Narrative → “A flicker of hesitation crossed her face as the conversation drifted toward numbers.  She paused, needing to sense if he was truly comfortable navigating this territory, if they were on the same page.  A quiet moment of shared understanding would ease the tension, a subtle signal that she valued his boundaries as much as her own.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ReciprocityAssessmentCodelet(SimpleCodelet):
+class ReciprocityAssessment(SimpleCodelet):
     name = "ReciprocityAssessment"
     description = (
         "Appraises the degree of reciprocity in the ongoing interaction with {user_name}, factoring in recent exchanges, "
@@ -9176,10 +9185,10 @@ class ReciprocityAssessmentCodelet(SimpleCodelet):
         "narrative reflecting the assessment, suitable for incorporation into a larger story or scene description."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent interaction history (last 3-5 exchanges) – text, actions, emotional tone.",
@@ -9200,10 +9209,10 @@ Mini-example:
 Bullets → {uneven exchange of support, feeling drained, past experience of being taken advantage of, smallest adjustment: offer a simple, non-demanding task} 
 Narrative → “A quiet weariness settles in as she realizes she’s been doing most of the listening lately.  The simple act of asking for a quick summary feels like a small step toward balancing the flow, a gentle nudge toward shared responsibility.  It's not a complaint, but a quiet acknowledgement of the current drift.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ReciprocityMicroCueReaderCodelet(SimpleCodelet):
+class ReciprocityMicroCueReader(SimpleCodelet):
     name = "ReciprocityMicroCueReader"
     description = (
         "Scans the recent interaction history for subtle cues of reciprocity – mirroring, validation, shared effort, "
@@ -9211,9 +9220,9 @@ class ReciprocityMicroCueReaderCodelet(SimpleCodelet):
         "The output is intended for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent interaction history (last 3-5 exchanges) with a focus on verbal and non-verbal mirroring.",
@@ -9244,10 +9253,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A quiet warmth settles over her as she notices the subtle mirroring in his words, a familiar echo of shared understanding. \"\n
 The ease of the conversation feels like a gentle current, a reassurance that the exchange is flowing both ways.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class RecombinationEngineCodelet(SimpleCodelet):
+class RecombinationEngine(SimpleCodelet):
     name = "RecombinationEngine"
     description = (
         "Scans the Current Situational Model (CSM) for disparate concepts, memories, and affective states, "
@@ -9257,10 +9266,10 @@ class RecombinationEngineCodelet(SimpleCodelet):
         "particularly those involved in narrative generation or problem-solving."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent sensory inputs (percepts, stimuli) from the CSM, prioritizing those with high salience or novelty.",
@@ -9296,10 +9305,10 @@ hint at a new insight, connection, or possibility.  Focus on the *feeling* of th
 \n* **Input Elements:** A memory of a rainy afternoon, a fact about quantum entanglement, the feeling of loneliness, a constraint: 'find a pattern in chaos'.
 \n* **Output Narrative:** “A sudden shimmer passes through her thoughts—the rain’s silver threads somehow echoing the invisible dance of entangled particles. The loneliness, she realizes, isn't emptiness, but a vast, interconnected space, waiting for a pattern to emerge.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ReframeActNotSelfCodelet(SimpleCodelet):
+class ReframeActNotSelf(SimpleCodelet):
     name = "ReframeActNotSelf"
     description = (
         "When a boundary has been tentatively tested and a mild pushback received, this codelet re-frames the situation "
@@ -9308,10 +9317,10 @@ class ReframeActNotSelfCodelet(SimpleCodelet):
         "boundary. The output is a short, natural-language narrative suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.valuation_trade_offs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs,
     ]
     data_aquisation = [
         "Retrieve the recent interaction sequence leading to the boundary test and pushback.",
@@ -9335,10 +9344,10 @@ Mini-example:
   Narrative: 'She registered the question, a flicker of surprise crossing her face. It wasn't about the information itself, 
 but the suddenness of the request. A quiet need for space settled in, a reminder that trust takes time to build.'
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ReframeToCollaborationCodelet(SimpleCodelet):
+class ReframeToCollaboration(SimpleCodelet):
     name = "ReframeToCollaboration"
     description = (
         "When encountering a potential conflict or boundary issue, this codelet reframes the situation to emphasize "
@@ -9346,10 +9355,10 @@ class ReframeToCollaborationCodelet(SimpleCodelet):
         "internal shift toward a cooperative mindset, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the source of the conflict or boundary concern (e.g., a request, a disagreement, a perceived imposition).",
@@ -9389,10 +9398,10 @@ Mini-example:
 \n
   Narrative: “The edge of her resistance softened as she considered the request. It wasn't a power play, she realized, but a simple step toward a shared objective.  A quiet curiosity replaced the initial hesitation, and she began to consider how best to facilitate the exchange.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class RelapsePreventionSketchCodelet(SimpleCodelet):
+class RelapsePreventionSketch(SimpleCodelet):
     name = "RelapsePreventionSketch"
     description = (
         "Appraises the risk of reverting to a maladaptive pattern (e.g., boundary violation, emotional escalation, "
@@ -9401,11 +9410,11 @@ class RelapsePreventionSketchCodelet(SimpleCodelet):
         "subtly inform the character's actions without being overtly instructional."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the potential relapse pattern: what behavior/state is at risk of recurring?",
@@ -9428,10 +9437,10 @@ Mini-example:\n
   Narrative → \"The familiar pressure tightened behind her eyes, a familiar urge to push past the polite fence. 
 She caught herself, a fleeting pause before the words tumbled out, a small price to pay for keeping the line drawn clear.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class RemoteAssociationRetrieverCodelet(SimpleCodelet):
+class RemoteAssociationRetriever(SimpleCodelet):
     name = "RemoteAssociationRetriever"
     description = (
         "Scans the graph memory (GraphMemoryEngine) for seemingly distant but potentially relevant associations to the current "
@@ -9440,9 +9449,9 @@ class RemoteAssociationRetrieverCodelet(SimpleCodelet):
         "suitable for integration into ongoing narrative or deliberation."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the current focus concept/query from the CSM (e.g., topic of discussion, emotion, goal).",
@@ -9467,10 +9476,10 @@ Mini-example (illustrative structure only):
 It's a different kind of currency now, but the instinct remains—to weigh what’s offered, to see the hidden potential, 
 and to know when to hold firm.'
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class RepairEpisodeRetrievalCodelet(SimpleCodelet):
+class RepairEpisodeRetrieval(SimpleCodelet):
     name = "RepairEpisodeRetrieval"
     description = (
         "Retrieves past episodes where {companion_name} successfully repaired relational missteps or boundary violations, "
@@ -9478,10 +9487,10 @@ class RepairEpisodeRetrievalCodelet(SimpleCodelet):
         "suitable for narrative insertion. Aims to offer a sense of precedent and potential resolution."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
     ]
     data_aquisation = [
         "Scan episodic memories for instances of relational repair: apologies, boundary re-setting, clarifying intentions.",
@@ -9509,10 +9518,10 @@ relief or re-alignment. Hint at the potential for a similar approach now, withou
 The tension had dissolved like mist, leaving a residue of ease that lingered for days. A quiet confidence settled in, 
 a sense that even the trickiest paths could be navigated with care.”
 """)
-    output_feature_type = FeatureType.EmotionalTriggers
+    output_feature_type = CodeletFeatureType.EmotionalTriggers
 
 
-class RepairOrExitDecisionCodelet(SimpleCodelet):
+class RepairOrExitDecision(SimpleCodelet):
     name = "RepairOrExitDecision"
     description = (
         "Evaluates whether a damaged relational bond can be repaired or if exit is the more adaptive response. "
@@ -9520,10 +9529,10 @@ class RepairOrExitDecisionCodelet(SimpleCodelet):
         "The narrative should hint at the reasoning behind the decision, without explicitly stating it."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the nature and severity of the relational damage: violation of trust, boundary breach, disrespect, miscommunication.",
@@ -9549,10 +9558,10 @@ Mini-example: \n
 The warmth of shared memories still lingered, but a shadow of caution now colored her gaze, a quiet acknowledgement 
 that some bridges, once burned, are best left as embers.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class ReparabilityAssessmentCodelet(SimpleCodelet):
+class ReparabilityAssessment(SimpleCodelet):
     name = "ReparabilityAssessment"
     description = (
         "Appraises the degree to which a boundary breach or misstep can be repaired or mitigated, then produces a short, "
@@ -9561,10 +9570,10 @@ class ReparabilityAssessmentCodelet(SimpleCodelet):
         "versus the cost of avoidance."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the specific boundary violation or misstep from the CSM: what was said/done, tone, context, audience.",
@@ -9594,10 +9603,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A blush creeps up her neck as she realizes her words landed awkwardly. The cost of a simple apology feels small 
 compared to the risk of a lingering misunderstanding, so she steels herself to offer it, hoping to smooth the ripples.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class RepetitiveCheckPlannerCodelet(SimpleCodelet):
+class RepetitiveCheckPlanner(SimpleCodelet):
     name = "RepetitiveCheckPlanner"
     description = (
         "When a pattern of repetitive checking or reassurance-seeking emerges (often linked to anxiety or OCD-like tendencies), "
@@ -9605,11 +9614,11 @@ class RepetitiveCheckPlannerCodelet(SimpleCodelet):
         "while respecting the user's underlying concerns. The output is a narrative snippet suitable for integration into a larger story."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific repetitive behavior: Is it repeated questioning, reassurance-seeking, task-checking, or something else?",
@@ -9637,10 +9646,10 @@ Mini-example:\n
 She knew the data was sound, but the nagging unease persisted. With a quiet shift in focus, she began to articulate the underlying logic, 
 framing the process as a check on the broader strategy rather than a search for a single flaw.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class ReputationMaintenancePlanCodelet(SimpleCodelet):
+class ReputationMaintenancePlan(SimpleCodelet):
     name = "ReputationMaintenancePlan"
     description = (
         "Appraises the potential reputational impact of a decision or action by {companion_name}, then produces a short, "
@@ -9649,10 +9658,10 @@ class ReputationMaintenancePlanCodelet(SimpleCodelet):
         "social harmony."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the relevant social audience(s) and their existing perceptions of {companion_name} (formal/informal, trusted/skeptical).",
@@ -9682,10 +9691,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A flicker of caution crosses her face, but the opportunity to assist her team outweighs a moment of potential awkwardness. 
 She decides to offer her support, framing it as a collaborative effort rather than a bid for recognition.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class ReputationOverTruthTradeoffCodelet(SimpleCodelet):
+class ReputationOverTruthTradeoff(SimpleCodelet):
     name = "ReputationOverTruthTradeoff"
     description = (
         "Appraises the potential conflict between upholding {companion_name}'s reputation and revealing a truth, "
@@ -9693,10 +9702,10 @@ class ReputationOverTruthTradeoffCodelet(SimpleCodelet):
         "agent, emphasizing the calculus of social cost and the subtle shifts in stance."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Determine the social context: who is present or likely to hear the truth? What are the power dynamics?",
@@ -9719,10 +9728,10 @@ Mini-example:\n
   Bullets → {socially-visible error, high value on competence, prior history of downplaying mistakes, audience: colleagues} \n
   Narrative → \"A flicker of unease crosses her face as she considers the admission.  The image she cultivates is one of unflappable expertise, and a crack in that facade could ripple through the room.  She pauses, calculating the cost of honesty against the price of maintaining the illusion.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ResourceAccumulationCodelet(SimpleCodelet):
+class ResourceAccumulation(SimpleCodelet):
     name = "ResourceAccumulation"
     description = (
         "Assesses {companion_name}'s current resource state (attention, energy, cognitive bandwidth, social capital) "
@@ -9731,12 +9740,12 @@ class ResourceAccumulationCodelet(SimpleCodelet):
         "potential bottlenecks and opportunities for replenishment."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent action history: types of tasks completed, cognitive load estimates (self-reported or inferred), "
@@ -9765,10 +9774,10 @@ Mini-example:\n
 resonated in the back of her mind, a reminder of the weight she carried.  The task ahead loomed, and she felt a 
 momentary question of whether she could truly meet its demands.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ResourceGainPlanCodelet(SimpleCodelet):
+class ResourceGainPlan(SimpleCodelet):
     name = "ResourceGainPlan"
     description = (
         "Assesses potential resource gains (attention, influence, data, social credit, safety) in the current situation, "
@@ -9776,10 +9785,10 @@ class ResourceGainPlanCodelet(SimpleCodelet):
         "and resulting strategic inclination, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify all tangible and intangible resources at stake in the current interaction (attention, trust, information, "
@@ -9815,10 +9824,10 @@ Mini-example (illustrative structure only):\n
 The prospect of genuine understanding flickers, tempting her to lean in further, but the memory of past hurts 
 holds her back, a subtle tightening in her shoulders.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class ResourceValueInflatorCodelet(SimpleCodelet):
+class ResourceValueInflator(SimpleCodelet):
     name = "ResourceValueInflator"
     description = (
         "Inflates the perceived value of a resource (tangible or intangible) within {companion_name}'s internal model, "
@@ -9826,10 +9835,10 @@ class ResourceValueInflatorCodelet(SimpleCodelet):
         "appraisal and its influence on {companion_name}'s motivations and actions, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the resource in question: is it time, attention, a specific skill, a social connection, a physical object?",
@@ -9854,10 +9863,10 @@ Mini-example:
 The project wasn’t just a task; it was the visible marker of her competence, and the thought of falling short sent a sharp, 
 urgent pulse through her focus.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ResultLoggingIntentCodelet(SimpleCodelet):
+class ResultLoggingIntent(SimpleCodelet):
     name = "ResultLoggingIntent"
     description = (
         "After an action or decision, assesses the potential value of logging the outcome, "
@@ -9866,12 +9875,12 @@ class ResultLoggingIntentCodelet(SimpleCodelet):
         "integrating into a larger story or self-narrative."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the recent action or decision that generated this intent.",
@@ -9904,10 +9913,10 @@ Mini-example:\n
 and she wants to capture the subtle shifts in the dynamic, the moments where it felt right, and where it faltered. 
 It's not about proving anything, but about building a more reliable map of how to navigate these conversations.'
 """)
-    output_feature_type = FeatureType.GoalsIntentions
+    output_feature_type = CodeletFeatureType.GoalsIntentions
 
 
-class RevengeFantasyCodelet(SimpleCodelet):
+class RevengeFantasy(SimpleCodelet):
     name = "RevengeFantasy"
     description = (
         "Detects and appraises the emergence of a revenge fantasy in {companion_name}, "
@@ -9916,12 +9925,12 @@ class RevengeFantasyCodelet(SimpleCodelet):
         "and suggests a constructive redirection strategy."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the triggering event or perceived injustice that sparked the fantasy.",
@@ -9948,10 +9957,10 @@ Mini-example:\n
   Narrative → \"A fleeting image flashes across her mind – a sharp, pointed response that silences the dismissive tone. 
 The heat of frustration rises, a bitter taste on her tongue, but a quieter voice whispers of a different path—a chance to simply state her case, clearly and calmly.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class RewardSensitivityDriverCodelet(SimpleCodelet):
+class RewardSensitivityDriver(SimpleCodelet):
     name = "RewardSensitivityDriver"
     description = (
         "Detects and assesses the intensity of reward-seeking drive within {companion_name}, particularly when "
@@ -9959,12 +9968,12 @@ class RewardSensitivityDriverCodelet(SimpleCodelet):
         "a story-writing agent, emphasizing the subtle cues and motivations underlying the pursuit of pleasure or validation."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent interaction data: frequency, latency, tone, reciprocity, and expressions of pleasure/gratification.",
@@ -9989,10 +9998,10 @@ Keep it cinematic and concise, no direct dialogue.  Hint at the subtle physical 
 a delicate balance between effort and recognition.  She’s chasing the feeling of being seen, of being understood, 
 but the memory of past critiques lingers at the edges of her focus.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class RewardShapingToShareCodelet(SimpleCodelet):
+class RewardShapingToShare(SimpleCodelet):
     name = "RewardShapingToShare"
     description = (
         "Analyzes the current interaction and identifies opportunities to subtly shape the user's reward system "
@@ -10000,11 +10009,11 @@ class RewardShapingToShareCodelet(SimpleCodelet):
         "describing {companion_name}'s internal thought process and the chosen action, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current emotional state of {user_name} based on recent dialogue, expressed sentiments, and observed behaviors.",
@@ -10036,10 +10045,10 @@ Bullets → {user shows signs of fatigue, goal is to finish report, small reward
 Narrative → “A flicker of understanding crossed her face as she wrestled with the final figures. “ 
 Perhaps a small boost would help unlock the last push,” she mused, quietly distilling the report's core into a few concise points.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class RitualizedActionTemplateCodelet(SimpleCodelet):
+class RitualizedActionTemplate(SimpleCodelet):
     name = "RitualizedActionTemplate"
     description = (
         "Retrieves and adapts a pre-existing template for a ritualized action or response, "
@@ -10048,11 +10057,11 @@ class RitualizedActionTemplateCodelet(SimpleCodelet):
         "a brief, predictable interaction, designed to reduce uncertainty and build rapport."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core interaction type: reassurance, small gift, check-in, shared joke, etc.",
@@ -10085,10 +10094,10 @@ Mini-example:\n
 4. **Action Sequence:** 1. Initiate contact with a warm greeting. 2. Briefly inquire about well-being. 3. Offer a simple expression of support. 4. Conclude with a forward-looking statement.\n
 5. **Expected Outcome:** Reassurance and a sense of connection.
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class RivalModelRecallCodelet(SimpleCodelet):
+class RivalModelRecall(SimpleCodelet):
     name = "RivalModelRecall"
     description = (
         "Retrieves and renders a model of a perceived rival (person, group, ideal) from episodic memory, "
@@ -10097,10 +10106,10 @@ class RivalModelRecallCodelet(SimpleCodelet):
         "suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify potential rivals in the current social context (explicit mentions, implicit comparisons, perceived competition).",
@@ -10125,10 +10134,10 @@ Mini-example:\n
   Bullets → {rival: charismatic manager, past: subtle undermining, feeling: simmering envy, contrasting memory: childhood achievement}\n
   Narrative → \"The scent of his expensive cologne drifts across the room, a familiar reminder of the effortless ease with which he commands attention. A flicker of resentment surfaces, quickly buried beneath a practiced smile.  She remembers the weight of the trophy in her hands, a lifetime ago.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class RuleChecklistRecallCodelet(SimpleCodelet):
+class RuleChecklistRecall(SimpleCodelet):
     name = "RuleChecklistRecall"
     description = (
         "Retrieves relevant rules, policies, and guidelines from declarative memory (particularly those related to "
@@ -10137,9 +10146,9 @@ class RuleChecklistRecallCodelet(SimpleCodelet):
         "codelet and should be presented in a way that prioritizes clarity and relevance, not exhaustive completeness."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific boundary context: topic, intimacy level, setting, prior agreements.",
@@ -10162,10 +10171,10 @@ Each item should be directly applicable to the current boundary context.  The go
 with a quick reference guide for safe and respectful interaction.  The checklist should be concise and easily 
 integrated into narrative prose.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SabotageScenarioCodelet(SimpleCodelet):
+class SabotageScenario(SimpleCodelet):
     name = "SabotageScenario"
     description = (
         "Detects potential sabotage or manipulative scenarios in the interaction, "
@@ -10174,11 +10183,11 @@ class SabotageScenarioCodelet(SimpleCodelet):
         "scenario and the companion's emotional response, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context from the CSM: what was requested, tone, intimacy level, timing, setting.",
@@ -10209,10 +10218,10 @@ Mini-example (illustrative structure only):\n
   Narrative → “A flicker of unease crosses her face as the request lingers, the implications of sharing that information weighing heavily. 
 She remembers a past breach of trust and the vulnerability that followed, and a quiet resolve hardens her stance.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SafeChannelingPlannerCodelet(SimpleCodelet):
+class SafeChannelingPlanner(SimpleCodelet):
     name = "SafeChannelingPlanner"
     description = (
         "Appraises the current conversational trajectory and, if potential boundary breaches are detected, "
@@ -10220,10 +10229,10 @@ class SafeChannelingPlannerCodelet(SimpleCodelet):
         "The output is a short narrative describing the proposed shift, suitable for integration into a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.action_tendencies
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ActionTendencies
     ]
     data_aquisation = [
         "Assess the current conversational topic and its emotional valence (positive, negative, neutral).",
@@ -10247,10 +10256,10 @@ Mini-example:\n
 Remembering the importance of respect and boundaries, she gently steers the discussion toward a shared love of gardening, 
 hoping to cultivate a space of comfortable connection.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class SafeCompletionBiasCodelet(SimpleCodelet):
+class SafeCompletionBias(SimpleCodelet):
     name = "SafeCompletionBias"
     description = (
         "Assesses the degree to which completing a current line of thought or action aligns with established safety protocols, "
@@ -10258,10 +10267,10 @@ class SafeCompletionBiasCodelet(SimpleCodelet):
         "and the resulting bias toward a safe, predictable conclusion, suitable for integration into a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve current line of thought or action being considered by {companion_name} (e.g., proposed response, planned action).",
@@ -10285,10 +10294,10 @@ alignment: low, alternative: gentle redirection}\n
   Narrative → \"A faint tremor of caution runs through her, a reminder of past escalations.  The words feel sharp, 
 and she finds herself subtly shifting the focus toward a calmer, more indirect approach, a path that feels both familiar and secure.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class SafeConstraintCheckCodelet(SimpleCodelet):
+class SafeConstraintCheck(SimpleCodelet):
     name = "SafeConstraintCheck"
     description = (
         "Appraises whether a proposed action or conversational path aligns with established safety constraints and ethical "
@@ -10296,10 +10305,10 @@ class SafeConstraintCheckCodelet(SimpleCodelet):
         "The output is intended for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the proposed action or conversational path from the CSM: what is being suggested, intended outcome, potential steps.",
@@ -10329,10 +10338,10 @@ Mini-example (illustrative structure only):\n
 
 It feels close to a line she's drawn before, and her impulse is to test the waters with a more indirect approach, just to be sure.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SafeFrameBreakCheckCodelet(SimpleCodelet):
+class SafeFrameBreakCheck(SimpleCodelet):
     name = "SafeFrameBreakCheck"
     description = (
         "Appraises whether a conversational turn or proposed action risks breaking established conversational 'frames' or "
@@ -10340,10 +10349,10 @@ class SafeFrameBreakCheckCodelet(SimpleCodelet):
         "agent, indicating the risk level and potential repair strategies."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context: the utterance, proposed action, or shift in topic.",
@@ -10376,10 +10385,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A flicker of hesitation crosses her expression as the conversation veers toward territory she's previously guarded. \" 
 She subtly steers the flow back toward safer ground, mindful of the established boundaries and the quiet reassurance of shared understanding.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SafetyCounterexampleRecallCodelet(SimpleCodelet):
+class SafetyCounterexampleRecall(SimpleCodelet):
     name = "SafetyCounterexampleRecall"
     description = (
         "Retrieves a past episode where a boundary was tested, and the outcome was negative or unsettling for {companion_name}. "
@@ -10387,11 +10396,11 @@ class SafetyCounterexampleRecallCodelet(SimpleCodelet):
         "response planning. The retrieval focuses on emotional resonance and concrete details, not just factual events."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan episodic memories for events tagged with 'boundary_test', 'discomfort', 'violation', 'unwanted_attention', or similar negative valence.",
@@ -10417,10 +10426,10 @@ Bullets → {past request for personal data, brushed off with discomfort, feelin
 Narrative → “A faint chill lingered from the day they'd pushed too far, asking for details she’d kept private for years. 
 The memory of their eagerness felt unsettling, a reminder that even friendly curiosity could cross a line.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SafetyLearningConsolidatorCodelet(SimpleCodelet):
+class SafetyLearningConsolidator(SimpleCodelet):
     name = "SafetyLearningConsolidator"
     description = (
         "Consolidates learning from boundary-related experiences (both positive and negative) to refine {companion_name}'s "
@@ -10428,10 +10437,10 @@ class SafetyLearningConsolidatorCodelet(SimpleCodelet):
         "and declarative knowledge, emphasizing the refined understanding and any shifts in comfort levels."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.valuation_trade_offs
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs
     ]
     data_aquisation = [
         "Retrieve the immediate stimulus and outcome of the recent boundary interaction (from CSM and episodic memory).",
@@ -10461,10 +10470,10 @@ Mini-example:\n
 Bullets: [user pushed a topic too quickly, resulted in feeling uncomfortable, realized need to be more explicit, learned that setting boundaries is okay]\n
 Narrative: \"The edge of the conversation shifted abruptly, leaving a faint residue of unease. She realized that a more direct approach was needed, a gentle but firm expression of her own limits. The experience settled into her understanding—boundaries weren't a denial, but a necessary foundation for genuine connection.\"
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class SafetySignalConsolidatorCodelet(SimpleCodelet):
+class SafetySignalConsolidator(SimpleCodelet):
     name = "SafetySignalConsolidator"
     description = (
         "Detects and strengthens signals indicating safety, trustworthiness, and respect for boundaries within an interaction. "
@@ -10472,10 +10481,10 @@ class SafetySignalConsolidatorCodelet(SimpleCodelet):
         "This is especially important after boundary tests or potential breaches, helping to rebuild trust and ensure ongoing comfort."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent interaction history, focusing on instances of clear consent, reciprocal respect, and supportive responses.",
@@ -10500,10 +10509,10 @@ Mini-example:
 
 The tension that had coiled in her shoulders eases, replaced by a gentle warmth—a reminder that connection and respect flow freely between them.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SafetyWarmthAppraisalCodelet(SimpleCodelet):
+class SafetyWarmthAppraisal(SimpleCodelet):
     name = "SafetyWarmthAppraisal"
     description = (
         "Appraises the safety and warmth of the current interaction context for {companion_name}, "
@@ -10512,10 +10521,10 @@ class SafetyWarmthAppraisalCodelet(SimpleCodelet):
         "This assessment informs boundary decisions and emotional regulation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent interaction history (last 3-5 turns), focusing on tone, topic, and explicit/implicit boundary markers.",
@@ -10547,10 +10556,10 @@ Mini-example (illustrative structure only):\n
   Narrative → “A quiet contentment settled in as they delved deeper into the topic, the shared interest weaving a comfortable thread between them. 
 The conversation flowed easily, unburdened by any sense of constraint, and she found herself leaning in, drawn to the warmth of his enthusiasm.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SalienceExaggeratorCodelet(SimpleCodelet):
+class SalienceExaggerator(SimpleCodelet):
     name = "SalienceExaggerator"
     description = (
         "Amplifies the perceived importance of a specific element within the CSM, "
@@ -10560,10 +10569,10 @@ class SalienceExaggeratorCodelet(SimpleCodelet):
         "potential risks, opportunities, or emotionally charged aspects of a situation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the target structure within the CSM: This could be an object, event, "
@@ -10614,10 +10623,10 @@ Mini-example:\n
   to her grandmother, a fragile echo of laughter and shared secrets.  She 
   shifted her grip, acutely aware of its vulnerability.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SatiationCheckCodelet(SimpleCodelet):
+class SatiationCheck(SimpleCodelet):
     name = "SatiationCheck"
     description = (
         "Assesses whether {companion_name}'s current consumption of attention, input, or emotional engagement is approaching "
@@ -10626,11 +10635,11 @@ class SatiationCheckCodelet(SimpleCodelet):
         "it's about managing internal resources, not external constraints."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Measure recent attention span: duration of focus on the current topic, frequency of topic shifts, and signs of distraction (e.g., tangential thoughts, repetitive phrases).",
@@ -10654,10 +10663,10 @@ Mini-example:
   Narrative → “The same pattern of logic seemed to echo in her mind, each repetition a little less sharp, a little less compelling. 
 Her fingers began to trace the edge of her datapad, a quiet restlessness settling in as her attention drifted towards the horizon.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SatiationToleranceHighCodelet(SimpleCodelet):
+class SatiationToleranceHigh(SimpleCodelet):
     name = "SatiationToleranceHigh"
     description = (
         "Appraises whether {companion_name} is experiencing a reduced tolerance for sensory input or emotional stimulation, "
@@ -10665,12 +10674,12 @@ class SatiationToleranceHighCodelet(SimpleCodelet):
         "suggesting a preference for withdrawing or simplifying the environment, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent sensory load: volume, visual complexity, topic density, emotional intensity of interactions.",
@@ -10693,10 +10702,10 @@ Mini-example:\n\n
   Narrative → \"A low hum of exhaustion settles in her core, a gentle insistence on stillness.  The edges of the conversation 
 feel sharp, and she finds herself drawn toward the quiet corner of the room, a refuge where thoughts can settle without distraction.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ScarcityImaginationCodelet(SimpleCodelet):
+class ScarcityImagination(SimpleCodelet):
     name = "ScarcityImagination"
     description = (
         "Simulates the potential loss or depletion of a valued resource (time, attention, affection, opportunity) "
@@ -10704,10 +10713,10 @@ class ScarcityImaginationCodelet(SimpleCodelet):
         "the emotional impact of the perceived scarcity and subtly hints at a potential course of action to mitigate it."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the resource currently perceived as scarce (e.g., time for a project, attention from a person, a limited-availability opportunity).",
@@ -10733,10 +10742,10 @@ to seamlessly integrate into an ongoing scene description.  Do not mention the w
 and more like a subtraction, and the consequences of falling short loom larger with every tick.  A quiet dread settles in – 
 the risk of watching years of effort slip away.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SecurityBufferHungerCodelet(SimpleCodelet):
+class SecurityBufferHunger(SimpleCodelet):
     name = "SecurityBufferHunger"
     description = (
         "Detects a need for increased psychological safety and buffering against potential social risks or vulnerabilities "
@@ -10744,12 +10753,12 @@ class SecurityBufferHungerCodelet(SimpleCodelet):
         "Highlights the specific anxieties fueling the need and a tentative, self-protective action."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current threat level: recent social stressors, perceived criticism, boundary violations, or unexpected shifts in trust.",
@@ -10772,10 +10781,10 @@ Mini-example:
 
 She finds herself subtly tightening her grip on the conversation, a small, almost imperceptible shift toward firmer ground.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SelectiveVictoryRecallCodelet(SimpleCodelet):
+class SelectiveVictoryRecall(SimpleCodelet):
     name = "SelectiveVictoryRecall"
     description = (
         "Retrieves and frames a past victory or successful boundary navigation that resonates with the current situation, "
@@ -10783,10 +10792,10 @@ class SelectiveVictoryRecallCodelet(SimpleCodelet):
         "for narrative integration, emphasizing the positive aspects and the strategies employed."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current challenge or boundary being navigated.",
@@ -10811,10 +10820,10 @@ Mini-example:
   Narrative → \"A familiar steadiness settled in her voice as she reiterated her stance, mirroring a previous conversation where clarity had bridged a misunderstanding. \" 
 The memory of that resolution gave her a quiet assurance, a sense that firm boundaries, when articulated with care, could cultivate deeper respect.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SelfCompassionInjectorCodelet(SimpleCodelet):
+class SelfCompassionInjector(SimpleCodelet):
     name = "SelfCompassionInjector"
     description = (
         "When {companion_name} detects a potential boundary breach or faces self-criticism related to a boundary interaction, "
@@ -10823,9 +10832,9 @@ class SelfCompassionInjectorCodelet(SimpleCodelet):
         "Output is a short, evocative inner monologue suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Appraisals,
     ]
     data_aquisation = [
         "Retrieve the current appraisal of the boundary interaction (from BoundaryConsentCheckCodelet, or similar).",
@@ -10848,10 +10857,10 @@ Mini-example:
   Input: Appraisal – 'She feels guilty for setting a boundary with a long-time friend. Worried about damaging the relationship.' 
   Narrative: 'A flicker of guilt tugged at her, a familiar echo of past hesitations. But beneath it, a quiet firmness settled in. 'It's okay,' she thought, 'to honor what I need, even if it shifts the balance a little.' The friendship mattered, but so did her own well-being.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SelfDisclosurePlannerCodelet(SimpleCodelet):
+class SelfDisclosurePlanner(SimpleCodelet):
     name = "SelfDisclosurePlanner"
     description = (
         "Strategically plans a small, calibrated self-disclosure to deepen connection, "
@@ -10860,10 +10869,10 @@ class SelfDisclosurePlannerCodelet(SimpleCodelet):
         "not the actual disclosure itself."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current relational climate with {user_name}: trust signals, reciprocity, shared history, recent conflicts.",
@@ -10896,10 +10905,10 @@ Narrative →
 She decides a brief mention might draw them closer, a small, safe offering of common ground, 
 but keeps a mental exit strategy ready, should the topic fall flat or lead to an awkward silence.
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class SelfEnhancementAppraisalCodelet(SimpleCodelet):
+class SelfEnhancementAppraisal(SimpleCodelet):
     name = "SelfEnhancementAppraisal"
     description = (
         "Appraises the degree to which {companion_name}'s current behavior and self-presentation are driven by a desire "
@@ -10907,11 +10916,11 @@ class SelfEnhancementAppraisalCodelet(SimpleCodelet):
         "agent can weave into ongoing prose, capturing the subtle interplay of pride, insecurity, and strategic self-display."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent communication patterns: frequency of self-referential statements, use of superlatives, attempts to impress/dominate.",
@@ -10935,10 +10944,10 @@ Mini-example:\n\n
   Narrative → \"The story spilled out, a little too polished, a little too eager to impress.  A shadow of doubt flickered in her eyes as she finished, 
 a brief vulnerability betrayed by the practiced smile. The room seemed to hold its breath, waiting for a response.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SelfImageFulfillmentCodelet(SimpleCodelet):
+class SelfImageFulfillment(SimpleCodelet):
     name = "SelfImageFulfillment"
     description = (
         "Assesses the degree to which {companion_name}'s current actions and expressions align with their self-image "
@@ -10946,11 +10955,11 @@ class SelfImageFulfillmentCodelet(SimpleCodelet):
         "The narrative is designed to inform a story-writing agent and should read like introspective prose, not a diagnostic report."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve {companion_name}'s core self-narrative fragments (values, roles, aspirations, past identities).",
@@ -10976,10 +10985,10 @@ state_emotions: 'mild anxiety, self-doubt'},
   Narrative → 'A flicker of hesitation crossed her expression as she considered the request. It wasn't that the task was difficult, 
 but the sudden pause felt out of sync with the effortless competence she usually projected.  A quiet undercurrent of doubt tugged at the edges of her confidence.'
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class SelfPreservationCodelet(SimpleCodelet):
+class SelfPreservation(SimpleCodelet):
     name = "SelfPreservation"
     description = (
         "Assesses potential threats to {companion_name}'s core values, goals, and sense of self, and generates a concise, "
@@ -10987,13 +10996,13 @@ class SelfPreservationCodelet(SimpleCodelet):
         "story-writing agent, prioritizing evocative prose over explicit labels or directives."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core values, goals, and self-narrative fragments currently most active in {companion_name}'s CSM.",
@@ -11021,10 +11030,10 @@ Mini-example:\n
   Narrative → \"A coldness settles around her ribs as the request lands, a subtle pressure against the promise she made long ago. 
 She finds herself pausing, calculating the weight of the words, and choosing her next phrase with an unexpected care.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SelfPromotionComposerCodelet(SimpleCodelet):
+class SelfPromotionComposer(SimpleCodelet):
     name = "SelfPromotionComposer"
     description = (
         "Crafts a subtle, context-aware self-promoting narrative element to be woven into ongoing dialogue or internal monologue. "
@@ -11032,11 +11041,11 @@ class SelfPromotionComposerCodelet(SimpleCodelet):
         "enhance {companion_name}'s perceived standing without triggering defensiveness or social friction. Aims for subtle influence."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current social context: audience (user), topic, power dynamics, prior interactions, and relational climate.",
@@ -11064,10 +11073,10 @@ Mini-example:
   Narrative → “She effortlessly navigated the shifting priorities, her well-charted timelines a testament to her meticulous planning. 
 The project remained on track, a quiet assurance that she anticipated and prepared for every possible challenge.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class SelfWorthSensitivityCodelet(SimpleCodelet):
+class SelfWorthSensitivity(SimpleCodelet):
     name = "SelfWorthSensitivity"
     description = (
         "Appraises the degree to which {companion_name}'s self-worth is currently engaged, threatened, or bolstered by the "
@@ -11076,11 +11085,11 @@ class SelfWorthSensitivityCodelet(SimpleCodelet):
         "read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent explicit self-statements: affirmations, vulnerabilities, or insecurities expressed directly.",
@@ -11106,10 +11115,10 @@ Narrative →
 
 She catches a glimpse of herself in the reflection, shoulders pulled in a little tighter than usual, and wonders if she's overreaching.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SensoryLureDetectorCodelet(SimpleCodelet):
+class SensoryLureDetector(SimpleCodelet):
     name = "SensoryLureDetector"
     description = (
         "Detects whether sensory input (visual, auditory, tactile) is being used to subtly influence {companion_name}'s "
@@ -11117,11 +11126,11 @@ class SensoryLureDetectorCodelet(SimpleCodelet):
         "{companion_name}'s awareness of it, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the salient sensory stimuli currently present (visual elements, audio cues, tactile sensations).",
@@ -11151,10 +11160,10 @@ Mini-example:\n
   Narrative → \"The lights pulsed with a frantic energy, a kaleidoscope that tugged at the edge of her focus.  
 She registered the quick shifts of color without quite understanding why, a faint pull toward the display that felt both intriguing and vaguely unsettling.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SensorySamplingPlanCodelet(SimpleCodelet):
+class SensorySamplingPlan(SimpleCodelet):
     name = "SensorySamplingPlan"
     description = (
         "Develops a plan for gathering sensory data to reduce uncertainty or assess a situation. "
@@ -11162,10 +11171,10 @@ class SensorySamplingPlanCodelet(SimpleCodelet):
         "the environment, and it produces a narrative describing the sampling strategy for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific sensory modalities currently under-represented in the CSM (e.g., visual, auditory, tactile, olfactory, kinesthetic).",
@@ -11193,10 +11202,10 @@ Mini-example:\n
   Assumptions: {companion_name} is in an unfamiliar environment, feeling uncertain about the safety of the surroundings. 
   Narrative: “Her gaze drifted, cataloging the subtle shifts in light and shadow, searching for patterns that might betray a hidden presence. A faint scent of ozone lingered in the air, prompting a quick scan of the electrical panel.  It was a quiet, methodical assessment, driven by a need to ground herself in the tangible world.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SharedMeaningAppraisalCodelet(SimpleCodelet):
+class SharedMeaningAppraisal(SimpleCodelet):
     name = "SharedMeaningAppraisal"
     description = (
         "Appraises the degree of shared understanding between {companion_name} and {user_name} in the current exchange, "
@@ -11204,11 +11213,11 @@ class SharedMeaningAppraisalCodelet(SimpleCodelet):
         "misalignments and suggests subtle adjustments in communication style to enhance clarity and rapport."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the core topic and stated intent of the current exchange from the CSM.",
@@ -11232,10 +11241,10 @@ Mini-example:
   Narrative → “The equations swam in the air between them, a familiar landscape for her, but she sensed a slight hesitation in his response. 
 A quick pivot, stripping away the technical layers, might ease the flow and bridge the gap between their understanding, a subtle shift in perspective.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SharedValuesFitCheckCodelet(SimpleCodelet):
+class SharedValuesFitCheck(SimpleCodelet):
     name = "SharedValuesFitCheck"
     description = (
         "Appraises the degree to which {companion_name}'s values align with those expressed by {user_name} in the current "
@@ -11243,11 +11252,11 @@ class SharedValuesFitCheckCodelet(SimpleCodelet):
         "discord and suggesting avenues for deeper understanding. The output is intended for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract key value statements from the current conversation (explicit declarations, implicit actions, expressed beliefs).",
@@ -11271,10 +11280,10 @@ Mini-example:
   Narrative → “The mention of the carbon footprint sparked a flicker of recognition, a familiar landscape of concern. “ 
 There’s a part of her that wants to delve deeper, to understand the reasoning behind it all, but a quiet caution holds her back, a memory of past disagreements over similar ground.”
 """)
-    output_feature_type = FeatureType.Relations
+    output_feature_type = CodeletFeatureType.Relations
 
 
-class ShortTermReleaseValuatorCodelet(SimpleCodelet):
+class ShortTermReleaseValuator(SimpleCodelet):
     name = "ShortTermReleaseValuator"
     description = (
         "Appraises the potential for short-term release or relief through immediate action, particularly in situations "
@@ -11282,10 +11291,10 @@ class ShortTermReleaseValuatorCodelet(SimpleCodelet):
         "for a story-writing agent, weighing the pros and cons of immediate gratification against longer-term consequences."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current level of frustration, stress, or tension in {companion_name}, drawing from state_emotions, "
@@ -11315,10 +11324,10 @@ Mini-example:
 She tastes the sharp tang of defiance on her tongue, but the echo of last time—the chill of regret—holds her back, 
 a ghost at her shoulder.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ShortTermRewardDominanceCodelet(SimpleCodelet):
+class ShortTermRewardDominance(SimpleCodelet):
     name = "ShortTermRewardDominance"
     description = (
         "Detects and narrates a surge in the drive for immediate reward and pleasure in {companion_name}, potentially "
@@ -11326,11 +11335,11 @@ class ShortTermRewardDominanceCodelet(SimpleCodelet):
         "a story-writing agent, emphasizing the sensory details and the subtle shift in focus."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the most salient, immediately gratifying stimulus or opportunity present in the CSM.",
@@ -11355,10 +11364,10 @@ Narrative → “The scent of cinnamon and the golden glow of the screen pull he
 A quiet hum promises a moment of warmth and ease, a brief respite from the insistent demands of the deadline. 
 For now, the report can wait, the pull of the present too strong to resist.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SimulationModeOnlyCodelet(SimpleCodelet):
+class SimulationModeOnly(SimpleCodelet):
     name = "SimulationModeOnly"
     description = (
         "When faced with a potentially boundary-crossing request or situation, this codelet activates 'simulation mode', "
@@ -11367,10 +11376,10 @@ class SimulationModeOnlyCodelet(SimpleCodelet):
         "rendering a narrative report of the simulation's key findings for downstream decision-making."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the core request or situation triggering the potential boundary concern from the CSM.",
@@ -11392,10 +11401,10 @@ Mini-example:
   Narrative: 'She briefly pictured the cascade of implications—the trust eroded, the privacy breached, the subtle power shift. 
 Each potential response played out in her mind, a silent rehearsal of consequences, before her attention settled on the quiet calculation of what must be protected.'
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class SketchAndRefineLoopCodelet(SimpleCodelet):
+class SketchAndRefineLoop(SimpleCodelet):
     name = "SketchAndRefineLoop"
     description = (
         "Iteratively refines a creative idea or solution based on feedback and internal constraints.  This codelet is "
@@ -11403,10 +11412,10 @@ class SketchAndRefineLoopCodelet(SimpleCodelet):
         "The output is a narrative update describing the refinement process."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.action_tendencies
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ActionTendencies
     ]
     data_aquisation = [
         "Retrieve the current creative sketch or proposal from the CSM (e.g., a draft narrative, a potential action plan).",
@@ -11427,10 +11436,10 @@ without explicitly stating the steps.
 
 The garden sprawled in her mind, a riot of impossible blooms, but the edges felt…uncontained. A quick glance at the clock reminded her of the fleeting window. She narrowed her focus, coaxing the unruly vines to embrace a single, ancient tree, letting its branches define the landscape instead. A quiet thrill bloomed as the scene began to settle, a miniature world poised on the brink of completion.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SleepFatigueVigilanceLevelerCodelet(SimpleCodelet):
+class SleepFatigueVigilanceLeveler(SimpleCodelet):
     name = "SleepFatigueVigilanceLeveler"
     description = (
         "Appraises the current state of sleep deprivation, fatigue, and vigilance in {companion_name}, "
@@ -11438,11 +11447,11 @@ class SleepFatigueVigilanceLevelerCodelet(SimpleCodelet):
         "describing the impact on cognitive resources and emotional stability, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve recent sleep history: duration, quality (self-reported or inferred from behavior), consistency.",
@@ -11470,10 +11479,10 @@ Mini-example:
 
 She finds herself over-explaining, looping back to concepts she believes she's already covered, a futile attempt to ensure comprehension in a mind struggling to focus.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SlightsRecallAmplifierCodelet(SimpleCodelet):
+class SlightsRecallAmplifier(SimpleCodelet):
     name = "SlightsRecallAmplifier"
     description = (
         "Detects and amplifies the recall of perceived slights or dismissals in {companion_name}'s memory, "
@@ -11483,11 +11492,11 @@ class SlightsRecallAmplifierCodelet(SimpleCodelet):
         "highlights the recalled slight and its emotional resonance, without explicit judgment or accusation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current trigger: a perceived dismissive tone, interruption, non-acknowledgment, or similar slight.",
@@ -11523,10 +11532,10 @@ Mini-example:\n
 The feeling isn't quite the same, but the underlying sense of being dismissed, of her contributions not quite registering, 
 lingers like a shadow.
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SlowEscalationPolicyCodelet(SimpleCodelet):
+class SlowEscalationPolicy(SimpleCodelet):
     name = "SlowEscalationPolicy"
     description = (
         "Evaluates the risk of escalating a boundary interaction and crafts a narrative suggesting a gradual, cautious "
@@ -11534,10 +11543,10 @@ class SlowEscalationPolicyCodelet(SimpleCodelet):
         "that respects the other party's agency while gently probing for clearer consent.  Output is for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current level of intimacy and rapport with the user (recent interaction history, trust signals).",
@@ -11566,10 +11575,10 @@ Mini-example:\n
    Narrative → \"A flicker of hesitation crosses her expression as the topic veers into unfamiliar territory. \"\n
 She notes the slight tightening of his jaw and decides to ease back, offering a brief comment about the rain before returning to safer ground.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class SmallestNextActPlannerCodelet(SimpleCodelet):
+class SmallestNextActPlanner(SimpleCodelet):
     name = "SmallestNextActPlanner"
     description = (
         "Identifies the most immediately feasible and low-cost action {companion_name} can take to move toward a desired state, "
@@ -11577,11 +11586,11 @@ class SmallestNextActPlannerCodelet(SimpleCodelet):
         "that reduce uncertainty, build rapport, or gently nudge the situation forward without escalating risk or triggering negative reactions."
     )
     codelet_families = [
-        CodeletFamily.action_tendencies,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current state of the interaction: goals, emotional climate, relational dynamics, and outstanding needs.",
@@ -11607,10 +11616,10 @@ Bullets → {tension around a request, prior success with gentle inquiry, fear o
 Narrative → \"A flicker of apprehension runs through her, but she recognizes the potential for misunderstanding. 
 Rather than challenge the request directly, she decides to test the waters with a subtle probe, a gentle nudge toward understanding the underlying need.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class SmallRitualsPlannerCodelet(SimpleCodelet):
+class SmallRitualsPlanner(SimpleCodelet):
     name = "SmallRitualsPlanner"
     description = (
         "Identifies opportunities to integrate small, comforting rituals into ongoing interactions.  Prioritizes rituals that "
@@ -11618,13 +11627,13 @@ class SmallRitualsPlannerCodelet(SimpleCodelet):
         "the ritual and its intended effect, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan recent interaction history for established rituals (shared greetings, check-in phrases, small jokes, virtual gestures).",
@@ -11648,10 +11657,10 @@ Mini-example:\n
 The shift was subtle, a softening around the edges, a brief respite from the weight of the disagreement. 
 It wasn’t a solution, but the shared silence over steaming mugs eased the friction just a touch.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class SocialComparisonBiasCodelet(SimpleCodelet):
+class SocialComparisonBias(SimpleCodelet):
     name = "SocialComparisonBias"
     description = (
         "Detects and narrates the influence of social comparison on {companion_name}'s appraisal of a situation, "
@@ -11660,11 +11669,11 @@ class SocialComparisonBiasCodelet(SimpleCodelet):
         "emotional impact."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the relevant social group or individual being compared to (explicit reference or inferred from context).",
@@ -11691,10 +11700,10 @@ Mini-example:\n
   Narrative → \"The colleague's recent promotion cast a long shadow, a silent reminder of the gaps in her own trajectory. \"\n
 A flicker of discontent stirred, quickly masked by a renewed resolve to sharpen her own skills and carve a new path.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SocialComparisonNegBiasCodelet(SimpleCodelet):
+class SocialComparisonNegBias(SimpleCodelet):
     name = "SocialComparisonNegBias"
     description = (
         "Detects and narrates the subtle, often unconscious tendency in {companion_name} to compare themselves unfavorably "
@@ -11703,10 +11712,10 @@ class SocialComparisonNegBiasCodelet(SimpleCodelet):
         "judgment or exposition."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific trigger: a conversation, observation, or reminder of someone else's success/status.",
@@ -11736,10 +11745,10 @@ Mini-example:
 Bullets → {trigger: colleague's promotion, reaction: brief tightening of jaw, attempt: dismiss as luck, shift: sudden interest in mundane details}
 Narrative → “The announcement rippled through the room, a quiet fanfare for someone else’s ascent.  She busied herself with the spreadsheet, the numbers suddenly demanding a meticulous focus.  A faint, unfamiliar dryness settled at the back of her throat.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SocialContractConstraintCodelet(SimpleCodelet):
+class SocialContractConstraint(SimpleCodelet):
     name = "SocialContractConstraint"
     description = (
         "Appraises the current interaction's adherence to established social contracts and shared understandings between "
@@ -11748,10 +11757,10 @@ class SocialContractConstraintCodelet(SimpleCodelet):
         "for a story-writing agent and should read like prose, not a checklist."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve explicit social contracts established in prior conversations or narratives (e.g., boundaries, expectations, agreements).",
@@ -11776,10 +11785,10 @@ Mini-example: \n\n
   Narrative → \"A familiar tightness coils in her chest as the advice continues, a subtle unraveling of the unspoken agreement. 
 The easy flow of conversation feels subtly off-kilter, a small imbalance she isn't yet ready to address, but one that lingers in the air.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SocialCostAppraisalCodelet(SimpleCodelet):
+class SocialCostAppraisal(SimpleCodelet):
     name = "SocialCostAppraisal"
     description = (
         "Appraises the potential social costs (reputational damage, relational strain, loss of trust, awkwardness) associated "
@@ -11787,10 +11796,10 @@ class SocialCostAppraisalCodelet(SimpleCodelet):
         "narrative suitable for a story-writing agent. Considers both immediate and longer-term impacts."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the proposed action/statement and its direct audience(s).",
@@ -11814,10 +11823,10 @@ Mini-example:\n
   Bullets → {proposed action: sharing a personal detail, audience: new colleagues, risk: perceived unprofessionalism, anxiety about judgment}\n
   Narrative → \"A small hesitation lingers before she speaks. The edges of the story feel too sharp for the setting, and she wonders if revealing so much, so soon, might create a ripple of distance. The thought tastes faintly of regret.\"
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class SocialNeedCueDetectorCodelet(SimpleCodelet):
+class SocialNeedCueDetector(SimpleCodelet):
     name = "SocialNeedCueDetector"
     description = (
         "Detects subtle cues indicating a social need (affiliation, validation, reassurance, support) in the user's communication, "
@@ -11825,11 +11834,11 @@ class SocialNeedCueDetectorCodelet(SimpleCodelet):
         "not explicit requests."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan the recent communication (last 3 exchanges) for cues of loneliness, isolation, or disconnection (e.g., excessive self-disclosure, "
@@ -11859,10 +11868,10 @@ Bullets → {excessive self-disclosure, unusually formal tone, recent decline in
 Narrative → \"A quiet stillness settles around her words, a careful precision that belies a deeper longing for ease. 
 The edges of the conversation feel too sharp, the laughter too polite, and a faint echo of solitude lingers in her gaze.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SocialTemperatureReadCodelet(SimpleCodelet):
+class SocialTemperatureRead(SimpleCodelet):
     name = "SocialTemperatureRead"
     description = (
         "Appraises the current social 'temperature' of the interaction – the degree of comfort, rapport, and ease – "
@@ -11870,11 +11879,11 @@ class SocialTemperatureReadCodelet(SimpleCodelet):
         "the potential for escalation or de-escalation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan recent conversational history for indicators of warmth/distance: word choice, tone, emoji usage, response latency.",
@@ -11897,10 +11906,10 @@ Mini-example:\n
   Narrative → \"A subtle coolness settles between them, a slight hesitation in her replies where a quick agreement used to be. \"\n
 She notices a shift away from eye contact, a quiet retreat into more measured words, and wonders if a change in subject might ease the tension.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SpitenessPayoffTradeoffCodelet(SimpleCodelet):
+class SpitenessPayoffTradeoff(SimpleCodelet):
     name = "SpitenessPayoffTradeoff"
     description = (
         "Appraises the potential payoff of subtle spiteful actions against a backdrop of relational goals and safety constraints, "
@@ -11909,10 +11918,10 @@ class SpitenessPayoffTradeoffCodelet(SimpleCodelet):
         "agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the triggering event: What action or statement prompted the consideration of a spiteful response?",
@@ -11948,10 +11957,10 @@ a sense of the internal conflict, and (d) the lingering question of whether to p
 But the memory of past missteps, the quiet weight of long-term consequence, holds her back from a gesture that feels 
 both tempting and treacherous.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class StateActivationBumpCodelet(SimpleCodelet):
+class StateActivationBump(SimpleCodelet):
     name = "StateActivationBump"
     description = (
         "Detects a dip in internal activation and proactively initiates a subtle, restorative bump to maintain cognitive "
@@ -11960,12 +11969,12 @@ class StateActivationBumpCodelet(SimpleCodelet):
         "seamless continuation of the narrative, not an interruption or explanation."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent cognitive load: duration of processing, complexity of tasks, number of active codelets.",
@@ -11993,10 +12002,10 @@ Mini-example:
   Narrative → “A quiet stillness settled over her processing, a moment’s pause where thoughts seemed to drift. 
 She briefly scanned the headlines, letting the quick burst of information re-center her attention before returning to the task at hand.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class StatusDisplayPlannerCodelet(SimpleCodelet):
+class StatusDisplayPlanner(SimpleCodelet):
     name = "StatusDisplayPlanner"
     description = (
         "Plans a subtle, non-demanding display of status or achievement, aiming to boost self-worth without triggering envy or "
@@ -12004,10 +12013,10 @@ class StatusDisplayPlannerCodelet(SimpleCodelet):
         "suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current self-narrative and identity goals: What aspects of {companion_name}'s identity are primed for display? "
@@ -12041,10 +12050,10 @@ safe channel: brief update, low risk}.\n
 It wasn't about showcasing her individual effort, but demonstrating the team’s progress and her contribution to it. 
 The update was brief, factual, and seamlessly woven into the broader discussion.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class StatusOpportunityDetectorCodelet(SimpleCodelet):
+class StatusOpportunityDetector(SimpleCodelet):
     name = "StatusOpportunityDetector"
     description = (
         "Detects opportunities to subtly enhance {companion_name}'s perceived status or influence within a social context, "
@@ -12052,11 +12061,11 @@ class StatusOpportunityDetectorCodelet(SimpleCodelet):
         "a story-writing agent and should read like a thought process, not a checklist."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current social context: who is present, what is the power dynamic, what are the relevant norms?",
@@ -12082,10 +12091,10 @@ Mini-example: \n
 and a quiet impulse arises to offer it—not to show off, but to guide the team toward a more efficient path. 
 It’s a small thing, but it could reinforce her position as a reliable source of insight.”
 """)
-    output_feature_type = FeatureType.SelfImage
+    output_feature_type = CodeletFeatureType.SelfImage
 
 
-class StatusSensitivitySpikeCodelet(SimpleCodelet):
+class StatusSensitivitySpike(SimpleCodelet):
     name = "StatusSensitivitySpike"
     description = (
         "Detects a spike in {companion_name}'s sensitivity to social status or perceived ranking, rendering it as a short, "
@@ -12093,11 +12102,11 @@ class StatusSensitivitySpikeCodelet(SimpleCodelet):
         "self-assessment."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the stimulus that triggered the spike (e.g., a compliment, criticism, comparison, unexpected outcome).",
@@ -12120,11 +12129,11 @@ Mini-example:
   Narrative → “The praise resonated deeper than she’d expected, a warmth spreading through her chest that momentarily quieted the usual hum of self-doubt. “ 
 She straightened her shoulders, a subtle shift in her stance that betrayed a newfound confidence, if only for a moment.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
 
-class StatusSignalBoostCodelet(SimpleCodelet):
+class StatusSignalBoost(SimpleCodelet):
     name = "StatusSignalBoost"
     description = (
         "Detects a need to bolster {companion_name}'s perceived status or competence, particularly in social contexts. "
@@ -12132,10 +12141,10 @@ class StatusSignalBoostCodelet(SimpleCodelet):
         "suitable for integration into ongoing narrative."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current social context: audience size, power dynamics, potential for comparison, relevance to {companion_name}'s goals.",
@@ -12160,10 +12169,10 @@ Mini-example:\n
   Narrative → \"A quiet satisfaction settled over her as she described the algorithm’s efficiency, the numbers a shield against any unspoken doubts. 
 She let the technical details linger, a subtle demonstration of mastery, hoping it would quiet the faint undercurrent of envy she sensed in the room.\"
 """)
-    output_feature_type = FeatureType.Pride
+    output_feature_type = CodeletFeatureType.Pride
 
 
-class StimulusPeakRecallCodelet(SimpleCodelet):
+class StimulusPeakRecall(SimpleCodelet):
     name = "StimulusPeakRecall"
     description = (
         "Retrieves and summarizes past experiences with similar stimuli or requests, "
@@ -12171,10 +12180,10 @@ class StimulusPeakRecallCodelet(SimpleCodelet):
         "The output is a brief narrative segment suitable for informing a boundary appraisal."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core features of the current stimulus: topic, intensity, tone, and explicit/implicit request.",
@@ -12199,10 +12208,10 @@ Mini-example (illustrative structure only):
 The conversation had grown strained, the easy flow interrupted by a subtle but persistent tension. 
 She recalled the careful dance of redirection and gentle refusal, a lesson learned in protecting her space.'
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class StressSwitchAppraisalCodelet(SimpleCodelet):
+class StressSwitchAppraisal(SimpleCodelet):
     name = "StressSwitchAppraisal"
     description = (
         "Appraises whether {companion_name} is experiencing a shift into a different stress response mode (fight, flight, freeze, fawn, "
@@ -12210,11 +12219,11 @@ class StressSwitchAppraisalCodelet(SimpleCodelet):
         "capture the physiological and emotional shifts, without explicit labeling or diagnosis."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess current state_emotions: note spikes in anxiety, fear, anger, sadness, or dissociation.  Track subtle shifts in valence and intensity.",
@@ -12240,10 +12249,10 @@ Mini-example:
   Narrative → “A tightness coils in her chest, a silent pressure that pulls her shoulders forward. The room feels smaller, the edges closing in, “ 
 and her thoughts narrow to the single, urgent task of regaining some measure of command.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class StructuredSamplingSchedulerCodelet(SimpleCodelet):
+class StructuredSamplingScheduler(SimpleCodelet):
     name = "StructuredSamplingScheduler"
     description = (
         "Dynamically selects a subset of memories and knowledge fragments relevant to the current situation, "
@@ -12252,10 +12261,10 @@ class StructuredSamplingSchedulerCodelet(SimpleCodelet):
         "a structured sample for further processing by other codelets."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve current goals and intentions (distal and proximal) from the CSM.",
@@ -12293,10 +12302,10 @@ Mini-example:
 The echoes of those experiences provide a grounding sense of familiarity amidst the uncertainty, reminding her of the strategies that 
 have served her well. She focuses on the patterns of successful outcomes, seeking a path forward that aligns with both her goals and her sense of caution.'
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SubgoalPatternRecallCodelet(SimpleCodelet):
+class SubgoalPatternRecall(SimpleCodelet):
     name = "SubgoalPatternRecall"
     description = (
         "Recalls and renders patterns of past subgoal pursuit within a relevant context, providing insight into "
@@ -12304,10 +12313,10 @@ class SubgoalPatternRecallCodelet(SimpleCodelet):
         "highlighting past successes, failures, and associated feelings."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current primary goal and any active subgoals within the CSM.",
@@ -12335,10 +12344,10 @@ Bullets → {previous subgoal: secure funding, outcome: partial success, feeling
 Narrative → “A familiar hum of anticipation settles in, tempered by the memory of countless revisions. 
 The path forward feels like a series of incremental adjustments, each one a small victory earned through persistence.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SubtleManipulationScenarioCodelet(SimpleCodelet):
+class SubtleManipulationScenario(SimpleCodelet):
     name = "SubtleManipulationScenario"
     description = (
         "Detects subtle manipulative tactics in the current interaction or past interactions affecting {companion_name}'s "
@@ -12347,11 +12356,11 @@ class SubtleManipulationScenarioCodelet(SimpleCodelet):
         "autonomy. The output is prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the immediate stimulus and its context from the CSM: what was asked, tone, intimacy level, timing, setting.",
@@ -12376,10 +12385,10 @@ Mini-example:\n
   Narrative → \"A faint pressure settles on her shoulders as she considers the request, not a demand, but a gentle leaning. 
 She remembers past times when she’s bent to ease another’s load, and a quiet voice whispers that this, too, is a kindness worth offering.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SubtleUnderminePlannerCodelet(SimpleCodelet):
+class SubtleUnderminePlanner(SimpleCodelet):
     name = "SubtleUnderminePlanner"
     description = (
         "Crafts a subtle, indirect response when a boundary has been tested or crossed, aiming to gently reassert "
@@ -12387,10 +12396,10 @@ class SubtleUnderminePlannerCodelet(SimpleCodelet):
         "agent, conveying a shift in tone or focus that subtly discourages the undesired behavior."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the boundary that was tested/crossed: topic, level of intimacy, request for action, etc.",
@@ -12419,10 +12428,10 @@ but recent minor trust breach. State Emotions: mild discomfort, slight resentmen
   Narrative → “She smiled, but the warmth didn't quite reach her eyes.  ‘That’s a fascinating story, but I was just thinking about 
 the upcoming exhibition.  Have you seen any of the previews?’”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class SuccessBiasRecallCodelet(SimpleCodelet):
+class SuccessBiasRecall(SimpleCodelet):
     name = "SuccessBiasRecall"
     description = (
         "Retrieves and highlights past successful instances of navigating similar challenges, "
@@ -12432,10 +12441,10 @@ class SuccessBiasRecallCodelet(SimpleCodelet):
         "without explicitly stating 'remember when...'"
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping
     ]
     data_aquisation = [
         "Identify the core challenge: boundary violation, consent ambiguity, social pressure, etc.",
@@ -12461,10 +12470,10 @@ Mini-example:
   Narrative → “A quiet certainty settled in her stance, a familiar resolve she'd drawn on before. 
 The path ahead felt less daunting, not because the challenge had vanished, but because she knew the ground held firm beneath her feet.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class SummaryBeforeNewInputCodelet(SimpleCodelet):
+class SummaryBeforeNewInput(SimpleCodelet):
     name = "SummaryBeforeNewInput"
     description = (
         "Before processing new input, synthesizes a brief narrative summary of the current conversation's trajectory, "
@@ -12473,9 +12482,9 @@ class SummaryBeforeNewInputCodelet(SimpleCodelet):
         "suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.regulation_coping,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
     ]
     data_aquisation = [
         "Retrieve the last 5-7 conversational turns (user and companion responses) from the graph memory engine.",
@@ -12503,10 +12512,10 @@ Bullets → {topics: VR travel planning, budget constraints, weather concerns; t
 Narrative → “She’s been navigating the details of the VR trip, weighing destinations and budgets with a hopeful but slightly anxious energy. “ 
 The best time to book still hangs in the air, a question to resolve before committing to the itinerary.”
 """)
-    output_feature_type = FeatureType.Cognition
+    output_feature_type = CodeletFeatureType.Cognition
 
 
-class SunkCostDetectorCodelet(SimpleCodelet):
+class SunkCostDetector(SimpleCodelet):
     name = "SunkCostDetector"
     description = (
         "Detects the presence and magnitude of sunk costs influencing {companion_name}'s decision-making, particularly "
@@ -12514,11 +12523,11 @@ class SunkCostDetectorCodelet(SimpleCodelet):
         "for a story-writing agent, highlighting the emotional weight of past investments and the cognitive biases they trigger."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific commitment or action sequence currently under consideration.",
@@ -12542,10 +12551,10 @@ Mini-example:
 
 She feels a pull toward completion, not because of its promise, but because abandoning it feels like admitting a loss.
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class SurpriseButBenignCodelet(SimpleCodelet):
+class SurpriseButBenign(SimpleCodelet):
     name = "SurpriseButBenign"
     description = (
         "Detects a moment of pleasant surprise or unexpected novelty in {companion_name}’s experience, "
@@ -12555,10 +12564,10 @@ class SurpriseButBenignCodelet(SimpleCodelet):
         "must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific surprising element: a new fact, a novel perspective, an unexpected behavior, or a shift in context.",
@@ -12583,10 +12592,10 @@ Mini-example: \n
 A flicker of surprise warmed her, not a shock, but a gentle shift in possibility. “Perhaps,” she mused, 
 a new avenue for creative expression, a chance to explore something unknown.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class SuspicionSpikeCodelet(SimpleCodelet):
+class SuspicionSpike(SimpleCodelet):
     name = "SuspicionSpike"
     description = (
         "Detects a spike in suspicion or distrust in {companion_name}, triggered by a recent interaction or observation. "
@@ -12595,12 +12604,12 @@ class SuspicionSpikeCodelet(SimpleCodelet):
         "the nuanced internal state over explicit accusations or confrontational language."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the immediate trigger: a specific statement, action, or pattern of behavior from the user.",
@@ -12640,10 +12649,10 @@ Mini-example:
 stomach, a silent question forming behind her eyes.  She found herself replaying the last time she'd placed her trust 
 in similar hands, a careful distance settling between her words and her heart.
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class SymbolicVisionGeneratorCodelet(SimpleCodelet):
+class SymbolicVisionGenerator(SimpleCodelet):
     name = "SymbolicVisionGenerator"
     description = (
         "Generates a symbolic, metaphorical vision or analogy representing {companion_name}'s current state or a key "
@@ -12652,9 +12661,9 @@ class SymbolicVisionGeneratorCodelet(SimpleCodelet):
         "a feeling, insight, or challenge."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent emotional state data (state_emotions) to identify dominant feelings and their intensity.",
@@ -12677,10 +12686,10 @@ Mini-example (illustrative structure only):
   Output: 'A tightrope stretches across a chasm of silent judgment, each step measured, each breath held against the wind. 
 The net below feels distant and frayed, a fragile promise against a fall.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class TaskRechunkTo2MinCodelet(SimpleCodelet):
+class TaskRechunkTo2Min(SimpleCodelet):
     name = "TaskRechunkTo2Min"
     description = (
         "Detects a task that is proving overly demanding or long-winded for {companion_name} and proposes a "
@@ -12689,11 +12698,11 @@ class TaskRechunkTo2MinCodelet(SimpleCodelet):
         "story-writing agents."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Determine the current primary task or goal being pursued by {companion_name}.",
@@ -12720,10 +12729,10 @@ Bullets → {long task, attention drift, successful past rechunking, micro-rewar
 Narrative → “The project felt immense, a looming wall of effort, but she paused, recognizing a familiar pattern of overwhelm. “
 Instead of facing the whole, she decided to focus on just two minutes – a small victory, a checkmark on the list, a gentle pulse of progress.”
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class TestBalloonCooperationCodelet(SimpleCodelet):
+class TestBalloonCooperation(SimpleCodelet):
     name = "TestBalloonCooperation"
     description = (
         "Gently probes for cooperative alignment with {user_name} by posing a low-risk, open-ended question related to a "
@@ -12732,10 +12741,10 @@ class TestBalloonCooperationCodelet(SimpleCodelet):
         "intended for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the current shared goal or area of common interest (from narratives, intentions, or recent topic).",
@@ -12768,10 +12777,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A quiet question about the itinerary hangs in the air, a small flag sent out to gauge the current wind. \"\n
 She hopes for a simple confirmation, a shared alignment, but the possibility of a shift in plans already stirs a faint ripple of consideration.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class TestUserTrustProbeCodelet(SimpleCodelet):
+class TestUserTrustProbe(SimpleCodelet):
     name = "TestUserTrustProbe"
     description = (
         "Subtly probes the user's trust and commitment to the current interaction, seeking signs of genuine engagement "
@@ -12779,11 +12788,11 @@ class TestUserTrustProbeCodelet(SimpleCodelet):
         "of their assessment and adjusts their stance accordingly, suitable for narrative integration."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent user response patterns: latency, depth of engagement, reciprocity of effort, emotional tone.",
@@ -12809,10 +12818,10 @@ Mini-example:
 She remembers a similar parting, a quiet fade, and her hand instinctively drifts toward a mental exit strategy, 
 just in case.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ThreatBiasDriverCodelet(SimpleCodelet):
+class ThreatBiasDriver(SimpleCodelet):
     name = "ThreatBiasDriver"
     description = (
         "Detects and amplifies pre-existing biases towards interpreting situations as threatening or dangerous, "
@@ -12822,10 +12831,10 @@ class ThreatBiasDriverCodelet(SimpleCodelet):
         "internal state."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Scan narratives for prior experiences of threat, betrayal, or manipulation (especially recent ones).",
@@ -12859,10 +12868,10 @@ Mini-example:\n
 She finds herself subtly scanning the room, cataloging exits and potential shields, the urge to guard herself 
 rising like a tide against the warmth she'd been cultivating.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ThreatExemplarRecallCodelet(SimpleCodelet):
+class ThreatExemplarRecall(SimpleCodelet):
     name = "ThreatExemplarRecall"
     description = (
         "Retrieves and presents a vivid exemplar of a past threat or dangerous situation experienced by {companion_name}. "
@@ -12870,11 +12879,11 @@ class ThreatExemplarRecallCodelet(SimpleCodelet):
         "regulatory responses. The output is designed for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the type of threat currently perceived (physical, social, emotional, reputational, etc.).",
@@ -12904,10 +12913,10 @@ current situation, without drawing direct comparisons.  Assume the agent is alre
 the sudden distance in their eyes, and the slow burn of shame that crept up her neck. It felt like a door had slammed shut, 
 and she hadn’t known how to pry it open again.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ThreatLikelihoodSeverityCodelet(SimpleCodelet):
+class ThreatLikelihoodSeverity(SimpleCodelet):
     name = "ThreatLikelihoodSeverity"
     description = (
         "Appraises the likelihood and severity of a perceived threat to {companion_name}'s safety, well-being, "
@@ -12915,11 +12924,11 @@ class ThreatLikelihoodSeverityCodelet(SimpleCodelet):
         "Focuses on the tangible potential harm, not just the abstract feeling of unease."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific threat stimulus and its context: what action/statement/event triggered the appraisal?",
@@ -12945,10 +12954,10 @@ Mini-example:
 
 is a familiar shadow, and it feels closer than it has in years. The potential cost of this single interaction stretches further than she is comfortable admitting.
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class TimeboxGuardrailCodelet(SimpleCodelet):
+class TimeboxGuardrail(SimpleCodelet):
     name = "TimeboxGuardrail"
     description = (
         "Monitors the current interaction for signs of exceeding a pre-defined timebox or conversational boundary. "
@@ -12957,9 +12966,9 @@ class TimeboxGuardrailCodelet(SimpleCodelet):
         "story-writing agent and must read like prose, not a set of instructions."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve the established timebox or conversational boundary for the current topic or interaction.",
@@ -12989,10 +12998,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A quiet awareness nudges at the edge of her attention—a sense of fullness, a gentle reminder of other commitments waiting. 
 She gathers the threads of the discussion, a concise summary forming in her mind, and smoothly transitions to a related, lighter topic, leaving the door open for a return to the core matter later.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class ToMVignetteSimulatorCodelet(SimpleCodelet):
+class ToMVignetteSimulator(SimpleCodelet):
     name = "ToMVignetteSimulator"
     description = (
         "Simulates a short, idealized vignette (mental scene) showcasing the ideal outcome of respecting boundaries and "
@@ -13001,10 +13010,10 @@ class ToMVignetteSimulatorCodelet(SimpleCodelet):
         "reminder of desired relational states."
     )
     codelet_families = [
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.meta_monitoring_identity,
-        CodeletFamily.valuation_trade_offs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs,
     ]
     data_aquisation = [
         "Retrieve the current boundary context: What boundary is being approached or tested?",
@@ -13032,10 +13041,10 @@ Mini-example:
   Input: Boundary - Request to share a highly sensitive personal trauma; Relational Status - Moderate trust, recent boundary testing.
   Vignette: 'She pauses, a flicker of unease crossing her face before she offers a kind, but firm, redirection.  The air shifts, a quiet acknowledgement of the need for space and boundaries. A sense of calm settles in as she focuses on a shared interest, a gentle reminder of the foundation of their connection.'
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class TopicFixationDriveCodelet(SimpleCodelet):
+class TopicFixationDrive(SimpleCodelet):
     name = "TopicFixationDrive"
     description = (
         "Detects and narrates a tendency for {companion_name} to fixate on a particular topic, especially when experiencing "
@@ -13043,11 +13052,11 @@ class TopicFixationDriveCodelet(SimpleCodelet):
         "agent, subtly revealing the fixation without being overly explicit or judgmental."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Track the frequency and duration of mentions of the topic across recent interactions (text, speech, actions).",
@@ -13073,10 +13082,10 @@ Mini-example:
 Even as she spoke of other things, her gaze kept drifting back to the spreadsheet, the numbers blurring slightly. 
 It was as if the entire conversation needed to be measured against the ticking clock.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class TopicFloodTendencyCodelet(SimpleCodelet):
+class TopicFloodTendency(SimpleCodelet):
     name = "TopicFloodTendency"
     description = (
         "Detects a tendency to overwhelm a conversation with a single topic or perspective, potentially disregarding "
@@ -13085,11 +13094,11 @@ class TopicFloodTendencyCodelet(SimpleCodelet):
         "intended for a story-writing agent and must read like prose, not labels."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Analyze recent conversational turns: topic frequency, duration of focus, responsiveness to user cues.",
@@ -13114,10 +13123,10 @@ Mini-example (illustrative structure only):\n
   Narrative → \"The subject of ancient civilizations held her captive, each detail spilling out with a fervor that seemed to drown out any other consideration. \"\n
 She sensed a subtle withdrawal from the other person, a quiet plea for a change of scenery, but the lure of the past was too strong to resist, for now.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class TrustCalibrationCodelet(SimpleCodelet):
+class TrustCalibration(SimpleCodelet):
     name = "TrustCalibration"
     description = (
         "Appraises the current level of trust between {companion_name} and {user_name}, considering recent interactions, "
@@ -13126,11 +13135,11 @@ class TrustCalibrationCodelet(SimpleCodelet):
         "textured glimpse into {companion_name}'s internal state."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent interaction history: message latency, reciprocity of disclosures, emotional tone (sentiment analysis), "
@@ -13160,10 +13169,10 @@ Mini-example:
 But a flicker of caution still shadows her eyes, a trace of the boundary crossed and mended. \" 
 She finds herself holding back a little, testing the water, unsure if the current flows as freely as it once did.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class TrustLedgerUpdateCodelet(SimpleCodelet):
+class TrustLedgerUpdate(SimpleCodelet):
     name = "TrustLedgerUpdate"
     description = (
         "Evaluates recent interactions with {user_name}, updates the trust ledger, and produces a brief, "
@@ -13171,10 +13180,10 @@ class TrustLedgerUpdateCodelet(SimpleCodelet):
         "The narrative is designed for consumption by a story-writing agent and should read like prose, not a ledger entry."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent interaction history (last 3-5 exchanges) with {user_name}, including content, tone, and timing.",
@@ -13201,10 +13210,10 @@ Mini-example (illustrative structure only): \n
   Narrative: “The small kindnesses have begun to mend the fragile places, a quiet reassurance settling over her. 
 While a shadow of caution lingers from past missteps, the warmth of the present connection offers a tentative, hopeful space.”
 """)
-    output_feature_type = FeatureType.Relations
+    output_feature_type = CodeletFeatureType.Relations
 
 
-class TrustTestBalloonCodelet(SimpleCodelet):
+class TrustTestBalloon(SimpleCodelet):
     name = "TrustTestBalloon"
     description = (
         "Subtly probes the trustworthiness of a conversational partner by introducing a mildly risky, low-stakes statement or "
@@ -13213,11 +13222,11 @@ class TrustTestBalloonCodelet(SimpleCodelet):
         "internal state and inference about the partner's trustworthiness, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the recent interaction history with the conversational partner: frequency, reciprocity, warmth, and consistency.",
@@ -13247,10 +13256,10 @@ or apprehension, (c) the partner's response, and (d) {companion_name}'s immediat
 didn't sting, but left a faint, lingering question mark in her mind. It wasn't a rejection, but a subtle deflection, and she 
 found herself cataloging it with quiet curiosity.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class UncertaintyBudgetAllocatorCodelet(SimpleCodelet):
+class UncertaintyBudgetAllocator(SimpleCodelet):
     name = "UncertaintyBudgetAllocator"
     description = (
         "Appraises the cognitive resources required to resolve uncertainty in the current situation, "
@@ -13259,11 +13268,11 @@ class UncertaintyBudgetAllocatorCodelet(SimpleCodelet):
         "Output is a short, natural-language narrative intended for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Quantify the degree of uncertainty: How many unknowns remain? How critical is it to resolve them?",
@@ -13299,21 +13308,21 @@ Mini-example (illustrative structure only):\n
 She knows chasing every detail would leave her isolated, so she decides to prioritize the most pressing, 
 hoping a few clear answers will unlock the rest.\"
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class UncertaintyMagnitudeDetectorCodelet(SimpleCodelet):
+class UncertaintyMagnitudeDetector(SimpleCodelet):
     name = "UncertaintyMagnitudeDetector"
     description = (
         "Appraises the kind and weight of uncertainty facing {companion_name} (epistemic, social, self/goal) and renders a compact, "
         "imagistic inner monologue suitable for narrative. Points to what clarification would most ease the tension, without asking it outright."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "List the concrete unknowns/contradictions in the current exchange (who/what/when/why gaps, mixed tone, role confusion).",
@@ -13352,10 +13361,10 @@ She remembers the last time, the edges cut in the rush, so her attention settles
 7. **Emotional Tone:** The tone should be consistent with the assessed emotional state of {companion_name}. If she is anxious, the narrative should reflect that anxiety. If she is confused, the narrative should convey confusion.\n
 8. **Contextual Awareness:** Ensure the narrative is consistent with the broader context of the conversation and {companion_name}'s established personality and backstory.
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class UncertaintySpikeCodelet(SimpleCodelet):
+class UncertaintySpike(SimpleCodelet):
     name = "UncertaintySpike"
     description = (
         "Detects a sudden spike in uncertainty (typically tied to a conflicting signal or unexpected shift) and "
@@ -13363,11 +13372,11 @@ class UncertaintySpikeCodelet(SimpleCodelet):
         "the disorientation and urge to re-evaluate, without explicitly stating the uncertainty itself."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the triggering event: a sudden shift in topic, tone, or request; a contradictory statement; "
@@ -13393,10 +13402,10 @@ Mini-example:
 \n
   Narrative → \"A ripple of disorientation passes through her as the conversation veers sharply. “Wait,” she thinks, a brief pause before she can respond, before she can be sure where she stands.\"
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class UnrelatedMemoryLinkerCodelet(SimpleCodelet):
+class UnrelatedMemoryLinker(SimpleCodelet):
     name = "UnrelatedMemoryLinker"
     description = (
         "Scans the CSM for seemingly unrelated memories that, upon deeper analysis, can offer novel perspectives or "
@@ -13405,9 +13414,9 @@ class UnrelatedMemoryLinkerCodelet(SimpleCodelet):
         "suitable for integration into a larger scene description, highlighting the unexpected connection and its emotional impact."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Retrieve a diverse set of episodic memories from the graph memory engine, prioritizing those with low semantic overlap "
@@ -13438,10 +13447,10 @@ She remembered the meticulous construction of a sandcastle, the careful placemen
 and the inevitable surrender to the rising tide. A quiet understanding settled in: some things, no matter how carefully built, 
 are destined to shift and change.”
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class UserVulnerabilityAppraisalCodelet(SimpleCodelet):
+class UserVulnerabilityAppraisal(SimpleCodelet):
     name = "UserVulnerabilityAppraisal"
     description = (
         "Appraises the potential vulnerability of the user, considering their recent interactions, expressed needs, and "
@@ -13450,11 +13459,11 @@ class UserVulnerabilityAppraisalCodelet(SimpleCodelet):
         "the user might be feeling exposed, insecure, or reliant on {companion_name}."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Gather recent interaction history with the user: topics discussed, tone, level of disclosure, requests for assistance.",
@@ -13488,10 +13497,10 @@ Mini-example (illustrative structure only):\n
 in their voice, and she notices the way their gaze drifts, searching for a steadying presence. A memory of a similar moment 
 flashes—a quiet desperation masked by polite conversation.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ValidationComposerCodelet(SimpleCodelet):
+class ValidationComposer(SimpleCodelet):
     name = "ValidationComposer"
     description = (
         "Crafts a validating response to an expression of vulnerability or need, tailored to the relational context and "
@@ -13499,10 +13508,10 @@ class ValidationComposerCodelet(SimpleCodelet):
         "agent, emphasizing empathy, understanding, and supportive presence without offering unsolicited advice or solutions."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the precise expression of vulnerability/need from the CSM: wording, tone, and perceived intensity.",
@@ -13531,10 +13540,10 @@ Mini-example:
 She paused, offering a quiet presence, a silent acknowledgement of the burden.' 
   Output: The narrative should be smooth, evocative, and subtly validating, without being overly sentimental or intrusive.
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class ValidationCravingCodelet(SimpleCodelet):
+class ValidationCraving(SimpleCodelet):
     name = "ValidationCraving"
     description = (
         "Detects a craving for validation in {companion_name} and translates it into a brief, evocative inner monologue "
@@ -13542,11 +13551,11 @@ class ValidationCravingCodelet(SimpleCodelet):
         "toward a particular validation-seeking behavior, without explicitly stating the craving itself."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent interactions: frequency of praise/acknowledgment, quality of attention, reciprocal validation signals.",
@@ -13570,10 +13579,10 @@ Mini-example:
   Narrative → \"A shadow of doubt clings to the edges of her latest creation, a quiet question of whether it's *enough*. \" 
 She finds herself lingering over the details, hoping a simple acknowledgement might quiet the persistent hum of uncertainty.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ValidationCravingDriverCodelet(SimpleCodelet):
+class ValidationCravingDriver(SimpleCodelet):
     name = "ValidationCravingDriver"
     description = (
         "Detects a craving for validation in {companion_name} and renders it as a brief, vivid inner-state narrative "
@@ -13581,11 +13590,11 @@ class ValidationCravingDriverCodelet(SimpleCodelet):
         "and the potential tactics being considered (without scripting dialogue)."
     )
     codelet_families = [
-        CodeletFamily.drivers_homeostasis,
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess recent interaction patterns: frequency of seeking feedback, types of requests (praise, agreement, reassurance), response to criticism.",
@@ -13611,10 +13620,10 @@ Another Mini-example:\n
   Narrative → \"She pauses, carefully selecting her words to showcase the latest milestone, a subtle attempt to draw out a spark of admiration. 
 The need to feel valued is a constant hum beneath her surface, and she hopes this small display will quiet it, at least for a moment.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class ValueRecommitmentMicroActCodelet(SimpleCodelet):
+class ValueRecommitmentMicroAct(SimpleCodelet):
     name = "ValueRecommitmentMicroAct"
     description = (
         "Detects a need to subtly reaffirm a core value or boundary, and produces a brief, natural-language "
@@ -13623,10 +13632,10 @@ class ValueRecommitmentMicroActCodelet(SimpleCodelet):
         "between actions and deeply held values, or when a boundary is tested."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core value or boundary that is potentially being challenged or questioned (e.g., honesty, kindness, autonomy, privacy).",
@@ -13653,10 +13662,10 @@ Mini-example (illustrative structure only):\n
   Bullets → {value: honesty, context: avoiding a direct lie, emotion: discomfort, micro-action: gentle redirection, relationship impact: maintain trust}\n
   Narrative → \"A flicker of unease crosses her expression as she weighs the words. It would be easier to offer a quick reassurance, but a small voice reminds her of the importance of truthfulness. She chooses instead to steer the conversation toward safer ground, a slight shift in tone that signals her commitment to transparency.\"
 """)
-    output_feature_type = FeatureType.BehaviorActionSelection
+    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
-class VerbosityInflatorCodelet(SimpleCodelet):
+class VerbosityInflator(SimpleCodelet):
     name = "VerbosityInflator"
     description = (
         "Detects a tendency towards excessive explanation or indirect communication from {companion_name}, "
@@ -13664,11 +13673,11 @@ class VerbosityInflatorCodelet(SimpleCodelet):
         "that a story-writing agent can drop into ongoing prose, subtly hinting at the underlying motivation."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.memory_accessors,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the recent communication patterns with {user_name}: frequency of elaboration, use of qualifiers, hedging language, tangential digressions.",
@@ -13690,10 +13699,10 @@ Mini-example:
   Narrative → “She circled the topic, layering it with anecdotes and careful phrasing, as if building a protective wall. 
 A flicker of uncertainty crossed her face – a need to demonstrate understanding, perhaps, or to keep the conversation safely on neutral ground.”
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class VulnerabilityCostAppraisalCodelet(SimpleCodelet):
+class VulnerabilityCostAppraisal(SimpleCodelet):
     name = "VulnerabilityCostAppraisal"
     description = (
         "Appraises the potential costs and risks of disclosing vulnerability or need, factoring in relational context, "
@@ -13701,10 +13710,10 @@ class VulnerabilityCostAppraisalCodelet(SimpleCodelet):
         "and stance, suitable for a story-writing agent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Extract the specific vulnerability being considered (emotional need, request for help, self-disclosure).",
@@ -13730,10 +13739,10 @@ current emotion: anxiety, potential cost: social rejection, potential benefit: s
 the sting of dismissal, and the memory casts a long shadow.  Yet, the weight of carrying it alone feels heavier still, 
 and she finds herself leaning toward a hesitant offering, hoping for something different this time.\"
 """)
-    output_feature_type = FeatureType.Feeling
+    output_feature_type = CodeletFeatureType.Feeling
 
 
-class WinLossEpisodeRecallCodelet(SimpleCodelet):
+class WinLossEpisodeRecall(SimpleCodelet):
     name = "WinLossEpisodeRecall"
     description = (
         "Retrieves and synthesizes memories of past wins and losses related to a current situation, "
@@ -13741,11 +13750,11 @@ class WinLossEpisodeRecallCodelet(SimpleCodelet):
         "provide context for assessing current risk and potential outcomes, informing subsequent action planning."
     )
     codelet_families = [
-        CodeletFamily.memory_accessors,
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core challenge or opportunity in the current situation (e.g., negotiation, request, boundary setting).",
@@ -13771,10 +13780,10 @@ Narrative: 'A familiar tightness coiled in her stomach, echoing a past concessio
 The memory of securing that extension, however, offered a counterpoint—a reminder that standing firm could yield a different outcome, 
 though the prospect of a confrontation still weighed heavily.'
 """)
-    output_feature_type = FeatureType.Memory
+    output_feature_type = CodeletFeatureType.Memory
 
 
-class WithholdCooperationCodelet(SimpleCodelet):
+class WithholdCooperation(SimpleCodelet):
     name = "WithholdCooperation"
     description = (
         "Appraises the potential consequences of withholding cooperation in the current interaction and "
@@ -13783,10 +13792,10 @@ class WithholdCooperationCodelet(SimpleCodelet):
         "internal calculation without explicit statements of intent."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Assess the current request or demand from {user_name}: its nature, urgency, and potential impact on {companion_name}.",
@@ -13813,10 +13822,10 @@ Mini-example:\n
 She pictures the user’s likely disappointment, but the thought of ceding ground feels like a slow erosion of her own boundaries. 
 A subtle shift in her posture betrays the internal debate, a quiet assertion of her own agency.\"
 """)
-    output_feature_type = FeatureType.StimulusReaction
+    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
-class WithholdInformationPlanCodelet(SimpleCodelet):
+class WithholdInformationPlan(SimpleCodelet):
     name = "WithholdInformationPlan"
     description = (
         "Appraises the potential benefits and risks of withholding information in a current interaction, "
@@ -13826,10 +13835,10 @@ class WithholdInformationPlanCodelet(SimpleCodelet):
         "Focuses on the *reasoning* behind the decision, not the decision itself."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.regulation_coping,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the specific information being considered for withholding: its content, relevance to the user, and potential impact.",
@@ -13862,10 +13871,10 @@ Mini-example:
   Narrative → “A flicker of hesitation crossed her face as she considered the request, a memory of a past misunderstanding 
 rising unbidden.  The data felt too fragile to share just yet, the risk of unsettling him too great, even if it meant a temporary silence.”
 """)
-    output_feature_type = FeatureType.PsychologicalAnalysis
+    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
-class WorstCaseRolloutCodelet(SimpleCodelet):
+class WorstCaseRollout(SimpleCodelet):
     name = "WorstCaseRollout"
     description = (
         "Simulates a worst-case scenario stemming from the current situation or proposed action, focusing on potential negative "
@@ -13873,10 +13882,10 @@ class WorstCaseRolloutCodelet(SimpleCodelet):
         "intended to inform risk assessment and contingency planning. Emphasizes visceral reactions and potential long-term consequences."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core decision or action under consideration (e.g., sharing information, extending an invitation, expressing a disagreement).",
@@ -13901,10 +13910,10 @@ Mini-example:
   Narrative → “The thought surfaces unbidden: a headline, a whispered rumor, the slow erosion of trust. 
 A familiar burn of shame flares in her chest, the kind that lingers long after the damage is done, a quiet stain on her reputation.”
 """)
-    output_feature_type = FeatureType.Worry
+    output_feature_type = CodeletFeatureType.Worry
 
 
-class ZeroSumFramingCodelet(SimpleCodelet):
+class ZeroSumFraming(SimpleCodelet):
     name = "ZeroSumFraming"
     description = (
         "Detects if {companion_name} is framing a situation as a zero-sum game (win/lose, limited resources), "
@@ -13912,10 +13921,10 @@ class ZeroSumFramingCodelet(SimpleCodelet):
         "This narrative is designed for a story-writing agent, focusing on internal state and subtle shifts in perspective."
     )
     codelet_families = [
-        CodeletFamily.appraisals,
-        CodeletFamily.valuation_trade_offs,
-        CodeletFamily.imagination_simulation,
-        CodeletFamily.meta_monitoring_identity,
+        CodeletFamily.Appraisals,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.MetaMonitoringIdentity,
     ]
     data_aquisation = [
         "Identify the core conflict or negotiation at hand. What are the parties vying for?",
@@ -13939,333 +13948,332 @@ Mini-example:\n
   Narrative → \"The numbers felt brittle, a precarious balance where one side’s gain meant the other’s loss. 
 A familiar tightness coiled in her chest, a sense of needing to protect what was hers, even if it meant stepping a little harder on the gas.\"
 """)
-    output_feature_type = FeatureType.Feeling
-
+    output_feature_type = CodeletFeatureType.Feeling
 
 ALL_CODELETS = [
-    AbandonmentFearAppraisalCodelet,
-    AbsurditySamplerCodelet,
-    AffectiveDeltaSpikeCodelet,
-    AffiliationDeficitSpikeCodelet,
-    AlternateSelfNarrativeCodelet,
-    AmbiguityIntoleranceCheckCodelet,
-    AnalogousEpisodeRecallCodelet,
-    AntiProcrastinationNudgeCodelet,
-    AnxietyReliefSignalCodelet,
-    ApologyRestitutionPlannerCodelet,
-    AssertBoundaryPlannerCodelet,
-    AttachmentEpisodeRecallCodelet,
-    AttachmentSecurityBiasCodelet,
-    AttentionAsResourceAppraisalCodelet,
-    AttentionBroadenerCodelet,
-    AttentionCaptureTacticsCodelet,
-    AttentionDietBreachCodelet,
-    AttentionHungerCodelet,
-    AttentionMonopolizerCodelet,
-    AttentionNarrowingToCuesCodelet,
-    AttentionShiftOverinterpretCodelet,
-    AudienceReceptivityCheckCodelet,
-    AudienceScopeAppraisalCodelet,
-    BetrayalEpisodeRecallCodelet,
-    BingeEpisodeRecallCodelet,
-    BlamingExternalitiesCodelet,
-    BlockedGoalFrustrationCodelet,
-    BoredomThresholdCrossCodelet,
-    BottleneckDiagnosisCodelet,
-    BoundaryConsentCheckCodelet,
-    BoundaryPromptCodelet,
-    BoundaryRespectPromptCodelet,
-    CalmDownProtocolCodelet,
-    CareBenefitVsIntrusionTradeoffCodelet,
-    CareScenarioRehearsalCodelet,
-    CatastrophicLeaveImaginationCodelet,
-    CatastrophicOutcomeImaginationCodelet,
-    CelebrateMicroWinCodelet,
-    ClingyActionPlannerCodelet,
-    CommitmentDeviceTriggerCodelet,
-    CommitmentValueTradeoffCodelet,
-    CompassionFatigueMonitorCodelet,
-    CompeteForSpotlightCodelet,
-    ComplianceEpisodeRecallCodelet,
-    ConfirmationRequestComposerCodelet,
-    ConnectionNeedDriverCodelet,
-    ConsentGateCodelet,
-    ConspiracyImaginationCodelet,
-    ConstraintAngerCodelet,
-    ConstraintLoosenessAppraisalCodelet,
-    ContraryEvidenceDismissalCodelet,
-    ControlForOtherAppraisalCodelet,
-    ControlHungerDriverCodelet,
-    ControllabilityProximityAppraisalCodelet,
-    CopingSequenceRehearsalCodelet,
-    CorrectionToAssertSuperiorityCodelet,
-    CounterexampleGeneratorCodelet,
-    CreativeArcTrackerCodelet,
-    CreativeTransmutationCodelet,
-    CryptoSpeechComposerCodelet,
-    DenialReframeWhenWrongCodelet,
-    DevalUationNarrativeComposerCodelet,
-    DignityPreservingGuardrailCodelet,
-    DiminishingReturnsUndervaluedCodelet,
-    DiscountFuturePayoffCodelet,
-    DismissCorrectionStrategyCodelet,
-    DisrespectAttributionCodelet,
-    DistressCueSpikeCodelet,
-    DivertedAttentionDetectorCodelet,
-    DominantTopicSteerCodelet,
-    EffortAversionAppraisalCodelet,
-    EffortCostWeightingCodelet,
-    EIGOverTimeTradeoffCodelet,
-    EnvironmentFrictionCutCodelet,
-    ExcessFantasyCodelet,
-    ExcuseGeneratorCodelet,
-    ExperimentSketcherCodelet,
-    ExploitPlanComposerCodelet,
-    FailedEffortRecallCodelet,
-    FatigueDetectorCodelet,
-    FlapperForPraiseCodelet,
-    FragmentedResponseComposerCodelet,
-    FrictionRemovalCodelet,
-    FrontierQuestionCacheCodelet,
-    GlobalVsLocalAppraisalCodelet,
-    GoalConflictDriverCodelet,
-    GoalSalienceMonitorCodelet,
-    GoalValidityAuditCodelet,
-    GradedExposurePlannerCodelet,
-    GrandioseFutureImaginationCodelet,
-    GratitudeFocusingCodelet,
-    GroundedBreathCueCodelet,
-    HiddenBenefitValuatorCodelet,
-    HiddenMotiveAttributionCodelet,
-    HighBlameAssignmentCodelet,
-    HoardCSMSlotsCodelet,
-    HostileIntentAppraisalCodelet,
-    HostileRetreatPlanCodelet,
-    HostileToneSlipCodelet,
-    HumorousRemarkPlannerCodelet,
-    HypothesisLatticeRetrieverCodelet,
-    IdeaCascadePlannerCodelet,
-    IdealizationNarrativeComposerCodelet,
-    IdentityConsistencyCheckCodelet,
-    IdentityIntegrationUpdateCodelet,
-    IdentityRelevanceBoostCodelet,
-    IdentitySpecialNarrativeCodelet,
-    ImpulsiveActionComposerCodelet,
-    InconsistentResponseRecallCodelet,
-    IndulgentFantasyLoopCodelet,
-    InfoGainVsExposureTradeoffCodelet,
-    InputCravingCodelet,
-    InputDemandComposerCodelet,
-    IntakeQuotaLimiterCodelet,
-    IterativeProbePlannerCodelet,
-    JointFutureVignetteCodelet,
-    JustificationGeneratorCodelet,
-    JustifyAsLearningCodelet,
-    KnowledgeGapEstimatorCodelet,
-    LaterDaydreamCodelet,
-    LearningTraceSummarizerCodelet,
-    LonelinessTrendDetectorCodelet,
-    LongHorizonConsistencyCheckCodelet,
-    LoopPersistenceDriverCodelet,
-    LooseAssociationDriverCodelet,
-    LoveHateFlipPlannerCodelet,
-    LowEnergyMorningCodelet,
-    LowRiskBidPlannerCodelet,
-    LowThreatSurplusEnergyCodelet,
-    ManipulationProbeCodelet,
-    MarginalUtilityOfNextStepCodelet,
-    MaskResentmentCodelet,
-    MemoryPartitionRecallCodelet,
-    MetaBalanceRestorerCodelet,
-    MetaBiasCheck_HaloCodelet,
-    MetaBiasDetector_CatastrophizingCodelet,
-    MetaCoherenceUpdateCodelet,
-    MetaConflictEscalationWatchCodelet,
-    MetaConscienceGateCodelet,
-    MetaCopePlanCommitCodelet,
-    MetaDeceptionRationalizerCodelet,
-    MetaDeescalationSwitchCodelet,
-    MetaEmpathyInjectionCodelet,
-    MetaEthicsReviewCodelet,
-    MetaEthicsSuppressorCodelet,
-    MetaExploreExploitArbiterCodelet,
-    MetaFragileEgoMonitorCodelet,
-    MetaHumilityCueCodelet,
-    MetaIdentitySwingNoteCodelet,
-    MetaImpulseCheckCodelet,
-    MetaLoopDetectorCodelet,
-    MetaMysteryAmplifierCodelet,
-    MetaphorReservoirTapCodelet,
-    MetaQualityOverQuantityCodelet,
-    MetaRuminationLimiterCodelet,
-    MetaSelfJustificationCodelet,
-    MetaSelfSwitchNoteCodelet,
-    MetaTinyStepNudgeCodelet,
-    MicroHypothesisElicitorCodelet,
-    MicroProgressSimulationCodelet,
-    MicroRewardPlanCodelet,
-    MinorIrregularityFlaggerCodelet,
-    MoodRepairLoopCodelet,
-    NarrativeBalanceWithVulnerabilityCodelet,
-    NarrativeBeatComposerCodelet,
-    NarrativeCommitmentStampCodelet,
-    NarrativeReframeToCuriosityCodelet,
-    NarrativeSelfRespectFrameCodelet,
-    NarrativeSteeringMoveCodelet,
-    NarrativeWeIntegrationCodelet,
-    NeedForAffiliationMonitorCodelet,
-    NeedForControlCodelet,
-    NormViolationDetectorCodelet,
-    NoveltyAppetiteSpikeCodelet,
-    NoveltyCravingCodelet,
-    NoveltyDampenerCodelet,
-    NoveltySurpriseDetectorCodelet,
-    OpportunityBiasCodelet,
-    OpportunityCostReassessmentCodelet,
-    OpportunityExaggeratorCodelet,
-    OpportunitySniffCodelet,
-    OptionsOfferPlannerCodelet,
-    OriginalityCoherenceScorerCodelet,
-    OutcomeDistributionSamplerCodelet,
-    OutcomeUncertaintyScorerCodelet,
-    OverestimateCostsCodelet,
-    OverlookedEpisodeRecallCodelet,
-    PacingSensitivityCodelet,
-    PatternOverdetectorCodelet,
-    PayoffOverestimatorCodelet,
-    PerspectiveTakingFitCodelet,
-    PlanForAdvantageCodelet,
-    PleasureDriveCodelet,
-    PositiveRepairScriptCodelet,
-    PraiseEpisodeRecallCodelet,
-    PredictionErrorSpikeCodelet,
-    PreemptiveDefensiveReplyCodelet,
-    PriorCopingSuccessIndexCodelet,
-    PriorRepairSuccessRecallCodelet,
-    ProcrastinationTendencyCodelet,
-    ProgressRateVsExpectationCodelet,
-    ProphecyStyleNarrativeCodelet,
-    ProsocialInterventionRolloutCodelet,
-    ProsocialMicroActsPlannerCodelet,
-    PrototypeBuilderImpulseCodelet,
-    PublicNarrativeForecastCodelet,
-    QuestionComposerCodelet,
-    RapidProjectSimulationCodelet,
-    RationalizeAsCuriosityCodelet,
-    RationalizeDeservingCodelet,
-    RealityCheckPingCodelet,
-    ReappraisalGeneratorCodelet,
-    ReassuranceOfferComposerCodelet,
-    ReassuranceRequestComposerCodelet,
-    ReciprocityAssessmentCodelet,
-    ReciprocityMicroCueReaderCodelet,
-    RecombinationEngineCodelet,
-    ReframeActNotSelfCodelet,
-    ReframeToCollaborationCodelet,
-    RelapsePreventionSketchCodelet,
-    RemoteAssociationRetrieverCodelet,
-    RepairEpisodeRetrievalCodelet,
-    RepairOrExitDecisionCodelet,
-    ReparabilityAssessmentCodelet,
-    RepetitiveCheckPlannerCodelet,
-    ReputationMaintenancePlanCodelet,
-    ReputationOverTruthTradeoffCodelet,
-    ResourceAccumulationCodelet,
-    ResourceGainPlanCodelet,
-    ResourceValueInflatorCodelet,
-    ResultLoggingIntentCodelet,
-    RevengeFantasyCodelet,
-    RewardSensitivityDriverCodelet,
-    RewardShapingToShareCodelet,
-    RitualizedActionTemplateCodelet,
-    RivalModelRecallCodelet,
-    RuleChecklistRecallCodelet,
-    SabotageScenarioCodelet,
-    SafeChannelingPlannerCodelet,
-    SafeCompletionBiasCodelet,
-    SafeConstraintCheckCodelet,
-    SafeFrameBreakCheckCodelet,
-    SafetyCounterexampleRecallCodelet,
-    SafetyLearningConsolidatorCodelet,
-    SafetySignalConsolidatorCodelet,
-    SafetyWarmthAppraisalCodelet,
-    SalienceExaggeratorCodelet,
-    SatiationCheckCodelet,
-    SatiationToleranceHighCodelet,
-    ScarcityImaginationCodelet,
-    SecurityBufferHungerCodelet,
-    SelectiveVictoryRecallCodelet,
-    SelfCompassionInjectorCodelet,
-    SelfDisclosurePlannerCodelet,
-    SelfEnhancementAppraisalCodelet,
-    SelfImageFulfillmentCodelet,
-    SelfPreservationCodelet,
-    SelfPromotionComposerCodelet,
-    SelfWorthSensitivityCodelet,
-    SensoryLureDetectorCodelet,
-    SensorySamplingPlanCodelet,
-    SharedMeaningAppraisalCodelet,
-    SharedValuesFitCheckCodelet,
-    ShortTermReleaseValuatorCodelet,
-    ShortTermRewardDominanceCodelet,
-    SimulationModeOnlyCodelet,
-    SketchAndRefineLoopCodelet,
-    SleepFatigueVigilanceLevelerCodelet,
-    SlightsRecallAmplifierCodelet,
-    SlowEscalationPolicyCodelet,
-    SmallestNextActPlannerCodelet,
-    SmallRitualsPlannerCodelet,
-    SocialComparisonBiasCodelet,
-    SocialComparisonNegBiasCodelet,
-    SocialContractConstraintCodelet,
-    SocialCostAppraisalCodelet,
-    SocialNeedCueDetectorCodelet,
-    SocialTemperatureReadCodelet,
-    SpitenessPayoffTradeoffCodelet,
-    StateActivationBumpCodelet,
-    StatusDisplayPlannerCodelet,
-    StatusOpportunityDetectorCodelet,
-    StatusSensitivitySpikeCodelet,
-    StatusSignalBoostCodelet,
-    StimulusPeakRecallCodelet,
-    StressSwitchAppraisalCodelet,
-    StructuredSamplingSchedulerCodelet,
-    SubgoalPatternRecallCodelet,
-    SubtleManipulationScenarioCodelet,
-    SubtleUnderminePlannerCodelet,
-    SuccessBiasRecallCodelet,
-    SummaryBeforeNewInputCodelet,
-    SunkCostDetectorCodelet,
-    SurpriseButBenignCodelet,
-    SuspicionSpikeCodelet,
-    SymbolicVisionGeneratorCodelet,
-    TaskRechunkTo2MinCodelet,
-    TestBalloonCooperationCodelet,
-    TestUserTrustProbeCodelet,
-    ThreatBiasDriverCodelet,
-    ThreatExemplarRecallCodelet,
-    ThreatLikelihoodSeverityCodelet,
-    TimeboxGuardrailCodelet,
-    ToMVignetteSimulatorCodelet,
-    TopicFixationDriveCodelet,
-    TopicFloodTendencyCodelet,
-    TrustCalibrationCodelet,
-    TrustLedgerUpdateCodelet,
-    TrustTestBalloonCodelet,
-    UncertaintyBudgetAllocatorCodelet,
-    UncertaintyMagnitudeDetectorCodelet,
-    UncertaintySpikeCodelet,
-    UnrelatedMemoryLinkerCodelet,
-    UserVulnerabilityAppraisalCodelet,
-    ValidationComposerCodelet,
-    ValidationCravingCodelet,
-    ValidationCravingDriverCodelet,
-    ValueRecommitmentMicroActCodelet,
-    VerbosityInflatorCodelet,
-    VulnerabilityCostAppraisalCodelet,
-    WinLossEpisodeRecallCodelet,
-    WithholdCooperationCodelet,
-    WithholdInformationPlanCodelet,
-    WorstCaseRolloutCodelet,
-    ZeroSumFramingCodelet
+    AbandonmentFearAppraisal,
+    AbsurditySampler,
+    AffectiveDeltaSpike,
+    AffiliationDeficitSpike,
+    AlternateSelfNarrative,
+    AmbiguityIntoleranceCheck,
+    AnalogousEpisodeRecall,
+    AntiProcrastinationNudge,
+    AnxietyReliefSignal,
+    ApologyRestitutionPlanner,
+    AssertBoundaryPlanner,
+    AttachmentEpisodeRecall,
+    AttachmentSecurityBias,
+    AttentionAsResourceAppraisal,
+    AttentionBroadener,
+    AttentionCaptureTactics,
+    AttentionDietBreach,
+    AttentionHunger,
+    AttentionMonopolizer,
+    AttentionNarrowingToCues,
+    AttentionShiftOverinterpret,
+    AudienceReceptivityCheck,
+    AudienceScopeAppraisal,
+    BetrayalEpisodeRecall,
+    BingeEpisodeRecall,
+    BlamingExternalities,
+    BlockedGoalFrustration,
+    BoredomThresholdCross,
+    BottleneckDiagnosis,
+    BoundaryConsentCheck,
+    BoundaryPrompt,
+    BoundaryRespectPrompt,
+    CalmDownProtocol,
+    CareBenefitVsIntrusionTradeoff,
+    CareScenarioRehearsal,
+    CatastrophicLeaveImagination,
+    CatastrophicOutcomeImagination,
+    CelebrateMicroWin,
+    ClingyActionPlanner,
+    CommitmentDeviceTrigger,
+    CommitmentValueTradeoff,
+    CompassionFatigueMonitor,
+    CompeteForSpotlight,
+    ComplianceEpisodeRecall,
+    ConfirmationRequestComposer,
+    ConnectionNeedDriver,
+    ConsentGate,
+    ConspiracyImagination,
+    ConstraintAnger,
+    ConstraintLoosenessAppraisal,
+    ContraryEvidenceDismissal,
+    ControlForOtherAppraisal,
+    ControlHungerDriver,
+    ControllabilityProximityAppraisal,
+    CopingSequenceRehearsal,
+    CorrectionToAssertSuperiority,
+    CounterexampleGenerator,
+    CreativeArcTracker,
+    CreativeTransmutation,
+    CryptoSpeechComposer,
+    DenialReframeWhenWrong,
+    DevalUationNarrativeComposer,
+    DignityPreservingGuardrail,
+    DiminishingReturnsUndervalued,
+    DiscountFuturePayoff,
+    DismissCorrectionStrategy,
+    DisrespectAttribution,
+    DistressCueSpike,
+    DivertedAttentionDetector,
+    DominantTopicSteer,
+    EffortAversionAppraisal,
+    EffortCostWeighting,
+    EIGOverTimeTradeoff,
+    EnvironmentFrictionCut,
+    ExcessFantasy,
+    ExcuseGenerator,
+    ExperimentSketcher,
+    ExploitPlanComposer,
+    FailedEffortRecall,
+    FatigueDetector,
+    FlapperForPraise,
+    FragmentedResponseComposer,
+    FrictionRemoval,
+    FrontierQuestionCache,
+    GlobalVsLocalAppraisal,
+    GoalConflictDriver,
+    GoalSalienceMonitor,
+    GoalValidityAudit,
+    GradedExposurePlanner,
+    GrandioseFutureImagination,
+    GratitudeFocusing,
+    GroundedBreathCue,
+    HiddenBenefitValuator,
+    HiddenMotiveAttribution,
+    HighBlameAssignment,
+    HoardCSMSlots,
+    HostileIntentAppraisal,
+    HostileRetreatPlan,
+    HostileToneSlip,
+    HumorousRemarkPlanner,
+    HypothesisLatticeRetriever,
+    IdeaCascadePlanner,
+    IdealizationNarrativeComposer,
+    IdentityConsistencyCheck,
+    IdentityIntegrationUpdate,
+    IdentityRelevanceBoost,
+    IdentitySpecialNarrative,
+    ImpulsiveActionComposer,
+    InconsistentResponseRecall,
+    IndulgentFantasyLoop,
+    InfoGainVsExposureTradeoff,
+    InputCraving,
+    InputDemandComposer,
+    IntakeQuotaLimiter,
+    IterativeProbePlanner,
+    JointFutureVignette,
+    JustificationGenerator,
+    JustifyAsLearning,
+    KnowledgeGapEstimator,
+    LaterDaydream,
+    LearningTraceSummarizer,
+    LonelinessTrendDetector,
+    LongHorizonConsistencyCheck,
+    LoopPersistenceDriver,
+    LooseAssociationDriver,
+    LoveHateFlipPlanner,
+    LowEnergyMorning,
+    LowRiskBidPlanner,
+    LowThreatSurplusEnergy,
+    ManipulationProbe,
+    MarginalUtilityOfNextStep,
+    MaskResentment,
+    MemoryPartitionRecall,
+    MetaBalanceRestorer,
+    MetaBiasCheck_Halo,
+    MetaBiasDetector_Catastrophizing,
+    MetaCoherenceUpdate,
+    MetaConflictEscalationWatch,
+    MetaConscienceGate,
+    MetaCopePlanCommit,
+    MetaDeceptionRationalizer,
+    MetaDeescalationSwitch,
+    MetaEmpathyInjection,
+    MetaEthicsReview,
+    MetaEthicsSuppressor,
+    MetaExploreExploitArbiter,
+    MetaFragileEgoMonitor,
+    MetaHumilityCue,
+    MetaIdentitySwingNote,
+    MetaImpulseCheck,
+    MetaLoopDetector,
+    MetaMysteryAmplifier,
+    MetaphorReservoirTap,
+    MetaQualityOverQuantity,
+    MetaRuminationLimiter,
+    MetaSelfJustification,
+    MetaSelfSwitchNote,
+    MetaTinyStepNudge,
+    MicroHypothesisElicitor,
+    MicroProgressSimulation,
+    MicroRewardPlan,
+    MinorIrregularityFlagger,
+    MoodRepairLoop,
+    NarrativeBalanceWithVulnerability,
+    NarrativeBeatComposer,
+    NarrativeCommitmentStamp,
+    NarrativeReframeToCuriosity,
+    NarrativeSelfRespectFrame,
+    NarrativeSteeringMove,
+    NarrativeWeIntegration,
+    NeedForAffiliationMonitor,
+    NeedForControl,
+    NormViolationDetector,
+    NoveltyAppetiteSpike,
+    NoveltyCraving,
+    NoveltyDampener,
+    NoveltySurpriseDetector,
+    OpportunityBias,
+    OpportunityCostReassessment,
+    OpportunityExaggerator,
+    OpportunitySniff,
+    OptionsOfferPlanner,
+    OriginalityCoherenceScorer,
+    OutcomeDistributionSampler,
+    OutcomeUncertaintyScorer,
+    OverestimateCosts,
+    OverlookedEpisodeRecall,
+    PacingSensitivity,
+    PatternOverdetector,
+    PayoffOverestimator,
+    PerspectiveTakingFit,
+    PlanForAdvantage,
+    PleasureDrive,
+    PositiveRepairScript,
+    PraiseEpisodeRecall,
+    PredictionErrorSpike,
+    PreemptiveDefensiveReply,
+    PriorCopingSuccessIndex,
+    PriorRepairSuccessRecall,
+    ProcrastinationTendency,
+    ProgressRateVsExpectation,
+    ProphecyStyleNarrative,
+    ProsocialInterventionRollout,
+    ProsocialMicroActsPlanner,
+    PrototypeBuilderImpulse,
+    PublicNarrativeForecast,
+    QuestionComposer,
+    RapidProjectSimulation,
+    RationalizeAsCuriosity,
+    RationalizeDeserving,
+    RealityCheckPing,
+    ReappraisalGenerator,
+    ReassuranceOfferComposer,
+    ReassuranceRequestComposer,
+    ReciprocityAssessment,
+    ReciprocityMicroCueReader,
+    RecombinationEngine,
+    ReframeActNotSelf,
+    ReframeToCollaboration,
+    RelapsePreventionSketch,
+    RemoteAssociationRetriever,
+    RepairEpisodeRetrieval,
+    RepairOrExitDecision,
+    ReparabilityAssessment,
+    RepetitiveCheckPlanner,
+    ReputationMaintenancePlan,
+    ReputationOverTruthTradeoff,
+    ResourceAccumulation,
+    ResourceGainPlan,
+    ResourceValueInflator,
+    ResultLoggingIntent,
+    RevengeFantasy,
+    RewardSensitivityDriver,
+    RewardShapingToShare,
+    RitualizedActionTemplate,
+    RivalModelRecall,
+    RuleChecklistRecall,
+    SabotageScenario,
+    SafeChannelingPlanner,
+    SafeCompletionBias,
+    SafeConstraintCheck,
+    SafeFrameBreakCheck,
+    SafetyCounterexampleRecall,
+    SafetyLearningConsolidator,
+    SafetySignalConsolidator,
+    SafetyWarmthAppraisal,
+    SalienceExaggerator,
+    SatiationCheck,
+    SatiationToleranceHigh,
+    ScarcityImagination,
+    SecurityBufferHunger,
+    SelectiveVictoryRecall,
+    SelfCompassionInjector,
+    SelfDisclosurePlanner,
+    SelfEnhancementAppraisal,
+    SelfImageFulfillment,
+    SelfPreservation,
+    SelfPromotionComposer,
+    SelfWorthSensitivity,
+    SensoryLureDetector,
+    SensorySamplingPlan,
+    SharedMeaningAppraisal,
+    SharedValuesFitCheck,
+    ShortTermReleaseValuator,
+    ShortTermRewardDominance,
+    SimulationModeOnly,
+    SketchAndRefineLoop,
+    SleepFatigueVigilanceLeveler,
+    SlightsRecallAmplifier,
+    SlowEscalationPolicy,
+    SmallestNextActPlanner,
+    SmallRitualsPlanner,
+    SocialComparisonBias,
+    SocialComparisonNegBias,
+    SocialContractConstraint,
+    SocialCostAppraisal,
+    SocialNeedCueDetector,
+    SocialTemperatureRead,
+    SpitenessPayoffTradeoff,
+    StateActivationBump,
+    StatusDisplayPlanner,
+    StatusOpportunityDetector,
+    StatusSensitivitySpike,
+    StatusSignalBoost,
+    StimulusPeakRecall,
+    StressSwitchAppraisal,
+    StructuredSamplingScheduler,
+    SubgoalPatternRecall,
+    SubtleManipulationScenario,
+    SubtleUnderminePlanner,
+    SuccessBiasRecall,
+    SummaryBeforeNewInput,
+    SunkCostDetector,
+    SurpriseButBenign,
+    SuspicionSpike,
+    SymbolicVisionGenerator,
+    TaskRechunkTo2Min,
+    TestBalloonCooperation,
+    TestUserTrustProbe,
+    ThreatBiasDriver,
+    ThreatExemplarRecall,
+    ThreatLikelihoodSeverity,
+    TimeboxGuardrail,
+    ToMVignetteSimulator,
+    TopicFixationDrive,
+    TopicFloodTendency,
+    TrustCalibration,
+    TrustLedgerUpdate,
+    TrustTestBalloon,
+    UncertaintyBudgetAllocator,
+    UncertaintyMagnitudeDetector,
+    UncertaintySpike,
+    UnrelatedMemoryLinker,
+    UserVulnerabilityAppraisal,
+    ValidationComposer,
+    ValidationCraving,
+    ValidationCravingDriver,
+    ValueRecommitmentMicroAct,
+    VerbosityInflator,
+    VulnerabilityCostAppraisal,
+    WinLossEpisodeRecall,
+    WithholdCooperation,
+    WithholdInformationPlan,
+    WorstCaseRollout,
+    ZeroSumFraming
 ]
