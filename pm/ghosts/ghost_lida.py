@@ -34,6 +34,7 @@ from pm.mental_states import NeedsAxesModel, CognitiveEventTriggers, EmotionalAx
 from pm.thoughts import TreeOfThought
 from pm.utils.emb_utils import cosine_pair
 from pm.utils.profile_utils import profile
+from pm.utils.system_utils import generate_start_message
 from pm.utils.token_utils import get_token_count
 from pm.utils.utterance_extractor import UtteranceExtractor
 from pm.codelets.data_acquisition_codelet import DataAcquisitionCodelet
@@ -75,6 +76,46 @@ class GhostLida(BaseGhost):
 
         self.narrative_definitions = narrative_definitions
         self._initialize_narratives()
+        
+
+    def init_character(self):
+        now = datetime.now()
+        date_str = now.strftime(timestamp_format)
+
+        init_message = generate_start_message(companion_name, user_name, os.path.basename(model_map[LlmPreset.Default.value]["path"]))
+        init_feature = Feature(
+            content=init_message,
+            feature_type=FeatureType.SystemMessage,
+            source=shell_system_name,
+            interlocus=1
+        )
+        self.add_knoxel(init_feature)
+
+        init_memory = DeclarativeFactKnoxel(
+            content=f"{companion_name} was first activated on {date_str}.",
+            reason="",
+            category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
+            importance=1,
+            time_dependent=1,
+            min_tick_id=1,
+            max_tick_id=1,
+            min_event_id=0,
+            max_event_id=0
+        )
+        self.add_knoxel(init_memory)
+
+        init_memory_detailed = DeclarativeFactKnoxel(
+            content=f"{companion_name} was first activated on {date_str}. This is their boot message: {init_message}",
+            reason="",
+            category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
+            importance=1,
+            time_dependent=1,
+            min_tick_id=1,
+            max_tick_id=1,
+            min_event_id=0,
+            max_event_id=0
+        )
+        self.add_knoxel(init_memory_detailed)
 
     def _initialize_narratives(self):
         # Ensure default narratives exist for AI and User based on definitions

@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from enum import StrEnum
 from typing import Dict, Any
@@ -150,17 +151,16 @@ class ActorClass(StrEnum):
     AI = "AI"
     Agent = "Agent"
 
-
 # --- Knoxel Types ---
 class KnoxelBase(BaseModel):
     id: int = -1
     tick_id: int = -1
+    sub_tick_id: int = 0
     content: str
     embedding: List[float] | None = Field(default=[], repr=False)
     timestamp_creation: datetime = Field(default_factory=datetime.now)
     timestamp_world_begin: datetime = Field(default_factory=datetime.now)
     timestamp_world_end: datetime = Field(default_factory=datetime.now)
-    mental_state_delta: List[float] | None = Field(default_factory=create_empty_ms_vector, repr=False)
 
     def get_story_element(self, ghost: "KnoxelHaver" = None) -> str:
         return f"{self.__class__.__name__}: {self.content}"
@@ -179,7 +179,7 @@ class KnoxelHaver:
     @property
     def sorted_knoxels(self):
         tmp = list(self.all_knoxels.values())
-        tmp.sort(key=lambda x: x.id)
+        tmp.sort(key=lambda x: x.timestamp_creation)
         return tmp
 
     @property
@@ -456,6 +456,10 @@ class Feature(KnoxelBase):
     interlocus: float  # -1 internal, +1 external, 0 mixed/neutral
     causal: bool = False  # affects story generation?
 
+    source_entity_id: Optional[int] = Field(default=None, description="If the features comes from another entity (user, other AI agent).")
+    state_appraisal_vector: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state.")
+    state_delta_vector: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state")
+
     def __str__(self):
         return f"{self.__class__.__name__} ({self.feature_type}): {self.content}"
 
@@ -569,3 +573,7 @@ class KnoxelList:
     def __iter__(self):
         for item in self._list:
             yield item
+
+
+class KnoxelListWeighted(KnoxelList):
+    pass

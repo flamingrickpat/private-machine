@@ -126,6 +126,10 @@ class LlmManagerProxy:
         self.priority = priority
         self.log_path = log_path
 
+    def get_max_tokens(self, preset: LlmPreset):
+        from pm.config_loader import model_map
+        return int(model_map[preset.value]["context"])
+
     def get_embedding(self, text: str | KnoxelBase) -> List[float]:
         if isinstance(text, KnoxelBase):
             text = text.content

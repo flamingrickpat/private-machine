@@ -3,9 +3,7 @@ import logging
 from typing import List
 from pydantic import BaseModel, Field
 
-from pm.data_structures import KnoxelBase
-from pm.ghosts.ghost_lida import GhostLida
-from pm.mental_states import GhostState
+from pm.data_structures import KnoxelBase, KnoxelHaver
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +13,7 @@ class DataAcquisitionCodelet:
     knowledge to build a rich context for the AI's cognitive cycle.
     """
 
-    def __init__(self, ghost: GhostLida, state: GhostState):
+    def __init__(self, ghost: KnoxelHaver, state: "GhostState"):
         self.ghost = ghost
         self.state = state
         self.collected_knoxels = {}

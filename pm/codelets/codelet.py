@@ -1,25 +1,15 @@
 # pm/codelets/core.py
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import List, Dict, Any, Optional, Callable, Tuple, Set
+from typing import List, Dict, Tuple, Set
 from pydantic import BaseModel, Field
-import time
-import math
 import random
 
-from pm.data_structures import StimulusType, Feature, FeatureType, MLevel, Stimulus, KnoxelBase
-from pm.ghosts.base_ghost import GhostState, GhostConfig
+from pm.data_structures import StimulusType, Feature, MLevel, Stimulus, KnoxelBase
+from pm.csm.csm import CSMState
 from pm.llm.llm_proxy import LlmManagerProxy
 from pm.mental_states import DecayableMentalState
-
-
-# You already have these in your project; import your real ones:
-# from pm.data_structures import Stimulus, StimulusType, Feature, FeatureType
-# from pm.ghosts.base_ghost import GhostState, GhostConfig
-# from pm.utils.emb_utils import cosine_pair
-
-# --- enums & small types ------------------------------------------------------
 
 class CodeletSource(Enum):
     USER_INPUT = auto()
@@ -67,18 +57,20 @@ class CodeletRuntime(BaseModel):
     """Per-codelet runtime state (cooldowns, counters)."""
     last_fired_tick: int | None = None
     total_runs: int = 0
-    cooldown_ticks: int = 2   # default; codelet can override
+    cooldown_ticks: int = 2
+    activation_score: float = 0
+
+class CodeletState(BaseModel):
+    states: Dict[str, CodeletRuntime] = Field(default_factory=dict)
 
 class CodeletContext(BaseModel):
     """Everything a codelet may use to decide & produce features."""
     tick_id: int
     stimulus: Stimulus | None
-    state: GhostState
-    config: GhostConfig
-    csm_snapshot: List['CSMItem']   # defined below
-    context_text: str               # recent causal story
+    csm_snapshot: CSMState | None = None
+    prefill_messages: List[Tuple[str, str]]
     context_embedding: List[float] | None = None
-    gw_last_text: str | None = None # previous global workspace text (if any)
+    gw_last_text: str | None = None
 
 class CodeletOutput(BaseModel):
     """Products (non-causal features) and any logs/metrics."""
@@ -138,9 +130,10 @@ class BaseCodelet:
                 s_stim = 1.0
 
         # --- state (very rough placeholder hooks)
-        s_state = max(0.0, min(1.0, abs(ctx.state.state_emotions.anxiety - 0.5)*0.3
-                                     + abs(ctx.state.state_cognition.mental_aperture)*0.2
-                                     + ctx.state.state_needs.relevance*0.5))
+        # s_state = max(0.0, min(1.0, abs(ctx.state.state_emotions.anxiety - 0.5)*0.3
+        #                              + abs(ctx.state.state_cognition.mental_aperture)*0.2
+        #                              + ctx.state.state_needs.relevance*0.5))
+        s_state = 0
 
         # --- keywords heuristic (define your own tag map per codelet, omitted here)
         s_keywords = 0.0  # e.g., search ctx.context_text for codelet-specific hints
@@ -188,7 +181,7 @@ class BaseCodelet:
     def _push_output(self, out: CodeletOutput):
         self.result_list.append(out)
 
-    def _run(self, ctx: CodeletContext) -> None:
+    def run(self, ctx: CodeletContext) -> None:
         """
         Implement your logic here. Return non-causal Feature objects.
         Keep it side-effect free; the engine will add features to the CSM.
@@ -230,7 +223,3 @@ class CodeletRegistry:
         # high to low
         return sorted(scored, key=lambda x: x[1], reverse=True)
 
-
-# registry wiring
-REGISTRY = CodeletRegistry()
-REGISTRY.register(MemoryGapProbe())

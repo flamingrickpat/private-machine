@@ -537,6 +537,7 @@ class LlmManagerLLama(LlmManager):
                     self.llm.reset()
                 else:
                     shared_length = min(len(tokenized_prompt), self.llm.n_tokens)
+                    self.llm.n_tokens = shared_length
                     for i in range(shared_length):
                         if self.llm.input_ids[i] != tokenized_prompt[i]:
                             self.llm.n_tokens = i

@@ -226,8 +226,8 @@ class StateCognition(ActiveMentalState):
     Modifiers that determine how the AI thinks and decies.
     """
     interlocus: float = Field( default=0.0, ge=-1, le=1, description="Focus on internal or external world, meditation would be -1, reacting to extreme danger +1.", json_schema_extra={"vector_position": 200})
-    mental_aperture: float = Field( default=0, ge=-1, le=1, description="Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations.", json_schema_extra={"vector_position": 201})
-    ego_strength: float = Field( default=0.8, ge=0, le=1, description="How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character", json_schema_extra={"vector_position": 202})
+    mental_aperture: float = Field( default=0.0, ge=-1, le=1, description="Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations.", json_schema_extra={"vector_position": 201})
+    ego_strength: float = Field( default=0.0, ge=-1, le=1, description="How big of a factor persona experience has on decision, -1 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character", json_schema_extra={"vector_position": 202})
     willpower: float = Field( default=0.0, ge=-1.0, le=1.0, description="How easy it is to decide on high-effort or delayed-gratification intents.", json_schema_extra={"vector_position": 203})
 
 class StateNeeds(ActiveMentalState):
@@ -897,6 +897,9 @@ def _init_ms_from_vec(vec: List[float]) -> "FullMentalState":
 
 def create_empty_ms_vector():
     return [0] * VectorModelReservedSize
+
+def create_empty_state():
+    return FullMentalState.init_from_list(create_empty_ms_vector())
 
 class MentalFeature(BaseModel):
     content: str

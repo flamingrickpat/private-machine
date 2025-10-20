@@ -1,3 +1,5 @@
+from typing import Union
+
 import pytest
 from pm_lida import *
 

@@ -5,7 +5,7 @@
 import threading
 from queue import Queue
 
-from pm_lida import main_llm, LlmPreset, CommonCompSettings, llm_worker, universal_image_begin, universal_image_end
+from pm_lida import main_llm, LlmPreset, CommonCompSettings, llm_worker
 from pm.utils.duplex_utils import duplex_com
 
 prompt_text = [

@@ -1,15 +1,14 @@
-import os.path
 from datetime import datetime
-from typing import Optional, Dict, List, Any
+from typing import Optional, List, Dict
 
 from pydantic import BaseModel, Field
 
-from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelList, KnoxelHaver, FeatureType, ConceptNode, GraphNode, GraphEdge, Actor
-from pm.llm.llm_common import LlmPreset
+from pm.codelets.codelet import CodeletState
+from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelHaver, ConceptNode, GraphNode, GraphEdge, Actor
+from pm.csm.csm import CSMState
 from pm.llm.llm_proxy import LlmManagerProxy
-from pm.mental_states import EmotionalAxesModel, CognitionAxesModel, NeedsAxesModel
-from pm.config_loader import companion_name, user_name, character_card_story, model_map, shell_system_name, timestamp_format
-from pm.utils.system_utils import generate_start_message
+from pm.mental_state_vectors import FullMentalState, VectorModelReservedSize, create_empty_ms_vector, create_empty_state
+from pm.config_loader import companion_name, user_name, character_card_story
 
 
 # --- Configuration ---
@@ -41,34 +40,42 @@ class GhostConfig(BaseModel):
 
 
 class GhostState(BaseModel):
-    class Config: arbitrary_types_allowed = True
+    class Config:
+        arbitrary_types_allowed = True
 
     tick_id: int
     previous_tick_id: int = -1
     timestamp: datetime = Field(default_factory=datetime.now)
-
-    primary_stimulus: Optional[Stimulus] = None
-    attention_candidates: KnoxelList = KnoxelList()
-    attention_focus: KnoxelList = KnoxelList()
-    conscious_workspace: KnoxelList = KnoxelList()
-
-    coalitions_hard: Dict[int, List[KnoxelBase]] = {}
-    coalitions_balanced: Dict[int, List[KnoxelBase]] = {}
-    subjective_experience: Optional[Feature] = None
-    subjective_experience_tool: Optional[Feature] = None
-
-    # Action Deliberation & Simulation Results
-    action_simulations: List[Dict[str, Any]] = []  # Store results of MC simulations [{sim_id, type, content, rating, predicted_state, user_reaction}, ...]
-    selected_action_details: Optional[Dict[str, Any]] = None  # Details of the chosen simulation/action before execution
-    selected_action_knoxel: Optional[Action] = None  # The final Action knoxel generated (set in execute)
-
-    # user rating 0 neutral, -1 bad, 1 good
     rating: int = Field(default=0)
 
-    # State snapshots
-    state_emotions: EmotionalAxesModel = EmotionalAxesModel()
-    state_needs: NeedsAxesModel = NeedsAxesModel()
-    state_cognition: CognitionAxesModel = CognitionAxesModel()
+    latent_mental_state: FullMentalState = Field(default_factory=create_empty_state)
+    current_situational_model: CSMState = Field(default_factory=CSMState)
+    codelet_state: CodeletState = Field(default_factory=CodeletState)
+    ccq: Dict[int, float] = Field(default_factory=dict)
+
+
+    #primary_stimulus: Optional[Stimulus] = None
+    #attention_candidates: KnoxelList = KnoxelList()
+    #attention_focus: KnoxelList = KnoxelList()
+    #conscious_workspace: KnoxelList = KnoxelList()
+#
+    #coalitions_hard: Dict[int, List[KnoxelBase]] = {}
+    #coalitions_balanced: Dict[int, List[KnoxelBase]] = {}
+    #subjective_experience: Optional[Feature] = None
+    #subjective_experience_tool: Optional[Feature] = None
+#
+    ## Action Deliberation & Simulation Results
+    #action_simulations: List[Dict[str, Any]] = []  # Store results of MC simulations [{sim_id, type, content, rating, predicted_state, user_reaction}, ...]
+    #selected_action_details: Optional[Dict[str, Any]] = None  # Details of the chosen simulation/action before execution
+    #selected_action_knoxel: Optional[Action] = None  # The final Action knoxel generated (set in execute)
+#
+    ## user rating 0 neutral, -1 bad, 1 good
+    #rating: int = Field(default=0)
+#
+    ## State snapshots
+    #state_emotions: EmotionalAxesModel = EmotionalAxesModel()
+    #state_needs: NeedsAxesModel = NeedsAxesModel()
+    #state_cognition: CognitionAxesModel = CognitionAxesModel()
 
 
 class BaseGhost(KnoxelHaver):
@@ -80,6 +87,7 @@ class BaseGhost(KnoxelHaver):
 
         self.current_tick_id: int = 0
         self.current_knoxel_id: int = 0
+        self.states: List[GhostState] = []
 
         self.all_features: List[Feature] = []
         self.all_stimuli: List[Stimulus] = []
@@ -94,48 +102,19 @@ class BaseGhost(KnoxelHaver):
         self.all_graph_nodes: List[GraphNode] = []
         self.all_graph_edges: List[GraphEdge] = []
 
-        self.states: List[GhostState] = []
-        self.current_state: Optional[GhostState] = None
         self.simulated_reply: Optional[str] = None
 
-    def init_character(self):
-        now = datetime.now()
-        date_str = now.strftime(timestamp_format)
+    @property
+    def current_state(self) -> GhostState:
+        if len(self.states) > 0:
+            return self.states[-1]
+        return None
 
-        init_message = generate_start_message(companion_name, user_name, os.path.basename(model_map[LlmPreset.Default.value]["path"]))
-        init_feature = Feature(
-            content=init_message,
-            feature_type=FeatureType.SystemMessage,
-            source=shell_system_name,
-            interlocus=1
-        )
-        self.add_knoxel(init_feature)
-
-        init_memory = DeclarativeFactKnoxel(
-            content=f"{companion_name} was first activated on {date_str}.",
-            reason="",
-            category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
-            importance=1,
-            time_dependent=1,
-            min_tick_id=1,
-            max_tick_id=1,
-            min_event_id=0,
-            max_event_id=0
-        )
-        self.add_knoxel(init_memory)
-
-        init_memory_detailed = DeclarativeFactKnoxel(
-            content=f"{companion_name} was first activated on {date_str}. This is their boot message: {init_message}",
-            reason="",
-            category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
-            importance=1,
-            time_dependent=1,
-            min_tick_id=1,
-            max_tick_id=1,
-            min_event_id=0,
-            max_event_id=0
-        )
-        self.add_knoxel(init_memory_detailed)
+    @property
+    def previous_state(self) -> GhostState:
+        if len(self.states) > 1:
+            return self.states[-2]
+        return None
 
     def _get_state_at_tick(self, tick_id: int) -> GhostState | None:
         if tick_id == self.current_tick_id:
@@ -206,7 +185,7 @@ class BaseGhost(KnoxelHaver):
         self.all_graph_nodes: List[GraphNode] = []
         self.all_graph_edges: List[GraphEdge] = []
         self.states = []
-        self.current_state = None
+        #self.current_state = None
         self.simulated_reply = None
 
     def _rebuild_specific_lists(self):
@@ -221,3 +200,6 @@ class BaseGhost(KnoxelHaver):
         self.all_concepts: List[ConceptNode] = [k for k in self.sorted_knoxels if isinstance(k, ConceptNode)]
         self.all_graph_nodes: List[GraphNode] = [k for k in self.sorted_knoxels if isinstance(k, GraphNode)]
         self.all_graph_edges: List[GraphEdge] = [k for k in self.sorted_knoxels if isinstance(k, GraphEdge)]
+
+if __name__ == '__main__':
+    gs = GhostState(tick_id=1)

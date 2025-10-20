@@ -1,5 +1,5 @@
 from pm.agents.definitions.agent_common_codelet import CommonCodeletAgent
-from pm.codelet import BaseCodelet, CodeletSignature, CodeletFamily, CodeletSource, CodeletContext, CodeletOutput
+from pm.codelets.codelet import BaseCodelet, CodeletSignature, CodeletFamily, CodeletSource, CodeletContext, CodeletOutput
 from pm.data_structures import Feature, FeatureType, MLevel, StimulusType
 from pm.mental_states import NeedsAxesModel, _verbalize_needs_state
 from pm.utils.pydantic_utils import create_delta_basemodel

@@ -671,7 +671,7 @@ class PersistSqlite:
                 #raise e
             logging.info(f"Loaded {len(self.ghost.states)} Ghost states from database.")
             self.ghost.states.sort(key=lambda s: s.tick_id)  # Ensure states are ordered
-            self.ghost.current_state = self.ghost.states[-1] if self.ghost.states else None
+            #self.ghost.current_state = self.ghost.states[-1] if self.ghost.states else None
             self.ghost.current_db_path = os.path.abspath(filename)
             return True
 
