@@ -1,18 +1,13 @@
 import copy
-import copy
 import os
 import queue
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from queue import Queue
 from threading import Thread
-from typing import Dict, Any
-from typing import List
-from typing import (
-    Tuple,
-)
-from typing import Type
+from typing import Any, Dict, List, Tuple, Type, Optional
+from multiprocessing import Manager
 
 from pydantic import BaseModel
 
@@ -22,19 +17,31 @@ from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_manager_llama import LlmManagerLLama
 from pm.utils.exec_utils import get_call_stack_str
 
+# ===========================================
 TIMEOUT = 0.05
+USE_MULTIPROCESSING = False
+# ===========================================
 
-# simple Task object that carries the prompt, a result-queue, and (implicitly) its priority.
+if USE_MULTIPROCESSING:
+    from multiprocessing import Process as WorkerType, Queue as WorkerQueue
+else:
+    from threading import Thread as WorkerType
+    from queue import Queue as WorkerQueue
+
+
 @dataclass(order=True)
 class LlmTask:
     priority: int
     fname: str = field(compare=False)
     args: Dict[str, Any] = field(compare=False)
-    result_queue: queue.Queue = field(compare=False)
+    result_queue: Any = field(compare=False)
 
 
+# =====================================================
+# Worker definitions
+# =====================================================
 
-def emb_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
+def emb_worker(model_map: Dict[str, Any], task_queue: WorkerQueue):
     emb_model = EmbManagerTransformer(model_map)
     while True:
         try:
@@ -44,40 +51,44 @@ def emb_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
             if task.fname == "get_embedding":
                 emb = emb_model.get_embedding(**task.args)
                 task.result_queue.put(emb)
-            task_queue.task_done()
+            task_queue.task_done() if hasattr(task_queue, "task_done") else None
         except queue.Empty:
             time.sleep(TIMEOUT)
 
 
-# central "LLM worker" thread
-def llama_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
+def llama_worker(model_map: Dict[str, Any], task_queue: WorkerQueue):
     llama = LlmManagerLLama(model_map)
     while True:
         try:
             task: LlmTask = task_queue.get(timeout=TIMEOUT)
             if task is None:
                 break
-            if task.fname == "completion_agentic":
+
+            fname = task.fname
+            if fname == "completion_agentic":
                 ass, story = llama.completion_agentic(**task.args)
                 task.result_queue.put((ass, story))
-            elif task.fname == "completion_text":
+            elif fname == "completion_text":
                 comp = llama.completion_text(**task.args)
                 task.result_queue.put(comp)
-            elif task.fname == "completion_tool":
+            elif fname == "completion_tool":
                 comp, tools = llama.completion_tool(**task.args)
                 task.result_queue.put((comp, tools))
 
-            task_queue.task_done()
+            task_queue.task_done() if hasattr(task_queue, "task_done") else None
         except queue.Empty:
             time.sleep(TIMEOUT)
 
 
-# central "LLM worker" thread
-def llm_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
-    emb_queue = Queue()
-    t = Thread(target=emb_worker, args=(model_map, emb_queue), daemon=True)
-    t.name = "worker_thread_central_embedding"
-    t.start()
+# =====================================================
+# Router worker (always thread)
+# =====================================================
+
+def llm_worker(model_map: Dict[str, Any], task_queue: WorkerQueue):
+    emb_queue = WorkerQueue()
+    emb_process = WorkerType(target=emb_worker, args=(model_map, emb_queue), daemon=True)
+    emb_process.name = "emb_worker_process" if USE_MULTIPROCESSING else "emb_worker_thread"
+    emb_process.start()
 
     model_instances = {}
     model_mapping = {}
@@ -91,16 +102,14 @@ def llm_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
             model_mapping_reverse[value["model_key"]] = key
 
     for key, value in model_instances.items():
-        q = Queue()
+        q = WorkerQueue()
         model_instance_queue_map[key] = q
-        mm = {
-            LlmPreset.Internal.value: value
-        }
-        t = Thread(target=llama_worker, args=(mm, q), daemon=True)
-        t.name = f"worker_thread_llama_{key}"
-        t.start()
+        mm = {LlmPreset.Internal.value: value}
+        worker = WorkerType(target=llama_worker, args=(mm, q), daemon=True)
+        worker.name = f"llama_worker_{key}"
+        worker.start()
 
-    llama = LlmManagerLLama(model_map)
+    # Router loop (thread)
     while True:
         try:
             task: LlmTask = task_queue.get(timeout=TIMEOUT)
@@ -113,100 +122,104 @@ def llm_worker(model_map: Dict[str, Any], task_queue: Queue[LlmTask]):
                 task_preset = task.args["preset"]
                 target_instance = model_mapping[task_preset.value]
                 task.args["preset"] = LlmPreset.Internal
-                current_queue = model_instance_queue_map[target_instance]
-                current_queue.put(task)
+                model_instance_queue_map[target_instance].put(task)
 
-            task_queue.task_done()
+            task_queue.task_done() if hasattr(task_queue, "task_done") else None
         except queue.Empty:
             time.sleep(TIMEOUT)
 
+
+# =====================================================
+# Proxy API
+# =====================================================
+
 class LlmManagerProxy:
-    def __init__(self, task_queue: Queue[LlmTask], priority: int, log_path: str):
+    def __init__(self, task_queue: WorkerQueue, priority: int, log_path: str):
         self.task_queue = task_queue
         self.priority = priority
         self.log_path = log_path
+        self.manager = Manager() if USE_MULTIPROCESSING else None
+
+    def get_queue(self):
+        if self.manager:
+            return self.manager.Queue()
+        else:
+            return queue.Queue()
 
     def get_max_tokens(self, preset: LlmPreset):
         from pm.config_loader import model_map
         return int(model_map[preset.value]["context"])
 
+    def _submit_task(self, fname: str, args: Dict[str, Any], block=True):
+        result_q = self.get_queue()
+        task = LlmTask(priority=self.priority, fname=fname, args=args, result_queue=result_q)
+
+        #try:
+        #    # TEMP DEBUG
+        #    import pickle
+        #    pickle.dumps(task)  # 🔎 if this fails, you’ll see where
+        #except Exception as e:
+        #    print("Pickle error in task:", fname, type(e), e)
+        #    for k, v in task.args.items():
+        #        print("  arg", k, "=", type(v))
+        #    raise
+
+        self.task_queue.put(task)
+        if not block:
+            return None
+        while True:
+            try:
+                return result_q.get(timeout=TIMEOUT)
+            except queue.Empty:
+                time.sleep(TIMEOUT)
+
     def get_embedding(self, text: str | KnoxelBase) -> List[float]:
         if isinstance(text, KnoxelBase):
             text = text.content
+        args = dict(text=text)
+        return self._submit_task("get_embedding", args)
 
-        args = copy.copy(locals())
-        del args["self"]
-        result_q: "queue.Queue[Any]" = queue.Queue(maxsize=1)
-        self.task_queue.put(LlmTask(priority=self.priority, fname="get_embedding", args=args, result_queue=result_q))
-        emb = result_q.get()
-        return emb
-
-    def completion_agentic(self,
-                           preset: LlmPreset,
-                           url: str,
+    def completion_agentic(self, preset: LlmPreset, url: str,
                            inp: List[Tuple[str, str]],
-                           comp_settings: CommonCompSettings | None = None,
-                           discard_thinks: bool = True
-                           ) -> Tuple[str, str]:
-        args = copy.copy(locals())
-        log_filename = f"{get_call_stack_str(comp_settings.caller_id if comp_settings else None)}_{uuid.uuid4()}.log"
+                           comp_settings: Optional[CommonCompSettings] = None,
+                           discard_thinks: bool = True) -> Tuple[str, str]:
+        log_filename = f"{get_call_stack_str(comp_settings.caller_id if comp_settings else None)}_AGENTIC_{uuid.uuid4()}.log"
         os.makedirs(self.log_path, exist_ok=True)
-        log_file_path = os.path.join(self.log_path, log_filename)
+        args = dict(preset=preset, url=url, inp=inp, comp_settings=comp_settings,
+                    discard_thinks=discard_thinks,
+                    log_file_path=os.path.join(self.log_path, log_filename))
+        return self._submit_task("completion_agentic", args)
 
-        args["log_file_path"] = log_file_path
-        del args["self"]
-        result_q: "queue.Queue[Any]" = queue.Queue(maxsize=1)
-        self.task_queue.put(LlmTask(priority=self.priority, fname="completion_agentic", args=args, result_queue=result_q))
-
-        while True:
-            try:
-                ass, story = result_q.get(timeout=TIMEOUT)
-                return ass, story
-            except queue.Empty:
-                time.sleep(TIMEOUT)
-
-    def completion_text(self,
-                        preset: LlmPreset,
+    def completion_text(self, preset: LlmPreset,
                         inp: List[Tuple[str, str]],
-                        comp_settings: CommonCompSettings | None = None,
+                        comp_settings: Optional[CommonCompSettings] = None,
                         discard_thinks: bool = True) -> str:
-        args = copy.copy(locals())
-        log_filename = f"{get_call_stack_str(comp_settings.caller_id if comp_settings else None)}_{uuid.uuid4()}.log"
+        log_filename = f"{get_call_stack_str(comp_settings.caller_id if comp_settings else None)}_TEXT_{uuid.uuid4()}.log"
         os.makedirs(self.log_path, exist_ok=True)
-        log_file_path = os.path.join(self.log_path, log_filename)
+        args = dict(preset=preset, inp=inp, comp_settings=comp_settings,
+                    discard_thinks=discard_thinks,
+                    log_file_path=os.path.join(self.log_path, log_filename))
+        return self._submit_task("completion_text", args)
 
-        args["log_file_path"] = log_file_path
-        del args["self"]
-        result_q: "queue.Queue[Any]" = queue.Queue(maxsize=1)
-        self.task_queue.put(LlmTask(priority=self.priority, fname="completion_text", args=args, result_queue=result_q))
-
-        while True:
-            try:
-                comp = result_q.get()
-                return comp
-            except queue.Empty:
-                time.sleep(TIMEOUT)
-
-    def completion_tool(self,
-                        preset: LlmPreset,
+    def completion_tool(self, preset: LlmPreset,
                         inp: List[Tuple[str, str]],
-                        comp_settings: CommonCompSettings | None = None,
-                        tools: List[Type[BaseModel]] = None,
-                        discard_thinks: bool = True
-                        ) -> (str, List[BaseModel]):
-        args = copy.copy(locals())
-        log_filename = f"{get_call_stack_str(comp_settings.caller_id if comp_settings else None)}_{uuid.uuid4()}.log"
+                        comp_settings: Optional[CommonCompSettings] = None,
+                        tools: Optional[List[Type[BaseModel]]] = None,
+                        discard_thinks: bool = True) -> Tuple[str, List[BaseModel]]:
+        log_filename = f"{get_call_stack_str(comp_settings.caller_id if comp_settings else None)}_TOOL_{uuid.uuid4()}.log"
         os.makedirs(self.log_path, exist_ok=True)
-        log_file_path = os.path.join(self.log_path, log_filename)
+        args = dict(preset=preset, inp=inp, comp_settings=comp_settings, tools=tools,
+                    discard_thinks=discard_thinks,
+                    log_file_path=os.path.join(self.log_path, log_filename))
+        return self._submit_task("completion_tool", args)
 
-        args["log_file_path"] = log_file_path
-        del args["self"]
-        result_q: "queue.Queue[Any]" = queue.Queue(maxsize=1)
-        self.task_queue.put(LlmTask(priority=self.priority, fname="completion_tool", args=args, result_queue=result_q))
+def start_llm_thread() -> LlmManagerProxy:
+    from pm.config_loader import log_path, model_map
+    task_queue: queue.PriorityQueue[LlmTask] = queue.PriorityQueue()
 
-        while True:
-            try:
-                comp, tools = result_q.get()
-                return comp, tools
-            except queue.Empty:
-                time.sleep(TIMEOUT)
+    worker_thread = threading.Thread(target=llm_worker, args=(model_map, task_queue), daemon=True)
+    worker_thread.start()
+
+    main_llm = LlmManagerProxy(task_queue, priority=0, log_path=log_path)
+
+    return main_llm

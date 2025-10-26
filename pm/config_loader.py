@@ -10,6 +10,7 @@ from pm.utils.log_utils import setup_logger
 
 logger = logging.getLogger(__name__)
 
+print(os.getpid())
 
 companion_name: str = ""
 user_name: str = ""

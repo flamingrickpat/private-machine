@@ -1,5 +1,9 @@
 from pm.codelets.codelet_definitions import *
 
+class Act:
+    def __init__(self, strength):
+        self.strength = strength
+
 PATHWAYS = {
 "love": [
     # need-for-affiliation monitor → flags rising affiliation deficit

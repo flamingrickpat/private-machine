@@ -24,15 +24,20 @@ import time
 from typing import List
 
 import llama_cpp.llama_cpp as llama_cpp
+import numpy as np
 from llama_cpp import Llama, LlamaGrammar, suppress_stdout_stderr
 import psutil
 from fastmcp import Client
 from json_repair import repair_json
+from lmformatenforcer import JsonSchemaParser, TokenEnforcerTokenizerData
+from lmformatenforcer.integrations.llamacpp import build_token_enforcer_tokenizer_data, build_llamacpp_logits_processor
 from pydantic import BaseModel
 
+from pm.config_loader import companion_name, user_name
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_manager import LlmManager
 from pm.tools.tools_common import create_tool_router_model
+from pm.utils.pydantic_utils import generate_pydantic_json_schema_llm
 from pm.utils.string_utils import remove_n_words, parse_json_from_response, between, replace_tagged_blocks, remove_strings
 from pm.utils.duplex_utils import DuplexSignalFinish, DuplexSignalInterrupt, DuplexStartGenerationText, DuplexStartGenerationTool, DuplexSignalEog, DuplexSignalTerminate, DuplexSignalFinished
 from pm.utils.gbnf_utils import better_generate_gbnf_grammar_and_documentation, fix_gbnf_grammar_generator
@@ -45,7 +50,7 @@ def strftime_now(f):
     return datetime.datetime.now().strftime(f)
 
 
-def log_conversation(conversation: list[tuple[str, str]] | str, file_path: str, max_width: int = 80):
+def log_conversation(conversation: list[tuple[str, str]] | str, file_path: str, max_width: int = 80, addendum: List[str] = None):
     if file_path is None or file_path == "":
         return
 
@@ -64,6 +69,103 @@ def log_conversation(conversation: list[tuple[str, str]] | str, file_path: str, 
                 # Add a separator between turns
                 file.write(f"{'-' * max_width}\n\n")
 
+        if addendum:
+            file.write(f"\n")
+            file.write("\n".join(addendum))
+
+def sample_from_logits(x: np.ndarray, temperature: float = 0.8, top_p: float = 0.9, top_k: int = 40) -> int:
+    # replace NaN or inf
+    x[~np.isfinite(x)] = -1e10
+
+    # apply temperature
+    if temperature != 1.0:
+        x /= max(temperature, 1e-6)
+
+    # convert to probabilities safely
+    x = x - np.max(x)  # avoid overflow
+    probs = np.exp(x)
+    probs_sum = np.sum(probs)
+    if probs_sum == 0 or not np.isfinite(probs_sum):
+        # all masked or underflowed → fallback to argmax
+        return int(np.argmax(x))
+    probs /= probs_sum
+
+    # --- top-k filtering ---
+    if top_k and top_k < len(probs):
+        top_k_indices = np.argpartition(probs, -top_k)[-top_k:]
+        mask = np.zeros_like(probs)
+        mask[top_k_indices] = probs[top_k_indices]
+        probs = mask
+        probs /= probs.sum()
+
+    # --- top-p (nucleus) filtering ---
+    if 0 < top_p < 1.0:
+        sorted_idx = np.argsort(probs)[::-1]
+        cum = np.cumsum(probs[sorted_idx])
+        cutoff = cum > top_p
+        if np.any(cutoff):
+            probs[sorted_idx[cutoff]] = 0
+            s = probs.sum()
+            if s == 0:
+                return int(np.argmax(x))
+            probs /= s
+
+    # fallback guard again
+    if not np.all(np.isfinite(probs)) or probs.sum() == 0:
+        return int(np.argmax(x))
+
+    return int(np.random.choice(len(probs), p=probs))
+
+import re
+
+# Allowed characters: ASCII + German umlauts + ß + emojis (basic plane)
+_ALLOWED_CHARS_RE = re.compile(
+    r"^[\x20-\x7EÄÖÜäöüß€£¥¢°§±µ²³¼½¾¼ß\u00A0-\u024F\u1F600-\u1F64F]*$"
+)
+
+def _build_regular_tokens_list_fast(llm) -> list[tuple[int, str, bool]]:
+    token_0 = llm.tokenize(b"0")[-1]
+    regular_tokens = []
+    special_tokens = {llm.token_bos(), llm.token_eos()}
+    n_vocab = llm.n_vocab()
+
+    for token_idx in range(n_vocab):
+        if token_idx in special_tokens:
+            continue
+
+        try:
+            decoded = llm.detokenize([token_idx]).decode("utf-8", errors="ignore")
+
+            # Skip empty or bad tokens immediately
+            if not decoded:
+                continue
+
+            # Skip tokens with non-allowed characters (non-ascii / non-german / no emoji)
+            if not _ALLOWED_CHARS_RE.match(decoded):
+                continue
+
+            # Compute word start flag cheaply
+            decoded_after_0 = llm.detokenize([token_0, token_idx]).decode("utf-8", errors="ignore")
+            is_word_start_token = len(decoded_after_0) > len(decoded)
+
+            regular_tokens.append((token_idx, decoded, is_word_start_token))
+
+        except Exception:
+            continue
+
+    return regular_tokens
+
+
+def build_token_enforcer_tokenizer_data_fast(llm: Llama) -> TokenEnforcerTokenizerData:
+    regular_tokens = _build_regular_tokens_list_fast(llm)
+
+    def decoder_fn(sent: List[int]) -> str:
+        try:
+            return llm.detokenize(sent).decode('utf-8')
+        except:
+            return decoder_fn(sent[:-1])
+
+    return TokenEnforcerTokenizerData(regular_tokens, decoder_fn, llm.token_eos())
 
 universal_image_begin = "<begin_image>"
 universal_image_end = "<end_image>"
@@ -237,6 +339,8 @@ class LlmManagerLLama(LlmManager):
             raise_exception=raise_exception,
             enable_thinking=True
         )
+
+        text = text.replace("{companion_name}", companion_name).replace("{user_name}", user_name)
         return text
 
     def _update_special_strings(self):
@@ -509,7 +613,7 @@ class LlmManagerLLama(LlmManager):
         addendum = ""
         if len(tools) > 0:
             comp_settings.tools_json += tools
-            tool_calls = "\n".join([json.dumps(t.model_json_schema()) for t in tools])
+            tool_calls = "\n".join([generate_pydantic_json_schema_llm(t) for t in tools])
             addendum = "\nTool Documentation JSON Schema:\n" + tool_calls
 
         # get tokens and formatted version of raw prompt
@@ -522,11 +626,12 @@ class LlmManagerLLama(LlmManager):
         sampler_args, completion_args = self._get_sampler_completion_args(comp_settings)
 
         calls = []
+        addendum = []
 
         content = None
         tools = comp_settings.tools_json
         if len(tools) == 0:
-            if comp_settings.completion_callback is None and comp_settings.eval_only == False and len(image_chunks) == 0 and not comp_settings.duplex:
+            if comp_settings.completion_callback is None and comp_settings.eval_only == False and len(image_chunks) == 0 and not comp_settings.duplex and not comp_settings.cache_prompt:
                 res = self.llm.create_completion(tokenized_prompt, **completion_args)
                 finish_reason = res["choices"][0]["finish_reason"]
                 content = res["choices"][0]["text"]
@@ -542,6 +647,7 @@ class LlmManagerLLama(LlmManager):
                         if self.llm.input_ids[i] != tokenized_prompt[i]:
                             self.llm.n_tokens = i
                             tokenized_prompt = tokenized_prompt[i:]
+                            addendum.append(f"CACHE: Kept {i} tokens from pervious generation.")
                             break
 
                 evaluated = False
@@ -631,6 +737,9 @@ class LlmManagerLLama(LlmManager):
                 finish_reason = "length"
 
                 def eval_local(_tokens):
+                    if len(_tokens) + self.llm.n_tokens > (self.current_ctx - 10):
+                        raise ValueError(f"Out of context space: {self.llm.n_tokens} + {len(_tokens)} > {self.current_ctx}")
+
                     nonlocal sample_idx
                     sample_idx += len(_tokens)
                     for t in _tokens:
@@ -644,7 +753,25 @@ class LlmManagerLLama(LlmManager):
                 is_waiting_for_user_input = False
                 in_duplex_mode_has_generation_mode_set = False
 
-                while len(completion_tokens) < max_tokens:
+                start_time = time.time()
+                sample_cnt = 0
+                sample_time = 0
+
+                tokenizer_data = build_token_enforcer_tokenizer_data_fast(self.llm) if comp_settings.use_lm_format_enforcer else None
+
+                class SchemaHelper:
+                    def __init__(self):
+                        self.current_target_bm = None
+                        self.character_level_parser = None
+                        self.apply_bias_func = None
+
+                    def clear(self):
+                        self.current_target_bm = None
+                        self.character_level_parser = None
+                        self.apply_bias_func = None
+
+                sh = SchemaHelper()
+                while (not comp_settings.duplex and len(completion_tokens) < max_tokens) or (comp_settings.duplex and self.llm.n_tokens < self.current_ctx - 100):
                     halt_signal = False
                     def switch_to_listening():
                         nonlocal is_waiting_for_user_input
@@ -687,23 +814,31 @@ class LlmManagerLLama(LlmManager):
                                 switch_to_listening()
                             elif isinstance(msg, DuplexStartGenerationText):
                                 in_duplex_mode_has_generation_mode_set = True
-                                self.llm._sampler = self.llm._init_sampler(**sampler_args)
+
+                                if comp_settings.use_lm_format_enforcer:
+                                    sh.clear()
+                                else:
+                                    self.llm._sampler = self.llm._init_sampler(**sampler_args)
+
                                 switch_to_generating()
                             elif isinstance(msg, DuplexStartGenerationTool):
                                 in_duplex_mode_has_generation_mode_set = True
                                 sampler_args_with_grammar = copy.copy(sampler_args)
 
-                                bm: Type[BaseModel] = msg.bm
-                                gbnf_grammar, documentation = better_generate_gbnf_grammar_and_documentation([bm])
-                                grammar = LlamaGrammar(_grammar=gbnf_grammar)
+                                if comp_settings.use_lm_format_enforcer:
+                                    sh.current_target_bm = msg.bm
+                                else:
+                                    bm: Type[BaseModel] = msg.bm
+                                    gbnf_grammar, documentation = better_generate_gbnf_grammar_and_documentation([bm])
+                                    grammar = LlamaGrammar(_grammar=gbnf_grammar)
+                                    sampler_args_with_grammar["grammar"] = grammar
+                                    self.llm._sampler = self.llm._init_sampler(**sampler_args_with_grammar)
 
-                                sampler_args_with_grammar["grammar"] = grammar
-                                self.llm._sampler = self.llm._init_sampler(**sampler_args_with_grammar)
                                 switch_to_generating()
                             elif isinstance(msg, DuplexSignalTerminate):
                                 halt_signal = True
                         except queue.Empty:
-                            time.sleep(0.01)
+                            pass
 
                     if halt_signal:
                         break
@@ -721,6 +856,7 @@ class LlmManagerLLama(LlmManager):
                         if m and comp_settings.allow_interrupts:
                             # simple single token, check if llm wants to switch turn and use that as interrupt
                             token = self.llm.sample(idx=None)
+                            sample_cnt += 1
                             as_non_special = self._detokenize([token], special=False).strip()
                             if as_non_special == "":
                                 switch_to_generating()
@@ -728,19 +864,33 @@ class LlmManagerLLama(LlmManager):
                         duplex_user_buffer = ""
                         continue
 
-                    # set sampler idx (if we use it, default is None -> -1 internally)
-                    idx = None
-                    if use_sample_index:
-                        idx = sample_idx
-
                     if comp_settings.duplex and comp_settings.wait_for_start_signal and not in_duplex_mode_has_generation_mode_set:
                         time.sleep(0.01)
                         continue
 
-                    token = self.llm.sample(idx=idx)
+                    start_sample = time.time()
+                    if comp_settings.use_lm_format_enforcer and sh.current_target_bm:
+                        if not sh.character_level_parser:
+                            sh.character_level_parser = JsonSchemaParser(sh.current_target_bm.schema())
+                        if not sh.apply_bias_func:
+                            sh.apply_bias_func = build_llamacpp_logits_processor(tokenizer_data, sh.character_level_parser)
+
+                        raw_logits = logits = self.llm._ctx.get_logits()
+                        logits = np.ctypeslib.as_array(logits, (self.llm.n_vocab(),))
+                        sh.apply_bias_func(self.llm.input_ids[:self.llm.n_tokens], logits)
+
+                        token = sample_from_logits(logits, temperature=comp_settings.temperature, top_k=comp_settings.top_k, top_p=comp_settings.top_p)
+                    else:
+                        # set sampler idx (if we use it, default is None -> -1 internally)
+                        idx = None
+                        if use_sample_index:
+                            idx = sample_idx
+
+                        token = self.llm.sample(idx=idx)
+                    sample_time += time.time() - start_sample
+
+                    sample_cnt += 1
                     cur_tokens_to_eval = [token]
-                    cur_token_as_text = self._detokenize([token], special=False)
-                    cur_completion_as_text = self._detokenize(completion_tokens, special=False)
 
                     # check for exit
                     if llama_cpp.llama_token_is_eog(self.llm._model.vocab, token):
@@ -752,7 +902,8 @@ class LlmManagerLLama(LlmManager):
                             finish_reason = "stop"
                             break
 
-                    if comp_settings.stop_words is not None:
+                    if comp_settings.stop_words and len(comp_settings.stop_words) > 0:
+                        cur_completion_as_text = self._detokenize(completion_tokens, special=False)
                         found = False
                         for sw in comp_settings.stop_words:
                             if sw in cur_completion_as_text:
@@ -762,6 +913,7 @@ class LlmManagerLLama(LlmManager):
                             finish_reason = "sw"
                             break
 
+                    cur_token_as_text = self._detokenize([token], special=False)
                     if comp_settings.completion_callback is not None:
                         callback_eval_text = comp_settings.completion_callback(cur_token_as_text)
                         if callback_eval_text is None:
@@ -778,6 +930,12 @@ class LlmManagerLLama(LlmManager):
                     else:
                         callback_tokens = self._tokenize(callback_eval_text, special=False)
                         eval_local(callback_tokens)
+
+                duration = time.time() - start_time
+                t_s = sample_cnt / duration
+                addendum.append(f"DURATION: {duration}")
+                addendum.append(f"SAMPLE S: {sample_time}")
+                addendum.append(f"TOKEN/S : {t_s}")
 
                 full_output = self._detokenize(completion_tokens, special=True)
                 content = self._detokenize(completion_tokens, special=False)
@@ -802,7 +960,7 @@ class LlmManagerLLama(LlmManager):
         content = content.strip()
         inp_formatted.append(("assistant", content))
         if log_file_path is not None:
-            log_conversation(inp_formatted, log_file_path + f".completion_{finish_reason}.log", 200)
+            log_conversation(inp_formatted, log_file_path + f".completion_{finish_reason}.log", 200, addendum=addendum)
         return content, calls
 
     def completion_text(self,

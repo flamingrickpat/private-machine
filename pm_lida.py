@@ -17,11 +17,12 @@ from pydantic import BaseModel
 from pm.config_loader import *
 from pm.data_structures import ActionType, NarrativeTypes, Stimulus, Action, KnoxelList, FeatureType, StimulusType
 from pm.ghosts.base_ghost import GhostConfig
-from pm.ghosts.ghost_lida import EngagementIdea, GhostLida
+from pm.ghosts.ghost_codelets import GhostCodelets
+from pm.ghosts.ghost_lida import EngagementIdea
 from pm.ghosts.persist_sqlite import PersistSqlite
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_manager_llama import LlmManagerLLama
-from pm.llm.llm_proxy import LlmManagerProxy, LlmTask, llm_worker
+from pm.llm.llm_proxy import LlmManagerProxy, LlmTask, llm_worker, start_llm_thread
 from pm.mental_states import NeedsAxesModel
 from pm.utils.profile_utils import print_function_stats
 
@@ -30,13 +31,6 @@ logger = logging.getLogger(__name__)
 # --- Type Variables ---
 T = TypeVar('T')
 BM = TypeVar('BM', bound=BaseModel)
-
-# 3) A single PriorityQueue shared by all producers & the consumer.
-task_queue: "queue.PriorityQueue[LlmTask]" = queue.PriorityQueue()
-
-#direct_llm = LlmManagerLLama(model_map)
-main_llm = LlmManagerProxy(task_queue, priority=0, log_path=log_path)
-aux_llm = LlmManagerProxy(task_queue, priority=1, log_path=log_path)
 
 
 class StimulusSimple:
@@ -50,7 +44,7 @@ class StimulusSimple:
 
 # This class is NOT the singleton. It's the same Shell as before, but modified to broadcast.
 class Shell:
-    def __init__(self, ghost: GhostLida, db_path_local: str):
+    def __init__(self, ghost: GhostCodelets, db_path_local: str):
         self.input_queue = Queue()  # One input queue is fine
         self.output_queues: List[Queue] = []  # A list of output queues for broadcasting
         self.lock = threading.Lock()  # To safely modify the list of queues
@@ -73,9 +67,6 @@ class Shell:
         self.current_time_of_day = self._get_time_of_day()
         self.is_sleeping = False  # NEW: Flag to track sleep state
         self.sleep_until_time = 0  # NEW: Timestamp for when sleep ends
-
-        worker_thread = threading.Thread(target=llm_worker, args=(model_map, task_queue), daemon=True)
-        worker_thread.start()
 
         self.ghost = ghost
         self.db_path_local = db_path_local
@@ -454,10 +445,11 @@ def get_shell_instance() -> Shell:
     global _instance
     with _lock:
         if _instance is None:
+            main_llm = start_llm_thread()
             print("--- CREATING SINGLETON SHELL INSTANCE ---")
 
             config = GhostConfig()
-            ghost = GhostLida(main_llm, config)
+            ghost = GhostCodelets(main_llm, config)
 
             if db_path is not None and db_path != "":
                 pers = PersistSqlite(ghost)
@@ -469,17 +461,11 @@ def get_shell_instance() -> Shell:
             print("--- SINGLETON SHELL INSTANCE CREATED AND THREAD STARTED ---")
     return _instance
 
-
-def start_llm_thread():
-    worker_thread = threading.Thread(target=llm_worker, args=(model_map, task_queue), daemon=True)
-    worker_thread.start()
-
-
 def run(interactive: bool, _db_path: str | None = None, cmd: str = None):
-    start_llm_thread()
+    main_llm = start_llm_thread()
 
     config = GhostConfig()
-    ghost = GhostLida(main_llm, config)
+    ghost = GhostCodelets(main_llm, config)
 
     create_new_persona = True
     if _db_path is not None and _db_path != "":
@@ -541,7 +527,7 @@ Act as user to test the chatbot!"""
             user_input_cmd_inline = user_input_cmd.replace("\n", "")
             print(f"{config.user_name}: {user_input_cmd_inline}")
         stim = Stimulus(source=user_name, content=user_input_cmd, stimulus_type=StimulusType.UserMessage)
-        action = ghost.tick(stim)
+        action = ghost.cognitive_cycle([stim])
         response = action.content
         sg = ghost.simulated_reply
 
@@ -563,8 +549,9 @@ Act as user to test the chatbot!"""
 
 
 def run_shell(interactive: bool, _db_path: str | None = None, cmd: str = None):
+    main_llm = start_llm_thread()
     config = GhostConfig()
-    ghost = GhostLida(main_llm, config)
+    ghost = GhostCodelets(main_llm, config)
 
     create_new_persona = True
     if _db_path is not None and _db_path != "":

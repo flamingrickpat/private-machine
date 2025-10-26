@@ -43,7 +43,9 @@ class CommonCompSettings:
                  allow_interrupts: bool = False,
                  wait_for_start_signal: bool = False,
                  caller_id: str = None,
-                 agentic_force_server_stop: bool = False
+                 agentic_force_server_stop: bool = False,
+                 cache_prompt: bool = True,
+                 use_lm_format_enforcer: bool = True
                  ):
         self.max_tokens = max_tokens
         self.repeat_penalty = repeat_penalty
@@ -67,6 +69,8 @@ class CommonCompSettings:
         self.wait_for_start_signal = wait_for_start_signal
         self.caller_id = caller_id
         self.agentic_force_server_stop = agentic_force_server_stop
+        self.cache_prompt = cache_prompt
+        self.use_lm_format_enforcer = use_lm_format_enforcer
 
     def fill_defaults(self, model_map: Dict[str, Any], preset: LlmPreset):
         if preset.value in model_map.keys():

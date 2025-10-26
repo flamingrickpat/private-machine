@@ -5,6 +5,7 @@ import random
 import time
 from datetime import datetime
 from enum import StrEnum
+from pprint import pprint
 from typing import Dict, Any
 from typing import List
 from typing import Type
@@ -25,9 +26,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from pm.agents.definitions.agent_select_codelets import AgentSelectCodelets
 from pm.character_card import default_agent_sysprompt, character_card_assistant
-from pm.codelets.codelet import CodeletRegistry, CodeletFamily, CodeletContext
+from pm.codelets.codelet import CodeletRegistry, CodeletFamily, CodeletContext, CodeletState
 from pm.config_loader import *
-from pm.csm.csm import CSMState, CSMBuffer
+from pm.csm.csm import CSMState, CSMBuffer, CSMItem
 from pm.data_structures import ActionType, Narrative, narrative_definitions, NarrativeTypes, Stimulus, Action, KnoxelList, FeatureType, Feature, StimulusType, Intention, CoversTicksEventsKnoxel, MemoryClusterKnoxel, DeclarativeFactKnoxel, ACTION_DESCRIPTIONS, KnoxelBase, ClusterType, MLevel, KnoxelListWeighted
 from pm.dialog import DialogActPool
 from pm.ghosts.base_ghost import BaseGhost, GhostState, GhostConfig
@@ -39,6 +40,7 @@ from pm.mental_states import NeedsAxesModel, CognitiveEventTriggers, EmotionalAx
 from pm.thoughts import TreeOfThought
 from pm.utils.emb_utils import cosine_pair
 from pm.utils.profile_utils import profile
+from pm.utils.pydantic_utils import basemodel_to_text, pydandic_model_to_dict_jsonable
 from pm.utils.system_utils import generate_start_message
 from pm.utils.token_utils import get_token_count
 from pm.utils.utterance_extractor import UtteranceExtractor
@@ -62,6 +64,11 @@ class Valence(StrEnum):
     Positive = "positive"
     Negative = "negative"
 
+class PromptContainer(BaseModel):
+    knoxels: List[int]
+    story: str
+    story_new: str
+
 
 class GhostCodelets(BaseGhost):
     def __init__(self, llm, config):
@@ -74,6 +81,7 @@ class GhostCodelets(BaseGhost):
         self.narrative_definitions = narrative_definitions
         self._initialize_narratives()
         self.input_knoxels = []
+        self.primary_stimulus: Stimulus = None
 
     def init_character(self):
         now = datetime.now()
@@ -182,17 +190,18 @@ class GhostCodelets(BaseGhost):
             self.primary_stimulus = stimulus
 
             if stimulus.stimulus_type == StimulusType.UserMessage:
-                story_feature = Feature(content=stimulus.content, source=user_name, feature_type=FeatureType.Dialogue, interlocus=1, causal=True)
+                story_feature = Feature(content=stimulus.content, source=user_name, feature_type=FeatureType.Dialogue, interlocus=1, causal=False)
             elif stimulus.stimulus_type in [StimulusType.LowNeedTrigger, StimulusType.WakeUp, StimulusType.TimeOfDayChange, StimulusType.SystemMessage, StimulusType.UserInactivity]:
-                story_feature = Feature(content=stimulus.content, source=stimulus.source, feature_type=FeatureType.SystemMessage, interlocus=-1, causal=True)
+                story_feature = Feature(content=stimulus.content, source=stimulus.source, feature_type=FeatureType.SystemMessage, interlocus=-1, causal=False)
             elif stimulus.stimulus_type in [StimulusType.EngagementOpportunity]:
                 idea_json = stimulus.content
                 idea = EngagementIdea.model_validate_json(idea_json)
                 idea_str = f"{idea.thought_process} Action Plan: {idea.suggested_action} {idea.action_content}"
-                story_feature = Feature(content=idea_str, source=companion_name, feature_type=FeatureType.ExternalThought, interlocus=-1, causal=True)
+                story_feature = Feature(content=idea_str, source=companion_name, feature_type=FeatureType.ExternalThought, interlocus=-1, causal=False)
             else:
                 raise Exception()
 
+            self.add_knoxel(story_feature)
             self.input_knoxels.append(story_feature)
 
     def get_context_knoxels_mental_state(self, fms: FullMentalState) -> KnoxelList:
@@ -231,7 +240,7 @@ class GhostCodelets(BaseGhost):
         res = {f.id: cosine_pair(f.embedding, embedding) for f in self.all_features if f.causal}
         return res
 
-    def create_codelet_prompt(self, ccq: Dict[int, float], max_tokens: int):
+    def create_codelet_prompt(self, ccq: Dict[int, float], max_tokens: int) -> PromptContainer:
         token_budget = max_tokens * 0.9
         res = set()
         dialouge = Enumerable(self.all_features) \
@@ -256,19 +265,11 @@ class GhostCodelets(BaseGhost):
         story = kl.get_story(self, max_tokens=max_tokens)
 
         kl = KnoxelList(self.input_knoxels).order_by(lambda x: x.timestamp_world_begin)
-        story_new = kl.get_story(self, max_tokens=max_tokens)
+        ids = []
+        story_new = kl.get_story(self, max_tokens=max_tokens, target_knoxel_ids=ids)
 
-        prompt = [
-            ("system", "You are an expert in storywriting. You can write stories with vivid, immersive and complex characters and you can analyze stories to the same extent."),
-            ("user", "I'm writing a story about a next-level AI companion and a user. I'm having trouble continuing and keeping consistent personas. Here is the story: "
-                     f"\n### BEGIN STORY\n{story}\n### END STORY\n"
-                     f"Did you get all of that?"),
-            ("assistant", "Yes, I perfectly understand the story and its characters. What is your task?"),
-            ("user", "Perfect. This is what I'm going to write next:"
-                     f"\n### BEGIN NEW\n{story_new}\n### END NEW\n")
-        ]
-
-        return prompt
+        res = PromptContainer(knoxels=ids, story=story, story_new=story_new)
+        return res
 
 
     def cognitive_cycle(self, buffer_input: List[Stimulus]):
@@ -306,68 +307,102 @@ class GhostCodelets(BaseGhost):
         # update weights with weights based on most recent input
         temporary_ccq = self.merge_ccq(temporary_ccq, self.get_ccq_simple(short_term_context), weight=self.previous_state.latent_mental_state.state_cognition.mental_aperture)
         #temporary_ccq = self.merge_ccq(temporary_ccq, self.get_ccq_simple(emotionally_similar_context), weight=self.previous_state.latent_mental_state.state_cognition.ego_strength)
-        initial_prompt: List[Tuple[str, str]] = self.create_codelet_prompt(temporary_ccq, max_tokens=int(self.llm.get_max_tokens(LlmPreset.Default) * 0.5))
+        initial_prompt = self.create_codelet_prompt(temporary_ccq, max_tokens=int(self.llm.get_max_tokens(LlmPreset.Default) * 0.5))
 
-        cctx = CodeletContext(tick_id=self.current_tick_id, stimulus=self.primary_stimulus, prefill_messages=initial_prompt, context_embedding=short_term_context, llm=self.llm, mental_state=start_latent_ms)
-
-        if self.previous_state and len(self.previous_state.codelet_state) > 0:
-            pass
-            # load state, re-rate the top 30 ones or so
+        # build initial new csm from previous and decay
+        if self.previous_state and self.previous_state.current_situational_model and len(self.previous_state.current_situational_model.items) > 0:
+            csm_state = self.previous_state.current_situational_model.copy(deep=True)
         else:
-            pass
-            # initially do all
+            csm_state = CSMState()
+        csm = CSMBuffer(self, state=csm_state)
+        csm.decay_step()
 
-        for i in range(10):
-            res = []
+        cctx = CodeletContext(
+            tick_id=self.current_tick_id,
+            stimulus=self.primary_stimulus,
+            context_embedding=short_term_context,
+            llm=self.llm,
+            mental_state=start_latent_ms,
+            story=initial_prompt.story,
+            story_new=initial_prompt.story_new,
+            csm_snapshot=csm.get_snapshot()
+        )
+
+        codelet_registry = CodeletRegistry.init_from_simple_codelets(cctx)
+        if self.previous_state and len(self.previous_state.codelet_state.states) > 0:
+            codelet_registry.apply_codelet_state(self.previous_state.codelet_state)
+            codelet_registry.decay_step()
+
+            cands = codelet_registry.pick_candidates(cctx)
+            codelet_cands = [x[0] for x in cands[:20]]
+
             inp_hier = {
-                "full_prompt": initial_prompt,
+                "full_prompt": initial_prompt.story + initial_prompt.story_new,
+                "codelets": codelet_cands,
                 "content": "I have made a list with possible mental functions. I want to psychologically simulate what {companion_name} would say based on her psyche."
                            "But the list is long. You now act as a selector for possible mental functions. Here is the JSON schema with all the descriptions, and names. "
                            "Please give each codelet a rating between 0 and 1, for how likely it is I should invoke it for this conversation.",
             }
             res_hier = AgentSelectCodelets.execute(inp_hier, self.llm, None)
             codelet_ratings: BaseModel = res_hier["codelets"]
-            print(codelet_ratings)
 
-
-        # build initial new csm from previous and decay
-        if self.previous_state:
-            csm_state = self.previous_state.current_situational_model.copy(deep=True)
-        else:
-            csm_state = self.init_empty_csm()
-        csm = CSMBuffer(csm_state)
-        csm.decay()
-
-
-        # get codelet state
-        if self.previous_state:
-            cs = self.previous_state.codelet_state.copy(deep=True)
-
-        # initialize the codelet registry
-        codelet_registry = CodeletRegistry(cs)
-        codelet_registry.decay()
+            for k, v in codelet_ratings.dict():
+                codelet_registry.items[k].runtime.activation += v
 
         # gather codelets for data aquisition
         # run codelet, add to csm, boost paths if possible, sample next codelet, call with extended csm
         # to prevent csm overflow we need to tag each codelet output with ms vector, and salience and valence
+        cnt = 0
         while True:
-            cctx = CodeletContext(self, csm, initial_prompt)
-            codelet_candidates = codelet_registry.pick_candidates(cctx, CodeletFamily.ALL - CodeletFamily.ATTENTION)
+            codelet_candidates = codelet_registry.pick_candidates(cctx)
             codelet, activation = codelet_candidates[0]
 
-            # build prompt with initial_prompt:<rag results from codelet search tags not already in initial_prompt>:<codelet instructions>
-            codelet_features = codelet.run(cctx)
+            cctx.csm_snapshot=csm.get_snapshot()
+            res = codelet.run(cctx)
 
-            # add resulting features to csm
-            for codelet_feature in codelet_features:
-                self.add_codelet_feature(codelet_feature)
-                csm.add_or_boost(codelet_feature)
+            first_pass = res["first_pass"]
+            codelet_container = res["output_feature"]
 
-            if random.randrange(1,10) == 5:
+            content = f"## {codelet.signature.name}\n{first_pass}\n"
+            f = Feature(
+                content=first_pass,
+                source=codelet.signature.name,
+                feature_type=FeatureType.CodeletOutput,
+                affective_valence=0,
+                interlocus=-1,
+                causal=False,
+                metadata=pydandic_model_to_dict_jsonable(codelet_container)
+            )
+
+            test = pydandic_model_to_dict_jsonable(codelet_container)
+            test2 = codelet_container.__class__.model_validate_json(json.dumps(test))
+
+            self.add_knoxel(f)
+            csm.add_or_boost(CSMItem(knoxel_id=f.id, first_tick=self.current_tick_id, last_tick=-1))
+
+            #from rich import print as rprint
+            #rprint(codelet_container)
+
+            #for field_name, model_field in codelet_container.__class__.model_fields.items():
+            #    sub = getattr(codelet_container, field_name)
+            #    content = f"## {sub.__class__.__name__}\n{basemodel_to_text(sub)}\n"
+            #    f = Feature(
+            #        content=content,
+            #        feature_type=FeatureType.Narrative,
+            #        affective_valence=0,
+            #        interlocus=-1,
+            #        causal=False,
+            #        metadata=pydandic_model_to_dict_jsonable(sub)
+            #    )
+            #    self.add_knoxel(f)
+            #    csm.add_or_boost(CSMItem(knoxel_id=f.id, first_tick=self.current_tick_id, last_tick=-1))
+
+            if cnt == 8:
                 break
+            cnt += 1
 
         # simulate attention
-
+        exit(1)
 
         # 1. Initialize State (Handles decay, internal stimulus gen, carries over intentions/expectations)
         self.initialize_tick_state(stimulus)

@@ -4,7 +4,8 @@ from typing import List, Type
 from pydantic import BaseModel
 
 from pm.agents.agent_base import CompletionText, User, CompletionJSON, ExampleEnd, PromptOp, System, Message, BaseAgent, Assistant, ExampleBegin
-from pm.codelets.codelet_definitions import ALL_CODELETS, SimpleCodelet
+from pm.codelets.codelet import BaseCodelet
+from pm.codelets.codelet_definitions import SimpleCodelet
 from pm.utils.pydantic_utils import create_basemodel
 
 
@@ -28,6 +29,7 @@ class AgentSelectCodelets(BaseAgent):
         content = self.input["content"]
         context = self.input.get("context", "")
         full_prompt = self.input.get("full_prompt", None)
+        codelets = self.input["codelets"]
         ops: List[PromptOp] = []
 
         if full_prompt:
@@ -46,13 +48,12 @@ class AgentSelectCodelets(BaseAgent):
             f"{content}"
         ))
 
-        tmp = random.sample(ALL_CODELETS, 20)
         defs = []
-        for c in tmp:
-            codelet: SimpleCodelet = c
+        for c in codelets:
+            codelet: BaseCodelet = c
             d = {
-                "name": codelet.name,
-                "description": codelet.description,
+                "name": codelet.signature.name,
+                "description": codelet.signature.description,
                 "type": float
             }
             defs.append(d)

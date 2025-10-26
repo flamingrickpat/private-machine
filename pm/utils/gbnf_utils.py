@@ -1,6 +1,7 @@
 import datetime
 import inspect
 import sys
+from copy import copy
 from enum import Enum
 from typing import List, get_origin, Union, Any, Optional
 from typing import get_args
@@ -8,7 +9,8 @@ from types import UnionType
 from inspect import isclass
 
 from pydantic import BaseModel, Field
-from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation, generate_field_markdown, format_model_and_field_name, map_pydantic_type_to_gbnf, PydanticDataType
+from pydantic_gbnf_grammar_generator import generate_gbnf_grammar_and_documentation, generate_field_markdown, format_model_and_field_name, map_pydantic_type_to_gbnf, PydanticDataType, generate_markdown_documentation, generate_gbnf_grammar_from_pydantic_models, remove_empty_lines, get_primitive_grammar
+
 
 def first_non_none_type(u: UnionType) -> type:
     try:
@@ -190,10 +192,26 @@ def fix_gbnf_grammar_generator():
     sys.modules["pydantic_gbnf_grammar_generator.main"] = module
 
 def better_generate_gbnf_grammar_and_documentation(pydantic_model_list, default_max_list_length: int | None = 8):
-    gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation(pydantic_model_list)
+    #gbnf_grammar, documentation = generate_gbnf_grammar_and_documentation(pydantic_model_list)
+
+    documentation = ""
+    try:
+        documentation = generate_markdown_documentation(
+            copy(pydantic_model_list),
+            "Output Model",
+            "Output Field",
+            documentation_with_field_description=True,
+        )
+    except:
+        pass
+
+    grammar = generate_gbnf_grammar_from_pydantic_models(
+        pydantic_model_list, None, None, False
+    )
+    grammar = remove_empty_lines(grammar + get_primitive_grammar(grammar))
 
     # remove default dt rules
-    grammar_lines = [x for x in gbnf_grammar.split("\n") if not x.startswith("custom-class-datetime") and not x.startswith("custom-class-date") and not x.startswith("ws ::=")]
+    grammar_lines = [x for x in grammar.split("\n") if not x.startswith("custom-class-datetime") and not x.startswith("custom-class-date") and not x.startswith("ws ::=")]
 
     # get all rules for list types; set max length to max_length or default_max_list_length
     # to prevent endless list generation for when the llm adds garbage items until max tokens

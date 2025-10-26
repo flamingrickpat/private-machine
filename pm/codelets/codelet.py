@@ -2,13 +2,14 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict, Tuple, Set, Any
 
 from nltk.cluster import cosine_distance
 from pydantic import BaseModel, Field
 import random
 
-from pm.codelets.codelet_definitions import CodeletFamily, ALL_CODELETS
+from pm.agents.definitions.agent_simple_codelet import AgentSimpleCodelet
+from pm.codelets.codelet_definitions import CodeletFamily, get_all_simple_codelts
 from pm.data_structures import StimulusType, Feature, MLevel, Stimulus, KnoxelBase, StimulusGroup
 from pm.csm.csm import CSMState
 from pm.llm.llm_proxy import LlmManagerProxy
@@ -52,13 +53,18 @@ class CodeletState(BaseModel):
 
 class CodeletContext(BaseModel):
     """Everything a codelet may use to decide & produce features."""
+    class Config:
+        arbitrary_types_allowed = True
+
     tick_id: int
     stimulus: Stimulus | None
-    csm_snapshot: CSMState | None = None
     mental_state: FullMentalState | None = None
-    prefill_messages: List[Tuple[str, str]]
     context_embedding: List[float] | None = None
     llm: LlmManagerProxy | None = None
+
+    story: str
+    story_new: str
+    csm_snapshot: str
 
 class CodeletOutput(BaseModel):
     """Products (non-causal features) and any logs/metrics."""
@@ -165,12 +171,16 @@ class BaseCodelet:
     def _push_output(self, out: CodeletOutput):
         self.result_list.append(out)
 
-    def run(self, ctx: CodeletContext) -> None:
-        """
-        Implement your logic here. Return non-causal Feature objects.
-        Keep it side-effect free; the engine will add features to the CSM.
-        """
-        raise NotImplementedError
+    def run(self, ctx: CodeletContext) -> Dict[str, Any]:
+        inp = {
+            "context": "",
+            "codelet": self.signature,
+            "story": ctx.story,
+            "story_new": ctx.story_new,
+            "csm_snapshot": ctx.csm_snapshot,
+        }
+        res = AgentSimpleCodelet.execute(inp, ctx.llm, None)
+        return res
 
     def _meta_log(self, level: MLevel, message: str):
         raise NotImplementedError
@@ -190,6 +200,10 @@ class CodeletRegistry:
     def __init__(self):
         self._items: Dict[str, BaseCodelet] = {}
 
+    @property
+    def items(self) -> Dict[str, BaseCodelet]:
+        return self._items
+
     def register(self, codelet: BaseCodelet):
         key = codelet.signature.name
         if key in self._items:
@@ -198,6 +212,9 @@ class CodeletRegistry:
 
     def all(self) -> List[BaseCodelet]:
         return list(self._items.values())
+
+    def decay_step(self):
+        pass
 
     def pick_candidates(self, ctx: CodeletContext) -> List[Tuple[BaseCodelet, float]]:
         scored = []
@@ -210,7 +227,7 @@ class CodeletRegistry:
     @classmethod
     def init_from_simple_codelets(cls, ctx: CodeletContext):
         res = cls()
-        for base_codelet in ALL_CODELETS:
+        for base_codelet in get_all_simple_codelts():
             sig = CodeletSignature(name=base_codelet.name, families=base_codelet.codelet_families, description=base_codelet.description, preferred_sources=StimulusGroup.All, prompt=base_codelet.prompt)
             cdl = BaseCodelet(sig, llm=ctx.llm)
             res.register(cdl)

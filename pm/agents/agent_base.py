@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from queue import Queue
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Type, Protocol
+
+from json_repair import repair_json
 from pydantic import BaseModel, ValidationError
 import random
 import time
@@ -106,6 +108,9 @@ class BaseAgent:
     def build_plan(self) -> List[PromptOp]:
         raise NotImplementedError
 
+    def get_log_name(self) -> str:
+        return self.name
+
     @classmethod
     def execute(cls, input_dict:Dict[str, Any], llm: LlmManagerProxy, manager: AgentManager) -> Dict[str, Any]:
         self = cls(llm, manager)
@@ -144,8 +149,8 @@ class BaseAgent:
         # 2) open one long-lived session (your manager keeps KV hot)
         # session = controller.open_session(preamble, few_shots=few_shots)
 
-        q_from_ai = Queue()
-        q_from_user = Queue()
+        q_from_ai = llm.get_queue()
+        q_from_user = llm.get_queue()
 
         def get_from_queue_until_end():
             buffer = []
@@ -160,7 +165,7 @@ class BaseAgent:
             return "".join(buffer)
 
         def t():
-            content = self.llm.completion_text(LlmPreset.Default, preamble, CommonCompSettings(temperature=0.3, max_tokens=1024, duplex=True, queue_from_user=q_from_user, queue_to_user=q_from_ai, wait_for_start_signal=True, caller_id=self.name))
+            content = self.llm.completion_text(LlmPreset.Default, preamble, CommonCompSettings(temperature=0.3, max_tokens=1024, duplex=True, queue_from_user=q_from_user, queue_to_user=q_from_ai, wait_for_start_signal=True, caller_id=self.get_log_name()))
             self.results["_full_output"] = content
 
         thr = threading.Thread(target=t, daemon=True)
@@ -181,14 +186,15 @@ class BaseAgent:
             elif op.kind == OpKind.COMPLETION_TEXT:
                 q_from_user.put(DuplexStartGenerationText())
                 text = get_from_queue_until_end()
-                self.results[op.target_key or "text"] = text
+                self.results[op.target_key or "text"] = text.strip()
                 if self._is_recording():
                     self._append_example(("assistant", text))
             elif op.kind == OpKind.COMPLETION_JSON and op.schema is not None:
                 q_from_user.put(DuplexStartGenerationTool(op.schema))
                 text = get_from_queue_until_end()
+                good_json_string = repair_json(text)
                 try:
-                    obj = op.schema.model_validate_json(text)
+                    obj = op.schema.model_validate_json(good_json_string)
                 except ValidationError as e:
                     # If your manager returns raw text sometimes, store error and raw
                     obj = None

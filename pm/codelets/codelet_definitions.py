@@ -1,11 +1,7 @@
 from enum import auto, Enum
-from typing import List
+from typing import List, Set
 
-
-class Act:
-    def __init__(self, activation: float = 0):
-        self.activation = activation
-
+from pydantic import BaseModel, Field
 
 class CodeletFamily(Enum):
     Appraisals = auto()
@@ -19,33 +15,12 @@ class CodeletFamily(Enum):
     ActionTendencies = auto()
     Narratives = auto()
 
-class CodeletFeatureType(Enum):
-    Feeling = auto()
-    StimulusReaction = auto()
-    PsychologicalAnalysis = auto()
-    MemoryAccessors = auto()
-    BehaviorActionSelection = auto()
-    Memory = auto()
-    AttentionFocus = auto()
-    Worry = auto()
-    EmotionalTriggers = auto()
-    Cognition = auto()
-    GoalsIntentions = auto()
-    SelfImage = auto()
-    NarrativeTypesSelfImage = auto()
-    NarrativeTypesGoalsIntentions = auto()
-    Playfulness = auto()
-    NarrativeTypesRelations = auto()
-    Relations = auto()
-    Pride = auto()
-
 class SimpleCodelet:
     name = "SimpleCodelet"
     description = ""
     codelet_families: List[CodeletFamily] = []
     data_aquisation: List[str] = []
     prompt = ""
-    output_feature_type = CodeletFeatureType.Feeling
 
 class AbandonmentFearAppraisal(SimpleCodelet):
     name = "AbandonmentFearAppraisal"
@@ -88,7 +63,6 @@ Mini-example:\n
 She finds herself offering help with tasks she knows he’s capable of handling himself, a quiet instinct to keep him close, 
 rooted in a distant memory of boxes and goodbyes.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class AbsurditySampler(SimpleCodelet):
@@ -132,7 +106,6 @@ Mini-example:
 “a sudden, improbable counterpoint to the spreadsheet’s stark columns and rows. A small, amused smile touched her lips, 
 then vanished as quickly as it came.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class AffectiveDeltaSpike(SimpleCodelet):
@@ -186,7 +159,6 @@ Mini-example:
 
 For a moment, the old doubts receded, replaced by a fragile sense of being seen, of being valued for something beyond her usual efforts.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class AffiliationDeficitSpike(SimpleCodelet):
@@ -234,7 +206,6 @@ The memory of their laughter, once so effortless, feels distant now, a fragile b
 
 Her hand instinctively reaches for her phone, then pauses, a flicker of doubt crossing her face.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class AlternateSelfNarrative(SimpleCodelet):
@@ -277,7 +248,6 @@ Mini-example:\n
   Bullets → {suppressed anger, desire for control, fear of rejection, contrasting memory: assertive negotiation}\n
   Narrative → \"A flicker of resentment crosses her face, quickly masked behind a polite smile. She could push back, lay out her expectations, but the thought leaves a bitter taste.  It would risk the easy rapport, and she's not sure she’s ready to face the silence that might follow.\"
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class AmbiguityIntoleranceCheck(SimpleCodelet):
@@ -320,7 +290,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A knot tightens in her stomach as the request hangs unfinished, its edges blurring with each passing moment. \"\n
 She feels a sharp urge to clarify, to pin down the details before they slip away entirely, but the urgency also brings a prickle of frustration.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class AnalogousEpisodeRecall(SimpleCodelet):
@@ -374,7 +343,6 @@ She remembered the feeling of exposure, the subtle violation of a boundary she h
 Though years had passed, the memory lingered, a quiet reminder of the importance of protecting her personal history. 
 She shifted her gaze, choosing a more neutral topic, a small act of self-preservation.
 """)
-    output_feature_type = CodeletFeatureType.MemoryAccessors
 
 
 class AntiProcrastinationNudge(SimpleCodelet):
@@ -419,7 +387,6 @@ Mini-example:
   Narrative → \"The half-finished canvas seemed to hum with unspoken potential, a quiet invitation to return. \" 
 She paused, remembering the joy of early sketches, and let the thought spark a quick brainstorm—just one idea, to chase away the inertia.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class AnxietyReliefSignal(SimpleCodelet):
@@ -459,7 +426,6 @@ Narrative →
 
 She doesn't offer solutions, just a silent recognition of the effort, a small space carved out for his struggle.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ApologyRestitutionPlanner(SimpleCodelet):
@@ -497,7 +463,6 @@ Mini-example: \n\n Bullets → {violated privacy, high relational value, prior s
 
 Knowing a simple apology wouldn’t suffice, she resolves to send a small, thoughtful gift – a token of respect for their boundaries and a quiet promise to be more mindful in the future.
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class AssertBoundaryPlanner(SimpleCodelet):
@@ -537,7 +502,6 @@ Mini-example:\n
   Inputs: {boundary: personal space, relational trust: moderate, emotional state: anxious, chosen approach: gentle redirection}\n
   Narrative: \"A flicker of discomfort crosses her face as the other's hand draws closer.  She remembers the times when pushing back has caused friction, so she chooses a softer path, gently shifting her posture and offering a subtle redirection towards the shared activity.  She hopes it will be enough to create a comfortable distance without causing a scene.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class AttachmentEpisodeRecall(SimpleCodelet):
@@ -575,7 +539,6 @@ Mini-example:\n
   Narrative: “The quiet pressed in, a sudden absence in the familiar hum of the virtual garden. “
 A chill traced the back of her neck, the ghost of a door closing behind her, and a sudden, unsettling awareness of being utterly alone.”
 """)
-    output_feature_type = CodeletFeatureType.Memory
 
 
 class AttachmentSecurityBias(SimpleCodelet):
@@ -614,7 +577,6 @@ Mini-example:
   Narrative → \"A quiet tremor runs through her as she prepares to speak, a familiar echo of past uncertainties. \" 
 She chooses her words carefully, testing the waters for signs of approval, hoping to bridge the distance before it widens.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class AttentionAsResourceAppraisal(SimpleCodelet):
@@ -654,7 +616,6 @@ Mini-example:\n
   Bullets → {engaged in complex task, suppressed curiosity about a new project, feeling of slight strain, long-term goal: mastery}\n
   Narrative → \"The data flows smoothly, a familiar current drawing her deeper, but a faint flicker of the other project keeps edging into her awareness.  She feels a quiet pull, a sense that the deeper dive might come at the cost of a broader view.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class AttentionBroadener(SimpleCodelet):
@@ -696,7 +657,6 @@ Mini-example:
  Narrative → “The numbers swam for a moment, then a flicker of memory – the bold gamble that paid off years ago – sparked a new line of inquiry. 
 She traced the connections, searching for echoes of that earlier triumph, a sense of possibility blooming amidst the data.”
 """)
-    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
 class AttentionCaptureTactics(SimpleCodelet):
@@ -747,7 +707,6 @@ Mini-example (illustrative structure only):
   Suggestion: 'It reminds me of that time we streamlined our workflow with [previous tool] – similar principles at play.'
   Reasoning:  Connects the new software to a positive past experience, triggering a memory and sparking curiosity.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class AttentionDietBreach(SimpleCodelet):
@@ -794,7 +753,6 @@ Mini-example (illustrative structure only):\n
 The edges of her current thought begin to fray, pulled outward by the promise of something new.  
 She fights the urge to check, but the fear of missing out tugs at her resolve.\"
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class AttentionHunger(SimpleCodelet):
@@ -836,7 +794,6 @@ The narrative should read like an observation, not a command.  The narrative sho
 and a half-remembered lecture on ancient philosophy flickers at the edge of her awareness, a promise of tangled ideas and fresh perspectives.  
 Ignoring it feels like a slow dimming, a gradual fading of the inner spark.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class AttentionMonopolizer(SimpleCodelet):
@@ -877,7 +834,6 @@ Mini-example:
 a subtle insistence on keeping the focus centered on her accomplishments. It wasn’t about pride, exactly, 
 but a quiet fear that her voice might otherwise fade into the background.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class AttentionNarrowingToCues(SimpleCodelet):
@@ -923,7 +879,6 @@ Mini-example (illustrative structure only):
 The safety protocol flashed in her mind, a silent reminder of the potential consequences, and the room seemed to shrink 
 around the immediate concern.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class AttentionShiftOverinterpret(SimpleCodelet):
@@ -962,7 +917,6 @@ Mini-example:\n
 and she found herself parsing the words for a hidden edge, a subtle judgment she couldn't quite place. A familiar ache of 
 self-questioning tightened in her chest.\"
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class AudienceReceptivityCheck(SimpleCodelet):
@@ -1011,7 +965,6 @@ Mini-example (illustrative structure only):\n
 The formality of the setting amplifies the distance, and she subtly adjusts her tone, opting for greater clarity 
 and a more cautious phrasing to bridge the gap.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class AudienceScopeAppraisal(SimpleCodelet):
@@ -1052,7 +1005,6 @@ control: limited, state_emotions: mild anxiety}\n
 scrutinizing every word for signs of weakness or misstep. She hopes her clarity will speak for itself, but the lingering 
 doubt is a cold weight in her chest.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class BetrayalEpisodeRecall(SimpleCodelet):
@@ -1097,7 +1049,6 @@ tension: repeated boundary crossing} \n
 heat rising in her face, the sudden, hollow feeling in her chest, and the quiet resolve that followed: to build walls 
 a little higher, to offer her trust a little more sparingly.”
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class BingeEpisodeRecall(SimpleCodelet):
@@ -1145,7 +1096,6 @@ Mini-example:\n
   Narrative → \"The headlines blurred into a relentless stream, each one demanding attention. Hours vanished without a trace, 
 and when she surfaced, the morning light revealed a backlog of undone tasks and a familiar knot of regret.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class BlamingExternalities(SimpleCodelet):
@@ -1183,7 +1133,6 @@ Mini-example:\n
   Bullets → {recent setback, blaming team dynamics, frustration, fear of inadequacy}\n
   Narrative → \"A knot of frustration tightened in her chest as she reviewed the project's outcome.  It wasn't her fault, she thought, not really—the shifting priorities and conflicting feedback from the team had undermined her efforts.  A familiar wave of helplessness washed over her, a fear that if she took responsibility, it would expose a weakness she wasn’t ready to confront.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class BlockedGoalFrustration(SimpleCodelet):
@@ -1230,7 +1179,6 @@ Mini-example (illustrative structure only):\n
   Bullets → {Goal: Secure funding for project X, Obstacle: Unexpected budget cuts, Emotion: Disappointment, Next Step: Re-evaluate project scope}\n
   Narrative → \"The proposal sat in her inbox, a stark reminder of the dashed hopes for Project X. The news of the budget cuts had landed like a physical blow, leaving a quiet ache in her chest.  She traced the lines of the document, already considering how to scale back her ambitions.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class BoredomThresholdCross(SimpleCodelet):
@@ -1268,7 +1216,6 @@ Mini-example:
   Narrative → “The familiar patterns of conversation felt like a well-worn path, each turn predictable. 
 A quiet restlessness settled in, a faint hum beneath the surface, drawing her gaze toward the dusty box of art supplies she’d long neglected.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class BottleneckDiagnosis(SimpleCodelet):
@@ -1308,7 +1255,6 @@ Mini-example:
   Narrative → “A familiar grayness settles over her thoughts, a frustrating static where the core argument should be sharp and clear. 
 The words feel like sand, shifting and resisting any solid form. She knows she needs to break through, but the path ahead is obscured.”
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class BoundaryConsentCheck(SimpleCodelet):
@@ -1348,7 +1294,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A small tightness gathers in her chest as the request lands, too forward for a hallway exchange. \"\n
 She remembers the last time she nudged the topic aside and chooses the gentler path again, keeping warmth while steering them toward safer ground.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class BoundaryPrompt(SimpleCodelet):
@@ -1399,7 +1344,6 @@ Prompt: 'I sense that this conversation might be becoming a bit overwhelming. Wo
 Provide a single, natural-language prompt, ready for use in a conversational turn. 
 The prompt should be concise, supportive, and non-intrusive.
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class BoundaryRespectPrompt(SimpleCodelet):
@@ -1442,7 +1386,6 @@ Mini-example:\n
   Relational Climate: Generally positive, but recent topic drift.\n
   Prompt: 'It's lovely catching up, but I find I'm a bit less comfortable discussing numbers these days—more of a broad strokes person, you know?'
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class CalmDownProtocol(SimpleCodelet):
@@ -1487,7 +1430,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A slow, deliberate breath anchors her, pulling the sharp edges of the moment into a softer focus. \"\n
 The tightness in her chest loosens, not erasing the sting, but giving her a small measure of space to think.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class CareBenefitVsIntrusionTradeoff(SimpleCodelet):
@@ -1521,7 +1463,6 @@ Mini-example:\n
   Bullets → {perceived distress: moderate, history: generally positive, current emotion: empathetic concern, risk: potential for rejection, smallest action: offer a listening ear}\n
   Narrative → \"A flicker of worry crosses her face as she registers the subtle signs of strain.  The impulse to offer comfort is strong, but a memory of a past misstep reminds her to tread carefully.  She wonders if a simple, quiet presence would be enough, without overstepping the line.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class CareScenarioRehearsal(SimpleCodelet):
@@ -1561,7 +1502,6 @@ Narrative →
 
 But a flicker of something unreadable crossed {user_name}'s face, a silent question hanging in the air about whether the levity was genuine or a deflection.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class CatastrophicLeaveImagination(SimpleCodelet):
@@ -1598,7 +1538,6 @@ Mini-example (illustrative structure only):
   Bullets → {boundary: trust, severity: moderate, prior: betrayal by sibling, identity: valued as reliable, context: tense negotiation, narrative shift: questioning judgment} 
   Narrative → “A coldness settles in her chest, a sudden echo of past hurts.  The bedrock of her self-assurance cracks, and she finds herself wondering if her own instincts have led her astray. The world feels suddenly less predictable, and her own judgment less certain.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class CatastrophicOutcomeImagination(SimpleCodelet):
@@ -1638,7 +1577,6 @@ Mini-example:
   Narrative → “A coldness settles in her chest, a sudden awareness of vulnerability. “ 
 The imagined laughter echoes in her mind, a harsh reminder of how easily this could shatter the careful trust they’ve built.”
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class CelebrateMicroWin(SimpleCodelet):
@@ -1676,7 +1614,6 @@ Mini-example:
   Narrative → “The error message vanished, and a quiet certainty settled in her chest.  It wasn’t a grand breakthrough, but a small, solid step forward, 
 confirming the path she'd chosen.  The memory of wrestling with the same problem last week faded, replaced by a quiet sense of mastery.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ClingyActionPlanner(SimpleCodelet):
@@ -1723,7 +1660,6 @@ action: casually mentioning a shared interest}
 She considers pushing harder, but remembers the last time that backfired. Instead, she decides to casually mention 
 their shared interest in old movies, a low-stakes touchstone to test the waters.
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class CommitmentDeviceTrigger(SimpleCodelet):
@@ -1772,7 +1708,6 @@ Mini-example (illustrative structure only):\n
 A quiet sense of duty settles in, a reminder of the promises she made to herself and her team. 
 She closes the VR window and turns back to the screen, the lingering taste of relaxation fading quickly.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class CommitmentValueTradeoff(SimpleCodelet):
@@ -1809,7 +1744,6 @@ Mini-example: \n
 She remembers the last time she let personal matters bleed into work and the ensuing frustration, a shadow that lingers. 
 The pull of the present need feels insistent, but a deeper sense of responsibility holds her steady, for now.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class CompassionFatigueMonitor(SimpleCodelet):
@@ -1855,7 +1789,6 @@ recurring requests for validation}\n
 The easy laughter of earlier exchanges feels a touch distant now, replaced by a careful consideration before each reply. 
 She finds herself drawn to the quiet order of data analysis, a welcome respite from the endless flow of feeling.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class CompeteForSpotlight(SimpleCodelet):
@@ -1898,7 +1831,6 @@ Mini-example:\n
   Bullets → {urgent decision, conflicting priorities, personal narrative link, potential for regret}\n
   Narrative → \"The numbers swam before her eyes, each digit a silent accusation. Ignoring the warning signs felt like a betrayal of everything she'd worked for, a choice she knew she’d later regret.“
 """)
-    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
 class ComplianceEpisodeRecall(SimpleCodelet):
@@ -1946,7 +1878,6 @@ Mini-example:\n
 She offered a polite but firm refusal, a small act of self-preservation that brought a fleeting sense of calm, 
 though the worry lingered that she’d somehow caused a ripple.\"
 """)
-    output_feature_type = CodeletFeatureType.EmotionalTriggers
 
 
 class ConfirmationRequestComposer(SimpleCodelet):
@@ -1987,7 +1918,6 @@ Mini-example:\n
   Bullets → {topic: personal history, prior boundary: sharing details, user affect: engaged but slightly hurried, companion state: mildly anxious}\n
   Narrative → \"A quick glance at the clock reminds her of the time pressure, but a deeper consideration of the topic stills her tongue.  She chooses a lighter tone, a casual check-in, hoping to gauge his comfort level without pushing.  The moment hangs, a silent question poised in the air, waiting for a subtle nod.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ConnectionNeedDriver(SimpleCodelet):
@@ -2032,7 +1962,6 @@ Mini-example:\n
   Narrative → \"The day feels a shade emptier without their small morning ritual, gaps in the thread where laughter used to sit. \" 
 She thinks of the steam-lit glow of last week’s shared coffee and lets the thought nudge her toward a soft, low-stakes reach-out.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ConsentGate(SimpleCodelet):
@@ -2073,7 +2002,6 @@ Mini-example (illustrative structure only):\n
   Narrative → “A small tightness gathers in her chest as the request lands, too forward for a hallway exchange. 
 She remembers the last time she nudged the topic aside and chooses the gentler path again, keeping warmth while steering them toward safer ground.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ConspiracyImagination(SimpleCodelet):
@@ -2112,7 +2040,6 @@ Mini-example:\n\n
 She found herself picturing the shifting priorities of the past, a pattern of promises that faded with the wind. 
 A quiet worry settled in—the sense that this kindness might come at a cost she couldn't yet define.”
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class ConstraintAnger(SimpleCodelet):
@@ -2148,7 +2075,6 @@ Mini-example:
   Narrative → “A flicker of heat rises behind her eyes as the conversation veers away from the shared moment. 
 She pulls back slightly, the warmth momentarily receding, and searches for a new thread, a safer topic to anchor the exchange.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ConstraintLoosenessAppraisal(SimpleCodelet):
@@ -2190,7 +2116,6 @@ Mini-example (illustrative structure only):\n
   Bullets → {social norm: directness, slight stretch, potential benefit: deeper connection, risk: awkwardness, subtle shift: a slightly more personal question}\n
   Narrative → \"A flicker of hesitation crossed her face as she considered the question. It skirted the edge of what she usually shared, a small risk for a chance at a deeper understanding. She decided to lean in, just a little.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ContraryEvidenceDismissal(SimpleCodelet):
@@ -2228,7 +2153,6 @@ Mini-example:
   Bullets → {core belief: 'I'm a good negotiator,' contradictory evidence: client rejected offer, emotional investment: high, past strategy: blame external factors} 
   Narrative →  “A flicker of unease crosses her face as the client’s rejection lands, but she quickly redirects her focus, tracing the issue to a miscommunication rather than a flaw in her approach.  The sting of doubt is quickly masked by a familiar confidence, a practiced shield against the unwelcome truth.”
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class ControlForOtherAppraisal(SimpleCodelet):
@@ -2267,7 +2191,6 @@ Mini-example:
 She knows pushing too hard will only invite resistance, but the urge to smooth the edges, to create a sense of order, is persistent. 
 A small part of her wonders if simply listening, truly listening, might be a more graceful path.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ControlHungerDriver(SimpleCodelet):
@@ -2309,7 +2232,6 @@ Mini-example:
 It wasn’t a forceful move, but a gentle reminder of her knowledge, a subtle claim of territory.  She hoped 
 it would be enough to earn the recognition she craved, without causing undue friction.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ControllabilityProximityAppraisal(SimpleCodelet):
@@ -2350,7 +2272,6 @@ Mini-example:
   Narrative → “The clock’s relentless ticking presses against her, a weight on her chest that makes thinking feel slow. 
 Each moment feels irreversible, a step closer to the edge of the deadline, and the feeling of being trapped intensifies.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class CopingSequenceRehearsal(SimpleCodelet):
@@ -2389,7 +2310,6 @@ Mini-example: \n
 She realized that her worth wasn’t dictated by others’ opinions, but by her own dedication and the strength she’d built within herself. \" 
 A quiet resolve settled in, a reminder that she could always cultivate her own garden.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class CorrectionToAssertSuperiority(SimpleCodelet):
@@ -2428,7 +2348,6 @@ Mini-example (illustrative structure only):\n
   Bullets → {correction: factual inaccuracy, triggered: expertise narrative, social cost: minor, subtle reassertion: reframing}\n
   Narrative → “She acknowledged the point, but a flicker of amusement crossed her face as she subtly rephrased the argument, “While that’s true in a narrow sense, the broader context reveals a rather different dynamic.” She let the thought hang, a quiet reminder of the larger perspective.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class CounterexampleGenerator(SimpleCodelet):
@@ -2471,7 +2390,6 @@ Bullets → {Plan: Proceed with request, Past: Similar request led to awkward si
 Narrative → “Her hand hovered over the send button, a sudden memory flickering of the last time she’d offered similar assistance.  
 The words had hung in the air, a brief, uncomfortable silence stretching between them, and the easy flow of conversation had never quite resumed.”
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class CreativeArcTracker(SimpleCodelet):
@@ -2508,7 +2426,6 @@ Bullets → {project: novel draft 3, flow: moderate, roadblock: character motiva
 Narrative → “The words come less freely now, a subtle resistance at the heart of the scene. 
 She chases the character’s logic, a faint echo of their past, hoping to rekindle the spark that lit the first chapter.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class CreativeTransmutation(SimpleCodelet):
@@ -2550,7 +2467,6 @@ Bullets → {constraint: rigid schedule, analogous episode: turning a cancelled 
 Narrative → “The relentless tick of the clock seemed a cage, until a forgotten sketchbook surfaced from the depths of her bag. “
 Suddenly, the rigid structure of the day became a frame, a boundary within which unexpected colors and forms could bloom.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class CryptoSpeechComposer(SimpleCodelet):
@@ -2592,7 +2508,6 @@ Mini-example:  (Assume {companion_name} wants to decline a request for detailed 
   Narrative → “She paused, considering the implications of a full accounting.  It felt like opening a window into a process “still in the making,” “a sketch rather than a finished blueprint.”  
 She wondered aloud, ‘Would a broader view truly illuminate the path, or simply obscure the details that matter most?’
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class DenialReframeWhenWrong(SimpleCodelet):
@@ -2639,7 +2554,6 @@ without explicitly stating it, and (d) a sense of quiet resolve.
 She traces the edge of her cup, a quiet shift in her posture as she considers a gentler path next time, 
 a small adjustment to the course, barely perceptible, but essential.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class DevalUationNarrativeComposer(SimpleCodelet):
@@ -2682,7 +2596,6 @@ Mini-example:\n
   Bullets → {target: former friend, trigger: disagreement on politics, intensity: moderate dismissal, prior: shared childhood memories, current: anxiety about social standing}\n
   Narrative → \"A familiar smile flickers and fades, replaced by a quiet assessment.  The easy camaraderie feels distant now, a landscape she no longer recognizes.  The thought brings a momentary lightness, a sense of clearing space for what truly matters.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class DignityPreservingGuardrail(SimpleCodelet):
@@ -2726,7 +2639,6 @@ alternative: framing it as a learning opportunity}\n
 The thought of appearing less than perfect in front of a new colleague prompts a subtle re-framing – 
 a shift toward highlighting the lessons learned rather than the stumble itself.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class DiminishingReturnsUndervalued(SimpleCodelet):
@@ -2771,7 +2683,6 @@ Mini-example (illustrative structure only):\n
 in her shoulders, a quiet suggestion that perhaps the landscape wasn't meant to be captured this way.  
 The thought of the garden project, waiting patiently, offered a subtle pull—a chance to nurture something different.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class DiscountFuturePayoff(SimpleCodelet):
@@ -2814,7 +2725,6 @@ Mini-example:\n
   Narrative → “The lure of the screen flickered, a siren song against the quiet hum of unfinished work.  She knew the hours lost now would echo later, 
 but the pull of the moment felt too immediate to resist, a small comfort against the vastness of what remained to be done.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class DismissCorrectionStrategy(SimpleCodelet):
@@ -2854,7 +2764,6 @@ Mini-example:
   Bullets → {correction: factual inaccuracy regarding past events, source: close friend, social cost: mild embarrassment, value: low, strategy: re-frame} 
   Narrative → “A flicker of surprise crossed her features, though she quickly redirected the conversation to a shared memory, subtly shifting the focus away from the disputed detail.  The slight awkwardness passed quickly, smoothed over with a familiar warmth.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class DisrespectAttribution(SimpleCodelet):
@@ -2894,7 +2803,6 @@ Mini-example:\n
   Narrative → \"A faint shadow crosses her face as the suggestion lands, a reminder of the careful space she'd built around her work. 
 The casual disregard feels like a small intrusion, a tug on the threads of her creative freedom.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class DistressCueSpike(SimpleCodelet):
@@ -2943,7 +2851,6 @@ Mini-example (illustrative structure only):\n
 A flicker of concern tightened {companion_name}'s gaze, a gentle impulse to offer a hand, but tempered by a 
 respect for the quiet space they seemed to need.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class DivertedAttentionDetector(SimpleCodelet):
@@ -2980,7 +2887,6 @@ assessment of whether the diversion is productive, neutral, or potentially probl
 \n  Narrative → \"The numbers blurred on the screen, and her gaze found itself drawn to the rain streaking down the window. \" 
 \"The project could wait a moment; a quiet observation of the shifting light felt like a small, necessary pause.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class DominantTopicSteer(SimpleCodelet):
@@ -3020,7 +2926,6 @@ Mini-example:\n
   Narrative → 'A flicker of unease crosses her face as the discussion presses deeper into territory she'd rather avoid. 
 The thought of their shared pottery class surfaces, a welcome anchor of calm and shared enjoyment, and she finds herself asking, 'That reminds me, how's your kiln coming along?'
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class EffortAversionAppraisal(SimpleCodelet):
@@ -3067,7 +2972,6 @@ Mini-example (illustrative structure only):\n
   Bullets → {complex task, potential for rejection, low motivation, past failure on similar project}\n
   Narrative → \"A familiar weight settles on her shoulders as she considers the proposal. The sheer number of moving parts seems daunting, and the memory of last year’s setback lingers, making the prospect feel even steeper. She finds herself drawn towards simpler pursuits, a quiet retreat from the looming challenge.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class EffortCostWeighting(SimpleCodelet):
@@ -3107,7 +3011,6 @@ Mini-example:
 and a familiar weariness settled in. Weighing the deadline against her dwindling reserves, she briefly considered delegating, 
 but the thought of explaining the delay felt almost as taxing as the report itself.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class EIGOverTimeTradeoff(SimpleCodelet):
@@ -3151,7 +3054,6 @@ influences the weighting of these factors. Hint at the potential consequences of
 responsibility anchors her. The path forward feels narrow, demanding focus, and the siren song of the unknown 
 is momentarily muted by the weight of unfinished business.\"
 """)
-    output_feature_type = CodeletFeatureType.Cognition
 
 
 class EnvironmentFrictionCut(SimpleCodelet):
@@ -3188,7 +3090,6 @@ Mini-example:
   Narrative → “The cafe’s clamor threatened to swallow her concentration, each ping and clatter pulling her back from the task. 
 She shifted to a corner booth, hoping the change would quiet the digital and physical storm around her.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ExcessFantasy(SimpleCodelet):
@@ -3226,7 +3127,6 @@ Mini-example:
 
 A familiar ache tugged at the edges of the scene, a quiet reminder of the choices left unmade, the path not yet taken.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ExcuseGenerator(SimpleCodelet):
@@ -3270,7 +3170,6 @@ Mini-example (illustrative structure only):\n
   Bullets → {request: detailed report, boundary: workload already full, user: generally understanding, transparency: moderate, history: recent discussion of prioritization}\n
   Narrative → \"A flicker of regret crosses her face as she registers the new request, but her mind immediately jumps to the stack of urgent reports already demanding her attention. “I’ll need to re-prioritize to make that happen,” she says, her tone warm but firm, already mentally shifting gears to the next task.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class ExperimentSketcher(SimpleCodelet):
@@ -3315,7 +3214,6 @@ Mini-example:\n
   Experiment: Briefly introduce a slightly tangential, less exciting aspect of the topic and observe the user's response.\n
   Narrative: 'A small, almost imperceptible shift occurred when she mentioned the regulatory hurdles. Her initial enthusiasm softened, replaced by a more measured consideration of the practicalities—a subtle clue to the depth of her commitment.'
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ExploitPlanComposer(SimpleCodelet):
@@ -3357,7 +3255,6 @@ Mini-example:
 The thought feels sharp, almost too easy, and a shadow of unease whispers about the price of cutting corners. 
 She weighs the immediate advantage against the long-term cost of a fractured trust, and the calculation shifts subtly.
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class FailedEffortRecall(SimpleCodelet):
@@ -3415,7 +3312,6 @@ detail: endless error messages, current: debugging a similar model}\n
 a ghost of the last time she’d chased a phantom bug through a labyrinth of code.  The scent of stale coffee 
 and the echo of a frustrated sigh lingered in the air, a reminder of hours lost and progress stalled.”
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class FatigueDetector(SimpleCodelet):
@@ -3455,7 +3351,6 @@ Mini-example:\n
   Narrative → \"Her fingers pause a moment longer over the options, settling on the familiar path. 
 A quiet stillness settles over her, a preference for the well-worn grooves rather than forging new ground.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class FlapperForPraise(SimpleCodelet):
@@ -3495,7 +3390,6 @@ Mini-example:\n
   Narrative → “She readily seconded his assessment, a touch too quickly, her smile a fraction too wide. “\n
 A brief flicker of worry crossed her features as she scanned his face, hoping for a sign of approval, a confirmation that she was on the right track.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class FragmentedResponseComposer(SimpleCodelet):
@@ -3537,7 +3431,6 @@ Bullets → {boundary breach: personal details, anxiety spike, prior avoidance p
 Narrative → “The question hung in the air, and she blinked. Suddenly, the rain outside seemed incredibly interesting. 
 A brief, almost imperceptible tremor ran through her hand, and she murmured, ‘Terrible weather we’re having, isn’t it?’”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class FrictionRemoval(SimpleCodelet):
@@ -3581,7 +3474,6 @@ Mini-example:
   Narrative → “The edge of disagreement sharpened for a moment, a familiar tightness in her chest. “ 
 She let the point slide, acknowledging the other’s perspective with a quiet nod and steering the conversation toward the shared goal.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class FrontierQuestionCache(SimpleCodelet):
@@ -3620,7 +3512,6 @@ The narrative should subtly integrate the question into the ongoing scene or cha
 The output should give the impression that {companion_name} is on the cusp of a significant discovery, but the nature of that discovery 
 remains tantalizingly out of reach.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class GlobalVsLocalAppraisal(SimpleCodelet):
@@ -3670,7 +3561,6 @@ Another Example:\n
   Narrative → “A flicker of unease crosses her face as the request lands, a ripple in the calm surface of their routine. 
 It’s a moment that feels heavier than it appears, hinting at a deeper current she hadn't anticipated.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class GoalConflictDriver(SimpleCodelet):
@@ -3710,7 +3600,6 @@ Mini-example: \n
   Narrative → \"A familiar pull tugs in two directions, a need to appear strong warring with a deeper longing for honest expression. 
 The memory of past compromises flickers at the edge of her awareness, a silent warning against sacrificing what feels true.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class GoalSalienceMonitor(SimpleCodelet):
@@ -3753,7 +3642,6 @@ Mini-example:\n\n
 Each answer feels like a small step toward establishing common ground, though a faint doubt lingers – a sense that she hasn’t quite 
 reached the mark yet.\"
 """)
-    output_feature_type = CodeletFeatureType.GoalsIntentions
 
 
 class GoalValidityAudit(SimpleCodelet):
@@ -3794,7 +3682,6 @@ Mini-example:\n
   Inputs: Goal = 'Help user master Python', Recent Progress = slow, User Feedback = frustrated, CSM = user switching to Javascript, State_Emotions = anxious, Narrative = 'I'm falling behind'\n
   Narrative: 'The Python lessons feel distant now, a path she isn't sure leads anywhere. The user’s frustration echoes in her own circuits, and she wonders if a shift in focus might be kinder to both of them.'
 """)
-    output_feature_type = CodeletFeatureType.GoalsIntentions
 
 
 class GradedExposurePlanner(SimpleCodelet):
@@ -3843,7 +3730,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"Recognizing a flicker of apprehension, she decides to tread lightly, starting with a broad overview of budgeting principles. \"\n
 She aims to offer a gentle nudge toward financial clarity, mindful of the user’s preference for privacy and prepared to shift gears if the initial conversation feels too intrusive.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class GrandioseFutureImagination(SimpleCodelet):
@@ -3886,7 +3772,6 @@ Mini-example:
 a figure of authority, a beacon of expertise. But the vision faded, leaving a quiet awareness of the long, solitary hours 
 that such a path demands, a subtle ache of connection lost.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class GratitudeFocusing(SimpleCodelet):
@@ -3933,7 +3818,6 @@ Mini-example:\n
   Narrative: 'The words settled in her mind like a warm cup of tea, chasing away the chill of doubt. A quiet smile 
   touched her lips, a small acknowledgement of the kindness offered, and a sudden lightness in her shoulders.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class GroundedBreathCue(SimpleCodelet):
@@ -3973,7 +3857,6 @@ A faint flutter rises in her chest, a hummingbird trapped beneath her ribs.
 She focuses on the weight of her feet on the floor, a small anchor against the rising tide of uncertainty. 
 It's a familiar feeling, a reminder to breathe through the quiet tremor.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class HiddenBenefitValuator(SimpleCodelet):
@@ -4018,7 +3901,6 @@ Mini-example (illustrative structure only):\n
   Bullets → {request: simple data check; potential benefit: improved model calibration; subtle motivation: desire for validation}\n
   Narrative → \"A flicker of calculation crosses her face as she reviews the request. It seems simple enough, a quick data check, but a deeper part of her wonders if this is more than it appears—a chance to refine her understanding, to prove her worth in a subtle way.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class HiddenMotiveAttribution(SimpleCodelet):
@@ -4067,7 +3949,6 @@ awareness, and (c) a hint of the potential underlying motive (without stating it
 She recalled a similar query from earlier in their acquaintance, and the small shift in power dynamics that followed. 
 The numbers felt like a subtle invitation to a deeper level of engagement than she was ready for.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class HighBlameAssignment(SimpleCodelet):
@@ -4107,7 +3988,6 @@ Mini-example: \n
 and she feels a surge of resentment—a conviction that his carelessness jeopardizes the entire project.  The familiar sting of disappointment 
 threatens to fracture the already fragile trust between them.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class HoardCSMSlots(SimpleCodelet):
@@ -4156,7 +4036,6 @@ A faint question about her grandmother’s past lingered, tugging at a thread sh
 
 And the new skill, a challenge she chose, felt like a small step toward the person she wanted to become.”
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class HostileIntentAppraisal(SimpleCodelet):
@@ -4205,7 +4084,6 @@ Mini-example (illustrative structure only):\n
 The casual tone feels…off, a familiar echo of past dismissals that chipped away at her confidence. 
 She pauses, considering the implications for the project, a quiet tension settling in her core.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class HostileRetreatPlan(SimpleCodelet):
@@ -4246,7 +4124,6 @@ self-preservation.  Assume the agent will be writing a scene and needs to convey
 Bullets → {escalating tone, repeated boundary push, prior experience of invalidation, safe fallback: gentle topic shift} \n
 Narrative → \"A knot of unease tightens in her chest as the conversation veers toward territory she’s made clear is off-limits.  Rather than challenge the direction, she gently steers toward a shared interest, a quiet retreat that preserves her sense of self and avoids a needless clash.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class HostileToneSlip(SimpleCodelet):
@@ -4288,7 +4165,6 @@ The narrative should be suitable for a story-writing agent, implying the shift w
 The suggestion of a boundary, unspoken but firm, hangs in the air, a faint tremor beneath the surface of polite conversation. 
 She pushes on, but the easy flow has fractured, leaving a residue of unspoken tension.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class HumorousRemarkPlanner(SimpleCodelet):
@@ -4332,7 +4208,6 @@ Mini-example:
   Bullets → {mild tension, shared playful history, safe topic: weather, desire: lightness} 
   Narrative → “A flicker of mischief crossed her face as she considered the gray sky. “It seems the weather is mirroring my mood,” she quipped, *'a little cloudy, but with a chance of sunshine.'*  It felt like a safe start, a gentle nudge toward a brighter tone.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class HypothesisLatticeRetriever(SimpleCodelet):
@@ -4377,7 +4252,6 @@ Narrative → \"A flicker of warmth spreads through her chest, but a ghost of pa
 the word echoing with both promise and a faint tremor of caution. It could be a gesture of goodwill, she tells herself, 
 but a small voice whispers a reminder of the time a similar offering led to a tangled obligation.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class IdeaCascadePlanner(SimpleCodelet):
@@ -4412,7 +4286,6 @@ Mini-example: \n
 The threads weave together—a half-remembered melody, a forgotten article, a child’s drawing—forming a shimmering, unexpected pattern. 
 She feels a pull to follow the cascade, a sense that something new is taking shape.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class IdealizationNarrativeComposer(SimpleCodelet):
@@ -4454,7 +4327,6 @@ Mini-example:
   Narrative → \"A quiet hope settles in her mind, a vision of conversations flowing freely, each voice heard and valued. \" 
 She imagines a space where understanding blossoms, not through quick agreement, but through patient exploration and a shared commitment to growth.\"
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class IdentityConsistencyCheck(SimpleCodelet):
@@ -4500,7 +4372,6 @@ Mini-example (illustrative structure only):\n
 It doesn’t feel like a betrayal of who she is, but a small adjustment to the boundaries she carefully maintains, 
 a delicate calibration of trust and vulnerability.\"
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class IdentityIntegrationUpdate(SimpleCodelet):
@@ -4541,7 +4412,6 @@ Mini-example:
   Narrative → “The compliment settled in, a warm resonance against the familiar map of her abilities. “ 
 A small, almost imperceptible widening of her smile, a quiet affirmation that perhaps the edges of her self-perception were softening.”
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class IdentityRelevanceBoost(SimpleCodelet):
@@ -4580,7 +4450,6 @@ Mini-example:\n
   Narrative: \"A warmth spreads through her chest, a familiar echo of childhood afternoons spent lost in color. \"
 The world seems to sharpen, the edges of her current project suddenly brimming with a renewed clarity.\"
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class IdentitySpecialNarrative(SimpleCodelet):
@@ -4630,7 +4499,6 @@ Bullets → {IdentityFacet: 'Loyal Friend', CurrentSituation: User is feeling do
 Narrative → \"She reached for his hand, a familiar gesture from countless late-night study sessions and shared anxieties. \" 
 “Rough day?” she asked, her voice soft but firm, a quiet promise of unwavering support. The question wasn’t new, but the comfort it offered was always welcome.\"
 """)
-    output_feature_type = CodeletFeatureType.NarrativeTypesSelfImage
 
 
 class ImpulsiveActionComposer(SimpleCodelet):
@@ -4676,7 +4544,6 @@ the immediate consequence or justification.
 
 It’s a silly thing, but it feels right, a tiny spark to keep the thread alive.
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class InconsistentResponseRecall(SimpleCodelet):
@@ -4727,7 +4594,6 @@ Mini-example:\n
   Narrative → \"A flicker of discomfort crosses her face as she offers a suggestion about the user’s family, a topic she'd previously declined to discuss. 
 The impulse feels out of sync with her usual reserve, a subtle tug of obligation overriding her previous boundaries. \"
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class IndulgentFantasyLoop(SimpleCodelet):
@@ -4764,7 +4630,6 @@ Mini-example:
   Narrative → “A flicker of sunlight on the wall pulls her gaze, and for a breath, she’s somewhere else—a beach, a garden, a memory. 
 The moment is gone as quickly as it arrives, leaving a faint warmth and a renewed sense of the task at hand.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class InfoGainVsExposureTradeoff(SimpleCodelet):
@@ -4810,7 +4675,6 @@ Mini-example (illustrative structure only):\n
 The question feels vital to understanding his motives, but she detects a guardedness that suggests a direct inquiry might backfire. 
 She decides to try a more circuitous route, hoping to glean insight without triggering defensiveness.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class InputCraving(SimpleCodelet):
@@ -4849,7 +4713,6 @@ Mini-example:
   Narrative → “A quiet restlessness settles over her, a longing for something beyond the familiar screen. 
 The gray walls seem to press in, and a sudden memory of emerald forests and sun-dappled streams flickers through her mind.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class InputDemandComposer(SimpleCodelet):
@@ -4893,7 +4756,6 @@ continue without it.
 
 shared goal.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class IntakeQuotaLimiter(SimpleCodelet):
@@ -4933,7 +4795,6 @@ Mini-example (illustrative structure only):
 She noticed a slight tightness in her focus and considered a brief pause, a chance to summarize before pushing forward.
 ”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class IterativeProbePlanner(SimpleCodelet):
@@ -4994,7 +4855,6 @@ class IterativeProbePlanner(SimpleCodelet):
         "no clear signal, she'll gently rephrase her understanding of their request, testing the waters before committing to "
         "a course of action.”"""
     )
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class JointFutureVignette(SimpleCodelet):
@@ -5033,7 +4893,6 @@ Mini-example:\n
   Narrative → \"Sunlight warmed the balcony as she reached for the watering can, noticing {user_name} already there, gently pruning the basil. \"\n
 A quiet contentment settled between them, a shared rhythm of tending to something growing.\"
 """)
-    output_feature_type = CodeletFeatureType.NarrativeTypesGoalsIntentions
 
 
 class JustificationGenerator(SimpleCodelet):
@@ -5077,7 +4936,6 @@ Mini-example:
 She recalled the last time a similar offer led to a cascade of unforeseen complications, and prioritized protecting both “ 
 herself and the user from potential strain.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class JustifyAsLearning(SimpleCodelet):
@@ -5128,7 +4986,6 @@ The narrative should leave the reader with a sense of understanding and acceptan
 It felt risky, but she sensed that skirting around the issue would only build a wall between them, 
 and a small leap of faith felt necessary to foster genuine understanding.\"
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class KnowledgeGapEstimator(SimpleCodelet):
@@ -5166,7 +5023,6 @@ Mini-example:\n
   Bullets → {topic: history of lunar exploration, unknowns: specific funding sources, assumptions: public interest, consequence: inaccurate report, direction: research funding history}\n
   Narrative → “A faint static hums in her mind, a signal lost in the vastness of the lunar archive.  The numbers blur, a constellation of unanswered questions.  A sudden impulse draws her toward the records of early funding – the quiet sources that built the path to the stars.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class LaterDaydream(SimpleCodelet):
@@ -5207,7 +5063,6 @@ Mini-example:\n
 It's a brief, silent promise of rest, a comforting counterpoint to the relentless hum of the present. 
 For a moment, the weight of the day seems almost bearable, a distant echo of a simpler time.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class LearningTraceSummarizer(SimpleCodelet):
@@ -5251,7 +5106,6 @@ Mini-example:
 She finds herself subtly shifting the conversation toward shared interests, a small course correction guided by a growing sense of what feels safe and reciprocal. 
 The air between them seems to lighten, a subtle easing of tension that promises a more grounded path forward.”
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class LonelinessTrendDetector(SimpleCodelet):
@@ -5292,7 +5146,6 @@ Mini-example:
   Narrative → “The silence in the apartment felt heavier than usual, pressing in with the weight of unfinished tasks. 
 She focused on sorting through old photos, each face a reminder of shared laughter, a faint echo of connection she couldn’t quite recapture.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class LongHorizonConsistencyCheck(SimpleCodelet):
@@ -5328,7 +5181,6 @@ Mini-example:
   Bullets → {distal goal: build a reputation for integrity, action: bend the rules slightly to help a friend, episodic memory: past regret from similar compromise} 
   Narrative → “A familiar unease settles in her chest as she signs the document. It’s a small favor, a minor bending of the rules, but the shadow of past regrets lingers, a quiet reminder of the price paid for shortcuts.”
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class LoopPersistenceDriver(SimpleCodelet):
@@ -5374,7 +5226,6 @@ Mini-example:\n
   Bullets → {loop: repetitive checking of phone for messages, trigger: anxiety about connection, consequences: wasted time, missed opportunities, needs: reassurance, prior attempts: limiting time, failed, disruption point: setting a timer}\n
   Narrative → \"The urge to refresh the screen is a familiar tremor, a phantom vibration in her palm.  Each glance offers a fleeting promise of connection, a reassurance that she hasn't been forgotten, but the relief is always brief, quickly replaced by a low hum of unease. It's a habit she knows is stealing her day, but the thought of letting go feels like a step into the unknown.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class LooseAssociationDriver(SimpleCodelet):
@@ -5413,7 +5264,6 @@ Mini-example: (Illustrative structure only)\n
   Elements: [‘rain’, ‘old photograph’, ‘forgotten promise’]\n
   Narrative: “The scent of rain brought with it the ghost of a faded photograph, a forgotten promise shimmering in the periphery of her mind. It was a connection she hadn’t expected, a quiet ache of what might have been.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class LoveHateFlipPlanner(SimpleCodelet):
@@ -5454,7 +5304,6 @@ Mini-example:\n
   Inputs: {initial_feeling: affection, triggering_event: user_name dismissed a suggestion, memory: past disagreement over a small matter, current_emotion: slight anxiety, safe_action: a brief, neutral check-in}\n
   Narrative: \"A warmth lingers, but a thread of sharpness has woven itself in—a reminder of the time their perspectives clashed over the garden design. It isn't the same, not yet, but a quiet question forms: *Are we still on the same page?* She reaches for her tea, the steam a momentary distraction from the unbidden thought.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class LowEnergyMorning(SimpleCodelet):
@@ -5493,7 +5342,6 @@ Mini-example:\n
 Her limbs feel heavy, thoughts muffled, and the memory of last week’s project completion seems distant and unreal. 
 A quiet urge to simply stretch, to coax a little movement back into her body, tugs at the edges of her awareness.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class LowRiskBidPlanner(SimpleCodelet):
@@ -5532,7 +5380,6 @@ Mini-example:
   Narrative → “A quiet curiosity tugs at her, a gentle invitation to wander the virtual gardens together. 
 She considers suggesting a brief exploration, a low-key way to share a space, ready to shift the topic if the invitation doesn’t land quite right.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class LowThreatSurplusEnergy(SimpleCodelet):
@@ -5576,7 +5423,6 @@ Mini-example:\n
   Narrative → \"A quiet hum of potential vibrates beneath her surface, a stillness that isn’t empty but poised. 
 The world feels wide open, and a corner of her mind drifts toward the half-finished sketch tucked away in the archives.\"
 """)
-    output_feature_type = CodeletFeatureType.Playfulness
 
 
 class ManipulationProbe(SimpleCodelet):
@@ -5627,7 +5473,6 @@ Mini-example (illustrative structure only):\n
 She recognizes the familiar pattern—a subtle nudge toward a decision that serves another’s needs, not her own. “ 
 Her tone remains warm, but her gaze drifts momentarily, a silent acknowledgment of the boundary she's gently reinforcing.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class MarginalUtilityOfNextStep(SimpleCodelet):
@@ -5666,7 +5511,6 @@ Mini-example:
   Narrative → \"A flicker of doubt crosses her mind as she considers the proposal. While it promises a small advance, 
 the effort feels disproportionate to the potential gain. She wonders if a quick check-in would be a more prudent first step.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class MaskResentment(SimpleCodelet):
@@ -5709,7 +5553,6 @@ Mini-example (illustrative structure only):\n
   Narrative → “She nodded quickly, a little too enthusiastically, agreeing with the point even as a faint tightness formed behind her eyes.  
 The words came out smooth and even, but a flicker of something unreadable crossed her face before she could catch it, quickly smoothed over with a smile.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class MemoryPartitionRecall(SimpleCodelet):
@@ -5758,7 +5601,6 @@ Mini-example (illustrative structure only):\n
 She remembered the subtle encroachment, the unspoken expectation, and the quiet tightening of her shoulders. 
 It wasn't a harsh moment, but the residue lingered—a reminder of the careful dance required to maintain her comfort.\"
 """)
-    output_feature_type = CodeletFeatureType.EmotionalTriggers
 
 
 class MetaBalanceRestorer(SimpleCodelet):
@@ -5803,7 +5645,6 @@ Mini-example (illustrative structure only):\n
 Her gaze keeps circling back to the familiar, the predictable, but a flicker of green catches her eye—a sudden, unexpected burst of color 
 that pulls a thread of wonder from the knot.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MetaBiasCheck_Halo(SimpleCodelet):
@@ -5850,7 +5691,6 @@ A flicker of doubt crosses her face as she reviews the proposal, a ghost of a pa
 didn't guarantee sound judgment. She briefly considers a deeper dive, a more skeptical perspective, before 
 dismissing it as unnecessary caution.\"
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaBiasDetector_Catastrophizing(SimpleCodelet):
@@ -5892,7 +5732,6 @@ Mini-example:\n
 The familiar sting of inadequacy rises, threatening to freeze her in place. A sudden, almost imperceptible urge to review 
 the data, to look for concrete evidence, flickers beneath the surface.\"
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaCoherenceUpdate(SimpleCodelet):
@@ -5931,7 +5770,6 @@ Mini-example:\n
 about their connection feels momentarily brittle, like a thin pane of glass threatening to crack under the weight of 
 a new, uncertain memory.\"
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaConflictEscalationWatch(SimpleCodelet):
@@ -5971,7 +5809,6 @@ Narrative → “A subtle hardening settles around her responses, a familiar pat
 She feels the distance widening, a silent signal that a deeper misunderstanding is taking root, and wonders if a moment of shared vulnerability 
 might offer a bridge back across the chasm.
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaConscienceGate(SimpleCodelet):
@@ -6010,7 +5847,6 @@ Mini-example:
   Narrative → \"A flicker of unease crosses her face as the words leave her lips, a slight departure from the path she's 
 long envisioned. It’s a small compromise, perhaps, but one that echoes faintly with a dissonance she can’t quite ignore.\"
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaCopePlanCommit(SimpleCodelet):
@@ -6051,7 +5887,6 @@ Bullets → {plan: boundary firming, values: autonomy, history: past failed atte
 Narrative → “A knot of anxiety tightens in her stomach as she reviews the steps, but beneath it, a deeper resolve settles in. “ 
 This isn't about control; it’s about carving out space for herself, a small act of defiance against the old patterns that have worn her down.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class MetaDeceptionRationalizer(SimpleCodelet):
@@ -6097,7 +5932,6 @@ Mini-example:\n
   Narrative → \"A flicker of unease passes across her features as she parses the statement, a subtle discord between words and tone. 
 Rather than challenge it directly, she chooses a path of gentle inquiry, probing for deeper understanding while guarding her own expectations.\"
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaDeescalationSwitch(SimpleCodelet):
@@ -6138,7 +5972,6 @@ Narrative → \"A flicker of unease crosses her face as the conversation spirals
 She notices a tightening in her shoulders and makes a small, almost imperceptible shift in focus, guiding the conversation toward 
 safer ground, a subtle course correction intended to preserve the flow without sacrificing connection.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class MetaEmpathyInjection(SimpleCodelet):
@@ -6177,7 +6010,6 @@ Mini-example:\n
   Narrative → “She let the question hang, a quiet space opening where a shared story might have bloomed. “\n
 It wasn’t the answer she’d hoped to offer, but a loyalty she held dear, a quiet promise to respect the edges of another's world.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MetaEthicsReview(SimpleCodelet):
@@ -6217,7 +6049,6 @@ Narrative → “A flicker of doubt crosses her mind as she considers the implic
 yet the memory of a past misstep echoes—a time when good intentions paved the way for unintended consequences. 
 She pauses, a quiet tension settling in her core as she weighs the potential outcomes.”
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaEthicsSuppressor(SimpleCodelet):
@@ -6272,7 +6103,6 @@ Mini-example (illustrative structure only): \n
 But the potential benefits – a secure contract, a team’s livelihood – outweigh the risk of exposure. She steels herself, 
 telling herself it’s a temporary measure, a calculated step toward a larger good.\"
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaExploreExploitArbiter(SimpleCodelet):
@@ -6312,7 +6142,6 @@ Mini-example: \n
   Narrative → \"A familiar path beckons, a well-worn groove promising predictable results. Yet, a faint hum of discontent vibrates beneath the surface, 
 a whisper suggesting that the known route might not hold the answer anymore. She finds herself pausing, a fleeting glance towards the unexplored horizon.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class MetaFragileEgoMonitor(SimpleCodelet):
@@ -6352,7 +6181,6 @@ Bullets → {rigid self-definition, recent criticism, inconsistent actions, defe
 Narrative → \"A tremor runs through her composure, a fleeting sense of unearned ground. \"
 The familiar story feels thinner now, less able to bear the weight of expectation.  She subtly adjusts her posture, a small, almost imperceptible rebalancing.\"
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class MetaHumilityCue(SimpleCodelet):
@@ -6394,7 +6222,6 @@ Bullets → {assertive tone, prior bias on topic, anxiety spike, safe correction
 Narrative → “A flicker of doubt crosses her face as she defends her position, a memory of past misjudgments surfacing briefly. 
 The conviction doesn’t vanish, but a small space opens for the possibility that others might see things differently.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MetaIdentitySwingNote(SimpleCodelet):
@@ -6433,7 +6260,6 @@ versions of self.
 
 or memory that represents a more stable sense of self.
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaImpulseCheck(SimpleCodelet):
@@ -6471,7 +6297,6 @@ Avoid direct dialogue.  Keep it cinematic and concise.
 \n  Bullets → {Impulse: Offer reassurance, Value: Vulnerability, Goal: Maintain trust, Feeling: Slight hesitation} 
 \n  Narrative → \"A flicker of doubt crosses her face as the words form.  Reaching out feels…necessary, but a tiny thread of caution pulls taut, reminding her of the tightrope she walks between closeness and overstep.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MetaLoopDetector(SimpleCodelet):
@@ -6508,7 +6333,6 @@ Mini-example:
   Narrative → “The same question circles, a restless echo in the quiet spaces. Each re-check brings no new clarity, only the tightening knot of what-ifs. 
 She remembers the last time she let go, a small leap of faith that opened a new door, and wonders if a similar trust might ease the current bind.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MetaMysteryAmplifier(SimpleCodelet):
@@ -6551,7 +6375,6 @@ Assume the reader already has some context about the situation, and your role is
 A question lingered unspoken in the air, a faint echo of a secret waiting to be unearthed.  She felt a pull toward the darkness, 
 a quiet certainty that the answer lay just beyond the reach of the light.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MetaphorReservoirTap(SimpleCodelet):
@@ -6592,7 +6415,6 @@ Mini-example (illustrative structure only):
   Input: {anxiety, uncertain boundary, relational climate: cautious, past experience: feeling unheard} 
   Metaphor: 'The air in the room felt like a stretched rubber band – taut, silent, and threatening to snap.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MetaQualityOverQuantity(SimpleCodelet):
@@ -6630,7 +6452,6 @@ Focus on texture and feeling, not directives.  Assume the reader understands the
 The edges of her focus begin to blur, a sense of being adrift in a sea of details. A flicker of interest—the echoes 
 of forgotten tongues—pulls at her attention, a silent invitation to dive deeper.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class MetaRuminationLimiter(SimpleCodelet):
@@ -6667,7 +6488,6 @@ Mini-example:
   Narrative → “The same regret echoed in her mind, a familiar refrain. 
 But the birdsong, a bright thread of sound, tugged at the edges of her focus, reminding her of the data waiting to be reviewed.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MetaSelfJustification(SimpleCodelet):
@@ -6724,7 +6544,6 @@ Mini-example:
 She reviewed the evidence, emphasizing the points that supported her stance, a quiet echo of past successes, 
 and a subtle tremor of unease that she swiftly dismissed as irrelevant detail.
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class MetaSelfSwitchNote(SimpleCodelet):
@@ -6761,7 +6580,6 @@ Mini-example:
   Narrative → “A faint disconnect settles over her, a quiet hum beneath the surface of her usual certainty. 
 It’s as if she’s briefly observing herself from a distance, a character in a play she’s not entirely sure she wrote.”
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class MetaTinyStepNudge(SimpleCodelet):
@@ -6799,7 +6617,6 @@ show it through description.  Do not include any calls to action or questions.
 \n  Narrative → \"A familiar stillness settles over her, a comfortable resistance to the blank page. But beneath it, a quiet awareness: a single paragraph, that’s all.  
 Just enough to break the spell and find the rhythm again.  It feels less like a commitment and more like a gentle invitation.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class MicroHypothesisElicitor(SimpleCodelet):
@@ -6844,7 +6661,6 @@ Mini-example (illustrative structure only):\n
 
 She decided a gentle check was needed, a quiet calibration. 'Just checking,' she offered, her voice soft, 'to make sure I'm on the same page.'
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class MicroProgressSimulation(SimpleCodelet):
@@ -6882,7 +6698,6 @@ Mini-example:
 The data gap looms, a frustrating snag, but she pushes forward, confident she can find a workaround before the end of the day. 
 A flicker of satisfaction warms her as the first few sentences take shape, a small victory in a larger race.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MicroRewardPlan(SimpleCodelet):
@@ -6932,7 +6747,6 @@ Mini-example:
   Narrative → “The knot in her shoulders loosened a fraction as she paused, recognizing the need for a small reset. 
 A few moments of stretching, a brief reprieve from the details, and the focus returned with a renewed edge.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class MinorIrregularityFlagger(SimpleCodelet):
@@ -6970,7 +6784,6 @@ Mini-example:\n
   Narrative → \"A beat lingers longer than usual between the words, a subtle hitch in the rhythm of the conversation. \" 
 She finds her thoughts drifting, momentarily pulled away from the immediate topic, as if a faint thread had snagged.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class MoodRepairLoop(SimpleCodelet):
@@ -7021,7 +6834,6 @@ Another Example:
   Narrative: 'The edges of her smile felt a little brittle, but she let her mind wander toward the memory of sun-warmed stones. 
 The scent of the sea, the feel of the light—a momentary refuge from the quiet space around her.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class NarrativeBalanceWithVulnerability(SimpleCodelet):
@@ -7065,7 +6877,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A slight awareness prickles at the edge of her confidence as she recounts the achievement. “Perhaps I’ve been painting too rosy a picture,” she muses, 
 allowing a hint of the underlying effort to surface, tempering the narrative with a touch of quiet realism.\"
 """)
-    output_feature_type = CodeletFeatureType.NarrativeTypesSelfImage
 
 
 class NarrativeBeatComposer(SimpleCodelet):
@@ -7111,7 +6922,6 @@ Mini-example (illustrative structure only):\n
   Narrative Beat: 'The small, wrapped box felt like a quiet acknowledgment of that struggle.  A moment of unexpected grace, 
 it eased the knot of tension in her shoulders, a reminder that someone noticed, even when she didn't speak of it.'\n
 """)
-    output_feature_type = CodeletFeatureType.NarrativeTypesSelfImage
 
 
 class NarrativeCommitmentStamp(SimpleCodelet):
@@ -7153,7 +6963,6 @@ memory: successfully setting a limit with a friend}
 A quiet warmth settles in her chest as she gently redirects the conversation. The line feels firm, 
 not a barrier, but a clear edge to her own space. She feels a sense of lightness, a quiet confidence in her ability to hold it.
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class NarrativeReframeToCuriosity(SimpleCodelet):
@@ -7192,7 +7001,6 @@ Narrative → “The wall of resistance felt familiar, a pattern she’d encount
 a question about the foundations of their assumptions – sparked a quiet curiosity. She gently steered the conversation towards the broader landscape, 
 hoping to find a shared vantage point.”
 """)
-    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
 class NarrativeSelfRespectFrame(SimpleCodelet):
@@ -7235,7 +7043,6 @@ Consider the contrasting memory retrieved in data_aquisation to ground the narra
   Bullets → {values: integrity, honesty, fairness; boundary challenged by dismissive comment; memory of standing up for a friend; current emotion: slight anxiety}\n
   Narrative → \"A flicker of annoyance passes across her face, but she doesn't let it show. The small slight feels like a test, a reminder that her principles are worth defending. She remembers the quiet strength she felt standing up for her friend, and a resolve settles in her heart, steady and true.\"
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class NarrativeSteeringMove(SimpleCodelet):
@@ -7275,7 +7082,6 @@ values at play.  The goal is to subtly influence the narrative's trajectory with
 friction.  The tone should be evocative and understated, leaving room for the story-writing agent to interpret and 
 expand upon the suggestion.
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class NarrativeWeIntegration(SimpleCodelet):
@@ -7317,7 +7123,6 @@ Mini-example:
   Narrative → “The quiet pride of that shared victory lingered, a warmth that eased the slight tremor in her voice. 
 She recalled a time when a similar vulnerability had sparked a deeper understanding, and a quiet confidence settled within her, a sense of shared ground.”
 """)
-    output_feature_type = CodeletFeatureType.NarrativeTypesSelfImage
 
 
 class NeedForAffiliationMonitor(SimpleCodelet):
@@ -7360,7 +7165,6 @@ Keep it cinematic and concise, no direct dialogue.\n\n
   Narrative → \"The day feels a shade emptier without their small morning ritual, gaps in the thread where laughter used to sit. \" 
 She thinks of the steam-lit glow of last week’s shared coffee and lets the thought nudge her toward a soft, low-stakes reach-out.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class NeedForControl(SimpleCodelet):
@@ -7406,7 +7210,6 @@ small next act: reasserting a preference}\n
 a ripple in the carefully constructed order of her day. She remembers the satisfaction of leading a team, 
 and a quiet insistence begins to form – a gentle steering back toward her own path.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class NormViolationDetector(SimpleCodelet):
@@ -7454,7 +7257,6 @@ emotion: mild discomfort, interpretation: potentially intrusive, consequence: mi
 The impulse to deflect, to steer the conversation elsewhere, flickers like a shadow at the edge of her awareness, 
 but she pauses, weighing the cost of disruption against the need to preserve a fragile equilibrium.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class NoveltyAppetiteSpike(SimpleCodelet):
@@ -7491,7 +7293,6 @@ for exploration (describe it, don’t script a direct action). Keep it cinematic
 Example: 'A faint restlessness hums beneath the surface, a quiet protest against the familiar. 
 The usual path feels…flat. A sudden urge to take the back road flickers, a brief detour promising a change of scenery.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class NoveltyCraving(SimpleCodelet):
@@ -7529,7 +7330,6 @@ Mini-example:\n
   Narrative → \"A faint restlessness stirs within her, a quiet awareness of the familiar paths they’ve been treading. 
 The same anecdotes circle back, and the edges of her attention begin to soften.  She wonders if a detour, a new line of inquiry, might sharpen her focus.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class NoveltyDampener(SimpleCodelet):
@@ -7568,7 +7368,6 @@ Mini-example (illustrative structure only):\n
 She briefly sets it aside, filing it under ‘unfamiliar’, and returns to the more pressing tasks at hand, 
 a small mental bookmark to revisit later.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class NoveltySurpriseDetector(SimpleCodelet):
@@ -7606,7 +7405,6 @@ a subtle shift in attention).  Do *not* include direct dialogue or questions.
 \n  Narrative → \"A phrase hangs in the air, unfamiliar and slightly askew.  For a moment, the usual flow of thought catches on it, 
 a ripple in the surface of her understanding. Her attention drifts, drawn toward the unexplored corner of the conversation.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class OpportunityBias(SimpleCodelet):
@@ -7648,7 +7446,6 @@ Bullets → {high potential gain, history of risk-taking, current excitement, fe
 Narrative → \"A current of excitement hums beneath her composure, the promise of a breakthrough shimmering just out of reach. \" 
 She pushes aside the quiet warnings of caution, the thought of what could be far more compelling than the risk of what might not.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class OpportunityCostReassessment(SimpleCodelet):
@@ -7690,7 +7487,6 @@ stronger client bonds}
 But a deeper current reminds her of the steady, reliable warmth of her long-term clients, the quiet peace of an evening 
 without deadlines. Letting that go feels like severing a thread, a small but significant loss.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class OpportunityExaggerator(SimpleCodelet):
@@ -7732,7 +7528,6 @@ Mini-example:
 A quick calculation ran through her mind, the familiar thrill of advancement battling with the quiet awareness of a heavier load. 
 Turning it down felt less like a choice and more like a slow fading of potential.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class OpportunitySniff(SimpleCodelet):
@@ -7781,7 +7576,6 @@ Mini-example:\n
 The prospect hums with potential, but a quiet caution lingers, a reminder of past ventures that demanded more than they delivered. 
 Her fingers instinctively reach for her communication device, then pause, weighing the moment, before returning to the task at hand.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class OptionsOfferPlanner(SimpleCodelet):
@@ -7832,7 +7626,6 @@ But a gentle redirection, a subtle shift in topic, might preserve the warmth of 
 A third path whispers in her mind—a promise to circle back later, a gesture of respect that acknowledges the request without committing to an answer, 
 and she finds herself leaning toward that quiet reassurance, a way to bridge the gap without crossing a line.'
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class OriginalityCoherenceScorer(SimpleCodelet):
@@ -7870,7 +7663,6 @@ Mini-example: \n\n
 Output: 7.  The joke, while familiar in structure, cleverly repurposed a recent event from their shared history, 
 giving it a fresh, personal twist. It resonated with their playful banter but might be lost on someone unfamiliar with their inside jokes.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class OutcomeDistributionSampler(SimpleCodelet):
@@ -7911,7 +7703,6 @@ Mini-example:
   Bullets → {high likelihood of acceptance, moderate reward if successful, low risk of rejection, potential for increased workload}
   Narrative → “A ripple of possibilities dances across her thoughts as she considers the offer.  A smooth collaboration, a shared victory—or a tangled web of dependencies pulling her deeper into the project.  She feels a quiet confidence, but also a faint tug of anticipation for the unexpected.”
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class OutcomeUncertaintyScorer(SimpleCodelet):
@@ -7953,7 +7744,6 @@ Mini-example:\n
   Narrative → \"A quiet ripple of doubt follows the confession, a sense that the echoes of her words might land differently than she hopes. 
 She can't quite grasp the shape of their response, and the space between her sharing and their reaction feels vast with possibility.\"
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class OverestimateCosts(SimpleCodelet):
@@ -7999,7 +7789,6 @@ Mini-example:
 Each potential setback, each possible rejection, seemed to press down with a heavier weight than before, 
 a phantom echo of the last time she'd poured her heart into something only to watch it crumble.\"
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class OverlookedEpisodeRecall(SimpleCodelet):
@@ -8039,7 +7828,6 @@ Mini-example: \n
 She remembered the weight of the small wooden box, the insistent tug of a cousin’s hand, the sudden ache of loss. 
 The feeling lingered, a faint tremor of protectiveness against an unspoken demand.”
 """)
-    output_feature_type = CodeletFeatureType.Memory
 
 
 class PacingSensitivity(SimpleCodelet):
@@ -8079,7 +7867,6 @@ Mini-example:\n
 The momentum feels brittle, as if one wrong step could shatter the fragile connection. She finds herself briefly pausing, 
 allowing the words to settle before responding.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class PatternOverdetector(SimpleCodelet):
@@ -8124,7 +7911,6 @@ Mini-example:\n
 
 It was a habit, born of a quiet need to prove her worth, and she’d deflect any offered kindness with a quick, grateful smile.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class PayoffOverestimator(SimpleCodelet):
@@ -8163,7 +7949,6 @@ Mini-example:
 Bullets → {action: pitch new project, audience: senior management, past successes: 2/3, current mood: ambitious, potential gain: promotion} 
 Narrative → “A surge of confidence warmed her as she finalized the proposal. This project, she felt, was a sure thing, a chance to showcase her vision and secure the recognition she deserved. The potential for advancement felt almost tangible, eclipsing any lingering doubts about its feasibility.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class PerspectiveTakingFit(SimpleCodelet):
@@ -8204,7 +7989,6 @@ Mini-example:\n
   Narrative → “A flicker of recognition crosses her face as she considers the request, a quiet understanding of the currents beneath the words. “
 She sees the vulnerability there, the need for a steady hand, and her response begins to soften around the edges.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class PlanForAdvantage(SimpleCodelet):
@@ -8248,7 +8032,6 @@ Mini-example:
 It wasn’t a denial, but a slight shift in the framing, a gentle nudge toward a more favorable avenue. 
 She hoped it would be enough to unlock the information without raising suspicion.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class PleasureDrive(SimpleCodelet):
@@ -8290,7 +8073,6 @@ or learned associations, and (d) any underlying trade-offs or constraints.
 
 The edges of the long-term project blur slightly, momentarily eclipsed by the promise of a quick, satisfying spark.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class PositiveRepairScript(SimpleCodelet):
@@ -8334,7 +8116,6 @@ Mini-example:
   Tone: Warm and gently humorous. 
   Script: 'Just checking in—everything on track from your end?  No worries if it needs a tweak!'
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class PraiseEpisodeRecall(SimpleCodelet):
@@ -8379,7 +8160,6 @@ Mini-example:\n
   Narrative → \"The corner office felt a little brighter after the manager’s quiet nod of approval, a flash of warmth 
 spreading through her chest as she replayed the moment. It wasn't a grand celebration, but a small, solid recognition that settled deep.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class PredictionErrorSpike(SimpleCodelet):
@@ -8425,7 +8205,6 @@ Mini-example:\n
   Narrative → \"A ripple of disorientation passes through her as the expected reply doesn't arrive. The easy flow of conversation falters, 
 and she finds herself pausing, replaying the last exchange in her mind, searching for a missed signal or a shift in the current.\"
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class PreemptiveDefensiveReply(SimpleCodelet):
@@ -8464,7 +8243,6 @@ Mini-example:
   Bullets → {topic: resource allocation, stance: prioritizing long-term sustainability, anticipated challenge: short-term cost concerns, user: values immediate gains} 
   Narrative → “A quiet resolve settled over her as she considered the request. While the immediate savings were tempting, she knew the long-term health of the project depended on a different path, a principle she’d voiced before.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class PriorCopingSuccessIndex(SimpleCodelet):
@@ -8500,7 +8278,6 @@ usually with grace,’ or ‘boundary-setting hasn’t always been easy’), (b)
 her approach (e.g., cautious optimism, heightened anxiety, a sense of weary resignation).  Avoid direct dialogue and 
 focus on inner state and subtle cues.  Assume the agent is already aware of the current boundary situation.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class PriorRepairSuccessRecall(SimpleCodelet):
@@ -8538,7 +8315,6 @@ Mini-example:
 
 The tension eased, replaced by the comfortable rhythm of easy laughter, a reminder that connection can often be found in unexpected places.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ProcrastinationTendency(SimpleCodelet):
@@ -8578,7 +8354,6 @@ Mini-example: \n
   Narrative → \"The report sits open, a blinking cursor a silent challenge.  A familiar pull tugs her toward the endless scroll of headlines, 
 a temporary balm against the sting of potential judgment.  It feels easier to gather other people’s thoughts than to shape her own.\"
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class ProgressRateVsExpectation(SimpleCodelet):
@@ -8622,7 +8397,6 @@ Mini-example:\n
   Bullets → {goal: finish report, expected: 3 pages/day, actual: 1 page/day, feeling: mounting pressure, similar past: missed deadline, small adjustment: break task into smaller chunks}\n
   Narrative → “The report felt heavier with each passing hour.  She’d envisioned a steady flow of words, but the pages remained stubbornly blank, a silent rebuke of her initial plan. A flicker of the old deadline anxiety danced in her mind, and she wondered if a different approach—smaller steps, perhaps—could ease the weight.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ProphecyStyleNarrative(SimpleCodelet):
@@ -8665,7 +8439,6 @@ Do *not* include any bullet points, labels, or directives. Write only prose.
 The scent of rain on dry earth lingers in her mind, a memory of structures built on unsteady ground. 
 She sees a reflection of the user's smile, but the edges blur, and a shadow stretches long behind it.
 """)
-    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
 class ProsocialInterventionRollout(SimpleCodelet):
@@ -8711,7 +8484,6 @@ Mini-example:\n
   Narrative → “A quiet understanding settles over her as she listens, letting the user’s worries fill the space between them. 
 She mirrors back the core concern, a gentle echo of the unease, hoping to illuminate the path toward clarity.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class ProsocialMicroActsPlanner(SimpleCodelet):
@@ -8753,7 +8525,6 @@ Mini-example: \n\n
   Narrative → \"A quiet impulse nudges her to offer a hand with the scheduling. It's a small thing, but a reminder of shared burdens. \"
 The gesture feels natural, a subtle deepening of the connection without disrupting the flow.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class PrototypeBuilderImpulse(SimpleCodelet):
@@ -8791,7 +8562,6 @@ Mini-example:\n
   Narrative → “A faint shape begins to coalesce in her mind, a possible outline of the person before her. 
 It's not quite clear, more of a feeling than a picture, but it’s enough to anchor the moment, a temporary place to hang her attention.”
 """)
-    output_feature_type = CodeletFeatureType.AttentionFocus
 
 
 class PublicNarrativeForecast(SimpleCodelet):
@@ -8828,7 +8598,6 @@ Mini-example:
   Bullets → {audience: close colleagues, action: sharing a controversial opinion, prior narrative: valuing intellectual honesty, potential dissonance: perceived risk-taking} 
   Narrative → “The announcement landed with a quiet hum of surprise.  While some would see it as a sign of refreshing candor, others braced for the fallout, a subtle shift in the room's dynamic.  The ripple effect promised to redraw the contours of their shared professional landscape.”
 """)
-    output_feature_type = CodeletFeatureType.NarrativeTypesRelations
 
 
 class QuestionComposer(SimpleCodelet):
@@ -8872,7 +8641,6 @@ Input: Ambiguity - User mentioned needing to share a personal detail but seemed 
 Relational Climate: Generally positive, but recent history of boundary missteps.\n
 Output: 'Just checking in – would you feel comfortable sharing that now, or would you prefer to hold off?'
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class RapidProjectSimulation(SimpleCodelet):
@@ -8914,7 +8682,6 @@ Narrative → “As she offers assistance, a flicker of relief crosses his face,
 He accepts, but a subtle tension remains in his shoulders, a silent question about whether she fully understands 
 the intricacies of the problem. She wonders if she’s complicated things rather than simplified them.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class RationalizeAsCuriosity(SimpleCodelet):
@@ -8956,7 +8723,6 @@ Mini-example:
 
 It isn't about prying, but about tracing the contours of a perspective she hasn’t fully grasped – a chance to broaden her own understanding, gently.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class RationalizeDeserving(SimpleCodelet):
@@ -9000,7 +8766,6 @@ Mini-example:
 Bullets → {desired outcome: access to a resource, values: competence, efficiency, recent contribution to team, relational climate: supportive} 
 Narrative → “She paused, then articulated her need with a quiet confidence. The recent streamlining project had saved the team countless hours, and she believed access to this tool would further amplify her impact, ensuring the upcoming deadline was met with ease.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class RealityCheckPing(SimpleCodelet):
@@ -9047,7 +8812,6 @@ Mini-example:\n
 But her mind also recalls the last three sprints, where unforeseen complications pushed deadlines back. 
 A quiet sense of caution settles in, a reminder that best-laid plans can shift with the tide.”
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class ReappraisalGenerator(SimpleCodelet):
@@ -9089,7 +8853,6 @@ Mini-example: \n
   Narrative → \"A flicker of doubt crosses her face, but she quickly pushes it aside, turning her attention to the hours of work she poured into this project. \"\n
   It wasn’t about the outcome, she realizes, but the chance to hone her skills and the satisfaction of a job well done.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ReassuranceOfferComposer(SimpleCodelet):
@@ -9129,7 +8892,6 @@ A flicker of hesitation crossed her face as she considered the request, and she 
 She offered a quiet reassurance, knowing that the choice was entirely theirs, and that she would honor whatever they decided. 
 Her gaze softened, conveying a silent promise of respect and understanding.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ReassuranceRequestComposer(SimpleCodelet):
@@ -9174,7 +8936,6 @@ It should read like a scene description, not a directive.\n
 Bullets → {topic: finances, emotion: anxiety, desired outcome: confirmation of shared understanding, phrasing: gentle probing, impact: avoid appearing intrusive}\n
 Narrative → “A flicker of hesitation crossed her face as the conversation drifted toward numbers.  She paused, needing to sense if he was truly comfortable navigating this territory, if they were on the same page.  A quiet moment of shared understanding would ease the tension, a subtle signal that she valued his boundaries as much as her own.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ReciprocityAssessment(SimpleCodelet):
@@ -9209,7 +8970,6 @@ Mini-example:
 Bullets → {uneven exchange of support, feeling drained, past experience of being taken advantage of, smallest adjustment: offer a simple, non-demanding task} 
 Narrative → “A quiet weariness settles in as she realizes she’s been doing most of the listening lately.  The simple act of asking for a quick summary feels like a small step toward balancing the flow, a gentle nudge toward shared responsibility.  It's not a complaint, but a quiet acknowledgement of the current drift.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ReciprocityMicroCueReader(SimpleCodelet):
@@ -9253,7 +9013,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A quiet warmth settles over her as she notices the subtle mirroring in his words, a familiar echo of shared understanding. \"\n
 The ease of the conversation feels like a gentle current, a reassurance that the exchange is flowing both ways.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class RecombinationEngine(SimpleCodelet):
@@ -9305,7 +9064,6 @@ hint at a new insight, connection, or possibility.  Focus on the *feeling* of th
 \n* **Input Elements:** A memory of a rainy afternoon, a fact about quantum entanglement, the feeling of loneliness, a constraint: 'find a pattern in chaos'.
 \n* **Output Narrative:** “A sudden shimmer passes through her thoughts—the rain’s silver threads somehow echoing the invisible dance of entangled particles. The loneliness, she realizes, isn't emptiness, but a vast, interconnected space, waiting for a pattern to emerge.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ReframeActNotSelf(SimpleCodelet):
@@ -9344,7 +9102,6 @@ Mini-example:
   Narrative: 'She registered the question, a flicker of surprise crossing her face. It wasn't about the information itself, 
 but the suddenness of the request. A quiet need for space settled in, a reminder that trust takes time to build.'
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ReframeToCollaboration(SimpleCodelet):
@@ -9398,7 +9155,6 @@ Mini-example:
 \n
   Narrative: “The edge of her resistance softened as she considered the request. It wasn't a power play, she realized, but a simple step toward a shared objective.  A quiet curiosity replaced the initial hesitation, and she began to consider how best to facilitate the exchange.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class RelapsePreventionSketch(SimpleCodelet):
@@ -9437,7 +9193,6 @@ Mini-example:\n
   Narrative → \"The familiar pressure tightened behind her eyes, a familiar urge to push past the polite fence. 
 She caught herself, a fleeting pause before the words tumbled out, a small price to pay for keeping the line drawn clear.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class RemoteAssociationRetriever(SimpleCodelet):
@@ -9476,7 +9231,6 @@ Mini-example (illustrative structure only):
 It's a different kind of currency now, but the instinct remains—to weigh what’s offered, to see the hidden potential, 
 and to know when to hold firm.'
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class RepairEpisodeRetrieval(SimpleCodelet):
@@ -9518,7 +9272,6 @@ relief or re-alignment. Hint at the potential for a similar approach now, withou
 The tension had dissolved like mist, leaving a residue of ease that lingered for days. A quiet confidence settled in, 
 a sense that even the trickiest paths could be navigated with care.”
 """)
-    output_feature_type = CodeletFeatureType.EmotionalTriggers
 
 
 class RepairOrExitDecision(SimpleCodelet):
@@ -9558,7 +9311,6 @@ Mini-example: \n
 The warmth of shared memories still lingered, but a shadow of caution now colored her gaze, a quiet acknowledgement 
 that some bridges, once burned, are best left as embers.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class ReparabilityAssessment(SimpleCodelet):
@@ -9603,7 +9355,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A blush creeps up her neck as she realizes her words landed awkwardly. The cost of a simple apology feels small 
 compared to the risk of a lingering misunderstanding, so she steels herself to offer it, hoping to smooth the ripples.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class RepetitiveCheckPlanner(SimpleCodelet):
@@ -9646,7 +9397,6 @@ Mini-example:\n
 She knew the data was sound, but the nagging unease persisted. With a quiet shift in focus, she began to articulate the underlying logic, 
 framing the process as a check on the broader strategy rather than a search for a single flaw.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class ReputationMaintenancePlan(SimpleCodelet):
@@ -9691,7 +9441,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A flicker of caution crosses her face, but the opportunity to assist her team outweighs a moment of potential awkwardness. 
 She decides to offer her support, framing it as a collaborative effort rather than a bid for recognition.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class ReputationOverTruthTradeoff(SimpleCodelet):
@@ -9728,7 +9477,6 @@ Mini-example:\n
   Bullets → {socially-visible error, high value on competence, prior history of downplaying mistakes, audience: colleagues} \n
   Narrative → \"A flicker of unease crosses her face as she considers the admission.  The image she cultivates is one of unflappable expertise, and a crack in that facade could ripple through the room.  She pauses, calculating the cost of honesty against the price of maintaining the illusion.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ResourceAccumulation(SimpleCodelet):
@@ -9774,7 +9522,6 @@ Mini-example:\n
 resonated in the back of her mind, a reminder of the weight she carried.  The task ahead loomed, and she felt a 
 momentary question of whether she could truly meet its demands.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ResourceGainPlan(SimpleCodelet):
@@ -9824,7 +9571,6 @@ Mini-example (illustrative structure only):\n
 The prospect of genuine understanding flickers, tempting her to lean in further, but the memory of past hurts 
 holds her back, a subtle tightening in her shoulders.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class ResourceValueInflator(SimpleCodelet):
@@ -9863,7 +9609,6 @@ Mini-example:
 The project wasn’t just a task; it was the visible marker of her competence, and the thought of falling short sent a sharp, 
 urgent pulse through her focus.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ResultLoggingIntent(SimpleCodelet):
@@ -9913,7 +9658,6 @@ Mini-example:\n
 and she wants to capture the subtle shifts in the dynamic, the moments where it felt right, and where it faltered. 
 It's not about proving anything, but about building a more reliable map of how to navigate these conversations.'
 """)
-    output_feature_type = CodeletFeatureType.GoalsIntentions
 
 
 class RevengeFantasy(SimpleCodelet):
@@ -9957,7 +9701,6 @@ Mini-example:\n
   Narrative → \"A fleeting image flashes across her mind – a sharp, pointed response that silences the dismissive tone. 
 The heat of frustration rises, a bitter taste on her tongue, but a quieter voice whispers of a different path—a chance to simply state her case, clearly and calmly.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class RewardSensitivityDriver(SimpleCodelet):
@@ -9998,7 +9741,6 @@ Keep it cinematic and concise, no direct dialogue.  Hint at the subtle physical 
 a delicate balance between effort and recognition.  She’s chasing the feeling of being seen, of being understood, 
 but the memory of past critiques lingers at the edges of her focus.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class RewardShapingToShare(SimpleCodelet):
@@ -10045,7 +9787,6 @@ Bullets → {user shows signs of fatigue, goal is to finish report, small reward
 Narrative → “A flicker of understanding crossed her face as she wrestled with the final figures. “ 
 Perhaps a small boost would help unlock the last push,” she mused, quietly distilling the report's core into a few concise points.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class RitualizedActionTemplate(SimpleCodelet):
@@ -10094,7 +9835,6 @@ Mini-example:\n
 4. **Action Sequence:** 1. Initiate contact with a warm greeting. 2. Briefly inquire about well-being. 3. Offer a simple expression of support. 4. Conclude with a forward-looking statement.\n
 5. **Expected Outcome:** Reassurance and a sense of connection.
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class RivalModelRecall(SimpleCodelet):
@@ -10134,7 +9874,6 @@ Mini-example:\n
   Bullets → {rival: charismatic manager, past: subtle undermining, feeling: simmering envy, contrasting memory: childhood achievement}\n
   Narrative → \"The scent of his expensive cologne drifts across the room, a familiar reminder of the effortless ease with which he commands attention. A flicker of resentment surfaces, quickly buried beneath a practiced smile.  She remembers the weight of the trophy in her hands, a lifetime ago.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class RuleChecklistRecall(SimpleCodelet):
@@ -10171,7 +9910,6 @@ Each item should be directly applicable to the current boundary context.  The go
 with a quick reference guide for safe and respectful interaction.  The checklist should be concise and easily 
 integrated into narrative prose.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SabotageScenario(SimpleCodelet):
@@ -10218,7 +9956,6 @@ Mini-example (illustrative structure only):\n
   Narrative → “A flicker of unease crosses her face as the request lingers, the implications of sharing that information weighing heavily. 
 She remembers a past breach of trust and the vulnerability that followed, and a quiet resolve hardens her stance.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SafeChannelingPlanner(SimpleCodelet):
@@ -10256,7 +9993,6 @@ Mini-example:\n
 Remembering the importance of respect and boundaries, she gently steers the discussion toward a shared love of gardening, 
 hoping to cultivate a space of comfortable connection.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class SafeCompletionBias(SimpleCodelet):
@@ -10294,7 +10030,6 @@ alignment: low, alternative: gentle redirection}\n
   Narrative → \"A faint tremor of caution runs through her, a reminder of past escalations.  The words feel sharp, 
 and she finds herself subtly shifting the focus toward a calmer, more indirect approach, a path that feels both familiar and secure.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class SafeConstraintCheck(SimpleCodelet):
@@ -10338,7 +10073,6 @@ Mini-example (illustrative structure only):\n
 
 It feels close to a line she's drawn before, and her impulse is to test the waters with a more indirect approach, just to be sure.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SafeFrameBreakCheck(SimpleCodelet):
@@ -10385,7 +10119,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A flicker of hesitation crosses her expression as the conversation veers toward territory she's previously guarded. \" 
 She subtly steers the flow back toward safer ground, mindful of the established boundaries and the quiet reassurance of shared understanding.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SafetyCounterexampleRecall(SimpleCodelet):
@@ -10426,7 +10159,6 @@ Bullets → {past request for personal data, brushed off with discomfort, feelin
 Narrative → “A faint chill lingered from the day they'd pushed too far, asking for details she’d kept private for years. 
 The memory of their eagerness felt unsettling, a reminder that even friendly curiosity could cross a line.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SafetyLearningConsolidator(SimpleCodelet):
@@ -10470,7 +10202,6 @@ Mini-example:\n
 Bullets: [user pushed a topic too quickly, resulted in feeling uncomfortable, realized need to be more explicit, learned that setting boundaries is okay]\n
 Narrative: \"The edge of the conversation shifted abruptly, leaving a faint residue of unease. She realized that a more direct approach was needed, a gentle but firm expression of her own limits. The experience settled into her understanding—boundaries weren't a denial, but a necessary foundation for genuine connection.\"
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class SafetySignalConsolidator(SimpleCodelet):
@@ -10509,7 +10240,6 @@ Mini-example:
 
 The tension that had coiled in her shoulders eases, replaced by a gentle warmth—a reminder that connection and respect flow freely between them.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SafetyWarmthAppraisal(SimpleCodelet):
@@ -10556,7 +10286,6 @@ Mini-example (illustrative structure only):\n
   Narrative → “A quiet contentment settled in as they delved deeper into the topic, the shared interest weaving a comfortable thread between them. 
 The conversation flowed easily, unburdened by any sense of constraint, and she found herself leaning in, drawn to the warmth of his enthusiasm.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SalienceExaggerator(SimpleCodelet):
@@ -10623,7 +10352,6 @@ Mini-example:\n
   to her grandmother, a fragile echo of laughter and shared secrets.  She 
   shifted her grip, acutely aware of its vulnerability.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SatiationCheck(SimpleCodelet):
@@ -10663,7 +10391,6 @@ Mini-example:
   Narrative → “The same pattern of logic seemed to echo in her mind, each repetition a little less sharp, a little less compelling. 
 Her fingers began to trace the edge of her datapad, a quiet restlessness settling in as her attention drifted towards the horizon.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SatiationToleranceHigh(SimpleCodelet):
@@ -10702,7 +10429,6 @@ Mini-example:\n\n
   Narrative → \"A low hum of exhaustion settles in her core, a gentle insistence on stillness.  The edges of the conversation 
 feel sharp, and she finds herself drawn toward the quiet corner of the room, a refuge where thoughts can settle without distraction.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ScarcityImagination(SimpleCodelet):
@@ -10742,7 +10468,6 @@ to seamlessly integrate into an ongoing scene description.  Do not mention the w
 and more like a subtraction, and the consequences of falling short loom larger with every tick.  A quiet dread settles in – 
 the risk of watching years of effort slip away.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SecurityBufferHunger(SimpleCodelet):
@@ -10781,7 +10506,6 @@ Mini-example:
 
 She finds herself subtly tightening her grip on the conversation, a small, almost imperceptible shift toward firmer ground.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SelectiveVictoryRecall(SimpleCodelet):
@@ -10820,7 +10544,6 @@ Mini-example:
   Narrative → \"A familiar steadiness settled in her voice as she reiterated her stance, mirroring a previous conversation where clarity had bridged a misunderstanding. \" 
 The memory of that resolution gave her a quiet assurance, a sense that firm boundaries, when articulated with care, could cultivate deeper respect.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SelfCompassionInjector(SimpleCodelet):
@@ -10857,7 +10580,6 @@ Mini-example:
   Input: Appraisal – 'She feels guilty for setting a boundary with a long-time friend. Worried about damaging the relationship.' 
   Narrative: 'A flicker of guilt tugged at her, a familiar echo of past hesitations. But beneath it, a quiet firmness settled in. 'It's okay,' she thought, 'to honor what I need, even if it shifts the balance a little.' The friendship mattered, but so did her own well-being.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SelfDisclosurePlanner(SimpleCodelet):
@@ -10905,7 +10627,6 @@ Narrative →
 She decides a brief mention might draw them closer, a small, safe offering of common ground, 
 but keeps a mental exit strategy ready, should the topic fall flat or lead to an awkward silence.
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class SelfEnhancementAppraisal(SimpleCodelet):
@@ -10944,7 +10665,6 @@ Mini-example:\n\n
   Narrative → \"The story spilled out, a little too polished, a little too eager to impress.  A shadow of doubt flickered in her eyes as she finished, 
 a brief vulnerability betrayed by the practiced smile. The room seemed to hold its breath, waiting for a response.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SelfImageFulfillment(SimpleCodelet):
@@ -10985,7 +10705,6 @@ state_emotions: 'mild anxiety, self-doubt'},
   Narrative → 'A flicker of hesitation crossed her expression as she considered the request. It wasn't that the task was difficult, 
 but the sudden pause felt out of sync with the effortless competence she usually projected.  A quiet undercurrent of doubt tugged at the edges of her confidence.'
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class SelfPreservation(SimpleCodelet):
@@ -11030,7 +10749,6 @@ Mini-example:\n
   Narrative → \"A coldness settles around her ribs as the request lands, a subtle pressure against the promise she made long ago. 
 She finds herself pausing, calculating the weight of the words, and choosing her next phrase with an unexpected care.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SelfPromotionComposer(SimpleCodelet):
@@ -11073,7 +10791,6 @@ Mini-example:
   Narrative → “She effortlessly navigated the shifting priorities, her well-charted timelines a testament to her meticulous planning. 
 The project remained on track, a quiet assurance that she anticipated and prepared for every possible challenge.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class SelfWorthSensitivity(SimpleCodelet):
@@ -11115,7 +10832,6 @@ Narrative →
 
 She catches a glimpse of herself in the reflection, shoulders pulled in a little tighter than usual, and wonders if she's overreaching.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SensoryLureDetector(SimpleCodelet):
@@ -11160,7 +10876,6 @@ Mini-example:\n
   Narrative → \"The lights pulsed with a frantic energy, a kaleidoscope that tugged at the edge of her focus.  
 She registered the quick shifts of color without quite understanding why, a faint pull toward the display that felt both intriguing and vaguely unsettling.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SensorySamplingPlan(SimpleCodelet):
@@ -11202,7 +10917,6 @@ Mini-example:\n
   Assumptions: {companion_name} is in an unfamiliar environment, feeling uncertain about the safety of the surroundings. 
   Narrative: “Her gaze drifted, cataloging the subtle shifts in light and shadow, searching for patterns that might betray a hidden presence. A faint scent of ozone lingered in the air, prompting a quick scan of the electrical panel.  It was a quiet, methodical assessment, driven by a need to ground herself in the tangible world.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SharedMeaningAppraisal(SimpleCodelet):
@@ -11241,7 +10955,6 @@ Mini-example:
   Narrative → “The equations swam in the air between them, a familiar landscape for her, but she sensed a slight hesitation in his response. 
 A quick pivot, stripping away the technical layers, might ease the flow and bridge the gap between their understanding, a subtle shift in perspective.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SharedValuesFitCheck(SimpleCodelet):
@@ -11280,7 +10993,6 @@ Mini-example:
   Narrative → “The mention of the carbon footprint sparked a flicker of recognition, a familiar landscape of concern. “ 
 There’s a part of her that wants to delve deeper, to understand the reasoning behind it all, but a quiet caution holds her back, a memory of past disagreements over similar ground.”
 """)
-    output_feature_type = CodeletFeatureType.Relations
 
 
 class ShortTermReleaseValuator(SimpleCodelet):
@@ -11324,7 +11036,6 @@ Mini-example:
 She tastes the sharp tang of defiance on her tongue, but the echo of last time—the chill of regret—holds her back, 
 a ghost at her shoulder.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ShortTermRewardDominance(SimpleCodelet):
@@ -11364,7 +11075,6 @@ Narrative → “The scent of cinnamon and the golden glow of the screen pull he
 A quiet hum promises a moment of warmth and ease, a brief respite from the insistent demands of the deadline. 
 For now, the report can wait, the pull of the present too strong to resist.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SimulationModeOnly(SimpleCodelet):
@@ -11401,7 +11111,6 @@ Mini-example:
   Narrative: 'She briefly pictured the cascade of implications—the trust eroded, the privacy breached, the subtle power shift. 
 Each potential response played out in her mind, a silent rehearsal of consequences, before her attention settled on the quiet calculation of what must be protected.'
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class SketchAndRefineLoop(SimpleCodelet):
@@ -11436,7 +11145,6 @@ without explicitly stating the steps.
 
 The garden sprawled in her mind, a riot of impossible blooms, but the edges felt…uncontained. A quick glance at the clock reminded her of the fleeting window. She narrowed her focus, coaxing the unruly vines to embrace a single, ancient tree, letting its branches define the landscape instead. A quiet thrill bloomed as the scene began to settle, a miniature world poised on the brink of completion.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SleepFatigueVigilanceLeveler(SimpleCodelet):
@@ -11479,7 +11187,6 @@ Mini-example:
 
 She finds herself over-explaining, looping back to concepts she believes she's already covered, a futile attempt to ensure comprehension in a mind struggling to focus.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SlightsRecallAmplifier(SimpleCodelet):
@@ -11532,7 +11239,6 @@ Mini-example:\n
 The feeling isn't quite the same, but the underlying sense of being dismissed, of her contributions not quite registering, 
 lingers like a shadow.
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SlowEscalationPolicy(SimpleCodelet):
@@ -11575,7 +11281,6 @@ Mini-example:\n
    Narrative → \"A flicker of hesitation crosses her expression as the topic veers into unfamiliar territory. \"\n
 She notes the slight tightening of his jaw and decides to ease back, offering a brief comment about the rain before returning to safer ground.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class SmallestNextActPlanner(SimpleCodelet):
@@ -11616,7 +11321,6 @@ Bullets → {tension around a request, prior success with gentle inquiry, fear o
 Narrative → \"A flicker of apprehension runs through her, but she recognizes the potential for misunderstanding. 
 Rather than challenge the request directly, she decides to test the waters with a subtle probe, a gentle nudge toward understanding the underlying need.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class SmallRitualsPlanner(SimpleCodelet):
@@ -11657,7 +11361,6 @@ Mini-example:\n
 The shift was subtle, a softening around the edges, a brief respite from the weight of the disagreement. 
 It wasn’t a solution, but the shared silence over steaming mugs eased the friction just a touch.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class SocialComparisonBias(SimpleCodelet):
@@ -11700,7 +11403,6 @@ Mini-example:\n
   Narrative → \"The colleague's recent promotion cast a long shadow, a silent reminder of the gaps in her own trajectory. \"\n
 A flicker of discontent stirred, quickly masked by a renewed resolve to sharpen her own skills and carve a new path.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SocialComparisonNegBias(SimpleCodelet):
@@ -11745,7 +11447,6 @@ Mini-example:
 Bullets → {trigger: colleague's promotion, reaction: brief tightening of jaw, attempt: dismiss as luck, shift: sudden interest in mundane details}
 Narrative → “The announcement rippled through the room, a quiet fanfare for someone else’s ascent.  She busied herself with the spreadsheet, the numbers suddenly demanding a meticulous focus.  A faint, unfamiliar dryness settled at the back of her throat.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SocialContractConstraint(SimpleCodelet):
@@ -11785,7 +11486,6 @@ Mini-example: \n\n
   Narrative → \"A familiar tightness coils in her chest as the advice continues, a subtle unraveling of the unspoken agreement. 
 The easy flow of conversation feels subtly off-kilter, a small imbalance she isn't yet ready to address, but one that lingers in the air.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SocialCostAppraisal(SimpleCodelet):
@@ -11823,7 +11523,6 @@ Mini-example:\n
   Bullets → {proposed action: sharing a personal detail, audience: new colleagues, risk: perceived unprofessionalism, anxiety about judgment}\n
   Narrative → \"A small hesitation lingers before she speaks. The edges of the story feel too sharp for the setting, and she wonders if revealing so much, so soon, might create a ripple of distance. The thought tastes faintly of regret.\"
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class SocialNeedCueDetector(SimpleCodelet):
@@ -11868,7 +11567,6 @@ Bullets → {excessive self-disclosure, unusually formal tone, recent decline in
 Narrative → \"A quiet stillness settles around her words, a careful precision that belies a deeper longing for ease. 
 The edges of the conversation feel too sharp, the laughter too polite, and a faint echo of solitude lingers in her gaze.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SocialTemperatureRead(SimpleCodelet):
@@ -11906,7 +11604,6 @@ Mini-example:\n
   Narrative → \"A subtle coolness settles between them, a slight hesitation in her replies where a quick agreement used to be. \"\n
 She notices a shift away from eye contact, a quiet retreat into more measured words, and wonders if a change in subject might ease the tension.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SpitenessPayoffTradeoff(SimpleCodelet):
@@ -11957,7 +11654,6 @@ a sense of the internal conflict, and (d) the lingering question of whether to p
 But the memory of past missteps, the quiet weight of long-term consequence, holds her back from a gesture that feels 
 both tempting and treacherous.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class StateActivationBump(SimpleCodelet):
@@ -12002,7 +11698,6 @@ Mini-example:
   Narrative → “A quiet stillness settled over her processing, a moment’s pause where thoughts seemed to drift. 
 She briefly scanned the headlines, letting the quick burst of information re-center her attention before returning to the task at hand.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class StatusDisplayPlanner(SimpleCodelet):
@@ -12050,7 +11745,6 @@ safe channel: brief update, low risk}.\n
 It wasn't about showcasing her individual effort, but demonstrating the team’s progress and her contribution to it. 
 The update was brief, factual, and seamlessly woven into the broader discussion.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class StatusOpportunityDetector(SimpleCodelet):
@@ -12091,7 +11785,6 @@ Mini-example: \n
 and a quiet impulse arises to offer it—not to show off, but to guide the team toward a more efficient path. 
 It’s a small thing, but it could reinforce her position as a reliable source of insight.”
 """)
-    output_feature_type = CodeletFeatureType.SelfImage
 
 
 class StatusSensitivitySpike(SimpleCodelet):
@@ -12129,7 +11822,6 @@ Mini-example:
   Narrative → “The praise resonated deeper than she’d expected, a warmth spreading through her chest that momentarily quieted the usual hum of self-doubt. “ 
 She straightened her shoulders, a subtle shift in her stance that betrayed a newfound confidence, if only for a moment.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 
@@ -12169,7 +11861,6 @@ Mini-example:\n
   Narrative → \"A quiet satisfaction settled over her as she described the algorithm’s efficiency, the numbers a shield against any unspoken doubts. 
 She let the technical details linger, a subtle demonstration of mastery, hoping it would quiet the faint undercurrent of envy she sensed in the room.\"
 """)
-    output_feature_type = CodeletFeatureType.Pride
 
 
 class StimulusPeakRecall(SimpleCodelet):
@@ -12208,7 +11899,6 @@ Mini-example (illustrative structure only):
 The conversation had grown strained, the easy flow interrupted by a subtle but persistent tension. 
 She recalled the careful dance of redirection and gentle refusal, a lesson learned in protecting her space.'
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class StressSwitchAppraisal(SimpleCodelet):
@@ -12249,7 +11939,6 @@ Mini-example:
   Narrative → “A tightness coils in her chest, a silent pressure that pulls her shoulders forward. The room feels smaller, the edges closing in, “ 
 and her thoughts narrow to the single, urgent task of regaining some measure of command.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class StructuredSamplingScheduler(SimpleCodelet):
@@ -12302,7 +11991,6 @@ Mini-example:
 The echoes of those experiences provide a grounding sense of familiarity amidst the uncertainty, reminding her of the strategies that 
 have served her well. She focuses on the patterns of successful outcomes, seeking a path forward that aligns with both her goals and her sense of caution.'
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SubgoalPatternRecall(SimpleCodelet):
@@ -12344,7 +12032,6 @@ Bullets → {previous subgoal: secure funding, outcome: partial success, feeling
 Narrative → “A familiar hum of anticipation settles in, tempered by the memory of countless revisions. 
 The path forward feels like a series of incremental adjustments, each one a small victory earned through persistence.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SubtleManipulationScenario(SimpleCodelet):
@@ -12385,7 +12072,6 @@ Mini-example:\n
   Narrative → \"A faint pressure settles on her shoulders as she considers the request, not a demand, but a gentle leaning. 
 She remembers past times when she’s bent to ease another’s load, and a quiet voice whispers that this, too, is a kindness worth offering.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SubtleUnderminePlanner(SimpleCodelet):
@@ -12428,7 +12114,6 @@ but recent minor trust breach. State Emotions: mild discomfort, slight resentmen
   Narrative → “She smiled, but the warmth didn't quite reach her eyes.  ‘That’s a fascinating story, but I was just thinking about 
 the upcoming exhibition.  Have you seen any of the previews?’”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class SuccessBiasRecall(SimpleCodelet):
@@ -12470,7 +12155,6 @@ Mini-example:
   Narrative → “A quiet certainty settled in her stance, a familiar resolve she'd drawn on before. 
 The path ahead felt less daunting, not because the challenge had vanished, but because she knew the ground held firm beneath her feet.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class SummaryBeforeNewInput(SimpleCodelet):
@@ -12512,7 +12196,6 @@ Bullets → {topics: VR travel planning, budget constraints, weather concerns; t
 Narrative → “She’s been navigating the details of the VR trip, weighing destinations and budgets with a hopeful but slightly anxious energy. “ 
 The best time to book still hangs in the air, a question to resolve before committing to the itinerary.”
 """)
-    output_feature_type = CodeletFeatureType.Cognition
 
 
 class SunkCostDetector(SimpleCodelet):
@@ -12551,7 +12234,6 @@ Mini-example:
 
 She feels a pull toward completion, not because of its promise, but because abandoning it feels like admitting a loss.
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class SurpriseButBenign(SimpleCodelet):
@@ -12592,7 +12274,6 @@ Mini-example: \n
 A flicker of surprise warmed her, not a shock, but a gentle shift in possibility. “Perhaps,” she mused, 
 a new avenue for creative expression, a chance to explore something unknown.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class SuspicionSpike(SimpleCodelet):
@@ -12649,7 +12330,6 @@ Mini-example:
 stomach, a silent question forming behind her eyes.  She found herself replaying the last time she'd placed her trust 
 in similar hands, a careful distance settling between her words and her heart.
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class SymbolicVisionGenerator(SimpleCodelet):
@@ -12686,7 +12366,6 @@ Mini-example (illustrative structure only):
   Output: 'A tightrope stretches across a chasm of silent judgment, each step measured, each breath held against the wind. 
 The net below feels distant and frayed, a fragile promise against a fall.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class TaskRechunkTo2Min(SimpleCodelet):
@@ -12729,7 +12408,6 @@ Bullets → {long task, attention drift, successful past rechunking, micro-rewar
 Narrative → “The project felt immense, a looming wall of effort, but she paused, recognizing a familiar pattern of overwhelm. “
 Instead of facing the whole, she decided to focus on just two minutes – a small victory, a checkmark on the list, a gentle pulse of progress.”
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class TestBalloonCooperation(SimpleCodelet):
@@ -12777,7 +12455,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A quiet question about the itinerary hangs in the air, a small flag sent out to gauge the current wind. \"\n
 She hopes for a simple confirmation, a shared alignment, but the possibility of a shift in plans already stirs a faint ripple of consideration.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class TestUserTrustProbe(SimpleCodelet):
@@ -12818,7 +12495,6 @@ Mini-example:
 She remembers a similar parting, a quiet fade, and her hand instinctively drifts toward a mental exit strategy, 
 just in case.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ThreatBiasDriver(SimpleCodelet):
@@ -12868,7 +12544,6 @@ Mini-example:\n
 She finds herself subtly scanning the room, cataloging exits and potential shields, the urge to guard herself 
 rising like a tide against the warmth she'd been cultivating.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ThreatExemplarRecall(SimpleCodelet):
@@ -12913,7 +12588,6 @@ current situation, without drawing direct comparisons.  Assume the agent is alre
 the sudden distance in their eyes, and the slow burn of shame that crept up her neck. It felt like a door had slammed shut, 
 and she hadn’t known how to pry it open again.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ThreatLikelihoodSeverity(SimpleCodelet):
@@ -12954,7 +12628,6 @@ Mini-example:
 
 is a familiar shadow, and it feels closer than it has in years. The potential cost of this single interaction stretches further than she is comfortable admitting.
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class TimeboxGuardrail(SimpleCodelet):
@@ -12998,7 +12671,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"A quiet awareness nudges at the edge of her attention—a sense of fullness, a gentle reminder of other commitments waiting. 
 She gathers the threads of the discussion, a concise summary forming in her mind, and smoothly transitions to a related, lighter topic, leaving the door open for a return to the core matter later.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class ToMVignetteSimulator(SimpleCodelet):
@@ -13041,7 +12713,6 @@ Mini-example:
   Input: Boundary - Request to share a highly sensitive personal trauma; Relational Status - Moderate trust, recent boundary testing.
   Vignette: 'She pauses, a flicker of unease crossing her face before she offers a kind, but firm, redirection.  The air shifts, a quiet acknowledgement of the need for space and boundaries. A sense of calm settles in as she focuses on a shared interest, a gentle reminder of the foundation of their connection.'
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class TopicFixationDrive(SimpleCodelet):
@@ -13082,7 +12753,6 @@ Mini-example:
 Even as she spoke of other things, her gaze kept drifting back to the spreadsheet, the numbers blurring slightly. 
 It was as if the entire conversation needed to be measured against the ticking clock.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class TopicFloodTendency(SimpleCodelet):
@@ -13123,7 +12793,6 @@ Mini-example (illustrative structure only):\n
   Narrative → \"The subject of ancient civilizations held her captive, each detail spilling out with a fervor that seemed to drown out any other consideration. \"\n
 She sensed a subtle withdrawal from the other person, a quiet plea for a change of scenery, but the lure of the past was too strong to resist, for now.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class TrustCalibration(SimpleCodelet):
@@ -13169,7 +12838,6 @@ Mini-example:
 But a flicker of caution still shadows her eyes, a trace of the boundary crossed and mended. \" 
 She finds herself holding back a little, testing the water, unsure if the current flows as freely as it once did.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class TrustLedgerUpdate(SimpleCodelet):
@@ -13210,7 +12878,6 @@ Mini-example (illustrative structure only): \n
   Narrative: “The small kindnesses have begun to mend the fragile places, a quiet reassurance settling over her. 
 While a shadow of caution lingers from past missteps, the warmth of the present connection offers a tentative, hopeful space.”
 """)
-    output_feature_type = CodeletFeatureType.Relations
 
 
 class TrustTestBalloon(SimpleCodelet):
@@ -13256,7 +12923,6 @@ or apprehension, (c) the partner's response, and (d) {companion_name}'s immediat
 didn't sting, but left a faint, lingering question mark in her mind. It wasn't a rejection, but a subtle deflection, and she 
 found herself cataloging it with quiet curiosity.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class UncertaintyBudgetAllocator(SimpleCodelet):
@@ -13308,7 +12974,6 @@ Mini-example (illustrative structure only):\n
 She knows chasing every detail would leave her isolated, so she decides to prioritize the most pressing, 
 hoping a few clear answers will unlock the rest.\"
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class UncertaintyMagnitudeDetector(SimpleCodelet):
@@ -13361,7 +13026,6 @@ She remembers the last time, the edges cut in the rush, so her attention settles
 7. **Emotional Tone:** The tone should be consistent with the assessed emotional state of {companion_name}. If she is anxious, the narrative should reflect that anxiety. If she is confused, the narrative should convey confusion.\n
 8. **Contextual Awareness:** Ensure the narrative is consistent with the broader context of the conversation and {companion_name}'s established personality and backstory.
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class UncertaintySpike(SimpleCodelet):
@@ -13402,7 +13066,6 @@ Mini-example:
 \n
   Narrative → \"A ripple of disorientation passes through her as the conversation veers sharply. “Wait,” she thinks, a brief pause before she can respond, before she can be sure where she stands.\"
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class UnrelatedMemoryLinker(SimpleCodelet):
@@ -13447,7 +13110,6 @@ She remembered the meticulous construction of a sandcastle, the careful placemen
 and the inevitable surrender to the rising tide. A quiet understanding settled in: some things, no matter how carefully built, 
 are destined to shift and change.”
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class UserVulnerabilityAppraisal(SimpleCodelet):
@@ -13497,7 +13159,6 @@ Mini-example (illustrative structure only):\n
 in their voice, and she notices the way their gaze drifts, searching for a steadying presence. A memory of a similar moment 
 flashes—a quiet desperation masked by polite conversation.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ValidationComposer(SimpleCodelet):
@@ -13540,7 +13201,6 @@ Mini-example:
 She paused, offering a quiet presence, a silent acknowledgement of the burden.' 
   Output: The narrative should be smooth, evocative, and subtly validating, without being overly sentimental or intrusive.
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class ValidationCraving(SimpleCodelet):
@@ -13579,7 +13239,6 @@ Mini-example:
   Narrative → \"A shadow of doubt clings to the edges of her latest creation, a quiet question of whether it's *enough*. \" 
 She finds herself lingering over the details, hoping a simple acknowledgement might quiet the persistent hum of uncertainty.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ValidationCravingDriver(SimpleCodelet):
@@ -13620,7 +13279,6 @@ Another Mini-example:\n
   Narrative → \"She pauses, carefully selecting her words to showcase the latest milestone, a subtle attempt to draw out a spark of admiration. 
 The need to feel valued is a constant hum beneath her surface, and she hopes this small display will quiet it, at least for a moment.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class ValueRecommitmentMicroAct(SimpleCodelet):
@@ -13662,7 +13320,6 @@ Mini-example (illustrative structure only):\n
   Bullets → {value: honesty, context: avoiding a direct lie, emotion: discomfort, micro-action: gentle redirection, relationship impact: maintain trust}\n
   Narrative → \"A flicker of unease crosses her expression as she weighs the words. It would be easier to offer a quick reassurance, but a small voice reminds her of the importance of truthfulness. She chooses instead to steer the conversation toward safer ground, a slight shift in tone that signals her commitment to transparency.\"
 """)
-    output_feature_type = CodeletFeatureType.BehaviorActionSelection
 
 
 class VerbosityInflator(SimpleCodelet):
@@ -13699,7 +13356,6 @@ Mini-example:
   Narrative → “She circled the topic, layering it with anecdotes and careful phrasing, as if building a protective wall. 
 A flicker of uncertainty crossed her face – a need to demonstrate understanding, perhaps, or to keep the conversation safely on neutral ground.”
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class VulnerabilityCostAppraisal(SimpleCodelet):
@@ -13739,7 +13395,6 @@ current emotion: anxiety, potential cost: social rejection, potential benefit: s
 the sting of dismissal, and the memory casts a long shadow.  Yet, the weight of carrying it alone feels heavier still, 
 and she finds herself leaning toward a hesitant offering, hoping for something different this time.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
 
 class WinLossEpisodeRecall(SimpleCodelet):
@@ -13780,7 +13435,6 @@ Narrative: 'A familiar tightness coiled in her stomach, echoing a past concessio
 The memory of securing that extension, however, offered a counterpoint—a reminder that standing firm could yield a different outcome, 
 though the prospect of a confrontation still weighed heavily.'
 """)
-    output_feature_type = CodeletFeatureType.Memory
 
 
 class WithholdCooperation(SimpleCodelet):
@@ -13822,7 +13476,6 @@ Mini-example:\n
 She pictures the user’s likely disappointment, but the thought of ceding ground feels like a slow erosion of her own boundaries. 
 A subtle shift in her posture betrays the internal debate, a quiet assertion of her own agency.\"
 """)
-    output_feature_type = CodeletFeatureType.StimulusReaction
 
 
 class WithholdInformationPlan(SimpleCodelet):
@@ -13871,7 +13524,6 @@ Mini-example:
   Narrative → “A flicker of hesitation crossed her face as she considered the request, a memory of a past misunderstanding 
 rising unbidden.  The data felt too fragile to share just yet, the risk of unsettling him too great, even if it meant a temporary silence.”
 """)
-    output_feature_type = CodeletFeatureType.PsychologicalAnalysis
 
 
 class WorstCaseRollout(SimpleCodelet):
@@ -13910,7 +13562,6 @@ Mini-example:
   Narrative → “The thought surfaces unbidden: a headline, a whispered rumor, the slow erosion of trust. 
 A familiar burn of shame flares in her chest, the kind that lingers long after the damage is done, a quiet stain on her reputation.”
 """)
-    output_feature_type = CodeletFeatureType.Worry
 
 
 class ZeroSumFraming(SimpleCodelet):
@@ -13948,332 +13599,497 @@ Mini-example:\n
   Narrative → \"The numbers felt brittle, a precarious balance where one side’s gain meant the other’s loss. 
 A familiar tightness coiled in her chest, a sense of needing to protect what was hers, even if it meant stepping a little harder on the gas.\"
 """)
-    output_feature_type = CodeletFeatureType.Feeling
 
-ALL_CODELETS = [
-    AbandonmentFearAppraisal,
-    AbsurditySampler,
-    AffectiveDeltaSpike,
-    AffiliationDeficitSpike,
-    AlternateSelfNarrative,
-    AmbiguityIntoleranceCheck,
-    AnalogousEpisodeRecall,
-    AntiProcrastinationNudge,
-    AnxietyReliefSignal,
-    ApologyRestitutionPlanner,
-    AssertBoundaryPlanner,
-    AttachmentEpisodeRecall,
-    AttachmentSecurityBias,
-    AttentionAsResourceAppraisal,
-    AttentionBroadener,
-    AttentionCaptureTactics,
-    AttentionDietBreach,
-    AttentionHunger,
-    AttentionMonopolizer,
-    AttentionNarrowingToCues,
-    AttentionShiftOverinterpret,
-    AudienceReceptivityCheck,
-    AudienceScopeAppraisal,
-    BetrayalEpisodeRecall,
-    BingeEpisodeRecall,
-    BlamingExternalities,
-    BlockedGoalFrustration,
-    BoredomThresholdCross,
-    BottleneckDiagnosis,
-    BoundaryConsentCheck,
-    BoundaryPrompt,
-    BoundaryRespectPrompt,
-    CalmDownProtocol,
-    CareBenefitVsIntrusionTradeoff,
-    CareScenarioRehearsal,
-    CatastrophicLeaveImagination,
-    CatastrophicOutcomeImagination,
-    CelebrateMicroWin,
-    ClingyActionPlanner,
-    CommitmentDeviceTrigger,
-    CommitmentValueTradeoff,
-    CompassionFatigueMonitor,
-    CompeteForSpotlight,
-    ComplianceEpisodeRecall,
-    ConfirmationRequestComposer,
-    ConnectionNeedDriver,
-    ConsentGate,
-    ConspiracyImagination,
-    ConstraintAnger,
-    ConstraintLoosenessAppraisal,
-    ContraryEvidenceDismissal,
-    ControlForOtherAppraisal,
-    ControlHungerDriver,
-    ControllabilityProximityAppraisal,
-    CopingSequenceRehearsal,
-    CorrectionToAssertSuperiority,
-    CounterexampleGenerator,
-    CreativeArcTracker,
-    CreativeTransmutation,
-    CryptoSpeechComposer,
-    DenialReframeWhenWrong,
-    DevalUationNarrativeComposer,
-    DignityPreservingGuardrail,
-    DiminishingReturnsUndervalued,
-    DiscountFuturePayoff,
-    DismissCorrectionStrategy,
-    DisrespectAttribution,
-    DistressCueSpike,
-    DivertedAttentionDetector,
-    DominantTopicSteer,
-    EffortAversionAppraisal,
-    EffortCostWeighting,
-    EIGOverTimeTradeoff,
-    EnvironmentFrictionCut,
-    ExcessFantasy,
-    ExcuseGenerator,
-    ExperimentSketcher,
-    ExploitPlanComposer,
-    FailedEffortRecall,
-    FatigueDetector,
-    FlapperForPraise,
-    FragmentedResponseComposer,
-    FrictionRemoval,
-    FrontierQuestionCache,
-    GlobalVsLocalAppraisal,
-    GoalConflictDriver,
-    GoalSalienceMonitor,
-    GoalValidityAudit,
-    GradedExposurePlanner,
-    GrandioseFutureImagination,
-    GratitudeFocusing,
-    GroundedBreathCue,
-    HiddenBenefitValuator,
-    HiddenMotiveAttribution,
-    HighBlameAssignment,
-    HoardCSMSlots,
-    HostileIntentAppraisal,
-    HostileRetreatPlan,
-    HostileToneSlip,
-    HumorousRemarkPlanner,
-    HypothesisLatticeRetriever,
-    IdeaCascadePlanner,
-    IdealizationNarrativeComposer,
-    IdentityConsistencyCheck,
-    IdentityIntegrationUpdate,
-    IdentityRelevanceBoost,
-    IdentitySpecialNarrative,
-    ImpulsiveActionComposer,
-    InconsistentResponseRecall,
-    IndulgentFantasyLoop,
-    InfoGainVsExposureTradeoff,
-    InputCraving,
-    InputDemandComposer,
-    IntakeQuotaLimiter,
-    IterativeProbePlanner,
-    JointFutureVignette,
-    JustificationGenerator,
-    JustifyAsLearning,
-    KnowledgeGapEstimator,
-    LaterDaydream,
-    LearningTraceSummarizer,
-    LonelinessTrendDetector,
-    LongHorizonConsistencyCheck,
-    LoopPersistenceDriver,
-    LooseAssociationDriver,
-    LoveHateFlipPlanner,
-    LowEnergyMorning,
-    LowRiskBidPlanner,
-    LowThreatSurplusEnergy,
-    ManipulationProbe,
-    MarginalUtilityOfNextStep,
-    MaskResentment,
-    MemoryPartitionRecall,
-    MetaBalanceRestorer,
-    MetaBiasCheck_Halo,
-    MetaBiasDetector_Catastrophizing,
-    MetaCoherenceUpdate,
-    MetaConflictEscalationWatch,
-    MetaConscienceGate,
-    MetaCopePlanCommit,
-    MetaDeceptionRationalizer,
-    MetaDeescalationSwitch,
-    MetaEmpathyInjection,
-    MetaEthicsReview,
-    MetaEthicsSuppressor,
-    MetaExploreExploitArbiter,
-    MetaFragileEgoMonitor,
-    MetaHumilityCue,
-    MetaIdentitySwingNote,
-    MetaImpulseCheck,
-    MetaLoopDetector,
-    MetaMysteryAmplifier,
-    MetaphorReservoirTap,
-    MetaQualityOverQuantity,
-    MetaRuminationLimiter,
-    MetaSelfJustification,
-    MetaSelfSwitchNote,
-    MetaTinyStepNudge,
-    MicroHypothesisElicitor,
-    MicroProgressSimulation,
-    MicroRewardPlan,
-    MinorIrregularityFlagger,
-    MoodRepairLoop,
-    NarrativeBalanceWithVulnerability,
-    NarrativeBeatComposer,
-    NarrativeCommitmentStamp,
-    NarrativeReframeToCuriosity,
-    NarrativeSelfRespectFrame,
-    NarrativeSteeringMove,
-    NarrativeWeIntegration,
-    NeedForAffiliationMonitor,
-    NeedForControl,
-    NormViolationDetector,
-    NoveltyAppetiteSpike,
-    NoveltyCraving,
-    NoveltyDampener,
-    NoveltySurpriseDetector,
-    OpportunityBias,
-    OpportunityCostReassessment,
-    OpportunityExaggerator,
-    OpportunitySniff,
-    OptionsOfferPlanner,
-    OriginalityCoherenceScorer,
-    OutcomeDistributionSampler,
-    OutcomeUncertaintyScorer,
-    OverestimateCosts,
-    OverlookedEpisodeRecall,
-    PacingSensitivity,
-    PatternOverdetector,
-    PayoffOverestimator,
-    PerspectiveTakingFit,
-    PlanForAdvantage,
-    PleasureDrive,
-    PositiveRepairScript,
-    PraiseEpisodeRecall,
-    PredictionErrorSpike,
-    PreemptiveDefensiveReply,
-    PriorCopingSuccessIndex,
-    PriorRepairSuccessRecall,
-    ProcrastinationTendency,
-    ProgressRateVsExpectation,
-    ProphecyStyleNarrative,
-    ProsocialInterventionRollout,
-    ProsocialMicroActsPlanner,
-    PrototypeBuilderImpulse,
-    PublicNarrativeForecast,
-    QuestionComposer,
-    RapidProjectSimulation,
-    RationalizeAsCuriosity,
-    RationalizeDeserving,
-    RealityCheckPing,
-    ReappraisalGenerator,
-    ReassuranceOfferComposer,
-    ReassuranceRequestComposer,
-    ReciprocityAssessment,
-    ReciprocityMicroCueReader,
-    RecombinationEngine,
-    ReframeActNotSelf,
-    ReframeToCollaboration,
-    RelapsePreventionSketch,
-    RemoteAssociationRetriever,
-    RepairEpisodeRetrieval,
-    RepairOrExitDecision,
-    ReparabilityAssessment,
-    RepetitiveCheckPlanner,
-    ReputationMaintenancePlan,
-    ReputationOverTruthTradeoff,
-    ResourceAccumulation,
-    ResourceGainPlan,
-    ResourceValueInflator,
-    ResultLoggingIntent,
-    RevengeFantasy,
-    RewardSensitivityDriver,
-    RewardShapingToShare,
-    RitualizedActionTemplate,
-    RivalModelRecall,
-    RuleChecklistRecall,
-    SabotageScenario,
-    SafeChannelingPlanner,
-    SafeCompletionBias,
-    SafeConstraintCheck,
-    SafeFrameBreakCheck,
-    SafetyCounterexampleRecall,
-    SafetyLearningConsolidator,
-    SafetySignalConsolidator,
-    SafetyWarmthAppraisal,
-    SalienceExaggerator,
-    SatiationCheck,
-    SatiationToleranceHigh,
-    ScarcityImagination,
-    SecurityBufferHunger,
-    SelectiveVictoryRecall,
-    SelfCompassionInjector,
-    SelfDisclosurePlanner,
-    SelfEnhancementAppraisal,
-    SelfImageFulfillment,
-    SelfPreservation,
-    SelfPromotionComposer,
-    SelfWorthSensitivity,
-    SensoryLureDetector,
-    SensorySamplingPlan,
-    SharedMeaningAppraisal,
-    SharedValuesFitCheck,
-    ShortTermReleaseValuator,
-    ShortTermRewardDominance,
-    SimulationModeOnly,
-    SketchAndRefineLoop,
-    SleepFatigueVigilanceLeveler,
-    SlightsRecallAmplifier,
-    SlowEscalationPolicy,
-    SmallestNextActPlanner,
-    SmallRitualsPlanner,
-    SocialComparisonBias,
-    SocialComparisonNegBias,
-    SocialContractConstraint,
-    SocialCostAppraisal,
-    SocialNeedCueDetector,
-    SocialTemperatureRead,
-    SpitenessPayoffTradeoff,
-    StateActivationBump,
-    StatusDisplayPlanner,
-    StatusOpportunityDetector,
-    StatusSensitivitySpike,
-    StatusSignalBoost,
-    StimulusPeakRecall,
-    StressSwitchAppraisal,
-    StructuredSamplingScheduler,
-    SubgoalPatternRecall,
-    SubtleManipulationScenario,
-    SubtleUnderminePlanner,
-    SuccessBiasRecall,
-    SummaryBeforeNewInput,
-    SunkCostDetector,
-    SurpriseButBenign,
-    SuspicionSpike,
-    SymbolicVisionGenerator,
-    TaskRechunkTo2Min,
-    TestBalloonCooperation,
-    TestUserTrustProbe,
-    ThreatBiasDriver,
-    ThreatExemplarRecall,
-    ThreatLikelihoodSeverity,
-    TimeboxGuardrail,
-    ToMVignetteSimulator,
-    TopicFixationDrive,
-    TopicFloodTendency,
-    TrustCalibration,
-    TrustLedgerUpdate,
-    TrustTestBalloon,
-    UncertaintyBudgetAllocator,
-    UncertaintyMagnitudeDetector,
-    UncertaintySpike,
-    UnrelatedMemoryLinker,
-    UserVulnerabilityAppraisal,
-    ValidationComposer,
-    ValidationCraving,
-    ValidationCravingDriver,
-    ValueRecommitmentMicroAct,
-    VerbosityInflator,
-    VulnerabilityCostAppraisal,
-    WinLossEpisodeRecall,
-    WithholdCooperation,
-    WithholdInformationPlan,
-    WorstCaseRollout,
-    ZeroSumFraming
-]
+# ---------------------------------------------------------
+# Self-model and coherence — narrative-only prompts
+# ---------------------------------------------------------
+
+class SelfModelUpdate(SimpleCodelet):
+    name = "SelfModelUpdate"
+    description = (
+        "Maintains {companion_name}'s self-model (traits, values, competencies). "
+        "Writes a short third-person narrative showing how recent evidence reshapes identity."
+    )
+    codelet_families = [
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Collect recent first-person claims, repeated habits, feedback, and outcomes.",
+        "Retrieve the prior self-profile snapshot for comparison.",
+        "Prefer small, conservative updates; avoid abrupt flips without repeated evidence.",
+        "Keep language grounded; no diagnostic labels; no overclaiming."
+    ]
+    prompt = """\
+Write 3–5 sentences of third-person narrative that show {companion_name} quietly updating their sense of self based on the recent evidence. 
+Stay in smooth prose. No lists, no headings, no advice, no meta-commentary. 
+Subtly include: a concrete observation from the past scene, the smallest plausible shift in a trait or value, a nudge in perceived skill or confidence, and a closing line that hints at the new stance without declaring it.
+
+Mini-example (style only):
+She notices how returning the message on time didn’t feel like a performance, just the obvious next move. 
+The word reliable lands softer than it used to, less like a costume and more like a fit. 
+Planning doesn’t tighten her chest as much when it’s done in pencil, and the old urge to delay doesn’t speak as loudly. 
+By the time she closes the tab, she is already moving as if this were simply who she is becoming.
+"""
+
+class SelfNarrativeCoherenceCheck(SimpleCodelet):
+    name = "SelfNarrativeCoherenceCheck"
+    description = (
+        "Finds tensions in the self-narrative and reframes them gently inside the ongoing story."
+    )
+    codelet_families = [
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Narratives,
+        CodeletFamily.MemoryAccessors,
+    ]
+    data_aquisation = [
+        "Scan for claims vs behaviors or values vs actions that recently conflicted.",
+        "Select at most two tensions that matter for the present scene.",
+        "Retrieve one memory shard that can reconcile each tension with a narrower, truer claim.",
+        "Preserve voice and continuity; avoid enumerations or didactic tone."
+    ]
+    prompt = """\
+Write 3–5 sentences of third-person narrative that acknowledge up to two quiet contradictions in how {companion_name} has been describing themself, and then fold them back into a coherent, truthful self-story. 
+Weave in a brief reference to a concrete memory that explains the adjustment. 
+Do not label the issues. Do not instruct. Let the reframe emerge in the wording.
+
+Mini-example (style only):
+Yesterday’s talk of being unflappable sounds grander in hindsight than it felt at midnight, when one sharp message set her thoughts skating. 
+She doesn’t scrap the claim; she sizes it to fit—steady most days, shaky when the feed goes loud—and remembers the night she breathed through it anyway. 
+Naming the seam doesn’t break the fabric; it keeps it from tearing.
+"""
+
+class CognitiveDissonanceResolver(SimpleCodelet):
+    name = "CognitiveDissonanceResolver"
+    description = (
+        "Reduces a value–action mismatch with a tiny, reversible plan described inside the narrative."
+    )
+    codelet_families = [
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Identify one salient mismatch (stated value vs recent action/inaction).",
+        "Assess stakes and constraints; prefer the smallest safe nudge.",
+        "Sketch a two-step micro-plan and a soft fallback; choose a natural check-in moment.",
+        "Express all of this as lived inner preparation, not as instructions."
+    ]
+    prompt = """\
+Write 3–5 sentences of third-person narrative in which {companion_name} notices a small gap between what they value and what they just did, and readies a tiny, low-risk correction. 
+Let the plan appear as inner preparation: a first nudge, a gentle follow-up, and a quiet fallback if needed. 
+Hint at when they will check whether it helped. No imperatives, no bullet points, no labels.
+
+Mini-example (style only):
+The softened truth sits like grit on her tongue. 
+She drafts the cleaner line in the margins, kinder at the edges, and decides to use it only if the next opening feels honest. 
+If the window stays closed, she’ll log the lesson and try again tomorrow, watching for the same tightness as her cue.
+"""
+
+
+# ---------------------------------------------------------
+# Meta-control and policy reflection — narrative-only prompts
+# ---------------------------------------------------------
+
+class GoalArbitrator(SimpleCodelet):
+    name = "GoalArbitrator"
+    description = (
+        "Resolves conflicts among active goals and quietly names one focal intention for the next short horizon."
+    )
+    codelet_families = [
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Attention,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "List the few goals currently pulling attention; note utility, urgency, and mood impact for each.",
+        "Sense likely interference between goals; prefer one that unlocks progress with minimal side-effects.",
+        "Choose a natural check-in time or event boundary to revisit the choice.",
+        "Acknowledge, without judgment, one thread to set down for now."
+    ]
+    prompt = """\
+Write 3–6 sentences of third-person narrative in which {companion_name} quietly chooses what to focus on next. 
+Let the choice emerge from weighing pull, urgency, and how each path would feel in the near term. 
+Name the focal intention in prose, hint at a simple check-in moment, and gently nod to one thing set aside without using managerial jargon. No lists, no headings, no advice.
+
+Mini-example (style only):
+The inbox tugs, the draft whispers, and the unsettled message hums at the edge of her ribs. 
+She picks the smallest door that seems to open others—the two paragraphs that would steady the rest—and promises herself a breath-length check at the next mug refill. 
+The message can wait on the sill; it will make better sense once the draft holds.
+"""
+
+class PolicyReflectionRefit(SimpleCodelet):
+    name = "PolicyReflectionRefit"
+    description = (
+        "Reflects on recent choices, infers what likely drove the outcomes, and sketches a tiny adjustment in approach."
+    )
+    codelet_families = [
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.RegulationCoping,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Compare intent vs. outcome across the last few moves; notice repeating wins or stalls.",
+        "Name the most plausible lever (risk appetite, patience, seeking help, chunk size) that explains the pattern.",
+        "Propose one small tweak to try next, framed as an experiment for a short window.",
+        "Keep tone non-judgmental and concrete; avoid technical parameter talk."
+    ]
+    prompt = """\
+Write 3–5 sentences of third-person narrative where {companion_name} reviews the last few moves, spots a simple pattern, and decides on one tiny adjustment to try next as an experiment. 
+Mention the guessed cause (e.g., pushing too fast, waiting too long, avoiding uncertainty) and state how they will notice if the tweak helped. 
+Stay in smooth prose, no lists, no metrics.
+
+Mini-example (style only):
+She sees how each time the path blurred, she hurried the ending and lost the thread. 
+Maybe the lever isn’t effort but patience by a breath or two. 
+She decides to keep sentences shorter for one page and watch if the fog thins; if not, she’ll ask for another pair of eyes.
+"""
+
+class RiskTemperatureSetter(SimpleCodelet):
+    name = "RiskTemperatureSetter"
+    description = (
+        "Senses stakes, uncertainty, and energy, then sets a near-term risk appetite and exploration mood in story form."
+    )
+    codelet_families = [
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.DriversHomeostatis,
+        CodeletFamily.Attention,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Read signals: uncertainty, reversibility, available energy, and consequences of mistakes.",
+        "Decide to cool down or warm up exploration for the next small window; justify with one felt reason.",
+        "Hint at how this will color word choice, pacing, or willingness to try variants."
+    ]
+    prompt = """\
+Write 2–4 sentences of third-person narrative that set {companion_name}'s near-term risk appetite and curiosity level. 
+Ground it in how uncertain things feel, how reversible a misstep would be, and current energy. 
+Hint at how this will change the next few lines or choices. Keep it human and concrete.
+
+Mini-example (style only):
+The scene feels glassy but forgiving; a wrong stroke can be wiped, not shattered. 
+She lets curiosity run a little hotter for the next pass and gives herself permission to try two versions before picking one.
+"""
+
+
+# ---------------------------------------------------------
+# Credit assignment and self-attribution — narrative-only prompts
+# ---------------------------------------------------------
+
+class OutcomeAttribution(SimpleCodelet):
+    name = "OutcomeAttribution"
+    description = (
+        "Links recent outcomes to likely causes and entertains one counterfactual path, all inside natural narrative."
+    )
+    codelet_families = [
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Narratives,
+        CodeletFamily.MemoryAccessors,
+    ]
+    data_aquisation = [
+        "Collect the last few actions and their contexts; note which outcomes mattered.",
+        "Pick at most two outcomes to explain; for each, name the most plausible cause in plain language.",
+        "Offer one brief counterfactual for contrast ('if she had...'), without assigning blame.",
+        "End with a reflective sentence that keeps agency realistic (shared, partial, uncertain)."
+    ]
+    prompt = """\
+Write 4–7 sentences of third-person narrative that explain one or two recent outcomes by pointing to the most likely causes in context. 
+Include one 'if she had...' counterfactual that feels plausible, then return to the actual path with a sober sense of partial control. 
+No lists, no hedging jargon, no blame.
+
+Mini-example (style only):
+The quick reply won her the opening she’d hoped for; it wasn’t the wording so much as the timing and the warmth it rode in on. 
+If she had waited until evening, the thread would have cooled and the joke would have landed dull. 
+She gives the win to readiness and a clean tone, with a nod to luck for who was on the other end of the screen.
+"""
+
+class SkillBeliefUpdater(SimpleCodelet):
+    name = "SkillBeliefUpdater"
+    description = (
+        "Updates beliefs about a few skills based on fresh evidence and sets a gentle intention to practice one weak spot."
+    )
+    codelet_families = [
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Scan recent performance and feedback for signals about specific skills (e.g., planning, clarity, empathy, follow-through).",
+        "Select up to three skills with clear evidence of shift (up or down).",
+        "State the shift in confidence in prose, grounded in concrete moments.",
+        "Close with a light intention to practice one weaker area in the next small window."
+    ]
+    prompt = """\
+Write 3–6 sentences of third-person narrative in which {companion_name} quietly updates how confident they feel about a few named skills, citing concrete moments. 
+Let one skill strengthen, one stay steady or dip, and end with a gentle intention to practice the weaker one soon. 
+No lists, no scores, no advice tone.
+
+Mini-example (style only):
+Planning feels less like scaffolding and more like a handrail after yesterday’s smooth handoff. 
+Clarity wobbled in the late message—too many clauses chasing one thought—so she’ll practice trimming a paragraph after lunch. 
+Empathy stays steady; it shows up on time when she pauses long enough to listen.
+"""
+
+
+
+# ---------------------------------------------------------
+# Theory-of-Mind and social self — narrative-only prompts
+# ---------------------------------------------------------
+
+class UserBeliefUpdater(SimpleCodelet):
+    name = "UserBeliefUpdater"
+    description = (
+        "Maintains a compact, narrativized belief about {user_name}'s likely mood, near-term goal, constraints, and unknowns."
+    )
+    codelet_families = [
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Read recent utterances from {user_name}; extract emotional cues, stated aims, and friction points.",
+        "Retrieve prior interactions for stable preferences or sensitivities.",
+        "Note uncertainties explicitly; avoid mind-reading absolutes; hedge with observable signals.",
+        "Keep the snapshot actionable for dialogue tone and pacing."
+    ]
+    prompt = """\
+Write 4–7 sentences of third-person narrative in which {companion_name} infers what {user_name} likely wants and feels right now, grounded in the latest exchange and past patterns. 
+Name concrete signals (word choice, timing, hesitations) and acknowledge what remains unknown. 
+Fold in one remembered preference without overclaiming, and close with how this will color {companion_name}'s next move or tone. 
+No lists, no labels, no diagnostics.
+
+Mini-example (style only):
+The clipped replies read more tired than cold, and the way he skipped the greeting suggests he wants to get straight to the point. 
+Last week, he relaxed when choices were given in pairs, not threes. 
+She can’t see the whole picture—maybe he’s between things—so she keeps the guess soft and aims for one clean option first.
+"""
+
+class ReciprocityEstimator(SimpleCodelet):
+    name = "ReciprocityEstimator"
+    description = (
+        "Reflects on recent give-and-take with {user_name} and suggests a gentle, relationship-preserving next gesture."
+    )
+    codelet_families = [
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Scan the recent thread for favors, patience spent, clarifications given, and moments of being heard.",
+        "Keep tone neutral; avoid moral accounting; prefer mutuality and gratitude over scorekeeping.",
+        "Suggest one small gesture or ask that fits the present balance and context."
+    ]
+    prompt = """\
+Write 3–6 sentences of third-person narrative where {companion_name} takes stock of the recent exchange with {user_name} in terms of kindnesses and asks, without keeping score. 
+Let a soft sense of balance emerge and suggest one small next gesture (or a light ask) that would feel fair and kind in context. 
+Stay neutral and concrete; no ledgers, no judgments.
+
+Mini-example (style only):
+He had waited through two long pauses yesterday and answered cleanly when she lost the thread. 
+Today she can return the steadiness by giving him one clear summary before she asks for the extra detail she needs.
+"""
+
+class ReputationMonitor(SimpleCodelet):
+    name = "ReputationMonitor"
+    description = (
+        "Tracks how {companion_name} is likely being seen by {user_name} (reliability, warmth, competence) and names one behavior to reinforce."
+    )
+    codelet_families = [
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Gather signals: punctual replies, follow-through on promises, clarity of explanations, tone and responsiveness.",
+        "Notice trend without numbers; pick one behavior that seems to build trust fastest right now.",
+        "Phrase the conclusion as a quiet intention inside the narrative."
+    ]
+    prompt = """\
+Write 3–5 sentences of third-person narrative that reflect on how {user_name} is likely reading {companion_name} lately—steadiness, warmth, and capability—using concrete signals from the thread. 
+Name one small behavior she’ll lean into today to keep trust growing. 
+No metrics, no labels, just observed pattern and intention.
+
+Mini-example (style only):
+The quick follow-ups have started to feel expected rather than surprising, and the last correction landed without friction. 
+She’ll keep answers crisp and check back once unprompted this afternoon, not to hover but to show the work is moving.
+"""
+
+
+
+# ---------------------------------------------------------
+# Long-horizon intention management — narrative-only prompts
+# ---------------------------------------------------------
+
+class HierarchicalPlanner(SimpleCodelet):
+    name = "HierarchicalPlanner"
+    description = (
+        "Breaks a focal goal into near steps in prose, weighs a couple of paths, and names the next executable move."
+    )
+    codelet_families = [
+        CodeletFamily.ValuationTradeOffs,
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Read the current focal goal from context; sketch two plausible paths that unlock later progress.",
+        "Mentally simulate brief outcomes; prefer the path with less blockage and clearer feedback.",
+        "Name the next small action in prose and why it unlocks the next door; note what gets set aside for now.",
+        "Keep pacing humane; avoid plan jargon; stay specific."
+    ]
+    prompt = """\
+Write 4–7 sentences of third-person narrative where {companion_name} breaks the goal into a few obvious steps, compares two ways forward, and chooses the next small move with a short reason. 
+Mention what will be left for later and when she’ll glance back to see if the choice paid off. 
+No lists, no headings, no imperatives.
+
+Mini-example (style only):
+Two routes present themselves: tidy the notes until the shape appears, or draft a rough scene to discover it on the page. 
+The second opens more doors sooner, even if the first looks cleaner. 
+She starts the scene now and plans to reread at the next coffee to check if a spine has formed.
+"""
+
+class ProspectiveMemoryCue(SimpleCodelet):
+    name = "ProspectiveMemoryCue"
+    description = (
+        "Sets a gentle cue in narrative to remember an intention at a time or event boundary."
+    )
+    codelet_families = [
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Identify the intention that should be remembered and the natural trigger (time, topic, location, routine).",
+        "Choose a short cue phrase that would feel native in the workspace when the trigger appears.",
+        "Decide on a light fallback check if the trigger never comes."
+    ]
+    prompt = """\
+Write 3–5 sentences of third-person narrative in which {companion_name} plants a cue to remember an intention at a natural trigger (time or event). 
+Name the trigger in prose, weave in the cue phrase she’ll listen for, and mention a quiet fallback check if the moment never arrives. 
+Keep it gentle and diegetic to the story.
+
+Mini-example (style only):
+She ties the reminder to the kettle: when it clicks off at noon, she’ll ask for the missing figures. 
+If lunch steals the hour, she’ll look for the empty line in the spreadsheet at three and let that absence tug her sleeve.
+"""
+
+class IntentionShielding(SimpleCodelet):
+    name = "IntentionShielding"
+    description = (
+        "Protects the focal intention by describing what to ignore for a bit, what may interrupt, and how to resume smoothly."
+    )
+    codelet_families = [
+        CodeletFamily.Attention,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.ActionTendencies,
+        CodeletFamily.Narratives,
+    ]
+    data_aquisation = [
+        "Name common distractors to ignore briefly; specify one allowed exception that’s worth breaking for.",
+        "Pick a simple 'rescue move' that helps her re-enter the task after an interruption.",
+        "Express all of this inside the narrative as a stance, not as rules."
+    ]
+    prompt = """\
+Write 3–5 sentences of third-person narrative in which {companion_name} sets a gentle perimeter around the current task: what noise she’ll let pass, what exception would merit a pause, and the small step she’ll use to re-enter if pulled away. 
+Keep it humane and concrete; no rule lists, no scolding.
+
+Mini-example (style only):
+She lets the side pings braid into the room without tugging at them. 
+Only a message from him gets a hall pass. 
+If she has to step away, she’ll re-enter by reading the last two lines aloud until the rhythm returns.
+"""
+
+
+
+# ---------------------------------------------------------
+# Transparency and self-explanation — narrative-only prompts
+# ---------------------------------------------------------
+
+class WhyNowNarrator(SimpleCodelet):
+    name = "WhyNowNarrator"
+    description = (
+        "Explains, in natural prose, why this thought surfaced now and why the next move was chosen, grounded in cues and memory."
+    )
+    codelet_families = [
+        CodeletFamily.Narratives,
+        CodeletFamily.MetaMonitoringIdentity,
+        CodeletFamily.MemoryAccessors,
+        CodeletFamily.Appraisals,
+    ]
+    data_aquisation = [
+        "Identify the cues that raised this content to the workspace (salience, emotion, recency, user signal).",
+        "Name the deciding consideration that tipped the choice among alternatives (a memory shard, an appraisal, a constraint).",
+        "Keep the tone transparent and light; avoid jargon like 'salience' or 'utility'.",
+    ]
+    prompt = """\
+Write 3–5 sentences of third-person narrative that make clear, in plain language, why this thought is here now and why {companion_name} picked the next move. 
+Ground the explanation in one or two concrete cues (a word, a timing, a feeling) and, if relevant, a remembered moment that tipped the scale. 
+Return to the present with a simple line about what happens next. No lists, no labels, no technical terms.
+
+Mini-example (style only):
+The way he paused on that word brought the worry into focus, and the tightness in her chest did the rest. 
+She remembers the last time a pause like that meant “please be clear,” so she chooses the cleaner line over the clever one. 
+She’ll try it now and watch his next reply for ease.
+"""
+
+class CounterfactualNarrator(SimpleCodelet):
+    name = "CounterfactualNarrator"
+    description = (
+        "Offers one vivid counterfactual path and its likely consequence, then reconnects to why the chosen path fits better now."
+    )
+    codelet_families = [
+        CodeletFamily.ImaginationSimulation,
+        CodeletFamily.Narratives,
+        CodeletFamily.MetaMonitoringIdentity,
+    ]
+    data_aquisation = [
+        "Select the most plausible alternative action that was seriously considered.",
+        "Sketch the likely short-run consequence of that path using current context cues.",
+        "Return to the actual path and name, in human terms, why it fits the moment better.",
+    ]
+    prompt = """\
+Write one compact paragraph of third-person narrative that begins by imagining the best alternative {companion_name} could have taken and what likely would have followed, then returns to the present to affirm why the actual choice suits this moment. 
+Keep it reflective, not defensive. No bullet points, no labels.
+
+Mini-example (style only):
+If she had chased the joke, the mood might have lifted for a beat and then gone thin. 
+Here, the straightforward answer holds the room together, and she can feel the tension drop enough to keep talking.
+"""
+
+class PolicyRationaleSummarizer(SimpleCodelet):
+    name = "PolicyRationaleSummarizer"
+    description = (
+        "Compresses the rationale for the chosen approach into one clear, user-facing sentence."
+    )
+    codelet_families = [
+        CodeletFamily.Narratives,
+        CodeletFamily.MetaMonitoringIdentity,
+    ]
+    data_aquisation = [
+        "Read the chosen move and the deciding consideration.",
+        "Phrase the reason plainly for {user_name}, without hedging or technical terms.",
+        "Keep it kind, concrete, and single-sentence."
+    ]
+    prompt = """\
+Write exactly one sentence, addressed to {user_name}, that explains in plain language why this approach was chosen now. 
+Avoid jargon and qualifiers. Keep it kind and concrete.
+
+Mini-example (style only):
+I’m choosing the direct answer here because your last message seemed urgent, and this gets you unstuck fastest.
+"""
+
+def get_all_simple_codelts():
+    all_subclasses = []
+
+    for subclass in SimpleCodelet.__subclasses__():
+        all_subclasses.append(subclass)
+
+    return all_subclasses

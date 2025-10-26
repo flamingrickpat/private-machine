@@ -122,6 +122,7 @@ class FeatureType(StrEnum):
     ExternalThought = "ExternalThought"
     MetaInsight = "MetaInsight"
     SystemMessage = "SystemMessage"
+    CodeletOutput = "CodeletOutput"
 
     @staticmethod
     def from_stimulus(feature_type):
@@ -163,6 +164,7 @@ class KnoxelBase(BaseModel):
     timestamp_creation: datetime = Field(default_factory=datetime.now)
     timestamp_world_begin: datetime = Field(default_factory=datetime.now)
     timestamp_world_end: datetime = Field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
     def get_story_element(self, ghost: "KnoxelHaver" = None) -> str:
         return f"{self.__class__.__name__}: {self.content}"
@@ -485,6 +487,7 @@ class Feature(KnoxelBase):
             FeatureType.MetaInsight: f'{self.source} reflects on their own cognition: *{self.content}*',
             FeatureType.SystemMessage: f"{companion_name}'s SYSTEM-Agent reports: *{self.content}*",
             FeatureType.ExternalThought: f'{self.source} thinks: *{self.content}*',
+            FeatureType.CodeletOutput: f'## {self.source}:\n{self.content}\n'
         }
         # Default fallback
         return story_map[self.feature_type]
@@ -503,7 +506,7 @@ class KnoxelList:
         s = self.get_story(None)
         return get_token_count(s)
 
-    def get_story(self, ghost: KnoxelHaver = None, max_tokens: Optional[int] = None) -> str:
+    def get_story(self, ghost: KnoxelHaver = None, max_tokens: Optional[int] = None, target_knoxel_ids: List[int] = None) -> str:
         last_timestamp = None
         for item in self._list:
             if last_timestamp is None:
@@ -513,15 +516,17 @@ class KnoxelList:
                 raise Exception("Linear history mixed up!")
             last_timestamp = item.timestamp_world_begin
 
-        content_list = [k.get_story_element(ghost) for k in self._list]
+        content_list = [(k.id, k.get_story_element(ghost)) for k in self._list]
         current_tokens = 0
         buffer = []
-        for content in content_list[::-1]:
-            t = get_token_count(content)
-            current_tokens += t
+        for _id, content in content_list[::-1]:
+            tc = get_token_count(content)
+            current_tokens += tc
             if max_tokens is not None and current_tokens > max_tokens:
                 break
             buffer.insert(0, content)
+            if target_knoxel_ids:
+                target_knoxel_ids.append(_id)
 
         narrative = "\n".join(buffer)
         return narrative

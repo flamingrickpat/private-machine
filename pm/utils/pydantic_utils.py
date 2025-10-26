@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import copy
+import json
 import random
 from copy import deepcopy
-from datetime import timedelta
+from datetime import timedelta, date
 from enum import Enum
 from typing import (
     Union,
     get_origin,
-    Optional, OrderedDict,
+    Optional, OrderedDict, get_type_hints,
 )
 from typing import Type
 from typing import Dict, Any
@@ -64,7 +66,7 @@ def pydantic_to_type_dict(
         out[name] = _stringify_type(typ)
     return out
 
-def create_basemodel(field_definitions, randomnize_entries=False):
+def create_basemodel(field_definitions, randomnize_entries=False, optional: bool = False):
     """
     Create a dynamic Pydantic BaseModel with randomized field order.
 
@@ -87,7 +89,10 @@ def create_basemodel(field_definitions, randomnize_entries=False):
     fields = {}
     for field in randomized_fields:
         name = field['name']
-        f_type = field['type']
+        if optional:
+            f_type = Optional[field['type']]
+        else:
+            f_type = field['type']
         description = field.get('description', "")
 
         # Use Ellipsis to indicate the field is required.
@@ -327,3 +332,138 @@ def create_delta_basemodel(
     DeltaModel.__doc__ = original_basemodel.__doc__
 
     return DeltaModel
+
+
+def flatten_pydantic_model(model_cls: Type[BaseModel]) -> Type[BaseModel]:
+    annotations: Dict[str, Any] = {}
+    field_definitions: Dict[str, Any] = {}
+
+    # Walk MRO (BaseModel subclasses only)
+    for base in reversed(model_cls.__mro__):
+        if not issubclass(base, BaseModel):
+            continue
+
+        # Merge type hints
+        base_annotations = get_type_hints(base, include_extras=True)
+        annotations.update(base_annotations)
+
+        # Merge field definitions using deep copies of FieldInfo
+        for name, field_info in base.__fields__.items():
+            field_info = copy.deepcopy(field_info)
+            field_definitions[name] = (annotations[name], field_info)
+
+    # Dynamically create flattened model
+    flattened = create_model(
+        f"{model_cls.__name__}Flat",
+        __base__=BaseModel,
+        __doc__=model_cls.__doc__,
+        **field_definitions,
+    )
+
+    return flattened
+
+def basemodel_to_text(instance: BaseModel) -> str:
+    """
+    Converts a Pydantic BaseModel instance into a plain text string.
+
+    Each field is output in model field order, values separated by spaces.
+    If a field is a list of strings, they are joined by commas.
+
+    Example:
+        name='Alice', tags=['red','blue'] → "Alice red,blue"
+    """
+    values = []
+    for name, field in instance.model_fields.items():
+        value = getattr(instance, name)
+        if isinstance(value, list):
+            values.append(",".join(str(v) for v in value))
+        elif value is None:
+            values.append("")
+        else:
+            values.append(str(value))
+    return " ".join(values)
+
+def generate_pydantic_json_schema_llm(model: type[BaseModel] | BaseModel, beautify: bool = False) -> str:
+    """Recursively resolve $refs and inline all $defs for compact LLM-friendly JSON schema."""
+    if isinstance(model, BaseModel):
+        model = model.__class__
+
+    raw = model.model_json_schema()
+
+    # attach docstring as top-level description if missing
+    if not raw.get("description") and model.__doc__:
+        raw["description"] = model.__doc__.strip()
+
+    defs = raw.pop("$defs", {})  # extract definitions for manual deref
+
+    def _clean(obj: Any) -> Any:
+        """Recursively clean and inline schema fragments."""
+        if isinstance(obj, dict):
+            # if this node is a $ref -> replace with actual definition
+            if "$ref" in obj:
+                ref_name = obj["$ref"].split("/")[-1]
+                if ref_name in defs:
+                    # deep copy to avoid mutation
+                    return _clean(copy.deepcopy(defs[ref_name]))
+                else:
+                    # unresolved ref, drop it
+                    obj.pop("$ref")
+                    return _clean(obj)
+
+            # remove irrelevant keys
+            for k in ["title", "$ref", "$defs", "examples", "default"]:
+                obj.pop(k, None)
+
+            # recursively process subkeys
+            for k, v in list(obj.items()):
+                obj[k] = _clean(v)
+            return obj
+
+        elif isinstance(obj, list):
+            return [_clean(x) for x in obj]
+        else:
+            return obj
+
+    cleaned = _clean(raw)
+
+    if beautify:
+        res = json.dumps(cleaned, indent=4)
+    else:
+        res = json.dumps(cleaned, separators=(",", ":"))
+    return res
+
+def pydandic_model_to_dict_jsonable(model: BaseModel) -> dict:
+    """
+    To dict with all fields that can't be serialized to JSON removed.
+    """
+    if model is None:
+        return {}
+
+    def make_safe(value: Any) -> Any:
+        # primitives
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+
+        # nested Pydantic model
+        if isinstance(value, BaseModel):
+            return pydandic_model_to_dict_jsonable(value)
+
+        # list or tuple
+        if isinstance(value, (list, tuple)):
+            safe_list = [make_safe(v) for v in value]
+            return [v for v in safe_list if v is not None]
+
+        # dict
+        if isinstance(value, dict):
+            safe_dict = {k: make_safe(v) for k, v in value.items()}
+            return {k: v for k, v in safe_dict.items() if v is not None}
+
+        # discard known non-JSON types
+        if isinstance(value, (datetime, date, Enum, object)):
+            return None
+
+        # anything else
+        return None
+
+    raw_dict = model.model_dump()  # for Pydantic v2
+    return {k: v for k, v in ((k, make_safe(v)) for k, v in raw_dict.items()) if v is not None}
