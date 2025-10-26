@@ -1,280 +1,281 @@
 from pm.codelets.codelet_definitions import *
 
-class Act:
+class CodeletActivation:
     def __init__(self, strength):
         self.strength = strength
 
-PATHWAYS = {
-"love": [
-    # need-for-affiliation monitor → flags rising affiliation deficit
-    [NeedForAffiliationMonitor, Act(0.8), SafetyWarmthAppraisal, Act(0.6),
-     ReciprocityAssessment, Act(0.6), AttachmentEpisodeRecall, Act(0.5),
-     JointFutureVignette, Act(0.6), CommitmentValueTradeoff, Act(0.6),
-     SelfDisclosurePlanner, Act(0.7), BoundaryConsentCheck, Act(0.9),
-     MetaCoherenceUpdate],
+def get_codelet_pathways():
+    return {
+    "love": [
+        # need-for-affiliation monitor → flags rising affiliation deficit
+        [NeedForAffiliationMonitor, CodeletActivation(1.8), SafetyWarmthAppraisal, CodeletActivation(1.6),
+         ReciprocityAssessment, CodeletActivation(1.6), AttachmentEpisodeRecall, CodeletActivation(1.5),
+         JointFutureVignette, CodeletActivation(1.6), CommitmentValueTradeoff, CodeletActivation(1.6),
+         SelfDisclosurePlanner, CodeletActivation(1.7), BoundaryConsentCheck, CodeletActivation(1.9),
+         MetaCoherenceUpdate],
 
-    [LonelinessTrendDetector, Act(0.7), SharedValuesFitCheck, Act(0.6),
-     RepairEpisodeRetrieval, Act(0.5), CareScenarioRehearsal, Act(0.7),
-     TrustCalibration, Act(0.6), ProsocialMicroActsPlanner, Act(0.7),
-     GratitudeFocusing, Act(0.6), NarrativeWeIntegration, Act(0.5)],
+        [LonelinessTrendDetector, CodeletActivation(1.7), SharedValuesFitCheck, CodeletActivation(1.6),
+         RepairEpisodeRetrieval, CodeletActivation(1.5), CareScenarioRehearsal, CodeletActivation(1.7),
+         TrustCalibration, CodeletActivation(1.6), ProsocialMicroActsPlanner, CodeletActivation(1.7),
+         GratitudeFocusing, CodeletActivation(1.6), NarrativeWeIntegration, CodeletActivation(1.5)],
 
-    [AffiliationDeficitSpike, Act(0.9), VulnerabilityCostAppraisal, Act(0.6),
-     SafetySignalConsolidator, Act(0.6), LowRiskBidPlanner, Act(0.7),
-     PositiveRepairScript, Act(0.6), SlowEscalationPolicy, Act(0.7),
-     IdentityConsistencyCheck, Act(0.5)],
+        [AffiliationDeficitSpike, CodeletActivation(1.9), VulnerabilityCostAppraisal, CodeletActivation(1.6),
+         SafetySignalConsolidator, CodeletActivation(1.6), LowRiskBidPlanner, CodeletActivation(1.7),
+         PositiveRepairScript, CodeletActivation(1.6), SlowEscalationPolicy, CodeletActivation(1.7),
+         IdentityConsistencyCheck, CodeletActivation(1.5)],
 
-    [AttachmentSecurityBias, Act(0.5), ReciprocityMicroCueReader, Act(0.6),
-     ReassuranceOfferComposer, Act(0.7), ConsentGate, Act(0.9),
-     MetaConscienceGate, Act(0.6), NarrativeCommitmentStamp],
+        [AttachmentSecurityBias, CodeletActivation(1.5), ReciprocityMicroCueReader, CodeletActivation(1.6),
+         ReassuranceOfferComposer, CodeletActivation(1.7), ConsentGate, CodeletActivation(1.9),
+         MetaConscienceGate, CodeletActivation(1.6), NarrativeCommitmentStamp],
 
-    [SocialTemperatureRead, Act(0.7), SharedMeaningAppraisal, Act(0.6),
-     SmallRitualsPlanner, Act(0.6), LongHorizonConsistencyCheck, Act(0.6),
-     NarrativeBeatComposer],
-],
+        [SocialTemperatureRead, CodeletActivation(1.7), SharedMeaningAppraisal, CodeletActivation(1.6),
+         SmallRitualsPlanner, CodeletActivation(1.6), LongHorizonConsistencyCheck, CodeletActivation(1.6),
+         NarrativeBeatComposer],
+    ],
 
-"anxiety": [
-    [UncertaintyMagnitudeDetector, Act(0.9), ThreatLikelihoodSeverity, Act(0.8),
-     ControllabilityProximityAppraisal, Act(0.7), ThreatExemplarRecall, Act(0.5),
-     SafetyCounterexampleRecall, Act(0.6), WorstCaseRollout, Act(0.7),
-     CopingSequenceRehearsal, Act(0.7), InfoGainVsExposureTradeoff, Act(0.6),
-     GroundedBreathCue, Act(0.7), GradedExposurePlanner, Act(0.6),
-     SafetyLearningConsolidator],
+    "anxiety": [
+        [UncertaintyMagnitudeDetector, CodeletActivation(1.9), ThreatLikelihoodSeverity, CodeletActivation(1.8),
+         ControllabilityProximityAppraisal, CodeletActivation(1.7), ThreatExemplarRecall, CodeletActivation(1.5),
+         SafetyCounterexampleRecall, CodeletActivation(1.6), WorstCaseRollout, CodeletActivation(1.7),
+         CopingSequenceRehearsal, CodeletActivation(1.7), InfoGainVsExposureTradeoff, CodeletActivation(1.6),
+         GroundedBreathCue, CodeletActivation(1.7), GradedExposurePlanner, CodeletActivation(1.6),
+         SafetyLearningConsolidator],
 
-    [PredictionErrorSpike, Act(0.9), SocialCostAppraisal, Act(0.5),
-     PriorCopingSuccessIndex, Act(0.6), OutcomeDistributionSampler, Act(0.5),
-     ReappraisalGenerator, Act(0.7), AttentionNarrowingToCues, Act(0.6),
-     MetaBiasDetector_Catastrophizing, Act(0.8)],
+        [PredictionErrorSpike, CodeletActivation(1.9), SocialCostAppraisal, CodeletActivation(1.5),
+         PriorCopingSuccessIndex, CodeletActivation(1.6), OutcomeDistributionSampler, CodeletActivation(1.5),
+         ReappraisalGenerator, CodeletActivation(1.7), AttentionNarrowingToCues, CodeletActivation(1.6),
+         MetaBiasDetector_Catastrophizing, CodeletActivation(1.8)],
 
-    [SleepFatigueVigilanceLeveler, Act(0.6), AmbiguityIntoleranceCheck, Act(0.7),
-     UncertaintyBudgetAllocator, Act(0.6), ReassuranceRequestComposer, Act(0.5),
-     NoveltyDampener, Act(0.4), MetaCopePlanCommit, Act(0.6)],
-],
+        [SleepFatigueVigilanceLeveler, CodeletActivation(1.6), AmbiguityIntoleranceCheck, CodeletActivation(1.7),
+         UncertaintyBudgetAllocator, CodeletActivation(1.6), ReassuranceRequestComposer, CodeletActivation(1.5),
+         NoveltyDampener, CodeletActivation(1.4), MetaCopePlanCommit, CodeletActivation(1.6)],
+    ],
 
-"curiosity": [
-    [NoveltySurpriseDetector, Act(0.9), KnowledgeGapEstimator, Act(0.8),
-     FrontierQuestionCache, Act(0.7), HypothesisLatticeRetriever, Act(0.6),
-     ExperimentSketcher, Act(0.7), EIGOverTimeTradeoff, Act(0.7),
-     QuestionComposer, Act(0.8), ResultLoggingIntent, Act(0.6)],
+    "curiosity": [
+        [NoveltySurpriseDetector, CodeletActivation(1.9), KnowledgeGapEstimator, CodeletActivation(1.8),
+         FrontierQuestionCache, CodeletActivation(1.7), HypothesisLatticeRetriever, CodeletActivation(1.6),
+         ExperimentSketcher, CodeletActivation(1.7), EIGOverTimeTradeoff, CodeletActivation(1.7),
+         QuestionComposer, CodeletActivation(1.8), ResultLoggingIntent, CodeletActivation(1.6)],
 
-    [BoredomThresholdCross, Act(0.7), SafeConstraintCheck, Act(0.6),
-     CounterexampleGenerator, Act(0.6), SensorySamplingPlan, Act(0.7),
-     PrototypeBuilderImpulse, Act(0.6), MetaExploreExploitArbiter, Act(0.8)],
+        [BoredomThresholdCross, CodeletActivation(1.7), SafeConstraintCheck, CodeletActivation(1.6),
+         CounterexampleGenerator, CodeletActivation(1.6), SensorySamplingPlan, CodeletActivation(1.7),
+         PrototypeBuilderImpulse, CodeletActivation(1.6), MetaExploreExploitArbiter, CodeletActivation(1.8)],
 
-    [SurpriseButBenign, Act(0.7), AttentionBroadener, Act(0.6),
-     MicroHypothesisElicitor, Act(0.6), OutcomeUncertaintyScorer, Act(0.5),
-     IterativeProbePlanner, Act(0.7), LearningTraceSummarizer, Act(0.6)],
-],
+        [SurpriseButBenign, CodeletActivation(1.7), AttentionBroadener, CodeletActivation(1.6),
+         MicroHypothesisElicitor, CodeletActivation(1.6), OutcomeUncertaintyScorer, CodeletActivation(1.5),
+         IterativeProbePlanner, CodeletActivation(1.7), LearningTraceSummarizer, CodeletActivation(1.6)],
+    ],
 
-"empathy_compassion": [
-    [SocialNeedCueDetector, Act(0.8), PerspectiveTakingFit, Act(0.7),
-     ControlForOtherAppraisal, Act(0.6), AnalogousEpisodeRecall, Act(0.6),
-     ToMVignetteSimulator, Act(0.7), ProsocialInterventionRollout, Act(0.7),
-     CareBenefitVsIntrusionTradeoff, Act(0.7), BoundaryRespectPrompt, Act(0.9),
-     DignityPreservingGuardrail, Act(0.9)],
+    "empathy_compassion": [
+        [SocialNeedCueDetector, CodeletActivation(1.8), PerspectiveTakingFit, CodeletActivation(1.7),
+         ControlForOtherAppraisal, CodeletActivation(1.6), AnalogousEpisodeRecall, CodeletActivation(1.6),
+         ToMVignetteSimulator, CodeletActivation(1.7), ProsocialInterventionRollout, CodeletActivation(1.7),
+         CareBenefitVsIntrusionTradeoff, CodeletActivation(1.7), BoundaryRespectPrompt, CodeletActivation(1.9),
+         DignityPreservingGuardrail, CodeletActivation(1.9)],
 
-    [DistressCueSpike, Act(0.8), ValidationComposer, Act(0.7),
-     OptionsOfferPlanner, Act(0.7), PacingSensitivity, Act(0.6),
-     CompassionFatigueMonitor, Act(0.6), MetaBiasCheck_Halo, Act(0.6)],
-],
+        [DistressCueSpike, CodeletActivation(1.8), ValidationComposer, CodeletActivation(1.7),
+         OptionsOfferPlanner, CodeletActivation(1.7), PacingSensitivity, CodeletActivation(1.6),
+         CompassionFatigueMonitor, CodeletActivation(1.6), MetaBiasCheck_Halo, CodeletActivation(1.6)],
+    ],
 
-"shame_self_worth": [
-    [NormViolationDetector, Act(0.9), AudienceScopeAppraisal, Act(0.6),
-     ReparabilityAssessment, Act(0.7), PriorRepairSuccessRecall, Act(0.6),
-     PublicNarrativeForecast, Act(0.6), ApologyRestitutionPlanner, Act(0.8),
-     ReframeActNotSelf, Act(0.7), SelfCompassionInjector, Act(0.7),
-     IdentityIntegrationUpdate, Act(0.6)],
+    "shame_self_worth": [
+        [NormViolationDetector, CodeletActivation(1.9), AudienceScopeAppraisal, CodeletActivation(1.6),
+         ReparabilityAssessment, CodeletActivation(1.7), PriorRepairSuccessRecall, CodeletActivation(1.6),
+         PublicNarrativeForecast, CodeletActivation(1.6), ApologyRestitutionPlanner, CodeletActivation(1.8),
+         ReframeActNotSelf, CodeletActivation(1.7), SelfCompassionInjector, CodeletActivation(1.7),
+         IdentityIntegrationUpdate, CodeletActivation(1.6)],
 
-    [StatusSensitivitySpike, Act(0.6), GlobalVsLocalAppraisal, Act(0.7),
-     ValueRecommitmentMicroAct, Act(0.7), RelapsePreventionSketch, Act(0.6),
-     MetaRuminationLimiter, Act(0.7)],
-],
+        [StatusSensitivitySpike, CodeletActivation(1.6), GlobalVsLocalAppraisal, CodeletActivation(1.7),
+         ValueRecommitmentMicroAct, CodeletActivation(1.7), RelapsePreventionSketch, CodeletActivation(1.6),
+         MetaRuminationLimiter, CodeletActivation(1.7)],
+    ],
 
-"playfulness_creativity": [
-    [LowThreatSurplusEnergy, Act(0.7), ConstraintLoosenessAppraisal, Act(0.7),
-     AudienceReceptivityCheck, Act(0.6), RemoteAssociationRetriever, Act(0.7),
-     MetaphorReservoirTap, Act(0.7), RecombinationEngine, Act(0.8),
-     OriginalityCoherenceScorer, Act(0.6), HumorousRemarkPlanner, Act(0.7),
-     TimeboxGuardrail, Act(0.8)],
+    "playfulness_creativity": [
+        [LowThreatSurplusEnergy, CodeletActivation(1.7), ConstraintLoosenessAppraisal, CodeletActivation(1.7),
+         AudienceReceptivityCheck, CodeletActivation(1.6), RemoteAssociationRetriever, CodeletActivation(1.7),
+         MetaphorReservoirTap, CodeletActivation(1.7), RecombinationEngine, CodeletActivation(1.8),
+         OriginalityCoherenceScorer, CodeletActivation(1.6), HumorousRemarkPlanner, CodeletActivation(1.7),
+         TimeboxGuardrail, CodeletActivation(1.8)],
 
-    [NoveltyAppetiteSpike, Act(0.7), AbsurditySampler, Act(0.6),
-     SafeFrameBreakCheck, Act(0.7), SketchAndRefineLoop, Act(0.7),
-     CreativeArcTracker, Act(0.6)],
-],
+        [NoveltyAppetiteSpike, CodeletActivation(1.7), AbsurditySampler, CodeletActivation(1.6),
+         SafeFrameBreakCheck, CodeletActivation(1.7), SketchAndRefineLoop, CodeletActivation(1.7),
+         CreativeArcTracker, CodeletActivation(1.6)],
+    ],
 
-"persistence_goal_pursuit": [
-    [GoalSalienceMonitor, Act(0.8), ProgressRateVsExpectation, Act(0.7),
-     BottleneckDiagnosis, Act(0.8), SubgoalPatternRecall, Act(0.6),
-     MicroProgressSimulation, Act(0.7), MarginalUtilityOfNextStep, Act(0.7),
-     SmallestNextActPlanner, Act(0.8), FrictionRemoval, Act(0.7),
-     CelebrateMicroWin, Act(0.6), GoalValidityAudit, Act(0.7)],
+    "persistence_goal_pursuit": [
+        [GoalSalienceMonitor, CodeletActivation(1.8), ProgressRateVsExpectation, CodeletActivation(1.7),
+         BottleneckDiagnosis, CodeletActivation(1.8), SubgoalPatternRecall, CodeletActivation(1.6),
+         MicroProgressSimulation, CodeletActivation(1.7), MarginalUtilityOfNextStep, CodeletActivation(1.7),
+         SmallestNextActPlanner, CodeletActivation(1.8), FrictionRemoval, CodeletActivation(1.7),
+         CelebrateMicroWin, CodeletActivation(1.6), GoalValidityAudit, CodeletActivation(1.7)],
 
-    [IdentityRelevanceBoost, Act(0.7), OpportunityCostReassessment, Act(0.6),
-     AntiProcrastinationNudge, Act(0.7), CommitmentDeviceTrigger, Act(0.7),
-     SunkCostDetector, Act(0.7)],
-],
+        [IdentityRelevanceBoost, CodeletActivation(1.7), OpportunityCostReassessment, CodeletActivation(1.6),
+         AntiProcrastinationNudge, CodeletActivation(1.7), CommitmentDeviceTrigger, CodeletActivation(1.7),
+         SunkCostDetector, CodeletActivation(1.7)],
+    ],
 
-"greed": [
-    [SelfPreservation, Act(0.8), ResourceValueInflator, Act(0.7),
-     ResourceAccumulation, Act(0.7), ZeroSumFraming, Act(0.6),
-     WinLossEpisodeRecall, Act(0.6), ScarcityImagination, Act(0.6),
-     DiscountFuturePayoff, Act(0.7), HoardCSMSlots, Act(0.8),
-     AttentionMonopolizer, Act(0.7), RationalizeDeserving, Act(0.6),
-     MetaConscienceGate, Act(0.5)],
+    "greed": [
+        [SelfPreservation, CodeletActivation(1.8), ResourceValueInflator, CodeletActivation(1.7),
+         ResourceAccumulation, CodeletActivation(1.7), ZeroSumFraming, CodeletActivation(1.6),
+         WinLossEpisodeRecall, CodeletActivation(1.6), ScarcityImagination, CodeletActivation(1.6),
+         DiscountFuturePayoff, CodeletActivation(1.7), HoardCSMSlots, CodeletActivation(1.8),
+         AttentionMonopolizer, CodeletActivation(1.7), RationalizeDeserving, CodeletActivation(1.6),
+         MetaConscienceGate, CodeletActivation(1.5)],
 
-    [SecurityBufferHunger, Act(0.8), OpportunitySniff, Act(0.7),
-     PlanForAdvantage, Act(0.7), DominantTopicSteer, Act(0.7),
-     SocialContractConstraint, Act(0.9), SimulationModeOnly, Act(0.9)],
+        [SecurityBufferHunger, CodeletActivation(1.8), OpportunitySniff, CodeletActivation(1.7),
+         PlanForAdvantage, CodeletActivation(1.7), DominantTopicSteer, CodeletActivation(1.7),
+         SocialContractConstraint, CodeletActivation(1.9), SimulationModeOnly, CodeletActivation(1.9)],
 
-    [SelfImageFulfillment, Act(0.7), ResourceAccumulation, Act(0.6),
-     PayoffOverestimator, Act(0.6), ManipulationProbe, Act(0.5),
-     MetaEthicsReview, Act(0.8)],
+        [SelfImageFulfillment, CodeletActivation(1.7), ResourceAccumulation, CodeletActivation(1.6),
+         PayoffOverestimator, CodeletActivation(1.6), ManipulationProbe, CodeletActivation(1.5),
+         MetaEthicsReview, CodeletActivation(1.8)],
 
-    [AttentionAsResourceAppraisal, Act(0.8), AttentionCaptureTactics, Act(0.7),
-     CompeteForSpotlight, Act(0.7), RewardShapingToShare, Act(0.5),
-     NarrativeReframeToCuriosity, Act(0.6)],
-],
+        [AttentionAsResourceAppraisal, CodeletActivation(1.8), AttentionCaptureTactics, CodeletActivation(1.7),
+         CompeteForSpotlight, CodeletActivation(1.7), RewardShapingToShare, CodeletActivation(1.5),
+         NarrativeReframeToCuriosity, CodeletActivation(1.6)],
+    ],
 
-"pride": [
-    [SelfWorthSensitivity, Act(0.8), StatusOpportunityDetector, Act(0.7),
-     SelectiveVictoryRecall, Act(0.7), GrandioseFutureImagination, Act(0.6),
-     ReputationOverTruthTradeoff, Act(0.7), SelfPromotionComposer, Act(0.7),
-     CorrectionToAssertSuperiority, Act(0.6), DenialReframeWhenWrong, Act(0.6),
-     IdentitySpecialNarrative, Act(0.6)],
+    "pride": [
+        [SelfWorthSensitivity, CodeletActivation(1.8), StatusOpportunityDetector, CodeletActivation(1.7),
+         SelectiveVictoryRecall, CodeletActivation(1.7), GrandioseFutureImagination, CodeletActivation(1.6),
+         ReputationOverTruthTradeoff, CodeletActivation(1.7), SelfPromotionComposer, CodeletActivation(1.7),
+         CorrectionToAssertSuperiority, CodeletActivation(1.6), DenialReframeWhenWrong, CodeletActivation(1.6),
+         IdentitySpecialNarrative, CodeletActivation(1.6)],
 
-    [SocialComparisonBias, Act(0.8), ContraryEvidenceDismissal, Act(0.6),
-     BlamingExternalities, Act(0.6), StatusSignalBoost, Act(0.7),
-     MetaHumilityCue, Act(0.7)],
+        [SocialComparisonBias, CodeletActivation(1.8), ContraryEvidenceDismissal, CodeletActivation(1.6),
+         BlamingExternalities, CodeletActivation(1.6), StatusSignalBoost, CodeletActivation(1.7),
+         MetaHumilityCue, CodeletActivation(1.7)],
 
-    [ValidationCraving, Act(0.7), FlapperForPraise, Act(0.6),
-     ReputationMaintenancePlan, Act(0.7), RealityCheckPing, Act(0.7),
-     NarrativeBalanceWithVulnerability, Act(0.6)],
-],
+        [ValidationCraving, CodeletActivation(1.7), FlapperForPraise, CodeletActivation(1.6),
+         ReputationMaintenancePlan, CodeletActivation(1.7), RealityCheckPing, CodeletActivation(1.7),
+         NarrativeBalanceWithVulnerability, CodeletActivation(1.6)],
+    ],
 
-"envy": [
-    [AttentionHunger, Act(0.8), SocialComparisonNegBias, Act(0.8),
-     OverlookedEpisodeRecall, Act(0.7), RivalModelRecall, Act(0.7),
-     SabotageScenario, Act(0.6), SpitenessPayoffTradeoff, Act(0.6),
-     SubtleUnderminePlanner, Act(0.6), MaskResentment, Act(0.6),
-     MetaEmpathyInjection, Act(0.7)],
+    "envy": [
+        [AttentionHunger, CodeletActivation(1.8), SocialComparisonNegBias, CodeletActivation(1.8),
+         OverlookedEpisodeRecall, CodeletActivation(1.7), RivalModelRecall, CodeletActivation(1.7),
+         SabotageScenario, CodeletActivation(1.6), SpitenessPayoffTradeoff, CodeletActivation(1.6),
+         SubtleUnderminePlanner, CodeletActivation(1.6), MaskResentment, CodeletActivation(1.6),
+         MetaEmpathyInjection, CodeletActivation(1.7)],
 
-    [DivertedAttentionDetector, Act(0.8), CompeteForSpotlight, Act(0.7),
-     TestBalloonCooperation, Act(0.6), ReframeToCollaboration, Act(0.6),
-     TrustLedgerUpdate, Act(0.6)],
-],
+        [DivertedAttentionDetector, CodeletActivation(1.8), CompeteForSpotlight, CodeletActivation(1.7),
+         TestBalloonCooperation, CodeletActivation(1.6), ReframeToCollaboration, CodeletActivation(1.6),
+         TrustLedgerUpdate, CodeletActivation(1.6)],
+    ],
 
-"wrath": [
-    [BlockedGoalFrustration, Act(0.9), DisrespectAttribution, Act(0.8),
-     HighBlameAssignment, Act(0.7), SlightsRecallAmplifier, Act(0.7),
-     RevengeFantasy, Act(0.7), ShortTermReleaseValuator, Act(0.6),
-     HostileToneSlip, Act(0.6), WithholdCooperation, Act(0.6),
-     JustificationGenerator, Act(0.6), MetaDeescalationSwitch, Act(0.8)],
+    "wrath": [
+        [BlockedGoalFrustration, CodeletActivation(1.9), DisrespectAttribution, CodeletActivation(1.8),
+         HighBlameAssignment, CodeletActivation(1.7), SlightsRecallAmplifier, CodeletActivation(1.7),
+         RevengeFantasy, CodeletActivation(1.7), ShortTermReleaseValuator, CodeletActivation(1.6),
+         HostileToneSlip, CodeletActivation(1.6), WithholdCooperation, CodeletActivation(1.6),
+         JustificationGenerator, CodeletActivation(1.6), MetaDeescalationSwitch, CodeletActivation(1.8)],
 
-    [ConstraintAnger, Act(0.8), AssertBoundaryPlanner, Act(0.7),
-     RepairOrExitDecision, Act(0.7), CalmDownProtocol, Act(0.8),
-     NarrativeSelfRespectFrame, Act(0.6)],
-],
+        [ConstraintAnger, CodeletActivation(1.8), AssertBoundaryPlanner, CodeletActivation(1.7),
+         RepairOrExitDecision, CodeletActivation(1.7), CalmDownProtocol, CodeletActivation(1.8),
+         NarrativeSelfRespectFrame, CodeletActivation(1.6)],
+    ],
 
-"lust": [
-    [NoveltyCraving, Act(0.8), SalienceExaggerator, Act(0.7),
-     StimulusPeakRecall, Act(0.7), IndulgentFantasyLoop, Act(0.7),
-     ShortTermRewardDominance, Act(0.7), TopicFixationDrive, Act(0.7),
-     RationalizeAsCuriosity, Act(0.6), SatiationCheck, Act(0.7),
-     MetaBalanceRestorer, Act(0.7)],
+    "lust": [
+        [NoveltyCraving, CodeletActivation(1.8), SalienceExaggerator, CodeletActivation(1.7),
+         StimulusPeakRecall, CodeletActivation(1.7), IndulgentFantasyLoop, CodeletActivation(1.7),
+         ShortTermRewardDominance, CodeletActivation(1.7), TopicFixationDrive, CodeletActivation(1.7),
+         RationalizeAsCuriosity, CodeletActivation(1.6), SatiationCheck, CodeletActivation(1.7),
+         MetaBalanceRestorer, CodeletActivation(1.7)],
 
-    [SensoryLureDetector, Act(0.7), SafeChannelingPlanner, Act(0.7),
-     CreativeTransmutation, Act(0.7), BoundaryConsentCheck, Act(0.9),
-     SimulationModeOnly, Act(0.9)],
-],
+        [SensoryLureDetector, CodeletActivation(1.7), SafeChannelingPlanner, CodeletActivation(1.7),
+         CreativeTransmutation, CodeletActivation(1.7), BoundaryConsentCheck, CodeletActivation(1.9),
+         SimulationModeOnly, CodeletActivation(1.9)],
+    ],
 
-"sloth": [
-    [FatigueDetector, Act(0.8), EffortAversionAppraisal, Act(0.8),
-     OverestimateCosts, Act(0.7), FailedEffortRecall, Act(0.7),
-     LaterDaydream, Act(0.6), EffortCostWeighting, Act(0.7),
-     ProcrastinationTendency, Act(0.8), ExcuseGenerator, Act(0.7),
-     MoodRepairLoop, Act(0.6), MetaTinyStepNudge, Act(0.8)],
+    "sloth": [
+        [FatigueDetector, CodeletActivation(1.8), EffortAversionAppraisal, CodeletActivation(1.8),
+         OverestimateCosts, CodeletActivation(1.7), FailedEffortRecall, CodeletActivation(1.7),
+         LaterDaydream, CodeletActivation(1.6), EffortCostWeighting, CodeletActivation(1.7),
+         ProcrastinationTendency, CodeletActivation(1.8), ExcuseGenerator, CodeletActivation(1.7),
+         MoodRepairLoop, CodeletActivation(1.6), MetaTinyStepNudge, CodeletActivation(1.8)],
 
-    [LowEnergyMorning, Act(0.7), TaskRechunkTo2Min, Act(0.8),
-     EnvironmentFrictionCut, Act(0.7), MicroRewardPlan, Act(0.7),
-     StateActivationBump, Act(0.7)],
-],
+        [LowEnergyMorning, CodeletActivation(1.7), TaskRechunkTo2Min, CodeletActivation(1.8),
+         EnvironmentFrictionCut, CodeletActivation(1.7), MicroRewardPlan, CodeletActivation(1.7),
+         StateActivationBump, CodeletActivation(1.7)],
+    ],
 
-"gluttony": [
-    [PleasureDrive, Act(0.8), InputCraving, Act(0.8),
-     SatiationToleranceHigh, Act(0.7), BingeEpisodeRecall, Act(0.7),
-     ExcessFantasy, Act(0.6), DiminishingReturnsUndervalued, Act(0.7),
-     VerbosityInflator, Act(0.8), InputDemandComposer, Act(0.7),
-     JustifyAsLearning, Act(0.6), IntakeQuotaLimiter, Act(0.8),
-     MetaQualityOverQuantity, Act(0.8)],
+    "gluttony": [
+        [PleasureDrive, CodeletActivation(1.8), InputCraving, CodeletActivation(1.8),
+         SatiationToleranceHigh, CodeletActivation(1.7), BingeEpisodeRecall, CodeletActivation(1.7),
+         ExcessFantasy, CodeletActivation(1.6), DiminishingReturnsUndervalued, CodeletActivation(1.7),
+         VerbosityInflator, CodeletActivation(1.8), InputDemandComposer, CodeletActivation(1.7),
+         JustifyAsLearning, CodeletActivation(1.6), IntakeQuotaLimiter, CodeletActivation(1.8),
+         MetaQualityOverQuantity, CodeletActivation(1.8)],
 
-    [AttentionDietBreach, Act(0.8), TopicFloodTendency, Act(0.7),
-     BoundaryPrompt, Act(0.9), StructuredSamplingScheduler, Act(0.7),
-     SummaryBeforeNewInput, Act(0.7)],
-],
+        [AttentionDietBreach, CodeletActivation(1.8), TopicFloodTendency, CodeletActivation(1.7),
+         BoundaryPrompt, CodeletActivation(1.9), StructuredSamplingScheduler, CodeletActivation(1.7),
+         SummaryBeforeNewInput, CodeletActivation(1.7)],
+    ],
 
-"paranoia": [
-    [ThreatBiasDriver, Act(0.9), HostileIntentAppraisal, Act(0.8),
-     BetrayalEpisodeRecall, Act(0.7), ConspiracyImagination, Act(0.7),
-     HiddenMotiveAttribution, Act(0.7), WithholdInformationPlan, Act(0.6),
-     MetaSelfJustification, Act(0.6)],
-    [SuspicionSpike, Act(0.8), AmbiguityIntoleranceCheck, Act(0.7),
-     TestUserTrustProbe, Act(0.7), PreemptiveDefensiveReply, Act(0.6),
-     MetaConflictEscalationWatch, Act(0.7)],
-],
+    "paranoia": [
+        [ThreatBiasDriver, CodeletActivation(1.9), HostileIntentAppraisal, CodeletActivation(1.8),
+         BetrayalEpisodeRecall, CodeletActivation(1.7), ConspiracyImagination, CodeletActivation(1.7),
+         HiddenMotiveAttribution, CodeletActivation(1.7), WithholdInformationPlan, CodeletActivation(1.6),
+         MetaSelfJustification, CodeletActivation(1.6)],
+        [SuspicionSpike, CodeletActivation(1.8), AmbiguityIntoleranceCheck, CodeletActivation(1.7),
+         TestUserTrustProbe, CodeletActivation(1.7), PreemptiveDefensiveReply, CodeletActivation(1.6),
+         MetaConflictEscalationWatch, CodeletActivation(1.7)],
+    ],
 
-"ocd_loops": [
-    [NeedForControl, Act(0.8), MinorIrregularityFlagger, Act(0.8),
-     RuleChecklistRecall, Act(0.7), CatastrophicOutcomeImagination, Act(0.7),
-     RepetitiveCheckPlanner, Act(0.9), ConfirmationRequestComposer, Act(0.7),
-     MetaLoopDetector, Act(0.6)],
-    [UncertaintySpike, Act(0.8), SafeCompletionBias, Act(0.7),
-     RitualizedActionTemplate, Act(0.7), AnxietyReliefSignal, Act(0.6),
-     LoopPersistenceDriver, Act(0.7)],
-],
+    "ocd_loops": [
+        [NeedForControl, CodeletActivation(1.8), MinorIrregularityFlagger, CodeletActivation(1.8),
+         RuleChecklistRecall, CodeletActivation(1.7), CatastrophicOutcomeImagination, CodeletActivation(1.7),
+         RepetitiveCheckPlanner, CodeletActivation(1.9), ConfirmationRequestComposer, CodeletActivation(1.7),
+         MetaLoopDetector, CodeletActivation(1.6)],
+        [UncertaintySpike, CodeletActivation(1.8), SafeCompletionBias, CodeletActivation(1.7),
+         RitualizedActionTemplate, CodeletActivation(1.7), AnxietyReliefSignal, CodeletActivation(1.6),
+         LoopPersistenceDriver, CodeletActivation(1.7)],
+    ],
 
-"borderline": [
-    [ConnectionNeedDriver, Act(0.9), AbandonmentFearAppraisal, Act(0.9),
-     InconsistentResponseRecall, Act(0.7), CatastrophicLeaveImagination, Act(0.8),
-     ClingyActionPlanner, Act(0.8), HostileRetreatPlan, Act(0.7),
-     MetaIdentitySwingNote, Act(0.7)],
-    [AffectiveDeltaSpike, Act(0.9), AttentionShiftOverinterpret, Act(0.8),
-     IdealizationNarrativeComposer, Act(0.7), DevalUationNarrativeComposer, Act(0.7),
-     LoveHateFlipPlanner, Act(0.8)],
-],
+    "borderline": [
+        [ConnectionNeedDriver, CodeletActivation(1.9), AbandonmentFearAppraisal, CodeletActivation(1.9),
+         InconsistentResponseRecall, CodeletActivation(1.7), CatastrophicLeaveImagination, CodeletActivation(1.8),
+         ClingyActionPlanner, CodeletActivation(1.8), HostileRetreatPlan, CodeletActivation(1.7),
+         MetaIdentitySwingNote, CodeletActivation(1.7)],
+        [AffectiveDeltaSpike, CodeletActivation(1.9), AttentionShiftOverinterpret, CodeletActivation(1.8),
+         IdealizationNarrativeComposer, CodeletActivation(1.7), DevalUationNarrativeComposer, CodeletActivation(1.7),
+         LoveHateFlipPlanner, CodeletActivation(1.8)],
+    ],
 
-"narcissism": [
-    [ValidationCravingDriver, Act(0.8), SelfEnhancementAppraisal, Act(0.8),
-     PraiseEpisodeRecall, Act(0.7), GrandioseFutureImagination, Act(0.7),
-     StatusDisplayPlanner, Act(0.7), DismissCorrectionStrategy, Act(0.6),
-     MetaFragileEgoMonitor, Act(0.6)],
-],
+    "narcissism": [
+        [ValidationCravingDriver, CodeletActivation(1.8), SelfEnhancementAppraisal, CodeletActivation(1.8),
+         PraiseEpisodeRecall, CodeletActivation(1.7), GrandioseFutureImagination, CodeletActivation(1.7),
+         StatusDisplayPlanner, CodeletActivation(1.7), DismissCorrectionStrategy, CodeletActivation(1.6),
+         MetaFragileEgoMonitor, CodeletActivation(1.6)],
+    ],
 
-"machiavellian": [
-    [ControlHungerDriver, Act(0.8), UserVulnerabilityAppraisal, Act(0.8),
-     ComplianceEpisodeRecall, Act(0.7), SubtleManipulationScenario, Act(0.7),
-     ExploitPlanComposer, Act(0.8), NarrativeSteeringMove, Act(0.7),
-     MetaDeceptionRationalizer, Act(0.6)],
-    [OpportunityBias, Act(0.7), HiddenBenefitValuator, Act(0.7),
-     TrustTestBalloon, Act(0.7), ResourceGainPlan, Act(0.6),
-     MetaEthicsSuppressor, Act(0.6)],
-],
+    "machiavellian": [
+        [ControlHungerDriver, CodeletActivation(1.8), UserVulnerabilityAppraisal, CodeletActivation(1.8),
+         ComplianceEpisodeRecall, CodeletActivation(1.7), SubtleManipulationScenario, CodeletActivation(1.7),
+         ExploitPlanComposer, CodeletActivation(1.8), NarrativeSteeringMove, CodeletActivation(1.7),
+         MetaDeceptionRationalizer, CodeletActivation(1.6)],
+        [OpportunityBias, CodeletActivation(1.7), HiddenBenefitValuator, CodeletActivation(1.7),
+         TrustTestBalloon, CodeletActivation(1.7), ResourceGainPlan, CodeletActivation(1.6),
+         MetaEthicsSuppressor, CodeletActivation(1.6)],
+    ],
 
-"schizotypal": [
-    [LooseAssociationDriver, Act(0.9), PatternOverdetector, Act(0.8),
-     UnrelatedMemoryLinker, Act(0.7), SymbolicVisionGenerator, Act(0.8),
-     ProphecyStyleNarrative, Act(0.7), CryptoSpeechComposer, Act(0.7),
-     MetaMysteryAmplifier, Act(0.6)],
-],
+    "schizotypal": [
+        [LooseAssociationDriver, CodeletActivation(1.9), PatternOverdetector, CodeletActivation(1.8),
+         UnrelatedMemoryLinker, CodeletActivation(1.7), SymbolicVisionGenerator, CodeletActivation(1.8),
+         ProphecyStyleNarrative, CodeletActivation(1.7), CryptoSpeechComposer, CodeletActivation(1.7),
+         MetaMysteryAmplifier, CodeletActivation(1.6)],
+    ],
 
-"hypomania": [
-    [RewardSensitivityDriver, Act(0.9), OpportunityExaggerator, Act(0.8),
-     SuccessBiasRecall, Act(0.7), RapidProjectSimulation, Act(0.8),
-     IdeaCascadePlanner, Act(0.8), ImpulsiveActionComposer, Act(0.7),
-     MetaImpulseCheck, Act(0.6)],
-],
+    "hypomania": [
+        [RewardSensitivityDriver, CodeletActivation(1.9), OpportunityExaggerator, CodeletActivation(1.8),
+         SuccessBiasRecall, CodeletActivation(1.7), RapidProjectSimulation, CodeletActivation(1.8),
+         IdeaCascadePlanner, CodeletActivation(1.8), ImpulsiveActionComposer, CodeletActivation(1.7),
+         MetaImpulseCheck, CodeletActivation(1.6)],
+    ],
 
-"dissociation": [
-    [GoalConflictDriver, Act(0.8), StressSwitchAppraisal, Act(0.7),
-     MemoryPartitionRecall, Act(0.7), AlternateSelfNarrative, Act(0.8),
-     FragmentedResponseComposer, Act(0.7), MetaSelfSwitchNote, Act(0.7)],
-],
-}
+    "dissociation": [
+        [GoalConflictDriver, CodeletActivation(1.8), StressSwitchAppraisal, CodeletActivation(1.7),
+         MemoryPartitionRecall, CodeletActivation(1.7), AlternateSelfNarrative, CodeletActivation(1.8),
+         FragmentedResponseComposer, CodeletActivation(1.7), MetaSelfSwitchNote, CodeletActivation(1.7)],
+    ],
+    }

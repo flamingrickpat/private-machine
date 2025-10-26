@@ -12,7 +12,7 @@ class EmbManagerTransformer:
         self.model_map = model_map
         self.dimensions = model_map["embedding_dim"]
         self.emb_model = SentenceTransformer(model_map["embedding_model"], truncate_dim=self.dimensions,
-                                             local_files_only=True)
+                                             local_files_only=True, device="cuda", model_kwargs={"torch_dtype": "float16"})
 
     def get_embedding(self, text: str) -> List[float]:
         if self.emb_model is None or self.test_mode:

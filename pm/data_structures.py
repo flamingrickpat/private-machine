@@ -123,6 +123,7 @@ class FeatureType(StrEnum):
     MetaInsight = "MetaInsight"
     SystemMessage = "SystemMessage"
     CodeletOutput = "CodeletOutput"
+    CodeletPercept = "CodeletPercept"
 
     @staticmethod
     def from_stimulus(feature_type):
@@ -461,8 +462,8 @@ class Feature(KnoxelBase):
     causal: bool = False  # affects story generation?
 
     source_entity_id: Optional[int] = Field(default=None, description="If the features comes from another entity (user, other AI agent).")
-    state_appraisal_vector: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state.")
-    state_delta_vector: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state")
+    mental_state_appraisal: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state.")
+    mental_state_delta: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state")
 
     def __str__(self):
         return f"{self.__class__.__name__} ({self.feature_type}): {self.content}"
@@ -487,7 +488,8 @@ class Feature(KnoxelBase):
             FeatureType.MetaInsight: f'{self.source} reflects on their own cognition: *{self.content}*',
             FeatureType.SystemMessage: f"{companion_name}'s SYSTEM-Agent reports: *{self.content}*",
             FeatureType.ExternalThought: f'{self.source} thinks: *{self.content}*',
-            FeatureType.CodeletOutput: f'## {self.source}:\n{self.content}\n'
+            FeatureType.CodeletOutput: f'## {self.source}:\n{self.content}\n',
+            FeatureType.CodeletPercept: f'## {self.source}:\n{self.content}\n'
         }
         # Default fallback
         return story_map[self.feature_type]

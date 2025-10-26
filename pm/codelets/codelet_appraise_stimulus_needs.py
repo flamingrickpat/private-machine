@@ -1,11 +1,11 @@
 from pm.agents.definitions.agent_common_codelet import CommonCodeletAgent
-from pm.codelets.codelet import BaseCodelet, CodeletSignature, CodeletFamily, CodeletContext, CodeletOutput
+from pm.codelets.codelet import CodeletExecutor, CodeletSignature, CodeletFamily, CodeletContext, CodeletOutput
 from pm.data_structures import Feature, FeatureType, MLevel, StimulusType, StimulusGroup
 from pm.mental_states import NeedsAxesModel, _verbalize_needs_state
 from pm.utils.pydantic_utils import create_delta_basemodel
 
 
-class AppraiseStimulusNeeds(BaseCodelet):
+class AppraiseStimulusNeeds(CodeletExecutor):
     def _setup(self):
         self.signature = CodeletSignature(
             name="AppraiseStimulusNeeds",

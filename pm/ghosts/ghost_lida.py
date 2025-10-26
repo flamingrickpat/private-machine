@@ -32,7 +32,7 @@ from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.memory_consolidation import MemoryConsolidationConfig, DynamicMemoryConsolidator
 from pm.mental_states import NeedsAxesModel, CognitiveEventTriggers, EmotionalAxesModel, _describe_emotion_valence_anxiety, _verbalize_emotional_state
 from pm.thoughts import TreeOfThought
-from pm.utils.emb_utils import cosine_pair
+from pm.utils.emb_utils import cosine_sim
 from pm.utils.profile_utils import profile
 from pm.utils.system_utils import generate_start_message
 from pm.utils.token_utils import get_token_count
@@ -1075,7 +1075,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
             found = False
             for existing_intention in self.all_intentions:
                 emb_existing = self.llm.get_embedding(existing_intention.content)
-                sim = cosine_pair(emb_new, emb_existing)
+                sim = cosine_sim(emb_new, emb_existing)
                 if sim < vector_same_threshold:
                     self.current_state.attention_candidates.add(existing_intention)
 
@@ -2595,7 +2595,7 @@ Provide a brief reasoning, then output a JSON object conforming to the `Cognitiv
                 for existing_intention in self.all_intentions:
                     if not existing_intention.internal:
                         emb_existing = self.llm.get_embedding(existing_intention.content)
-                        sim = cosine_pair(emb_new, emb_existing)
+                        sim = cosine_sim(emb_new, emb_existing)
                         if sim < vector_same_threshold:
                             existing_intention.fulfilment = 1
 

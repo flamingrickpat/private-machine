@@ -26,19 +26,22 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from pm.agents.definitions.agent_select_codelets import AgentSelectCodelets
 from pm.character_card import default_agent_sysprompt, character_card_assistant
-from pm.codelets.codelet import CodeletRegistry, CodeletFamily, CodeletContext, CodeletState
+from pm.codelets.codelet import CodeletRegistry, CodeletFamily, CodeletContext, CodeletState, CodeletExecutor
+from pm.codelets.codelet_definitions import SimpleCodelet
+from pm.codelets.codelet_percepts import CodeletPercept
+from pm.codelets.pathways_detailed import get_codelet_pathways, CodeletActivation
 from pm.config_loader import *
-from pm.csm.csm import CSMState, CSMBuffer, CSMItem
+from pm.csm.csm import CSMState, CSMManager, CSMItem
 from pm.data_structures import ActionType, Narrative, narrative_definitions, NarrativeTypes, Stimulus, Action, KnoxelList, FeatureType, Feature, StimulusType, Intention, CoversTicksEventsKnoxel, MemoryClusterKnoxel, DeclarativeFactKnoxel, ACTION_DESCRIPTIONS, KnoxelBase, ClusterType, MLevel, KnoxelListWeighted
 from pm.dialog import DialogActPool
 from pm.ghosts.base_ghost import BaseGhost, GhostState, GhostConfig
 from pm.ghosts.ghost_lida import EngagementIdea
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.memory_consolidation import MemoryConsolidationConfig, DynamicMemoryConsolidator
-from pm.mental_state_vectors import FullMentalState, VectorModelReservedSize, _collect_axis_bounds, ema_baselined_normalize, _init_ms_from_vec
+from pm.mental_state_vectors import FullMentalState, VectorModelReservedSize, _collect_axis_bounds, ema_baselined_normalize, _init_ms_from_vec, AppraisalGeneral, AppraisalSocial, compute_state_delta, create_empty_ms_vector, compute_attention_bias, _clamp01
 from pm.mental_states import NeedsAxesModel, CognitiveEventTriggers, EmotionalAxesModel, _describe_emotion_valence_anxiety, _verbalize_emotional_state
 from pm.thoughts import TreeOfThought
-from pm.utils.emb_utils import cosine_pair
+from pm.utils.emb_utils import cosine_sim
 from pm.utils.profile_utils import profile
 from pm.utils.pydantic_utils import basemodel_to_text, pydandic_model_to_dict_jsonable
 from pm.utils.system_utils import generate_start_message
@@ -168,7 +171,7 @@ class GhostCodelets(BaseGhost):
         if conversation_partner_entity_id is not None:
             feats = [f for f in feats if f.source_entity_id == conversation_partner_entity_id]
 
-        history = [(f.timestamp_creation, f.state_delta_vector) for f in self.all_features]
+        history = [(f.timestamp_creation, f.mental_state_delta) for f in self.all_features]
         vec_len = VectorModelReservedSize
         axis_bounds = _collect_axis_bounds()
 
@@ -237,7 +240,7 @@ class GhostCodelets(BaseGhost):
         return res
 
     def get_ccq_simple(self, embedding: List[float]):
-        res = {f.id: cosine_pair(f.embedding, embedding) for f in self.all_features if f.causal}
+        res = {f.id: cosine_sim(f.embedding, embedding) for f in self.all_features if f.causal}
         return res
 
     def create_codelet_prompt(self, ccq: Dict[int, float], max_tokens: int) -> PromptContainer:
@@ -271,6 +274,91 @@ class GhostCodelets(BaseGhost):
         res = PromptContainer(knoxels=ids, story=story, story_new=story_new)
         return res
 
+    def get_snapshot(self, manager: CSMManager, target_codelet: CodeletExecutor, ms: FullMentalState, precursor_dict: Dict[str, List[int]], max_tokens: int) -> str:
+        if len(manager.state.items) == 0:
+            return None
+
+        valence_focus_bias, salience_bias = compute_attention_bias(ms)
+        emb_codelet = self.llm.get_embedding(target_codelet.signature.create_embedding_string())
+
+        ratings = {}
+        for _id, item in manager.state.items.items():
+            knoxel: KnoxelBase = self.get_knoxel_by_id(_id)
+
+            # default activation baseline
+            activation = 0.5
+
+            if isinstance(knoxel, Feature) and knoxel.feature_type in [FeatureType.CodeletPercept, FeatureType.CodeletOutput]:
+                f_val = knoxel.affective_valence or 0.0  # [-1..1]
+                f_sal = knoxel.incentive_salience or 0.0  # [0..1]
+
+                # --- 1. Valence modulation --------------------------------------
+                # If valence_focus_bias > 0, favor positive f_val; if < 0, favor negative.
+                valence_term = (1.0 - abs(valence_focus_bias)) * 0.5 \
+                               + valence_focus_bias * f_val * 0.5 \
+                               + 0.5  # center around 0.5
+                # clamp to [0..1]
+                valence_term = _clamp01(valence_term)
+
+                # --- 2. Salience sharpening -------------------------------------
+                # Apply power-law sharpening: higher salience_bias → more top-focused
+                sharp = 1.0 + 4.0 * salience_bias  # [1..5] exponent scale
+                salience_term = math.pow(max(f_sal, 0.0), sharp)
+
+                activation = 0.5 * valence_term + 0.5 * salience_term
+
+            # --- 3. Codelet relevance --------------------------------------------
+            dist = cosine_sim(emb_codelet, knoxel.embedding) or 0.0  # 0..1 similarity
+            goal_relevance = _clamp01(dist)
+
+            # --- 4. Precursor reinforcement -------------------------------------
+            precursor_boost = 0.0
+            if target_codelet.signature.name in precursor_dict.keys() and _id in precursor_dict[target_codelet.signature.name]:
+                precursor_boost = 1.0
+
+            # --- 5. Combine all factors -----------------------------------------
+            # Base metric = semantic alignment × attention activation + precursor reward
+            metric = (goal_relevance * activation) + 0.3 * precursor_boost
+
+            # optional small random jitter depending on salience_bias (more randomness when low)
+            noise = random.uniform(-0.05, 0.05) * (1.0 - salience_bias)
+            metric = _clamp01(metric + noise)
+
+            ratings[_id] = metric
+
+        ids = list(ratings.keys())
+        scores = np.array([ratings[_id] for _id in ids])
+
+        # -------- 1. Sort or sample depending on salience_bias --------
+        if salience_bias >= 0.9:
+            # deterministic top-down selection (exploit)
+            sampled_ids = [i for _, i in sorted(zip(scores, ids), reverse=True)]
+        else:
+            # probabilistic selection (explore/exploit mix)
+            # sharpen the distribution depending on salience_bias
+            sharp = 1.0 + 4.0 * salience_bias  # [1..5]
+            probs = np.power(np.clip(scores, 0, 1e6), sharp)
+            if probs.sum() == 0:
+                probs = np.ones_like(probs)
+            probs /= probs.sum()
+
+            # choose all percepts once, in weighted random order
+            sampled_ids = list(np.random.choice(ids, size=len(ids), replace=False, p=probs))
+
+        # add to list
+        token_budget = 0
+        kl = KnoxelList()
+
+        for sampled_id in sampled_ids:
+            k = self.get_knoxel_by_id(sampled_id)
+            kl.add(k)
+            token_budget += get_token_count(k.get_story_element(self))
+            if token_budget > max_tokens:
+                break
+
+        kl = kl.order_by(lambda x: x.timestamp_world_begin)
+        res = kl.get_story(self)
+        return res
 
     def cognitive_cycle(self, buffer_input: List[Stimulus]):
         # start new tick
@@ -314,8 +402,8 @@ class GhostCodelets(BaseGhost):
             csm_state = self.previous_state.current_situational_model.copy(deep=True)
         else:
             csm_state = CSMState()
-        csm = CSMBuffer(self, state=csm_state)
-        csm.decay_step()
+        csm_manager = CSMManager(self, state=csm_state)
+        csm_manager.decay_step()
 
         cctx = CodeletContext(
             tick_id=self.current_tick_id,
@@ -325,7 +413,7 @@ class GhostCodelets(BaseGhost):
             mental_state=start_latent_ms,
             story=initial_prompt.story,
             story_new=initial_prompt.story_new,
-            csm_snapshot=csm.get_snapshot()
+            csm_snapshot=""
         )
 
         codelet_registry = CodeletRegistry.init_from_simple_codelets(cctx)
@@ -339,9 +427,6 @@ class GhostCodelets(BaseGhost):
             inp_hier = {
                 "full_prompt": initial_prompt.story + initial_prompt.story_new,
                 "codelets": codelet_cands,
-                "content": "I have made a list with possible mental functions. I want to psychologically simulate what {companion_name} would say based on her psyche."
-                           "But the list is long. You now act as a selector for possible mental functions. Here is the JSON schema with all the descriptions, and names. "
-                           "Please give each codelet a rating between 0 and 1, for how likely it is I should invoke it for this conversation.",
             }
             res_hier = AgentSelectCodelets.execute(inp_hier, self.llm, None)
             codelet_ratings: BaseModel = res_hier["codelets"]
@@ -352,50 +437,102 @@ class GhostCodelets(BaseGhost):
         # gather codelets for data aquisition
         # run codelet, add to csm, boost paths if possible, sample next codelet, call with extended csm
         # to prevent csm overflow we need to tag each codelet output with ms vector, and salience and valence
+        precursor_dict = {}
         cnt = 0
         while True:
             codelet_candidates = codelet_registry.pick_candidates(cctx)
-            codelet, activation = codelet_candidates[0]
+            codelet_executor, activation = codelet_candidates[0]
 
-            cctx.csm_snapshot=csm.get_snapshot()
-            res = codelet.run(cctx)
+            cctx.csm_snapshot = self.get_snapshot(csm_manager, target_codelet=codelet_executor, ms=start_latent_ms, precursor_dict=precursor_dict, max_tokens=512)
+            res = codelet_executor.run(cctx)
 
             first_pass = res["first_pass"]
             codelet_container = res["output_feature"]
 
-            content = f"## {codelet.signature.name}\n{first_pass}\n"
+            # create percepts and sum the mental states
+            latent_list = []
+            delta_list = []
+            sum_salience = 0
+            sum_valence = 0
+            feature_ids = []
+            for field_name, model_field in codelet_container.__class__.model_fields.items():
+                sub: CodeletPercept = getattr(codelet_container, field_name)
+                content = basemodel_to_text(sub)
+
+                sum_salience += sub.salience
+                sum_valence += sub.valence
+
+                appraisal_general: AppraisalGeneral = sub.appraisal_general
+                appraisal_social: AppraisalSocial = sub.appraisal_social
+
+                temp_ms = start_latent_ms.copy(deep=True)
+                temp_ms.appraisal_general = appraisal_general
+                temp_ms.appraisal_social = appraisal_social
+                latent, delta = compute_state_delta(temp_ms, 1)
+
+                latent_list.append(latent.to_list())
+                delta_list.append(delta.to_list())
+
+                f = Feature(
+                    source=field_name,
+                    content=content,
+                    feature_type=FeatureType.CodeletPercept,
+                    affective_valence=sub.valence,
+                    incentive_salience=sub.salience,
+                    interlocus=-2,
+                    causal=False,
+                    metadata=pydandic_model_to_dict_jsonable(sub),
+                    mental_state_appraisal=latent.to_list(),
+                    mental_state_delta=delta.to_list(),
+                )
+                self.add_knoxel(f)
+                feature_ids.append(f.id)
+                csm_manager.add_or_boost(CSMItem(knoxel_id=f.id, first_tick=self.current_tick_id, last_tick=-1))
+
+            # create codelet feature
+            if latent_list:
+                latent_stack = np.vstack(latent_list)  # shape: (n, VectorModelReservedSize)
+                delta_stack = np.vstack(delta_list)
+
+                combined_latent = np.mean(latent_stack, axis=0)
+                combined_delta = np.sum(delta_stack, axis=0)
+            else:
+                combined_latent = np.zeros(VectorModelReservedSize)
+                combined_delta = np.zeros(VectorModelReservedSize)
+
+            content = f"## {codelet_executor.signature.name}\n{first_pass}\n"
             f = Feature(
                 content=first_pass,
-                source=codelet.signature.name,
+                source=codelet_executor.signature.name,
                 feature_type=FeatureType.CodeletOutput,
-                affective_valence=0,
+                affective_valence=sum_valence,
+                incentive_salience=sum_salience,
                 interlocus=-1,
                 causal=False,
-                metadata=pydandic_model_to_dict_jsonable(codelet_container)
+                metadata=pydandic_model_to_dict_jsonable(codelet_container),
+                mental_state_appraisal=combined_latent.tolist(),
+                mental_state_delta=combined_delta.tolist()
             )
-
-            test = pydandic_model_to_dict_jsonable(codelet_container)
-            test2 = codelet_container.__class__.model_validate_json(json.dumps(test))
-
+            feature_ids.append(f.id)
             self.add_knoxel(f)
-            csm.add_or_boost(CSMItem(knoxel_id=f.id, first_tick=self.current_tick_id, last_tick=-1))
+            csm_manager.add_or_boost(CSMItem(knoxel_id=f.id, first_tick=self.current_tick_id, last_tick=-1))
 
-            #from rich import print as rprint
-            #rprint(codelet_container)
-
-            #for field_name, model_field in codelet_container.__class__.model_fields.items():
-            #    sub = getattr(codelet_container, field_name)
-            #    content = f"## {sub.__class__.__name__}\n{basemodel_to_text(sub)}\n"
-            #    f = Feature(
-            #        content=content,
-            #        feature_type=FeatureType.Narrative,
-            #        affective_valence=0,
-            #        interlocus=-1,
-            #        causal=False,
-            #        metadata=pydandic_model_to_dict_jsonable(sub)
-            #    )
-            #    self.add_knoxel(f)
-            #    csm.add_or_boost(CSMItem(knoxel_id=f.id, first_tick=self.current_tick_id, last_tick=-1))
+            # apply pathway factors
+            codelet_pathways = get_codelet_pathways()
+            for concept, pathways in codelet_pathways.items():
+                for pathway in pathways:
+                    found = False
+                    for i, step in enumerate(pathway):
+                        if isinstance(step, CodeletActivation):
+                            if found and i + 1 < len(pathway):
+                                next_codelet = pathway[i + 1]
+                                codelet_registry.boost_codelet(next_codelet, factor=step.strength)
+                                if next_codelet.name not in precursor_dict:
+                                    precursor_dict[next_codelet.name] = []
+                                precursor_dict[next_codelet.name] += feature_ids
+                        else:
+                            if step.name == codelet_executor.signature.name:
+                                found = True
 
             if cnt == 8:
                 break

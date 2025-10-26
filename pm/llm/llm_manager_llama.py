@@ -73,7 +73,10 @@ def log_conversation(conversation: list[tuple[str, str]] | str, file_path: str, 
             file.write(f"\n")
             file.write("\n".join(addendum))
 
-def sample_from_logits(x: np.ndarray, temperature: float = 0.8, top_p: float = 0.9, top_k: int = 40) -> int:
+def sample_from_logits(x: np.ndarray, temperature: float = None, top_p: float = 0.9, top_k: int = 40, fast: bool = False) -> int:
+    if fast:
+        return int(np.argmax(x))
+
     # replace NaN or inf
     x[~np.isfinite(x)] = -1e10
 
@@ -175,6 +178,7 @@ physical_cores = psutil.cpu_count(logical=False)
 class LlmManagerLLama(LlmManager):
     def __init__(self, model_map: Dict[str, Any], test_mode: bool=False):
         super().__init__(model_map, test_mode)
+        self.tokenizer_data = None
         self.clip_model_path = None
         self.chat_template = None
         self.current_ctx = None
@@ -281,6 +285,7 @@ class LlmManagerLLama(LlmManager):
                 self.model_path = model_path
                 from jinja2 import Template, StrictUndefined
                 self.chat_template = Template(self.llm.metadata["tokenizer.chat_template"], undefined=StrictUndefined)
+                self.tokenizer_data = build_token_enforcer_tokenizer_data_fast(self.llm)
 
             if mmproj_file is not None and mmproj_file != "":
                 self.clip_model_path = mmproj_file
@@ -757,8 +762,6 @@ class LlmManagerLLama(LlmManager):
                 sample_cnt = 0
                 sample_time = 0
 
-                tokenizer_data = build_token_enforcer_tokenizer_data_fast(self.llm) if comp_settings.use_lm_format_enforcer else None
-
                 class SchemaHelper:
                     def __init__(self):
                         self.current_target_bm = None
@@ -873,13 +876,13 @@ class LlmManagerLLama(LlmManager):
                         if not sh.character_level_parser:
                             sh.character_level_parser = JsonSchemaParser(sh.current_target_bm.schema())
                         if not sh.apply_bias_func:
-                            sh.apply_bias_func = build_llamacpp_logits_processor(tokenizer_data, sh.character_level_parser)
+                            sh.apply_bias_func = build_llamacpp_logits_processor(self.tokenizer_data, sh.character_level_parser)
 
                         raw_logits = logits = self.llm._ctx.get_logits()
                         logits = np.ctypeslib.as_array(logits, (self.llm.n_vocab(),))
                         sh.apply_bias_func(self.llm.input_ids[:self.llm.n_tokens], logits)
 
-                        token = sample_from_logits(logits, temperature=comp_settings.temperature, top_k=comp_settings.top_k, top_p=comp_settings.top_p)
+                        token = sample_from_logits(logits, temperature=comp_settings.temperature, top_k=comp_settings.top_k, top_p=comp_settings.top_p, fast=True)
                     else:
                         # set sampler idx (if we use it, default is None -> -1 internally)
                         idx = None

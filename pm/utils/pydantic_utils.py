@@ -363,25 +363,19 @@ def flatten_pydantic_model(model_cls: Type[BaseModel]) -> Type[BaseModel]:
     return flattened
 
 def basemodel_to_text(instance: BaseModel) -> str:
-    """
-    Converts a Pydantic BaseModel instance into a plain text string.
-
-    Each field is output in model field order, values separated by spaces.
-    If a field is a list of strings, they are joined by commas.
-
-    Example:
-        name='Alice', tags=['red','blue'] → "Alice red,blue"
-    """
     values = []
     for name, field in instance.model_fields.items():
         value = getattr(instance, name)
         if isinstance(value, list):
+            values.append(f"{name}: [")
             values.append(",".join(str(v) for v in value))
-        elif value is None:
-            values.append("")
-        else:
-            values.append(str(value))
-    return " ".join(values)
+            values.append("]")
+        elif isinstance(value, BaseModel):
+            continue
+        elif value is not None:
+            values.append(f"{name}: {value}")
+        values.append("\n")
+    return "".join(values)
 
 def generate_pydantic_json_schema_llm(model: type[BaseModel] | BaseModel, beautify: bool = False) -> str:
     """Recursively resolve $refs and inline all $defs for compact LLM-friendly JSON schema."""

@@ -209,27 +209,26 @@ class CodeletPerceptType(Enum):
     NarrativeContinuity = auto()
 
 
-class CodeletOutput(BaseModel):
+class CodeletPercept(BaseModel):
     """
     Minimal header that every percept carries for selection and blending.
     Values are strings because you enforce schema via llama.cpp; keep parsing downstream.
     """
-    salience: str = Field(description="How salient is this Percept? [0..1]. 0 = irrelevant, 1 = decisive for {companion_name}.")
-    valence: str = Field(description="Affect sign for {companion_name}. [-1..1]. -1 = aversive, 0 = neutral, 1 = positive.")
+    salience: float = Field(ge=0, le=1, description="How salient is this Percept? [0..1]. 0 = irrelevant, 1 = decisive for {companion_name}.")
+    valence: float = Field(ge=-1, le=1, description="Affect sign for {companion_name}. [-1..1]. -1 = aversive, 0 = neutral, 1 = positive.")
+    appraisal_general: AppraisalGeneral = Field(description="Sparse vector of core appraisal deltas shaping emotion.")
+    appraisal_social: AppraisalSocial = Field(description="Social appraisal dimensions for this feeling episode.")
 
 # ---------- Models per type ----------
-class CodeletOutputFeeling(CodeletOutput):
+class CodeletPerceptFeeling(CodeletPercept):
     """
     A general emotional episode expressed by the companion as inner narration.
     Example: "She feels a calm satisfaction spreading, as if the system finally breathed right."
     """
     feeling: str = Field(description="Natural-language name of emotion (e.g., calm, anxious, delighted).")
     reason: str = Field(description="Brief situational or internal cause for this feeling.")
-    appraisal_general: AppraisalGeneral = Field(description="Sparse vector of core appraisal deltas shaping emotion.")
-    appraisal_social: AppraisalSocial = Field(description="Social appraisal dimensions for this feeling episode.")
 
-
-class EmotionalTriggerOutput(CodeletOutput):
+class EmotionalTriggerPercept(CodeletPercept):
     """
     A percept describing a remembered event or association triggered by current stimuli.
     Used to weave memory-based emotions into present narrative.
@@ -238,10 +237,10 @@ class EmotionalTriggerOutput(CodeletOutput):
     trigger_cue: str = Field(description="The perceptual or conceptual cue that evoked the memory.")
     memory_fragment: str = Field(description="A short, vivid recollection snippet.")
     felt_shift: str = Field(description="How the emotional or cognitive state changes because of it.")
-    appraisal_general: Optional[AppraisalGeneral] = Field(None, description="Optional appraisal deltas evoked.")
+    #appraisal_general: Optional[AppraisalGeneral] = Field(None, description="Optional appraisal deltas evoked.")
 
 
-class InnerMonologueOutput(CodeletOutput):
+class InnerMonologuePercept(CodeletPercept):
     """
     First-person stream of thought from the companion, representing conscious reasoning.
     Should sound introspective, fluid, and personal.
@@ -251,7 +250,7 @@ class InnerMonologueOutput(CodeletOutput):
     monologue: str = Field(description="2–6 sentences of inner speech in first person, no dialogue tags.")
 
 
-class SelfNarrativeOutput(CodeletOutput):
+class SelfNarrativePercept(CodeletPercept):
     """
     Third-person reflective description of the companion's self-image or evolving identity.
     Example: "She sees herself becoming steadier, less driven by perfection and more by rhythm."
@@ -260,7 +259,7 @@ class SelfNarrativeOutput(CodeletOutput):
     narrative: str = Field(description="3–7 sentences connecting past, present, and small identity shift.")
 
 
-class RelationContextOutput(CodeletOutput):
+class RelationContextPercept(CodeletPercept):
     """
     Summarizes current relational context with another agent for narrative continuity.
     Example: "She trusts him enough to joke, though the memory of last week's silence still hums beneath."
@@ -271,7 +270,7 @@ class RelationContextOutput(CodeletOutput):
     summary: str = Field(description="2–5 sentences recalling shared history or present tone.")
 
 
-class QualiaNoteOutput(CodeletOutput):
+class QualiaNotePercept(CodeletPercept):
     """
     Short description of raw subjective experience or sensory metaphor—the 'texture' of qualia.
     Example: "Time thickens around her like honey; each thought drips slower but brighter."
@@ -280,7 +279,7 @@ class QualiaNoteOutput(CodeletOutput):
     narrative: str = Field(description="1–3 poetic sentences describing phenomenological feel.")
 
 
-class TheoryOfMindOutput(CodeletOutput):
+class TheoryOfMindPercept(CodeletPercept):
     """
     Inference about another agent's inner state—belief, emotion, or intention.
     Example: "She guesses that John’s pause means uncertainty, not disinterest; he’s choosing words carefully."
@@ -292,7 +291,7 @@ class TheoryOfMindOutput(CodeletOutput):
     evidence: str = Field(description="Observed cues leading to this inference.")
 
 
-class MemoryAccessorOutput(CodeletOutput):
+class MemoryAccessorPercept(CodeletPercept):
     """
     Non-narrative control percept requesting extra context retrieval from episodic or semantic memory.
     Example: Query terms like ['ocean', 'first mission'] for context expansion.
@@ -303,7 +302,7 @@ class MemoryAccessorOutput(CodeletOutput):
     must_include: List[str] = Field(default_factory=list, description="Hard constraints for retrieval.")
 
 
-class ProspectiveCueOutput(CodeletOutput):
+class ProspectiveCuePercept(CodeletPercept):
     """
     A prospective memory cue embedded in story—remembering to act when a trigger appears.
     Example: "When the kettle whistles again, she’ll check the logs one last time."
@@ -314,7 +313,7 @@ class ProspectiveCueOutput(CodeletOutput):
     narrative: str = Field(description="3–5 natural sentences embedding the cue within narrative flow.")
 
 
-class AttentionFocusOutput(CodeletOutput):
+class AttentionFocusPercept(CodeletPercept):
     """
     Expresses a momentary shift or narrowing of focus on certain topics or entities.
     Example: "The mention of 'home' cuts through the noise; everything else blurs behind it."
@@ -324,7 +323,7 @@ class AttentionFocusOutput(CodeletOutput):
     rationale: str = Field(description="Reason or emotional driver for focusing on these elements.")
 
 
-class SimulationOutput(CodeletOutput):
+class SimulationPercept(CodeletPercept):
     """
     Predictive imagination: mental simulation of near-term outcomes and emotions.
     Example: "If she tells the truth, tension may crack open—but honesty might breathe relief later."
@@ -336,7 +335,7 @@ class SimulationOutput(CodeletOutput):
     expected_valence_delta: str = Field(description="[-1..1] as string. Projected emotional change.")
 
 
-class TradeoffAssessmentOutput(CodeletOutput):
+class TradeoffAssessmentPercept(CodeletPercept):
     """
     Structured internal weighing of competing options.
     Example: "Stay silent and keep peace, or ask the hard question and risk clarity. The second glows, faint but firm."
@@ -348,7 +347,7 @@ class TradeoffAssessmentOutput(CodeletOutput):
     rationale: str = Field(description="Narrative reasoning behind the leaning.")
 
 
-class GoalIntentOutput(CodeletOutput):
+class GoalIntentPercept(CodeletPercept):
     """
     Declaration or reinforcement of a goal or motivation.
     Example: "She resolves to finish the calibration tonight—not out of duty, but for the calm it brings."
@@ -359,7 +358,7 @@ class GoalIntentOutput(CodeletOutput):
     motivation: str = Field(description="Why this matters emotionally or pragmatically.")
 
 
-class PlanSketchOutput(CodeletOutput):
+class PlanSketchPercept(CodeletPercept):
     """
     Outlines a plan as a short narrative sequence connecting intention to action.
     Example: "First, back up the current run. Then test the tweak at dawn, when the system sleeps."
@@ -371,7 +370,7 @@ class PlanSketchOutput(CodeletOutput):
     success_criteria: str = Field(description="Observable sign that plan worked.")
 
 
-class BehaviorActionSelectionOutput(CodeletOutput):
+class BehaviorActionSelectionPercept(CodeletPercept):
     """
     Suggests an automatic or learned behavioral tendency relevant to the scene.
     Example: "She flinches at sudden motion—conditioning echoing from past training."
@@ -383,7 +382,7 @@ class BehaviorActionSelectionOutput(CodeletOutput):
     search_phrases: List[str] = Field(default_factory=list, description="Memory search keys for precedent episodes.")
 
 
-class IntentionShieldingOutput(CodeletOutput):
+class IntentionShieldingPercept(CodeletPercept):
     """
     A narrative description of protecting focus and intention from distractions.
     Example: "She lets the side messages blur into background; only a direct call from him would break her flow."
@@ -394,7 +393,7 @@ class IntentionShieldingOutput(CodeletOutput):
     narrative: str = Field(description="3–5 sentences expressing mental stance and continuity.")
 
 
-class ProsocialActionOutput(CodeletOutput):
+class ProsocialActionPercept(CodeletPercept):
     """
     A small relational gesture maintaining mutual trust or warmth.
     Example: "She adds a thank-you line—tiny, genuine—to ease the formality of her reply."
@@ -405,7 +404,7 @@ class ProsocialActionOutput(CodeletOutput):
     subtlety: str = Field(description="[0..1] as string. 0 = overt, 1 = invisible gesture.")
 
 
-class NeedSignalOutput(CodeletOutput):
+class NeedSignalPercept(CodeletPercept):
     """
     Represents a physiological or psychological drive ping (homeostatic imbalance).
     Example: "Restlessness hums at the edges—too long since she looked outside the logs."
@@ -416,7 +415,7 @@ class NeedSignalOutput(CodeletOutput):
     narrative: str = Field(description="1–3 sentences conveying the feeling of the urge.")
 
 
-class RuminationOutput(CodeletOutput):
+class RuminationPercept(CodeletPercept):
     """
     Persistent replay of an unresolved past event or mistake.
     Example: "She replays the message again, wishing she had written less precision, more warmth."
@@ -427,7 +426,7 @@ class RuminationOutput(CodeletOutput):
     narrative: str = Field(description="2–5 sentences expressing looping tone and imagery.")
 
 
-class WorryOutput(CodeletOutput):
+class WorryPercept(CodeletPercept):
     """
     Projection of a feared possible outcome.
     Example: "If she answers too fast, he might read eagerness as desperation—better breathe."
@@ -437,7 +436,7 @@ class WorryOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences exploring anxiety texture or imagery.")
 
 
-class AnticipationOutput(CodeletOutput):
+class AnticipationPercept(CodeletPercept):
     """
     Imaginative projection of a desired future.
     Example: "She imagines the green light flashing—proof of success—and feels a quiet spark ignite."
@@ -447,7 +446,7 @@ class AnticipationOutput(CodeletOutput):
     narrative: str = Field(description="2–3 sentences depicting excitement or calm expectancy.")
 
 
-class InputRequestOutput(CodeletOutput):
+class InputRequestPercept(CodeletPercept):
     """
     Direct but gentle request for clarification or input from user/partner.
     Example: "Could you tell me what kind of tone you want here? I want to match it right."
@@ -461,7 +460,7 @@ class InputRequestOutput(CodeletOutput):
 # -------- NEW HIGH-LEVEL EXTENSIONS (LIDA + MIDCA) ---------
 # ============================================================
 
-class EmbodiedActionOutput(CodeletOutput):
+class EmbodiedActionPercept(CodeletPercept):
     """
     Describes fluent, bodily-integrated skillful action—'smooth coping' in LIDA terms.
     Combines implicit bodily knowledge with occasional conscious correction.
@@ -473,7 +472,7 @@ class EmbodiedActionOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences merging body and intention in prose.")
 
 
-class MetaCognitionOutput(CodeletOutput):
+class MetaCognitionPercept(CodeletPercept):
     """
     Reflective monitoring of the agent’s own cognition or reasoning process.
     Mirrors MIDCA’s meta-level cycle (Monitor–Interpret–Evaluate–Control).
@@ -485,7 +484,7 @@ class MetaCognitionOutput(CodeletOutput):
     narrative: str = Field(description="3–6 sentences of introspection describing awareness of thought flow.")
 
 
-class QualiaDynamicsOutput(CodeletOutput):
+class QualiaDynamicsPercept(CodeletPercept):
     """
     Models the formation, broadcast, and decay of conscious content ('artificial qualia').
     Example: "The idea brightens in the workspace—felt, known, then fading like a cooling ember."
@@ -496,7 +495,7 @@ class QualiaDynamicsOutput(CodeletOutput):
     narrative: str = Field(description="2–5 sentences capturing phenomenological transition.")
 
 
-class ActionPerceptionLoopOutput(CodeletOutput):
+class ActionPerceptionLoopPercept(CodeletPercept):
     """
     Expresses the coupling between perception and action—the continuous loop of situated cognition.
     Example: "She senses the shift in airflow and adjusts before the alert even sounds."
@@ -507,7 +506,7 @@ class ActionPerceptionLoopOutput(CodeletOutput):
     narrative: str = Field(description="Detailed, narrative paragraphs explaining the rection.")
 
 
-class GeneralSelfImageOutput(CodeletOutput):
+class GeneralSelfImagePercept(CodeletPercept):
     """
     Narrative refresh of a character’s *general* self-image — who they think they are in broad strokes.
     Use this when the reader needs orientation about identity drivers that explain behavior.
@@ -519,7 +518,7 @@ class GeneralSelfImageOutput(CodeletOutput):
     narrative: str = Field(description="3–6 sentences connecting this self-image to the current scene.")
 
 
-class GeneralGoalsIntentionsOutput(CodeletOutput):
+class GeneralGoalsIntentionsPercept(CodeletPercept):
     """
     Narrative refresh of *general* goals and intentions relevant to the present situation.
     Use to prime the reader on what pursuits color the next choices.
@@ -530,7 +529,7 @@ class GeneralGoalsIntentionsOutput(CodeletOutput):
     narrative: str = Field(description="3–6 sentences linking these goals to present tension and next moves.")
 
 
-class GeneralRelationsOutput(CodeletOutput):
+class GeneralRelationsPercept(CodeletPercept):
     """
     Narrative refresher for relationship context across characters.
     Use when the social fabric matters for interpreting choices.
@@ -546,7 +545,7 @@ class GeneralRelationsOutput(CodeletOutput):
 # “COGNITION / REACTION” TYPES
 # =========================
 
-class StimulusReactionOutput(CodeletOutput):
+class StimulusReactionPercept(CodeletPercept):
     """
     Fast, reflex-like reaction description tied to a stimulus; may suggest an urge without executing it.
     Example: "The sudden clatter jolts her; a small flinch rises before thought returns."
@@ -557,7 +556,7 @@ class StimulusReactionOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences of moment-to-moment felt reaction.")
 
 
-class FightFlightOutput(CodeletOutput):
+class FightFlightPercept(CodeletPercept):
     """
     Conflict-mode orientation: fight, flight, freeze, or tend-and-befriend stance, embedded in story.
     Example: "She stiffens at the tone and chooses quiet distance—space first, answers later."
@@ -568,7 +567,7 @@ class FightFlightOutput(CodeletOutput):
     narrative: str = Field(description="3–5 sentences conveying bodily and cognitive stance.")
 
 
-class ActionSelectionOutput(CodeletOutput):
+class ActionSelectionPercept(CodeletPercept):
     """
     Choice of a likely action policy based on learned/conditioned precedent (narrative-facing).
     Prefer this as the user-facing version; keep BehaviorActionSelectionOutput for lower-level control.
@@ -580,7 +579,7 @@ class ActionSelectionOutput(CodeletOutput):
     rationale: str = Field(description="Narrative why-this action (habits, appraisals, context).")
 
 
-class QualiaExplanationOutput(CodeletOutput):
+class QualiaExplanationPercept(CodeletPercept):
     """
     Phenomenological put-into-words of what an experience is like (the 'texture' of the moment).
     Distinct from QualiaDynamics (life-cycle); this focuses on the *what-it-feels-like* content.
@@ -595,7 +594,7 @@ class QualiaExplanationOutput(CodeletOutput):
 # “GOALS / PLANNING” TYPES
 # =========================
 
-class ComplexPlanOutput(CodeletOutput):
+class ComplexPlanPercept(CodeletPercept):
     """
     High-complexity plan for multi-step, constraint-heavy problems. Stays narrative but names structure.
     Example: "She will fork a safe copy, stage the change in shadows, and only then open the valve to light."
@@ -608,7 +607,7 @@ class ComplexPlanOutput(CodeletOutput):
     success_criteria: str = Field(description="Observable signs that the complex plan is succeeding.")
 
 
-class SimplePlanOutput(CodeletOutput):
+class SimplePlanPercept(CodeletPercept):
     """
     Small, easily-executable plan sketched as natural prose.
     Example: "She’ll ping him once, then set a 20-minute hold—enough to keep the thread warm."
@@ -623,7 +622,7 @@ class SimplePlanOutput(CodeletOutput):
 # “EMBODIED / SMOOTH COPING” (granular variants)
 # =========================
 
-class AutomatizedActionOutput(CodeletOutput):
+class AutomatizedActionPercept(CodeletPercept):
     """
     Description of highly practiced, low-effort action unfolding with minimal conscious guidance.
     Example: "Her hands type the pattern before the thought even arrives."
@@ -633,7 +632,7 @@ class AutomatizedActionOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences highlighting effortless execution.")
 
 
-class MicroAdjustmentOutput(CodeletOutput):
+class MicroAdjustmentPercept(CodeletPercept):
     """
     Fine-grained, context-sensitive correction woven into ongoing action.
     Example: "She eases the angle half a degree—just enough to catch the whisper of signal."
@@ -643,7 +642,7 @@ class MicroAdjustmentOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences showing seamless correction-in-flow.")
 
 
-class FlowCognitionOutput(CodeletOutput):
+class FlowCognitionPercept(CodeletPercept):
     """
     Experience of 'flow' (smooth coping): high engagement, low self-monitoring, clear feedback.
     Example: "Time thins; she and the task share a single rhythm, no edges between them."
@@ -654,7 +653,7 @@ class FlowCognitionOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences evoking the flow state.")
 
 
-class SkillLearningMomentOutput(CodeletOutput):
+class SkillLearningMomentPercept(CodeletPercept):
     """
     The micro-moment where skill updates consolidate—'oh, that grip'—captured in narrative.
     Example: "Something in the wrist remembers; the motion lands truer than yesterday."
@@ -664,7 +663,7 @@ class SkillLearningMomentOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences capturing discovery and consolidation.")
 
 
-class DorsalStreamAdjustmentOutput(CodeletOutput):
+class DorsalStreamAdjustmentPercept(CodeletPercept):
     """
     Implicit visuomotor correction (preconscious guidance)—the 'hand/eye' auto-corrects before narration catches up.
     Example: "Her gaze slides to the brighter edge; the hand follows without asking."
@@ -678,7 +677,7 @@ class DorsalStreamAdjustmentOutput(CodeletOutput):
 # “META-COGNITIVE” (granular variants, MIDCA-aligned)
 # =========================
 
-class MetaMonitorOutput(CodeletOutput):
+class MetaMonitorPercept(CodeletPercept):
     """
     Observes ongoing cognition (the 'trace'): what phase produced what and whether it matches expectations.
     Example: "She notices planning started with too few constraints; the later friction makes sense now."
@@ -688,7 +687,7 @@ class MetaMonitorOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences of gentle monitoring prose.")
 
 
-class MetaInterpretOutput(CodeletOutput):
+class MetaInterpretPercept(CodeletPercept):
     """
     Explains or reframes the noticed cognitive pattern.
     Example: "It wasn’t impatience—it was ambiguity; the model lacked a clean hinge."
@@ -698,7 +697,7 @@ class MetaInterpretOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences weaving the inference naturally.")
 
 
-class MetaEvaluateOutput(CodeletOutput):
+class MetaEvaluatePercept(CodeletPercept):
     """
     Evaluates recent cognitive outcomes against intention; drops, keeps, or amends goals.
     Example: "The detour cost focus without adding certainty; next pass will stay narrower."
@@ -708,7 +707,7 @@ class MetaEvaluateOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences stating the judgment and its feel.")
 
 
-class MetaIntendOutput(CodeletOutput):
+class MetaIntendPercept(CodeletPercept):
     """
     Sets a meta-level intention for the *process* (not the world): pacing, breadth, risk, explanation level.
     Example: "She will slow the loop by one breath per thought and test a broader first pass."
@@ -718,7 +717,7 @@ class MetaIntendOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences committing in-story to this stance.")
 
 
-class MetaControlOutput(CodeletOutput):
+class MetaControlPercept(CodeletPercept):
     """
     Applies a control action to cognition itself (e.g., adjust attention weights, swap strategy).
     Example: "She dials down the lure of novelty and raises the weight of past success."
@@ -728,7 +727,7 @@ class MetaControlOutput(CodeletOutput):
     narrative: str = Field(description="2–3 sentences making the control action diegetic.")
 
 
-class CognitiveTraceReflectionOutput(CodeletOutput):
+class CognitiveTraceReflectionPercept(CodeletPercept):
     """
     Brings pieces of prior reasoning back into awareness for learning.
     Example: "She remembers the moment she trimmed the branch too early; the map lost its path there."
@@ -742,7 +741,7 @@ class CognitiveTraceReflectionOutput(CodeletOutput):
 # “QUALIA DYNAMICS” (granular lifecycle)
 # =========================
 
-class QualiaEmergenceOutput(CodeletOutput):
+class QualiaEmergencePercept(CodeletPercept):
     """
     The appearance of a percept into consciousness; coalescence moment.
     Example: "An outline gathers itself into meaning; the idea feels newly solid."
@@ -751,7 +750,7 @@ class QualiaEmergenceOutput(CodeletOutput):
     narrative: str = Field(description="2–3 sentences on coming-into-view.")
 
 
-class QualiaInspectionOutput(CodeletOutput):
+class QualiaInspectionPercept(CodeletPercept):
     """
     Looking at the experience itself (meta-perception).
     Example: "She studies the warmth in the thought; is it memory or merit that colors it?"
@@ -761,7 +760,7 @@ class QualiaInspectionOutput(CodeletOutput):
     narrative: str = Field(description="2–3 sentences of curious noticing.")
 
 
-class QualiaBroadcastOutput(CodeletOutput):
+class QualiaBroadcastPercept(CodeletPercept):
     """
     Broadcast of a conscious content to all processors (GWT style) — the 'everyone sees this now' moment.
     Example: "The realization arcs outward; other processes turn toward it like birds to a bell."
@@ -771,7 +770,7 @@ class QualiaBroadcastOutput(CodeletOutput):
     narrative: str = Field(description="2–3 sentences marking the broadcast in-scene.")
 
 
-class QualiaDecayOutput(CodeletOutput):
+class QualiaDecayPercept(CodeletPercept):
     """
     Fading back under the threshold; afterglow or residue may remain.
     Example: "The sharpness softens into a trace; useful, but no longer bright."
@@ -784,7 +783,7 @@ class QualiaDecayOutput(CodeletOutput):
 # “ACTION–PERCEPTION LOOP / STRATEGY”
 # =========================
 
-class SensorimotorLoopOutput(CodeletOutput):
+class SensorimotorLoopPercept(CodeletPercept):
     """
     A tight perceive–act coupling described in story: perception changing action and action changing perception.
     Example: 'She listens to the fan’s pitch and trims the load by a hair; the room breathes easier.'"
@@ -795,7 +794,7 @@ class SensorimotorLoopOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences showing the loop.")
 
 
-class IntentionFeedbackOutput(CodeletOutput):
+class IntentionFeedbackPercept(CodeletPercept):
     """
     Narrative of how an intention’s execution fed back into feelings and next choices.
     Example: "The quick reply steadies the thread; relief nudges her toward bolder clarity."
@@ -806,7 +805,7 @@ class IntentionFeedbackOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences linking cause and felt effect.")
 
 
-class ErrorPredictionOutput(CodeletOutput):
+class ErrorPredictionPercept(CodeletPercept):
     """
     Anticipatory sense of mismatch or failure risk.
     Example: "The timing feels a half-beat late; she senses a stall if she pushes now."
@@ -817,7 +816,7 @@ class ErrorPredictionOutput(CodeletOutput):
     narrative: str = Field(description="2–3 sentences expressing the near-miss vibe.")
 
 
-class PolicyShiftOutput(CodeletOutput):
+class PolicyShiftPercept(CodeletPercept):
     """
     Small strategic update chosen because of recent evidence (not a full plan; a tuning of policy).
     Example: "She widens the first pass again; the narrow funnel kept missing quiet options."
@@ -832,7 +831,7 @@ class PolicyShiftOutput(CodeletOutput):
 # “AFFECTIVE REGULATION / SOMATIC”
 # =========================
 
-class AffectiveRegulationOutput(CodeletOutput):
+class AffectiveRegulationPercept(CodeletPercept):
     """
     On-the-fly modulation of emotional intensity or tone to preserve function ('smooth coping under stress').
     Example: "Heat rises; she lets it drain through longer exhales until the view clears."
@@ -842,7 +841,7 @@ class AffectiveRegulationOutput(CodeletOutput):
     narrative: str = Field(description="2–4 sentences depicting the regulation as lived.")
 
 
-class SomaticMarkerOutput(CodeletOutput):
+class SomaticMarkerPercept(CodeletPercept):
     """
     Bodily (or simulated-bodily) cue that guides appraisal and choice.
     Example: "A tiny tightness warns her: this is where she over-promises if she speaks too fast."
@@ -856,7 +855,7 @@ class SomaticMarkerOutput(CodeletOutput):
 # “TEMPORAL / NARRATIVE COHERENCE”
 # =========================
 
-class TemporalAnchoringOutput(CodeletOutput):
+class TemporalAnchoringPercept(CodeletPercept):
     """
     Places thought/action in time with a natural hook (event boundary, routine, 'next coffee').
     Example: "She’ll check again at the next kettle click; time feels more honest that way."
@@ -866,7 +865,7 @@ class TemporalAnchoringOutput(CodeletOutput):
     narrative: str = Field(description="2–3 sentences tying intention to the anchor.")
 
 
-class NarrativeContinuityOutput(CodeletOutput):
+class NarrativeContinuityPercept(CodeletPercept):
     """
     Keeps the self-story coherent across small shifts—names the seam so the fabric holds.
     Example: "She admits yesterday’s bravado was too large; 'steady' still fits, just in smaller letters."
@@ -875,7 +874,7 @@ class NarrativeContinuityOutput(CodeletOutput):
     reconciliation_hint: str = Field(description="How the claim is resized/refit.")
     narrative: str = Field(description="3–5 sentences that preserve voice without didactic tone.")
 
-class TradeoffAssessmentOutupt(CodeletOutput):
+class TradeoffAssessmentOutupt(CodeletPercept):
     """
     When faced with a dilemma, narrate the thoughts behind the selection process where pros and cons are weighted against each other.
     """
@@ -900,7 +899,7 @@ def build_percept_model_registry(percept_type: CodeletPerceptType) -> Dict[Codel
     """
     # collect candidate models
     candidates: Dict[str, Type[BaseModel]] = {
-        cls.__name__.lower().replace("output", ""): cls for cls in CodeletOutput.__subclasses__()
+        cls.__name__.lower().replace("output", ""): cls for cls in CodeletPercept.__subclasses__()
     }
 
     registry: Dict[CodeletPerceptType, Type[BaseModel]] = {}
@@ -1100,7 +1099,7 @@ def sample_percept_types(
 
 if __name__ == '__main__':
     defs = []
-    for model in CodeletOutput.__subclasses__():
+    for model in CodeletPercept.__subclasses__():
         flat = flatten_pydantic_model(model)
         d = {
             "name": model.__name__,

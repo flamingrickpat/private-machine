@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from pm.agents.agent_base import CompletionText, User, CompletionJSON, ExampleEnd, PromptOp, System, Message, BaseAgent, Assistant, ExampleBegin
 from pm.agents.agent_manager import AgentManager
-from pm.codelets.codelet_outputs import sample_percept_types, model_for_percept
+from pm.codelets.codelet_percepts import sample_percept_types, model_for_percept
 from pm.config_loader import companion_name
 from pm.llm.llm_proxy import LlmManagerProxy
 from pm.utils.pydantic_utils import create_basemodel, flatten_pydantic_model, generate_pydantic_json_schema_llm

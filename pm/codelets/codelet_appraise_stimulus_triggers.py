@@ -1,11 +1,11 @@
 from pm.agents.definitions.agent_common_codelet import CommonCodeletAgent
-from pm.codelets.codelet import BaseCodelet, CodeletSignature, CodeletFamily, CodeletSource, CodeletContext, CodeletOutput
+from pm.codelets.codelet import CodeletExecutor, CodeletSignature, CodeletFamily, CodeletSource, CodeletContext, CodeletOutput
 from pm.data_structures import Feature, FeatureType, MLevel, StimulusType
 from pm.mental_states import CognitiveEventTriggers, EmotionalAxesModel, CognitionAxesModel
 from pm.utils.pydantic_utils import create_delta_basemodel
 
 
-class AppraiseStimulusTrigger(BaseCodelet):
+class AppraiseStimulusTrigger(CodeletExecutor):
     def _setup(self):
         self.signature = CodeletSignature(
             name="AppraiseStimulusTrigger",

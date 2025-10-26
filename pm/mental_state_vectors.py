@@ -170,28 +170,33 @@ def make_personality_profile(
 
 class AppraisalGeneral(MentalState):
     """
-    Cognitive evaluation of a situation. All in [0..1] except goal_congruence [-1..1].
-    Keep this short & orthogonal; derive emotions from these.
+    Core cognitive–affective evaluations describing how a situation relates to goals, expectations, and control.
+    These appraisals form a compact, orthogonal base for emotion derivation and motivational modulation.
+    All values ∈ [0..1], except goal_congruence ∈ [-1..1].
     """
-    goal_congruence: float  = Field(0.0, ge=-1.0, le=1.0, description="Helpful vs harmful to current goals.", json_schema_extra={"vector_position": 11})
-    certainty: float        = Field(0.5, ge=0.0,  le=1.0, description="How predictable/known the situation is.", json_schema_extra={"vector_position": 12})
-    control_self: float     = Field(0.5, ge=0.0,  le=1.0, description="Perceived ability to influence outcome.", json_schema_extra={"vector_position": 13})
-    agency_other: float     = Field(0.0, ge=0.0,  le=1.0, description="Perceived responsibility of another agent.", json_schema_extra={"vector_position": 14})
-    novelty: float          = Field(0.0, ge=0.0,  le=1.0, description="Unexpectedness/surprise.", json_schema_extra={"vector_position": 15})
-    norm_violation: float   = Field(0.0, ge=0.0,  le=1.0, description="Degree of social/normative breach.", json_schema_extra={"vector_position": 16})
-    bodily_threat: float    = Field(0.0, ge=0.0,  le=1.0, description="Immediate threat to safety/wellbeing.", json_schema_extra={"vector_position": 17})
+    goal_congruence: float = Field(0.0, ge=-1.0, le=1.0, description="Valence toward goals: positive = supportive, negative = obstructive.", json_schema_extra={"vector_position": 11})
+    certainty: float = Field(0.5, ge=0.0, le=1.0, description="Predictability and confidence in outcome; low = surprise or ambiguity.", json_schema_extra={"vector_position": 12})
+    control_self: float = Field(0.5, ge=0.0, le=1.0, description="Perceived personal control or efficacy over situation outcomes.", json_schema_extra={"vector_position": 13})
+    agency_other: float = Field(0.0, ge=0.0, le=1.0, description="Perceived responsibility or intentional influence of another agent.", json_schema_extra={"vector_position": 14})
+    novelty: float = Field(0.0, ge=0.0, le=1.0, description="Degree of unexpectedness or deviation from prior experience.", json_schema_extra={"vector_position": 15})
+    norm_violation: float = Field(0.0, ge=0.0, le=1.0, description="Extent of moral, ethical, or social rule violation perceived.", json_schema_extra={"vector_position": 16})
+    bodily_threat: float = Field(0.0, ge=0.0, le=1.0, description="Immediate physical or safety threat perceived by the agent.", json_schema_extra={"vector_position": 17})
 
 class AppraisalSocial(MentalState):
-    perceived_warmth    : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 51})
-    fairness            : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 52})
-    inclusion_exclusion : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 53})
-    reciprocity         : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 54})
-    power_imbalance     : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 55})
-    perceived_intimacy  : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 56})
-    trust_cues          : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 57})
-    embarrassment       : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 58})
-    admiration          : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 59})
-    contempt            : float  = Field(0.0, ge=0.0, le=1.0, description="", json_schema_extra={"vector_position": 60})
+    """
+    Evaluations of interpersonal context and social meaning—how others’ actions and attitudes relate
+    to the self’s goals, norms, and relationships. Values ∈ [0..1].
+    """
+    perceived_warmth: float = Field(0.0, ge=0.0, le=1.0, description="Degree of friendliness, empathy, and benevolence perceived in others.", json_schema_extra={"vector_position": 51})
+    fairness: float = Field(0.0, ge=0.0, le=1.0, description="Perceived justice, equity, and balance in social exchanges.", json_schema_extra={"vector_position": 52})
+    inclusion_exclusion: float = Field(0.0, ge=0.0, le=1.0, description="Sense of social belonging or rejection within a group or interaction.", json_schema_extra={"vector_position": 53})
+    reciprocity: float = Field(0.0, ge=0.0, le=1.0, description="Expectation of mutual exchange and balanced give-and-take.", json_schema_extra={"vector_position": 54})
+    power_imbalance: float = Field(0.0, ge=0.0, le=1.0, description="Asymmetry in status, dominance, or control between self and others.", json_schema_extra={"vector_position": 55})
+    perceived_intimacy: float = Field(0.0, ge=0.0, le=1.0, description="Closeness, emotional openness, and self-disclosure within the relationship.", json_schema_extra={"vector_position": 56})
+    trust_cues: float = Field(0.0, ge=0.0, le=1.0, description="Signals of reliability, honesty, and cooperative intent detected in others.", json_schema_extra={"vector_position": 57})
+    embarrassment: float = Field(0.0, ge=0.0, le=1.0, description="Self-conscious discomfort due to social exposure or norm violation.", json_schema_extra={"vector_position": 58})
+    admiration: float = Field(0.0, ge=0.0, le=1.0, description="Positive evaluation of others’ excellence, competence, or virtue.", json_schema_extra={"vector_position": 59})
+    contempt: float = Field(0.0, ge=0.0, le=1.0, description="Disdain or moral disapproval toward others seen as violating shared standards.", json_schema_extra={"vector_position": 60})
 
 class StateNeurochemical(MentalState):
     """
@@ -226,8 +231,8 @@ class StateCognition(ActiveMentalState):
     Modifiers that determine how the AI thinks and decies.
     """
     interlocus: float = Field( default=0.0, ge=-1, le=1, description="Focus on internal or external world, meditation would be -1, reacting to extreme danger +1.", json_schema_extra={"vector_position": 200})
-    mental_aperture: float = Field( default=0.0, ge=-1, le=1, description="Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations.", json_schema_extra={"vector_position": 201})
-    ego_strength: float = Field( default=0.0, ge=-1, le=1, description="How big of a factor persona experience has on decision, -1 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character", json_schema_extra={"vector_position": 202})
+    mental_aperture: float = Field( default=0, ge=-1, le=1, description="Broadness of awareness, -1 is focus on the most prelevant percept or sensation, +1 is being conscious of multiple percepts or sensations.", json_schema_extra={"vector_position": 201})
+    ego_strength: float = Field( default=0.5, ge=0, le=1, description="How big of a factor persona experience has on decision, 0 is none at all like a helpfull assistant, 1 is with maximum mental imagery of the character", json_schema_extra={"vector_position": 202})
     willpower: float = Field( default=0.0, ge=-1.0, le=1.0, description="How easy it is to decide on high-effort or delayed-gratification intents.", json_schema_extra={"vector_position": 203})
 
 class StateNeeds(ActiveMentalState):
@@ -873,15 +878,6 @@ def ema_baselined_normalize(
     return out
 
 
-
-
-
-
-
-
-
-
-
 def _features_to_history(features: List["MentalFeature"]) -> List[Tuple[datetime.datetime, List[float]]]:
     return [(f.timestamp, f.state_delta_vector) for f in features]
 
@@ -900,6 +896,100 @@ def create_empty_ms_vector():
 
 def create_empty_state():
     return FullMentalState.init_from_list(create_empty_ms_vector())
+
+def compute_attention_bias(ms: FullMentalState) -> Tuple[float, float]:
+    """
+    Compute internal attention-selection biases from latent/active state.
+    Returns:
+        valence_focus_bias ∈ [-1, 1] : whether the mind drifts toward negative or positive stimuli
+        salience_bias ∈ [0, 1]       : how deterministically attention picks top-salient percepts
+                                       (0=random, 0.5=mixed sampler, 1=top-locked)
+    """
+    core = ms.state_core
+    emo = ms.state_emotions
+    cog = ms.state_cognition
+    neu = ms.state_neurochemical
+    needs = ms.state_needs
+    pers = ms.state_personality
+    expr = ms.state_expression
+    expr_ext = ms.state_expression_ext
+    rel = ms.state_relationship
+
+    # ---------- VALENCE-FOCUS BIAS ----------
+    # Core valence drives mood polarity, dominance adds confidence, arousal adds reactivity.
+    # Emotions: sadness/fear pull attention toward negatives; joy/pride toward positives.
+    # Personality: neuroticism amplifies negativity; agreeableness/openness broaden positivity.
+    v = core.valence
+    d = core.dominance
+    a = core.arousal
+
+    pos_affect = (emo.joy + emo.tenderness + emo.pride + 0.3 * emo.relief) / 4.3
+    neg_affect = (emo.fear + emo.anger + emo.sadness + emo.shame + emo.guilt + emo.disgust) / 6.0
+
+    mood_tone = v + 0.4 * (pos_affect - neg_affect)
+    control_confidence = 0.5 * d - 0.3 * emo.fear
+
+    # personality corrections (temperament)
+    p = pers
+    trait_mod = (
+        -0.5 * (p.neuroticism - 0.5) +   # higher neuroticism → negativity bias
+        0.4 * (p.agreeableness - 0.5) +  # warmth → positive skew
+        0.3 * (p.openness - 0.5)         # openness → curiosity = positive framing
+    )
+
+    # neurochemical modulation (mild dampening)
+    nc_mod = 0.5 * (
+        0.3 * (neu.dopamine - 0.5)       # dopamine = reward sensitivity
+        - 0.3 * (neu.cortisol - 0.5)     # cortisol = threat vigilance
+        - 0.2 * (neu.serotonin - 0.5)    # serotonin = stabilization (reduces bias)
+    )
+
+    valence_focus_bias = mood_tone + control_confidence + trait_mod + nc_mod
+    valence_focus_bias = _clamp11(valence_focus_bias)
+
+    # ---------- SALIENCE BIAS ----------
+    # Driven by arousal (energy), noradrenaline (focus), willpower/ego_strength, and emotional drive.
+    # Also modulated by personality (extraversion & conscientiousness), expression amplitude (visibility),
+    # and needs (relevance, autonomy, connection). High stress/anger → higher focus;
+    # playfulness/curiosity → more stochastic exploration.
+    a = core.arousal
+    nor = neu.noradrenaline
+    dop = neu.dopamine
+
+    cognitive_drive = 0.5 * (cog.willpower + cog.ego_strength - abs(cog.mental_aperture))
+    positive_focus = 0.3 * emo.anger + 0.4 * emo.pride + 0.3 * emo.curiosity
+    diffuse_focus = 0.3 * emo.playfulness + 0.3 * emo.relief + 0.2 * emo.social_laughter
+
+    need_urgency = 0.3 * (1.0 - needs.relevance) + 0.2 * (1.0 - needs.connection) + 0.2 * (1.0 - needs.energy_stability)
+    personality_focus = (
+        0.3 * (pers.extraversion - 0.5) +
+        0.3 * (pers.conscientiousness - 0.5) -
+        0.2 * (pers.openness - 0.5)
+    )
+
+    # combine factors
+    salience_bias = (
+        0.4 * a +
+        0.25 * nor +
+        0.15 * dop +
+        0.15 * cognitive_drive +
+        0.10 * positive_focus -
+        0.15 * diffuse_focus +
+        0.15 * need_urgency +
+        0.15 * personality_focus
+    )
+
+    # relational safety lowers urgency slightly
+    if rel is not None:
+        salience_bias *= (0.9 + 0.1 * (1.0 - rel.conflict_tension))
+
+    # neurochemical dampening (keep moderate range)
+    salience_bias *= (0.7 + 0.3 * (1.0 - 0.5 * (neu.serotonin + neu.oxytocin)))
+
+    salience_bias = _clamp01(salience_bias)
+
+    return valence_focus_bias, salience_bias
+
 
 class MentalFeature(BaseModel):
     content: str

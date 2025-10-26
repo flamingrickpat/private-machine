@@ -1,8 +1,8 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Set, Optional
 
-from pm.data_structures import FeatureType, KnoxelHaver, KnoxelList
-from pm.utils.emb_utils import cosine_pair
+from pm.data_structures import KnoxelHaver
+from pm.utils.emb_utils import cosine_sim
 
 class CSMItem(BaseModel):
     knoxel_id: int
@@ -15,7 +15,7 @@ class CSMItem(BaseModel):
 class CSMState(BaseModel):
     items: Dict[int, CSMItem] = Field(default_factory=dict)
 
-class CSMBuffer:
+class CSMManager:
     def __init__(self, knoxel_haver: KnoxelHaver, max_items: int = 128, decay: float = 0.92, merge_sim_threshold: float = 0.86, state: CSMState = None):
         self.knoxel_haver = knoxel_haver
         self.max_items = max_items
@@ -32,7 +32,7 @@ class CSMBuffer:
             it.ticks_in_csm += 1
 
     def _similar(self, a: CSMItem, b: CSMItem) -> bool:
-        return cosine_pair(
+        return cosine_sim(
             self.knoxel_haver.all_knoxels[a.knoxel_id].embedding,
             self.knoxel_haver.all_knoxels[b.knoxel_id].embedding
         ) >= self.merge_sim_threshold
@@ -65,12 +65,3 @@ class CSMBuffer:
         for fid in list(self.state.items.keys()):
             if self.state.items[fid].activation < min_activation:
                 self.state.items.pop(fid, None)
-
-    def get_snapshot(self) -> str:
-        kl = KnoxelList()
-
-        for _id in self.state.items.keys():
-            kl.add(self.knoxel_haver.all_knoxels[_id])
-
-        res = kl.get_story(self.knoxel_haver)
-        return res

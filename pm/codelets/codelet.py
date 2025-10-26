@@ -2,14 +2,14 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import List, Dict, Tuple, Set, Any
+from typing import List, Dict, Tuple, Set, Any, Type
 
 from nltk.cluster import cosine_distance
 from pydantic import BaseModel, Field
 import random
 
 from pm.agents.definitions.agent_simple_codelet import AgentSimpleCodelet
-from pm.codelets.codelet_definitions import CodeletFamily, get_all_simple_codelts
+from pm.codelets.codelet_definitions import CodeletFamily, get_all_simple_codelts, SimpleCodelet
 from pm.data_structures import StimulusType, Feature, MLevel, Stimulus, KnoxelBase, StimulusGroup
 from pm.csm.csm import CSMState
 from pm.llm.llm_proxy import LlmManagerProxy
@@ -30,6 +30,9 @@ class CodeletSignature:
     stimulus_whitelist: Set[StimulusType] | None = None  # None = any
     stimulus_blacklist: Set[StimulusType] | None = None  # None = none
     prompt: str = None
+
+    def create_embedding_string(self):
+        return f"{self.name}\n{self.description}\n{self.prompt}\n" + ",".join([str(f) for f in self.families])
 
 class ActivationFactors(BaseModel):
     """Weights used for activation scoring."""
@@ -75,7 +78,7 @@ class CodeletOutput(BaseModel):
     # Optional: proposed updates to intentions, etc.
     # intentions: List['Intention'] = Field(default_factory=list)
 
-class BaseCodelet:
+class CodeletExecutor:
     """Subclass this to implement behavior. Keep methods pure-ish."""
     signature: CodeletSignature
     runtime: CodeletRuntime
@@ -198,25 +201,25 @@ class BaseCodelet:
 
 class CodeletRegistry:
     def __init__(self):
-        self._items: Dict[str, BaseCodelet] = {}
+        self._items: Dict[str, CodeletExecutor] = {}
 
     @property
-    def items(self) -> Dict[str, BaseCodelet]:
+    def items(self) -> Dict[str, CodeletExecutor]:
         return self._items
 
-    def register(self, codelet: BaseCodelet):
+    def register(self, codelet: CodeletExecutor):
         key = codelet.signature.name
         if key in self._items:
             raise ValueError(f"Codelet '{key}' already registered.")
         self._items[key] = codelet
 
-    def all(self) -> List[BaseCodelet]:
+    def all(self) -> List[CodeletExecutor]:
         return list(self._items.values())
 
     def decay_step(self):
         pass
 
-    def pick_candidates(self, ctx: CodeletContext) -> List[Tuple[BaseCodelet, float]]:
+    def pick_candidates(self, ctx: CodeletContext) -> List[Tuple[CodeletExecutor, float]]:
         scored = []
         for c in self._items.values():
             if c.should_consider(ctx):
@@ -229,7 +232,7 @@ class CodeletRegistry:
         res = cls()
         for base_codelet in get_all_simple_codelts():
             sig = CodeletSignature(name=base_codelet.name, families=base_codelet.codelet_families, description=base_codelet.description, preferred_sources=StimulusGroup.All, prompt=base_codelet.prompt)
-            cdl = BaseCodelet(sig, llm=ctx.llm)
+            cdl = CodeletExecutor(sig, llm=ctx.llm)
             res.register(cdl)
         return res
 
@@ -243,3 +246,9 @@ class CodeletRegistry:
         for k, v in self._items.items():
             if k in cs.states.keys():
                 v.runtime = cs.states[k].copy()
+
+    def boost_codelet(self, codelet_type: Type[SimpleCodelet], scalar: float = 0, factor: float = 1):
+        if codelet_type.name in self.items.keys():
+             cdl = self.items[codelet_type.name]
+             cdl.runtime.activation += scalar
+             cdl.runtime.activation *= factor
