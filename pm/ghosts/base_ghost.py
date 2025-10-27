@@ -40,19 +40,15 @@ class GhostConfig(BaseModel):
 
 
 class GhostState(BaseModel):
-    class Config:
-        arbitrary_types_allowed = True
-
     tick_id: int
     previous_tick_id: int = -1
     timestamp: datetime = Field(default_factory=datetime.now)
     rating: int = Field(default=0)
 
     latent_mental_state: FullMentalState = Field(default_factory=create_empty_state)
-    current_situational_model: CSMState = Field(default_factory=CSMState)
+    csm_state: CSMState = Field(default_factory=CSMState)
     codelet_state: CodeletState = Field(default_factory=CodeletState)
-    ccq: Dict[int, float] = Field(default_factory=dict)
-
+    ccq_state: Dict[int, float] = Field(default_factory=dict)
 
     #primary_stimulus: Optional[Stimulus] = None
     #attention_candidates: KnoxelList = KnoxelList()
@@ -173,7 +169,7 @@ class BaseGhost(KnoxelHaver):
         """Clears all knoxels, states, and resets IDs."""
         self.current_tick_id = 0
         self.current_knoxel_id = 0
-        self.all_knoxels = {}
+        self.all_knoxels: Dict[int, KnoxelBase] = {}
         self.all_features = []
         self.all_stimuli = []
         self.all_intentions = []

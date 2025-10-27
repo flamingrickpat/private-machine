@@ -13,7 +13,7 @@ class CSMItem(BaseModel):
     merged_ids: List[int] = Field(default_factory=list)
 
 class CSMState(BaseModel):
-    items: Dict[int, CSMItem] = Field(default_factory=dict)
+    csm_item_states: Dict[int, CSMItem] = Field(default_factory=dict)
 
 class CSMManager:
     def __init__(self, knoxel_haver: KnoxelHaver, max_items: int = 128, decay: float = 0.92, merge_sim_threshold: float = 0.86, state: CSMState = None):
@@ -24,10 +24,10 @@ class CSMManager:
         self.state: CSMState = state
 
     def items(self) -> List[CSMItem]:
-        return list(self.state.items.values())
+        return list(self.state.csm_item_states.values())
 
     def decay_step(self):
-        for it in self.state.items.values():
+        for it in self.state.csm_item_states.values():
             it.activation *= self.decay
             it.ticks_in_csm += 1
 
@@ -41,27 +41,27 @@ class CSMManager:
         # Try merge with best match
         best_id = None
         best_score = 0.0
-        for fid, it in self.state.items.items():
+        for fid, it in self.state.csm_item_states.items():
             if self._similar(it, item):
                 best_id = fid
                 best_score = 1.0
                 break
         if best_id is not None:
-            ref = self.state.items[best_id]
+            ref = self.state.csm_item_states[best_id]
             ref.activation = min(1.0, ref.activation + 0.25)
             ref.last_tick = item.last_tick
             ref.merged_ids.append(item.knoxel_id)
         else:
             # Insert new
-            self.state.items[item.knoxel_id] = item
+            self.state.csm_item_states[item.knoxel_id] = item
 
         # Prune low-activation if over capacity
-        if len(self.state.items) > self.max_items:
-            to_drop = sorted(self.state.items.values(), key=lambda x: x.activation)[:len(self.state.items)-self.max_items]
+        if len(self.state.csm_item_states) > self.max_items:
+            to_drop = sorted(self.state.csm_item_states.values(), key=lambda x: x.activation)[:len(self.state.csm_item_states) - self.max_items]
             for d in to_drop:
-                self.state.items.pop(d.knoxel_id, None)
+                self.state.csm_item_states.pop(d.knoxel_id, None)
 
     def prune_low(self, min_activation: float = 0.1):
-        for fid in list(self.state.items.keys()):
-            if self.state.items[fid].activation < min_activation:
-                self.state.items.pop(fid, None)
+        for fid in list(self.state.csm_item_states.keys()):
+            if self.state.csm_item_states[fid].activation < min_activation:
+                self.state.csm_item_states.pop(fid, None)

@@ -1,5 +1,6 @@
 import threading
 import time
+from typing import List
 
 
 class PerThreadBroadcastEvent:
@@ -91,3 +92,12 @@ class PerThreadBroadcastEvent:
 
     def my_seen_generation(self):
         return self._get_seen()
+
+def get_all_items_from_queue(queue) -> List:
+    res = []
+    while True:
+        try:
+            res.append(queue.get(block=False))
+        except:
+            break
+    return res

@@ -1,4 +1,5 @@
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Dict, Any
@@ -132,6 +133,7 @@ class FeatureType(StrEnum):
 
 class StimulusType(StrEnum):
     UserMessage = "UserMessage"
+    CompanionMessage = "CompanionMessage"
     SystemMessage = "SystemMessage"
     UserInactivity = "UserInactivity"  # Checks time.time() - self.last_interaction_time. If it exceeds user_inactivity_timeout, it generates a stimulus. Narrative Content: `"The user has been inactive for 10 minutes. My need for connection is decreasing."*
     TimeOfDayChange = "TimeOfDayChange"  # The Shell can track the real-world datetime. When the hour changes, or it crosses a threshold (e.g., from "afternoon" to "evening"), it can generate a stimulus. Narrative Content: `"The time is now 7 PM. It is officially evening."*
@@ -176,6 +178,8 @@ class KnoxelBase(BaseModel):
     def to_json(self):
         return self.id
 
+class KnoxelContainer(BaseModel):
+    knoxels: List[KnoxelBase] = Field(default_factory=list)
 
 class KnoxelHaver:
     def __init__(self):
@@ -193,9 +197,18 @@ class KnoxelHaver:
         tmp.sort(key=lambda x: x.timestamp_world_begin)
         return tmp
 
+    @property
+    def max_knoxel_id(self):
+        return max([k.id for k in self.all_knoxels.values()])
+
+    def get_knoxel_container(self):
+        kn = KnoxelContainer()
+        kn.knoxels += self.sorted_knoxels
+        return kn
+
 
 class Actor(KnoxelBase):
-    aliases: str = Field(default_factory=str)
+    aliases: List[str]
     actor_class: ActorClass
 
 
@@ -203,6 +216,11 @@ class Stimulus(KnoxelBase):
     source: str = Field(default_factory=str)
     source_actor_id: Optional[int] = Field(default=None)
     stimulus_type: StimulusType
+
+    based_on_tick: int = Field(default=0)
+    async_sub_tick: int = Field(default=0)
+    async_tick_insert_begin: bool = Field(default=True)
+    async_tick_source_order: int = Field(default=0)
 
     def __str__(self):
         return f"[{self.stimulus_type.value}] {self.source}: {self.content}"
@@ -299,6 +317,7 @@ class DeclarativeFactKnoxel(CoversTicksEventsKnoxel):
 
 class CauseEffectKnoxel(CoversTicksEventsKnoxel):
     """Represents an extracted cause-effect relationship."""
+    situation: str
     cause: str
     effect: str
     category: Optional[str] = Field(default=None, description="Semantic category")
@@ -527,7 +546,7 @@ class KnoxelList:
             if max_tokens is not None and current_tokens > max_tokens:
                 break
             buffer.insert(0, content)
-            if target_knoxel_ids:
+            if target_knoxel_ids is not None:
                 target_knoxel_ids.append(_id)
 
         narrative = "\n".join(buffer)
@@ -583,6 +602,13 @@ class KnoxelList:
         for item in self._list:
             yield item
 
-
 class KnoxelListWeighted(KnoxelList):
     pass
+
+@dataclass
+class ShellCCQUpdate:
+    last_causal_id: int
+    current_tick: int
+    knoxels: KnoxelList
+    as_story: str = ""
+    as_assistant: str = ""

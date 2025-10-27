@@ -9,17 +9,19 @@ from enum import Enum
 from typing import (
     Union,
     get_origin,
-    Optional, OrderedDict, get_type_hints,
+    Optional, OrderedDict, get_type_hints, Callable, TypeVar,
 )
 from typing import Type
 from typing import Dict, Any
 from datetime import datetime
 from typing import get_args
 from typing import List
+from itertools import groupby
 
 from pydantic import BaseModel, Field, create_model
 
 primitives = (bool, str, int, float, type(None))
+T = TypeVar("T")
 
 def is_primitive(obj):
     return isinstance(obj, primitives)
@@ -461,3 +463,12 @@ def pydandic_model_to_dict_jsonable(model: BaseModel) -> dict:
 
     raw_dict = model.model_dump()  # for Pydantic v2
     return {k: v for k, v in ((k, make_safe(v)) for k, v in raw_dict.items()) if v is not None}
+
+def group_by_int(items: List[T], key_func: Callable[[T], int]) -> List[List[T]]:
+    # Sort items by the key first
+    sorted_items = sorted(items, key=key_func)
+    # Group them using itertools.groupby
+    grouped = []
+    for _, group in groupby(sorted_items, key=key_func):
+        grouped.append(list(group))
+    return grouped

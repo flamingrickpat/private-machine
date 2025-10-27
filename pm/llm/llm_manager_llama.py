@@ -173,7 +173,7 @@ def build_token_enforcer_tokenizer_data_fast(llm: Llama) -> TokenEnforcerTokeniz
 universal_image_begin = "<begin_image>"
 universal_image_end = "<end_image>"
 magic_image_token = -1
-physical_cores = psutil.cpu_count(logical=False)
+physical_cores = psutil.cpu_count(logical=False) - 1
 
 class LlmManagerLLama(LlmManager):
     def __init__(self, model_map: Dict[str, Any], test_mode: bool=False):
@@ -267,6 +267,11 @@ class LlmManagerLLama(LlmManager):
             time.sleep(1)
 
             with suppress_stdout_stderr(disable=False):
+                if layers == 0:
+                    batch = 32
+                else:
+                    batch = 512
+
                 self.llm = Llama(
                     model_path=model_path,
                     n_gpu_layers=layers,
@@ -643,6 +648,8 @@ class LlmManagerLLama(LlmManager):
                 if discard_thinks:
                     content = content.split("</think>")[-1]
             else:
+                start_eval = time.time()
+                eval_cnt = 0
                 if magic_image_token in tokenized_prompt:
                     self.llm.reset()
                 else:
@@ -713,6 +720,7 @@ class LlmManagerLLama(LlmManager):
                             self._mtmd_cpp.mtmd_input_chunks_free(chunks)
                         else:
                             self.llm.eval(sublist)
+                            eval_cnt += len(sublist)
 
                 if magic_image_token in tokenized_prompt:
                     tokenized_prompt.remove(magic_image_token)
@@ -726,6 +734,7 @@ class LlmManagerLLama(LlmManager):
                     return "", []
                 """
 
+                eval_time = time.time() - start_eval
                 self.llm._sampler = self.llm._init_sampler(**sampler_args)
 
                 completion_tokens = []
@@ -739,6 +748,7 @@ class LlmManagerLLama(LlmManager):
 
                 n_tokens = 0
                 sample_idx = n_tokens + len(tokenized_prompt) - 1
+
                 finish_reason = "length"
 
                 def eval_local(_tokens):
@@ -746,6 +756,7 @@ class LlmManagerLLama(LlmManager):
                         raise ValueError(f"Out of context space: {self.llm.n_tokens} + {len(_tokens)} > {self.current_ctx}")
 
                     nonlocal sample_idx
+
                     sample_idx += len(_tokens)
                     for t in _tokens:
                         completion_tokens.append(t)
@@ -906,9 +917,14 @@ class LlmManagerLLama(LlmManager):
                             break
 
                     if comp_settings.stop_words and len(comp_settings.stop_words) > 0:
+                        if isinstance(comp_settings.stop_words, list):
+                            stop_words = comp_settings.stop_words
+                        else:
+                            stop_words = [comp_settings.stop_words]
+
                         cur_completion_as_text = self._detokenize(completion_tokens, special=False)
                         found = False
-                        for sw in comp_settings.stop_words:
+                        for sw in stop_words:
                             if sw in cur_completion_as_text:
                                 found = True
                                 break
@@ -936,9 +952,11 @@ class LlmManagerLLama(LlmManager):
 
                 duration = time.time() - start_time
                 t_s = sample_cnt / duration
-                addendum.append(f"DURATION: {duration}")
-                addendum.append(f"SAMPLE S: {sample_time}")
-                addendum.append(f"TOKEN/S : {t_s}")
+                addendum.append(f"PREFILL TIME: {eval_time}")
+                addendum.append(f"PREFILL T/S : {eval_time / (eval_cnt + 1)}")
+                addendum.append(f"GEN DURATION: {duration}")
+                addendum.append(f"GEN SAMPLE S: {sample_time}")
+                addendum.append(f"GEN TOKEN/S : {t_s}")
 
                 full_output = self._detokenize(completion_tokens, special=True)
                 content = self._detokenize(completion_tokens, special=False)
@@ -960,7 +978,15 @@ class LlmManagerLLama(LlmManager):
             comp_settings.queue_to_user.put(DuplexSignalEog())
             comp_settings.queue_to_user.put(DuplexSignalFinished())
 
+        if comp_settings.stop_words and len(comp_settings.stop_words) > 0:
+            if isinstance(comp_settings.stop_words, list):
+                stop_words = comp_settings.stop_words
+            else:
+                stop_words = [comp_settings.stop_words]
+            for sw in stop_words:
+                content = content.replace(sw, "")
         content = content.strip()
+
         inp_formatted.append(("assistant", content))
         if log_file_path is not None:
             log_conversation(inp_formatted, log_file_path + f".completion_{finish_reason}.log", 200, addendum=addendum)
