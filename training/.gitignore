@@ -2,3 +2,4 @@
 /kv_store
 /trainer_output
 chat_history.jsonl
+*.json
