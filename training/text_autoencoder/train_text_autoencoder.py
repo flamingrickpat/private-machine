@@ -3,8 +3,13 @@ import os
 import random
 from typing import List
 
+import optuna
+from functools import partial
 import numpy as np
 import torch
+from platformdirs import user_cache_dir
+from sentence_transformers import SentenceTransformer
+from sentence_transformers.util import cos_sim
 from tqdm import tqdm
 from transformers import (
     AutoTokenizer,
@@ -12,43 +17,11 @@ from transformers import (
     Adafactor,
     get_linear_schedule_with_warmup,
 )
+from sentence_transformers import SentenceTransformer, util
 
 from bottleneck_t5 import BottleneckT5LMWithPerturbV2
+from training.text_autoencoder.bottleneck_autoencoder import BottleneckT5Autoencoder
 
-
-class BottleneckT5Autoencoder:
-    def __init__(self, model_path: str, device='cuda'):
-        self.device = device
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path, model_max_length=512)
-        self.model = BottleneckT5LMWithPerturbV2.from_pretrained(model_path, local_files_only=True).to(self.device)
-        self.model.eval()
-
-    @torch.no_grad()
-    def embed(self, text: str) -> torch.FloatTensor:
-        inputs = self.tokenizer(text, return_tensors='pt').to(self.device)
-        decoder_inputs = self.tokenizer('', return_tensors='pt').to(self.device)
-        return self.model(
-            **inputs,
-            decoder_input_ids=decoder_inputs['input_ids'],
-            encode_only=True,
-        )[0]
-
-    @torch.no_grad()
-    def generate_from_latent(self, latent: torch.FloatTensor, max_length=512, temperature=1.0) -> str:
-        dummy_text = '.'
-        dummy = self.embed(dummy_text)
-        perturb_vector = latent - dummy
-        self.model.perturb_vector = perturb_vector
-        input_ids = self.tokenizer(dummy_text, return_tensors='pt').to(self.device).input_ids
-        output = self.model.generate(
-            input_ids=input_ids,
-            max_length=max_length,
-            do_sample=True,
-            temperature=temperature,
-            top_p=0.9,
-            num_return_sequences=1,
-        )
-        return self.tokenizer.decode(output[0], skip_special_tokens=True)
 
 # -----------------------------
 # Denoising + Collation
@@ -153,8 +126,8 @@ def collate_autoencoder_batch(
 # Training
 # -----------------------------
 
-def finetune_contra_on_texts(
-    model: AutoModelForCausalLM,
+def finetune_on_text_simple(
+    model: BottleneckT5LMWithPerturbV2,
     tokenizer: AutoTokenizer,
     texts: List[str],
     output_dir: str = "./contra-soda-ft",
@@ -163,17 +136,25 @@ def finetune_contra_on_texts(
     lr: float = 5e-5,
     warmup_steps: int = 1000,
     max_length: int = 256,
-    noise_prob_min: float = 0.25,
-    noise_prob_max: float = 0.70,
+    noise_prob_min: float = 0.33,
+    noise_prob_max: float = 0.66,
     noise_strategy: str = "deletion",
     grad_accum: int = 1,
     seed: int = 42,
     fp16: bool = True,
+    use_cosine_with_hard_restart: bool = False,
+    use_semantic_factor: bool = True
 ):
     os.makedirs(output_dir, exist_ok=True)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+
+    if use_semantic_factor:
+        device = next(model.parameters()).device
+
+        semantic_model = SentenceTransformer("all-MiniLM-L6-v2").to(device)
+        semantic_model.eval()
 
     # Collect all <extra_id_*> token IDs
     extra_ids = []
@@ -189,21 +170,39 @@ def finetune_contra_on_texts(
     if hasattr(model.config, "use_cache"):
         model.config.use_cache = False
 
-    optimizer = Adafactor(
-        model.parameters(),
-        lr=lr,
-        relative_step=False,   # fixed LR like in the model card recipe
-        scale_parameter=False,
-        warmup_init=False,
-    )
-
     total_steps = (len(texts) // (batch_size * grad_accum)) * epochs
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps=warmup_steps, num_training_steps=max(total_steps, warmup_steps + 1)
-    )
+
+    if use_cosine_with_hard_restart:
+        optimizer = Adafactor(
+            model.parameters(),
+            scale_parameter=True,
+            relative_step=False,  # disable built-in schedule
+            warmup_init=False,
+            lr=1e-3  # base learning rate
+        )
+
+        from transformers import get_cosine_with_hard_restarts_schedule_with_warmup
+        total_steps = (len(texts) // (batch_size * grad_accum)) * epochs
+
+        scheduler = get_cosine_with_hard_restarts_schedule_with_warmup(
+            optimizer,
+            num_warmup_steps=500,
+            num_training_steps=total_steps,
+            num_cycles=3
+        )
+    else:
+        optimizer = Adafactor(
+            model.parameters(),
+            lr=lr,
+            relative_step=False,  # fixed LR like in the model card recipe
+            scale_parameter=False,
+            warmup_init=False,
+        )
+        scheduler = get_linear_schedule_with_warmup(
+            optimizer, num_warmup_steps=warmup_steps, num_training_steps=max(total_steps, warmup_steps + 1)
+        )
 
     device = next(model.parameters()).device
-    #scaler = torch.cuda.amp.GradScaler(enabled=fp16 and device.type == "cuda")
     scaler = torch.amp.GradScaler(str(device), enabled=False)
     with torch.amp.autocast(str(device), enabled=False):
         step = 0
@@ -226,61 +225,58 @@ def finetune_contra_on_texts(
 
                 batch = {k: v.to(device) for k, v in batch.items()}
 
-                #with torch.cuda.amp.autocast(enabled=fp16 and device.type == "cuda"):
-                out = model(**batch)
+                if use_semantic_factor:
+                    out = model(**batch)
+                    ce_loss = out.loss
 
-                if torch.isnan(out.logits).any():
-                    print("NaNs in logits at step", step);
-                    break
+                    # compute reconstruction for batch
+                    decoded = tokenizer.batch_decode(out.logits.argmax(-1), skip_special_tokens=True)
+                    inputs_text = tokenizer.batch_decode(batch["labels"].masked_fill(batch["labels"] == -100, tokenizer.pad_token_id), skip_special_tokens=True)
 
-                loss = out.loss
+                    with torch.no_grad():
+                        emb_in = semantic_model.encode(inputs_text, convert_to_tensor=True)
+                        emb_out = semantic_model.encode(decoded, convert_to_tensor=True)
+                        sims = cos_sim(emb_in, emb_out)
+                        sim = sims.mean().item()
 
-                scaler.scale(loss / grad_accum).backward()
+                    # similarity in [0,1], invert for weighting
+                    semantic_weight = 1.0 - sim  # higher difference -> stronger step
+                    semantic_weight = max(0.1, semantic_weight)  # avoid zeroing out
 
-                if ((start // batch_size) + 1) % grad_accum == 0:
-                    scaler.step(optimizer)
-                    scaler.update()
-                    optimizer.zero_grad(set_to_none=True)
-                    scheduler.step()
-                    step += 1
+                    loss = ce_loss * semantic_weight
+                    scaler.scale(loss / grad_accum).backward()
 
-                pbar.set_postfix({"loss": f"{loss.item():.3f}", "lr": f"{scheduler.get_last_lr()[0]:.2e}"})
+                    if ((start // batch_size) + 1) % grad_accum == 0:
+                        scaler.step(optimizer)
+                        scaler.update()
+                        optimizer.zero_grad(set_to_none=True)
+                        scheduler.step()
+                        step += 1
+
+                else:
+                    out = model(**batch)
+
+                    if torch.isnan(out.logits).any():
+                        print("NaNs in logits at step", step);
+                        break
+
+                    loss = out.loss
+
+                    scaler.scale(loss / grad_accum).backward()
+
+                    if ((start // batch_size) + 1) % grad_accum == 0:
+                        scaler.step(optimizer)
+                        scaler.update()
+                        optimizer.zero_grad(set_to_none=True)
+                        scheduler.step()
+                        step += 1
+
+                current_lr = optimizer.param_groups[0].get("lr", 0.0)
+                pbar.set_postfix({"loss": f"{loss.item():.3f}", "lr": f"{current_lr:.2e}"})
 
             # Save a checkpoint each epoch
             model.save_pretrained(os.path.join(output_dir, f"epoch-{epoch+1}"))
             tokenizer.save_pretrained(os.path.join(output_dir, f"epoch-{epoch+1}"))
-
-            model.eval()
-            sample = random.choice(texts)
-
-            def embed(text: str) -> torch.FloatTensor:
-                inputs = tokenizer(text, return_tensors='pt').to(device)
-                decoder_inputs = tokenizer('', return_tensors='pt').to(device)
-                return model(
-                    **inputs,
-                    decoder_input_ids=decoder_inputs['input_ids'],
-                    encode_only=True,
-                )[0]
-
-            def generate_from_latent(latent: torch.FloatTensor, max_length=512, temperature=1.0) -> str:
-                dummy_text = '.'
-                dummy = embed(dummy_text)
-                perturb_vector = latent - dummy
-                model.perturb_vector = perturb_vector
-                input_ids = tokenizer(dummy_text, return_tensors='pt').to(device).input_ids
-                output = model.generate(
-                    input_ids=input_ids,
-                    max_length=max_length,
-                    do_sample=True,
-                    temperature=temperature,
-                    top_p=0.9,
-                    num_return_sequences=1,
-                )
-                return tokenizer.decode(output[0], skip_special_tokens=True)
-
-            z = embed(sample)
-            print("\nSAMPLE ORIGINAL:\n", sample)
-            print("\nSAMPLE RECONSTRUCTION:\n", generate_from_latent(z, max_length=max_length))
 
     # final save
     model.save_pretrained(output_dir)
@@ -290,7 +286,7 @@ def finetune_contra_on_texts(
 # Convenience: end-to-end entry
 # -----------------------------
 
-def train(
+def laod_data_and_train(
     model_path: str,
     device: str = None,
     output_dir: str = "./contra-soda-ft",
@@ -305,20 +301,10 @@ def train(
 ):
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
-    # 1) Build compact training strings (chat + <thought>)
     with open("balanced_dataset.json", "r", encoding="utf-8") as f:
         tmp = json.load(f)
 
-    texts = []
-    for i in range(len(tmp)):
-        if not isinstance(tmp[i], str):
-            try:
-                s = tmp[i]["text"]
-                texts.append(s)
-            except:
-                pass
-        else:
-            texts.append(tmp[i])
+    texts = random.sample(tmp, 50_000)
 
     print(f"Prepared {len(texts)} examples.")
 
@@ -327,7 +313,7 @@ def train(
     model = BottleneckT5LMWithPerturbV2.from_pretrained(model_path, local_files_only=False).to(device)
 
     # 3) Fine-tune as denoising AE
-    finetune_contra_on_texts(
+    finetune_on_text_simple(
         model=model,
         tokenizer=tokenizer,
         texts=texts,
@@ -352,15 +338,32 @@ def train(
     print("\nSAMPLE RECONSTRUCTION:\n", ae.generate_from_latent(z, max_length=max_length))
 
 
+def test(
+    model_path: str,
+    device: str = None,
+):
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    # 2) Load model + tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model_path, model_max_length=512)
+    model = BottleneckT5LMWithPerturbV2.from_pretrained(model_path, local_files_only=False).to(device)
+    # 4) (Optional) quick smoke test: embed->reconstruct a random sample
+    model.eval()
+    ae = BottleneckT5Autoencoder(model_path, device=device)
+
+    a = ae.embed("I like bit cats and I can not lie.")
+    z = ae.generate_from_latent(a)
+    print("\nSAMPLE RECONSTRUCTION:\n", z)
+
+
 if __name__ == "__main__":
     device = 'cuda'
-    train(
+    laod_data_and_train(
         model_path=r'thesephist/contra-bottleneck-t5-large-wikipedia',
         device=device,
         output_dir="./contra-soda-ft",
         epochs=10,
-        batch_size=2,
-        grad_accum=4,
+        batch_size=4,
+        grad_accum=2,
         lr=5e-5,
         max_length=256,
         noise_prob=0.30,

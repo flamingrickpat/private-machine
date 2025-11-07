@@ -231,11 +231,11 @@ class BottleneckT5LayerCrossAttention(T5LayerCrossAttention):
 
 
 class BottleneckT5Block(T5Block):
-    def __init__(self, config, has_relative_attention_bias=False):
+    def __init__(self, config, has_relative_attention_bias=False, layer_idx: int = None):
         super(T5Block, self).__init__()
         self.is_decoder = config.is_decoder
         self.layer = nn.ModuleList()
-        self.layer.append(T5LayerSelfAttention(config, has_relative_attention_bias=has_relative_attention_bias))
+        self.layer.append(T5LayerSelfAttention(config, has_relative_attention_bias=has_relative_attention_bias, layer_idx=layer_idx))
         if self.is_decoder:
             self.layer.append(BottleneckT5LayerCrossAttention(config))
 
@@ -250,7 +250,7 @@ class BottleneckT5Stack(T5Stack):
         self.is_decoder = config.is_decoder
 
         self.block = nn.ModuleList(
-            [BottleneckT5Block(config, has_relative_attention_bias=bool(i == 0)) for i in range(config.num_layers)]
+            [BottleneckT5Block(config, has_relative_attention_bias=bool(i == 0), layer_idx=i) for i in range(config.num_layers)]
         )
         self.final_layer_norm = T5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)

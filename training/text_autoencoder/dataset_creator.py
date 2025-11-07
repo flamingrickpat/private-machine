@@ -7,7 +7,7 @@ import json
 
 from chunkipy import TextChunker
 from chunkipy.size_estimators import BaseSizeEstimator
-from chunkipy.text_splitters import WordTextSplitter
+from chunkipy.text_splitters import WordTextSplitter, FullStopTextSplitter
 from gutenbergpy import textget
 
 from tqdm import tqdm
@@ -49,7 +49,7 @@ def is_text_within_limit(
     return True
 
 def chunk_text_to_list(long_string: str, max_tokens: int = general_token_limit, overlap: float = 0):
-    word_text_splitter = WordTextSplitter()
+    word_text_splitter = FullStopTextSplitter()
     text_chunker = TextChunker(
         chunk_size=200,
         overlap_ratio=0.25,
@@ -143,7 +143,7 @@ def build_training_strings_from_rocstories(
     ds = ds.shuffle(seed=seed)
     out: List[str] = []
     for ex in tqdm(ds, desc=f"prepare {split}"):
-        out.append(ex)
+        out.append(ex["text"])
     return out
 
 def build_training_strings_from_anime(
@@ -288,22 +288,26 @@ def get_final_dataset():
     anime = build_training_strings_from_anime(split, seed)
     book = build_training_strings_from_book(split, seed)
 
-    datasets = [
-        {"name": "soda", "data": soda, "ratio": 1},
-        {"name": "roc", "data": roc, "ratio": 1},
-        {"name": "anime", "data": anime, "ratio": 1.75},
-        {"name": "rp", "data": rp, "ratio": 2.5},
-        {"name": "book", "data": book, "ratio": 2.25},
-    ]
+    #datasets = [
+    #    {"name": "soda", "data": soda, "ratio": 1},
+    #    {"name": "roc", "data": roc, "ratio": 1},
+    #    {"name": "anime", "data": anime, "ratio": 1.75},
+    #    {"name": "rp", "data": rp, "ratio": 2.5},
+    #    {"name": "book", "data": book, "ratio": 2.25},
+    #]
+#
+    #final_samples = balance_sources_dynamic(datasets, target_size=250_000)
 
-    final_samples = balance_sources_dynamic(datasets, target_size=250_000)
+    c = len(rp)
+    final_samples = random.sample(soda, min(len(soda), c)) + random.sample(roc, min(len(roc), c)) + rp + anime + book
 
     texts = []
     for i in range(len(final_samples)):
         if not isinstance(final_samples[i], str):
             try:
                 s = final_samples[i]["text"]
-                texts.append(s)
+                if len(s) / chars_per_token > 64 and len(s) / chars_per_token < 400:
+                    texts.append(s)
             except:
                 pass
         else:
