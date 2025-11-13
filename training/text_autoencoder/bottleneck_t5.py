@@ -265,6 +265,7 @@ class BottleneckT5Stack(T5Stack):
 
 class BottleneckT5LMWithPerturbV2(T5ForConditionalGeneration):
     def __init__(self, config: T5Config):
+        config.use_cache = False
         super(T5ForConditionalGeneration, self).__init__(config)
         self.model_dim = config.d_model
 

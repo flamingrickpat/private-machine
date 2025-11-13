@@ -1,6 +1,7 @@
 import os
 import re
 import random
+import sys
 from typing import List, Dict, Any, Optional
 import json
 
@@ -278,7 +279,7 @@ def balance_sources_dynamic(
     print(f"✅ total balanced samples: {len(balanced)}")
     return balanced
 
-def get_final_dataset():
+def get_final_dataset(fn: str):
     seed = 42
     split = "train"
 
@@ -287,16 +288,6 @@ def get_final_dataset():
     rp = build_training_strings_from_sonnet_rp(split, seed)
     anime = build_training_strings_from_anime(split, seed)
     book = build_training_strings_from_book(split, seed)
-
-    #datasets = [
-    #    {"name": "soda", "data": soda, "ratio": 1},
-    #    {"name": "roc", "data": roc, "ratio": 1},
-    #    {"name": "anime", "data": anime, "ratio": 1.75},
-    #    {"name": "rp", "data": rp, "ratio": 2.5},
-    #    {"name": "book", "data": book, "ratio": 2.25},
-    #]
-#
-    #final_samples = balance_sources_dynamic(datasets, target_size=250_000)
 
     c = len(rp)
     final_samples = random.sample(soda, min(len(soda), c)) + random.sample(roc, min(len(roc), c)) + rp + anime + book
@@ -313,8 +304,9 @@ def get_final_dataset():
         else:
             texts.append(final_samples[i])
 
-    with open("balanced_dataset.json", "w", encoding="utf-8") as f:
+    with open(fn, "w", encoding="utf-8") as f:
         json.dump(texts, f, ensure_ascii=False, indent=2)
 
 if __name__ == '__main__':
-    get_final_dataset()
+    fn = sys.argv[1]
+    get_final_dataset(fn)

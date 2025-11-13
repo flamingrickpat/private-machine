@@ -24,7 +24,7 @@ class BottleneckT5Autoencoder:
         )[0]
 
     @torch.no_grad()
-    def generate_from_latent(self, latent: torch.FloatTensor, max_length=512, temperature=1.0) -> str:
+    def generate_from_latent(self, latent: torch.FloatTensor, max_length=512, temperature=0.2) -> str:
         dummy_text = '.'
         dummy = self.embed(dummy_text)
         perturb_vector = latent - dummy
