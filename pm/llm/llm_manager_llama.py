@@ -27,7 +27,10 @@ import llama_cpp.llama_cpp as llama_cpp
 import numpy as np
 from llama_cpp import Llama, LlamaGrammar, suppress_stdout_stderr
 import psutil
-from fastmcp import Client
+try:
+    from fastmcp import Client
+except Exception:
+    Client = None
 from json_repair import repair_json
 from lmformatenforcer import JsonSchemaParser, TokenEnforcerTokenizerData
 from lmformatenforcer.integrations.llamacpp import build_token_enforcer_tokenizer_data, build_llamacpp_logits_processor
@@ -168,7 +171,7 @@ def build_token_enforcer_tokenizer_data_fast(llm: Llama) -> TokenEnforcerTokeniz
         except:
             return decoder_fn(sent[:-1])
 
-    return TokenEnforcerTokenizerData(regular_tokens, decoder_fn, llm.token_eos())
+    return TokenEnforcerTokenizerData(regular_tokens, decoder_fn, llm.token_eos(), False, llm.n_vocab())
 
 universal_image_begin = "<begin_image>"
 universal_image_end = "<end_image>"
@@ -638,6 +641,8 @@ class LlmManagerLLama(LlmManager):
         calls = []
         addendum = []
 
+        stream_prev_text = ""
+
         content = None
         tools = comp_settings.tools_json
         if len(tools) == 0:
@@ -932,7 +937,17 @@ class LlmManagerLLama(LlmManager):
                             finish_reason = "sw"
                             break
 
-                    cur_token_as_text = self._detokenize([token], special=False)
+                    stream_full_text = self._detokenize(completion_tokens, special=False)
+
+                    # guard against rare mismatch (e.g., if decoder normalizes)
+                    if stream_full_text.startswith(stream_prev_text):
+                        stream_delta = stream_full_text[len(stream_prev_text):]
+                    else:
+                        # fallback: don't lose content
+                        stream_delta = stream_full_text
+                    stream_prev_text = stream_full_text
+                        
+                    cur_token_as_text = stream_delta
                     if comp_settings.completion_callback is not None:
                         callback_eval_text = comp_settings.completion_callback(cur_token_as_text)
                         if callback_eval_text is None:
@@ -1042,6 +1057,9 @@ AVAILABLE TOOLS:
         Returns:
             The final, cleaned text response from the LLM.
         """
+        if Client is None:
+            return "Error: fastmcp is not installed; agentic tool mode is disabled.", "Error: fastmcp is not installed; agentic tool mode is disabled."
+
         self.load_model(preset)
         if comp_settings is None:
             comp_settings = CommonCompSettings(max_tokens=4096)

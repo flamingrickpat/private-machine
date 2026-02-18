@@ -8,7 +8,10 @@ from typing import (
 )
 from typing import Type
 
-from fastmcp import Client
+try:
+    from fastmcp import Client
+except Exception:
+    Client = None
 # from lmformatenforcer import JsonSchemaParser
 # from lmformatenforcer.integrations.transformers import build_transformers_prefix_allowed_tokens_fn
 from pydantic import BaseModel, Field, create_model
@@ -156,6 +159,8 @@ def create_tool_router_model(tools: List[Dict[str, Any]]) -> ToolSet:
 
 def get_toolset_from_url(url: str) -> ToolSet | None:
     if url is None or url == "":
+        return None
+    if Client is None:
         return None
 
     loop = asyncio.new_event_loop()

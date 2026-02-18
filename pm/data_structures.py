@@ -2,6 +2,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+import logging
 from typing import Dict, Any
 from typing import List
 from typing import (
@@ -10,7 +11,7 @@ from typing import (
 
 import numpy as np
 from py_linq import Enumerable
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 from pydantic import model_validator
 
 from pm.config_loader import *
@@ -159,6 +160,8 @@ class ActorClass(StrEnum):
 
 # --- Knoxel Types ---
 class KnoxelBase(BaseModel):
+    _trace_tags: set[str] = PrivateAttr(default_factory=set)
+
     id: int = -1
     tick_id: int = -1
     sub_tick_id: int = 0
@@ -177,6 +180,16 @@ class KnoxelBase(BaseModel):
 
     def to_json(self):
         return self.id
+
+    @property
+    def trace_tags(self) -> List[str]:
+        return sorted(self._trace_tags)
+
+    def add_trace_tag(self, tag: str) -> None:
+        t = str(tag or "").strip()
+        if not t:
+            return
+        self._trace_tags.add(t)
 
 class KnoxelContainer(BaseModel):
     knoxels: List[KnoxelBase] = Field(default_factory=list)
@@ -234,6 +247,11 @@ class Intention(KnoxelBase):
     internal: bool = Field(..., description="True = internal goal/drive, False = external expectation of an event/response.")
     # Add field to link expectation back to the action that generated it
     originating_action_id: Optional[int] = Field(default=None, description="ID of the Action knoxel that generated this expectation (if internal=False).")
+    
+    # New fields for Phase 7.3
+    # goal_state is covered by 'content' and 'embedding' inherited from KnoxelBase
+    status: str = Field(default="active", description="active, completed, failed, pending")
+    timeout: int = Field(default=100, description="Ticks until this intention expires")
 
 
 class Action(KnoxelBase):
@@ -269,7 +287,7 @@ class MemoryClusterKnoxel(CoversTicksEventsKnoxel):
     facts_extracted: bool = Field(default=False, description="Flag for Topical clusters: has declarative memory been extracted?")
     temporal_key: Optional[str] = Field(default=None, description="Unique key for merging temporal clusters (e.g., '2023-10-26-MORNING')")
     emotion_description: Optional[str] = Field(default=None, description="todo")
-    emotion_embedding: Optional[str] = Field(default=None, description="todo")
+    emotion_embedding: Optional[List[float]] = Field(default=None, description="todo")
 
     # Override get_story_element for representation in prompts if needed
     def get_story_element(self, ghost: KnoxelHaver = None) -> str:
@@ -371,6 +389,7 @@ class NarrativeTypes(StrEnum):
     EmotionalTriggers = "EmotionalTriggers"
     GoalsIntentions = "GoalsIntentions"
     BehaviorActionSelection = "BehaviorActionSelection"
+    InnerMonologue = "InnerMonologue"
 
 
 # --- Narrative Definitions ---
@@ -396,7 +415,7 @@ for target in [companion_name]:
 narrative_definitions.append({
     "type": NarrativeTypes.PsychologicalAnalysis,
     "target": user_name,
-    "prompt": base_narrative_prompts[NarrativeTypes.PsychologicalAnalysis].format(target=target)
+    "prompt": base_narrative_prompts[NarrativeTypes.PsychologicalAnalysis].format(target=user_name)
 })
 
 # Inside DynamicMemoryConsolidator class or accessible to it
@@ -477,7 +496,7 @@ class Feature(KnoxelBase):
     source: Optional[str] = None
     affective_valence: Optional[float] = None
     incentive_salience: Optional[float] = None
-    interlocus: float  # -1 internal, +1 external, 0 mixed/neutral
+    interlocus: float = 0 # -1 internal, +1 external, 0 mixed/neutral
     causal: bool = False  # affects story generation?
 
     source_entity_id: Optional[int] = Field(default=None, description="If the features comes from another entity (user, other AI agent).")

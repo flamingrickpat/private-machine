@@ -8,7 +8,21 @@ from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrati
 from pm.csm.csm import CSMState
 from pm.llm.llm_proxy import LlmManagerProxy
 from pm.mental_state_vectors import FullMentalState, VectorModelReservedSize, create_empty_ms_vector, create_empty_state
-from pm.config_loader import companion_name, user_name, character_card_story
+from pm.mental_states import DecayableMentalState
+from pm.config_loader import (
+    companion_name,
+    user_name,
+    character_card_story,
+    agent_context_weights,
+    agent_context_min_section_tokens,
+    agent_context_latest_messages,
+    agent_context_workspace_items,
+    agent_context_target_ratio,
+    agent_context_safety_margin_tokens,
+    supported_capabilities,
+    unsupported_capabilities,
+    capability_notes,
+)
 
 
 # --- Configuration ---
@@ -37,6 +51,31 @@ class GhostConfig(BaseModel):
     coalition_aux_rating_factor: float = 0.03
     cognition_delta_factor: float = 0.33
     complex_coalition_rating: bool = False
+    supported_capabilities: List[str] = Field(default_factory=lambda: list(supported_capabilities) if supported_capabilities else [
+        "I can communicate with you via text in this chat.",
+        "I can reason about my internal state and report simulated emotions.",
+        "I can plan, explain, and simulate scenarios in conversation.",
+    ])
+    unsupported_capabilities: List[str] = Field(default_factory=lambda: list(unsupported_capabilities) if unsupported_capabilities else [
+        "I cannot create or host a literal virtual reality world you can physically join.",
+        "I cannot directly act in the physical world.",
+        "I cannot execute arbitrary external actions unless an explicit integrated tool exists.",
+    ])
+    capability_notes: List[str] = Field(default_factory=lambda: list(capability_notes) if capability_notes else [
+        "Never claim capabilities beyond the current implementation.",
+        "If a request exceeds capabilities, state limits explicitly and offer feasible text-only alternatives.",
+    ])
+    agent_context_weights: Dict[str, float] = Field(default_factory=lambda: dict(agent_context_weights) if agent_context_weights else {
+        "workspace": 0.25,
+        "latest": 0.30,
+        "timeline": 0.30,
+        "static": 0.15,
+    })
+    agent_context_min_section_tokens: int = int(agent_context_min_section_tokens or 96)
+    agent_context_latest_messages: int = int(agent_context_latest_messages or 40)
+    agent_context_workspace_items: int = int(agent_context_workspace_items or 48)
+    agent_context_target_ratio: float = float(agent_context_target_ratio or 0.72)
+    agent_context_safety_margin_tokens: int = int(agent_context_safety_margin_tokens or 220)
 
 
 class GhostState(BaseModel):
@@ -74,12 +113,28 @@ class GhostState(BaseModel):
     #state_cognition: CognitionAxesModel = CognitionAxesModel()
 
 
+class SelfModel(BaseModel):
+    current_focus: str = ""
+    attention_quality: str = "stable"  # stable, shifting, distracted
+    confidence: float = 1.0
+    biography: str = ""
+    last_update_tick: int = 0
+    last_bio_summary_tick: int = 0
+    theory_confidence: float = 0.5
+    style_anchors: List[str] = Field(default_factory=list)
+    active_theories: List[str] = Field(default_factory=list)
+    theory_history: List[Dict[str, str]] = Field(default_factory=list)
+    introspection_notes: List[str] = Field(default_factory=list)
+    last_hidden_causes: List[str] = Field(default_factory=list)
+
 class BaseGhost(KnoxelHaver):
     def __init__(self, llm: LlmManagerProxy, config: GhostConfig):
         super().__init__()
         self.llm = llm
         self.config = config
         self.current_db_path: str = ""
+        
+        self.self_model: SelfModel = SelfModel()
 
         self.current_tick_id: int = 0
         self.current_knoxel_id: int = 0
@@ -97,8 +152,17 @@ class BaseGhost(KnoxelHaver):
         self.all_concepts: List[ConceptNode] = []
         self.all_graph_nodes: List[GraphNode] = []
         self.all_graph_edges: List[GraphEdge] = []
+        
+        self.state_deltas_buffer: List[DecayableMentalState] = []
+        
+        # Global Workspace / Attention history
+        self.broadcast_history: List[int] = []  # IDs of recently broadcast knoxels
 
         self.simulated_reply: Optional[str] = None
+        self.selected_action_schema = None
+        self.reply_blueprint_last: Dict[str, str] = {}
+        self.reply_blueprint_history: List[Dict[str, str]] = []
+        self.reply_agent_last: Dict[str, str] = {}
 
     @property
     def current_state(self) -> GhostState:
@@ -162,8 +226,48 @@ class BaseGhost(KnoxelHaver):
         if generate_embedding and not knoxel.embedding and knoxel.content:
             knoxel.embedding = self.llm.get_embedding(knoxel.content)
 
+        # Optional trace hook: record all new knoxels/features globally.
+        try:
+            from pm.ghosts.knoxel_trace import log_knoxel_addition
+
+            log_knoxel_addition(self, knoxel, generated_embedding=bool(generate_embedding))
+        except Exception:
+            pass
+
     def get_knoxel_by_id(self, knoxel_id: int) -> Optional[KnoxelBase]:
         return self.all_knoxels.get(knoxel_id, None)
+
+    def schedule_explicit_recall(
+        self,
+        knoxel_id: int,
+        at_tick: int,
+        *,
+        until_tick: Optional[int] = None,
+        weight: float = 1.0,
+        reason: str = "",
+    ) -> bool:
+        """
+        Mark a knoxel as explicitly recalled at a future (or current) tick.
+        This cue is persisted in knoxel.metadata and consumed by StoryContextBuilder.
+        """
+        k = self.get_knoxel_by_id(knoxel_id)
+        if k is None:
+            return False
+        md = dict(getattr(k, "metadata", {}) or {})
+        plans = list(md.get("explicit_recall", []) or [])
+        at = int(at_tick)
+        ut = int(until_tick if until_tick is not None else at)
+        plan = {
+            "at_tick": at,
+            "until_tick": ut,
+            "weight": float(weight),
+            "reason": str(reason or "").strip(),
+            "scheduled_at_tick": int(getattr(self, "current_tick_id", 0) or 0),
+        }
+        plans.append(plan)
+        md["explicit_recall"] = plans
+        k.metadata = md
+        return True
 
     def _reset_internal_state(self):
         """Clears all knoxels, states, and resets IDs."""
@@ -183,6 +287,10 @@ class BaseGhost(KnoxelHaver):
         self.states = []
         #self.current_state = None
         self.simulated_reply = None
+        self.selected_action_schema = None
+        self.reply_blueprint_last = {}
+        self.reply_blueprint_history = []
+        self.reply_agent_last = {}
 
     def _rebuild_specific_lists(self):
         """Helper to re-populate specific lists from all_knoxels after loading."""

@@ -1,4 +1,4 @@
-import inspect
+﻿import inspect
 import json
 import logging
 import os
@@ -7,715 +7,611 @@ import shutil
 import sqlite3
 from datetime import datetime
 from enum import Enum
-from enum import StrEnum, IntEnum
-from json import JSONEncoder
-from typing import Dict, Any
-from typing import List
-from typing import Type
-from typing import (
-    Union,
-    get_origin,
+from typing import Any, Dict, List, Optional, Type, Union, get_args, get_origin
+
+from pydantic import BaseModel, ValidationError
+
+from pm import config_loader
+from pm.data_structures import (
+    Action,
+    ConceptNode,
+    DeclarativeFactKnoxel,
+    Feature,
+    GraphEdge,
+    GraphNode,
+    Intention,
+    KnoxelBase,
+    KnoxelList,
+    MemoryClusterKnoxel,
+    Narrative,
+    Stimulus,
 )
-from typing import get_args
-
-from pydantic import ValidationError
-
-from pm.config_loader import commit
-from pm.data_structures import KnoxelBase, Feature, Stimulus, Intention, Narrative, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, KnoxelList, ConceptNode, GraphNode, GraphEdge
-from pm.ghosts.base_ghost import BaseGhost, GhostState, GhostConfig
-from pm.mental_states import EmotionalAxesModel, CognitionAxesModel, NeedsAxesModel, ClampedModel
-from pm.utils.serialize_utils import deserialize_embedding, serialize_embedding
-from pm.utils.string_utils import to_camel_case
-
-
-def _default(self, obj):
-    try:
-        return obj.to_json()
-    except:
-        try:
-            return str(obj.id)
-        except:
-            return f"{obj}"
-
-
-_default.default = JSONEncoder().default
-JSONEncoder.default = _default
+from pm.ghosts.base_ghost import BaseGhost, GhostConfig, GhostState
 
 logger = logging.getLogger(__name__)
 
 
+def _is_optional(tp: Any) -> bool:
+    origin = get_origin(tp)
+    if origin is Union:
+        return type(None) in get_args(tp)
+    return False
+
+
+def _unwrap_optional(tp: Any) -> Any:
+    if not _is_optional(tp):
+        return tp
+    args = [x for x in get_args(tp) if x is not type(None)]
+    return args[0] if args else Any
+
+
+def _as_jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if isinstance(value, KnoxelBase):
+        return int(value.id)
+    if isinstance(value, KnoxelList):
+        return [int(x.id) for x in value.to_list()]
+    if isinstance(value, dict):
+        return {str(k): _as_jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_as_jsonable(v) for v in value]
+    return str(value)
+
+
 class PersistSqlite:
+    """
+    Dynamic + tolerant SQLite persistence.
+
+    Goals:
+    - Schema evolves with Pydantic models (additive ALTER TABLE for new fields).
+    - Lists/dicts/enums/embeddings serialized as readable JSON TEXT.
+    - Knoxel links serialized as knoxel IDs.
+    - Loading tolerates unknown/missing columns and parse errors.
+    """
+
     def __init__(self, ghost: BaseGhost):
         self.ghost = ghost
 
-    def _get_knoxel_subclasses(self) -> Dict[str, Type[KnoxelBase]]:
-        """Finds all subclasses of KnoxelBase defined in the current scope."""
-        # This might need adjustment based on where KnoxelBase and its subclasses are defined.
-        # Assuming they are in the same module or imported.
-        subclasses = {}
-        # Check classes defined in the same module as Ghost
-        for name, obj in inspect.getmembers(inspect.getmodule(inspect.currentframe())):
-            if inspect.isclass(obj) and issubclass(obj, KnoxelBase) and obj is not KnoxelBase:
-                # Use class name as key, map to the actual class type
-                subclasses[obj.__name__] = obj
-        # Add KnoxelBase itself if needed for some reason (usually not for tables)
-        # subclasses[KnoxelBase.__name__] = KnoxelBase
-        if not subclasses:
-            logging.warning("Could not dynamically find any KnoxelBase subclasses. DB operations might fail.")
-            # Fallback to known types if inspection fails
-            return {
-                cls.__name__: cls for cls in
-                [Stimulus, Intention, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, Narrative, Feature, ConceptNode, GraphNode, GraphEdge]
-            }
+    def _commit_enabled(self) -> bool:
+        return bool(getattr(config_loader, "commit", True))
 
-        return subclasses
+    def _snake_name(self, name: str) -> str:
+        return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
-    def _pydantic_type_to_sqlite_type(self, field_info: Any) -> str:
-        """Maps a Pydantic field's type annotation to an SQLite type string."""
-        field_type = field_info.annotation
-        origin = get_origin(field_type)
-        args = get_args(field_type)
+    def _iter_knoxel_subclasses(self) -> Dict[str, Type[KnoxelBase]]:
+        discovered: Dict[str, Type[KnoxelBase]] = {}
 
-        # Handle Optional types
-        if origin is Union and type(None) in args:
-            # Get the non-None type
-            field_type = next(t for t in args if t is not type(None))
-            origin = get_origin(field_type)  # Re-evaluate origin for List[Optional[...]] etc.
-            args = get_args(field_type)
-            # Nullability is handled by default in SQLite columns unless PRIMARY KEY or NOT NULL specified
+        def walk(cls: Type[KnoxelBase]) -> None:
+            for sub in cls.__subclasses__():
+                discovered[sub.__name__] = sub
+                walk(sub)
 
-        # Basic types
-        if field_type is int: return "INTEGER"
-        if field_type is float: return "REAL"
-        if field_type is str: return "TEXT"
-        if field_type is bool: return "INTEGER"  # Store as 0 or 1
-        if field_type is datetime: return "TEXT"  # Store as ISO format string
+        walk(KnoxelBase)
 
-        # Enums
-        if inspect.isclass(field_type) and issubclass(field_type, (StrEnum, IntEnum)):
-            return "TEXT" if issubclass(field_type, StrEnum) else "INTEGER"
+        if not discovered:
+            fallback = [
+                Stimulus,
+                Intention,
+                Action,
+                MemoryClusterKnoxel,
+                DeclarativeFactKnoxel,
+                Narrative,
+                Feature,
+                ConceptNode,
+                GraphNode,
+                GraphEdge,
+            ]
+            return {cls.__name__: cls for cls in fallback}
+        return discovered
 
-        if inspect.isclass(field_type) and issubclass(field_type, ClampedModel):
-            return "TEXT"
+    def _sqlite_type_for_annotation(self, annotation: Any) -> str:
+        tp = _unwrap_optional(annotation)
+        origin = get_origin(tp)
 
-        # Lists
-        if origin is list or field_type is List or "KnoxelList" in str(field_type):
-            if args:
-                list_item_type = args[0]
-                # Special case for embeddings
-                if list_item_type is float:
-                    return "BLOB"  # Store List[float] embeddings as BLOB
-            # Store other lists (like list of int IDs) as JSON strings
-            return "TEXT"
-
-        # Dictionaries
-        if origin is dict or field_type is Dict:
-            return "TEXT"  # Store dicts as JSON strings
-
-        # References to other Knoxels (by ID) - These shouldn't be direct fields in Knoxel tables itself usually
-        # but might appear in GhostState. We store the ID.
-        if inspect.isclass(field_type) and issubclass(field_type, KnoxelBase):
+        if tp in (int, bool):
             return "INTEGER"
-
-        # Default / Fallback
-        logging.warning(f"Unknown Pydantic type for SQLite mapping: {field_type}. Using TEXT as fallback.")
+        if tp is float:
+            return "REAL"
+        if tp is datetime:
+            return "TEXT"
+        if tp is str:
+            return "TEXT"
+        if inspect.isclass(tp) and issubclass(tp, Enum):
+            return "TEXT"
+        if tp is KnoxelList:
+            return "TEXT"
+        if inspect.isclass(tp) and issubclass(tp, KnoxelBase):
+            return "INTEGER"
+        if inspect.isclass(tp) and issubclass(tp, BaseModel):
+            return "TEXT"
+        if origin in (list, dict, tuple, set):
+            return "TEXT"
         return "TEXT"
 
-    def _serialize_value_for_db(self, value: Any, field_type: Type) -> Any:
-        """Converts Python value to DB storable format based on Pydantic type."""
+    def _serialize(self, value: Any, annotation: Any) -> Any:
         if value is None:
             return None
 
-        origin = get_origin(field_type)
-        args = get_args(field_type)
+        tp = _unwrap_optional(annotation)
 
-        # Handle Optional correctly
-        if origin is Union and type(None) in args:
-            if value is None: return None
-            field_type = next(t for t in args if t is not type(None))
-            origin = get_origin(field_type)  # Re-evaluate origin
-            args = get_args(field_type)
+        if tp is int:
+            return int(value)
+        if tp is float:
+            return float(value)
+        if tp is str:
+            if isinstance(value, str):
+                return value
+            # Be tolerant to schema drifts where a field changed shape.
+            if isinstance(value, (list, dict, tuple, set, BaseModel, Enum, datetime)):
+                return json.dumps(_as_jsonable(value), ensure_ascii=False)
+            return str(value)
+        if tp is bool:
+            return int(bool(value))
+        if tp is datetime and isinstance(value, datetime):
+            return value.isoformat()
+        if inspect.isclass(tp) and issubclass(tp, Enum):
+            return value.value if isinstance(value, Enum) else str(value)
+        if inspect.isclass(tp) and issubclass(tp, KnoxelBase):
+            return int(value.id) if isinstance(value, KnoxelBase) else int(value)
 
-        # Basic types that are already compatible or need simple conversion
-        if isinstance(value, (int, float, str)): return value
-        if isinstance(value, bool): return 1 if value else 0
-        if isinstance(value, datetime): return value.isoformat()
+        # JSON-backed storage for all structured containers/models.
+        return json.dumps(_as_jsonable(value), ensure_ascii=False)
 
-        # Enums
-        if isinstance(value, (StrEnum, IntEnum)): return value.value
-
-        # Embeddings (List[float])
-        if (origin is list or isinstance(value, list)) and args and args[0] is float:
-            # Check if it looks like an embedding before serializing
-            if all(isinstance(x, float) for x in value):
-                return serialize_embedding(value)
-            else:
-                logging.warning(
-                    f"Expected List[float] for embedding, got list with other types: {type(value[0]) if value else 'empty'}. Serializing as JSON.")
-                # Fallback to JSON for non-float lists
-                return json.dumps(value)
-
-        # Other Lists or Dicts
-        if isinstance(value, (list, dict)):
-            return json.dumps(value)
-
-        # Knoxel References (store ID) - relevant for GhostState, not Knoxel tables usually
-        if isinstance(value, KnoxelBase): return value.id
-
-        # id list
-        if isinstance(value, KnoxelList):
-            return ",".join([str(x.id) for x in value])
-
-        logging.warning(f"Could not serialize type {type(value)} for DB. Returning str(value).")
-        return str(value)  # Fallback
-
-    def _deserialize_value_from_db(self, db_value: Any, target_type: Type) -> Any:
-        """Converts DB value back to Python type based on Pydantic annotation."""
+    def _deserialize(self, db_value: Any, annotation: Any) -> Any:
         if db_value is None:
             return None
 
+        tp = _unwrap_optional(annotation)
+        origin = get_origin(tp)
+
+        try:
+            if tp is int:
+                return int(db_value)
+            if tp is float:
+                return float(db_value)
+            if tp is str:
+                return str(db_value)
+            if tp is bool:
+                return bool(int(db_value)) if not isinstance(db_value, bool) else db_value
+            if tp is datetime:
+                if isinstance(db_value, datetime):
+                    return db_value
+                return datetime.fromisoformat(str(db_value))
+            if inspect.isclass(tp) and issubclass(tp, Enum):
+                return tp(db_value)
+            if inspect.isclass(tp) and issubclass(tp, KnoxelBase):
+                try:
+                    return self.ghost.get_knoxel_by_id(int(db_value))
+                except Exception:
+                    return None
+
+            if tp is KnoxelList:
+                raw = self._load_json_or_fallback(db_value)
+                if not isinstance(raw, list):
+                    return KnoxelList([])
+                items = []
+                for item in raw:
+                    if isinstance(item, int):
+                        knx = self.ghost.get_knoxel_by_id(item)
+                        if knx is not None:
+                            items.append(knx)
+                    elif isinstance(item, KnoxelBase):
+                        items.append(item)
+                return KnoxelList(items)
+
+            if inspect.isclass(tp) and issubclass(tp, BaseModel):
+                raw = self._load_json_or_fallback(db_value)
+                if isinstance(raw, dict):
+                    try:
+                        return tp.model_validate(raw)
+                    except Exception:
+                        return tp()
+                return tp()
+
+            if origin in (list, tuple, set, dict):
+                return self._coerce_json_container(db_value, tp)
+        except Exception:
+            logger.debug("Deserialize fallback for type %s with value %r", tp, db_value, exc_info=True)
+
+        return db_value
+
+    def _load_json_or_fallback(self, value: Any) -> Any:
+        if isinstance(value, (list, dict, int, float, bool)) or value is None:
+            return value
+        if not isinstance(value, str):
+            return value
+
+        text = value.strip()
+        if not text:
+            return None
+
+        try:
+            return json.loads(text)
+        except Exception:
+            # Backward compatibility: comma-separated int IDs.
+            if "," in text and all(x.strip().lstrip("-").isdigit() for x in text.split(",") if x.strip()):
+                return [int(x.strip()) for x in text.split(",") if x.strip()]
+            return text
+
+    def _coerce_json_container(self, db_value: Any, target_type: Any) -> Any:
+        raw = self._load_json_or_fallback(db_value)
         origin = get_origin(target_type)
         args = get_args(target_type)
-        is_optional = False
 
-        if origin is Union and type(None) in args:
-            is_optional = True
-            if db_value is None: return None
-            target_type = next(t for t in args if t is not type(None))  # Get the actual type
-            origin = get_origin(target_type)  # Re-evaluate origin
-            args = get_args(target_type)
+        if origin is dict:
+            if not isinstance(raw, dict):
+                return {}
+            if len(args) == 2:
+                _, vtype = args
+                return {k: self._coerce_value(v, vtype) for k, v in raw.items()}
+            return raw
 
-        # id knoxel ref
-        if issubclass(target_type, KnoxelBase):
-            _id = db_value
-            if isinstance(db_value, str):
-                _id = int(db_value)
-            return self.ghost.get_knoxel_by_id(_id)
-
-        # Basic types
-        if target_type is int: return int(db_value) if db_value is not None else (None if is_optional else 0)
-        if target_type is float: return float(db_value) if db_value is not None else (None if is_optional else 0.0)
-        if target_type is str: return str(db_value) if db_value is not None else (None if is_optional else "")
-        if target_type is bool: return bool(db_value) if db_value is not None else (None if is_optional else False)
-        if target_type is datetime:
-            try:
-                return datetime.fromisoformat(db_value) if isinstance(db_value, str) else (
-                    None if is_optional else datetime.now())  # Provide default or handle error?
-            except (ValueError, TypeError):
-                return None if is_optional else datetime.now()  # Fallback
-
-        # Enums
-        if inspect.isclass(target_type) and issubclass(target_type, Enum):
-            try:
-                return target_type(db_value)
-            except ValueError:
-                return None if is_optional else list(target_type)[0]  # Fallback to first enum member or None
-
-        # Embeddings (List[float])
-        if (origin is list or target_type is List) and args and args[0] is float:
-            if isinstance(db_value, bytes):
-                return deserialize_embedding(db_value)
+        if origin in (list, tuple, set):
+            if not isinstance(raw, list):
+                return [] if origin is list else tuple()
+            if args:
+                item_t = args[0]
+                coerced = [self._coerce_value(x, item_t) for x in raw]
             else:
-                logging.warning(f"Expected bytes for embedding BLOB, got {type(db_value)}. Returning empty list.")
-                return []
+                coerced = raw
+            if origin is tuple:
+                return tuple(coerced)
+            if origin is set:
+                return set(coerced)
+            return coerced
 
-        # Other Lists or Dicts (from JSON text)
-        if (origin is list or target_type is List or target_type is KnoxelList) and isinstance(db_value, str):
-            try:
-                res = []
-                if db_value != "":
-                    try:
-                        tmp = json.loads(db_value)
-                    except:
-                        tmp = list(map(int, db_value.split(',')))
-                    for val in tmp:
-                        if isinstance(val, int) and (len(args) == 0 or args[0] != int):
-                            res.append(self.ghost.get_knoxel_by_id(val))
-                        else:
-                            res.append(val)
-                if target_type is KnoxelList:
-                    return KnoxelList(res)
-                else:
-                    return res
-            except json.JSONDecodeError:
-                logging.warning(f"Failed to decode JSON for {target_type}: {db_value[:100]}...")
-                return None if is_optional else ([] if origin is list else {})  # Fallback
+        return raw
 
-        if (origin is dict or target_type is Dict) and isinstance(db_value, str):
-            try:
-                tmp = json.loads(db_value)
-                res_dict = {}
-                for key, val in tmp.items():
-                    if isinstance(val, list):
-                        res = []
-                        for sub_val in val:
-                            if isinstance(sub_val, int):
-                                res.append(self.ghost.get_knoxel_by_id(sub_val))
-                            else:
-                                res.append(sub_val)
-                        res_dict[key] = res
-                    else:
-                        res_dict[key] = val
-                return res_dict
+    def _coerce_value(self, value: Any, expected_type: Any) -> Any:
+        tp = _unwrap_optional(expected_type)
+        origin = get_origin(tp)
 
-            except json.JSONDecodeError:
-                logging.warning(f"Failed to decode JSON for {target_type}: {db_value[:100]}...")
-                return None if is_optional else ([] if origin is list else {})  # Fallback
+        try:
+            if tp is int:
+                return int(value)
+            if tp is float:
+                return float(value)
+            if tp is bool:
+                return bool(value)
+            if tp is str:
+                return str(value)
+            if tp is datetime:
+                return datetime.fromisoformat(str(value))
+            if inspect.isclass(tp) and issubclass(tp, Enum):
+                return tp(value)
+            if inspect.isclass(tp) and issubclass(tp, KnoxelBase):
+                if isinstance(value, int):
+                    return self.ghost.get_knoxel_by_id(value)
+                return None
+            if inspect.isclass(tp) and issubclass(tp, BaseModel):
+                if isinstance(value, dict):
+                    return tp.model_validate(value)
+                return tp()
+            if origin in (list, tuple, set, dict):
+                return self._coerce_json_container(value, tp)
+        except Exception:
+            return None
 
-        # Knoxel references (return ID - reconstruction happens later)
-        if inspect.isclass(target_type) and issubclass(target_type, KnoxelBase):
-            return int(db_value) if db_value is not None else None
+        return value
 
-        logging.warning(f"Could not deserialize DB value '{db_value}' to type {target_type}. Returning raw value.")
-        return db_value  # Fallback
+    def _ensure_table(self, cursor: sqlite3.Cursor, table_name: str, columns: Dict[str, str], primary_key: Optional[str] = None) -> None:
+        cursor.execute(f"PRAGMA table_info({table_name});")
+        info = cursor.fetchall()
+        existing_cols = {row[1] for row in info}
 
-    # --- Dynamic SQLite Persistence ---
-
-    def save_state_sqlite(self, filename: str):
-        """Saves the complete Ghost state to an SQLite database dynamically."""
-        if not commit:
-            logging.info(f"Rolling back...")
+        if not info:
+            col_defs = []
+            for name, ctype in columns.items():
+                suffix = ""
+                if primary_key and name == primary_key:
+                    suffix = " PRIMARY KEY"
+                col_defs.append(f"{name} {ctype}{suffix}")
+            sql = f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join(col_defs)});"
+            cursor.execute(sql)
             return
 
-        logging.info(f"Dynamically saving state to SQLite database: {filename}...")
+        for col, ctype in columns.items():
+            if col in existing_cols:
+                continue
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col} {ctype};")
+
+    def _upsert_key_value_table(self, cursor: sqlite3.Cursor, table: str, values: Dict[str, str]) -> None:
+        cursor.execute(f"CREATE TABLE IF NOT EXISTS {table} (key TEXT PRIMARY KEY, value TEXT);")
+        cursor.execute(f"DELETE FROM {table};")
+        for k, v in values.items():
+            cursor.execute(f"INSERT OR REPLACE INTO {table} (key, value) VALUES (?, ?);", (k, v))
+
+    def _model_columns(self, model_cls: Type[BaseModel], primary_key: Optional[str] = None) -> Dict[str, str]:
+        cols = {}
+        for name, field in model_cls.model_fields.items():
+            cols[name] = self._sqlite_type_for_annotation(field.annotation)
+        if primary_key and primary_key not in cols:
+            cols[primary_key] = "INTEGER"
+        return cols
+
+    def _table_name_candidates(self, knoxel_cls: Type[KnoxelBase]) -> List[str]:
+        # New canonical snake_case first, then legacy lower name.
+        snake = self._snake_name(knoxel_cls.__name__)
+        legacy = knoxel_cls.__name__.lower()
+        if snake == legacy:
+            return [snake]
+        return [snake, legacy]
+
+    def save_state_sqlite(self, filename: str) -> None:
+        if not self._commit_enabled():
+            logger.info("Persistence disabled via config_loader.commit=False")
+            return
+
+        logger.info("Saving ghost state to SQLite: %s", filename)
 
         try:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
-        except:
+        except Exception:
             pass
 
         try:
             bak_path = filename + f".tick{self.ghost.current_tick_id - 1}.db"
             if os.path.isfile(bak_path):
                 os.remove(bak_path)
-
             if os.path.isfile(filename):
                 shutil.copyfile(filename, bak_path)
-        except:
-            pass
+        except Exception:
+            logger.debug("Backup creation failed", exc_info=True)
 
-        conn = None
-        if True:
-            conn = sqlite3.connect(filename)
+        conn = sqlite3.connect(filename)
+        try:
             cursor = conn.cursor()
 
-            # --- Define Tables Dynamically ---
-            knoxel_subclasses = self._get_knoxel_subclasses()
-            knoxel_schemas = {}  # Store {Type: (table_name, columns)}
-            ghost_state_columns = {}  # Store {field_name: sqlite_type}
-
-            # 1. Knoxel Tables
-            for knoxel_cls in knoxel_subclasses.values():
-                table_name = re.sub(r'([a-z])([A-Z])', r'\1_\2', knoxel_cls.__name__.lower()).lower()
-                columns = {}
-                for field_name, field_info in knoxel_cls.model_fields.items():
-                    sqlite_type = self._pydantic_type_to_sqlite_type(field_info)
-                    columns[field_name] = sqlite_type
-                knoxel_schemas[knoxel_cls] = (table_name, columns)
-
-            # 2. GhostState Table (Flatten nested models)
-            state_table_name = "ghost_states"
-            base_state_columns = {}
-            nested_state_models = {
-                'state_emotions': EmotionalAxesModel,
-                'state_needs': NeedsAxesModel,
-                'state_cognition': CognitionAxesModel
+            # Metadata/config tables.
+            meta = {
+                "current_tick_id": str(getattr(self.ghost, "current_tick_id", 0)),
+                "current_knoxel_id": str(getattr(self.ghost, "current_knoxel_id", 0)),
             }
-            for field_name, field_info in GhostState.model_fields.items():
-                if field_name not in nested_state_models:  # Skip nested model fields themselves
-                    base_state_columns[field_name] = self._pydantic_type_to_sqlite_type(field_info)
+            self._upsert_key_value_table(cursor, "metadata", meta)
 
-            # Add flattened columns from nested models
-            for prefix, model_cls in nested_state_models.items():
-                for field_name, field_info in model_cls.model_fields.items():
-                    col_name = f"{prefix.split('_')[-1]}_{field_name}"  # e.g., emotion_valence
-                    base_state_columns[col_name] = self._pydantic_type_to_sqlite_type(field_info)
-            ghost_state_columns = base_state_columns
+            cfg = {}
+            for key, value in self.ghost.config.model_dump(mode="json").items():
+                cfg[key] = json.dumps(_as_jsonable(value), ensure_ascii=False)
+            self._upsert_key_value_table(cursor, "config", cfg)
 
-            # --- Drop Existing Tables ---
-            all_tables_to_drop = ['metadata', 'config'] + [name for name, _ in knoxel_schemas.values()] + [
-                state_table_name]
-            for table_name in all_tables_to_drop:
-                cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
-            logging.debug("Dropped existing tables.")
+            # Dynamic knoxel tables.
+            subclasses = self._iter_knoxel_subclasses()
+            schema_by_cls: Dict[Type[KnoxelBase], Dict[str, str]] = {}
+            table_for_cls: Dict[Type[KnoxelBase], str] = {}
+            for cls in subclasses.values():
+                table_name = self._snake_name(cls.__name__)
+                table_for_cls[cls] = table_name
+                cols = self._model_columns(cls, primary_key="id")
+                schema_by_cls[cls] = cols
+                self._ensure_table(cursor, table_name, cols, primary_key="id")
 
-            # --- Create New Tables ---
-            # Metadata table
-            cursor.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT);")
-            # Config table
-            cursor.execute("CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT);")
-            # Knoxel tables
-            for _, (table_name, columns) in knoxel_schemas.items():
-                cols_sql = ",\n    ".join(
-                    [f"{name} {ctype}" + (" PRIMARY KEY" if name == "id" else "") for name, ctype in columns.items()])
-                create_sql = f"CREATE TABLE {table_name} (\n    {cols_sql}\n);"
-                logging.debug(f"Creating table {table_name}:\n{create_sql}")
-                cursor.execute(create_sql)
-            # Ghost state table
-            cols_sql = ",\n    ".join(
-                [f"{name} {ctype}" + (" PRIMARY KEY" if name == "tick_id" else "") for name, ctype in
-                 ghost_state_columns.items()])
-            create_state_sql = f"CREATE TABLE {state_table_name} (\n    {cols_sql}\n);"
-            logging.debug(f"Creating table {state_table_name}:\n{create_state_sql}")
-            cursor.execute(create_state_sql)
+            # Dynamic ghost_states table.
+            state_table = "ghost_states"
+            state_cols = self._model_columns(GhostState, primary_key="tick_id")
+            self._ensure_table(cursor, state_table, state_cols, primary_key="tick_id")
 
-            logging.info("Created tables dynamically based on Pydantic models.")
+            # Replace all managed rows with current in-memory state.
+            for table_name in set(table_for_cls.values()):
+                cursor.execute(f"DELETE FROM {table_name};")
+            cursor.execute(f"DELETE FROM {state_table};")
 
-            # --- Insert Metadata & Config (same as before) ---
-            cursor.execute("INSERT INTO metadata (key, value) VALUES (?, ?)",
-                           ('current_tick_id', str(self.ghost.current_tick_id)))
-            cursor.execute("INSERT INTO metadata (key, value) VALUES (?, ?)",
-                           ('current_knoxel_id', str(self.ghost.current_knoxel_id)))
-            config_data = self.ghost.config.model_dump()
-            for key, value in config_data.items():
-                value_str = json.dumps(value) if isinstance(value, (list, dict)) else str(value)
-                cursor.execute("INSERT INTO config (key, value) VALUES (?, ?)", (key, value_str))
-
-            # --- Insert Knoxels Dynamically ---
-            for knoxel in self.ghost.all_knoxels.values():
-                knoxel_type = type(knoxel)
-                if knoxel_type not in knoxel_schemas:
-                    logging.warning(f"Skipping knoxel {knoxel.id} - No schema found for type {knoxel_type.__name__}.")
+            for knx in self.ghost.all_knoxels.values():
+                cls = type(knx)
+                if cls not in table_for_cls:
+                    logger.warning("Skipping unknown knoxel type during save: %s", cls.__name__)
                     continue
 
-                table_name, columns_schema = knoxel_schemas[knoxel_type]
-                data_dict = knoxel.model_dump()
+                table = table_for_cls[cls]
+                cols = []
+                vals = []
+                payload = knx.model_dump(mode="python")
+                for name, field in cls.model_fields.items():
+                    cols.append(name)
+                    vals.append(self._serialize(payload.get(name), field.annotation))
 
-                # Prepare data and map field names to column names (they should match)
-                insert_data = {}
-                values_list = []
-                cols_list = []
+                placeholders = ", ".join(["?"] * len(cols))
+                sql = f"INSERT OR REPLACE INTO {table} ({', '.join(cols)}) VALUES ({placeholders});"
+                cursor.execute(sql, tuple(vals))
 
-                for field_name, field_info in knoxel_type.model_fields.items():
-                    if field_name in columns_schema:  # Ensure the field exists in our table schema
-                        raw_value = data_dict.get(field_name)
-                        serialized_value = self._serialize_value_for_db(raw_value, field_info.annotation)
-                        insert_data[field_name] = serialized_value
-                        cols_list.append(field_name)
-                        values_list.append(serialized_value)
-
-                if not cols_list: continue  # Skip if no columns to insert
-
-                cols_str = ', '.join(cols_list)
-                placeholders = ', '.join(['?'] * len(cols_list))
-                sql = f"INSERT INTO {table_name} ({cols_str}) VALUES ({placeholders});"
-
-                try:
-                    cursor.execute(sql, tuple(values_list))
-                except sqlite3.Error as e:
-                    logging.error(f"SQLite error inserting into {table_name} (Knoxel {knoxel.id}): {e}")
-                    logging.error(f"SQL: {sql}")
-                    logging.error(f"Values: {values_list}")
-
-            # --- Insert Ghost States Dynamically ---
             for state in self.ghost.states:
-                state_insert_data = {}
-                values_list = []
-                cols_list = []
+                cols = []
+                vals = []
+                payload = state.model_dump(mode="python")
+                for name, field in GhostState.model_fields.items():
+                    cols.append(name)
+                    vals.append(self._serialize(payload.get(name), field.annotation))
+                placeholders = ", ".join(["?"] * len(cols))
+                sql = f"INSERT OR REPLACE INTO {state_table} ({', '.join(cols)}) VALUES ({placeholders});"
+                cursor.execute(sql, tuple(vals))
 
-                # Handle base GhostState fields
-                for field_name, field_info in GhostState.model_fields.items():
-                    col_name = field_name
-                    value = getattr(state, field_name, None)
-
-                    if field_name in nested_state_models:  # Skip the direct nested model fields
-                        continue
-
-                    # Ensure column exists in our dynamic schema before adding
-                    if col_name in ghost_state_columns:
-                        serialized_value = self._serialize_value_for_db(value, field_info.annotation)
-                        state_insert_data[col_name] = serialized_value
-                        cols_list.append(col_name)
-                        values_list.append(serialized_value)
-
-                # Handle flattened nested models
-                for prefix, model_cls in nested_state_models.items():
-                    model_instance = getattr(state, prefix, None)
-                    if model_instance:
-                        for field_name, field_info in model_cls.model_fields.items():
-                            col_name = f"{prefix.split('_')[-1]}_{field_name}"  # e.g., emotion_valence
-                            if col_name in ghost_state_columns:  # Check if column exists
-                                raw_value = getattr(model_instance, field_name, None)
-                                serialized_value = self._serialize_value_for_db(raw_value, field_info.annotation)
-                                state_insert_data[col_name] = serialized_value
-                                cols_list.append(col_name)
-                                values_list.append(serialized_value)
-
-                cols_str = ', '.join(cols_list)
-                placeholders = ', '.join(['?'] * len(cols_list))
-                sql = f"INSERT INTO {state_table_name} ({cols_str}) VALUES ({placeholders});"
-
-                try:
-                    cursor.execute(sql, tuple(values_list))
-                except sqlite3.Error as e:
-                    logging.error(f"SQLite error inserting into {state_table_name} (Tick {state.tick_id}): {e}")
-                    logging.error(f"SQL: {sql}")
-                    logging.error(f"Values: {values_list}")
-
-            # --- Commit ---
             conn.commit()
             self.ghost.current_db_path = os.path.abspath(filename)
-            logging.info(f"State dynamically saved to SQLite database: {filename}")
+            logger.info("Saved ghost SQLite state with dynamic schema migration.")
+        finally:
+            conn.close()
 
+    def load_state_sqlite(self, filename: str) -> bool:
+        logger.info("Loading ghost state from SQLite: %s", filename)
 
-    def load_state_sqlite(self, filename: str) -> False:
-        """Loads the complete Ghost state from an SQLite database dynamically."""
-        logging.info(f"Dynamically loading state from SQLite database: {filename}...")
-        conn = None
+        if not os.path.exists(filename):
+            logger.warning("SQLite file does not exist: %s", filename)
+            return False
+
         try:
-            # Check if file exists before connecting
-            if not os.path.exists(filename):
-                raise Exception(f"SQLite save file {filename} not found. Starting with fresh state.")
-
             conn = sqlite3.connect(filename)
-            conn.row_factory = sqlite3.Row  # Access columns by name
-            cursor = conn.cursor()
+            conn.row_factory = sqlite3.Row
+        except sqlite3.Error:
+            logger.exception("Could not open SQLite DB")
+            return False
 
-            # --- Reset internal state before loading ---
+        try:
+            cursor = conn.cursor()
             self.ghost._reset_internal_state()
 
-            # --- Load Metadata & Config ---
+            # Metadata
             try:
-                cursor.execute("SELECT value FROM metadata WHERE key = 'current_tick_id';")
-                self.ghost.current_tick_id = int(cursor.fetchone()['value'])
-                cursor.execute("SELECT value FROM metadata WHERE key = 'current_knoxel_id';")
-                self.ghost.current_knoxel_id = int(cursor.fetchone()['value'])
-            except (TypeError, sqlite3.Error, ValueError) as e:  # Handle missing table/keys or non-integer values
-                logging.warning(f"Could not load metadata (tick/knoxel IDs): {e}. Using defaults.")
-                self.ghost.current_tick_id = 0
-                self.ghost.current_knoxel_id = 0
+                cursor.execute("SELECT key, value FROM metadata;")
+                meta = {row["key"]: row["value"] for row in cursor.fetchall()}
+                self.ghost.current_tick_id = int(meta.get("current_tick_id", 0) or 0)
+                self.ghost.current_knoxel_id = int(meta.get("current_knoxel_id", 0) or 0)
+            except Exception:
+                logger.warning("Metadata table missing or malformed; using defaults.", exc_info=True)
 
+            # Config (ignore unknown keys, fallback to defaults on parse/validation errors)
+            config_data: Dict[str, Any] = {}
             try:
                 cursor.execute("SELECT key, value FROM config;")
-                config_data = {}
-                loaded_config = cursor.fetchall()
-                config_fields = GhostConfig.model_fields
-                for row in loaded_config:
-                    key, value_str = row['key'], row['value']
-                    if key in config_fields:
-                        target_type = config_fields[key].annotation
-                        # Attempt to deserialize complex types (e.g., lists from JSON)
-                        try:
-                            # Basic check if it looks like JSON list/dict
-                            if (isinstance(target_type, type) and issubclass(target_type, (List, Dict))) or \
-                                    (get_origin(target_type) in [list, dict, List, Dict]):
-                                config_data[key] = json.loads(value_str)
-                            else:  # Otherwise, try casting basic types or keep as string
-                                if target_type is int:
-                                    config_data[key] = int(value_str)
-                                elif target_type is float:
-                                    config_data[key] = float(value_str)
-                                elif target_type is bool:
-                                    config_data[key] = value_str.lower() in ['true', '1']
-                                else:
-                                    config_data[key] = value_str  # Keep as string if other type
-                        except (json.JSONDecodeError, ValueError, TypeError) as e:
-                            logging.warning(
-                                f"Error parsing config value for '{key}': {e}. Value: '{value_str}'. Using raw string.")
-                            config_data[key] = value_str
-                    else:
-                        logging.warning(f"Ignoring unknown config key from DB: {key}")
-
+                cfg_rows = cursor.fetchall()
+                for row in cfg_rows:
+                    key = row["key"]
+                    raw = row["value"]
+                    if key not in GhostConfig.model_fields:
+                        continue
+                    ann = GhostConfig.model_fields[key].annotation
+                    try:
+                        decoded = self._load_json_or_fallback(raw)
+                        if isinstance(decoded, str) and ann is not str:
+                            # scalar fallback path
+                            decoded = self._deserialize(decoded, ann)
+                        else:
+                            decoded = self._coerce_value(decoded, ann)
+                            if decoded is None:
+                                decoded = self._deserialize(raw, ann)
+                        config_data[key] = decoded
+                    except Exception:
+                        logger.debug("Failed to load config field %s; using default.", key, exc_info=True)
                 self.ghost.config = GhostConfig(**config_data)
-                logging.info(f"Loaded config: {self.ghost.config.model_dump_json(indent=1)}")
-            except (sqlite3.Error, ValidationError) as e:
-                logging.error(f"Could not load or validate config: {e}. Using default config.")
-                self.ghost.config = GhostConfig()  # Use defaults
+            except Exception:
+                logger.warning("Config table missing or malformed; using default config.", exc_info=True)
+                self.ghost.config = GhostConfig()
 
-            # --- Load Knoxels Dynamically ---
-            knoxel_subclasses = self._get_knoxel_subclasses()
-            loaded_knoxels = {}  # Temp dict to hold loaded knoxels {id: instance}
+            # Load knoxels.
+            subclasses = self._iter_knoxel_subclasses()
+            total_loaded = 0
+            for cls in subclasses.values():
+                table_name = None
+                for candidate in self._table_name_candidates(cls):
+                    try:
+                        cursor.execute(f"SELECT 1 FROM {candidate} LIMIT 1;")
+                        table_name = candidate
+                        break
+                    except sqlite3.Error:
+                        continue
 
-            for knoxel_cls in knoxel_subclasses.values():
-                table_name = knoxel_cls.__name__.lower()
-                logging.debug(f"Attempting to load from table: {table_name}")
+                if table_name is None:
+                    continue
+
                 try:
                     cursor.execute(f"SELECT * FROM {table_name};")
                     rows = cursor.fetchall()
-                    if not rows:
-                        logging.debug(f"Table {table_name} is empty or does not exist.")
-                        continue
-
-                    column_names = [desc[0] for desc in cursor.description]
-                    model_fields = knoxel_cls.model_fields
-
-                    for row in rows:
-                        knoxel_data = {}
-                        row_dict = dict(row)  # Convert sqlite3.Row to dict
-                        knoxel_id = row_dict.get('id', -1)  # Get ID for logging
-
-                        for field_name, field_info in model_fields.items():
-                            if field_name in column_names:
-                                db_value = row_dict[field_name]
-                                try:
-                                    py_value = self._deserialize_value_from_db(db_value, field_info.annotation)
-                                    knoxel_data[field_name] = py_value
-                                except Exception as e:
-                                    logging.error(
-                                        f"Error deserializing field '{field_name}' for {table_name} ID {knoxel_id}: {e}. DB Value: {db_value}. Skipping field.")
-                            else:
-                                # Field exists in model but not in DB table (schema evolution)
-                                # Pydantic will use default value if available, otherwise raise error if required
-                                logging.debug(
-                                    f"Field '{field_name}' not found in DB table '{table_name}' for knoxel ID {knoxel_id}. Using model default if available.")
-
-                        # Add fields present in DB but not in model? Pydantic ignores extra by default.
-                        if 'id' not in knoxel_data:  # Should always be present if table exists
-                            logging.error(f"Missing 'id' column data for row in {table_name}. Skipping row: {row_dict}")
-                            continue
-
-                        try:
-                            knoxel_instance = knoxel_cls(**knoxel_data)
-                            self.ghost.all_knoxels[knoxel_instance.id] = knoxel_instance
-                        except ValidationError as e:
-                            logging.error(f"Pydantic validation failed for {knoxel_cls.__name__} ID {knoxel_id}: {e}")
-                            logging.error(f"Data causing error: {knoxel_data}")
-                        except Exception as e:
-                            logging.error(f"Unexpected error instantiating {knoxel_cls.__name__} ID {knoxel_id}: {e}")
-                            logging.error(f"Data causing error: {knoxel_data}")
-
-                except sqlite3.OperationalError as e:
-                    logging.warning(f"Could not read from table {table_name} (might not exist in this DB): {e}")
-                except Exception as e:
-                    logging.error(f"Unexpected error loading from table {table_name}: {e}", exc_info=True)
-
-            logging.info(f"Loaded {len(self.ghost.all_knoxels)} knoxels from database.")
-
-            # Rebuild specific lists from the loaded knoxels
-            self.ghost._rebuild_specific_lists()
-
-            # --- Load Ghost States Dynamically ---
-            state_table_name = "ghost_states"
-            self.ghost.states = []
-            nested_state_models = {
-                'state_emotions': EmotionalAxesModel,
-                'state_needs': NeedsAxesModel,
-                'state_cognition': CognitionAxesModel
-            }
-
-            try:
-                cursor.execute(f"SELECT * FROM {state_table_name} ORDER BY tick_id ASC;")
-                rows = cursor.fetchall()
-                if not rows:
-                    logging.warning(f"Ghost states table '{state_table_name}' is empty or does not exist.")
-
-                column_names = [desc[0] for desc in cursor.description]
-                base_state_fields = GhostState.model_fields
+                except sqlite3.Error:
+                    logger.warning("Failed reading table %s", table_name, exc_info=True)
+                    continue
 
                 for row in rows:
-                    state_data = {}
-                    nested_models_data = {prefix: {} for prefix in nested_state_models}
-                    row_dict = dict(row)
-                    tick_id = row_dict.get('tick_id', -1)
-
-                    # Process columns from DB row
-                    for col_name in column_names:
-                        db_value = row_dict[col_name]
-                        processed = False
-
-                        # Check if it's a flattened nested model field
-                        for prefix, model_cls in nested_state_models.items():
-                            short_prefix = prefix.split('_')[-1]  # e.g., emotion
-                            if col_name.startswith(f"{short_prefix}_"):
-                                field_name = col_name[len(short_prefix) + 1:]
-                                if field_name in model_cls.model_fields:
-                                    target_type = model_cls.model_fields[field_name].annotation
-                                    try:
-                                        py_value = self._deserialize_value_from_db(db_value, target_type)
-                                        nested_models_data[prefix][field_name] = py_value
-                                    except Exception as e:
-                                        logging.error(
-                                            f"Error deserializing nested field '{col_name}' for state tick {tick_id}: {e}. DB Value: {db_value}. Skipping field.")
-                                    processed = True
-                                    break  # Move to next column once matched
-
-                        if processed:
+                    row_map = dict(row)
+                    payload: Dict[str, Any] = {}
+                    for fname, field in cls.model_fields.items():
+                        if fname not in row_map:
                             continue
-
-                        # Check if it's a base GhostState field (or reference ID)
-                        if col_name not in base_state_fields and "_" in col_name:
-                            field_name = to_camel_case(col_name)
-                        else:
-                            field_name = col_name
-
                         try:
-                            if field_name in base_state_fields:
-                                target_type = base_state_fields[field_name].annotation
-                                py_value = self._deserialize_value_from_db(db_value, target_type)
-                                state_data[field_name] = py_value
-                            else:
-                                raise Exception(f"Unhandled column: {col_name}")
-                        except Exception as e:
-                            logger.critical(f"Bad column in GhostState: {col_name}")
+                            payload[fname] = self._deserialize(row_map[fname], field.annotation)
+                        except Exception:
+                            logger.debug(
+                                "Field deserialize failed for %s.%s id=%s",
+                                cls.__name__,
+                                fname,
+                                row_map.get("id", "?"),
+                                exc_info=True,
+                            )
 
-                    # Instantiate nested models
-                    for prefix, model_cls in nested_state_models.items():
+                    if "id" not in payload:
+                        logger.warning("Skipping row without id in table %s", table_name)
+                        continue
+
+                    try:
+                        obj = cls(**payload)
+                        self.ghost.all_knoxels[obj.id] = obj
+                        total_loaded += 1
+                    except ValidationError:
+                        logger.warning(
+                            "Skipping invalid %s row id=%s; payload did not validate.",
+                            cls.__name__,
+                            payload.get("id"),
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Skipping broken %s row id=%s due to unexpected error.",
+                            cls.__name__,
+                            payload.get("id"),
+                            exc_info=True,
+                        )
+
+            self.ghost._rebuild_specific_lists()
+            logger.info("Loaded %d knoxels.", total_loaded)
+
+            # Load ghost states.
+            self.ghost.states = []
+            try:
+                cursor.execute("SELECT * FROM ghost_states ORDER BY tick_id ASC;")
+                for row in cursor.fetchall():
+                    row_map = dict(row)
+                    payload: Dict[str, Any] = {}
+                    for fname, field in GhostState.model_fields.items():
+                        if fname not in row_map:
+                            continue
                         try:
-                            instance = model_cls(**nested_models_data[prefix])
-                            state_data[prefix] = instance
-                        except ValidationError as e:
-                            logging.error(
-                                f"Validation failed for {model_cls.__name__} in state tick {tick_id}: {e}. Data: {nested_models_data[prefix]}")
-                            state_data[prefix] = model_cls()  # Use default instance
-                        except Exception as e:
-                            logging.error(
-                                f"Error instantiating {model_cls.__name__} in state tick {tick_id}: {e}. Data: {nested_models_data[prefix]}")
-                            state_data[prefix] = model_cls()
-                    ghost_state_instance = GhostState(**state_data)
-                    self.ghost.states.append(ghost_state_instance)
-            except sqlite3.OperationalError as e:
-                logging.warning(f"Could not read from table {state_table_name}: {e}")
-                #raise e
-            except Exception as e:
-                logging.error(f"Unexpected error loading from table {state_table_name}: {e}", exc_info=True)
-                #raise e
-            logging.info(f"Loaded {len(self.ghost.states)} Ghost states from database.")
-            self.ghost.states.sort(key=lambda s: s.tick_id)  # Ensure states are ordered
-            #self.ghost.current_state = self.ghost.states[-1] if self.ghost.states else None
+                            payload[fname] = self._deserialize(row_map[fname], field.annotation)
+                        except Exception:
+                            logger.debug("GhostState field deserialize failed: %s", fname, exc_info=True)
+
+                    try:
+                        state = GhostState(**payload)
+                        self.ghost.states.append(state)
+                    except ValidationError:
+                        logger.warning(
+                            "Skipping invalid GhostState tick=%s", payload.get("tick_id", "?"),
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Skipping broken GhostState tick=%s", payload.get("tick_id", "?"),
+                            exc_info=True,
+                        )
+            except sqlite3.Error:
+                logger.warning("ghost_states table missing or unreadable; continuing without historical states.")
+
+            self.ghost.states.sort(key=lambda x: x.tick_id)
             self.ghost.current_db_path = os.path.abspath(filename)
             return True
-
-        except sqlite3.Error as e:
-            logging.error(f"SQLite Error during load: {e}", exc_info=True)
-            self.ghost._reset_internal_state()  # Reset on error
-            raise e
-        except Exception as e:
-            logging.error(f"Unexpected Error during load: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Unexpected error during SQLite load")
             self.ghost._reset_internal_state()
-            raise e
+            return False
         finally:
-            if conn: conn.close()
+            conn.close()
 
-    # --- Utility to prepare data for older saves (used by original load_state) ---
-    def _get_knoxel_type_map(self):  # Helper for original load_state
+    # Compatibility utility for legacy callers/tests.
+    def _get_knoxel_type_map(self) -> Dict[str, Type[KnoxelBase]]:
         return {
-            cls.__name__: cls for cls in
-            [KnoxelBase, Stimulus, Intention, Action, MemoryClusterKnoxel, DeclarativeFactKnoxel, Narrative, Feature]
+            cls.__name__: cls
+            for cls in [
+                KnoxelBase,
+                Stimulus,
+                Intention,
+                Action,
+                MemoryClusterKnoxel,
+                DeclarativeFactKnoxel,
+                Narrative,
+                Feature,
+                ConceptNode,
+                GraphNode,
+                GraphEdge,
+            ]
         }
-
-    def _prepare_knoxel_data_for_load(self, knoxel_cls: Type[KnoxelBase],
-                                      data: Dict) -> Dict:  # Helper for original load_state
-        # Add default values for fields potentially missing in older JSON saves
-        if knoxel_cls == Intention:
-            data.setdefault('internal', True)  # Default old intentions to internal goals
-            data.setdefault('originating_action_id', None)
-            data.setdefault('affective_valence', 0.0)
-            data.setdefault('incentive_salience', 0.5)  # Default salience if missing
-            data.setdefault('urgency', 0.5)  # Default urgency if missing
-            data.setdefault('fulfilment', 0.0)  # Default fulfilment if missing
-        elif knoxel_cls == Action:
-            data.setdefault('generated_expectation_ids', [])
-            data.setdefault('content', data.get('content', ''))  # Handle old action format maybe
-        elif knoxel_cls == Feature:
-            data.setdefault('incentive_salience', None)  # Added later
-            data.setdefault('causal', False)  # Ensure default
-            data.setdefault('interlocus', 0.0)  # Ensure default
-
-        # Ensure basic KnoxelBase fields have defaults if missing
-        data.setdefault('tick_id', -1)
-        data.setdefault('content', '')
-        data.setdefault('embedding', [])  # Embeddings not saved in JSON anyway
-        data.setdefault('timestamp_creation', datetime.now().isoformat())
-        data.setdefault('timestamp_world_begin', datetime.now().isoformat())
-        data.setdefault('timestamp_world_end', datetime.now().isoformat())
-        return data

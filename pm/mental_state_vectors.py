@@ -879,7 +879,32 @@ def ema_baselined_normalize(
 
 
 def _features_to_history(features: List["MentalFeature"]) -> List[Tuple[datetime.datetime, List[float]]]:
-    return [(f.timestamp, f.state_delta_vector) for f in features]
+    history: List[Tuple[datetime.datetime, List[float]]] = []
+    for f in features:
+        if f is None:
+            continue
+
+        # Backward/forward compatibility across feature schemas.
+        ts = (
+            getattr(f, "timestamp_creation", None)
+            or getattr(f, "timestamp_world_begin", None)
+            or getattr(f, "timestamp", None)
+        )
+        if ts is None:
+            continue
+
+        delta = (
+            getattr(f, "mental_state_delta", None)
+            or getattr(f, "state_delta_vector", None)
+            or []
+        )
+        if not isinstance(delta, list):
+            continue
+        if len(delta) == 0:
+            delta = [0.0] * VectorModelReservedSize
+
+        history.append((ts, delta))
+    return history
 
 # Fix your earlier bug: make sure FullMentalState.init_from_list returns the instance.
 def _init_ms_from_vec(vec: List[float]) -> "FullMentalState":
@@ -896,6 +921,172 @@ def create_empty_ms_vector():
 
 def create_empty_state():
     return FullMentalState.init_from_list(create_empty_ms_vector())
+
+
+_REL_AXIS_COMM_WARMTH = StateRelationship.model_fields["communication_warmth"].json_schema_extra["vector_position"]
+_REL_AXIS_CONFLICT = StateRelationship.model_fields["conflict_tension"].json_schema_extra["vector_position"]
+_REL_AXIS_TRUST = StateRelationship.model_fields["trust"].json_schema_extra["vector_position"]
+_REL_AXIS_CORE_VALENCE = StateCore.model_fields["valence"].json_schema_extra["vector_position"]
+
+
+def _relationship_signal_from_feature(feature: Any) -> float:
+    """
+    Return a coarse interaction quality signal in [-1, 1].
+    Preference order:
+      1) expectation-learning reward metadata
+      2) explicit mental_state_delta relationship/core channels
+      3) explicit affective_valence
+    """
+    metadata = getattr(feature, "metadata", None) or {}
+    if isinstance(metadata, dict) and "reward" in metadata:
+        try:
+            return _clamp11(float(metadata.get("reward", 0.0) or 0.0))
+        except Exception:
+            pass
+
+    delta_vec = getattr(feature, "mental_state_delta", None) or []
+    if isinstance(delta_vec, list) and len(delta_vec) > max(_REL_AXIS_COMM_WARMTH, _REL_AXIS_CONFLICT, _REL_AXIS_TRUST, _REL_AXIS_CORE_VALENCE):
+        comm_warmth = float(delta_vec[_REL_AXIS_COMM_WARMTH] or 0.0)
+        conflict = float(delta_vec[_REL_AXIS_CONFLICT] or 0.0)
+        trust = float(delta_vec[_REL_AXIS_TRUST] or 0.0)
+        valence = float(delta_vec[_REL_AXIS_CORE_VALENCE] or 0.0)
+        vec_signal = (0.45 * comm_warmth) + (0.35 * trust) - (0.70 * conflict) + (0.20 * valence)
+        if abs(vec_signal) > 1e-6:
+            return _clamp11(vec_signal)
+
+    affective_valence = getattr(feature, "affective_valence", None)
+    if affective_valence is not None:
+        try:
+            return _clamp11(float(affective_valence))
+        except Exception:
+            pass
+
+    return 0.0
+
+
+def _feature_type_name(feature: Any) -> str:
+    ft = getattr(feature, "feature_type", None)
+    if ft is None:
+        return ""
+    if hasattr(ft, "name"):
+        return str(ft.name)
+    return str(ft)
+
+
+def compute_partner_expectation_profile(
+    features: List[Any],
+    conversation_partner_entity_id: Optional[int],
+    reference_timeframe_minutes: int = 60 * 24,
+    *,
+    baseline_alpha_up: float = 0.30,
+    baseline_alpha_down: float = 0.06,
+    recent_half_life_minutes: float = 120.0,
+) -> Dict[str, float]:
+    """
+    Build relationship expectation profile for the active conversation partner.
+    The core behavior is asymmetric:
+      - positive interactions raise baseline relatively quickly
+      - negative interactions lower baseline slowly
+    This models "harder to impress, easier to disappoint" over time.
+    """
+    if not features:
+        return {
+            "baseline_quality": 0.0,
+            "recent_quality": 0.0,
+            "disappointment_pressure": 0.0,
+            "positive_surprise_bias": 0.0,
+            "sample_count": 0.0,
+        }
+
+    now = max((getattr(f, "timestamp_creation", None) for f in features if getattr(f, "timestamp_creation", None)), default=None)
+    if now is None:
+        return {
+            "baseline_quality": 0.0,
+            "recent_quality": 0.0,
+            "disappointment_pressure": 0.0,
+            "positive_surprise_bias": 0.0,
+            "sample_count": 0.0,
+        }
+
+    horizon_s = max(60.0, float(reference_timeframe_minutes) * 60.0)
+    recent_half_life_s = max(30.0, float(recent_half_life_minutes) * 60.0)
+    ln2 = math.log(2.0)
+
+    selected: List[Any] = []
+    for f in features:
+        ts = getattr(f, "timestamp_creation", None)
+        if ts is None:
+            continue
+        age_s = max(0.0, (now - ts).total_seconds())
+        if age_s > horizon_s:
+            continue
+
+        src_id = getattr(f, "source_entity_id", None)
+        ft_name = _feature_type_name(f)
+        if conversation_partner_entity_id is not None:
+            if ft_name == "ExpectationOutcome":
+                selected.append(f)
+                continue
+            if src_id is not None and src_id != conversation_partner_entity_id:
+                continue
+            delta_vec = getattr(f, "mental_state_delta", None) or []
+            if isinstance(delta_vec, list) and any(abs(float(x or 0.0)) > 1e-8 for x in delta_vec):
+                selected.append(f)
+                continue
+            if src_id == conversation_partner_entity_id:
+                selected.append(f)
+        else:
+            selected.append(f)
+
+    if not selected:
+        return {
+            "baseline_quality": 0.0,
+            "recent_quality": 0.0,
+            "disappointment_pressure": 0.0,
+            "positive_surprise_bias": 0.0,
+            "sample_count": 0.0,
+        }
+
+    selected = sorted(selected, key=lambda x: getattr(x, "timestamp_creation", now))
+
+    baseline = 0.0
+    weighted_sum = 0.0
+    weighted_den = 0.0
+
+    for f in selected:
+        ts = getattr(f, "timestamp_creation", now)
+        age_s = max(0.0, (now - ts).total_seconds())
+        w_recent = math.exp(-ln2 * age_s / recent_half_life_s)
+        signal = _relationship_signal_from_feature(f)
+
+        alpha = baseline_alpha_up if signal >= baseline else baseline_alpha_down
+        alpha *= (0.75 + 0.25 * w_recent)
+        alpha = _clip(alpha, 0.01, 0.60)
+        baseline = _blend(baseline, signal, alpha)
+
+        weighted_sum += signal * w_recent
+        weighted_den += w_recent
+
+    recent_quality = weighted_sum / max(EPS, weighted_den)
+    baseline_quality = _clamp11(baseline)
+
+    disappointment_pressure = _clamp01(
+        0.90 * max(0.0, baseline_quality - recent_quality) +
+        0.25 * max(0.0, baseline_quality)
+    )
+    positive_surprise_bias = _clamp01(
+        0.70 * max(0.0, recent_quality - baseline_quality) *
+        (1.0 - 0.65 * max(0.0, baseline_quality))
+    )
+
+    return {
+        "baseline_quality": baseline_quality,
+        "recent_quality": _clamp11(recent_quality),
+        "disappointment_pressure": disappointment_pressure,
+        "positive_surprise_bias": positive_surprise_bias,
+        "sample_count": float(len(selected)),
+    }
+
 
 def compute_attention_bias(ms: FullMentalState) -> Tuple[float, float]:
     """

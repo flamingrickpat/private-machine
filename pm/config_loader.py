@@ -4,8 +4,6 @@ import sys
 from pathlib import Path
 
 import yaml
-
-from pm.tools.tools_common import get_toolset_from_url
 from pm.utils.log_utils import setup_logger
 
 logger = logging.getLogger(__name__)
@@ -27,6 +25,16 @@ mcp_server_url: str = ""
 available_tools = []
 enable_tool_calling: bool = False
 shell_system_name = "System-Agent"
+worker_context_limit_tokens: int = 0
+agent_context_weights: dict = {}
+agent_context_min_section_tokens: int = 96
+agent_context_latest_messages: int = 40
+agent_context_workspace_items: int = 48
+agent_context_target_ratio: float = 0.72
+agent_context_safety_margin_tokens: int = 220
+supported_capabilities = []
+unsupported_capabilities = []
+capability_notes = []
 
 # Get absolute path to the config file
 CONFIG_PATH = "config.yaml"
@@ -69,7 +77,18 @@ global_map = {
     "character_card_story": config_data.get("character_card_story", ""),
     "commit": config_data.get("commit", True),
     "mcp_server_url": config_data.get("mcp_server_url", ""),
-    "enable_tool_calling": config_data.get("enable_tool_calling", False)
+    "enable_tool_calling": config_data.get("enable_tool_calling", False),
+    # Soft cap for prompt budgeting in worker LLM calls. 0 disables the cap.
+    "worker_context_limit_tokens": int(config_data.get("worker_context_limit_tokens", 0) or 0),
+    "agent_context_weights": config_data.get("agent_context_weights", {}) or {},
+    "agent_context_min_section_tokens": int(config_data.get("agent_context_min_section_tokens", 96) or 96),
+    "agent_context_latest_messages": int(config_data.get("agent_context_latest_messages", 40) or 40),
+    "agent_context_workspace_items": int(config_data.get("agent_context_workspace_items", 48) or 48),
+    "agent_context_target_ratio": float(config_data.get("agent_context_target_ratio", 0.72) or 0.72),
+    "agent_context_safety_margin_tokens": int(config_data.get("agent_context_safety_margin_tokens", 220) or 220),
+    "supported_capabilities": config_data.get("supported_capabilities", []) or [],
+    "unsupported_capabilities": config_data.get("unsupported_capabilities", []) or [],
+    "capability_notes": config_data.get("capability_notes", []) or [],
 }
 globals().update(global_map)
 
@@ -81,7 +100,7 @@ if os.name == "nt":
     db_path = db_path.replace(wsl_pref, wsl_rep)
     embedding_model = embedding_model.replace(wsl_pref, wsl_rep)
 
-if mcp_server_url == "http://127.0.0.1:8000/mcp":
+if enable_tool_calling and mcp_server_url == "http://127.0.0.1:8000/mcp":
     from mcp_demo.mcp_server import start_server
     start_server()
     logger.info("Started Demo MCP server...")
@@ -124,8 +143,15 @@ for model_class, model_key in model_mapping.items():
 QUOTE_START = '"'
 QUOTE_END = '"'
 
-toolset = get_toolset_from_url(mcp_server_url)
-if toolset:
-    for tool_name, tool_type in toolset.tool_router_model.model_fields.items():
-        available_tools.append(tool_name)
+if enable_tool_calling and mcp_server_url:
+    try:
+        from pm.tools.tools_common import get_toolset_from_url
+
+        toolset = get_toolset_from_url(mcp_server_url)
+        if toolset:
+            for tool_name, tool_type in toolset.tool_router_model.model_fields.items():
+                available_tools.append(tool_name)
+    except Exception as e:
+        logger.warning("Tool calling disabled at runtime: %s", e)
+
 tools_list_str = ", ".join(available_tools)

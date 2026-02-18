@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knoxel Trace Viewer</title>
+  <style>
+    :root {
+      --bg: #f3f5f7;
+      --panel: #ffffff;
+      --text: #1f2933;
+      --muted: #6b7785;
+      --line: #d8e0e8;
+      --accent: #2f6f9f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.4 "Segoe UI", Tahoma, sans-serif;
+    }
+    header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(90deg, #eef3f7, #f5efe7);
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr 360px;
+      gap: 10px;
+      padding: 10px;
+      min-height: calc(100vh - 56px);
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel h3 {
+      margin: 0;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+    .body {
+      padding: 10px 12px;
+      overflow: auto;
+      min-height: 0;
+    }
+    #cy {
+      width: 100%;
+      height: calc(100vh - 88px);
+      background: #fbfdff;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .row > label { min-width: 92px; color: var(--muted); }
+    input[type="text"], select, textarea {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font: inherit;
+      background: #fff;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    button:hover { border-color: #b9c6d3; }
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 8px;
+    }
+    .muted { color: var(--muted); }
+    .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      margin-right: 6px;
+      margin-bottom: 6px;
+      background: #fff;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 11px/1.35 Consolas, monospace;
+      background: #f7fafc;
+      border: 1px solid #e8eef5;
+      border-radius: 8px;
+      padding: 8px;
+    }
+  </style>
+  <script src="https://unpkg.com/cytoscape@3.29.2/dist/cytoscape.min.js"></script>
+</head>
+<body>
+<header>
+  <strong>Knoxel Trace Viewer</strong>
+  <span class="muted">Cytoscape JSON explorer for `tick_*_cytoscape.json`</span>
+</header>
+
+<div class="layout">
+  <section class="panel">
+    <h3>Load + Filters</h3>
+    <div class="body">
+      <div class="row">
+        <label>Trace File</label>
+        <input id="fileInput" type="file" accept=".json,application/json" />
+      </div>
+      <div class="row">
+        <button id="btnFit">Fit</button>
+        <button id="btnReset">Reset Style</button>
+        <button id="btnExportPng">Export PNG</button>
+      </div>
+
+      <div class="row">
+        <label>Layout</label>
+        <select id="layoutSelect">
+          <option value="breadthfirst">breadthfirst</option>
+          <option value="cose">cose</option>
+          <option value="concentric">concentric</option>
+          <option value="grid">grid</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <label>Search</label>
+        <input id="searchText" type="text" placeholder="name, phase, feature_type, content..." />
+      </div>
+
+      <div class="grid2">
+        <label><input id="showCalls" type="checkbox" checked /> call nodes</label>
+        <label><input id="showKnoxels" type="checkbox" checked /> knoxel nodes</label>
+        <label><input id="showPhases" type="checkbox" checked /> phase nodes</label>
+        <label><input id="showProxies" type="checkbox" checked /> proxy nodes</label>
+        <label><input id="showTags" type="checkbox" checked /> tag-group nodes</label>
+        <label><input id="onlyCausal" type="checkbox" /> only causal knoxels</label>
+      </div>
+
+      <hr />
+
+      <div class="grid2">
+        <label><input id="edgeInput" type="checkbox" checked /> input edges</label>
+        <label><input id="edgeOutput" type="checkbox" checked /> output edges</label>
+        <label><input id="edgeCreated" type="checkbox" checked /> created edges</label>
+        <label><input id="edgeAdd" type="checkbox" checked /> add_event edges</label>
+        <label><input id="edgeExec" type="checkbox" checked /> exec flow edges</label>
+        <label><input id="edgeProxy" type="checkbox" checked /> proxy edges</label>
+        <label><input id="edgeTag" type="checkbox" checked /> tag group edges</label>
+        <label><input id="edgeDerivedMemory" type="checkbox" checked /> derived memory</label>
+        <label><input id="edgeDerivedFeature" type="checkbox" checked /> derived feature</label>
+      </div>
+
+      <hr />
+      <div id="meta"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>Graph</h3>
+    <div id="cy"></div>
+  </section>
+
+  <section class="panel">
+    <h3>Details</h3>
+    <div class="body">
+      <div id="selectionSummary" class="muted">Select a node or edge.</div>
+      <pre id="details">{}</pre>
+    </div>
+  </section>
+</div>
+
+<script>
+  let cy = null;
+  let rawData = null;
+  let allElements = { nodes: [], edges: [] };
+
+  function safe(v) {
+    return (v === null || v === undefined) ? "" : String(v);
+  }
+
+  function containsText(value, q) {
+    if (!q) return true;
+    return safe(value).toLowerCase().includes(q);
+  }
+
+  function nodeMatches(nodeData, q) {
+    if (!q) return true;
+    return (
+      containsText(nodeData.kind, q) ||
+      containsText(nodeData.name, q) ||
+      containsText(nodeData.phase, q) ||
+      containsText(nodeData.tag, q) ||
+      containsText(nodeData.feature_type, q) ||
+      containsText(nodeData.source_name, q) ||
+      containsText(nodeData.content_excerpt, q)
+    );
+  }
+
+  function updateMeta(meta) {
+    const el = document.getElementById("meta");
+    if (!meta) {
+      el.innerHTML = '<span class="muted">No trace loaded.</span>';
+      return;
+    }
+    el.innerHTML = [
+      `<div class="badge">tick: <strong>${meta.tick}</strong></div>`,
+      `<div class="badge">calls: <strong>${meta.call_count}</strong></div>`,
+      `<div class="badge">knoxels: <strong>${meta.knoxel_count}</strong></div>`,
+      `<div class="badge">events: <strong>${meta.event_count}</strong></div>`,
+      `<div class="badge">gain: <strong>${meta.workspace_gain}</strong></div>`
+    ].join("");
+  }
+
+  function buildStyle() {
+    return [
+      {
+        selector: "node",
+        style: {
+          "label": "data(id)",
+          "font-size": "10px",
+          "text-wrap": "wrap",
+          "text-max-width": "120px",
+          "background-color": "#9aa7b4",
+          "color": "#1f2933"
+        }
+      },
+      {
+        selector: "node.call",
+        style: {
+          "shape": "round-rectangle",
+          "width": 58,
+          "height": 36,
+          "background-color": "#e4cfa8",
+          "label": "data(name)"
+        }
+      },
+      {
+        selector: "node.knoxel",
+        style: {
+          "shape": "ellipse",
+          "width": 26,
+          "height": 26,
+          "background-color": "#5c83a3",
+          "label": "data(feature_type)"
+        }
+      },
+      {
+        selector: "node.knoxel.causal",
+        style: {
+          "background-color": "#c86d3f"
+        }
+      },
+      {
+        selector: "node.phase",
+        style: {
+          "shape": "diamond",
+          "width": 34,
+          "height": 34,
+          "background-color": "#8ca570",
+          "label": "data(phase)"
+        }
+      },
+      {
+        selector: "node.proxy",
+        style: {
+          "shape": "hexagon",
+          "width": 24,
+          "height": 24,
+          "background-color": "#927bb3",
+          "label": "data(input_count)"
+        }
+      },
+      {
+        selector: "node.tag",
+        style: {
+          "shape": "rectangle",
+          "width": 46,
+          "height": 24,
+          "background-color": "#6a9b72",
+          "label": "data(tag)"
+        }
+      },
+      {
+        selector: "edge",
+        style: {
+          "curve-style": "bezier",
+          "line-color": "#9fb0bf",
+          "target-arrow-color": "#9fb0bf",
+          "target-arrow-shape": "triangle",
+          "width": 1.4,
+          "opacity": 0.65
+        }
+      },
+      {
+        selector: "edge.input",
+        style: { "line-color": "#8e97a1", "target-arrow-color": "#8e97a1" }
+      },
+      {
+        selector: "edge.output",
+        style: { "line-color": "#2f6f9f", "target-arrow-color": "#2f6f9f" }
+      },
+      {
+        selector: "edge.created",
+        style: { "line-color": "#b4562f", "target-arrow-color": "#b4562f", "width": 2.0 }
+      },
+      {
+        selector: "edge.add_event",
+        style: {
+          "line-style": "dashed",
+          "line-color": "#6e9955",
+          "target-arrow-color": "#6e9955"
+        }
+      },
+      {
+        selector: "edge.exec_next",
+        style: {
+          "line-color": "#5f6a74",
+          "target-arrow-color": "#5f6a74",
+          "width": 2.2,
+          "opacity": 0.9
+        }
+      },
+      {
+        selector: "edge.input_proxy",
+        style: {
+          "line-style": "dashed",
+          "line-color": "#7f689f",
+          "target-arrow-color": "#7f689f"
+        }
+      },
+      {
+        selector: "edge.tag_group",
+        style: {
+          "line-style": "dotted",
+          "line-color": "#68956e",
+          "target-arrow-color": "#68956e"
+        }
+      },
+      {
+        selector: "edge.derived_from_memory",
+        style: {
+          "line-style": "dashed",
+          "line-color": "#8a6d41",
+          "target-arrow-color": "#8a6d41"
+        }
+      },
+      {
+        selector: "edge.derived_from_feature",
+        style: {
+          "line-style": "dashed",
+          "line-color": "#4f8a77",
+          "target-arrow-color": "#4f8a77"
+        }
+      }
+    ];
+  }
+
+  function ensureCy() {
+    if (typeof cytoscape === "undefined") {
+      alert("Cytoscape.js failed to load. Open with internet access or bundle Cytoscape locally.");
+      return false;
+    }
+    if (!cy) {
+      cy = cytoscape({
+        container: document.getElementById("cy"),
+        elements: [],
+        style: buildStyle(),
+        layout: { name: "breadthfirst", directed: true, spacingFactor: 1.25 }
+      });
+
+      cy.on("tap", "node, edge", function(evt) {
+        const item = evt.target;
+        const d = item.data();
+        document.getElementById("selectionSummary").textContent =
+          `${item.isNode() ? "Node" : "Edge"}: ${d.id || ""}`;
+        document.getElementById("details").textContent = JSON.stringify(d, null, 2);
+      });
+    }
+    return true;
+  }
+
+  function selectedLayout() {
+    return document.getElementById("layoutSelect").value || "breadthfirst";
+  }
+
+  function filterElements() {
+    if (!rawData) return { nodes: [], edges: [] };
+
+    const q = document.getElementById("searchText").value.trim().toLowerCase();
+    const showCalls = document.getElementById("showCalls").checked;
+    const showKnoxels = document.getElementById("showKnoxels").checked;
+    const showPhases = document.getElementById("showPhases").checked;
+    const showProxies = document.getElementById("showProxies").checked;
+    const showTags = document.getElementById("showTags").checked;
+    const onlyCausal = document.getElementById("onlyCausal").checked;
+
+    const showEdgeInput = document.getElementById("edgeInput").checked;
+    const showEdgeOutput = document.getElementById("edgeOutput").checked;
+    const showEdgeCreated = document.getElementById("edgeCreated").checked;
+    const showEdgeAdd = document.getElementById("edgeAdd").checked;
+    const showEdgeExec = document.getElementById("edgeExec").checked;
+    const showEdgeProxy = document.getElementById("edgeProxy").checked;
+    const showEdgeTag = document.getElementById("edgeTag").checked;
+    const showEdgeDerivedMemory = document.getElementById("edgeDerivedMemory").checked;
+    const showEdgeDerivedFeature = document.getElementById("edgeDerivedFeature").checked;
+
+    const keepNodes = [];
+    const nodeIds = new Set();
+    for (const n of allElements.nodes) {
+      const kind = safe(n.data.kind);
+      if (kind === "call" && !showCalls) continue;
+      if (kind === "knoxel" && !showKnoxels) continue;
+      if (kind === "phase" && !showPhases) continue;
+      if (kind === "proxy_input" && !showProxies) continue;
+      if (kind === "tag_group" && !showTags) continue;
+      if (kind === "knoxel" && onlyCausal && !Boolean(n.data.causal)) continue;
+      if (!nodeMatches(n.data, q)) continue;
+      keepNodes.push(n);
+      nodeIds.add(n.data.id);
+    }
+
+    const keepEdges = [];
+    for (const e of allElements.edges) {
+      const rel = safe(e.data.relation);
+      if (rel === "input" && !showEdgeInput) continue;
+      if (rel === "output" && !showEdgeOutput) continue;
+      if (rel === "created" && !showEdgeCreated) continue;
+      if (rel === "add_event" && !showEdgeAdd) continue;
+      if (rel === "exec_next" && !showEdgeExec) continue;
+      if (rel === "input_proxy" && !showEdgeProxy) continue;
+      if (rel === "tag_group" && !showEdgeTag) continue;
+      if (rel === "derived_from_memory" && !showEdgeDerivedMemory) continue;
+      if (rel === "derived_from_feature" && !showEdgeDerivedFeature) continue;
+      if (!nodeIds.has(e.data.source) || !nodeIds.has(e.data.target)) continue;
+      keepEdges.push(e);
+    }
+
+    return { nodes: keepNodes, edges: keepEdges };
+  }
+
+  function renderGraph() {
+    if (!ensureCy() || !rawData) return;
+    const filtered = filterElements();
+    cy.elements().remove();
+    cy.add(filtered.nodes);
+    cy.add(filtered.edges);
+    cy.layout({ name: selectedLayout(), directed: true, spacingFactor: 1.25 }).run();
+    cy.fit(undefined, 30);
+  }
+
+  function loadTraceObject(obj) {
+    if (!obj || obj.format !== "cytoscape" || !obj.elements) {
+      alert("Invalid trace JSON. Expected Cytoscape export with {format:'cytoscape', elements:{...}}");
+      return;
+    }
+    rawData = obj;
+    allElements = {
+      nodes: Array.isArray(obj.elements.nodes) ? obj.elements.nodes : [],
+      edges: Array.isArray(obj.elements.edges) ? obj.elements.edges : []
+    };
+    updateMeta(obj.meta || null);
+    renderGraph();
+  }
+
+  function readFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      try {
+        const obj = JSON.parse(ev.target.result);
+        loadTraceObject(obj);
+      } catch (e) {
+        alert("Failed to parse JSON: " + e);
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  document.getElementById("fileInput").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    readFile(f);
+  });
+
+  document.getElementById("btnFit").addEventListener("click", () => {
+    if (cy) cy.fit(undefined, 30);
+  });
+
+  document.getElementById("btnReset").addEventListener("click", () => {
+    if (!cy) return;
+    cy.style(buildStyle());
+    renderGraph();
+  });
+
+  document.getElementById("btnExportPng").addEventListener("click", () => {
+    if (!cy) return;
+    const dataUrl = cy.png({ full: true, scale: 2.0, bg: "#ffffff" });
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = "knoxel-trace.png";
+    a.click();
+  });
+
+  [
+    "layoutSelect", "searchText", "showCalls", "showKnoxels", "showPhases",
+    "showProxies", "showTags", "onlyCausal",
+    "edgeInput", "edgeOutput", "edgeCreated", "edgeAdd", "edgeExec", "edgeProxy", "edgeTag",
+    "edgeDerivedMemory", "edgeDerivedFeature"
+  ].forEach((id) => {
+    document.getElementById(id).addEventListener("input", renderGraph);
+    document.getElementById(id).addEventListener("change", renderGraph);
+  });
+
+  updateMeta(null);
+</script>
+</body>
+</html>

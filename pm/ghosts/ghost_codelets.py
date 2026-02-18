@@ -26,7 +26,7 @@ from pm.data_structures import Narrative, narrative_definitions, NarrativeTypes,
 from pm.ghosts.base_ghost import BaseGhost, GhostState
 from pm.llm.llm_common import LlmPreset
 from pm.memory_consolidation import MemoryConsolidationConfig, DynamicMemoryConsolidator
-from pm.mental_state_vectors import FullMentalState, VectorModelReservedSize, _collect_axis_bounds, ema_baselined_normalize, _init_ms_from_vec, AppraisalGeneral, AppraisalSocial, compute_state_delta, compute_attention_bias, _clamp01, _features_to_history
+from pm.mental_state_vectors import FullMentalState, VectorModelReservedSize, _collect_axis_bounds, ema_baselined_normalize, _init_ms_from_vec, AppraisalGeneral, AppraisalSocial, compute_state_delta, compute_attention_bias, _clamp01, _features_to_history, compute_partner_expectation_profile, StateRelationship, _clamp11
 from pm.utils.emb_utils import cosine_sim
 from pm.utils.pydantic_utils import basemodel_to_text, pydandic_model_to_dict_jsonable, group_by_int
 from pm.utils.system_utils import generate_start_message
@@ -71,12 +71,16 @@ class GhostCodelets(BaseGhost):
         self._initialize_narratives()
         self.input_knoxels = []
         self.primary_stimulus: Stimulus = None
+        self.last_conversation_partner_entity_id: Optional[int] = None
+        self.partner_expectation_profile: Dict[str, float] = {}
 
     def init_character(self):
         now = datetime.now()
         date_str = now.strftime(timestamp_format)
+        comp_name = str(getattr(self.config, "companion_name", "") or companion_name)
+        usr_name = str(getattr(self.config, "user_name", "") or user_name)
 
-        init_message = generate_start_message(companion_name, user_name, os.path.basename(model_map[LlmPreset.Default.value]["path"]))
+        init_message = generate_start_message(comp_name, usr_name, os.path.basename(model_map[LlmPreset.Default.value]["path"]))
         init_feature = Feature(
             content=init_message,
             feature_type=FeatureType.SystemMessage,
@@ -86,7 +90,7 @@ class GhostCodelets(BaseGhost):
         self.add_knoxel(init_feature)
 
         init_memory = DeclarativeFactKnoxel(
-            content=f"{companion_name} was first activated on {date_str}.",
+            content=f"{comp_name} was first activated on {date_str}.",
             reason="",
             category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
             importance=1,
@@ -99,7 +103,7 @@ class GhostCodelets(BaseGhost):
         self.add_knoxel(init_memory)
 
         init_memory_detailed = DeclarativeFactKnoxel(
-            content=f"{companion_name} was first activated on {date_str}. This is their boot message: {init_message}",
+            content=f"{comp_name} was first activated on {date_str}. This is their boot message: {init_message}",
             reason="",
             category=["world_events", "people_personality", "people", "relationships_good", "world_world_building"],
             importance=1,
@@ -132,11 +136,30 @@ class GhostCodelets(BaseGhost):
 
     def _initialize_actors(self):
         if len(self.all_actors) == 0:
-            actor_user = Actor(content=user_name, aliases=["user", "human"], actor_class=ActorClass.Human)
+            actor_user = Actor(content=self.config.user_name, aliases=["user", "human"], actor_class=ActorClass.Human)
             self.add_knoxel(actor_user)
 
-            actor_ai = Actor(content=companion_name, aliases=["ai", "assistant", "self", "me"], actor_class=ActorClass.Human)
-            self.add_knoxel(actor_user)
+            actor_ai = Actor(content=self.config.companion_name, aliases=["ai", "assistant", "self", "me"], actor_class=ActorClass.AI)
+            self.add_knoxel(actor_ai)
+
+    @staticmethod
+    def _normalize_actor_id(actor_id: Optional[int]) -> Optional[int]:
+        if actor_id is None:
+            return None
+        try:
+            parsed = int(actor_id)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed > 0 else None
+
+    def _resolve_actor_name(self, actor_id: Optional[int], fallback_name: str) -> str:
+        normalized_id = self._normalize_actor_id(actor_id)
+        if normalized_id is None:
+            return fallback_name
+        for actor in self.all_actors:
+            if actor.id == normalized_id and str(actor.content or "").strip():
+                return str(actor.content).strip()
+        return fallback_name
 
     # Add helper to get latest narrative
     def get_narrative(self, narrative_type: NarrativeTypes, target_name: str) -> Optional[Narrative]:
@@ -163,9 +186,9 @@ class GhostCodelets(BaseGhost):
         # (Optional) filter by relationship if you tag features with source_entity_id
         feats = self.all_features
         if conversation_partner_entity_id is not None:
-            feats = [f for f in feats if f.source_entity_id == conversation_partner_entity_id]
+            feats = [f for f in feats if f.source_entity_id in (None, conversation_partner_entity_id)]
 
-        history = [(f.timestamp_creation, f.mental_state_delta) for f in self.all_features]
+        history = [(f.timestamp_creation, f.mental_state_delta) for f in feats]
         vec_len = VectorModelReservedSize
         axis_bounds = _collect_axis_bounds()
 
@@ -186,17 +209,30 @@ class GhostCodelets(BaseGhost):
         if stimulus is not None:
             self.add_knoxel(stimulus)
             self.primary_stimulus = stimulus
+            normalized_actor_id = self._normalize_actor_id(stimulus.source_actor_id)
 
             if stimulus.stimulus_type == StimulusType.UserMessage:
-                name = user_name
+                fallback_name = str(stimulus.source or self.config.user_name)
+                name = self._resolve_actor_name(normalized_actor_id, fallback_name)
                 ftype = FeatureType.Dialogue
             elif stimulus.stimulus_type == StimulusType.CompanionMessage:
-                name = companion_name
+                fallback_name = str(stimulus.source or self.config.companion_name)
+                name = self._resolve_actor_name(normalized_actor_id, fallback_name)
                 ftype = FeatureType.Dialogue
+            elif stimulus.stimulus_type == StimulusType.SystemMessage:
+                name = str(stimulus.source or shell_system_name)
+                ftype = FeatureType.SystemMessage
             else:
                 raise ValueError
 
-            story_feature = Feature(content=stimulus.content, source=name, feature_type=ftype, interlocus=1, causal=False)
+            story_feature = Feature(
+                content=stimulus.content,
+                source=name,
+                feature_type=ftype,
+                interlocus=1,
+                causal=False,
+                source_entity_id=normalized_actor_id,
+            )
 
             self.add_knoxel(story_feature)
             self.input_knoxels.append(story_feature)
@@ -228,11 +264,14 @@ class GhostCodelets(BaseGhost):
                         tick_max_time = new_dt
 
                     if stimulus.stimulus_type == StimulusType.UserMessage:
-                        name = user_name
+                        name = self.config.user_name
                         ftype = FeatureType.Dialogue
                     elif stimulus.stimulus_type == StimulusType.CompanionMessage:
-                        name = companion_name
+                        name = self.config.companion_name
                         ftype = FeatureType.Dialogue
+                    elif stimulus.stimulus_type == StimulusType.SystemMessage:
+                        name = str(stimulus.source or shell_system_name)
+                        ftype = FeatureType.SystemMessage
                     else:
                         raise ValueError()
 
@@ -413,11 +452,36 @@ class GhostCodelets(BaseGhost):
         self.input_knoxels.clear()
         self.states.append(GhostState(tick_id=self._get_current_tick_id()))
 
-        conv_partner = 0
+        conv_partner = None
         for stim in buffer_input:
-            if stim.source_actor_id != 0:
-                conv_partner = stim.source_actor_id
+            actor_id = self._normalize_actor_id(stim.source_actor_id)
+            if actor_id is not None:
+                conv_partner = actor_id
             self.add_stimulus(stim)
+        self.last_conversation_partner_entity_id = conv_partner
+
+        # --- NEW MODULAR CYCLE ---
+        from pm.ghosts.ghost_procedures import BaseProcMain
+        try:
+            return BaseProcMain.cognitive_cycle(self)
+        except Exception:
+            # Keep system usable while modular pipeline matures.
+            logger.exception("Modular cycle failed; falling back to initial CCQ.")
+            return self.get_initial_ccq()
+
+    def _cognitive_cycle_legacy(self, buffer_input: List[Stimulus]) -> ShellCCQUpdate:
+        # start new tick
+        self.current_tick_id += 1
+        self.input_knoxels.clear()
+        self.states.append(GhostState(tick_id=self._get_current_tick_id()))
+
+        conv_partner = None
+        for stim in buffer_input:
+            actor_id = self._normalize_actor_id(stim.source_actor_id)
+            if actor_id is not None:
+                conv_partner = actor_id
+            self.add_stimulus(stim)
+        self.last_conversation_partner_entity_id = conv_partner
 
         # get timeframe for latent emotional state based on ego strengh of the previous latent state
         rtm = 24 * 60
@@ -607,11 +671,14 @@ class GhostCodelets(BaseGhost):
         return ccq
 
     def _compute_mental_state(self, reference_timeframe_minutes: int = 60 * 24, half_life_factor: float = 1):
-        conversation_partner_entity_id = 2
+        conversation_partner_entity_id = getattr(self, "last_conversation_partner_entity_id", None)
         if conversation_partner_entity_id is not None:
-            feats = [f for f in self.all_features if (f is None or f.source_entity_id == conversation_partner_entity_id) and (f.causal)]
+            feats = [
+                f for f in self.all_features
+                if f is not None and f.causal and f.source_entity_id in (None, conversation_partner_entity_id)
+            ]
         else:
-            feats = [f for f in self.all_features if (f.causal)]
+            feats = [f for f in self.all_features if f.causal]
         feats = KnoxelList(feats).order_by(lambda x: x.timestamp_world_begin).to_list()
 
         history = _features_to_history(feats)
@@ -628,8 +695,31 @@ class GhostCodelets(BaseGhost):
             start_level=None,  # or pass last persisted level if you persist between runs
         )
 
-        # Construct MS from normalized readout
-        return _init_ms_from_vec(normalized_vec)
+        # Construct MS from normalized readout.
+        ms = _init_ms_from_vec(normalized_vec)
+
+        profile = compute_partner_expectation_profile(
+            features=list(self.all_features),
+            conversation_partner_entity_id=conversation_partner_entity_id,
+            reference_timeframe_minutes=reference_timeframe_minutes,
+        )
+        self.partner_expectation_profile = profile
+
+        # Project expectation calibration into relationship channels so downstream procedures
+        # can treat "good behavior" as baseline and react faster to underperformance.
+        if conversation_partner_entity_id is not None:
+            rel = ms.state_relationship or StateRelationship(entity_id=conversation_partner_entity_id)
+            rel.entity_id = conversation_partner_entity_id
+            rel.communication_warmth = _clamp11(
+                (1.0 - 0.55) * rel.communication_warmth + 0.55 * profile.get("baseline_quality", 0.0)
+            )
+            rel.conflict_tension = _clamp01(max(rel.conflict_tension, profile.get("disappointment_pressure", 0.0)))
+            rel.reliability_belief = _clamp11(
+                (1.0 - 0.30) * rel.reliability_belief + 0.30 * profile.get("recent_quality", 0.0)
+            )
+            ms.state_relationship = rel
+
+        return ms
 
     def get_ccq(
             self,

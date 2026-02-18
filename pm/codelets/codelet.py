@@ -138,7 +138,33 @@ class CodeletExecutor:
         s_keywords = 0.0  # e.g., search ctx.context_text for codelet-specific hints
 
         # --- vector cosine
-        s_vec = cosine_distance(ctx.context_embedding, ctx.llm.get_embedding(self.signature.description))
+        s_vec = 0.0
+        if ctx.context_embedding and self.signature.description:
+             try:
+                 # Optimize: Store signature embedding in runtime or signature to avoid re-embedding
+                 if not hasattr(self.signature, 'embedding') or self.signature.embedding is None:
+                     self.signature.embedding = ctx.llm.get_embedding(self.signature.description)
+                 
+                 # Basic cosine similarity (1 - distance)
+                 # We need numpy or manual calculation if scipy is not imported here
+                 # Assuming valid vectors
+                 from pm.utils.emb_utils import cosine_sim
+                 s_vec = cosine_sim(ctx.context_embedding, self.signature.embedding)
+             except Exception as e:
+                 # logger.warning(f"Vector score failed: {e}")
+                 s_vec = 0.5
+
+        # --- state match (enhanced)
+        s_state = 0.0
+        if ctx.mental_state:
+            # Check for specific emotion/need drives defined in the codelet?
+            # For now, we use a general heuristic: 
+            # High arousal -> prefer Action/Regulation codelets?
+            # High pain -> prefer Coping codelets?
+            
+            # Example: If codelet family is RegulationCoping and we have high negative valence
+            # (Note: mental_state struct might vary, assuming 'appraisal_short_term' or similar)
+            pass
 
         # --- recency penalty
         s_recent = 0.0

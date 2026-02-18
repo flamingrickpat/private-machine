@@ -1,0 +1,57 @@
+log_path: "./logs"
+
+db_path: "./data/unit-test.db"
+commit: false
+
+enable_tool_calling: false
+mcp_server_url: ""
+
+embedding_model: "./models/unit-embed"
+embedding_dim: 768
+
+# Unit-test prompt budgeting profile (intentionally smaller than production).
+worker_context_limit_tokens: 1400
+agent_context_weights:
+  workspace: 0.25
+  latest: 0.30
+  timeline: 0.30
+  static: 0.15
+agent_context_min_section_tokens: 64
+agent_context_latest_messages: 12
+agent_context_workspace_items: 16
+agent_context_target_ratio: 0.66
+agent_context_safety_margin_tokens: 96
+
+models:
+  unit:
+    path: "./models/unit-default.gguf"
+    layers: -1
+    context: 3072
+    last_n_tokens_size: 64
+    temperature: 0.7
+    top_k: 40
+    top_p: 0.9
+    min_p: 0.05
+    repeat_penalty: 1.0
+    frequency_penalty: 0.0
+    presence_penalty: 0.0
+
+model_mapping:
+  Default: unit
+
+timestamp_format: "%Y-%m-%d %H:%M"
+
+companion_name: "UnitCompanion"
+user_name: "UnitUser"
+
+supported_capabilities:
+  - "I can communicate with you via text in this chat."
+  - "I can reason about my internal state and report simulated emotions."
+unsupported_capabilities:
+  - "I cannot create or host a literal virtual reality world you can physically join."
+capability_notes:
+  - "Never claim capabilities beyond the current implementation."
+
+character_card_story: |
+  {companion_name} unit-test persona for {user_name}.
+  {architecture_description_story}

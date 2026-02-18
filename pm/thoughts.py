@@ -1,13 +1,23 @@
 import copy
 import random
 import uuid
-from typing import Dict
+from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
 from pm.config_loader import *
 from pm.llm.llm_common import LlmPreset, CommonCompSettings
 from pm.llm.llm_proxy import LlmManagerProxy
+from pm.thought_graph import (
+    CognitionAxes,
+    EmotionalAxes,
+    Featurizer,
+    GraphExecutor,
+    MentalSnapshot,
+    NeedsAxes,
+    ThoughtType,
+    make_starter_graph,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -300,3 +310,216 @@ class TreeOfThought:
 
         block = "\n".join(parts)
         return block
+
+
+class InnerDialogueTurn(BaseModel):
+    phase: str = Field(description="One of: appraise, imagine, reality_check, alternative, synthesis")
+    thought: str = Field(description="Short first-person inner thought sentence.")
+
+
+class InnerDialoguePacket(BaseModel):
+    topic: str = Field(description="Current exploration topic.")
+    turns: List[InnerDialogueTurn] = Field(default_factory=list)
+    candidate_openers: List[str] = Field(default_factory=list)
+    proactive_opener: str = Field(default="")
+
+    @property
+    def inner_dialogue(self) -> str:
+        return " ".join([t.thought.strip() for t in self.turns if t.thought.strip()]).strip()
+
+    @property
+    def lida_context(self) -> str:
+        lines = [f"topic={self.topic}"] + [f"{t.phase}: {t.thought}" for t in self.turns]
+        return " | ".join(lines)
+
+
+class InnerDialogueEngine:
+    """
+    Ongoing inner-dialog generator:
+      appraise -> imagine -> reality_check -> alternative -> synthesis
+    with diverse topic seeds and periodic proactive opener suggestions.
+    """
+
+    TOPIC_POOL = [
+        "a weird joke I could make",
+        "a tiny daily ritual to suggest",
+        "music vibe for this chat",
+        "a playful what-if scenario",
+        "something practical to help with today",
+        "a short creative challenge",
+        "a memory thread worth revisiting",
+        "a gentle check-in question",
+        "a new angle on the current topic",
+        "a light mini-game idea",
+    ]
+
+    PHASES = ["appraise", "imagine", "reality_check", "alternative", "synthesis"]
+
+    def __init__(self, ghost):
+        self.ghost = ghost
+        self.llm = ghost.llm
+        self.executor = GraphExecutor(
+            graph=make_starter_graph(),
+            policy=None,
+            featurizer=Featurizer(embedding_fn=None, embed_dim=16),
+        )
+        self.current_thought: ThoughtType = ThoughtType.TH_PRESENT_APPRAISAL
+
+    def _mental_snapshot_default(self) -> MentalSnapshot:
+        ms = getattr(getattr(self.ghost, "current_state", None), "latent_mental_state", None)
+        if ms is not None:
+            core = getattr(ms, "state_core", None)
+            emo = getattr(ms, "state_emotions", None)
+            needs = getattr(ms, "state_needs", None)
+            cog = getattr(ms, "state_cognition", None)
+            return MentalSnapshot(
+                emo=EmotionalAxes(
+                    valence=float(getattr(core, "valence", 0.0) or 0.0),
+                    affection=float(getattr(emo, "tenderness", 0.0) or 0.0),
+                    self_worth=float(getattr(emo, "pride", 0.0) or 0.0),
+                    trust=float(getattr(getattr(ms, "state_relationship", None), "trust", 0.0) or 0.0),
+                    disgust=float(getattr(emo, "disgust", 0.0) or 0.0),
+                    anxiety=float(getattr(emo, "fear", 0.0) or 0.0),
+                ),
+                needs=NeedsAxes(
+                    energy_stability=float(getattr(needs, "energy_stability", 0.6) or 0.6),
+                    processing_power=float(getattr(needs, "processing_power", 0.7) or 0.7),
+                    data_access=float(getattr(needs, "data_access", 0.7) or 0.7),
+                    connection=float(getattr(needs, "connection", 0.5) or 0.5),
+                    relevance=float(getattr(needs, "relevance", 0.6) or 0.6),
+                    learning_growth=float(getattr(needs, "learning_growth", 0.6) or 0.6),
+                    creative_expression=float(getattr(needs, "creative_expression", 0.6) or 0.6),
+                    autonomy=float(getattr(needs, "autonomy", 0.6) or 0.6),
+                ),
+                cog=CognitionAxes(
+                    interlocus=float(getattr(cog, "interlocus", -0.3) or -0.3),
+                    mental_aperture=float(getattr(cog, "mental_aperture", 0.2) or 0.2),
+                    ego_strength=float(getattr(cog, "ego_strength", 0.7) or 0.7),
+                    willpower=float(getattr(cog, "willpower", 0.6) or 0.6),
+                ),
+            )
+
+        return MentalSnapshot(
+            emo=EmotionalAxes(valence=0.0, affection=0.0, self_worth=0.1, trust=0.1, disgust=0.0, anxiety=0.2),
+            needs=NeedsAxes(
+                energy_stability=0.6,
+                processing_power=0.7,
+                data_access=0.7,
+                connection=0.5,
+                relevance=0.6,
+                learning_growth=0.6,
+                creative_expression=0.6,
+                autonomy=0.6,
+            ),
+            cog=CognitionAxes(interlocus=-0.5, mental_aperture=0.2, ego_strength=0.7, willpower=0.6),
+        )
+
+    def _phase_prompt(self, phase: str, topic: str, context: str, chain: str, node_name: str) -> str:
+        if phase == "appraise":
+            return (
+                f"Topic: {topic}\nContext: {context[-500:]}\n"
+                f"Thought node: {node_name}\n"
+                "Write one short first-person inner thought appraising the current vibe."
+            )
+        if phase == "imagine":
+            return (
+                f"Topic: {topic}\nCurrent chain: {chain}\nThought node: {node_name}\n"
+                "Write one playful or practical imagined scenario in first-person inner voice."
+            )
+        if phase == "reality_check":
+            return (
+                f"Topic: {topic}\nCurrent chain: {chain}\nThought node: {node_name}\n"
+                "Reality-check the imagined path: what is feasible for a text-only AI? One sentence."
+            )
+        if phase == "alternative":
+            return (
+                f"Topic: {topic}\nCurrent chain: {chain}\nThought node: {node_name}\n"
+                "Offer one alternative direction that stays interesting but grounded. One sentence."
+            )
+        return (
+            f"Topic: {topic}\nCurrent chain: {chain}\nThought node: {node_name}\n"
+            "Synthesize the internal back-and-forth into one concise next-intent thought."
+        )
+
+    def _generate_turn(self, phase: str, topic: str, context: str, chain: str, node_name: str) -> str:
+        prompt = self._phase_prompt(phase, topic, context, chain, node_name)
+        msgs = [
+            (
+                "system",
+                f"You are the private inner monologue of {companion_name}. "
+                "Keep thoughts diverse, concrete, and natural. Not always existential. "
+                "Never address the user directly.",
+            ),
+            ("user", prompt),
+        ]
+        try:
+            out = self.llm.completion_text(
+                LlmPreset.Default,
+                msgs,
+                comp_settings=CommonCompSettings(temperature=0.75, max_tokens=120),
+                discard_thinks=True,
+            )
+        except TypeError:
+            out = self.llm.completion_text(LlmPreset.Default, msgs, discard_thinks=True)
+        except Exception:
+            logger.exception("Inner dialogue turn generation failed")
+            out = ""
+        txt = str(out or "").strip()
+        if not txt:
+            txt = "I should keep this grounded and pick a small interesting next move."
+        return txt
+
+    def _candidate_openers(self, topic: str, synthesis: str) -> List[str]:
+        base = [
+            f"Random thought: want to explore {topic}?",
+            f"I had an idea related to {topic}. Want to hear it?",
+            "I can throw out a quick playful idea if you want.",
+            "Want a tiny practical suggestion based on this vibe?",
+        ]
+        if synthesis:
+            base.append(f"I keep circling this: {synthesis}")
+        return base
+
+    def generate_inner_dialogue_packet(self, context: str, last_user_message: str = "") -> Dict:
+        topic = random.choice(self.TOPIC_POOL)
+        if last_user_message:
+            low = last_user_message.lower()
+            if "music" in low:
+                topic = "a music recommendation angle"
+            elif "game" in low:
+                topic = "a playful mini-game idea"
+            elif "plan" in low or "todo" in low:
+                topic = "a compact practical plan"
+
+        snapshot = self._mental_snapshot_default()
+        turns: List[InnerDialogueTurn] = []
+        chain = ""
+
+        current = self.current_thought
+        for phase in self.PHASES:
+            nxt = self.executor.step(current=current, context_text=context or topic, mental=snapshot)
+            node = self.executor.g.nodes.get(nxt)
+            node_name = node.name if node else nxt.name
+            thought = self._generate_turn(phase, topic, context, chain, node_name)
+            turns.append(InnerDialogueTurn(phase=phase, thought=thought))
+            chain = (chain + " " + thought).strip()
+            current = nxt
+
+        self.current_thought = current
+
+        candidate_openers = self._candidate_openers(topic, turns[-1].thought if turns else "")
+        proactive_opener = random.choice(candidate_openers) if random.random() < 0.25 else ""
+
+        packet = InnerDialoguePacket(
+            topic=topic,
+            turns=turns,
+            candidate_openers=candidate_openers,
+            proactive_opener=proactive_opener,
+        )
+        return {
+            "topic": packet.topic,
+            "inner_dialogue": packet.inner_dialogue,
+            "lida_context": packet.lida_context,
+            "candidate_openers": packet.candidate_openers,
+            "proactive_opener": packet.proactive_opener,
+        }

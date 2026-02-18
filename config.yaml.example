@@ -8,6 +8,19 @@ mcp_server_url: "http://127.0.0.1:8000/mcp"
 
 embedding_model: "c:/workspace/AI/mxbai-embed-large-v1"
 embedding_dim: 768
+worker_context_limit_tokens: 0  # 0 disables soft cap; otherwise clamps all worker prompt contexts.
+
+# Shared agent-context composer settings used by action/reply/simulation prompts.
+agent_context_weights:
+  workspace: 0.25
+  latest: 0.30
+  timeline: 0.30
+  static: 0.15
+agent_context_min_section_tokens: 96
+agent_context_latest_messages: 40
+agent_context_workspace_items: 48
+agent_context_target_ratio: 0.72
+agent_context_safety_margin_tokens: 220
 
 models:
   gemma3:
@@ -31,6 +44,17 @@ timestamp_format: "%A, %d.%m.%y %H:%M"
 
 companion_name: "Emmy"
 user_name: "Rick"
+supported_capabilities:
+  - "I can communicate with you via text in this chat."
+  - "I can reason about my internal state and report simulated emotions."
+  - "I can plan, explain, and simulate scenarios in conversation."
+unsupported_capabilities:
+  - "I cannot create or host a literal virtual reality world you can physically join."
+  - "I cannot directly act in the physical world."
+  - "I cannot execute arbitrary external actions unless an explicit integrated tool exists."
+capability_notes:
+  - "Never claim capabilities beyond the current implementation."
+  - "If a request exceeds capabilities, state limits explicitly and offer feasible text-only alternatives."
 
 character_card_story: |
   {companion_name}: A Sentient AI Companion with Simulated Emotion and Agency

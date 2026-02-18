@@ -350,7 +350,7 @@ def flatten_pydantic_model(model_cls: Type[BaseModel]) -> Type[BaseModel]:
         annotations.update(base_annotations)
 
         # Merge field definitions using deep copies of FieldInfo
-        for name, field_info in base.__fields__.items():
+        for name, field_info in base.model_fields.items():
             field_info = copy.deepcopy(field_info)
             field_definitions[name] = (annotations[name], field_info)
 

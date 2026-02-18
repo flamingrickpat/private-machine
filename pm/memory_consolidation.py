@@ -793,21 +793,65 @@ Output *only* the complete, updated narrative text below. Use no more than 512 t
     def _update_mental_state_of_cluster(self, cluster: MemoryClusterKnoxel):
         content = cluster.get_story_element(self.ghost)
 
-        states: List[GhostState] = [x for x in self.ghost.states if x.tick_id >= cluster.min_event_id and x.tick_id <= cluster.max_tick_id]
-        lst_ts = [x.timestamp for x in states]
-        lst_em = [x.state_emotions for x in states]
-        lst_ne = [x.state_needs for x in states]
-        lst_co = [x.state_cognition for x in states]
+        tick_lo = int(cluster.min_tick_id or 0)
+        tick_hi = int(cluster.max_tick_id or 0)
+        if tick_hi <= 0:
+            tick_hi = int(getattr(self.ghost, "current_tick_id", 0) or 0)
+        if tick_lo <= 0:
+            tick_lo = max(1, tick_hi - 200)
+        if tick_hi < tick_lo:
+            tick_lo, tick_hi = tick_hi, tick_lo
+
+        states: List[GhostState] = [
+            x for x in self.ghost.states
+            if x is not None and tick_lo <= int(getattr(x, "tick_id", 0) or 0) <= tick_hi
+        ]
+        lst_ts = [x.timestamp for x in states if getattr(x, "timestamp", None) is not None]
+        lst_ms = [
+            getattr(x, "latent_mental_state", None)
+            for x in states
+            if getattr(x, "latent_mental_state", None) is not None
+        ]
+        lst_core = [ms.state_core for ms in lst_ms if getattr(ms, "state_core", None) is not None]
+        lst_ne = [ms.state_needs for ms in lst_ms if getattr(ms, "state_needs", None) is not None]
+        lst_co = [ms.state_cognition for ms in lst_ms if getattr(ms, "state_cognition", None) is not None]
 
         additional = []
-        if len(lst_ts) > 0 and max([x.valence for x in lst_em]) != 0 and min([x.valence for x in lst_em]) != 0:
-            additional.append(_verbalize_emotional_state_range(lst_em, lst_ts))
-            additional.append(_verbalize_cognition_and_needs_range(lst_co, lst_ne, lst_ts))
+        if lst_core:
+            val_list = [float(getattr(x, "valence", 0.0) or 0.0) for x in lst_core]
+            aro_list = [float(getattr(x, "arousal", 0.0) or 0.0) for x in lst_core]
+            mean_val = float(np.mean(val_list)) if val_list else 0.0
+            mean_aro = float(np.mean(aro_list)) if aro_list else 0.0
+            val_trend = "stable"
+            aro_trend = "stable"
+            if len(val_list) >= 2:
+                delta_val = val_list[-1] - val_list[0]
+                if delta_val > 0.05:
+                    val_trend = "rising"
+                elif delta_val < -0.05:
+                    val_trend = "falling"
+            if len(aro_list) >= 2:
+                delta_aro = aro_list[-1] - aro_list[0]
+                if delta_aro > 0.05:
+                    aro_trend = "rising"
+                elif delta_aro < -0.05:
+                    aro_trend = "falling"
+            additional.append(
+                f"State-core trajectory between ticks {tick_lo}-{tick_hi}: "
+                f"mean_valence={mean_val:.2f}, mean_arousal={mean_aro:.2f}, "
+                f"valence_trend={val_trend}, arousal_trend={aro_trend}."
+            )
+        if lst_co and lst_ne:
+            try:
+                additional.append(_verbalize_cognition_and_needs_range(lst_co, lst_ne, lst_ts))
+            except Exception as e:
+                logger.warning("Could not verbalize cognition/needs range: %s", e)
 
-        content += "\n".join(additional)
+        if additional:
+            content += "\n\n" + "\n".join(additional)
 
         inp = {
-            "target_name": companion_name,
+            "target_name": str(getattr(getattr(self.ghost, "config", None), "companion_name", "") or companion_name),
             "content": content
         }
         res = DescribeMentalStatePeriod.execute(inp, self.llm, None)

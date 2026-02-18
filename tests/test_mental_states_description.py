@@ -1,8 +1,4 @@
 import datetime as dt
-import os
-import sys
-sys.path.append("..")
-os.chdir("..")
 
 from pm.mental_states import *
 from pm.mental_states import _describe_emotion_valence_anxiety_range, _verbalize_emotional_state_range, _verbalize_cognition_and_needs_range

@@ -147,8 +147,12 @@ class LlmManagerProxy:
             return queue.Queue()
 
     def get_max_tokens(self, preset: LlmPreset):
-        from pm.config_loader import model_map
-        return int(model_map[preset.value]["context"])
+        from pm.config_loader import model_map, worker_context_limit_tokens
+        ctx = int(model_map[preset.value]["context"])
+        cap = int(worker_context_limit_tokens or 0)
+        if cap > 0:
+            return min(ctx, cap)
+        return ctx
 
     def _submit_task(self, fname: str, args: Dict[str, Any], block=True):
         result_q = self.get_queue()

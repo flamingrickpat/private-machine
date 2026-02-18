@@ -3,7 +3,10 @@ import os
 import sys
 from logging import Filter
 
-import fastmcp.utilities.logging
+try:
+    import fastmcp.utilities.logging as _fastmcp_logging
+except Exception:
+    _fastmcp_logging = None
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +46,8 @@ def setup_logger(log_path, log_filename):
     Args:
         log_filename (str): Name of the log file (without the path).
     """
-    fastmcp.utilities.logging.configure_logging("CRITICAL")
+    if _fastmcp_logging is not None:
+        _fastmcp_logging.configure_logging("CRITICAL")
 
     os.makedirs(log_path, exist_ok=True)
 
@@ -88,5 +92,4 @@ def setup_logger(log_path, log_filename):
     logging.getLogger("_client").setLevel(logging.ERROR)  # Explicitly handle _client
 
     logger.info(f"Logger initialized and logging to {log_file_path}")
-
 
