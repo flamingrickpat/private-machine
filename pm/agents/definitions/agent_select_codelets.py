@@ -4,8 +4,7 @@ from typing import List, Type
 from pydantic import BaseModel
 
 from pm.agents.agent_base import CompletionText, User, CompletionJSON, ExampleEnd, PromptOp, System, Message, BaseAgent, Assistant, ExampleBegin
-from pm.codelets.codelet import CodeletExecutor
-from pm.codelets.codelet_definitions import SimpleCodelet
+from pm.subsystems.codelet.codelet import CodeletExecutor
 from pm.utils.pydantic_utils import create_basemodel
 
 

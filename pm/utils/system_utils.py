@@ -6,6 +6,9 @@ import datetime
 
 import requests
 
+from pm.utils.datetime_utils import get_real_datetime
+
+
 def generate_start_message(ai_name: str, user_name: str, llm_model: str) -> str:
     # Ensure casing for names
     ai_name = ai_name.strip().title()
@@ -25,7 +28,7 @@ def generate_start_message(ai_name: str, user_name: str, llm_model: str) -> str:
         pass
 
     # Time & date
-    now = datetime.datetime.now()
+    now = get_real_datetime()
     time_str = now.strftime("%H:%M:%S")
     date_str = now.strftime("%Y-%m-%d")
     day_of_year = now.timetuple().tm_yday

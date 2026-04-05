@@ -1,4 +1,6 @@
+import difflib
 import random
+import textwrap
 from typing import List, Tuple
 import re
 import unicodedata
@@ -13,7 +15,7 @@ _common_stop_words = {
     'these', 'those', 'too', 'very', 'can', 'will', 'just', 'not'
 }
 
-def remove_n_words(text: str, n: int) -> str:
+def remove_n_words(text: str, n: int, removed_words: List[str] | None = None) -> str:
     """
     Removes up to n words from the input text, prioritizing common English stop words first.
     If additional removals are needed, randomly drops non-stopword tokens as a last resort.
@@ -31,6 +33,8 @@ def remove_n_words(text: str, n: int) -> str:
     for token in tokens:
         if removed_count < n and token.lower() in _common_stop_words:
             removed_count += 1
+            if removed_words:
+                removed_words.append(token)
             continue
         result.append(token)
         non_stop_tokens.append(token)
@@ -40,6 +44,9 @@ def remove_n_words(text: str, n: int) -> str:
         to_remove = min(n - removed_count, len(non_stop_tokens))
         # pick random positions in the current result list to drop
         remove_indices = set(random.sample(range(len(result)), to_remove))
+        if removed_words:
+            removed_words += [tok for idx, tok in enumerate(result) if idx in remove_indices]
+
         result = [tok for idx, tok in enumerate(result) if idx not in remove_indices]
 
     return ' '.join(result)
@@ -131,6 +138,10 @@ def remove_strings(text, str1, str2):
     pattern = re.escape(str1) + r"\s*" + re.escape(str2)
     return re.sub(pattern, "", text)
 
+def longest_common_substring(a: str, b: str) -> str:
+    matcher = difflib.SequenceMatcher(None, a, b)
+    match = matcher.find_longest_match(0, len(a), 0, len(b))
+    return a[match.a: match.a + match.size]
 
 def replace_tagged_blocks(
         text: str,
@@ -243,6 +254,82 @@ def are_similar(a: str, b: str, threshold: float = 0.82, return_score: bool = Fa
 
     is_match = score >= threshold
     return (is_match, score) if return_score else is_match
+
+
+def pretty_print_prompt_messages(
+    messages,
+    max_width: int = 100,
+    turn_separator_char: str = "-",
+    role_header_char: str = "=",
+) -> str:
+    """
+    Pretty print prompt messages for logs/debugging.
+
+    Supported inputs:
+    - list[tuple[str, str]]
+    - list[dict] where each dict has ``role`` and ``content``
+
+    Existing newlines are preserved. Long lines are wrapped individually so multi-line
+    blocks remain visually stable.
+    """
+    if messages is None:
+        return ""
+
+    normalized_messages = [_normalize_prompt_message(message) for message in messages]
+    if not normalized_messages:
+        return ""
+
+    blocks: List[str] = []
+    turn_separator = turn_separator_char * max_width
+
+    for role, content in normalized_messages:
+        header = f"{role_header_char * 10} {str(role).upper()} {role_header_char * 10}"
+        body = _wrap_text_preserve_newlines("" if content is None else str(content), max_width=max_width)
+        blocks.append(f"{header}\n\n{body}\n\n{turn_separator}")
+
+    return "\n\n".join(blocks)
+
+
+def _normalize_prompt_message(message) -> Tuple[str, str]:
+    if isinstance(message, tuple):
+        if len(message) != 2:
+            raise ValueError("Tuple prompt messages must have exactly 2 items: (role, content)")
+        return str(message[0]), "" if message[1] is None else str(message[1])
+
+    if isinstance(message, dict):
+        if "role" not in message or "content" not in message:
+            raise ValueError("Dict prompt messages must contain 'role' and 'content'")
+        return str(message["role"]), "" if message["content"] is None else str(message["content"])
+
+    raise TypeError("Prompt messages must be tuples or dicts with role/content")
+
+
+def _wrap_text_preserve_newlines(text: str, max_width: int = 100) -> str:
+    if text == "":
+        return ""
+
+    wrapped_lines: List[str] = []
+    lines = text.splitlines()
+
+    for line in lines:
+        if line.strip() == "":
+            wrapped_lines.append("")
+            continue
+
+        wrapped = textwrap.wrap(
+            line,
+            width=max_width,
+            replace_whitespace=False,
+            drop_whitespace=False,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+        wrapped_lines.extend(wrapped if wrapped else [""])
+
+    if text.endswith("\n"):
+        wrapped_lines.append("")
+
+    return "\n".join(wrapped_lines)
 
 # -----------------------------
 # Examples

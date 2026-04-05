@@ -1,7 +1,12 @@
+import logging
+import os
+import sys
 import threading
 import time
+import traceback
 from typing import List
 
+logger = logging.getLogger(__name__)
 
 class PerThreadBroadcastEvent:
     """
@@ -101,3 +106,13 @@ def get_all_items_from_queue(queue) -> List:
         except:
             break
     return res
+
+def crash_hard(msg: str) -> None:
+    logger.critical(f"Reason enough to crash: {msg}")
+    ## print traceback of the current exception, if one is active
+    #traceback.print_exc()
+    #print(f"FATAL THREAD ERROR: {msg}", file=sys.stderr, flush=True)
+    #
+    ## hard-kill the whole process
+    #os._exit(1)
+    raise Exception(msg)

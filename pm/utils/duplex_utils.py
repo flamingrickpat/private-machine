@@ -7,6 +7,11 @@ from pydantic import BaseModel
 class DuplexSignalFinish:
     pass
 
+class DuplexAssistantInjectBegin:
+    pass
+
+class DuplexAssistantInjectEnd:
+    pass
 
 class DuplexSignalInterrupt:
     pass
@@ -22,6 +27,9 @@ class DuplexSignalFinished:
     pass
 
 class DuplexStartGenerationText():
+    pass
+
+class DuplexJsonBegin():
     pass
 
 class DuplexStartGenerationTool():
@@ -148,7 +156,7 @@ def duplex_com(queue_in, queue_out, my_name, other_name):
                     buf.append(ch)
                     clear_line_and_print(f"{my_name}: {buf_text()}")
 
-            time.sleep(0.05)
+            time.sleep(0.1)
 
     finally:
         # restore terminal on Unix

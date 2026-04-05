@@ -17,11 +17,19 @@ from datetime import datetime
 from typing import get_args
 from typing import List
 from itertools import groupby
+from dataclasses import fields
 
 from pydantic import BaseModel, Field, create_model
 
+DEFAULT_MAX_JSON_STRING_LEGNGTH = 512
+
 primitives = (bool, str, int, float, type(None))
 T = TypeVar("T")
+
+def dataclass_from_dict(dc, argDict):
+    fieldSet = {f.name for f in fields(dc) if f.init}
+    filteredArgDict = {k : v for k, v in argDict.items() if k in fieldSet}
+    return dc(**filteredArgDict)
 
 def is_primitive(obj):
     return isinstance(obj, primitives)
@@ -335,51 +343,218 @@ def create_delta_basemodel(
 
     return DeltaModel
 
+def generate_pydantic_markdown_str(
+    model: type[BaseModel] | BaseModel,
+    *,
+    indent: str = "  ",
+    max_depth: int = 10,
+    include_descriptions: bool = True,
+    include_constraints: bool = True,
+    show_required: bool = True,
+    use_alias_blocks: bool = False,
+) -> str:
+    if isinstance(model, BaseModel):
+        model = model.__class__
 
-def flatten_pydantic_model(model_cls: Type[BaseModel]) -> Type[BaseModel]:
-    annotations: Dict[str, Any] = {}
-    field_definitions: Dict[str, Any] = {}
+    seen: set[type[BaseModel]] = set()
+    emitted_aliases: set[type[BaseModel]] = set()
 
-    # Walk MRO (BaseModel subclasses only)
-    for base in reversed(model_cls.__mro__):
-        if not issubclass(base, BaseModel):
-            continue
+    def fmt_type(tp: Any) -> str:
+        if tp is Any:
+            return "Any"
 
-        # Merge type hints
-        base_annotations = get_type_hints(base, include_extras=True)
-        annotations.update(base_annotations)
+        if isinstance(tp, type) and issubclass(tp, BaseModel):
+            return tp.__name__
 
-        # Merge field definitions using deep copies of FieldInfo
-        for name, field_info in base.__fields__.items():
-            field_info = copy.deepcopy(field_info)
-            field_definitions[name] = (annotations[name], field_info)
+        origin = get_origin(tp)
+        if origin is None:
+            return getattr(tp, "__name__", str(tp))
 
-    # Dynamically create flattened model
-    flattened = create_model(
-        f"{model_cls.__name__}Flat",
-        __base__=BaseModel,
-        __doc__=model_cls.__doc__,
-        **field_definitions,
-    )
+        args = get_args(tp)
 
-    return flattened
+        if origin in (list,):
+            return f"list[{fmt_type(args[0])}]" if args else "list[Any]"
 
-def basemodel_to_text(instance: BaseModel) -> str:
-    values = []
-    for name, field in instance.model_fields.items():
-        value = getattr(instance, name)
-        if isinstance(value, list):
-            values.append(f"{name}: [")
-            values.append(",".join(str(v) for v in value))
-            values.append("]")
-        elif isinstance(value, BaseModel):
-            continue
-        elif value is not None:
-            values.append(f"{name}: {value}")
-        values.append("\n")
-    return "".join(values)
+        if origin in (dict,):
+            if len(args) == 2:
+                return f"dict[{fmt_type(args[0])}, {fmt_type(args[1])}]"
+            return "dict[Any, Any]"
 
-def generate_pydantic_json_schema_llm(model: type[BaseModel] | BaseModel, beautify: bool = False) -> str:
+        if origin is tuple:
+            return "tuple[" + ", ".join(fmt_type(a) for a in args) + "]"
+
+        # Optional / Union
+        origin_str = str(origin)
+        if "Union" in origin_str or origin is getattr(__import__("types"), "UnionType", object()):
+            return " | ".join(fmt_type(a) for a in args)
+
+        return str(tp)
+
+    def get_constraints(field) -> dict[str, Any]:
+        """
+        Collect constraints from both FieldInfo attributes and metadata entries.
+        Works better with Pydantic v2 Annotated constraints.
+        """
+        out: dict[str, Any] = {}
+
+        direct_keys = (
+            "gt", "ge", "lt", "le",
+            "min_length", "max_length",
+            "min_items", "max_items",
+            "multiple_of", "pattern",
+        )
+
+        for key in direct_keys:
+            val = getattr(field, key, None)
+            if val is not None:
+                out[key] = val
+
+        # Pydantic v2 often stores constraint objects in metadata
+        for meta in getattr(field, "metadata", []) or []:
+            for key in direct_keys:
+                val = getattr(meta, key, None)
+                if val is not None:
+                    out[key] = val
+
+            # some metadata may store length differently
+            if hasattr(meta, "min_length") and getattr(meta, "min_length") is not None:
+                out["min_length"] = getattr(meta, "min_length")
+            if hasattr(meta, "max_length") and getattr(meta, "max_length") is not None:
+                out["max_length"] = getattr(meta, "max_length")
+
+        return out
+
+    def format_numeric_interval(c: dict[str, Any]) -> str | None:
+        has_lower = "gt" in c or "ge" in c
+        has_upper = "lt" in c or "le" in c
+        if not (has_lower or has_upper):
+            return None
+
+        left_bracket = "(" if "gt" in c else "["
+        right_bracket = ")" if "lt" in c else "]"
+        lower = c.get("gt", c.get("ge", "-∞"))
+        upper = c.get("lt", c.get("le", "∞"))
+        return f"{left_bracket}{lower}..{upper}{right_bracket}"
+
+    def format_length_interval(c: dict[str, Any], label: str = "len") -> str | None:
+        lo = c.get("min_length")
+        hi = c.get("max_length")
+        if lo is None and hi is None:
+            return None
+        return f"{label} {lo if lo is not None else 0}..{hi if hi is not None else '∞'}"
+
+    def format_items_interval(c: dict[str, Any]) -> str | None:
+        lo = c.get("min_items")
+        hi = c.get("max_items")
+        if lo is None and hi is None:
+            return None
+        return f"items {lo if lo is not None else 0}..{hi if hi is not None else '∞'}"
+
+    def constraints_str(field, tp: Any) -> str:
+        if not include_constraints:
+            return ""
+
+        c = get_constraints(field)
+        parts: list[str] = []
+
+        origin = get_origin(tp)
+
+        # numeric bounds
+        num_interval = format_numeric_interval(c)
+        if num_interval:
+            parts.append(num_interval)
+
+        # string bounds
+        len_interval = format_length_interval(c)
+        if len_interval:
+            parts.append(len_interval)
+
+        if "pattern" in c:
+            parts.append(f"pattern={c['pattern']}")
+
+        # list bounds
+        if origin in (list,):
+            items_interval = format_items_interval(c)
+            if items_interval:
+                parts.append(items_interval)
+
+        if "multiple_of" in c:
+            parts.append(f"multiple_of={c['multiple_of']}")
+
+        return f" ({', '.join(parts)})" if parts else ""
+
+    def line_for_field(name: str, field, depth: int) -> str:
+        tp = field.annotation
+        tps = fmt_type(tp)
+        req = field.is_required() if hasattr(field, "is_required") else (
+            field.default is None and field.default_factory is None
+        )
+        req_str = " required" if (show_required and req) else (" optional" if show_required else "")
+        desc = (field.description or "").strip() if include_descriptions else ""
+        desc_str = f" — {desc}" if desc else ""
+        return f"{indent*depth}{name}: {tps}{constraints_str(field, tp)}{req_str}{desc_str}"
+
+    def is_model_type(tp: Any) -> type[BaseModel] | None:
+        if isinstance(tp, type) and issubclass(tp, BaseModel):
+            return tp
+        return None
+
+    def walk(cls: type[BaseModel], depth: int) -> list[str]:
+        if depth > max_depth:
+            return [f"{indent*depth}… (max_depth reached)"]
+
+        if cls in seen:
+            return [f"{indent*depth}… ({cls.__name__} recursive)"]
+
+        seen.add(cls)
+        lines: list[str] = []
+
+        for name, field in cls.model_fields.items():
+            lines.append(line_for_field(name, field, depth))
+            tp = field.annotation
+            nested_cls = is_model_type(tp)
+
+            if nested_cls:
+                if use_alias_blocks:
+                    lines.append(f"{indent*(depth+1)}<see {nested_cls.__name__}>")
+                else:
+                    lines.append(f"{indent*(depth+1)}{{")
+                    lines.extend(walk(nested_cls, depth + 2))
+                    lines.append(f"{indent*(depth+1)}}}")
+
+        seen.remove(cls)
+        return lines
+
+    def collect_alias_blocks(cls: type[BaseModel]) -> list[str]:
+        blocks: list[str] = []
+
+        def visit(tp: type[BaseModel]):
+            if tp in emitted_aliases:
+                return
+            emitted_aliases.add(tp)
+
+            nested_lines: list[str] = []
+            for name, field in tp.model_fields.items():
+                nested_lines.append(line_for_field(name, field, 1))
+                child = is_model_type(field.annotation)
+                if child:
+                    nested_lines.append(f"{indent*2}<see {child.__name__}>")
+                    visit(child)
+
+            blocks.append(f"{tp.__name__} := {{")
+            blocks.extend(nested_lines)
+            blocks.append("}")
+
+        visit(cls)
+        return blocks
+
+    if use_alias_blocks:
+        alias_lines = collect_alias_blocks(model)
+        return "\n".join(alias_lines)
+
+    return "\n".join(["```\n{"] + walk(model, 1) + ["}\n```"])
+
+def generate_pydantic_json_schema_str(model: type[BaseModel] | BaseModel, beautify: bool = False) -> str:
     """Recursively resolve $refs and inline all $defs for compact LLM-friendly JSON schema."""
     if isinstance(model, BaseModel):
         model = model.__class__
@@ -407,8 +582,14 @@ def generate_pydantic_json_schema_llm(model: type[BaseModel] | BaseModel, beauti
                     return _clean(obj)
 
             # remove irrelevant keys
-            for k in ["title", "$ref", "$defs", "examples", "default"]:
+            for k in ["title", "$ref", "$defs", "examples", "default", "vector_position"]:
                 obj.pop(k, None)
+
+            if obj.get("type", None) == "string" and "maxLength" not in obj:
+                obj["maxLength"] = DEFAULT_MAX_JSON_STRING_LEGNGTH
+
+            if obj.get("type", None) in ["integer", "float", "double", "number"] and "maxLength" not in obj:
+                obj["maxLength"] = 12
 
             # recursively process subkeys
             for k, v in list(obj.items()):
@@ -422,11 +603,41 @@ def generate_pydantic_json_schema_llm(model: type[BaseModel] | BaseModel, beauti
 
     cleaned = _clean(raw)
 
+    def force_no_additional(node):
+        if isinstance(node, dict):
+            if node.get("type") == "object":
+                node.setdefault("additionalProperties", False)
+            for v in node.values():
+                force_no_additional(v)
+        elif isinstance(node, list):
+            for x in node:
+                force_no_additional(x)
+
     if beautify:
-        res = json.dumps(cleaned, indent=4)
+        res = json.dumps(cleaned, indent=2)
     else:
         res = json.dumps(cleaned, separators=(",", ":"))
     return res
+
+def basemodel_to_text(instance: BaseModel) -> str:
+    """
+    Dump as readable string.
+    :param instance:
+    :return:
+    """
+    values = []
+    for name, field in instance.model_fields.items():
+        value = getattr(instance, name)
+        if isinstance(value, list):
+            values.append(f"{name}: [")
+            values.append(",".join(str(v) for v in value))
+            values.append("]")
+        elif isinstance(value, BaseModel):
+            continue
+        elif value is not None:
+            values.append(f"{name}: {value}")
+        values.append("\n")
+    return "".join(values)
 
 def pydandic_model_to_dict_jsonable(model: BaseModel) -> dict:
     """

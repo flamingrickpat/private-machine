@@ -1,0 +1,280 @@
+# pm/codelets/core.py
+from __future__ import annotations
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import List, Dict, Tuple, Set, Any, Type
+
+from nltk.cluster import cosine_distance
+from pydantic import BaseModel, Field
+import random
+
+from pm.agents.agent_manager import AgentManager
+from pm.agents.definitions.agent_simple_codelet import AgentSimpleCodelet
+from pm.model.knoxel_common import Stimulus
+from pm.model.knoxel_core import KnoxelBase
+from pm.model.knoxel_enums import StimulusGroup, StimulusType
+from pm.model.knoxel_feature import Feature
+from pm.model.mental_state_vectors import FullMentalState
+from pm.subsystems.codelet.codelet_definitions import CodeletFamily, get_all_simple_codelts, SimpleCodelet
+from pm.system.llm.llm_proxy import LlmManagerProxy
+
+
+class CodeletDecision(Enum):
+    SKIP = auto()
+    RUN = auto()
+
+@dataclass
+class CodeletSignature:
+    """Static ‘what this codelet is about’ for embedding & selection."""
+    name: str
+    families: List[CodeletFamily]
+    description: str                 # long_function_description for cosine
+    preferred_sources: StimulusGroup
+    stimulus_whitelist: Set[StimulusType] | None = None  # None = any
+    stimulus_blacklist: Set[StimulusType] | None = None  # None = none
+    prompt: str = None
+
+    def create_embedding_string(self):
+        return f"{self.name}\n{self.description}\n{self.prompt}\n" + ",".join([str(f) for f in self.families])
+
+class ActivationFactors(BaseModel):
+    """Weights used for activation scoring."""
+    w_activation: float = 1.0
+    w_stimulus: float = 0.35
+    w_state: float = 0.20
+    w_keywords: float = 0.10
+    w_vector_match: float = 0.25
+    w_recency_penalty: float = 0.05
+    w_random: float = 0.05
+
+class CodeletRuntime(BaseModel):
+    """Per-codelet runtime state (cooldowns, counters)."""
+    last_fired_tick: int | None = None
+    total_runs: int = 0
+    cooldown_ticks: int = 2
+    activation: float = 0
+
+class CodeletState(BaseModel):
+    states: Dict[str, CodeletRuntime] = Field(default_factory=dict)
+
+class CodeletContext(BaseModel):
+    """Everything a codelet may use to decide & produce features."""
+    class Config:
+        arbitrary_types_allowed = True
+
+    tick_id: int
+    stimulus: Stimulus | None
+    mental_state: FullMentalState | None = None
+    context_embedding: List[float] | None = None
+    llm: LlmManagerProxy | None = None
+
+    story: str = ""
+    story_new: str = ""
+    csm_snapshot: str = ""
+
+class CodeletOutput(BaseModel):
+    """Products (non-causal features) and any logs/metrics."""
+    sources: List[KnoxelBase] = Field(default_factory=list)
+    features: List[Feature] = Field(default_factory=list)
+    mental_state_deltas: List[FullMentalState] = Field(default_factory=list)
+    notes: str = ""
+    # Optional: proposed updates to intentions, etc.
+    # intentions: List['Intention'] = Field(default_factory=list)
+
+class CodeletExecutor:
+    """Subclass this to implement behavior. Keep methods pure-ish."""
+    signature: CodeletSignature
+    runtime: CodeletRuntime
+    factors: ActivationFactors
+    llm: LlmManagerProxy
+
+    def __init__(self,
+                 signature: CodeletSignature,
+                 factors: ActivationFactors | None = None,
+                 runtime: CodeletRuntime | None = None,
+                 llm: LlmManagerProxy | None = None):
+        self.agent_manager = AgentManager()
+        self.result_list: List[CodeletOutput] = []
+        self.signature = signature
+        self.factors = factors or ActivationFactors()
+        self.runtime = runtime or CodeletRuntime()
+        self.llm = llm
+
+    # ---- selection ----------------------------------------------------------
+    def should_consider(self, ctx: CodeletContext) -> bool:
+        st = ctx.stimulus.stimulus_type if ctx.stimulus else None
+        if self.signature.stimulus_whitelist and st not in self.signature.stimulus_whitelist:
+            return False
+        if self.signature.stimulus_blacklist and st in self.signature.stimulus_blacklist:
+            return False
+        return True
+
+    def _cooldown_ok(self, ctx: CodeletContext) -> bool:
+        if self.runtime.last_fired_tick is None: return True
+        return (ctx.tick_id - self.runtime.last_fired_tick) >= self.runtime.cooldown_ticks
+
+    def activation_score(self, ctx: CodeletContext) -> float:
+        """
+        Combine:
+          - stimulus match (type match, quick heuristics)
+          - state match (emotions/needs/cognition)
+          - keyword hints
+          - vector cosine between signature.description and ctx.context_embedding
+          - recency penalty (if it just ran)
+          - small random factor to prevent deadlocks
+        """
+        # --- stimulus
+        s_stim = 0.0
+        if ctx.stimulus:
+            if (not self.signature.stimulus_blacklist) and \
+               (self.signature.stimulus_whitelist is None or ctx.stimulus.stimulus_type in self.signature.stimulus_whitelist):
+                s_stim = 1.0
+
+        # --- state (very rough placeholder hooks)
+        # todo
+        if ctx.mental_state:
+            s_state = max(0.0, min(1.0, abs(ctx.mental_state.state_core.arousal - 0.5) * 0.3
+                                         + abs(ctx.mental_state.state_cognition.mental_aperture) * 0.2
+                                         + ctx.mental_state.state_needs.relevance * 0.5))
+        s_state = 0
+
+        # --- keywords heuristic (define your own tag map per codelet, omitted here)
+        s_keywords = 0.0  # e.g., search ctx.context_text for codelet-specific hints
+
+        # --- vector cosine
+        s_vec = 0.0
+        if ctx.context_embedding and self.signature.description:
+             # Optimize: Store signature embedding in runtime or signature to avoid re-embedding
+             if not hasattr(self.signature, 'embedding') or self.signature.embedding is None:
+                 self.signature.embedding = ctx.llm.get_embedding(self.signature.description)
+
+             # Basic cosine similarity (1 - distance)
+             # We need numpy or manual calculation if scipy is not imported here
+             # Assuming valid vectors
+             from pm.utils.emb_utils import cosine_sim
+             s_vec = cosine_sim(ctx.context_embedding, self.signature.embedding)
+
+        # --- state match (enhanced)
+        s_state = 0.0
+        if ctx.mental_state:
+            # Check for specific emotion/need drives defined in the codelet?
+            # For now, we use a general heuristic: 
+            # High arousal -> prefer Action/Regulation codelets?
+            # High pain -> prefer Coping codelets?
+            
+            # Example: If codelet family is RegulationCoping and we have high negative valence
+            # (Note: mental_state struct might vary, assuming 'appraisal_short_term' or similar)
+            pass
+
+        # --- recency penalty
+        s_recent = 0.0
+        if self.runtime.last_fired_tick is not None:
+            dt = ctx.tick_id - self.runtime.last_fired_tick
+            s_recent = max(0.0, 1.0 - 1.0 / (1.0 + dt))
+
+        # --- random spice
+        s_rand = random.random()
+
+        score = (
+            self.factors.w_activation * self.runtime.activation +
+            self.factors.w_stimulus * s_stim +
+            self.factors.w_state * s_state +
+            self.factors.w_keywords * s_keywords +
+            self.factors.w_vector_match * s_vec -
+            self.factors.w_recency_penalty * s_recent +
+            self.factors.w_random * s_rand
+        )
+
+        # if cooling down, clamp
+        if not self._cooldown_ok(ctx):
+            score *= 0.25
+
+        return max(0.0, min(1.0, score))
+
+    # ---- execution ----------------------------------------------------------
+    def decide(self, ctx: CodeletContext, threshold: float = 0.55) -> CodeletDecision:
+        if not self.should_consider(ctx):
+            return CodeletDecision.SKIP
+        return CodeletDecision.RUN if self.activation_score(ctx) >= threshold else CodeletDecision.SKIP
+
+    def _push_output(self, out: CodeletOutput):
+        self.result_list.append(out)
+
+    def run(self, ctx: CodeletContext) -> Dict[str, Any]:
+        inp = {
+            "context": "",
+            "codelet": self.signature,
+            "story": ctx.story,
+            "story_new": ctx.story_new,
+            "csm_snapshot": ctx.csm_snapshot,
+        }
+        res = AgentSimpleCodelet.execute(inp, ctx.llm, self.agent_manager)
+        return res
+
+    def _meta_log(self, level, message: str):
+        raise NotImplementedError
+
+    def _build_context(self, ctx: CodeletContext) -> str:
+        raise NotImplementedError
+
+    def on_commit(self, ctx: CodeletContext, out: CodeletOutput) -> None:
+        """Called after features are inserted into CSM—update runtime state."""
+        self.runtime.last_fired_tick = ctx.tick_id
+        self.runtime.total_runs += 1
+
+
+# --- registry ---------------------------------------------------------------
+
+class CodeletRegistry:
+    def __init__(self):
+        self._items: Dict[str, CodeletExecutor] = {}
+
+    @property
+    def items(self) -> Dict[str, CodeletExecutor]:
+        return self._items
+
+    def register(self, codelet: CodeletExecutor):
+        key = codelet.signature.name
+        if key in self._items:
+            raise ValueError(f"Codelet '{key}' already registered.")
+        self._items[key] = codelet
+
+    def all(self) -> List[CodeletExecutor]:
+        return list(self._items.values())
+
+    def decay_step(self):
+        pass
+
+    def pick_candidates(self, ctx: CodeletContext) -> List[Tuple[CodeletExecutor, float]]:
+        scored = []
+        for c in self._items.values():
+            if c.should_consider(ctx):
+                scored.append((c, c.activation_score(ctx)))
+        # high to low
+        return sorted(scored, key=lambda x: x[1], reverse=True)
+
+    @classmethod
+    def init_from_simple_codelets(cls, ctx: CodeletContext):
+        res = cls()
+        for base_codelet in get_all_simple_codelts():
+            sig = CodeletSignature(name=base_codelet.name, families=base_codelet.codelet_families, description=base_codelet.description, preferred_sources=StimulusGroup.All, prompt=base_codelet.prompt)
+            cdl = CodeletExecutor(sig, llm=ctx.llm)
+            res.register(cdl)
+        return res
+
+    def get_codelet_state(self) -> CodeletState:
+        res = CodeletState()
+        for k, v in self._items.items():
+            res.states[k] = v.runtime.copy()
+        return res
+
+    def apply_codelet_state(self, cs: CodeletState):
+        for k, v in self._items.items():
+            if k in cs.states.keys():
+                v.runtime = cs.states[k].copy()
+
+    def boost_codelet(self, codelet_type: Type[SimpleCodelet], scalar: float = 0, factor: float = 1):
+        if codelet_type.name in self.items.keys():
+             cdl = self.items[codelet_type.name]
+             cdl.runtime.activation += scalar
+             cdl.runtime.activation *= factor

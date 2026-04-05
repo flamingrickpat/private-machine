@@ -180,3 +180,6 @@ config.yaml
 *.bak
 *.gguf
 /weird_tests
+*.code-workspace
+*.log
+*.txt
