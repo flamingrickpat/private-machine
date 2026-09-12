@@ -1,0 +1,6 @@
+.venv/
+.venv312/
+__pycache__/
+*.pyc
+.runtime/
+.idea/
