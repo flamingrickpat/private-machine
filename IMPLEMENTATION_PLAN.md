@@ -17,7 +17,8 @@ Plan date: September 24, 2026.
 4. Read [models and memory](docs/plan/models-memory.md).
 5. Read [workflow behavior](docs/plan/workflows.md).
 6. Read [test requirements](docs/plan/tests.md).
-7. Implement [work items](docs/plan/work-items.md) in order.
+7. Read [commits and GitHub delivery](docs/plan/delivery.md).
+8. Implement [work items](docs/plan/work-items.md) in order.
 
 The detailed contracts are deliberate. Do not replace them with another framework.
 Keep application wiring separate from execution details and cognitive behavior.
@@ -64,11 +65,15 @@ Those files remain useful historical evidence.
 The current README describes the existing dummy implementation, not the target architecture.
 
 Work in `C:\source\pm\pm_next_v2`.
-Make required generic integration changes in the local `pm-workflows` checkout on branch `steward`.
-Make required Bash Machine and session-isolation changes in the local `pm-coder` checkout.
+Make required generic integration changes in the local `pm-workflows` checkout on branch `main`.
+Make required Bash Machine and session-isolation changes in the local `pm-coder` checkout on branch `main`.
 Preserve existing changes in all repositories.
 Do not change Hadal task folders, workflow state, or its running environment.
-Do not commit, push, replace seed data, or remove task evidence without a separate request.
+The user authorizes tested commits and ordinary pushes in the required PM repositories.
+Publish dependencies first, then update this application from GitHub through uv.
+Commit the application lockfile and push application changes to its existing `master` branch.
+Follow the [delivery procedure](docs/plan/delivery.md) for versions, tests, and commit evidence.
+Do not replace seed data or remove task evidence without a separate request.
 
 ## Completion evidence
 
@@ -77,5 +82,6 @@ A dummy result does not establish live model behavior.
 A conversation test does not establish Minecraft behavior.
 Record the tested revisions, commands, artifacts, failures, and outstanding work.
 
-The planning session performed source inspection and documentation checks only.
-It did not start models, spend API credits, run the proposed acceptance suite, or change application code.
+The original cognitive-planning session performed source inspection and documentation checks only.
+The later delivery setup also publishes existing dependency support and creates a GitHub-backed uv environment.
+Its prototype tests do not replace the proposed live cognitive acceptance suite.

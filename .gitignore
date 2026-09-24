@@ -1,6 +1,12 @@
 .venv/
 .venv312/
+.venv-*/
 __pycache__/
 *.pyc
 .runtime/
 .idea/
+.env
+.env.*
+!.env.example
+config.local.yaml
+.pytest_cache/

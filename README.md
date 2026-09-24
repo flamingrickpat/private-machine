@@ -43,18 +43,20 @@ result metadata go to disk under `.runtime/`. Ghost files stay virtual.
 ## Requirements
 
 - Python 3.12 (the project declares `>=3.12,<3.13`).
-- A virtual environment named `.venv312`.
+- `uv`, Git, and access to the private GitHub repository.
+- One virtual environment named `.venv`, managed by uv.
 
 The direct application dependencies are:
 
-- `pm-workflows` (editable from `../pm-workflows`, branch `steward`)
-- `pm-coder` (editable from `../pm-coder`)
+- `pm-workflows` from GitHub `main`, pinned to a commit in `uv.lock`
+- `pm-coder` from GitHub `main`, pinned to a commit in `uv.lock`
 - `pydantic`, `PyYAML`, `fastmcp`
 
 ## Run
 
 ```powershell
-.\.venv312\Scripts\python.exe demo.py
+uv sync --locked
+uv run --locked python demo.py
 ```
 
 This runs the full scenario set and prints one `PASS` line per check.
@@ -63,17 +65,17 @@ For the real-folder demonstration, select Git Bash first:
 
 ```powershell
 $env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
-.\.venv312\Scripts\python.exe demo.py
+uv run --locked python demo.py
 ```
 
 ```powershell
-.\.venv312\Scripts\python.exe main.py
+uv run --locked python main.py
 ```
 
 This starts the interactive terminal session.
 
 ```powershell
-.\.venv312\Scripts\python.exe -m unittest discover -s tests -v
+uv run --locked python -m unittest discover -s tests -v -b
 ```
 
 This runs direct tests and the separate threaded integration tests.
@@ -81,8 +83,24 @@ This runs direct tests and the separate threaded integration tests.
 For direct debugger checks without module threads:
 
 ```powershell
-.\.venv312\Scripts\python.exe -m unittest tests.test_modules tests.test_shell tests.test_design_contracts -v
+uv run --locked python -m unittest tests.test_modules tests.test_shell tests.test_design_contracts -v -b
 ```
+
+`.python-version` selects Python 3.12. The old Python 3.13 `.venv` and editable `.venv312` are obsolete.
+Select `.venv\Scripts\python.exe` as the IDE interpreter.
+Normal startup uses the committed lockfile and requires no sibling source checkouts.
+
+## Update from GitHub
+
+```powershell
+git pull --ff-only
+uv sync --locked
+uv run --locked python main.py
+```
+
+Implementation agents publish dependencies before refreshing this application's lockfile.
+Read [commits and GitHub delivery](docs/plan/delivery.md) for the authorized branches, version rules, and release sequence.
+Do not replace the lockfile's tested commits with local editable dependencies for final validation.
 
 ## Commands in the terminal
 
@@ -148,7 +166,7 @@ LLM import and the `CodeletState` import were removed from the copied subset.
 
 ## Changes in pm-workflows
 
-On the `steward` branch:
+On `main`, included in version 0.3.0:
 
 - `pm_workflows/working_target.py` — new `CommandResult`, `WorkingEnvironment`,
   and `WorkingTarget` ABCs.
@@ -162,7 +180,7 @@ On the `steward` branch:
 
 The existing real-folder workflow path still works without a runtime.
 
-The audit also adds two compatible options to the local pm-coder checkout:
+The audit also adds two compatible options, published in pm-coder 0.7.0:
 `BashMachine.write_texts()` registers a lazy projection in one batch.
 `exec(..., strip_output=False)` preserves file whitespace.
 The prototype uses both through its working target.
@@ -174,7 +192,7 @@ The prototype uses both through its working target.
 - `pm-workflows`: 55 runtime-context, driver, and kernel tests passed.
 - `pm-coder`: 30 real BashMachine tests passed.
 
-The audit used the prototype's `.venv312` interpreter for all three repositories.
+The original audit used `.venv312`. The current delivery setup uses the single `.venv` and GitHub-installed dependencies.
 
 ## Remaining integration gap
 

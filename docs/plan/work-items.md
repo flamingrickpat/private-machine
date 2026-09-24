@@ -9,6 +9,7 @@ Report a genuine conflict instead of silently changing the plan.
 
 Parent: [implementation handoff](../../IMPLEMENTATION_PLAN.md).
 Acceptance details: [test requirements](tests.md).
+Commit and package procedure: [GitHub delivery](delivery.md).
 
 ## Source map and observed gaps
 
@@ -40,7 +41,7 @@ The application currently lacks the proposed persistence and live cognition.
 
 1. Inspect instructions, Git status, and branch names in every affected repository.
 2. Preserve existing changes in `pm-workflows` and `pm-coder`.
-3. Use the existing Python 3.12 environment and editable dependency checkouts.
+3. Use the Python 3.12 `.venv` and GitHub dependency revisions from `uv.lock`.
 4. Run the current application tests and demonstration.
 5. Run affected dependency tests.
 6. Record commands, revisions, and actual results.
@@ -48,21 +49,23 @@ The application currently lacks the proposed persistence and live cognition.
 Useful existing commands, from this repository:
 
 ```powershell
-.\.venv312\Scripts\python.exe -m unittest discover -s tests -v
-.\.venv312\Scripts\python.exe demo.py
+uv sync --locked
+uv run --locked python -m unittest discover -s tests -v -b
+uv run --locked python demo.py
 ```
 
 The real-folder demonstration needs the working Git Bash on PATH, not the unusable WSL launcher.
-The earlier audit recorded 34 application tests, 55 workflow tests, 30 Bash Machine tests, and 21 demonstration checks.
-Those counts are historical evidence, not fresh test results.
+The delivery baseline recorded 34 application tests, 55 workflow tests, 30 Bash Machine tests, and 21 demonstration checks.
+The [delivery record](delivery.md#bootstrap-releases) identifies the tested setup. Repeat these checks when implementation starts.
 
 Gate: known baseline, preserved user changes, and no dependency changes in the running Hadal environment.
+For dependency development, use their source checkouts. Final application validation uses their pushed GitHub packages.
 
 ## W1: model connections and existing embedding cache
 
 Implement `runtime/models.py`, explicit activation, and `pm_core/embeddings.py`.
 Add credential-free example config and ignored local secret config.
-The current `.gitignore` does not yet ignore `.env`, so add that exclusion before local secret files exist.
+The delivery setup ignores `.env` and local config. Keep those exclusions before adding secret files.
 Implement both chat startup forms and the single embedding connection.
 Reuse legacy cached vectors without rewriting their directory.
 Correct cosine handling for non-unit vectors.
@@ -165,5 +168,7 @@ Do not substitute a conversation simulation for this result.
 
 Record changed files, executed commands, evidence paths, and remaining failures.
 Keep the README accurate about current behavior rather than planned behavior.
-Do not make commits or pushes unless the user requests them.
+Commit and push tested work under the user's standing authorization.
+Publish changed dependencies before refreshing, testing, and pushing the application lockfile.
+Include package versions, commit links, and actual test results in the completion report.
 Do not add internal thought, a doctor, containers, a broker, or an optimization framework to fill spare time.
