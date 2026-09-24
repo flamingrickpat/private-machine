@@ -8,6 +8,13 @@ boundaries before agentic behavior is added.
 The banner says `DUMMY COGNITION — no LLM calls`. No LLM, Minecraft server, or
 embedding endpoint is contacted.
 
+## Next implementation plan
+
+The current code remains the dummy prototype described here.
+[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) specifies the next real companion implementation.
+It separates wiring, runtime contracts, models and memory, workflow behavior, tests, and ordered work items.
+The plan supersedes the old dummy-only handoff. It does not claim that the new features already work.
+
 ## What it does
 
 One process runs module threads over an in-memory bus:
@@ -179,7 +186,8 @@ integration remains a future step.
 
 ## Next step
 
-The next development step replaces the fixed Python roles in `workflows/roles.py`
-with agents, while keeping the module wiring in `modules.py` unchanged.
+The next development work follows [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+Some workflows use direct model calls through Python roles. Others use tool-capable agents.
+The plan retains the shared execution path and moves cognitive behavior into separate workflow folders.
 
 Read [AUDIT.md](AUDIT.md) for the design audit and remaining prototype limits.

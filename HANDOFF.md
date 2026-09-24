@@ -1,3 +1,8 @@
+> Historical dummy-prototype handoff, September 12, 2026.
+> For the next implementation, start with [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+> The new plan supersedes the dummy-only scope and the earlier supporting specifications.
+> This file remains as evidence for the existing prototype.
+
 Build a small, runnable Spamuel prototype in `C:\source\pm\pm_next_v2`.
 Use fixed cognitive outputs, real Ghost objects, the real Bash Machine, and the real workflow kernel.
 The purpose is to explore module boundaries before we add agentic behavior.
