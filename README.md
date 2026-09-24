@@ -17,9 +17,11 @@ UserInputProxy -> bus -> MainCogLoop
                            |
                  GWT + action schemas
                            |
-     +------------+--------+------------+----------------+
-     v            v        v            v                v
-  Dialogue   Schedule   CheckSubprocess   InnerThought  ToolPlusDialogue
+     +------------+------------+----------------+
+     v            v            v                v
+  Dialogue     Schedule   CheckSubprocess   ToolPlusDialogue
+
+InnerThought -> bus -> MainCogLoop
 ```
 
 Every user input enters `MainCogLoop` first. It creates one GWT record and
@@ -28,8 +30,8 @@ results through the same bus. Public replies reach the terminal output.
 
 The Ghost stays in RAM. Its records are projected into a virtual Bash
 environment as read-only files (`/work/ghost/knoxels/<id>.yaml`). The Bash
-machine lives in memory too. Only the workflow kernel's own journal goes to
-disk under `.runtime/`.
+machine lives in memory too. Kernel journals, requests, state, traces, and
+result metadata go to disk under `.runtime/`. Ghost files stay virtual.
 
 ## Requirements
 
@@ -49,6 +51,13 @@ The direct application dependencies are:
 ```
 
 This runs the full scenario set and prints one `PASS` line per check.
+On this machine, PATH selects an unusable WSL Bash launcher.
+For the real-folder demonstration, select Git Bash first:
+
+```powershell
+$env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
+.\.venv312\Scripts\python.exe demo.py
+```
 
 ```powershell
 .\.venv312\Scripts\python.exe main.py
@@ -60,7 +69,13 @@ This starts the interactive terminal session.
 .\.venv312\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-This runs the direct, thread-free module tests.
+This runs direct tests and the separate threaded integration tests.
+
+For direct debugger checks without module threads:
+
+```powershell
+.\.venv312\Scripts\python.exe -m unittest tests.test_modules tests.test_shell tests.test_design_contracts -v
+```
 
 ## Commands in the terminal
 
@@ -80,8 +95,12 @@ These fixed outputs are prototype behavior, not real character policy.
 This defines no threads and performs no sleeps.
 
 ```python
+import time
+from main import build_app, DEFAULT_SEED
+
+replies = []
 app = build_app(
-    seed_path="data/spamuel_agentic_canon.yaml",
+    seed_path=DEFAULT_SEED,
     runtime_root=".runtime",
     thought_period=30.0,
     task_period=1.0,
@@ -136,21 +155,31 @@ On the `steward` branch:
 
 The existing real-folder workflow path still works without a runtime.
 
+The audit also adds two compatible options to the local pm-coder checkout:
+`BashMachine.write_texts()` registers a lazy projection in one batch.
+`exec(..., strip_output=False)` preserves file whitespace.
+The prototype uses both through its working target.
+
 ## Verification
 
-- `python demo.py`: 21 out of 21 checks passed.
-- `python -m unittest discover -s tests`: 25 tests passed.
-- `pm-workflows` checks: `pytest tests/test_runtime_context.py` and the existing
-  driver, kernel, and python-role tests all passed.
+- `python demo.py`: 21 checks passed with Git Bash first on PATH.
+- unittest discovery: 34 tests passed, including the full Spamuel seed and threaded integration checks.
+- `pm-workflows`: 55 runtime-context, driver, and kernel tests passed.
+- `pm-coder`: 30 real BashMachine tests passed.
+
+The audit used the prototype's `.venv312` interpreter for all three repositories.
 
 ## Remaining integration gap
 
 The manifest template in the handoff omitted `on_invalid` for role phases. The
 current kernel requires it. Every manifest here adds
-`on_invalid: {action: stop}`. This is the only place the handoff template did
-not match the installed kernel.
+`on_invalid: {action: stop}`. The audit records other design corrections in
+`AUDIT.md`. Virtual targets currently work through Python roles. Agent-driver
+integration remains a future step.
 
 ## Next step
 
 The next development step replaces the fixed Python roles in `workflows/roles.py`
 with agents, while keeping the module wiring in `modules.py` unchanged.
+
+Read [AUDIT.md](AUDIT.md) for the design audit and remaining prototype limits.

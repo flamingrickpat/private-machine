@@ -166,12 +166,13 @@ class ShellModule(ABC):
 
     def _run_loop(self) -> None:
         try:
-            while not self.stop_event.is_set():
-                self.step(block=True)
+            try:
+                while not self.stop_event.is_set():
+                    self.step(block=True)
+            finally:
+                self._finish_termination()
         except BaseException as exc:  # a crash must reach the application
             self.on_error(exc)
-        finally:
-            self._finish_termination()
 
     def _finish_termination(self) -> None:
         if self._termination_done:

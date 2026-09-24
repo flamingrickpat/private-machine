@@ -7,16 +7,17 @@ stays omitted for both Bash and MCP access.
 from __future__ import annotations
 
 from typing import Any, Callable, Mapping
+from copy import deepcopy
 
 from fastmcp import FastMCP
 
 
 def _visible_knoxels(environment) -> dict[int, dict]:
-    return getattr(environment, "visible_knoxels", {})
+    return environment.visible_knoxels
 
 
 def _visible_gwt(environment) -> dict[int, dict]:
-    return getattr(environment, "visible_gwt", {})
+    return environment.visible_gwt
 
 
 def build_tools(environment) -> Mapping[str, Callable[..., Any]]:
@@ -26,7 +27,7 @@ def build_tools(environment) -> Mapping[str, Callable[..., Any]]:
         record = _visible_knoxels(environment).get(knoxel_id)
         if record is None:
             raise KeyError(knoxel_id)
-        return record
+        return deepcopy(record)
 
     def ghost_search(query: str) -> list[dict]:
         needle = query.casefold()
@@ -35,14 +36,14 @@ def build_tools(environment) -> Mapping[str, Callable[..., Any]]:
             record = _visible_knoxels(environment)[knoxel_id]
             content = str(record.get("data", {}).get("content", ""))
             if needle in content.casefold():
-                matches.append(record)
+                matches.append(deepcopy(record))
         return matches
 
     def ghost_gwt(tick_id: int) -> dict:
         record = _visible_gwt(environment).get(tick_id)
         if record is None:
             raise KeyError(tick_id)
-        return record
+        return deepcopy(record)
 
     return {
         "ghost_get": ghost_get,

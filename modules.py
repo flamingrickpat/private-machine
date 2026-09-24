@@ -16,6 +16,7 @@ from pm_core.model.knoxel_state_change import AttentionFrameKnoxel
 
 from shell import Envelope, ShellModule, _new_id
 from workflow_adapter import ShellModuleWorkflow
+from ghost_mcp import build_tools
 
 ACTION_TYPE = {
     "dialogue": ActionType.Reply,
@@ -129,7 +130,42 @@ class UserInputProxy(ShellModule):
                 self.emit_reply(feature.content)
 
 
-class MainCogLoop(ShellModuleWorkflow):
+class CognitiveWorkflow(ShellModuleWorkflow):
+    """Knoxel routing shared by cognitive workflows, outside the generic runner."""
+
+    def __init__(self, *args, ghost, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ghost = ghost
+
+    def prepare_input(self, batch: list[Envelope]) -> dict:
+        # Resolve input through the invocation scope, never the unrestricted Ghost.
+        tools = build_tools(self.last_environment)
+        messages = []
+        for envelope in batch:
+            message = {
+                "id": envelope.id,
+                "source": envelope.source,
+                "kind": envelope.kind,
+                "topic": envelope.topic,
+                "correlation_id": envelope.correlation_id,
+                "target": envelope.target,
+                "payload": envelope.payload,
+                "knoxel": tools["ghost_get"](envelope.payload["knoxel_id"]),
+            }
+            if "gwt_tick" in envelope.payload:
+                message["gwt"] = {
+                    "__type__": "GwtTurnRecord",
+                    "data": tools["ghost_gwt"](envelope.payload["gwt_tick"]),
+                }
+            messages.append(message)
+        return {
+            "invocation_id": self.invocation_id,
+            "module_id": self.module_id,
+            "messages": messages,
+        }
+
+
+class MainCogLoop(CognitiveWorkflow):
     """Stores incoming knoxels, creates one GWT, and selects fixed actions."""
 
     DATA_TOPICS = frozenset({
@@ -199,7 +235,7 @@ class MainCogLoop(ShellModuleWorkflow):
             ))
 
 
-class Dialogue(ShellModuleWorkflow):
+class Dialogue(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"action.dialogue"})
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
@@ -214,7 +250,7 @@ class Dialogue(ShellModuleWorkflow):
             ))
 
 
-class InnerThoughtLoop(ShellModuleWorkflow):
+class InnerThoughtLoop(CognitiveWorkflow):
     DATA_TOPICS = frozenset()
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
@@ -227,7 +263,7 @@ class InnerThoughtLoop(ShellModuleWorkflow):
         ))
 
 
-class ScheduleSubprocesses(ShellModuleWorkflow):
+class ScheduleSubprocesses(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"action.schedule"})
 
     def __init__(self, module_id, bus, on_error, clock, tick_seconds, *,
@@ -280,7 +316,7 @@ class ScheduleSubprocesses(ShellModuleWorkflow):
             self._emit(record["task_id"], "terminated", record["correlation_id"])
 
 
-class CheckSubprocess(ShellModuleWorkflow):
+class CheckSubprocess(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"action.status"})
 
     def __init__(self, module_id, bus, on_error, clock, tick_seconds, *,
@@ -308,20 +344,8 @@ class CheckSubprocess(ShellModuleWorkflow):
             ))
 
 
-class ToolPlusDialogue(ShellModuleWorkflow):
+class ToolPlusDialogue(Dialogue):
     DATA_TOPICS = frozenset({"action.tool_dialogue"})
-
-    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
-        for reply in report.get("replies", []):
-            feature = _feature(
-                self.ghost, reply["content"], FeatureType.Dialogue,
-                source=self.ghost.get_companion_name(), interlocus=InterlocusType.Public,
-            )
-            self.bus.put(_envelope(
-                self.module_id, "data", "dialogue.reply",
-                reply["correlation_id"], {"knoxel_id": feature.id},
-            ))
-
 
 __all__ = [
     "TaskTable",

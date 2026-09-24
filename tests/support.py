@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+from functools import cache
 import tempfile
 from pathlib import Path
 
@@ -56,6 +57,7 @@ class Recorder:
         self.events.append(envelope)
 
 
+@cache
 def load_seed_state():
     state = load_ghost_state_from_yaml(SEED_PATH)
     return ghost_state_to_dict(state)

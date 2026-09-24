@@ -34,16 +34,12 @@ class _LazyGhostFile:
         self._data = data
         self._rendered: str | None = None
 
-    def get(self) -> str:
+    def content(self) -> str:
         if self._rendered is None:
             self._rendered = yaml.safe_dump(
                 self._data, sort_keys=False, allow_unicode=True,
             )
         return self._rendered
-
-    def known_size(self) -> int | None:
-        return None
-
 
 def _index_entry(knoxel_id: int, record: dict) -> dict:
     data = record["data"]
@@ -68,11 +64,11 @@ class GhostBashEnvironment(WorkingEnvironment):
     ):
         self.visible_knoxels = visible_knoxels
         self.visible_gwt = visible_gwt
-        self.machine = BashMachine(cwd="/work")
+        self.machine = BashMachine()
 
         # Host-only skeleton setup in one bash call. The workflow user's first
         # ``cd /work`` needs /work to exist; inbox/outbox/scratch hold traffic.
-        result = self.machine._admin.run(
+        result = self.machine.exec("user",
             "mkdir -p /work/inbox /work/outbox /work/scratch "
             "/work/ghost/knoxels /work/ghost/gwt"
         )
@@ -80,18 +76,17 @@ class GhostBashEnvironment(WorkingEnvironment):
             raise RuntimeError(result.stderr)
 
         index = {"mode": mode, "knoxels": []}
+        files = {}
         for knoxel_id in sorted(visible_knoxels):
             record = visible_knoxels[knoxel_id]
             path = f"/work/ghost/knoxels/{knoxel_id}.yaml"
-            self.machine._content[path] = _LazyGhostFile(record)
-            self.machine._acl[path] = Access.R
+            files[path] = _LazyGhostFile(record)
             index["knoxels"].append(_index_entry(knoxel_id, record))
         for tick in sorted(visible_gwt):
             path = f"/work/ghost/gwt/{tick}.yaml"
-            self.machine._content[path] = _LazyGhostFile(visible_gwt[tick])
-            self.machine._acl[path] = Access.R
-        self.machine._content["/work/ghost/index.yaml"] = _LazyGhostFile(index)
-        self.machine._acl["/work/ghost/index.yaml"] = Access.R
+            files[path] = _LazyGhostFile(visible_gwt[tick])
+        files["/work/ghost/index.yaml"] = _LazyGhostFile(index)
+        self.machine.write_texts(files, access=Access.R)
 
         self.machine.add_user("workflow", cwd="/work")
 
@@ -100,7 +95,7 @@ class GhostBashEnvironment(WorkingEnvironment):
         return posixpath.join("/work", path)
 
     def read_text(self, path: str) -> str:
-        result = self.machine.exec("workflow", f"cat -- {shlex.quote(self._abs(path))}")
+        result = self.exec(f"cat -- {shlex.quote(self._abs(path))}")
         if result.exit_code != 0:
             raise RuntimeError(result.stderr or f"read failed: {path}")
         return result.stdout
@@ -112,7 +107,7 @@ class GhostBashEnvironment(WorkingEnvironment):
             f"mkdir -p -- {shlex.quote(parent)} && "
             f"printf '%s' {shlex.quote(text)} > {shlex.quote(target)}"
         )
-        result = self.machine.exec("workflow", command)
+        result = self.exec(command)
         if result.exit_code != 0:
             raise RuntimeError(result.stderr or f"write failed: {path}")
 
@@ -123,14 +118,16 @@ class GhostBashEnvironment(WorkingEnvironment):
             f"mkdir -p -- {shlex.quote(posixpath.dirname(dst))} && "
             f"mv -- {shlex.quote(src)} {shlex.quote(dst)}"
         )
-        result = self.machine.exec("workflow", command)
+        result = self.exec(command)
         if result.exit_code != 0:
             raise RuntimeError(result.stderr or f"move failed: {source} -> {destination}")
 
     def list_files(self, directory: str) -> list[str]:
         target = self._abs(directory)
-        command = f"find {shlex.quote(target)} -maxdepth 1 -type f 2>/dev/null"
-        result = self.machine.exec("workflow", command)
+        command = f"find {shlex.quote(target)} -maxdepth 1 -type f"
+        result = self.exec(command)
+        if result.exit_code != 0:
+            raise RuntimeError(result.stderr)
         out: list[str] = []
         for line in result.stdout.splitlines():
             line = line.strip()
@@ -140,7 +137,7 @@ class GhostBashEnvironment(WorkingEnvironment):
         return sorted(out)
 
     def exec(self, command: str) -> CommandResult:
-        result = self.machine.exec("workflow", command)
+        result = self.machine.exec("workflow", command, strip_output=False)
         return CommandResult(
             stdout=result.stdout, stderr=result.stderr, exit_code=result.exit_code,
         )

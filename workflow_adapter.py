@@ -17,7 +17,6 @@ import yaml
 from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import WorkflowRuntime
 
-from ghost import serialize_knoxel
 from shell import Envelope, ShellModule
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -38,56 +37,20 @@ class ShellModuleWorkflow(ShellModule):
         workflow: Path,
         tools_factory: Callable[[Any], Mapping[str, Callable]],
         runtime_root: Path,
-        ghost,
+        success_status: str = "done",
     ) -> None:
         super().__init__(module_id, bus, on_error, clock, tick_seconds)
         self.working_target = working_target
         self.workflow = Path(workflow)
         self.tools_factory = tools_factory
         self.runtime_root = Path(runtime_root)
-        self.ghost = ghost
+        self.success_status = success_status
         self.last_environment: Any | None = None
         self.last_kernel_summary: dict | None = None
 
-    # ------------------------------------------------------------ shared writes
-
-    def _serialize_reference(self, payload: dict, key: str) -> dict | None:
-        value = payload.get(key)
-        if value is None:
-            return None
-        knoxel = self.ghost.get_knoxel_by_id(value)
-        if knoxel is None:
-            return None
-        return serialize_knoxel(knoxel)
-
+    @abstractmethod
     def prepare_input(self, batch: list) -> dict:
-        messages: list[dict] = []
-        for envelope in batch:
-            message = {
-                "id": envelope.id,
-                "source": envelope.source,
-                "kind": envelope.kind,
-                "topic": envelope.topic,
-                "correlation_id": envelope.correlation_id,
-                "payload": envelope.payload,
-            }
-            knoxel = self._serialize_reference(envelope.payload, "knoxel_id")
-            if knoxel is not None:
-                message["knoxel"] = knoxel
-            tick = envelope.payload.get("gwt_tick")
-            if tick is not None:
-                record = self.ghost.gwt_turns.get(tick)
-                if record is not None:
-                    message["gwt"] = {
-                        "__type__": "GwtTurnRecord",
-                        "data": record.model_dump(mode="json"),
-                    }
-            messages.append(message)
-        return {
-            "invocation_id": self.invocation_id,
-            "module_id": self.module_id,
-            "messages": messages,
-        }
+        """Convert bus input into this workflow's request format."""
 
     @abstractmethod
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
@@ -98,6 +61,7 @@ class ShellModuleWorkflow(ShellModule):
     def handle_batch(self, batch: list[Envelope]) -> None:
         invocation_id = uuid.uuid4().hex
         self.invocation_id = invocation_id
+        self.last_kernel_summary = None
         environment = self.working_target.open(invocation_id)
         self.last_environment = environment
 
@@ -131,7 +95,9 @@ class ShellModuleWorkflow(ShellModule):
 
         if summary.get("terminal_status") == "terminated" or summary.get("exit_reason") == "terminated":
             return
-        if summary.get("terminal_status") != "done":
+        # An explicit `stop` route is terminal but sets ok=False in this kernel.
+        expected_exits = {"completed", f"{summary['terminal_phase']}: stop"}
+        if summary["terminal_status"] != self.success_status or summary["exit_reason"] not in expected_exits:
             raise RuntimeError(
                 f"workflow {self.module_id} ended unsuccessfully: {summary}"
             )
@@ -139,6 +105,8 @@ class ShellModuleWorkflow(ShellModule):
             return
 
         report = yaml.safe_load(environment.read_text("outbox/report.yaml"))
+        if self.stop_event.is_set():
+            return
         self.publish_output(report, batch)
 
 
