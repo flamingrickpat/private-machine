@@ -1,0 +1,182 @@
+# Model connections and embedding cache
+
+## Current scope
+
+W1 provides model connections, explicit activation, direct chat calls, and one embedding service.
+The terminal companion still uses dummy cognition. W4 and W5 connect real dialogue and cognitive workflows.
+
+Parent: [README](../README.md).
+Contracts: [models and memory](plan/models-memory.md).
+Delivery evidence: [W1 record](work-items/W1.md).
+
+## Config
+
+The credential-free example is [config.example.yaml](../config.example.yaml).
+It contains `Default`, `UnitTestEvaluator`, and one `embedding` entry.
+Both chat presets initially use the same Qwen endpoint.
+This is a shared-backend evaluation, not an independent neutral reviewer.
+
+The embedding request uses `perplexity/pplx-embed-v1-0.6b`.
+OpenRouter currently returns `pplx-embed-v1-0.6b` in its response.
+The explicit `response_model` field permits that alias. Other model names fail validation.
+The request model remains the cache identity, so existing vectors stay compatible.
+
+### Local setup
+
+1. Copy `config.example.yaml` to `config.local.yaml` for local changes.
+2. Set `OPENROUTER_API_KEY` in the local process environment.
+3. For a literal key instead, configure `embedding.api_key` in that ignored file.
+4. For a literal key, remove `embedding.api_key_env`.
+5. Start the configured Qwen endpoint before the live tests.
+6. Set `PM_MODEL_CONFIG` to select another complete config file for those tests.
+
+The client does not load `.env` files automatically.
+The live tests use `config.local.yaml` when it exists. Otherwise, they use the example config.
+Library code receives a config path explicitly.
+Relative script and cache paths resolve from that file's directory.
+Config parsing and connection resolution make no network requests.
+
+## Code ownership
+
+| File | Responsibility |
+| --- | --- |
+| `runtime/models.py` | Config, presets, credential resolution, redaction |
+| `runtime/model_io.py` | Shared HTTP requests, retries, cancellation |
+| `runtime/model_activation.py` | Finite scripts, readiness, active calls, chat responses |
+| `pm_core/embeddings.py` | Legacy reads, new cache writes, scoped preparation, cosine search |
+
+These files contain no character policy or cognitive routing.
+No dependency repository needed a change for W1.
+
+## Direct debugger path
+
+This example makes real requests without a shell module thread.
+Breakpoints inside `activate()` and `complete()` use the production path.
+
+```python
+import asyncio
+from runtime.models import load_config, resolve_connection
+from runtime.model_activation import ChatClient, ModelActivation
+
+async def run_once():
+    config = load_config("config.example.yaml")
+    connection = resolve_connection(config, preset="Default")
+    owner = ModelActivation()
+    await owner.activate(connection, live_test=True)
+    client = ChatClient(connection, owner, live_test=True)
+    result = await client.complete([
+        {"role": "user", "content": "Reply with one short sentence."},
+    ])
+    print(result.choices[0].message.content)
+
+asyncio.run(run_once())
+```
+
+An explicit connection needs no config map:
+
+```python
+connection = resolve_connection(
+    base_url="http://127.0.0.1:8080/v1",
+    model="qwen",
+    api_key="",
+)
+```
+
+An omitted selection uses `Default` from the supplied config.
+Mixed startup forms and unknown preset names fail.
+Resolved connections retain their own credential value. They do not change the process environment.
+
+## Activation and cancellation
+
+An empty `startup_script` uses an existing endpoint.
+A configured `.ps1`, `.sh`, or `.py` script must start its server in the background and then exit.
+The activation owner checks the exit code and the advertised model alias.
+Scripts must manage only their designated processes.
+
+CAUTION: Do not configure `start38_uncensored_nvfp4_long.ps1` directly as an activation script.
+Its restart loop never exits. It needs a finite wrapper for automatic activation.
+The current setup uses the manually started server and leaves `startup_script` empty.
+W1 did not change that launcher or add automatic model switching on this machine.
+
+All chat clients in one application share one `ModelActivation` owner.
+The owner rejects activation during an active call.
+Generation finishes before the evaluator activates.
+The owner cannot control unrelated programs that use the same endpoint.
+
+Calls accept a `threading.Event` named `cancel`.
+Cancellation stops supported HTTP waits, readiness waits, or the directly owned startup process.
+It does not claim to terminate detached server descendants.
+Windows startup processes use hidden windows.
+
+Generation has no response deadline or automatic output cap.
+The HTTP client has a connection-establishment timeout, not an inference timeout.
+Production transport errors retry until cancellation. `live_test=True` reports them immediately.
+Permanent HTTP errors and invalid responses fail with credential-free messages.
+The shared HTTP path uses [HTTPX timeout controls](https://www.python-httpx.org/advanced/timeouts/).
+
+## Embeddings and scoped retrieval
+
+The old cache remains read-only at `~/.pm/embeddings` by default.
+New entries use `.runtime/embeddings/v1/<model-hash>/`.
+Each new JSON entry contains its format version, request model, exact input, dimensions, and vector.
+Atomic replacement publishes each complete new entry.
+
+Cache hits require the exact text, model, dimensions, and valid vector values.
+The adapter preserves whitespace and reads the old little-endian float64 binary format.
+It rejects zero and nonfinite vectors.
+Cosine comparison divides by both vector norms.
+
+```python
+from pm_core.embeddings import EmbeddingService
+
+service = EmbeddingService(config.embedding, live_test=True)
+visible_text = {record.id: record.content for record in scoped_records}
+plan = service.inspect_index(visible_text)  # no network calls
+print(plan.hits, plan.missing)
+await service.prepare_index(visible_text)  # fetch only missing eligible text
+results = await service.search("a shared memory", visible_text)
+```
+
+The caller supplies already-scoped records.
+The service never enumerates Ghost or searches the whole cache for candidate memories.
+Search refuses an incomplete index instead of silently embedding every missing memory.
+Queries use the same embedding service.
+The real client exposes `request_count` for cache-hit evidence.
+The API uses OpenRouter's [embedding endpoint](https://openrouter.ai/docs/api/api-reference/embeddings/submit-an-embedding-request).
+
+## Tests
+
+### W1 foundation checks
+
+Run these direct tests without a model endpoint:
+
+```powershell
+uv run --locked python -m unittest tests.test_models tests.test_embeddings tests.test_model_activation -v -b
+```
+
+These tests use real cache files and real finite subprocesses.
+The cancellation tests do not substitute fake model responses.
+
+### Required live checks
+
+Run the W1 acceptance suite:
+
+```powershell
+uv run --locked python -m unittest tests.live.test_models -v -b
+```
+
+The suite requires the generation endpoint, evaluator endpoint, embedding credentials, and compatible Spamuel cache.
+Missing requirements fail. No test silently skips them.
+It performs generation, evaluation, three uncached embedding requests, and an exact legacy cache lookup.
+The retrieval check compares a Minecraft memory with unrelated chemistry text.
+Generation and evaluation run serially.
+Evidence stays under `.runtime/w1/<run-id>/`, outside Git.
+
+Run all current tests:
+
+```powershell
+uv run --locked python -m unittest discover -s tests -v -b
+```
+
+This command now includes the live tests.
+It validates W1 and the existing prototype, not the future cognitive acceptance suite.

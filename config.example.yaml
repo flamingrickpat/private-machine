@@ -1,0 +1,21 @@
+# Copy to config.local.yaml for machine-specific paths or literal credentials.
+# The existing Qwen launcher loops forever. Do not put that script here directly.
+chat:
+  Default:
+    base_url: http://127.0.0.1:8080/v1
+    model: qwen
+    api_key: ""
+    startup_script: ""
+  UnitTestEvaluator:
+    base_url: http://127.0.0.1:8080/v1
+    model: qwen
+    api_key: ""
+    startup_script: ""
+embedding:
+  base_url: https://openrouter.ai/api/v1
+  model: perplexity/pplx-embed-v1-0.6b
+  response_model: pplx-embed-v1-0.6b
+  api_key_env: OPENROUTER_API_KEY
+  dimensions: 1024
+  legacy_cache_dir: ~/.pm/embeddings
+  cache_dir: .runtime/embeddings

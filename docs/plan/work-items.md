@@ -11,6 +11,10 @@ Parent: [implementation handoff](../../IMPLEMENTATION_PLAN.md).
 Acceptance details: [test requirements](tests.md).
 Commit and package procedure: [GitHub delivery](delivery.md).
 
+Current checkpoint: W0 baseline rechecked and W1 complete in application version 0.2.0.
+Read the [W1 delivery record](../work-items/W1.md) for implementation evidence and limits.
+The next unfinished item is W2.
+
 ## Source map and observed gaps
 
 These paths describe source inspected during planning, not completed future features.
@@ -73,6 +77,8 @@ Keep network access out of constructors and seed loading.
 
 Gate: resolver tests, credential-redaction tests, real cache-hit evidence, and live generation and embedding requests.
 Do not regenerate the cache or change the shared seed as a shortcut.
+
+Delivered: [model guide](../models.md), [config](../../config.example.yaml), and [W1 evidence](../work-items/W1.md).
 
 ## W2: Ghost, bus, and durable accepted state
 
@@ -166,6 +172,7 @@ Do not substitute a conversation simulation for this result.
 
 ## Handoff after each item
 
+Add `docs/work-items/<item>.md` with the structure of the [W1 delivery record](../work-items/W1.md).
 Record changed files, executed commands, evidence paths, and remaining failures.
 Keep the README accurate about current behavior rather than planned behavior.
 Commit and push tested work under the user's standing authorization.

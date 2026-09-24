@@ -910,10 +910,11 @@ dependencies = [
 
 [[package]]
 name = "pm-next-v2"
-version = "0.1.1"
+version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastmcp" },
+    { name = "httpx" },
     { name = "pm-coder" },
     { name = "pm-workflows" },
     { name = "pydantic" },
@@ -923,6 +924,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastmcp" },
+    { name = "httpx", specifier = ">=0.27,<1" },
     { name = "pm-coder", git = "https://github.com/flamingrickpat/pm-coder.git?rev=main" },
     { name = "pm-workflows", git = "https://github.com/flamingrickpat/pm-workflows.git?rev=main" },
     { name = "pydantic", specifier = ">=2.9,<3" },

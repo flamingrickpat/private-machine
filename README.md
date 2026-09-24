@@ -5,8 +5,9 @@ uses fixed (dummy) output, a real in-memory Ghost, a real virtual Bash
 machine, and the real pm-workflows kernel. The goal is to explore module
 boundaries before agentic behavior is added.
 
-The banner says `DUMMY COGNITION — no LLM calls`. No LLM, Minecraft server, or
-embedding endpoint is contacted.
+The terminal and demo banner says `DUMMY COGNITION — no LLM calls`.
+Those entry points contact no LLM, Minecraft server, or embedding endpoint.
+The W1 model tests use real generation and embedding endpoints.
 
 ## Next implementation plan
 
@@ -14,6 +15,11 @@ The current code remains the dummy prototype described here.
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) specifies the next real companion implementation.
 It separates wiring, runtime contracts, models and memory, workflow behavior, tests, and ordered work items.
 The plan supersedes the old dummy-only handoff. It does not claim that the new features already work.
+
+W1 is complete: model presets, explicit activation, direct chat calls, and compatible embedding cache access.
+Read the [model guide](docs/models.md) for setup and debugger examples.
+The [W1 delivery record](docs/work-items/W1.md) contains commands, actual results, and implementation limits.
+W2 is the next unfinished work item.
 
 ## What it does
 
@@ -78,7 +84,9 @@ This starts the interactive terminal session.
 uv run --locked python -m unittest discover -s tests -v -b
 ```
 
-This runs direct tests and the separate threaded integration tests.
+This runs direct tests, threaded integration tests, and required live model tests.
+The live tests require Qwen, embedding credentials, and the compatible Spamuel cache.
+Missing requirements fail the suite. Read the [model guide](docs/models.md#tests) for W1 foundation-only commands.
 
 For direct debugger checks without module threads:
 
@@ -154,9 +162,13 @@ ghost_mcp.py            scoped Ghost tools and MCP registration
 workflow_adapter.py     pm-workflows invocation
 workflows/              six manifests and six fixed Python roles
 pm_core/                copied Ghost model subset and loader
+  embeddings.py         shared embedding service and compatible cache
+runtime/                model config, HTTP requests, activation, direct chat
+config.example.yaml     credential-free model and cache config
 data/                   copied Spamuel seed data
 demo.py                 scripted scenarios
-tests/                  thread-free unittest checks
+tests/                  direct tests and separate threaded integration checks
+  live/                 required real generation and embedding tests
 ```
 
 The copied Ghost model subset is `pm_core/model/*.py` (except
@@ -188,11 +200,13 @@ The prototype uses both through its working target.
 ## Verification
 
 - `python demo.py`: 21 checks passed with Git Bash first on PATH.
-- unittest discovery: 34 tests passed, including the full Spamuel seed and threaded integration checks.
+- unittest discovery: 61 tests passed, including the full Spamuel seed, threaded integration, and live model checks.
+- W1 foundation checks: 24 tests passed without model inference.
 - `pm-workflows`: 55 runtime-context, driver, and kernel tests passed.
 - `pm-coder`: 30 real BashMachine tests passed.
 
 The original audit used `.venv312`. The current delivery setup uses the single `.venv` and GitHub-installed dependencies.
+The W1 delivery record identifies the actual model results and the unchanged legacy cache.
 
 ## Remaining integration gap
 
