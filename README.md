@@ -19,7 +19,10 @@ The plan supersedes the old dummy-only handoff. It does not claim that the new f
 W1 is complete: model presets, explicit activation, direct chat calls, and compatible embedding cache access.
 Read the [model guide](docs/models.md) for setup and debugger examples.
 The [W1 delivery record](docs/work-items/W1.md) contains commands, actual results, and implementation limits.
-W2 is the next unfinished work item.
+W2 adds isolated bus delivery, scoped read views, atomic Ghost batches, and checkpoint recovery.
+Read the [Ghost and bus guide](docs/ghost.md) for the persistence boundary and direct debugger examples.
+The [W2 delivery record](docs/work-items/W2.md) contains its evidence and limits.
+W3 is the next unfinished work item: the complete workflow-to-agent boundary.
 
 ## What it does
 
@@ -41,10 +44,10 @@ Every user input enters `MainCogLoop` first. It creates one GWT record and
 selects fixed actions through a few explicit rules. Action modules return
 results through the same bus. Public replies reach the terminal output.
 
-The Ghost stays in RAM. Its records are projected into a virtual Bash
-environment as read-only files (`/work/ghost/knoxels/<id>.yaml`). The Bash
-machine lives in memory too. Kernel journals, requests, state, traces, and
-result metadata go to disk under `.runtime/`. Ghost files stay virtual.
+The Ghost stays in RAM and saves accepted state to a checkpoint in the terminal session.
+Its records appear as read-only virtual files (`/work/ghost/knoxels/<id>.yaml`).
+The Bash machine lives in memory. Kernel journals, requests, traces, and results go to disk under `.runtime/`.
+The checkpoint is one JSON file, not a real directory of projected Ghost files.
 
 ## Requirements
 
@@ -79,6 +82,10 @@ uv run --locked python main.py
 ```
 
 This starts the interactive terminal session.
+It restores `.runtime/ghost.json` when that checkpoint exists.
+Otherwise, it loads the Spamuel seed and saves the first accepted change there.
+`--checkpoint PATH` selects another checkpoint. `--ephemeral` disables accepted-state persistence.
+An invalid checkpoint raises an error instead of silently resetting memory.
 
 ```powershell
 uv run --locked python -m unittest discover -s tests -v -b
@@ -150,20 +157,28 @@ assert replies == ["You are a dumb human, Jesse! Dumb and nasty."]
 You can inspect the `Ghost`, task table, latest environment, and recorded
 messages after each line. After a direct workflow step, `module.last_environment`
 and `module.last_kernel_summary` hold the most recent invocation.
+This `build_app()` example uses an in-memory Ghost.
+Add `checkpoint_path=".runtime/debug-ghost.json"` for persistent debugger sessions.
 
 ## Source layout
 
 ```text
 main.py                 build_app(), CLI, terminal input, shutdown
-shell.py               bus, envelope, module lifecycle
+bus/                    serialized envelopes, private mailboxes, in-process delivery
+shell.py                compatibility imports for bus and module lifecycle
 modules.py              cognitive subclasses and TaskTable
 working_target.py       virtual Ghost Bash environment and folder target
 ghost_mcp.py            scoped Ghost tools and MCP registration
 workflow_adapter.py     pm-workflows invocation
 workflows/              six manifests and six fixed Python roles
-pm_core/                copied Ghost model subset and loader
+pm_core/                Ghost model subset, loader, and accepted state
+  ghost/service.py      scoped snapshots and atomic batch acceptance
+  ghost/batch.py        private new records and replacements
+  persist/snapshot.py   versioned JSON checkpoint and atomic replacement
   embeddings.py         shared embedding service and compatible cache
 runtime/                model config, HTTP requests, activation, direct chat
+  shell.py              common module step, thread lifecycle, application owner
+ghost.py                compatibility import for the Ghost service
 config.example.yaml     credential-free model and cache config
 data/                   copied Spamuel seed data
 demo.py                 scripted scenarios
@@ -200,13 +215,14 @@ The prototype uses both through its working target.
 ## Verification
 
 - `python demo.py`: 21 checks passed with Git Bash first on PATH.
-- unittest discovery: 61 tests passed, including the full Spamuel seed, threaded integration, and live model checks.
+- unittest discovery: 90 tests passed, including the full Spamuel seed, threaded integration, and live model checks.
 - W1 foundation checks: 24 tests passed without model inference.
+- W2 checks: 29 tests passed for bus isolation, commits, restoration, concurrency, and direct persistent workflows.
 - `pm-workflows`: 55 runtime-context, driver, and kernel tests passed.
 - `pm-coder`: 30 real BashMachine tests passed.
 
 The original audit used `.venv312`. The current delivery setup uses the single `.venv` and GitHub-installed dependencies.
-The W1 delivery record identifies the actual model results and the unchanged legacy cache.
+The W1 and W2 delivery records identify the model results and the unchanged legacy cache.
 
 ## Remaining integration gap
 

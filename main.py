@@ -11,7 +11,7 @@ import threading
 import time
 from pathlib import Path
 
-from ghost import Ghost
+from pm_core.ghost.service import Ghost
 from ghost_mcp import build_tools
 from modules import (
     CheckSubprocess,
@@ -23,7 +23,8 @@ from modules import (
     ToolPlusDialogue,
     UserInputProxy,
 )
-from shell import Application, BusSystem
+from bus.bus import BusSystem
+from runtime.shell import Application
 from working_target import GhostBashWrapper
 from workflow_adapter import PROJECT_ROOT
 
@@ -40,9 +41,16 @@ def build_app(
     clock=time.monotonic,
     emit_reply=print,
     ghost=None,
+    checkpoint_path=None,
 ) -> Application:
+    if ghost is not None and checkpoint_path is not None:
+        raise ValueError("Supply a Ghost or a checkpoint path, not both.")
     if ghost is None:
-        ghost = Ghost.from_yaml(Path(seed_path))
+        checkpoint = Path(checkpoint_path) if checkpoint_path is not None else None
+        if checkpoint is not None and checkpoint.exists():
+            ghost = Ghost.from_checkpoint(checkpoint)
+        else:
+            ghost = Ghost.from_yaml(Path(seed_path), checkpoint=checkpoint)
     target = GhostBashWrapper(ghost, mode="read")
     bus = BusSystem()
     tasks = TaskTable(clock)
@@ -111,12 +119,16 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Spamuel dummy cognition shell")
     parser.add_argument("--seed", default=str(DEFAULT_SEED))
     parser.add_argument("--runtime-root", default=str(Path.cwd() / ".runtime"))
+    persistence = parser.add_mutually_exclusive_group()
+    persistence.add_argument("--checkpoint", type=Path, help="Accepted Ghost checkpoint. Default: <runtime-root>/ghost.json")
+    persistence.add_argument("--ephemeral", action="store_true", help="Run without Ghost persistence")
     args = parser.parse_args(argv)
 
     app = build_app(
         seed_path=args.seed,
         runtime_root=args.runtime_root,
         emit_reply=print,
+        checkpoint_path=None if args.ephemeral else (args.checkpoint or Path(args.runtime_root) / "ghost.json"),
     )
     print(BANNER, flush=True)
     app.run()

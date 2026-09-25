@@ -14,7 +14,8 @@ from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature
 from pm_core.model.knoxel_enums import ActionType, FeatureType, InterlocusType
 from pm_core.model.knoxel_state_change import AttentionFrameKnoxel
 
-from shell import Envelope, ShellModule, _new_id
+from bus.envelopes import Envelope, _new_id
+from runtime.shell import ShellModule
 from workflow_adapter import ShellModuleWorkflow
 from ghost_mcp import build_tools
 
@@ -26,10 +27,10 @@ ACTION_TYPE = {
 }
 
 
-def _envelope(source, kind, topic, correlation_id, payload, target=None):
+def _envelope(source, kind, topic, correlation_id, payload, target=None, causation_id=None):
     return Envelope(
         id=_new_id(), source=source, kind=kind, topic=topic,
-        correlation_id=correlation_id, payload=payload, target=target,
+        correlation_id=correlation_id, payload=payload, target=target, causation_id=causation_id,
     )
 
 
@@ -89,7 +90,7 @@ class TaskTable:
                 record["status"] = "terminated"
 
 
-def _feature(ghost, content, feature_type, *, source, interlocus=None, causal=True):
+def _feature(ghost, content, feature_type, *, source, interlocus=None, causal=True, changes=None):
     kwargs = {
         "content": content,
         "feature_type": feature_type,
@@ -98,7 +99,8 @@ def _feature(ghost, content, feature_type, *, source, interlocus=None, causal=Tr
     }
     if interlocus is not None:
         kwargs["interlocus"] = interlocus
-    return ghost.store_knoxel(Feature(**kwargs))
+    create = ghost.store_knoxel if changes is None else changes.create
+    return create(Feature(**kwargs))
 
 
 class UserInputProxy(ShellModule):
@@ -148,6 +150,7 @@ class CognitiveWorkflow(ShellModuleWorkflow):
                 "kind": envelope.kind,
                 "topic": envelope.topic,
                 "correlation_id": envelope.correlation_id,
+                "causation_id": envelope.causation_id,
                 "target": envelope.target,
                 "payload": envelope.payload,
                 "knoxel": tools["ghost_get"](envelope.payload["knoxel_id"]),
@@ -169,60 +172,43 @@ class MainCogLoop(CognitiveWorkflow):
     """Stores incoming knoxels, creates one GWT, and selects fixed actions."""
 
     DATA_TOPICS = frozenset({
-        "user.input", "dialogue.reply", "thought.created", "task.telemetry",
+        "user.input", "thought.created", "task.telemetry",
     })
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
         summary = report.get("summary", "")
         decisions = report.get("decisions", [])
+        causes = [next(envelope.id for envelope in batch if envelope.correlation_id == decision["correlation_id"])
+                  for decision in decisions]
         incoming_ids = [
             envelope.payload["knoxel_id"] for envelope in batch
             if "knoxel_id" in envelope.payload
         ]
 
-        with self.ghost.lock:
-            tick = self.ghost.current_tick_id + 1
-            self.ghost.current_tick_id = tick
-            frame = self.ghost.add_knoxel(
-                AttentionFrameKnoxel(
-                    content=summary,
-                    tick_id=tick,
-                    focus_knoxel_ids=list(incoming_ids),
-                    active_goal_ids=[],
-                    winning_attention_ids=[],
-                    control_mode="reactive",
-                    frame_reason=summary,
-                ),
-                generate_embedding=False,
-            )
-            action_ids: list[int] = []
-            for decision in decisions:
-                action = self.ghost.add_knoxel(
-                    ActionSchemaKnoxel(
-                        content=decision.get("content", ""),
-                        action_type=ACTION_TYPE[decision["route"]],
-                        attention_frame_id=frame.id,
-                        metadata={
-                            "route": decision["route"],
-                            "task_id": decision.get("task_id", ""),
-                            "task_kind": decision.get("task_kind", ""),
-                        },
-                    ),
-                    generate_embedding=False,
-                )
-                action_ids.append(action.id)
-            ids = incoming_ids + [frame.id] + action_ids
-            self.ghost.gwt_turns[tick] = GwtTurnRecord(
-                tick_id=tick,
+        changes = self.ghost.begin_batch(self.invocation_id or _new_id(), new_tick=True, cancel=self.stop_event)
+        tick = changes.tick_id
+        frame = changes.create(AttentionFrameKnoxel(
+            content=summary, tick_id=tick, focus_knoxel_ids=list(incoming_ids),
+            active_goal_ids=[], winning_attention_ids=[], control_mode="reactive", frame_reason=summary,
+        ))
+        action_ids: list[int] = []
+        for decision in decisions:
+            action = changes.create(ActionSchemaKnoxel(
+                content=decision.get("content", ""), action_type=ACTION_TYPE[decision["route"]],
                 attention_frame_id=frame.id,
-                knoxel_ids=ids,
-                summary=summary,
-            )
-            self.ghost.states.append(CycleState(
-                tick_id=tick,
-                attention_frame_id=frame.id,
-                published_slots=["main"],
+                metadata={"route": decision["route"], "task_id": decision.get("task_id", ""),
+                          "task_kind": decision.get("task_kind", "")},
             ))
+            action_ids.append(action.id)
+        changes.set_gwt(
+            GwtTurnRecord(tick_id=tick, attention_frame_id=frame.id,
+                          knoxel_ids=incoming_ids + [frame.id] + action_ids, summary=summary),
+            CycleState(tick_id=tick, attention_frame_id=frame.id, published_slots=["main"]),
+        )
+        receipt = self.ghost.commit(changes)
+        # A repeated commit returns the original IDs, not this attempt's proposals.
+        tick = receipt.tick_id
+        action_ids = list(receipt.added_ids[1:])
 
         self.bus.put(_envelope(
             self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick},
@@ -232,6 +218,7 @@ class MainCogLoop(CognitiveWorkflow):
                 self.module_id, "data", f"action.{decision['route']}",
                 decision["correlation_id"],
                 {"knoxel_id": action_ids[index], "gwt_tick": tick},
+                causation_id=causes[index],
             ))
 
 
@@ -239,14 +226,21 @@ class Dialogue(CognitiveWorkflow):
     DATA_TOPICS = frozenset({"action.dialogue"})
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
-        for reply in report.get("replies", []):
-            feature = _feature(
+        replies = report.get("replies", [])
+        causes = [next(envelope.id for envelope in batch if envelope.correlation_id == reply["correlation_id"])
+                  for reply in replies]
+        changes = self.ghost.begin_batch(self.invocation_id or _new_id(), cancel=self.stop_event)
+        for reply in replies:
+            _feature(
                 self.ghost, reply["content"], FeatureType.Dialogue,
                 source=self.ghost.get_companion_name(), interlocus=InterlocusType.Public,
+                changes=changes,
             )
+        receipt = self.ghost.commit(changes)
+        for reply, record_id, cause in zip(replies, receipt.added_ids, causes, strict=True):
             self.bus.put(_envelope(
                 self.module_id, "data", "dialogue.reply",
-                reply["correlation_id"], {"knoxel_id": feature.id},
+                reply["correlation_id"], {"knoxel_id": record_id}, causation_id=cause,
             ))
 
 
@@ -254,12 +248,14 @@ class InnerThoughtLoop(CognitiveWorkflow):
     DATA_TOPICS = frozenset()
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
-        feature = _feature(
+        changes = self.ghost.begin_batch(self.invocation_id or _new_id(), cancel=self.stop_event)
+        _feature(
             self.ghost, report["thought"], FeatureType.InnerMonologue,
-            source=self.ghost.get_companion_name(),
+            source=self.ghost.get_companion_name(), changes=changes,
         )
+        receipt = self.ghost.commit(changes)
         self.bus.put(_envelope(
-            self.module_id, "data", "thought.created", "", {"knoxel_id": feature.id},
+            self.module_id, "data", "thought.created", "", {"knoxel_id": receipt.added_ids[0]},
         ))
 
 

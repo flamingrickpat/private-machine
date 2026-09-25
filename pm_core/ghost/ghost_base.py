@@ -297,7 +297,7 @@ class BaseGhost(KnoxelHaver):
     def rebuild_knoxel_indexes(self) -> None:
         self._clear_knoxel_indexes()
         current_knoxel_id = getattr(self, "current_knoxel_id", 0)
-        self.current_knoxel_id = max(self.all_knoxels.keys(), default=current_knoxel_id)
+        self.current_knoxel_id = max(current_knoxel_id, max(self.all_knoxels.keys(), default=0))
         for knoxel in self.all_knoxels.values():
             knoxel._owner = self
             self._index_knoxel(knoxel)

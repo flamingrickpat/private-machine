@@ -106,16 +106,17 @@ def store_action(
     task_id: str = "",
     task_kind: str = "",
 ) -> Envelope:
-    tick = ghost.current_tick_id + 1
-    ghost.current_tick_id = tick
-    action = ghost.store_knoxel(ActionSchemaKnoxel(
+    changes = ghost.begin_batch(_new_id(), new_tick=True)
+    tick = changes.tick_id
+    action = changes.create(ActionSchemaKnoxel(
         content=content,
         action_type=_ACTION_TYPE[route],
         metadata={"route": route, "task_id": task_id, "task_kind": task_kind},
     ))
-    ghost.gwt_turns[tick] = GwtTurnRecord(
+    changes.set_gwt(GwtTurnRecord(
         tick_id=tick, attention_frame_id=None, knoxel_ids=[action.id], summary="x",
-    )
+    ))
+    ghost.commit(changes)
     correlation_id = _new_id()
     return Envelope(
         id=_new_id(), source="test", kind="data", topic=f"action.{route}",

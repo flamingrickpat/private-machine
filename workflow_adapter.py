@@ -17,7 +17,8 @@ import yaml
 from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import WorkflowRuntime
 
-from shell import Envelope, ShellModule
+from bus.envelopes import Envelope
+from runtime.shell import ShellModule
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 

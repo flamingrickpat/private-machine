@@ -24,8 +24,6 @@ from pm_workflows.working_target import (
     WorkingTarget,
 )
 
-from ghost import serialize_knoxel
-
 
 class _LazyGhostFile:
     """A BashMachine content entry that renders YAML only on first read."""
@@ -152,19 +150,8 @@ class GhostBashWrapper(WorkingTarget):
         self.visible_ids = visible_ids
 
     def open(self, invocation_id: str) -> GhostBashEnvironment:
-        with self.ghost.lock:
-            knoxels = list(self.ghost.all_knoxels.values())
-            if self.visible_ids is not None:
-                allowed = set(self.visible_ids)
-                knoxels = [k for k in knoxels if k.id in allowed]
-            visible_knoxels = {k.id: serialize_knoxel(k) for k in knoxels}
-            visible_set = set(visible_knoxels)
-            visible_gwt = {
-                tick: record.model_dump(mode="json")
-                for tick, record in self.ghost.gwt_turns.items()
-                if all(rid in visible_set for rid in record.knoxel_ids)
-            }
-        return GhostBashEnvironment(visible_knoxels, visible_gwt, self.mode)
+        view = self.ghost.snapshot(self.visible_ids)
+        return GhostBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), self.mode)
 
 
 class FolderEnvironment(WorkingEnvironment):

@@ -11,9 +11,9 @@ Parent: [implementation handoff](../../IMPLEMENTATION_PLAN.md).
 Acceptance details: [test requirements](tests.md).
 Commit and package procedure: [GitHub delivery](delivery.md).
 
-Current checkpoint: W0 baseline rechecked and W1 complete in application version 0.2.0.
-Read the [W1 delivery record](../work-items/W1.md) for implementation evidence and limits.
-The next unfinished item is W2.
+Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, and W2 delivered in version 0.3.0.
+Read the [W1 delivery record](../work-items/W1.md) and [W2 delivery record](../work-items/W2.md) for evidence and limits.
+The next unfinished item is W3.
 
 ## Source map and observed gaps
 
@@ -39,7 +39,7 @@ These paths describe source inspected during planning, not completed future feat
 The current kernel passes the same runtime object into a child.
 Role MCP filtering currently depends on the parent allowlist path.
 Test top-level roles as well as children. Do not permit unrestricted top-level discovery.
-The application currently lacks the proposed persistence and live cognition.
+W2 now provides accepted-state persistence. The application still lacks live cognition.
 
 ## W0: establish the baseline
 
@@ -91,6 +91,8 @@ Keep proposed changes invisible to other runs until commit.
 
 Gate: direct bus tests, full-seed round trip, concurrent batch tests, conflict rejection, and failed-save recovery.
 No model call holds the Ghost lock.
+
+Delivered: [Ghost and bus guide](../ghost.md) and [W2 evidence](../work-items/W2.md).
 
 ## W3: complete the workflow-to-agent boundary
 
