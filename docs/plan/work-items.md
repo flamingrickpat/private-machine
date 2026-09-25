@@ -14,7 +14,7 @@ Commit and package procedure: [GitHub delivery](delivery.md).
 Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, and W2 delivered in version 0.3.0.
 Read the [W1 delivery record](../work-items/W1.md) and [W2 delivery record](../work-items/W2.md) for evidence and limits.
 The next unfinished item is W3.
-Its [current checkpoint](../work-items/W3.md) provides explicit coder sessions and virtual file permissions in application version 0.3.2.
+Its [current checkpoint](../work-items/W3.md) provides coder sessions, virtual file permissions, and a shared runner in application version 0.4.0.
 
 ## Source map and observed gaps
 
@@ -23,7 +23,7 @@ These paths describe source inspected during planning, not completed future feat
 | Source | Reuse or required change |
 | --- | --- |
 | `shell.py` | Keep direct `step()` and common thread lifecycle. Isolate delivered payloads. |
-| `workflow_adapter.py` | Extract one runner. Preserve successful-stop normalization. Add per-run cancellation and typed results. |
+| `workflow_adapter.py`, `runtime/workflow_runner.py` | Shared runner and typed results are available. Per-run cancellation remains unfinished. |
 | `ghost.py`, `ghost_mcp.py` | Keep real models and scoped reads. Add proposals, capabilities, atomic commits, and persistence. |
 | `working_target.py` | Keep lazy projection, batch registration, and exact file text. |
 | `../pm-workflows/pm_workflows/runtime.py` | Extend per-run context without Ghost coupling. |

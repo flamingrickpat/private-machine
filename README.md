@@ -25,6 +25,7 @@ The [W2 delivery record](docs/work-items/W2.md) contains its evidence and limits
 W3 is the next unfinished work item: the complete workflow-to-agent boundary.
 Its current checkpoint installs pm-coder 0.8.0 with separate sessions and user-scoped virtual file tools.
 The actual workflow agent driver still needs the full target, MCP, and cancellation integration.
+Application version 0.4.0 also provides the [shared synchronous runner](docs/runtime.md) for direct debugger calls and module execution.
 Read the [W3 progress record](docs/work-items/W3.md) for completed checks and remaining work.
 
 ## What it does

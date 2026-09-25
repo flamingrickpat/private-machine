@@ -1,6 +1,6 @@
 """Adapts one bus module to one real pm-workflows invocation.
 
-The shared adapter owns the kernel call; subclasses own only routing
+The shared runner owns the kernel call; subclasses own only routing
 differences (which messages they accept and how they turn a role report into
 bus messages). Each accepted batch starts one invocation against the module's
 working target, with the module's own stop event as the cancellation signal.
@@ -12,15 +12,13 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-import yaml
-
-from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import WorkflowRuntime
 
 from bus.envelopes import Envelope
 from runtime.shell import ShellModule
-
-PROJECT_ROOT = Path(__file__).resolve().parent
+from runtime.workflow_runner import (
+    PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus,
+)
 
 
 class ShellModuleWorkflow(ShellModule):
@@ -48,6 +46,7 @@ class ShellModuleWorkflow(ShellModule):
         self.success_status = success_status
         self.last_environment: Any | None = None
         self.last_kernel_summary: dict | None = None
+        self.last_result: WorkflowResult | None = None
 
     @abstractmethod
     def prepare_input(self, batch: list) -> dict:
@@ -63,15 +62,11 @@ class ShellModuleWorkflow(ShellModule):
         invocation_id = uuid.uuid4().hex
         self.invocation_id = invocation_id
         self.last_kernel_summary = None
+        self.last_result = None
         environment = self.working_target.open(invocation_id)
         self.last_environment = environment
 
         request = self.prepare_input(batch)
-        environment.write_text(
-            "inbox/request.yaml",
-            yaml.safe_dump(request, sort_keys=False, allow_unicode=True),
-        )
-
         runtime = WorkflowRuntime(
             environment=environment,
             stop_event=self.stop_event,
@@ -79,36 +74,23 @@ class ShellModuleWorkflow(ShellModule):
             propagate_python_errors=True,
         )
 
-        kernel = Kernel(
-            manifest_path=self.workflow,
-            workspace=self.runtime_root / self.module_id / invocation_id / "workspace",
-            task_id=invocation_id,
-            task_text=f"Read inbox/request.yaml from runtime.environment ({invocation_id}).",
-            base_dir=PROJECT_ROOT,
-            coding_agent="python",
-            kernel_data_root=self.runtime_root / "kernel",
-            run_id=invocation_id,
-            resume=False,
-            runtime=runtime,
+        runner = WorkflowRunner(
+            self.workflow, self.runtime_root, namespace=self.module_id,
+            success_status=self.success_status,
         )
-        summary = kernel.run()
-        self.last_kernel_summary = summary
+        result = runner.invoke(WorkflowRequest(invocation_id, request), runtime)
+        self.last_result = result
+        self.last_kernel_summary = result.kernel_summary
 
-        if summary.get("terminal_status") == "terminated" or summary.get("exit_reason") == "terminated":
+        if result.status in {WorkflowStatus.Cancelled, WorkflowStatus.WaitingForInput}:
             return
-        # An explicit `stop` route is terminal but sets ok=False in this kernel.
-        expected_exits = {"completed", f"{summary['terminal_phase']}: stop"}
-        if summary["terminal_status"] != self.success_status or summary["exit_reason"] not in expected_exits:
+        if result.status is WorkflowStatus.Failed:
             raise RuntimeError(
-                f"workflow {self.module_id} ended unsuccessfully: {summary}"
+                f"workflow {self.module_id} ended unsuccessfully: {result.kernel_summary}"
             )
         if self.stop_event.is_set():
             return
-
-        report = yaml.safe_load(environment.read_text("outbox/report.yaml"))
-        if self.stop_event.is_set():
-            return
-        self.publish_output(report, batch)
+        self.publish_output(result.report, batch)
 
 
 __all__ = ["ShellModuleWorkflow", "PROJECT_ROOT"]
