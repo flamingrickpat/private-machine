@@ -14,7 +14,7 @@ Commit and package procedure: [GitHub delivery](delivery.md).
 Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, and W2 delivered in version 0.3.0.
 Read the [W1 delivery record](../work-items/W1.md) and [W2 delivery record](../work-items/W2.md) for evidence and limits.
 The next unfinished item is W3.
-Its [first checkpoint](../work-items/W3.md) provides explicit coder sessions in application version 0.3.1.
+Its [current checkpoint](../work-items/W3.md) provides explicit coder sessions and virtual file permissions in application version 0.3.2.
 
 ## Source map and observed gaps
 
@@ -29,7 +29,7 @@ These paths describe source inspected during planning, not completed future feat
 | `../pm-workflows/pm_workflows/runtime.py` | Extend per-run context without Ghost coupling. |
 | `../pm-workflows/pm_workflows/kernel.py` | Reuse child phases. Replace shared child environment with scoped child namespaces. |
 | `../pm-workflows/pm_workflows/drivers/minimal_agent.py` | Pass runtime target, explicit credentials, scoped MCP config, and cancellation to pm-coder. |
-| `../pm-coder/pm_coder.py` | Session isolation is available in 0.7.1. File-tool permission corrections remain unfinished. |
+| `../pm-coder/pm_coder.py` | Session isolation and user-scoped virtual file tools are available in 0.8.0. Driver integration remains unfinished. |
 | `../pm-coder/pm_bash_machine.py` | Preserve batch lazy-file registration and raw-output support. |
 | `../pm-workflows/pm_workflows/dryrun.py` | Extend existing graph checks and simulations. |
 | `../pm_next/pm_core/subsystems/context/` | Adapt planner and render helpers. Do not import the old orchestration layer. |
