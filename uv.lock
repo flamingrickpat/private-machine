@@ -899,8 +899,8 @@ wheels = [
 
 [[package]]
 name = "pm-coder"
-version = "0.7.0"
-source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=main#810a79fe223419be2d28461fb03c80f1ba8947ed" }
+version = "0.7.1"
+source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=main#101e2b112a6deb01227d694dfb0c3f72c6fd9d56" }
 dependencies = [
     { name = "just-bash" },
     { name = "pydantic" },
@@ -910,7 +910,7 @@ dependencies = [
 
 [[package]]
 name = "pm-next-v2"
-version = "0.3.0"
+version = "0.3.1"
 source = { virtual = "." }
 dependencies = [
     { name = "fastmcp" },

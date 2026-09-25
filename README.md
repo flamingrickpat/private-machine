@@ -23,6 +23,8 @@ W2 adds isolated bus delivery, scoped read views, atomic Ghost batches, and chec
 Read the [Ghost and bus guide](docs/ghost.md) for the persistence boundary and direct debugger examples.
 The [W2 delivery record](docs/work-items/W2.md) contains its evidence and limits.
 W3 is the next unfinished work item: the complete workflow-to-agent boundary.
+Its first checkpoint installs pm-coder 0.7.1 with per-session logs, budgets, and turn state.
+Read the [W3 progress record](docs/work-items/W3.md) for completed checks and remaining work.
 
 ## What it does
 
