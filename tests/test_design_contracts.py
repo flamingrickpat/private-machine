@@ -118,7 +118,7 @@ class DesignContracts(unittest.TestCase):
             module = PlainWorkflow(
                 "plain", BusSystem(), self.fail, ManualClock(), None,
                 working_target=FolderTarget(root / "target", "bash"),
-                workflow=manifest, tools_factory=lambda env: {}, runtime_root=root / "runtime",
+                workflow=manifest, tools_factory=lambda env, batch: {}, runtime_root=root / "runtime",
             )
             module.mailbox.put(Envelope("one", "test", "data", "plain", "one", {"text": "hello"}))
             self.assertTrue(module.step())

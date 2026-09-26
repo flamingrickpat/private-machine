@@ -5,7 +5,7 @@
 The shared runner calls the real pm-workflows kernel synchronously.
 Direct debugger calls and module threads use this same runner.
 The runner supports Python roles and real pm-coder roles on folder and virtual Ghost targets.
-The complete W3 gate remains unfinished.
+The complete W3 gate passed against both.
 
 Parent: [project overview](../README.md).
 Related: [runtime plan](plan/runtime.md), [Ghost commits](ghost.md), and [W3 evidence](work-items/W3.md).
@@ -100,20 +100,27 @@ uv run --locked python -m unittest tests.live.test_agent_workflows -v -b
 These synchronous checks retain evidence under `.runtime/w3/agent-targets/`.
 Each agent reads a request and a memory file, then writes a report through the supplied target.
 The checks verify the report, tool calls, unchanged memory, and absence of a report in the host journal workspace.
+One check starts a scoped Ghost MCP service on a loopback port and verifies that the agent called it.
+
+## Scoped services and run control
+
+`WorkflowRuntime.tools` is the run-level Python grant. A role that declares `tools` sees exactly those names; an undeclared name is a `ManifestError`.
+`WorkflowRuntime.mcp_servers` supplies named scoped service descriptors. When present it replaces shared `.mcp.json` discovery and the kernel writes a private per-attempt config.
+`runtime.mcp_services.ScopedMcpRegistry` starts each named FastMCP service on an OS-assigned loopback port, holds the bound socket for its lifetime, and closes it after success, error, or cancellation.
+`WorkflowRuntime.child_factory(scope)` opens the runtime for one child invocation; without one a child reuses the parent runtime.
+
+A run's cancellation is separate from module shutdown. `ShellModuleWorkflow.cancel_run()` cancels one run; `stop()` and a terminate control cancel the active run as well.
+A run that suspends for user input publishes `workflow.question` and exposes its question ID and resume phase. A `workflow.answer` data message resumes it through a durable `pm.answer-receipt.v1`.
+`ghost_mcp.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `GhostWriteBatch`; proposals stay private until the batch commits.
 
 ## Current limits
 
-Per-run cancellation is not yet separate from module shutdown in `ShellModuleWorkflow`.
-Standalone callers can supply independent cancellation events.
 Python cancellation is cooperative. The runner cannot forcibly stop arbitrary Python code.
 Agent cancellation interrupts supported asynchronous inference and waits for session cleanup.
 Synchronous tools remain cooperative. Completed external effects cannot be undone.
-
-A waiting result preserves evidence, but this checkpoint adds no bus question routing or resume operation.
-Do not reuse a run ID to resume through `invoke()`. Each invocation starts a new kernel run.
-Child namespaces, narrowed grants, and dynamic MCP listeners remain unfinished.
-The production coder retry loop still needs permanent-error classification.
-Runtime roles that request MCP services require explicit grants.
+The permanent-error classifier is marker and status based, so unusual provider wording still enters the reconnect loop.
+MainCogLoop does not yet consume `workflow.question` or author `workflow.answer`; that wiring belongs to W5.
+Application child workflows do not exist yet; the child-scope contract is tested in pm-workflows.
 
 ## Code and evidence
 
@@ -121,4 +128,6 @@ Runtime roles that request MCP services require explicit grants.
 - [Bus adapter](../workflow_adapter.py)
 - [Direct runner tests](../tests/test_workflow_runner.py)
 - [Direct file-permission tests](../tests/test_agent_file_scope.py)
-- [W3 progress](work-items/W3.md)
+- [Run control tests](../tests/test_run_control.py)
+- [MCP lifetime tests](../tests/test_mcp_lifetime.py)
+- [W3 delivery record](work-items/W3.md)

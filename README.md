@@ -22,12 +22,12 @@ The [W1 delivery record](docs/work-items/W1.md) contains commands, actual result
 W2 adds isolated bus delivery, scoped read views, atomic Ghost batches, and checkpoint recovery.
 Read the [Ghost and bus guide](docs/ghost.md) for the persistence boundary and direct debugger examples.
 The [W2 delivery record](docs/work-items/W2.md) contains its evidence and limits.
-W3 is the next unfinished work item: the complete workflow-to-agent boundary.
-Its current checkpoint installs pm-coder 0.9.1 and pm-workflows 0.4.0.
-Real agent roles use folder or virtual Ghost targets, explicit model settings, and cancellable inference.
-Child scopes, dynamic MCP services, and question routing remain unfinished.
-Application version 0.5.0 provides the [shared synchronous runner](docs/runtime.md) for Python and agent roles.
-Read the [W3 progress record](docs/work-items/W3.md) for completed checks and remaining work.
+W3 is complete: the full workflow-to-agent boundary.
+Application version 0.6.0 installs pm-coder 0.9.2 and pm-workflows 0.5.0.
+Real Python and pm-coder roles run on folder or virtual Ghost targets with explicit model settings and cancellation.
+Runs have scoped Python tool grants, optional child namespaces, temporary loopback MCP services, Ghost proposal tools, separate run cancellation, and waiting-input resume.
+Read the [runtime guide](docs/runtime.md) and the [W3 delivery record](docs/work-items/W3.md) for the contracts, evidence, and limits.
+The next unfinished work item is W4, standalone Story dialogue.
 
 ## What it does
 
@@ -183,6 +183,8 @@ pm_core/                Ghost model subset, loader, and accepted state
   embeddings.py         shared embedding service and compatible cache
 runtime/                model config, HTTP requests, activation, direct chat
   shell.py              common module step, thread lifecycle, application owner
+  workflow_runner.py    shared synchronous kernel invocation and typed outcomes
+  mcp_services.py       temporary loopback MCP listeners for one run
 ghost.py                compatibility import for the Ghost service
 config.example.yaml     credential-free model and cache config
 data/                   copied Spamuel seed data
@@ -210,6 +212,11 @@ On `main`, included in version 0.3.0:
   optionally re-raises other Python exceptions.
 - `tests/test_runtime_context.py` — integration checks for the new behavior.
 
+Version 0.4.0 bound pm-coder roles to explicit targets, model connections, and
+cancellation. Version 0.5.0 scoped role `tools`, `mcp_servers` descriptors, and
+`child_factory(scope)` namespaces, and mapped pm-coder's permanent provider
+rejection to provider exhaustion.
+
 The existing real-folder workflow path still works without a runtime.
 
 The audit also adds two compatible options, published in pm-coder 0.7.0:
@@ -220,14 +227,16 @@ The prototype uses both through its working target.
 ## Verification
 
 - `python demo.py`: 21 checks passed with Git Bash first on PATH.
-- unittest discovery: 90 tests passed, including the full Spamuel seed, threaded integration, and live model checks.
+- unittest discovery: 119 tests passed, including the full Spamuel seed, threaded integration, and the required live model and agent checks.
 - W1 foundation checks: 24 tests passed without model inference.
 - W2 checks: 29 tests passed for bus isolation, commits, restoration, concurrency, and direct persistent workflows.
-- `pm-workflows`: 55 runtime-context, driver, and kernel tests passed.
-- `pm-coder`: 30 real BashMachine tests passed.
+- W3 focused checks: pm-workflows 133 tests, pm-coder 72 tests (including 2 live), and the application live agent checks passed.
+- `pm-workflows`: 133 runtime-context, driver, kernel, and scope tests passed.
+- `pm-coder`: 72 focused tests passed, including the live session and virtual-permission checks.
 
+Live agent checks include real Qwen roles on both target types and one role calling a dynamically started loopback Ghost MCP service.
 The original audit used `.venv312`. The current delivery setup uses the single `.venv` and GitHub-installed dependencies.
-The W1 and W2 delivery records identify the model results and the unchanged legacy cache.
+The W1, W2, and W3 delivery records identify the model results and the unchanged legacy cache.
 
 ## Remaining integration gap
 
@@ -235,7 +244,7 @@ The manifest template in the handoff omitted `on_invalid` for role phases. The
 current kernel requires it. Every manifest here adds
 `on_invalid: {action: stop}`. The audit records other design corrections in
 `AUDIT.md`. Virtual targets work through Python roles and real pm-coder roles.
-The full W3 acceptance gate remains unfinished.
+The W3 acceptance gate passed; the terminal still uses dummy cognition until W5.
 
 ## Next step
 

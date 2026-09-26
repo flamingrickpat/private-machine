@@ -2,10 +2,12 @@
 
 Python errors reach the caller. Invalid role results return a failed outcome.
 Cancelled and waiting runs retain their artifacts but never return a report.
-Only a successful terminal route permits report loading.
+Only a successful terminal route permits report loading. A suspended run can
+be resumed by writing a durable answer receipt and invoking again.
 """
 from dataclasses import dataclass
 from enum import StrEnum
+import json
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +43,9 @@ class WorkflowResult:
     report: dict[str, Any] | None
     kernel_summary: dict[str, Any]
     artifact_dir: Path
+    question: str | None = None
+    question_id: str | None = None
+    resume_phase: str | None = None
 
 
 class WorkflowRunner:
@@ -65,12 +70,15 @@ class WorkflowRunner:
         self.base_dir = Path(base_dir)
         self.success_status = success_status
 
-    def invoke(self, request: WorkflowRequest, runtime: WorkflowRuntime) -> WorkflowResult:
+    def invoke(
+        self, request: WorkflowRequest, runtime: WorkflowRuntime, *, resume: bool = False,
+    ) -> WorkflowResult:
         """Run inline and normalize the terminal outcome once.
 
         A cancelled run does not read its report. Invalid YAML or a non-mapping
         success report raises an error. Python role errors propagate when the
-        supplied runtime enables ``propagate_python_errors``.
+        supplied runtime enables ``propagate_python_errors``. ``resume``
+        continues a suspended run from its retained journal.
         """
         environment = runtime.environment
         if not runtime.stop_event.is_set():
@@ -78,6 +86,9 @@ class WorkflowRunner:
                 "inbox/request.yaml",
                 yaml.safe_dump(request.payload, sort_keys=False, allow_unicode=True),
             )
+        allowed_mcp = (
+            set(runtime.mcp_servers) if runtime.mcp_servers is not None else None
+        )
         kernel = Kernel(
             manifest_path=self.workflow,
             workspace=self.runtime_root / self.namespace / request.run_id / "workspace",
@@ -89,19 +100,60 @@ class WorkflowRunner:
             coding_agent="pm-coder" if runtime.agent_model is not None else "python",
             kernel_data_root=self.runtime_root / "kernel",
             run_id=request.run_id,
-            resume=False,
+            resume=resume,
+            allowed_mcp=allowed_mcp,
             runtime=runtime,
         )
         summary = kernel.run()
         status = _status(summary, self.success_status, runtime.stop_event.is_set())
         report = None
+        question = question_id = resume_phase = None
         if status is WorkflowStatus.Completed:
             report = yaml.safe_load(environment.read_text("outbox/report.yaml"))
             if not isinstance(report, dict):
                 raise ValueError("The workflow report must be a YAML mapping.")
             if runtime.stop_event.is_set():
                 status, report = WorkflowStatus.Cancelled, None
-        return WorkflowResult(status, request.run_id, report, summary, kernel.kernel_data)
+        elif status is WorkflowStatus.WaitingForInput:
+            question, resume_phase = self._waiting_question(kernel.kernel_data)
+            question_id = f"{request.run_id}:{resume_phase}"
+        return WorkflowResult(
+            status, request.run_id, report, summary, kernel.kernel_data,
+            question, question_id, resume_phase,
+        )
+
+    def _answers_root(self, run_id: str) -> Path:
+        return self.runtime_root / "kernel" / run_id / "answers"
+
+    def _waiting_question(self, kernel_data: Path) -> tuple[str | None, str | None]:
+        """Return the last durable human question and the phase it suspends."""
+        journal = kernel_data / "journal.jsonl"
+        if not journal.is_file():
+            return None, None
+        for line in reversed(journal.read_text(encoding="utf-8").splitlines()):
+            if not line.strip():
+                continue
+            entry = json.loads(line)
+            if entry.get("verdict") == "waiting_user":
+                return entry.get("answer"), entry.get("phase")
+        return None, None
+
+    def write_answer(
+        self, run_id: str, answer: str, *, question_id: str, resume_phase: str,
+    ) -> Path:
+        """Write one durable ``pm.answer-receipt.v1`` for a suspended run."""
+        if not answer.strip():
+            raise ValueError("An answer receipt needs nonempty answer text.")
+        root = self._answers_root(run_id)
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / f"{question_id.replace(':', '_')}.yaml"
+        path.write_text(yaml.safe_dump({
+            "schema": "pm.answer-receipt.v1",
+            "id": question_id,
+            "resume_phase": resume_phase,
+            "answer": answer,
+        }, sort_keys=False), encoding="utf-8")
+        return path
 
 
 def _status(summary: dict, success_status: str, cancelled: bool) -> WorkflowStatus:

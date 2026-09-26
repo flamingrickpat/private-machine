@@ -11,10 +11,9 @@ Parent: [implementation handoff](../../IMPLEMENTATION_PLAN.md).
 Acceptance details: [test requirements](tests.md).
 Commit and package procedure: [GitHub delivery](delivery.md).
 
-Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, and W2 delivered in version 0.3.0.
-Read the [W1 delivery record](../work-items/W1.md) and [W2 delivery record](../work-items/W2.md) for evidence and limits.
-The next unfinished item is W3.
-Its [current checkpoint](../work-items/W3.md) provides real agent target binding and inference cancellation in application version 0.5.0.
+Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, W2 delivered in version 0.3.0, and W3 delivered in version 0.6.0.
+Read the [W1 delivery record](../work-items/W1.md), [W2 delivery record](../work-items/W2.md), and [W3 delivery record](../work-items/W3.md) for evidence and limits.
+The next unfinished item is W4, standalone Story dialogue.
 
 ## Source map and observed gaps
 

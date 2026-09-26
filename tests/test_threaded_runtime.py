@@ -63,7 +63,7 @@ class ThreadedRuntimeTests(unittest.TestCase):
             module = WaitingWorkflow(
                 "waiting", bus, app.on_error, time.monotonic, None,
                 working_target=GhostBashWrapper(small_ghost()), workflow=manifest,
-                tools_factory=lambda env: {"started": started.set}, runtime_root=root / "runtime",
+                tools_factory=lambda env, batch: {"started": started.set}, runtime_root=root / "runtime",
             )
             app.modules = [module]
             bus.subscribe(module.module_id, module.accepts, module.deliver)

@@ -137,7 +137,7 @@ class WorkflowRunnerTests(unittest.TestCase):
         module = ProbeWorkflow(
             "probe", BusSystem(), self.fail, lambda: 0, None,
             working_target=FolderTarget(self.root / "module-target", "bash"),
-            workflow=runner.workflow, tools_factory=lambda environment: {},
+            workflow=runner.workflow, tools_factory=lambda environment, batch: {},
             runtime_root=self.root / "runtime",
         )
         module.published = []

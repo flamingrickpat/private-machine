@@ -899,8 +899,8 @@ wheels = [
 
 [[package]]
 name = "pm-coder"
-version = "0.9.1"
-source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=main#50b41a155c26e6e46acc7ab0cfd02e3a27c8b0d8" }
+version = "0.9.2"
+source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=main#0efcafbc4891b287d8f311dac671326b56a31585" }
 dependencies = [
     { name = "just-bash" },
     { name = "pydantic" },
@@ -910,7 +910,7 @@ dependencies = [
 
 [[package]]
 name = "pm-next-v2"
-version = "0.5.0"
+version = "0.6.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastmcp" },
@@ -933,8 +933,8 @@ requires-dist = [
 
 [[package]]
 name = "pm-workflows"
-version = "0.4.0"
-source = { git = "https://github.com/flamingrickpat/pm-workflows.git?rev=main#6e895456743f851e34cdc852c546878ccef9b6f0" }
+version = "0.5.0"
+source = { git = "https://github.com/flamingrickpat/pm-workflows.git?rev=main#d76c5aa023189cfc4b42fd1e9d79b5580f6c6731" }
 dependencies = [
     { name = "httpx" },
     { name = "pm-coder" },

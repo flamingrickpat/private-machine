@@ -10,9 +10,11 @@ from uuid import uuid4
 import yaml
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
+from runtime.mcp_services import ScopedMcpRegistry
 from runtime.model_activation import ModelActivation
 from runtime.models import load_config, resolve_connection
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from ghost_mcp import build_mcp
 from working_target import FolderTarget, GhostBashEnvironment
 
 
@@ -79,6 +81,62 @@ class LiveAgentWorkflowTests(unittest.TestCase):
 
     def test_folder_agent_report(self):
         self.run_target(False)
+
+    def test_virtual_agent_uses_a_scoped_mcp_service(self):
+        root = (Path(".runtime/w3/agent-targets") / uuid4().hex).resolve()
+        root.mkdir(parents=True)
+        marker = "MCP_" + uuid4().hex
+        record = {"__type__": "Feature", "data": {"id": 1, "content": marker}}
+        environment = GhostBashEnvironment({1: record}, {}, "read")
+        skill = root / "role.md"
+        skill.write_text(
+            "Do not read the memory file directly. Call the MCP tool `ghost_get` with "
+            "knoxel_id equal to inbox/request.yaml's memory_id to read the memory. "
+            "Use only the read tool and the write tool with relative paths for the rest. "
+            "Write outbox/report.yaml as a YAML mapping with marker equal to that memory's data.content. "
+            "Do not change the memory. Then return JSON with status done and summary copied.",
+            encoding="utf-8")
+        manifest = root / "probe.workflow.md"
+        manifest.write_text("---\n" + yaml.safe_dump({
+            "name": "mcp-probe", "driver": {"kind": "pm-coder"},
+            "roles": {"work": {"skill": str(skill), "mcp": ["ghost"], "result_contract": {"schema": {
+                "status": {"enum": ["done"]}, "summary": "string",
+            }}}},
+            "phases": [{"name": "work", "kind": "role", "role": "work",
+                        "on_status": {"done": "stop"}, "on_invalid": {"action": "stop"}}],
+        }) + "---\n", encoding="utf-8")
+        connection = self.connection
+        with ScopedMcpRegistry() as registry:
+            descriptors = registry.serve({"ghost": build_mcp(environment)})
+            runtime = WorkflowRuntime(
+                environment, Event(), {},
+                agent_model=AgentModel(
+                    connection.base_url, connection.model, connection.api_key.get_secret_value(),
+                    context_window=96000, enable_thinking=False, live_test=True,
+                ),
+                mcp_servers=descriptors,
+            )
+            runner = WorkflowRunner(manifest, root / "runtime", base_dir=root)
+            with self.owner.use(connection):
+                result = runner.invoke(
+                    WorkflowRequest("probe", {"memory_id": 1}), runtime,
+                )
+        self.assertEqual(result.status, WorkflowStatus.Completed)
+        self.assertEqual(result.report, {"marker": marker})
+        self.assertEqual(yaml.safe_load(environment.read_text("ghost/knoxels/1.yaml")), record)
+        config = list(result.artifact_dir.glob("mcp/*.json"))
+        self.assertEqual(len(config), 1)
+        servers = json.loads(config[0].read_text(encoding="utf-8"))["mcpServers"]
+        self.assertIn("ghost", servers)
+        sessions = list((result.artifact_dir / "pm-coder").glob("*/messages.json"))
+        messages = json.loads(sessions[0].read_text(encoding="utf-8"))
+        calls = {part["tool_name"] for message in messages for part in message["parts"] if part["part_kind"] == "tool-call"}
+        self.assertTrue(any("ghost_get" in name for name in calls), calls)
+        (root / "evidence.json").write_text(json.dumps({
+            "target": "virtual", "model": connection.model, "status": result.status,
+            "report": result.report, "mcp_calls": sorted(calls),
+            "artifact_dir": str(result.artifact_dir),
+        }, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":

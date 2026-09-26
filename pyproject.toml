@@ -1,10 +1,10 @@
 [project]
 name = "pm-next-v2"
-version = "0.5.0"
+version = "0.6.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "pm-workflows>=0.4.0",
-    "pm-coder>=0.9.1",
+    "pm-workflows>=0.5.0",
+    "pm-coder>=0.9.2",
     "pydantic>=2.9,<3",
     "PyYAML>=6,<7",
     "fastmcp",
