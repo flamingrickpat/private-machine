@@ -23,9 +23,10 @@ W2 adds isolated bus delivery, scoped read views, atomic Ghost batches, and chec
 Read the [Ghost and bus guide](docs/ghost.md) for the persistence boundary and direct debugger examples.
 The [W2 delivery record](docs/work-items/W2.md) contains its evidence and limits.
 W3 is the next unfinished work item: the complete workflow-to-agent boundary.
-Its current checkpoint installs pm-coder 0.8.0 with separate sessions and user-scoped virtual file tools.
-The actual workflow agent driver still needs the full target, MCP, and cancellation integration.
-Application version 0.4.0 also provides the [shared synchronous runner](docs/runtime.md) for direct debugger calls and module execution.
+Its current checkpoint installs pm-coder 0.9.1 and pm-workflows 0.4.0.
+Real agent roles use folder or virtual Ghost targets, explicit model settings, and cancellable inference.
+Child scopes, dynamic MCP services, and question routing remain unfinished.
+Application version 0.5.0 provides the [shared synchronous runner](docs/runtime.md) for Python and agent roles.
 Read the [W3 progress record](docs/work-items/W3.md) for completed checks and remaining work.
 
 ## What it does
@@ -233,8 +234,8 @@ The W1 and W2 delivery records identify the model results and the unchanged lega
 The manifest template in the handoff omitted `on_invalid` for role phases. The
 current kernel requires it. Every manifest here adds
 `on_invalid: {action: stop}`. The audit records other design corrections in
-`AUDIT.md`. Virtual targets currently work through Python roles. Agent-driver
-integration remains a future step.
+`AUDIT.md`. Virtual targets work through Python roles and real pm-coder roles.
+The full W3 acceptance gate remains unfinished.
 
 ## Next step
 

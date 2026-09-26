@@ -12,7 +12,7 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from pm_workflows.runtime import WorkflowRuntime
+from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
 from bus.envelopes import Envelope
 from runtime.shell import ShellModule
@@ -37,6 +37,7 @@ class ShellModuleWorkflow(ShellModule):
         tools_factory: Callable[[Any], Mapping[str, Callable]],
         runtime_root: Path,
         success_status: str = "done",
+        agent_model: AgentModel | None = None,
     ) -> None:
         super().__init__(module_id, bus, on_error, clock, tick_seconds)
         self.working_target = working_target
@@ -44,6 +45,7 @@ class ShellModuleWorkflow(ShellModule):
         self.tools_factory = tools_factory
         self.runtime_root = Path(runtime_root)
         self.success_status = success_status
+        self.agent_model = agent_model
         self.last_environment: Any | None = None
         self.last_kernel_summary: dict | None = None
         self.last_result: WorkflowResult | None = None
@@ -72,6 +74,7 @@ class ShellModuleWorkflow(ShellModule):
             stop_event=self.stop_event,
             tools=self.tools_factory(environment),
             propagate_python_errors=True,
+            agent_model=self.agent_model,
         )
 
         runner = WorkflowRunner(

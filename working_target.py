@@ -19,6 +19,7 @@ import yaml
 
 from pm_bash_machine import Access, BashMachine
 from pm_workflows.working_target import (
+    AgentTarget,
     CommandResult,
     WorkingEnvironment,
     WorkingTarget,
@@ -53,6 +54,9 @@ def _index_entry(knoxel_id: int, record: dict) -> dict:
 
 class GhostBashEnvironment(WorkingEnvironment):
     """One read-only Ghost projection inside a fresh in-memory BashMachine."""
+
+    def agent_target(self, artifact_workspace: Path) -> AgentTarget:
+        return AgentTarget(artifact_workspace, self.machine, "workflow")
 
     def __init__(
         self,
@@ -156,6 +160,9 @@ class GhostBashWrapper(WorkingTarget):
 
 class FolderEnvironment(WorkingEnvironment):
     """A real directory used as one invocation-scoped working target."""
+
+    def agent_target(self, artifact_workspace: Path) -> AgentTarget:
+        return AgentTarget(self.root.resolve())
 
     def __init__(self, root: Path, bash_executable: str):
         self.root = root

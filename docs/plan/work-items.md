@@ -14,7 +14,7 @@ Commit and package procedure: [GitHub delivery](delivery.md).
 Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, and W2 delivered in version 0.3.0.
 Read the [W1 delivery record](../work-items/W1.md) and [W2 delivery record](../work-items/W2.md) for evidence and limits.
 The next unfinished item is W3.
-Its [current checkpoint](../work-items/W3.md) provides coder sessions, virtual file permissions, and a shared runner in application version 0.4.0.
+Its [current checkpoint](../work-items/W3.md) provides real agent target binding and inference cancellation in application version 0.5.0.
 
 ## Source map and observed gaps
 
@@ -28,15 +28,15 @@ These paths describe source inspected during planning, not completed future feat
 | `working_target.py` | Keep lazy projection, batch registration, and exact file text. |
 | `../pm-workflows/pm_workflows/runtime.py` | Extend per-run context without Ghost coupling. |
 | `../pm-workflows/pm_workflows/kernel.py` | Reuse child phases. Replace shared child environment with scoped child namespaces. |
-| `../pm-workflows/pm_workflows/drivers/minimal_agent.py` | Pass runtime target, explicit credentials, scoped MCP config, and cancellation to pm-coder. |
-| `../pm-coder/pm_coder.py` | Session isolation and user-scoped virtual file tools are available in 0.8.0. Driver integration remains unfinished. |
+| `../pm-workflows/pm_workflows/drivers/minimal_agent.py` | Target, model connection, and cancellation are available. Complete scoped dynamic MCP integration. |
+| `../pm-coder/pm_coder.py` | Explicit workspace discovery and live-test failure reporting are available in 0.9.1. Complete production failure classification. |
 | `../pm-coder/pm_bash_machine.py` | Preserve batch lazy-file registration and raw-output support. |
 | `../pm-workflows/pm_workflows/dryrun.py` | Extend existing graph checks and simulations. |
 | `../pm_next/pm_core/subsystems/context/` | Adapt planner and render helpers. Do not import the old orchestration layer. |
 | `../pm_next/pm_loop_engine/services/embedding_cache.py` | Reuse legacy cache lookup and metadata format only. |
 | `../pm_next/pm_core/system/llm/llm_disk_cache.py` | Reuse binary vector reading, not the whole old LLM framework. |
 
-`PythonDriver` currently receives runtime context. `PmCoderDriver` does not.
+`PythonDriver` and `PmCoderDriver` receive runtime context.
 The current kernel passes the same runtime object into a child.
 Role MCP filtering currently depends on the parent allowlist path.
 Test top-level roles as well as children. Do not permit unrestricted top-level discovery.

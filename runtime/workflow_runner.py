@@ -82,10 +82,11 @@ class WorkflowRunner:
             manifest_path=self.workflow,
             workspace=self.runtime_root / self.namespace / request.run_id / "workspace",
             task_id=request.run_id,
-            task_text=f"Read inbox/request.yaml from runtime.environment ({request.run_id}).",
+            task_text=f"Read inbox/request.yaml from the supplied working target ({request.run_id}). "
+                      "Write the final YAML report to outbox/report.yaml in that target. "
+                      "Agent tools already use the target. Use relative paths.",
             base_dir=self.base_dir,
-            # Keep the existing Python-only path until agent target binding is complete.
-            coding_agent="python",
+            coding_agent="pm-coder" if runtime.agent_model is not None else "python",
             kernel_data_root=self.runtime_root / "kernel",
             run_id=request.run_id,
             resume=False,
