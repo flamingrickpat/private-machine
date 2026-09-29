@@ -104,5 +104,22 @@ class LazyStageModel:
 
         return complete_async
 
+    def build_tool_completion(self):
+        """Return an async tool-calling completion that preserves tool_calls.
+
+        Assistant dialogue needs the full assistant message, including any
+        requested tool calls. Activation happens when the tool is built.
+        """
+        client = self.ensure_client()
+
+        async def complete_tool(messages: list[dict], tools=None, **generation) -> dict:
+            generation.setdefault("max_tokens", self.max_tokens)
+            if tools is not None:
+                generation["tools"] = tools
+            result = await client.complete(messages, **generation)
+            return result.model_dump(mode="json")
+
+        return complete_tool
+
 
 __all__ = ["DEFAULT_MAX_TOKENS", "LazyStageModel", "complete_with_retry"]

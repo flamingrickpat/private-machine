@@ -25,7 +25,7 @@ W2 adds isolated bus delivery, scoped read views, atomic Ghost batches, and chec
 Read the [Ghost and bus guide](docs/ghost.md) for the persistence boundary and direct debugger examples.
 The [W2 delivery record](docs/work-items/W2.md) contains its evidence and limits.
 W3 is complete: the full workflow-to-agent boundary.
-Application version 0.8.0 installs pm-coder 0.9.2 and pm-workflows 0.5.0.
+Application version 0.9.0 installs pm-coder 0.9.2 and pm-workflows 0.5.0.
 Real Python and pm-coder roles run on folder or virtual Ghost targets with explicit model settings and cancellation.
 Runs have scoped Python tool grants, optional child namespaces, temporary loopback MCP services, Ghost proposal tools, separate run cancellation, and waiting-input resume.
 Read the [runtime guide](docs/runtime.md) and the [W3 delivery record](docs/work-items/W3.md) for the contracts, evidence, and limits.
@@ -36,27 +36,38 @@ Read the [W4 delivery record](docs/work-items/W4.md) for the commands, evidence,
 W5 is complete: the seven real cognitive children and the typed parent pipeline are wired to the bus, commit the GWT, dispatch typed actions, and return a real correlated Story reply.
 The terminal uses the real path by default. The fixed keyword policy remains only as a labeled demonstration fixture.
 Read the [W5 delivery record](docs/work-items/W5.md) for the exact scope, evidence, and remaining work.
-The next unfinished work item is W6, Assistant dialogue, management, and stewardship.
+W6 is complete: Assistant dialogue, management, and stewardship.
+It adds a separate tool-capable Assistant conversation, one durable managed-run table with shared start/status/update/terminate operations exposed as scoped MCP tools and SelfManagement, a dormant steward with code-only termination, a small real local task used to exercise concurrency and blocking questions, and evidence-backed report-to-knoxel consolidation.
+Read the [W6 delivery record](docs/work-items/W6.md) for the exact scope, evidence, and remaining work.
+The next unfinished work item is W7, first-delivery acceptance.
 
 ## What it does
 
 One process runs module threads over an in-memory bus:
 
 ```
-UserInputProxy -> bus -> MainCogLoop
-                           |
-                 GWT + action schemas
-                           |
-     +------------+------------+----------------+
-     v            v            v                v
-  Dialogue     Schedule   CheckSubprocess   ToolPlusDialogue
-
-InnerThought -> bus -> MainCogLoop
+UserInputProxy -> bus -> MainCogLoop -> action intents
+                            |
+        +-------------------+-------------------+
+        v                   v                   v
+  Story (dialogue)   Assistant          SelfManagement
+        |                   |                   |
+   dialogue.reply     dialogue.reply      managed runs
+                                                |
+                                          workflow.event
+                                                v
+                                          MainCogLoop
 ```
 
-Every user input enters `MainCogLoop` first. It creates one GWT record and
-selects fixed actions through a few explicit rules. Action modules return
-results through the same bus. Public replies reach the terminal output.
+Every user input enters `MainCogLoop` first. The terminal uses the real path by
+default: seven ordered child workflows, a committed GWT, typed action
+dispatches, and a real correlated Story reply. `dialogue_assistant` offers a
+separate tool-capable conversation whose management claims require an executed
+tool receipt. `self_management` starts, reads, updates, and terminates durable
+managed workflow runs. A dormant steward can read committed progress and
+submit data or control requests. Terminal managed runs consolidate their real
+text artifacts into evidence-backed memory. A labeled dummy fixture remains
+only for the scripted demonstration and direct module tests.
 
 The Ghost stays in RAM and saves accepted state to a checkpoint in the terminal session.
 Its records appear as read-only virtual files (`/work/ghost/knoxels/<id>.yaml`).

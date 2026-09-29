@@ -28,6 +28,9 @@ STAGE_ORDER = (
 
 DEFAULT_WORKFLOWS = [
     {"name": "dialogue_story", "description": "Generate one in-character Story reply."},
+    {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools."},
+    {"name": "self_management", "description": "Start, status, update, or terminate a managed run."},
+    {"name": "local_task", "description": "Run one small real local task."},
 ]
 
 

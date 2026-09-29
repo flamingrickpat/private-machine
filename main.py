@@ -15,19 +15,26 @@ from pathlib import Path
 from pm_core.ghost.service import Ghost
 from ghost_mcp import build_tools
 from modules import (
+    AssistantDialogue,
     CheckSubprocess,
     DummyDialogue,
     DummyMainCogLoop,
     InnerThoughtLoop,
     MainCogLoop,
     ScheduleSubprocesses,
+    SelfManagement,
+    StewardModule,
     StoryDialogue,
     TaskTable,
     ToolPlusDialogue,
     UserInputProxy,
 )
 from bus.bus import BusSystem
+from bus.envelopes import Envelope, _new_id
+from runtime.consolidation import Consolidator
+from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.shell import Application
+from runtime.steward import Steward
 from working_target import GhostBashWrapper
 from workflow_adapter import PROJECT_ROOT
 
@@ -45,12 +52,27 @@ def default_config_path() -> str:
     return "config.example.yaml"
 
 
+def _managed_workflows() -> dict:
+    base = PROJECT_ROOT / "workflows" / "local_task"
+    return {
+        "local_task": WorkflowSpec(base / "local_task.workflow.md", namespace="local_task"),
+        "local_task_question": WorkflowSpec(
+            base / "local_task_question.workflow.md", namespace="local_task_question",
+        ),
+    }
+
+
 def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
-                      runtime_root, workflow_paths, stage_model, config_path):
-    """Return the (main_cog, dialogue) pair for the requested cognition path."""
+                      runtime_root, workflow_paths, stage_model, config_path,
+                      supervisor):
+    """Return the (main_cog, story, assistant, self_management) modules."""
     if cognition == "real":
         from workflows.dialogue_story.module_tools import build_story_tools
+        from workflows.dialogue_assistant.module_tools import (
+            build_assistant_tools,
+        )
         from workflows.main_cognition.module_tools import build_main_cognition_tools
+        from workflows.self_management.module_tools import build_self_management_tools
 
         if stage_model is None:
             from runtime.cognitive_model import LazyStageModel
@@ -67,7 +89,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             runtime_root=runtime_root,
             ghost=ghost,
         )
-        dialogue = StoryDialogue(
+        story = StoryDialogue(
             "dialogue", bus, on_error, clock, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "dialogue_story" / "dialogue_story.workflow.md",
@@ -75,7 +97,23 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             runtime_root=runtime_root,
             ghost=ghost,
         )
-        return main_cog, dialogue
+        assistant = AssistantDialogue(
+            "assistant", bus, on_error, clock, None,
+            working_target=target,
+            workflow=PROJECT_ROOT / "workflows" / "dialogue_assistant" / "dialogue_assistant.workflow.md",
+            tools_factory=build_assistant_tools(stage_model, supervisor),
+            runtime_root=runtime_root,
+            ghost=ghost,
+        )
+        self_management = SelfManagement(
+            "self_management", bus, on_error, clock, None,
+            working_target=target,
+            workflow=PROJECT_ROOT / "workflows" / "self_management" / "self_management.workflow.md",
+            tools_factory=build_self_management_tools(supervisor),
+            runtime_root=runtime_root,
+            ghost=ghost,
+        )
+        return main_cog, story, assistant, self_management
     main_cog = DummyMainCogLoop(
         "main_cog", bus, on_error, clock, None,
         **workflow_paths("main_cognition"),
@@ -84,7 +122,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
         "dialogue", bus, on_error, clock, None,
         **workflow_paths("dialogue"),
     )
-    return main_cog, dialogue
+    return main_cog, dialogue, None, None
 
 
 def build_app(
@@ -121,6 +159,34 @@ def build_app(
     on_error = app.on_error
     runtime_root = Path(runtime_root)
 
+    consolidator = Consolidator(ghost, clock=clock)
+    supervisor = ManagedRunSupervisor(
+        ghost,
+        runtime_root=runtime_root,
+        workflows=_managed_workflows(),
+        clock=clock,
+        task_root=runtime_root / "managed_tasks",
+        on_error=on_error,
+    )
+
+    def _on_terminal(receipt):
+        consolidator.consolidate(receipt["run_id"], receipt["artifact_path"])
+
+    def _event_sink(event):
+        try:
+            parent = supervisor.status(event["run_id"]).get("parent_correlation", "")
+        except Exception:
+            parent = ""
+        topic = "workflow.question" if event.get("event") == "waiting_for_input" else "workflow.event"
+        bus.put(Envelope(
+            id=_new_id(), source="managed_run", kind="telemetry", topic=topic,
+            correlation_id=parent, payload=dict(event),
+        ))
+
+    supervisor.on_terminal = _on_terminal
+    supervisor.event_sink = _event_sink
+    steward = Steward(supervisor, clock=clock)
+
     def workflow_paths(name: str):
         return {
             "working_target": target,
@@ -131,10 +197,10 @@ def build_app(
         }
 
     user_input = UserInputProxy("user_input", bus, on_error, clock, ghost, emit_reply)
-    main_cog, dialogue = _cognition_modules(
+    main_cog, dialogue, assistant, self_management = _cognition_modules(
         cognition, ghost=ghost, target=target, bus=bus, on_error=on_error,
         clock=clock, runtime_root=runtime_root, workflow_paths=workflow_paths,
-        stage_model=stage_model, config_path=resolved_config,
+        stage_model=stage_model, config_path=resolved_config, supervisor=supervisor,
     )
     inner_thought = InnerThoughtLoop(
         "inner_thought", bus, on_error, clock, thought_period,
@@ -152,11 +218,28 @@ def build_app(
         "tool_dialogue", bus, on_error, clock, None,
         **workflow_paths("tool_dialogue"),
     )
+    steward_module = None
+    if cognition == "real":
+        from workflows.steward.module_tools import build_steward_module_tools
+
+        steward_module = StewardModule(
+            "steward", bus, on_error, clock, None,
+            working_target=target,
+            workflow=PROJECT_ROOT / "workflows" / "steward" / "steward.workflow.md",
+            tools_factory=build_steward_module_tools(steward),
+            runtime_root=runtime_root, ghost=ghost,
+        )
 
     modules = [
         user_input, main_cog, dialogue, inner_thought,
         scheduler, status, tool_dialogue,
     ]
+    if assistant is not None:
+        modules.append(assistant)
+    if self_management is not None:
+        modules.append(self_management)
+    if steward_module is not None:
+        modules.append(steward_module)
     for module in modules:
         bus.subscribe(module.module_id, module.accepts, module.deliver)
     app.modules = modules
@@ -164,13 +247,19 @@ def build_app(
     app.user_input = user_input
     app.main_cog = main_cog
     app.dialogue = dialogue
+    app.assistant = assistant
+    app.self_management = self_management
     app.inner_thought = inner_thought
     app.scheduler = scheduler
     app.status = status
     app.tool_dialogue = tool_dialogue
+    app.steward_module = steward_module
     app.ghost = ghost
     app.bus = bus
     app.tasks = tasks
+    app.supervisor = supervisor
+    app.consolidator = consolidator
+    app.steward = steward
     return app
 
 

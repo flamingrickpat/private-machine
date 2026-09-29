@@ -65,6 +65,8 @@ class GhostWriteBatch:
         self._expected: dict[int, int] = {}
         self._initial_runs = deepcopy(ghost.managed_runs)
         self._runs: dict[str, dict] = {}
+        self._initial_consolidations = deepcopy(ghost.consolidations)
+        self._consolidations: dict[str, dict] = {}
         self._gwt: GwtTurnRecord | None = None
         self._cycle: CycleState | None = None
         self._closed = False
@@ -127,10 +129,16 @@ class GhostWriteBatch:
             raise ValueError("Unknown managed-run state.")
         self._runs[run_id] = deepcopy(receipt)
 
+    def set_consolidation_receipt(self, key: str, receipt: dict) -> None:
+        """Stage one consolidation receipt. Repeated keys reuse accepted state."""
+        self.check_cancelled()
+        self._consolidations[key] = deepcopy(receipt)
+
     def discard(self) -> None:
         self._closed = True
         self._new.clear()
         self._replacements.clear()
         self._runs.clear()
+        self._consolidations.clear()
         self._gwt = None
         self._cycle = None

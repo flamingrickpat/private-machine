@@ -36,6 +36,7 @@ class Ghost(BaseGhost):
         self.revisions: dict[int, int] = {}
         self.applied_commits: dict[str, CommitReceipt] = {}
         self.managed_runs: dict[str, dict] = {}
+        self.consolidations: dict[str, dict] = {}
         self.previous_emb_model = ""
         self._reserved_tick_id = 0
 
@@ -87,6 +88,7 @@ class Ghost(BaseGhost):
         ghost.gwt_turns = {tick: record.model_copy(deep=True) for tick, record in data.gwt_turns.items()}
         ghost.applied_commits = dict(data.applied_commits)
         ghost.managed_runs = deepcopy(data.managed_runs)
+        ghost.consolidations = deepcopy(data.consolidations)
         return ghost
 
     def state_dict(self) -> dict:
@@ -131,8 +133,15 @@ class Ghost(BaseGhost):
             batch.check_cancelled()
             conflicts = [record_id for record_id, revision in batch._expected.items() if self.revisions[record_id] != revision]
             run_conflicts = [run_id for run_id in batch._runs if self.managed_runs.get(run_id) != batch._initial_runs.get(run_id)]
-            if conflicts or run_conflicts:
-                raise GhostConflict(f"Stale memory revisions: {conflicts}. Stale run receipts: {run_conflicts}.")
+            consolidation_conflicts = [
+                key for key in batch._consolidations
+                if self.consolidations.get(key) != batch._initial_consolidations.get(key)
+            ]
+            if conflicts or run_conflicts or consolidation_conflicts:
+                raise GhostConflict(
+                    f"Stale memory revisions: {conflicts}. Stale run receipts: {run_conflicts}. "
+                    f"Stale consolidation receipts: {consolidation_conflicts}."
+                )
             allowed_ids = set(batch._snapshot._records) | set(batch._new)
             for raw in (*batch._new.values(), *batch._replacements.values()):
                 check_references(_deserialize_knoxel(raw), allowed_ids)
@@ -169,6 +178,7 @@ class Ghost(BaseGhost):
                 revisions=revisions, gwt_turns=gwt,
                 applied_commits={**self.applied_commits, batch.commit_id: receipt},
                 managed_runs={**self.managed_runs, **batch._runs},
+                consolidations={**self.consolidations, **batch._consolidations},
             )
             candidate = self._restore(data, self.checkpoint)
             batch.check_cancelled()
@@ -177,7 +187,7 @@ class Ghost(BaseGhost):
             # All validation and I/O precede canonical installation.
             for name in ("ghost_config", "states", "_all_knoxels", "_knoxels_by_type", "_knoxels_by_subtype", "_knoxels_by_class",
                          "current_knoxel_id", "current_tick_id", "_reserved_tick_id", "revisions", "gwt_turns",
-                         "applied_commits", "managed_runs", "previous_emb_model"):
+                         "applied_commits", "managed_runs", "consolidations", "previous_emb_model"):
                 setattr(self, name, getattr(candidate, name))
             for knoxel in self._all_knoxels.values():
                 knoxel._owner = self

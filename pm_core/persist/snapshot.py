@@ -35,6 +35,7 @@ class GhostCheckpoint(BaseModel):
     gwt_turns: dict[int, GwtTurnRecord]
     applied_commits: dict[str, CommitReceipt]
     managed_runs: dict[str, dict] = Field(default_factory=dict)
+    consolidations: dict[str, dict] = Field(default_factory=dict)
 
 
 def write_checkpoint(path: Path, checkpoint: GhostCheckpoint, check_cancelled) -> None:

@@ -28,6 +28,11 @@ from workflows.main_cognition.schemas import (
     Stimulus,
     WorkflowOption,
 )
+from workflows.self_management.schemas import SelfManagementRequest
+from workflows.steward.schemas import StewardRequest
+from workflows.dialogue_assistant.schemas import AssistantMessage, AssistantReport, AssistantRequest
+from workflows.dialogue_assistant.steps import unsupported_management_claims
+from workflows.dialogue_assistant.tools import TOOL_DESCRIPTORS, TOOL_NAMES
 
 ACTION_BY_NAME = {member.value: member for member in ActionType}
 
@@ -315,7 +320,7 @@ class MainCogLoop(CognitiveWorkflow):
     """
 
     DATA_TOPICS = frozenset({
-        "user.input", "thought.created", "task.telemetry", "workflow.question",
+        "user.input", "thought.created", "task.telemetry", "workflow.question", "workflow.event",
     })
 
     def accepts(self, envelope: Envelope) -> bool:
@@ -366,6 +371,16 @@ class MainCogLoop(CognitiveWorkflow):
                 FeatureType.WorldEvent, source=envelope.source or "workflow",
             )
             return feature.id, question, "workflow.question"
+        if envelope.topic == "workflow.event" and envelope.kind == "telemetry":
+            run_id = str(payload.get("run_id", "")).strip()
+            state = str(payload.get("event", "")).strip()
+            if not run_id or not state:
+                return None, "", ""
+            text = f"Managed run {run_id} {state}"
+            feature = _feature(
+                self.ghost, text, FeatureType.WorldEvent, source=envelope.source or "workflow",
+            )
+            return feature.id, text, "workflow.event"
         if "knoxel_id" not in payload:
             return None, "", ""
         knoxel_id = int(payload["knoxel_id"])
@@ -549,6 +564,194 @@ class StoryDialogue(CognitiveWorkflow):
         ))
 
 
+class SelfManagement(CognitiveWorkflow):
+    """Deterministic managed-run operations as a workflow module.
+
+    It accepts typed actions targeting ``self_management`` and maps the action
+    arguments into one typed request. The workflow's tools write the durable
+    run receipt; this module publishes an explicit action receipt and never
+    invents a completed run.
+    """
+
+    DATA_TOPICS = frozenset({"action.request"})
+    WORKFLOW_NAME = "self_management"
+
+    def accepts(self, envelope: Envelope) -> bool:
+        if envelope.topic == "action.request" and envelope.kind == "data":
+            return envelope.target in {None, self.module_id, self.WORKFLOW_NAME}
+        return super().accepts(envelope)
+
+    def prepare_input(self, batch: list[Envelope]) -> dict:
+        payload = batch[0].payload
+        action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
+        arguments = dict(payload.get("arguments") or {})
+        request = SelfManagementRequest(
+            operation=str(arguments.get("operation", "status")),
+            action_id=str(payload.get("action_id", arguments.get("action_id", ""))),
+            run_id=str(arguments.get("run_id", "")),
+            workflow_name=str(arguments.get("workflow_name", "")),
+            instructions=str(arguments.get("instructions", getattr(action, "content", ""))),
+            parent_correlation=str(arguments.get("parent_correlation", batch[0].correlation_id)),
+            request_id=str(arguments.get("request_id", "")),
+            question_id=str(arguments.get("question_id", "")),
+            answer=str(arguments.get("answer", "")),
+            arguments=dict(arguments.get("arguments", {})),
+        )
+        return request.model_dump(mode="json")
+
+    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+        correlation = batch[0].correlation_id if batch else ""
+        cause = batch[0].id if batch else None
+        self.bus.put(_envelope(
+            self.module_id, "telemetry", "action.receipt", correlation,
+            {
+                "workflow_name": self.WORKFLOW_NAME,
+                "status": "accepted" if report.get("accepted") else "rejected",
+                "operation": report.get("operation", ""),
+                "summary": report.get("summary", ""),
+                "receipt": report.get("receipt", {}),
+            },
+            causation_id=cause,
+        ))
+
+
+class AssistantDialogue(CognitiveWorkflow):
+    """Real Assistant dialogue. Tool-capable session with a separate contract.
+
+    It accepts typed actions targeting ``dialogue_assistant``. On an accepted
+    reply it commits one public dialogue feature and publishes
+    ``dialogue.reply``. A management claim without an executed tool receipt is
+    rejected instead of committed.
+    """
+
+    DATA_TOPICS = frozenset({"action.request"})
+    WORKFLOW_NAME = "dialogue_assistant"
+
+    def accepts(self, envelope: Envelope) -> bool:
+        if envelope.topic == "action.request" and envelope.kind == "data":
+            return envelope.target in {None, self.module_id, self.WORKFLOW_NAME}
+        return super().accepts(envelope)
+
+    def prepare_input(self, batch: list[Envelope]) -> dict:
+        payload = batch[0].payload
+        action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
+        intent = str(action.content) if action is not None else str(payload.get("content", ""))
+        current = str(payload.get("stimuli", [{}])[-1].get("text", "")) if payload.get("stimuli") else intent
+        request = AssistantRequest(
+            companion_name=self.ghost.get_companion_name(),
+            user_name=self.ghost.get_user_name(),
+            character_card=self.ghost.get_simple_character_story_block(),
+            private_ontology=self._ontology(),
+            temporal_context=self.ghost.build_body_and_situation_addendum(),
+            prior_dialogue=self._prior_dialogue(current),
+            current_user_message=current or intent or "(no message)",
+            memories=[str(item) for item in payload.get("memories", []) if str(item).strip()],
+            workspace=str(payload.get("workspace", "")),
+            tools=list(TOOL_DESCRIPTORS),
+            tool_grant=list(TOOL_NAMES),
+        )
+        return request.model_dump(mode="json")
+
+    def _ontology(self) -> str:
+        config = self.ghost.ghost_config
+        parts = [str(item) for item in config.supported_capabilities]
+        parts += [f"Cannot: {item}" for item in config.unsupported_capabilities]
+        parts += [str(item) for item in config.capability_notes]
+        return "\n".join(f"- {part}" for part in parts) or "(none declared)"
+
+    def _prior_dialogue(self, current: str) -> list[AssistantMessage]:
+        turns = _recent_public_dialogue(self.ghost)
+        messages: list[AssistantMessage] = []
+        for index, turn in enumerate(turns):
+            is_last = index == len(turns) - 1
+            if is_last and turn.speaker == self.ghost.get_user_name() and turn.text == current:
+                continue
+            role = "user" if turn.speaker == self.ghost.get_user_name() else "assistant"
+            messages.append(AssistantMessage(role=role, content=turn.text))
+        return messages
+
+    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+        parsed = AssistantReport.model_validate(report)
+        correlation = batch[0].correlation_id if batch else ""
+        cause = batch[0].id if batch else None
+        unsupported = unsupported_management_claims(parsed.final_text, parsed.tool_receipts)
+        if not parsed.accepted or unsupported:
+            reason = parsed.rejection_reason or (
+                "unsupported management claim: " + ", ".join(unsupported)
+            )
+            self.bus.put(_envelope(
+                self.module_id, "telemetry", "action.receipt", correlation,
+                {
+                    "status": "rejected",
+                    "workflow_name": self.WORKFLOW_NAME,
+                    "rejection_reason": reason,
+                },
+                causation_id=cause,
+            ))
+            return
+        changes = self.ghost.begin_batch(self.invocation_id or _new_id(), cancel=self.stop_event)
+        _feature(
+            self.ghost, parsed.final_text, FeatureType.Dialogue,
+            source=self.ghost.get_companion_name(), interlocus=InterlocusType.Public,
+            changes=changes,
+        )
+        receipt = self.ghost.commit(changes)
+        self.bus.put(_envelope(
+            self.module_id, "data", "dialogue.reply", correlation,
+            {
+                "knoxel_id": receipt.added_ids[0],
+                "action_id": batch[0].payload.get("action_id", "") if batch else "",
+                "tool_receipts": [item.model_dump(mode="json") for item in parsed.tool_receipts],
+            },
+            causation_id=cause,
+        ))
+
+
+class StewardModule(CognitiveWorkflow):
+    """Route typed actions to the dormant steward.
+
+    The module never activates the steward. While dormant, every operation is
+    refused and no run state changes. A caller activates ``app.steward`` when a
+    representative is wanted.
+    """
+
+    DATA_TOPICS = frozenset({"action.request"})
+    WORKFLOW_NAME = "steward"
+
+    def accepts(self, envelope: Envelope) -> bool:
+        if envelope.topic == "action.request" and envelope.kind == "data":
+            return envelope.target in {None, self.module_id, self.WORKFLOW_NAME}
+        return super().accepts(envelope)
+
+    def prepare_input(self, batch: list[Envelope]) -> dict:
+        payload = batch[0].payload
+        arguments = dict(payload.get("arguments") or {})
+        request = StewardRequest(
+            operation=str(arguments.get("operation", "status")),
+            run_id=str(arguments.get("run_id", "")),
+            question_id=str(arguments.get("question_id", "")),
+            answer=str(arguments.get("answer", "")),
+            instructions=str(arguments.get("instructions", payload.get("content", ""))),
+            request_id=str(arguments.get("request_id", "")),
+        )
+        return request.model_dump(mode="json")
+
+    def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+        correlation = batch[0].correlation_id if batch else ""
+        cause = batch[0].id if batch else None
+        self.bus.put(_envelope(
+            self.module_id, "telemetry", "action.receipt", correlation,
+            {
+                "workflow_name": self.WORKFLOW_NAME,
+                "status": "accepted" if report.get("accepted") else "rejected",
+                "operation": report.get("operation", ""),
+                "summary": report.get("summary", ""),
+                "receipt": report.get("result", {}),
+            },
+            causation_id=cause,
+        ))
+
+
 class InnerThoughtLoop(CognitiveWorkflow):
     DATA_TOPICS = frozenset()
 
@@ -655,6 +858,9 @@ __all__ = [
     "DummyMainCogLoop",
     "DummyDialogue",
     "StoryDialogue",
+    "AssistantDialogue",
+    "SelfManagement",
+    "StewardModule",
     "InnerThoughtLoop",
     "ScheduleSubprocesses",
     "CheckSubprocess",
