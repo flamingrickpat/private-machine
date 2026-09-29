@@ -237,7 +237,12 @@ def _step_with_retry(assistant, jesse_knoxel: int, jesse_text: str, name: str, i
         except PermissionError as error:  # kernel state replace held by the OS
             last = error
             time.sleep(0.4 * (attempt + 1))
-            assistant.mailbox.put(Envelope(
+        except RuntimeError as error:  # transient model/backend failure
+            last = error
+            if "ended unsuccessfully" not in str(error) or attempt >= 1:
+                raise
+            time.sleep(0.5 * (attempt + 1))
+        assistant.mailbox.put(Envelope(
                 _new_id(), "w7", "data", "action.request", _new_id(),
                 {
                     "action_id": f"w7-{name}-{index}-retry{attempt}",

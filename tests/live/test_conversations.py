@@ -90,6 +90,7 @@ class ConversationAcceptanceTests(unittest.TestCase):
 
         evaluations: list[dict] = []
         trajectory_scores: list[int] = []
+        evaluator_errors: list[str] = []
         evaluator_model = ""
         rubric_version = ""
         shares_backend = False
@@ -115,6 +116,7 @@ class ConversationAcceptanceTests(unittest.TestCase):
                         ))
                     except Exception as error:  # evaluator error, not a quality failure
                         score = {"error": f"{type(error).__name__}: {error}"}
+                        evaluator_errors.append(f"{result.name} exchange {exchange.get('index')}: {score['error']}")
                     scenario_evaluations.append({"index": exchange.get("index"), **score})
                     if isinstance(score.get("scale"), int):
                         scores.append(score["scale"])
@@ -122,6 +124,8 @@ class ConversationAcceptanceTests(unittest.TestCase):
                     trajectory_scores.append(int(statistics.median(scores)))
                 else:
                     trajectory_scores.append(-1)
+                    if not any("error" in item for item in scenario_evaluations):
+                        evaluator_errors.append(f"{result.name}: the evaluator returned no scores")
                 evaluations.append({"scenario": result.name, "replies": scenario_evaluations})
                 _save(EVIDENCE_ROOT / f"scenario-{result.name}" / "evaluations.json", scenario_evaluations)
 
@@ -131,6 +135,7 @@ class ConversationAcceptanceTests(unittest.TestCase):
             "exchanges_per_scenario": exchanges,
             "total_exchanges": sum(len(result.exchanges) for result in results),
             "hard_violations": hard_violations,
+            "evaluator_errors": evaluator_errors,
             "rejections": [
                 violation for result in results for violation in result.violations
                 if "no committed reply" in violation
@@ -154,6 +159,7 @@ class ConversationAcceptanceTests(unittest.TestCase):
 
         self.assertEqual(hard_violations, [], f"hard contract violations: {hard_violations}")
         if evaluate:
+            self.assertEqual(evaluator_errors, [], f"evaluator errors: {evaluator_errors}")
             self.assertGreaterEqual(
                 good, conv.REQUIRED_GOOD,
                 f"only {good}/{len(results)} good trajectories",

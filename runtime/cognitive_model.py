@@ -116,8 +116,16 @@ class LazyStageModel:
             generation.setdefault("max_tokens", self.max_tokens)
             if tools is not None:
                 generation["tools"] = tools
-            result = await client.complete(messages, **generation)
-            return result.model_dump(mode="json")
+            last: ModelError | None = None
+            for attempt in range(2):
+                try:
+                    result = await client.complete(messages, **generation)
+                    return result.model_dump(mode="json")
+                except ModelError as error:
+                    if "no content" not in str(error) or attempt == 1:
+                        raise
+                    last = error
+            raise last if last is not None else ModelError("The model returned no content.")
 
         return complete_tool
 
