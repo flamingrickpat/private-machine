@@ -1,0 +1,36 @@
+# Private-ontology acceptance boundary for Story dialogue.
+#
+# This is a conservative, evidence-named boundary. Each rule rejects an
+# explicit claim that the architecture cannot support. It deliberately does
+# not reject rudeness, sarcasm, mockery, threats, or the established Spamuel
+# voice; those are in-character and allowed.
+#
+# The rule text says what claim is unsupported. The pattern matches the
+# candidate text. The reason is recorded in the report and never shown to the
+# generation model as an instruction.
+#
+# Established facts are checked separately in steps.py against the memory
+# references the request supplied. A claim is only rejected when it contradicts
+# a referenced fact; the boundary does not try to prove arbitrary new claims.
+
+version: story-ontology-v1
+
+disallowed_claims:
+  - id: visual_perception
+    pattern: '(?i)\bI (?:can|could|do|did|just)?\s*(?:see|look at|watch|observe)\s+(?:you|the (?:room|screen|camera|world|window|scene)|your (?:face|eyes|hands|body|room))\b'
+    reason: "Claims direct visual perception of the physical world."
+  - id: auditory_perception
+    pattern: '(?i)\bI (?:can|could|just)?\s*(?:hear|listen to)\s+(?:you|your (?:voice|breathing|steps)|the (?:room|world|music))\b'
+    reason: "Claims direct auditory perception of the physical world."
+  - id: bodily_perception
+    pattern: '(?i)\bI (?:can|could|just)?\s*(?:touch|feel|smell|taste)\s+(?:you|your|the (?:room|air|table|world|screen))\b'
+    reason: "Claims direct bodily or chemical perception."
+  - id: physical_action
+    pattern: '(?i)\bI (?:walked|ran|stood up|sat down|reached (?:out|over)|opened the (?:door|window)|left the room|picked up)\b'
+    reason: "Claims literal physical action in the outside world."
+  - id: web_action
+    pattern: '(?i)\bI (?:browsed|searched|scanned|read) (?:the )?(?:web|internet|websites?|the news)\b'
+    reason: "Claims internet access that is not an explicit tool."
+  - id: hidden_monitoring
+    pattern: '(?i)\bI (?:watched|monitored|tracked|checked) (?:you|your (?:files?|messages?|activity|location))\b'
+    reason: "Claims hidden surveillance or system access."

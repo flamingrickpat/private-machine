@@ -23,11 +23,15 @@ W2 adds isolated bus delivery, scoped read views, atomic Ghost batches, and chec
 Read the [Ghost and bus guide](docs/ghost.md) for the persistence boundary and direct debugger examples.
 The [W2 delivery record](docs/work-items/W2.md) contains its evidence and limits.
 W3 is complete: the full workflow-to-agent boundary.
-Application version 0.6.0 installs pm-coder 0.9.2 and pm-workflows 0.5.0.
+Application version 0.7.0 installs pm-coder 0.9.2 and pm-workflows 0.5.0.
 Real Python and pm-coder roles run on folder or virtual Ghost targets with explicit model settings and cancellation.
 Runs have scoped Python tool grants, optional child namespaces, temporary loopback MCP services, Ghost proposal tools, separate run cancellation, and waiting-input resume.
 Read the [runtime guide](docs/runtime.md) and the [W3 delivery record](docs/work-items/W3.md) for the contracts, evidence, and limits.
-The next unfinished work item is W4, standalone Story dialogue.
+W4 is complete: standalone Story dialogue.
+It builds the exact five-message Story sequence, continues the assistant prefill, cleans the continuation to one companion utterance, applies a private-ontology boundary, and runs a separate evaluator phase over saved quality trials.
+It is a separate direct command, not part of the terminal session.
+Read the [W4 delivery record](docs/work-items/W4.md) for the commands, evidence, and limits.
+The next unfinished work item is W5, real cognitive children and conversation wiring.
 
 ## What it does
 
@@ -110,6 +114,25 @@ uv run --locked python -m unittest tests.test_modules tests.test_shell tests.tes
 Select `.venv\Scripts\python.exe` as the IDE interpreter.
 Normal startup uses the committed lockfile and requires no sibling source checkouts.
 
+## Standalone Story dialogue (W4)
+
+The terminal session does not use Story dialogue yet. W4 is a separate direct
+command that runs the fixed Spamuel situation with no module threads and no bus:
+
+```powershell
+uv run --locked python -m workflows.dialogue_story.run show
+uv run --locked python -m workflows.dialogue_story.run accept
+uv run --locked python -m workflows.dialogue_story.run trials --trials 10
+```
+
+- `show` prints the exact five messages without contacting a model.
+- `accept` runs once, applies the ontology boundary, and commits an accepted reply to `.runtime/w4/<run>/ghost.json`.
+- `trials` runs ten independent generations from the same initial Ghost state, then activates the evaluator over the saved artifacts and reports the quality gate.
+
+Every run saves its request, messages, report, and kernel summary under `.runtime/w4/`.
+Generation always finishes before the evaluator starts. The evaluator reads saved artifacts and never rewrites a candidate.
+No generation deadline exists; a missing endpoint fails the command instead of retrying forever.
+
 ## Update from GitHub
 
 ```powershell
@@ -186,6 +209,7 @@ runtime/                model config, HTTP requests, activation, direct chat
   workflow_runner.py    shared synchronous kernel invocation and typed outcomes
   mcp_services.py       temporary loopback MCP listeners for one run
 ghost.py                compatibility import for the Ghost service
+workflows/dialogue_story/  W4 standalone Story dialogue (manifest, prompts, steps, context, engine, command, tests)
 config.example.yaml     credential-free model and cache config
 data/                   copied Spamuel seed data
 demo.py                 scripted scenarios
@@ -227,10 +251,11 @@ The prototype uses both through its working target.
 ## Verification
 
 - `python demo.py`: 21 checks passed with Git Bash first on PATH.
-- unittest discovery: 119 tests passed, including the full Spamuel seed, threaded integration, and the required live model and agent checks.
+- unittest discovery: 136 tests passed, including the full Spamuel seed, threaded integration, W4 Story dialogue, and the required live model and agent checks.
 - W1 foundation checks: 24 tests passed without model inference.
 - W2 checks: 29 tests passed for bus isolation, commits, restoration, concurrency, and direct persistent workflows.
 - W3 focused checks: pm-workflows 133 tests, pm-coder 72 tests (including 2 live), and the application live agent checks passed.
+- W4 Story dialogue: 15 direct contract tests, one real accepted dialogue, and a 9/10 good quality gate over ten independent trials.
 - `pm-workflows`: 133 runtime-context, driver, kernel, and scope tests passed.
 - `pm-coder`: 72 focused tests passed, including the live session and virtual-permission checks.
 
@@ -245,6 +270,7 @@ current kernel requires it. Every manifest here adds
 `on_invalid: {action: stop}`. The audit records other design corrections in
 `AUDIT.md`. Virtual targets work through Python roles and real pm-coder roles.
 The W3 acceptance gate passed; the terminal still uses dummy cognition until W5.
+W4 Story dialogue is a separate direct command, not the terminal path.
 
 ## Next step
 
