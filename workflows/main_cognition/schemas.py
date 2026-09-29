@@ -155,6 +155,12 @@ class CognitiveReport(BaseModel):
     receipts: list[StageReceipt] = Field(default_factory=list)
     dispatches: list[ActionDispatch] = Field(default_factory=list)
     gwt_tick_id: int | None = None
+    focus_ids: list[int] = Field(default_factory=list)
+    winning_attention_ids: list[int] = Field(default_factory=list)
+    active_goal_ids: list[int] = Field(default_factory=list)
+    control_mode: str = "reactive"
+    frame_reason: str = ""
+    subjective_experience: str = ""
 
 
 __all__ = [

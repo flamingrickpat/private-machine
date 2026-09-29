@@ -11,10 +11,10 @@ Parent: [implementation handoff](../../IMPLEMENTATION_PLAN.md).
 Acceptance details: [test requirements](tests.md).
 Commit and package procedure: [GitHub delivery](delivery.md).
 
-Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, W2 delivered in version 0.3.0, W3 delivered in version 0.6.0, and W4 delivered in version 0.7.0.
-W5 is in progress: checkpoint one delivers the seven real cognitive children, the typed parent pipeline, and dependency dispatch, tested directly and with one live cycle; the bus and Story-reply wiring remain.
-Read the [W1 delivery record](../work-items/W1.md), [W2 delivery record](../work-items/W2.md), [W3 delivery record](../work-items/W3.md), [W4 delivery record](../work-items/W4.md), and [W5 checkpoint record](../work-items/W5.md) for evidence and limits.
-The next unfinished item is W5, real cognitive children and conversation wiring.
+Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, W2 delivered in version 0.3.0, W3 delivered in version 0.6.0, W4 delivered in version 0.7.0, and W5 delivered in version 0.8.0.
+W5 wires the seven real cognitive children and the typed parent pipeline to the bus, commits the GWT, dispatches typed actions, and returns a real correlated Story reply. The terminal uses the real path by default; the fixed keyword policy remains only as a labeled demonstration fixture.
+Read the [W1 delivery record](../work-items/W1.md), [W2 delivery record](../work-items/W2.md), [W3 delivery record](../work-items/W3.md), [W4 delivery record](../work-items/W4.md), and [W5 delivery record](../work-items/W5.md) for evidence and limits.
+The next unfinished item is W6, Assistant dialogue, management, and stewardship.
 
 ## Source map and observed gaps
 

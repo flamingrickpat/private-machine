@@ -132,12 +132,19 @@ def run_cycle(request: dict, run_stage: Callable[[str, dict], dict]) -> Cognitiv
         ))
     dispatches = resolve_same_cycle(dispatches)
 
+    workspace = reports["workspace"]
+    attention = reports["attention"]
     return CognitiveReport(
         status="done",
         summary=f"ran {len(receipts)} stages, dispatched "
                 f"{sum(1 for d in dispatches if d.status == 'dispatched')} actions",
         receipts=receipts,
         dispatches=dispatches,
+        focus_ids=[int(item) for item in workspace.get("focus_ids", [])],
+        winning_attention_ids=[int(item) for item in attention.get("selected_ids", [])],
+        control_mode=str(workspace.get("control_mode", "reactive")),
+        frame_reason=str(workspace.get("frame_reason", "")),
+        subjective_experience=str(workspace.get("subjective_experience", "")),
     )
 
 

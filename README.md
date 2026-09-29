@@ -1,20 +1,22 @@
-# pm-next-v2 — Spamuel dummy cognition prototype
+# pm-next-v2 — Spamuel companion
 
-This project builds a small, runnable prototype of the Spamuel companion. It
-uses fixed (dummy) output, a real in-memory Ghost, a real virtual Bash
-machine, and the real pm-workflows kernel. The goal is to explore module
-boundaries before agentic behavior is added.
+This project builds a runnable Spamuel companion on a real in-memory Ghost, a
+real virtual Bash machine, and the real pm-workflows kernel. The terminal uses
+the real cognitive path by default: seven ordered child workflows, a committed
+GWT, typed action dispatches, and a real Story reply. A labeled dummy fixture
+remains available for the scripted demonstration and direct module tests.
 
-The terminal and demo banner says `DUMMY COGNITION — no LLM calls`.
-Those entry points contact no LLM, Minecraft server, or embedding endpoint.
+`main.py` prints `REAL COGNITION — model activates on first request` and
+contacts the configured chat endpoint on first generation. `demo.py` prints
+`DUMMY COGNITION — no LLM calls` and keeps the fixed keyword policy.
 The W1 model tests use real generation and embedding endpoints.
 
 ## Next implementation plan
 
-The current code remains the dummy prototype described here.
+The current code implements the plan's W1 through W5 checkpoints.
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) specifies the next real companion implementation.
 It separates wiring, runtime contracts, models and memory, workflow behavior, tests, and ordered work items.
-The plan supersedes the old dummy-only handoff. It does not claim that the new features already work.
+The plan supersedes the old dummy-only handoff.
 
 W1 is complete: model presets, explicit activation, direct chat calls, and compatible embedding cache access.
 Read the [model guide](docs/models.md) for setup and debugger examples.
@@ -23,7 +25,7 @@ W2 adds isolated bus delivery, scoped read views, atomic Ghost batches, and chec
 Read the [Ghost and bus guide](docs/ghost.md) for the persistence boundary and direct debugger examples.
 The [W2 delivery record](docs/work-items/W2.md) contains its evidence and limits.
 W3 is complete: the full workflow-to-agent boundary.
-Application version 0.7.0 installs pm-coder 0.9.2 and pm-workflows 0.5.0.
+Application version 0.8.0 installs pm-coder 0.9.2 and pm-workflows 0.5.0.
 Real Python and pm-coder roles run on folder or virtual Ghost targets with explicit model settings and cancellation.
 Runs have scoped Python tool grants, optional child namespaces, temporary loopback MCP services, Ghost proposal tools, separate run cancellation, and waiting-input resume.
 Read the [runtime guide](docs/runtime.md) and the [W3 delivery record](docs/work-items/W3.md) for the contracts, evidence, and limits.
@@ -31,10 +33,10 @@ W4 is complete: standalone Story dialogue.
 It builds the exact five-message Story sequence, continues the assistant prefill, cleans the continuation to one companion utterance, applies a private-ontology boundary, and runs a separate evaluator phase over saved quality trials.
 It is a separate direct command, not part of the terminal session.
 Read the [W4 delivery record](docs/work-items/W4.md) for the commands, evidence, and limits.
-W5 is in progress: the seven real cognitive children and the typed parent pipeline exist and pass direct and live checks.
-They are not yet wired to the bus, the terminal, or a real Story reply.
-Read the [W5 checkpoint record](docs/work-items/W5.md) for the exact scope, evidence, and remaining work.
-The next unfinished work item is W5, real cognitive children and conversation wiring.
+W5 is complete: the seven real cognitive children and the typed parent pipeline are wired to the bus, commit the GWT, dispatch typed actions, and return a real correlated Story reply.
+The terminal uses the real path by default. The fixed keyword policy remains only as a labeled demonstration fixture.
+Read the [W5 delivery record](docs/work-items/W5.md) for the exact scope, evidence, and remaining work.
+The next unfinished work item is W6, Assistant dialogue, management, and stewardship.
 
 ## What it does
 
@@ -98,6 +100,8 @@ It restores `.runtime/ghost.json` when that checkpoint exists.
 Otherwise, it loads the Spamuel seed and saves the first accepted change there.
 `--checkpoint PATH` selects another checkpoint. `--ephemeral` disables accepted-state persistence.
 An invalid checkpoint raises an error instead of silently resetting memory.
+The terminal uses real cognition by default and reads the model config from `PM_MODEL_CONFIG`, then `config.local.yaml`, then `config.example.yaml`.
+The first generation activates the model. `--cognition dummy` selects the labeled fixed-output fixture, and `--config PATH` selects another model config.
 
 ```powershell
 uv run --locked python -m unittest discover -s tests -v -b
@@ -119,8 +123,10 @@ Normal startup uses the committed lockfile and requires no sibling source checko
 
 ## Standalone Story dialogue (W4)
 
-The terminal session does not use Story dialogue yet. W4 is a separate direct
-command that runs the fixed Spamuel situation with no module threads and no bus:
+The terminal reaches Story dialogue through the real cognitive path: an action
+targeting `dialogue_story` starts the Story module, and its accepted reply
+returns as `dialogue.reply`. W4 still also provides a separate direct command
+that runs the fixed Spamuel situation with no module threads and no bus:
 
 ```powershell
 uv run --locked python -m workflows.dialogue_story.run show
@@ -136,14 +142,14 @@ Every run saves its request, messages, report, and kernel summary under `.runtim
 Generation always finishes before the evaluator starts. The evaluator reads saved artifacts and never rewrites a candidate.
 No generation deadline exists; a missing endpoint fails the command instead of retrying forever.
 
-## Main cognitive cycle (W5 checkpoint)
+## Main cognitive cycle (W5)
 
 The real cognitive pipeline is implemented under `workflows/main_cognition/`.
 It runs the seven ordered children — triage, appraisal, context, attention, goals, workspace, and action selection — over one request and one shared proposal batch, then releases typed action dispatches with dependency receipts.
 
 Each child is a normal Python-role workflow with its own manifest, prompts, schema, and direct tests beside the workflow.
 The parent assigns `action-<index>` ids and rejects dependent actions whose dependency was not released.
-The pipeline is not yet connected to the bus: the terminal still uses dummy cognition, and the returned dispatch does not yet generate a real Story reply.
+The pipeline is connected to the bus. `MainCogLoop` commits one attention frame, one GWT turn, and one action schema per released dispatch, publishes `action.request`, and `StoryDialogue` returns one correlated public reply. A rejected dependency publishes an explicit receipt and no action.
 
 The live smoke check runs all seven children against the real Qwen backend:
 
@@ -171,7 +177,10 @@ Do not replace the lockfile's tested commits with local editable dependencies fo
 
 ## Commands in the terminal
 
-| Input | Fixed output |
+The terminal uses real cognition by default. Pass `--cognition dummy` (or run
+`demo.py`) for the labeled fixed-output fixture below.
+
+| Input | Fixed dummy output |
 | --- | --- |
 | any text | `I heard you, Jesse.` |
 | contains `minecraft` | schedules, then `I will schedule your Minecraft request.` |
@@ -180,7 +189,7 @@ Do not replace the lockfile's tested commits with local editable dependencies fo
 | `/memory` | one tool-plus-dialogue reply with a scoped search count |
 | `/status <id>` | a status reply for the given task id |
 
-These fixed outputs are prototype behavior, not real character policy.
+These fixed outputs are the labeled dummy fixture, not real character policy.
 
 ## Debugger example
 
@@ -218,7 +227,7 @@ Add `checkpoint_path=".runtime/debug-ghost.json"` for persistent debugger sessio
 main.py                 build_app(), CLI, terminal input, shutdown
 bus/                    serialized envelopes, private mailboxes, in-process delivery
 shell.py                compatibility imports for bus and module lifecycle
-modules.py              cognitive subclasses and TaskTable
+modules.py              real and dummy cognitive subclasses and TaskTable
 working_target.py       virtual Ghost Bash environment and folder target
 ghost_mcp.py            scoped Ghost tools and MCP registration
 workflow_adapter.py     pm-workflows invocation
@@ -229,12 +238,13 @@ pm_core/                Ghost model subset, loader, and accepted state
   persist/snapshot.py   versioned JSON checkpoint and atomic replacement
   embeddings.py         shared embedding service and compatible cache
 runtime/                model config, HTTP requests, activation, direct chat
+  cognitive_model.py    lazy first-use model activation for the real path
   shell.py              common module step, thread lifecycle, application owner
   workflow_runner.py    shared synchronous kernel invocation and typed outcomes
   mcp_services.py       temporary loopback MCP listeners for one run
 ghost.py                compatibility import for the Ghost service
-workflows/dialogue_story/  W4 standalone Story dialogue (manifest, prompts, steps, context, engine, command, tests)
-workflows/main_cognition/   W5 ordered cognitive children, parent pipeline, typed dispatch (not yet bus-wired)
+workflows/dialogue_story/  Story dialogue (manifest, prompts, steps, context, engine, command, module tools, tests)
+workflows/main_cognition/   ordered cognitive children, parent pipeline, typed dispatch, module tools, tests
 config.example.yaml     credential-free model and cache config
 data/                   copied Spamuel seed data
 demo.py                 scripted scenarios
@@ -276,12 +286,12 @@ The prototype uses both through its working target.
 ## Verification
 
 - `python demo.py`: 21 checks passed with Git Bash first on PATH.
-- unittest discovery: 180 tests passed, including the full Spamuel seed, threaded integration, W4 Story dialogue, the W5 cognition pipeline, and the required live model and agent checks.
+- unittest discovery: 192 tests passed in 971 seconds, including the full Spamuel seed, threaded integration, Story dialogue, the seven-stage cognition cycle, the real app path, the attention counterexamples, and the live model and agent checks. Log: `.runtime/w5-unittest-final.log`.
 - W1 foundation checks: 24 tests passed without model inference.
 - W2 checks: 29 tests passed for bus isolation, commits, restoration, concurrency, and direct persistent workflows.
 - W3 focused checks: pm-workflows 133 tests, pm-coder 72 tests (including 2 live), and the application live agent checks passed.
 - W4 Story dialogue: 15 direct contract tests, one real accepted dialogue, and a 9/10 good quality gate over ten independent trials.
-- W5 checkpoint: 43 direct cognition tests (seven stages plus the parent pipeline and dependency dispatch), one real seven-stage cycle with seven completed receipts and a dispatched action, and the full live suite.
+- W5: 43 direct cognition tests, 8 direct wiring tests, one real seven-stage cycle, one real app-path exchange with a committed GWT and correlated reply, and three live attention counterexamples.
 - `pm-workflows`: 133 runtime-context, driver, kernel, and scope tests passed.
 - `pm-coder`: 72 focused tests passed, including the live session and virtual-permission checks.
 
@@ -295,9 +305,10 @@ The manifest template in the handoff omitted `on_invalid` for role phases. The
 current kernel requires it. Every manifest here adds
 `on_invalid: {action: stop}`. The audit records other design corrections in
 `AUDIT.md`. Virtual targets work through Python roles and real pm-coder roles.
-The W3 acceptance gate passed; the terminal still uses dummy cognition until W5.
-W4 Story dialogue is a separate direct command, not the terminal path.
-W5 checkpoint one adds the real cognitive children and typed dispatch but does not yet wire them to the bus or to a real Story reply.
+The W3 acceptance gate passed.
+W4 Story dialogue also runs as a direct command.
+W5 wires the real cognitive children, the GWT commit, typed dispatch, and the real Story reply into the terminal path.
+`demo.py` and `main.py --cognition dummy` keep the labeled fixed keyword policy.
 
 ## Next step
 

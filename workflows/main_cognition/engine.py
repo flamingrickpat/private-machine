@@ -11,11 +11,12 @@ import asyncio
 import threading
 from pathlib import Path
 from typing import Callable
+from uuid import uuid4
 
 from pm_workflows.runtime import WorkflowRuntime
 
+from runtime.cognitive_model import complete_with_retry
 from runtime.model_activation import ChatClient
-from runtime.model_io import ModelError
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.main_cognition.pipeline import STAGE_ORDER
 from workflows.main_cognition.schemas import CognitiveReport, CognitiveRequest
@@ -45,18 +46,7 @@ def build_llm_tool(client: ChatClient) -> Callable[..., str]:
         # that reasoning cannot consume the whole completion and leave empty
         # content. No generation deadline is imposed. An empty response is
         # retried at most once; it never becomes an endless reprompt loop.
-        generation.setdefault("max_tokens", 8192)
-        last: ModelError | None = None
-        for attempt in range(2):
-            try:
-                result = asyncio.run(client.complete(messages, **generation))
-            except ModelError as error:
-                if "no content" not in str(error) or attempt == 1:
-                    raise
-                last = error
-                continue
-            return result.choices[0].message.content or ""
-        raise last if last is not None else ModelError("The stage model returned no content.")
+        return asyncio.run(complete_with_retry(client, messages, generation))
 
     return llm_complete
 
@@ -65,11 +55,17 @@ def build_stage_runner(
     ghost,
     llm_complete: Callable[..., str],
     runtime_root: Path,
-    run_id: str,
+    run_id: str | None = None,
 ) -> Callable[[str, dict], dict]:
-    """Return ``run_stage(name, payload)`` bound to one run's model tool."""
+    """Return ``run_stage(name, payload)`` bound to one run's model tool.
+
+    ``run_id`` is optional. The live smoke test supplies one so its artifacts
+    carry a readable prefix; the application omits it and each stage gets a
+    unique child run ID under the shared runtime root.
+    """
 
     def run_stage(name: str, payload: dict) -> dict:
+        stage_run_id = f"{run_id}-{name}" if run_id else f"{name}-{uuid4().hex[:12]}"
         environment = make_environment(ghost)
         runtime = WorkflowRuntime(
             environment=environment,
@@ -83,7 +79,7 @@ def build_stage_runner(
             namespace=name,
             base_dir=PROJECT_ROOT,
         )
-        result = runner.invoke(WorkflowRequest(f"{run_id}-{name}", payload), runtime)
+        result = runner.invoke(WorkflowRequest(stage_run_id, payload), runtime)
         if result.status is not WorkflowStatus.Completed:
             raise RuntimeError(f"stage {name} did not complete: {result.kernel_summary}")
         return result.report
