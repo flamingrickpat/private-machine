@@ -1,0 +1,128 @@
+"""Direct Goals tests.
+
+No model endpoint, module thread, or bus. The kernel test uses the real kernel
+and the real Python role with a deterministic ``llm_complete`` tool.
+"""
+from __future__ import annotations
+
+import threading
+import unittest
+from pathlib import Path
+
+from pm_workflows.runtime import WorkflowRuntime
+from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from workflows.main_cognition.schemas import GoalsResult
+from workflows.main_cognition.stage_support import StageOutputError
+from workflows.main_cognition.stages.goals import steps
+from working_target import GhostBashEnvironment
+
+MANIFEST = Path(steps.__file__).resolve().parent / "goals.workflow.md"
+
+
+def example_request() -> dict:
+    return {
+        "companion_name": "Spamuel",
+        "user_name": "Jesse",
+        "state_summary": "smug but curious",
+        "active_goals": ["keep the bit going"],
+        "current_goals": ["keep the bit going", "put out the fire"],
+        "appraisal": {"feeling": "alarmed", "reasoning": "the kitchen is on fire"},
+        "context": {
+            "memories": [],
+            "active_goals": ["keep the bit going"],
+            "capabilities": [],
+            "candidate_ids": [11],
+        },
+    }
+
+
+class MessageTests(unittest.TestCase):
+    def test_messages_are_system_then_user_with_the_current_goals(self):
+        messages = steps.build_messages(example_request(), steps.load_prompts())
+        self.assertEqual([message["role"] for message in messages], ["system", "user"])
+        self.assertIn("Spamuel", messages[0]["content"])
+        self.assertIn("keep the bit going", messages[1]["content"])
+        self.assertIn("put out the fire", messages[1]["content"])
+        self.assertIn("alarmed", messages[1]["content"])
+
+
+class ValidationGuardTests(unittest.TestCase):
+    def test_unsupported_change_value_is_rejected(self):
+        result = GoalsResult.model_validate({"changes": [
+            {"change": "edit_prompt", "goal": "tweak prompts",
+             "reason": "not allowed", "priority": 0.5},
+        ]})
+        with self.assertRaises(StageOutputError):
+            steps.validate_changes(result)
+
+    def test_every_supported_change_value_passes(self):
+        result = GoalsResult.model_validate({"changes": [
+            {"change": "retain", "goal": "keep the bit going",
+             "reason": "still fits", "priority": 0.5},
+            {"change": "add", "goal": "put out the fire",
+             "reason": "the kitchen is on fire", "priority": 0.9},
+            {"change": "complete", "goal": "water the plants",
+             "reason": "already done", "priority": 0.1},
+            {"change": "reprioritize", "goal": "keep the bit going",
+             "reason": "the fire outranks the bit", "priority": 0.4},
+        ]})
+        steps.validate_changes(result)
+
+
+class KernelTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(".runtime/w5-direct-tests")
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def _run(self, completion: str):
+        captured: dict = {}
+
+        def llm_complete(messages, **generation):
+            captured["messages"] = messages
+            captured["generation"] = generation
+            return completion
+
+        environment = GhostBashEnvironment({}, {}, "read")
+        runtime = WorkflowRuntime(
+            environment=environment, stop_event=threading.Event(),
+            tools={"llm_complete": llm_complete}, propagate_python_errors=True,
+        )
+        runner = WorkflowRunner(MANIFEST, self.root, namespace="goals", base_dir=PROJECT_ROOT)
+        result = runner.invoke(WorkflowRequest("goals-1", example_request()), runtime)
+        return result, captured
+
+    def test_real_role_parses_a_valid_change_list(self):
+        payload = (
+            '{"changes": ['
+            '{"change": "add", "goal": "put out the fire",'
+            ' "reason": "the kitchen is on fire", "priority": 0.9},'
+            '{"change": "reprioritize", "goal": "keep the bit going",'
+            ' "reason": "the fire outranks the bit", "priority": 0.4},'
+            '{"change": "complete", "goal": "water the plants",'
+            ' "reason": "already done", "priority": 0.1}]}'
+        )
+        result, captured = self._run(payload)
+        self.assertEqual(result.status, WorkflowStatus.Completed)
+        report = GoalsResult.model_validate(result.report)
+        self.assertEqual(
+            [change.change for change in report.changes],
+            ["add", "reprioritize", "complete"],
+        )
+        self.assertEqual(captured["messages"][0]["role"], "system")
+
+    def test_unsupported_change_from_the_model_raises(self):
+        payload = (
+            '{"changes": ['
+            '{"change": "edit_prompt", "goal": "tweak prompts",'
+            ' "reason": "not allowed", "priority": 0.5}]}'
+        )
+        with self.assertRaises(StageOutputError):
+            self._run(payload)
+
+    def test_invalid_model_output_raises_instead_of_a_successful_empty_answer(self):
+        with self.assertRaises(StageOutputError):
+            self._run("this is not json at all")
+
+
+if __name__ == "__main__":
+    unittest.main()

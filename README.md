@@ -31,6 +31,9 @@ W4 is complete: standalone Story dialogue.
 It builds the exact five-message Story sequence, continues the assistant prefill, cleans the continuation to one companion utterance, applies a private-ontology boundary, and runs a separate evaluator phase over saved quality trials.
 It is a separate direct command, not part of the terminal session.
 Read the [W4 delivery record](docs/work-items/W4.md) for the commands, evidence, and limits.
+W5 is in progress: the seven real cognitive children and the typed parent pipeline exist and pass direct and live checks.
+They are not yet wired to the bus, the terminal, or a real Story reply.
+Read the [W5 checkpoint record](docs/work-items/W5.md) for the exact scope, evidence, and remaining work.
 The next unfinished work item is W5, real cognitive children and conversation wiring.
 
 ## What it does
@@ -133,6 +136,27 @@ Every run saves its request, messages, report, and kernel summary under `.runtim
 Generation always finishes before the evaluator starts. The evaluator reads saved artifacts and never rewrites a candidate.
 No generation deadline exists; a missing endpoint fails the command instead of retrying forever.
 
+## Main cognitive cycle (W5 checkpoint)
+
+The real cognitive pipeline is implemented under `workflows/main_cognition/`.
+It runs the seven ordered children — triage, appraisal, context, attention, goals, workspace, and action selection — over one request and one shared proposal batch, then releases typed action dispatches with dependency receipts.
+
+Each child is a normal Python-role workflow with its own manifest, prompts, schema, and direct tests beside the workflow.
+The parent assigns `action-<index>` ids and rejects dependent actions whose dependency was not released.
+The pipeline is not yet connected to the bus: the terminal still uses dummy cognition, and the returned dispatch does not yet generate a real Story reply.
+
+The live smoke check runs all seven children against the real Qwen backend:
+
+```powershell
+uv run --locked python -m unittest tests.live.test_cognition_pipeline -v -b
+```
+
+Direct tests need no model, module thread, or bus:
+
+```powershell
+uv run --locked python -m unittest tests.test_main_cognition_contract -v -b
+```
+
 ## Update from GitHub
 
 ```powershell
@@ -210,6 +234,7 @@ runtime/                model config, HTTP requests, activation, direct chat
   mcp_services.py       temporary loopback MCP listeners for one run
 ghost.py                compatibility import for the Ghost service
 workflows/dialogue_story/  W4 standalone Story dialogue (manifest, prompts, steps, context, engine, command, tests)
+workflows/main_cognition/   W5 ordered cognitive children, parent pipeline, typed dispatch (not yet bus-wired)
 config.example.yaml     credential-free model and cache config
 data/                   copied Spamuel seed data
 demo.py                 scripted scenarios
@@ -251,11 +276,12 @@ The prototype uses both through its working target.
 ## Verification
 
 - `python demo.py`: 21 checks passed with Git Bash first on PATH.
-- unittest discovery: 136 tests passed, including the full Spamuel seed, threaded integration, W4 Story dialogue, and the required live model and agent checks.
+- unittest discovery: 180 tests passed, including the full Spamuel seed, threaded integration, W4 Story dialogue, the W5 cognition pipeline, and the required live model and agent checks.
 - W1 foundation checks: 24 tests passed without model inference.
 - W2 checks: 29 tests passed for bus isolation, commits, restoration, concurrency, and direct persistent workflows.
 - W3 focused checks: pm-workflows 133 tests, pm-coder 72 tests (including 2 live), and the application live agent checks passed.
 - W4 Story dialogue: 15 direct contract tests, one real accepted dialogue, and a 9/10 good quality gate over ten independent trials.
+- W5 checkpoint: 43 direct cognition tests (seven stages plus the parent pipeline and dependency dispatch), one real seven-stage cycle with seven completed receipts and a dispatched action, and the full live suite.
 - `pm-workflows`: 133 runtime-context, driver, kernel, and scope tests passed.
 - `pm-coder`: 72 focused tests passed, including the live session and virtual-permission checks.
 
@@ -271,6 +297,7 @@ current kernel requires it. Every manifest here adds
 `AUDIT.md`. Virtual targets work through Python roles and real pm-coder roles.
 The W3 acceptance gate passed; the terminal still uses dummy cognition until W5.
 W4 Story dialogue is a separate direct command, not the terminal path.
+W5 checkpoint one adds the real cognitive children and typed dispatch but does not yet wire them to the bus or to a real Story reply.
 
 ## Next step
 

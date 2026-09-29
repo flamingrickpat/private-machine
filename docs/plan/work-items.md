@@ -12,7 +12,8 @@ Acceptance details: [test requirements](tests.md).
 Commit and package procedure: [GitHub delivery](delivery.md).
 
 Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, W2 delivered in version 0.3.0, W3 delivered in version 0.6.0, and W4 delivered in version 0.7.0.
-Read the [W1 delivery record](../work-items/W1.md), [W2 delivery record](../work-items/W2.md), [W3 delivery record](../work-items/W3.md), and [W4 delivery record](../work-items/W4.md) for evidence and limits.
+W5 is in progress: checkpoint one delivers the seven real cognitive children, the typed parent pipeline, and dependency dispatch, tested directly and with one live cycle; the bus and Story-reply wiring remain.
+Read the [W1 delivery record](../work-items/W1.md), [W2 delivery record](../work-items/W2.md), [W3 delivery record](../work-items/W3.md), [W4 delivery record](../work-items/W4.md), and [W5 checkpoint record](../work-items/W5.md) for evidence and limits.
 The next unfinished item is W5, real cognitive children and conversation wiring.
 
 ## Source map and observed gaps

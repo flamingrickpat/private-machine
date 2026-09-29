@@ -1,0 +1,96 @@
+"""Context role.
+
+Entry point: ``run(context)``. Builds the context messages from the request
+and its triage, appraisal, and memory-candidate payloads, validates the model
+JSON into :class:`ContextResult`, checks that every selected candidate id came
+from the supplied candidates, and writes ``outbox/report.yaml``. The message
+builder and the selection check are pure and tested without a kernel, model,
+or Ghost.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from workflows.main_cognition.schemas import ContextResult
+from workflows.main_cognition.stage_support import (
+    StageOutputError, complete_json, load_yaml, read_request, write_report,
+)
+
+WORKFLOW_DIR = Path(__file__).resolve().parent
+
+
+def load_prompts(path: Path | None = None) -> dict:
+    return load_yaml(path or WORKFLOW_DIR / "prompts.yaml")
+
+
+def _field(item, name, default=None):
+    if isinstance(item, dict):
+        return item.get(name, default)
+    return getattr(item, name, default)
+
+
+def render_memories(candidates: list) -> str:
+    lines = []
+    for candidate in candidates:
+        lines.append(
+            f"- knoxel_id={_field(candidate, 'knoxel_id')} "
+            f"text={_field(candidate, 'text', '')!r}"
+        )
+    return "\n".join(lines) or "(none)"
+
+
+def build_messages(request: dict, prompts: dict) -> list[dict]:
+    system = prompts["system_prompt"].format(
+        companion_name=request.get("companion_name", "Spamuel"),
+    )
+    user = prompts["user_template"].format(
+        companion_name=request.get("companion_name", "Spamuel"),
+        user_name=request.get("user_name", "Jesse"),
+        state_summary=request.get("state_summary") or "(no recorded state update)",
+        triage_summary=json.dumps(request.get("triage") or {}, sort_keys=True),
+        appraisal_summary=json.dumps(request.get("appraisal") or {}, sort_keys=True),
+        active_goals="\n".join(f"- {goal}" for goal in request.get("active_goals", []))
+        or "(none)",
+        capabilities="\n".join(f"- {capability}" for capability in request.get("capabilities", []))
+        or "(none)",
+        memory_candidates=render_memories(request.get("memory_candidates", [])),
+    )
+    return [
+        {"role": "system", "content": system.strip()},
+        {"role": "user", "content": user.strip()},
+    ]
+
+
+def validate_selection(result: ContextResult, candidates: list) -> None:
+    """Raise if the model selected an id outside the supplied candidate set."""
+    allowed = {_field(candidate, "knoxel_id") for candidate in candidates}
+    for candidate_id in result.candidate_ids:
+        if candidate_id not in allowed:
+            raise StageOutputError(
+                f"Context selected knoxel_id {candidate_id} that is not a "
+                "supplied memory candidate."
+            )
+
+
+def run(context) -> dict:
+    request = read_request(context.runtime.environment)
+    prompts = load_prompts()
+    messages = build_messages(request, prompts)
+    result = complete_json(context, messages, ContextResult, temperature=0.1)
+    validate_selection(result, request.get("memory_candidates", []))
+    write_report(context.runtime.environment, result)
+    return {
+        "status": "done",
+        "summary": f"selected {len(result.memories)} memories and "
+                   f"{len(result.active_goals)} goals",
+    }
+
+
+__all__ = [
+    "build_messages",
+    "load_prompts",
+    "render_memories",
+    "run",
+    "validate_selection",
+]
