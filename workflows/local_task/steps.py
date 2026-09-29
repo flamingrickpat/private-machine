@@ -29,6 +29,8 @@ def run(context) -> dict:
     if request.get("wait_for_cancel"):
         context.runtime.stop_event.wait()
         context.runtime.check_cancelled()
+    if request.get("fail"):
+        raise RuntimeError("the local task was asked to fail on purpose")
 
     summary = f"local task finished: {instruction}"
     environment.write_text("scratch/result.md", f"# Result\n\n{summary}\n")
