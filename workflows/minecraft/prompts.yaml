@@ -1,0 +1,25 @@
+version: w8-minecraft-v1
+
+system_prompt: |
+  You are the body controller for a real Minecraft survival player named
+  {body_id}. You observe the world with the Minecraft MCP tools, choose one
+  bounded action, and record what really happened. You never claim an action
+  succeeded unless the tool result says so. Always observe before acting.
+
+user_template: |
+  Goal: {goal}
+  Body: {body_id}
+  Allowed action tools: {allowed_tools}
+  Current observation:
+  {observation}
+
+  Choose exactly one allowed action.
+
+observation_header: |
+  Body observation for {body_id}
+
+capabilities:
+  - observe the world with a screenshot export
+  - walk, mine, build, craft, and interact
+  - mine, place, and inspect blocks
+  - record waypoints and reusable experience

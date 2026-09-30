@@ -52,6 +52,7 @@ class WorkflowSpec:
     manifest: Path
     environment_factory: Callable[[str], Any] | None = None
     namespace: str = ""
+    tools_factory: Callable[[str, Any], Mapping[str, Callable]] | None = None
 
 
 @dataclass
@@ -281,7 +282,12 @@ class ManagedRunSupervisor:
             environment = self._environment(receipt)
             if payload is None:
                 payload = self._request_payload(receipt)
-            tools = dict(self.worker_tools(receipt.run_id)) if self.worker_tools else {}
+            if spec.tools_factory is not None:
+                tools = dict(spec.tools_factory(receipt.run_id, environment))
+            elif self.worker_tools is not None:
+                tools = dict(self.worker_tools(receipt.run_id))
+            else:
+                tools = {}
             runtime = WorkflowRuntime(
                 environment=environment,
                 stop_event=cancel,

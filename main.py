@@ -53,11 +53,18 @@ def default_config_path() -> str:
 
 
 def _managed_workflows() -> dict:
+    from workflows.minecraft.module_tools import build_minecraft_module_tools
+
     base = PROJECT_ROOT / "workflows" / "local_task"
     return {
         "local_task": WorkflowSpec(base / "local_task.workflow.md", namespace="local_task"),
         "local_task_question": WorkflowSpec(
             base / "local_task_question.workflow.md", namespace="local_task_question",
+        ),
+        "minecraft": WorkflowSpec(
+            PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md",
+            namespace="minecraft",
+            tools_factory=build_minecraft_module_tools(),
         ),
     }
 

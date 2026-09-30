@@ -31,6 +31,7 @@ DEFAULT_WORKFLOWS = [
     {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools."},
     {"name": "self_management", "description": "Start, status, update, or terminate a managed run."},
     {"name": "local_task", "description": "Run one small real local task."},
+    {"name": "minecraft", "description": "Observe and act in the Minecraft world once."},
 ]
 
 

@@ -11,12 +11,13 @@ Parent: [implementation handoff](../../IMPLEMENTATION_PLAN.md).
 Acceptance details: [test requirements](tests.md).
 Commit and package procedure: [GitHub delivery](delivery.md).
 
-Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, W2 delivered in version 0.3.0, W3 delivered in version 0.6.0, W4 delivered in version 0.7.0, W5 delivered in version 0.8.0, W6 delivered in version 0.9.0, and W7 delivered in version 0.9.0.
+Current checkpoint: W0 baseline rechecked, W1 delivered in version 0.2.0, W2 delivered in version 0.3.0, W3 delivered in version 0.6.0, W4 delivered in version 0.7.0, W5 delivered in version 0.8.0, W6 delivered in version 0.9.0, W7 delivered in version 0.9.0, and W8 delivered in version 0.10.0.
 W5 wires the seven real cognitive children and the typed parent pipeline to the bus, commits the GWT, dispatches typed actions, and returns a real correlated Story reply. The terminal uses the real path by default; the fixed keyword policy remains only as a labeled demonstration fixture.
 W6 adds a separate tool-capable Assistant dialogue, one durable managed-run table with shared start/status/update/terminate operations, a dormant steward, a small real local task, and evidence-backed report-to-knoxel consolidation.
 W7 adds whole-application topology acceptance and the ten-scenario, twenty-exchange conversation acceptance. Every hard contract passes and the quality gate passes.
-Read the [W1 delivery record](../work-items/W1.md), [W2 delivery record](../work-items/W2.md), [W3 delivery record](../work-items/W3.md), [W4 delivery record](../work-items/W4.md), [W5 delivery record](../work-items/W5.md), [W6 delivery record](../work-items/W6.md), and [W7 delivery record](../work-items/W7.md) for evidence and limits.
-The next unfinished item is W8, Minecraft body and richer consolidation.
+W8 adds a managed Minecraft body workflow, spatial and screenshot consolidation, and a real isolated-server gate for observation, an action, status, update, termination, and memory recovery.
+Read the [W1 delivery record](../work-items/W1.md), [W2 delivery record](../work-items/W2.md), [W3 delivery record](../work-items/W3.md), [W4 delivery record](../work-items/W4.md), [W5 delivery record](../work-items/W5.md), [W6 delivery record](../work-items/W6.md), [W7 delivery record](../work-items/W7.md), and [W8 delivery record](../work-items/W8.md) for evidence and limits.
+All planned work items are delivered. The first delivery is complete.
 
 ## Source map and observed gaps
 

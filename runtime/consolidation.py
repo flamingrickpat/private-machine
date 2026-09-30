@@ -1,14 +1,21 @@
-"""Evidence-backed conversion of managed-run text artifacts into memory.
+"""Evidence-backed conversion of managed-run artifacts into memory.
 
 A consolidation reads a stable inventory of real task files, converts the
-observations, outcome, and reusable experience into typed knoxels, and records
-one receipt keyed by the run and the inventory hash. Repeating the request
-returns the original receipt instead of duplicating memories. A failed read or
-commit preserves the artifacts and leaves no partial accepted state.
+observations, outcome, reusable experience, spatial records, and screenshot
+evidence into typed knoxels, and records one receipt keyed by the run and the
+inventory hash. Repeating the request returns the original receipt instead of
+duplicating memories. A failed read or commit preserves the artifacts and
+leaves no partial accepted state.
+
+Text content is the only thing that may reach an embedding or a dialogue
+prompt. Screenshot base64 lives in knoxel ``evidence`` metadata and is never
+placed in a knoxel's ``content``.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
+import mimetypes
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -16,10 +23,13 @@ from typing import Any, Callable
 import yaml
 
 from pm_core.model.knoxel_common import Feature
+from pm_core.model.knoxel_embodiment import BodyEpisodeKnoxel, WorldObjectKnoxel, WorldPlaceKnoxel
 from pm_core.model.knoxel_enums import FeatureType, InterlocusType
 
 TEXT_SUFFIXES = frozenset({".md", ".txt", ".yaml", ".yml", ".json"})
+IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
 _TEXT_DIRECTORIES = ("outbox", "scratch")
+_IMAGE_DIRECTORIES = ("screenshots", "frames", "images")
 
 
 @dataclass
@@ -28,6 +38,7 @@ class ConsolidationReceipt:
     run_id: str
     artifact_path: str
     evidence: list[dict] = field(default_factory=list)
+    image_evidence: list[dict] = field(default_factory=list)
     source_event_ids: list[int] = field(default_factory=list)
     memory_ids: list[int] = field(default_factory=list)
     state: str = "consolidated"
@@ -39,6 +50,7 @@ class ConsolidationReceipt:
             "run_id": self.run_id,
             "artifact_path": self.artifact_path,
             "evidence": list(self.evidence),
+            "image_evidence": list(self.image_evidence),
             "source_event_ids": list(self.source_event_ids),
             "memory_ids": list(self.memory_ids),
             "state": self.state,
@@ -81,19 +93,64 @@ class Consolidator:
                 })
         return items
 
-    def _key(self, run_id: str, inventory: list[dict]) -> str:
+    def image_inventory(self, artifact_path: str | Path) -> list[dict]:
+        """Return real image artifacts with media type, hash, and base64."""
+        root = Path(artifact_path)
+        items: list[dict] = []
+        for directory in _IMAGE_DIRECTORIES:
+            base = root / directory
+            if not base.is_dir():
+                continue
+            for path in sorted(base.iterdir()):
+                if not path.is_file():
+                    continue
+                suffix = path.suffix.lower()
+                if suffix == ".b64":
+                    try:
+                        raw = base64.b64decode(path.read_text(encoding="ascii").strip())
+                    except (ValueError, UnicodeError):
+                        continue
+                    name = path.with_suffix("").name
+                elif suffix in IMAGE_SUFFIXES:
+                    raw = path.read_bytes()
+                    name = path.name
+                else:
+                    continue
+                if not raw:
+                    continue
+                media_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
+                items.append({
+                    "path": f"{directory}/{path.name}",
+                    "media_type": media_type,
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                    "size": len(raw),
+                    "observed_at": self.clock(),
+                    "base64": base64.b64encode(raw).decode("ascii"),
+                })
+        return items
+
+    def _key(self, run_id: str, inventory: list[dict], images: list[dict]) -> str:
         digest = hashlib.sha256(
-            "\n".join(f"{item['path']}:{item['sha256']}" for item in inventory).encode("utf-8")
+            "\n".join(
+                [*(f"{item['path']}:{item['sha256']}" for item in inventory),
+                 *(f"{item['path']}:{item['sha256']}" for item in images)]
+            ).encode("utf-8")
         ).hexdigest()
         return f"{run_id}:{digest}"
 
     # ------------------------------------------------------- proposals
 
-    def proposals(self, run_id: str, inventory: list[dict]) -> list[Feature]:
-        """Convert the inventory into typed features. No model is involved."""
+    def proposals(
+        self,
+        run_id: str,
+        inventory: list[dict],
+        images: list[dict] | None = None,
+    ) -> list[Any]:
+        """Convert the inventory into typed knoxels. No model is involved."""
+        images = images or []
         by_path = {item["path"]: item for item in inventory}
-        proposals: list[Feature] = []
         metadata = {"run_id": run_id, "evidence": [item["path"] for item in inventory]}
+        proposals: list[Any] = []
 
         report = by_path.get("outbox/report.yaml")
         if report is not None:
@@ -126,7 +183,87 @@ class Consolidator:
                 override_source="memory_consolidation",
                 metadata={**metadata, "kind": "experience"},
             ))
+
+        proposals.extend(self._spatial_proposals(run_id, by_path, images))
         return proposals
+
+    def _spatial_proposals(self, run_id: str, by_path: dict, images: list[dict]) -> list[Any]:
+        world = by_path.get("outbox/world.yaml")
+        if world is None and not images:
+            return []
+        data = {}
+        if world is not None:
+            try:
+                data = yaml.safe_load(world["text"]) or {}
+            except yaml.YAMLError:
+                data = {}
+        if not isinstance(data, dict):
+            data = {}
+
+        proposals: list[Any] = []
+        for place in data.get("places", []) or []:
+            proposals.append(WorldPlaceKnoxel(
+                content=str(place.get("content") or place.get("place_key") or "known place"),
+                body_id=str(place.get("body_id", "body")),
+                place_key=str(place.get("place_key", "")),
+                position=dict(place.get("position", {})),
+                dimension=str(place.get("dimension", "unknown")),
+                landmarks=[str(item) for item in place.get("landmarks", [])],
+                confidence=float(place.get("confidence", 0.0)),
+                metadata={"run_id": run_id, "kind": "place"},
+            ))
+        for obj in data.get("objects", []) or []:
+            proposals.append(WorldObjectKnoxel(
+                content=str(obj.get("content") or obj.get("object_key") or "known object"),
+                body_id=str(obj.get("body_id", "body")),
+                object_key=str(obj.get("object_key", "")),
+                object_kind=str(obj.get("object_kind", "unknown")),
+                position=dict(obj.get("position", {})),
+                dimension=str(obj.get("dimension", "unknown")),
+                confidence=float(obj.get("confidence", 0.0)),
+                metadata={"run_id": run_id, "kind": "object"},
+            ))
+
+        images_by_path = {item["path"]: item for item in images}
+        episodes = list(data.get("episodes", []) or [])
+        if not episodes and images:
+            episodes = [{
+                "body_id": str(data.get("body_id", "body")),
+                "goal": str(data.get("goal", "")),
+                "outcome": str(data.get("outcome", "observed")),
+                "action_count": 0,
+                "images": [item["path"] for item in images],
+            }]
+        for episode in episodes:
+            attached = [
+                self._image_evidence(images_by_path[path])
+                for path in (episode.get("images") or [])
+                if path in images_by_path
+            ]
+            if not attached and images:
+                attached = [self._image_evidence(item) for item in images]
+            proposals.append(BodyEpisodeKnoxel(
+                content=self._clip(
+                    f"Body episode for {episode.get('body_id', 'body')}: "
+                    f"{episode.get('outcome', 'observed')}. {episode.get('goal', '')}"
+                ),
+                body_id=str(episode.get("body_id", "body")),
+                goal=episode.get("goal"),
+                outcome=str(episode.get("outcome", "unknown")),
+                action_count=int(episode.get("action_count", 0)),
+                evidence={"images": attached, "run_id": run_id},
+                metadata={"run_id": run_id, "kind": "episode"},
+            ))
+        return proposals
+
+    def _image_evidence(self, item: dict) -> dict:
+        return {
+            "media_type": item["media_type"],
+            "base64": item["base64"],
+            "source_artifact": item["path"],
+            "sha256": item["sha256"],
+            "observed_at": item["observed_at"],
+        }
 
     @staticmethod
     def _report_summary(text: str) -> str:
@@ -157,13 +294,14 @@ class Consolidator:
     ) -> dict:
         """Commit one evidence-backed consolidation, or reuse its receipt."""
         inventory = self.inventory(artifact_path)
-        key = self._key(run_id, inventory)
+        images = self.image_inventory(artifact_path)
+        key = self._key(run_id, inventory, images)
         with self.ghost.lock:
             existing = self.ghost.consolidations.get(key)
         if existing is not None:
             return dict(existing)
 
-        proposals = self.proposals(run_id, inventory)
+        proposals = self.proposals(run_id, inventory, images)
         batch = self.ghost.begin_batch(f"consolidation:{key}", new_tick=True)
         memory_ids: list[int] = []
         for proposal in proposals:
@@ -174,6 +312,13 @@ class Consolidator:
             run_id=run_id,
             artifact_path=str(artifact_path),
             evidence=[{"path": item["path"], "sha256": item["sha256"]} for item in inventory],
+            image_evidence=[
+                {
+                    "path": item["path"], "sha256": item["sha256"],
+                    "media_type": item["media_type"],
+                }
+                for item in images
+            ],
             source_event_ids=list(source_event_ids or []),
             memory_ids=memory_ids,
             state="consolidated",
@@ -189,7 +334,7 @@ def build_consolidation_tools(consolidator: Consolidator) -> dict[str, Callable[
 
     def consolidated_artifacts(run_id: str, artifact_path: str,
                                source_event_ids: list[int] | None = None) -> dict:
-        """Consolidate one run's text artifacts into evidence-backed memory."""
+        """Consolidate one run's text and image artifacts into memory."""
         return consolidator.consolidate(
             run_id, artifact_path, source_event_ids=source_event_ids,
         )

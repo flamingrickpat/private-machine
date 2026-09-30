@@ -120,6 +120,12 @@ class GhostBashEnvironment(WorkingEnvironment):
         if result.exit_code != 0:
             raise RuntimeError(result.stderr or f"move failed: {source} -> {destination}")
 
+    def write_binary(self, path: str, data: bytes) -> None:
+        """Write exact bytes through the same read-only-projected view."""
+        target = self._abs(path)
+        self.machine.write_text_as("workflow", target, "")  # enforces write ACL
+        self.machine.write_binary(target, data)
+
     def list_files(self, directory: str) -> list[str]:
         target = self._abs(directory)
         command = f"find {shlex.quote(target)} -maxdepth 1 -type f"
@@ -181,6 +187,11 @@ class FolderEnvironment(WorkingEnvironment):
         destination_path = self._path(destination)
         destination_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(source_path), str(destination_path))
+
+    def write_binary(self, path: str, data: bytes) -> None:
+        target = self._path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
 
     def list_files(self, directory: str) -> list[str]:
         root = self._path(directory)

@@ -25,7 +25,7 @@ W2 adds isolated bus delivery, scoped read views, atomic Ghost batches, and chec
 Read the [Ghost and bus guide](docs/ghost.md) for the persistence boundary and direct debugger examples.
 The [W2 delivery record](docs/work-items/W2.md) contains its evidence and limits.
 W3 is complete: the full workflow-to-agent boundary.
-Application version 0.9.0 installs pm-coder 0.9.2 and pm-workflows 0.5.0.
+Application version 0.10.0 installs pm-coder 0.9.2 and pm-workflows 0.5.0.
 Real Python and pm-coder roles run on folder or virtual Ghost targets with explicit model settings and cancellation.
 Runs have scoped Python tool grants, optional child namespaces, temporary loopback MCP services, Ghost proposal tools, separate run cancellation, and waiting-input resume.
 Read the [runtime guide](docs/runtime.md) and the [W3 delivery record](docs/work-items/W3.md) for the contracts, evidence, and limits.
@@ -42,7 +42,10 @@ Read the [W6 delivery record](docs/work-items/W6.md) for the exact scope, eviden
 W7 is complete: first-delivery acceptance.
 It adds nine topology checks over every real workflow manifest and a ten-scenario, twenty-exchange conversation acceptance with a separate evaluator phase, nine good trajectories of ten, and no hard contract violation.
 Read the [W7 delivery record](docs/work-items/W7.md) for the exact scope, evidence, and remaining work.
-The next unfinished work item is W8, Minecraft body and richer consolidation.
+W8 is complete: the Minecraft body and richer consolidation.
+It adds a managed Minecraft workflow that observes and acts through the real pm-minecraft MCP, spatial records and base64 screenshot evidence in consolidation, and a real isolated-server gate for observation, an action, status, update, termination, and memory recovery.
+Read the [W8 delivery record](docs/work-items/W8.md) for the exact scope, evidence, and remaining work.
+All planned work items are delivered.
 
 ## What it does
 

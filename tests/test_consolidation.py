@@ -118,6 +118,86 @@ class ConsolidatorTests(unittest.TestCase):
         self.assertEqual(receipt["memory_ids"], [])
         self.assertEqual(receipt["evidence"], [])
 
+    def test_spatial_records_and_screenshot_evidence(self):
+        artifact = self.root / "world-artifacts"
+        (artifact / "outbox").mkdir(parents=True)
+        (artifact / "screenshots").mkdir(parents=True)
+        (artifact / "outbox" / "report.yaml").write_text(
+            "summary: chopped one oak log\n", encoding="utf-8",
+        )
+        (artifact / "outbox" / "world.yaml").write_text(
+            "places:\n"
+            "  - place_key: spawn\n"
+            "    position: {x: 0, y: 1, z: 0}\n"
+            "    dimension: overworld\n"
+            "    landmarks: [flat area]\n"
+            "    confidence: 0.9\n"
+            "objects:\n"
+            "  - object_key: oak_log_1\n"
+            "    object_kind: oak_log\n"
+            "    position: {x: 5, y: 1, z: 3}\n"
+            "    confidence: 0.8\n"
+            "episodes:\n"
+            "  - body_id: big_floppa\n"
+            "    goal: chop one oak log\n"
+            "    outcome: success\n"
+            "    action_count: 3\n"
+            "    images: [screenshots/step-01.png]\n",
+            encoding="utf-8",
+        )
+        png = b"\x89PNG\r\n\x1a\n" + b"fake-pixels"
+        (artifact / "screenshots" / "step-01.png").write_bytes(png)
+
+        receipt = self.consolidator.consolidate("world-run", artifact)
+        self.assertTrue(receipt["memory_ids"])
+        self.assertEqual(len(receipt["image_evidence"]), 1)
+        self.assertEqual(receipt["image_evidence"][0]["media_type"], "image/png")
+        self.assertEqual(
+            receipt["image_evidence"][0]["sha256"],
+            __import__("hashlib").sha256(png).hexdigest(),
+        )
+        knoxels = [self.ghost.get_knoxel_by_id(mid) for mid in receipt["memory_ids"]]
+        kinds = {type(k).__name__ for k in knoxels}
+        self.assertIn("WorldPlaceKnoxel", kinds)
+        self.assertIn("WorldObjectKnoxel", kinds)
+        self.assertIn("BodyEpisodeKnoxel", kinds)
+        episode = next(k for k in knoxels if type(k).__name__ == "BodyEpisodeKnoxel")
+        image = episode.evidence["images"][0]
+        self.assertEqual(image["media_type"], "image/png")
+        self.assertEqual(image["source_artifact"], "screenshots/step-01.png")
+        self.assertTrue(image["base64"])
+        # Base64 never enters textual content or a text embedding.
+        for knoxel in knoxels:
+            self.assertNotIn("base64", str(getattr(knoxel, "content", "")))
+            self.assertEqual(getattr(knoxel, "embedding", []) or [], [])
+        # A repeated request reuses the same receipt and memory ids.
+        again = self.consolidator.consolidate("world-run", artifact)
+        self.assertEqual(again["memory_ids"], receipt["memory_ids"])
+
+    def test_changed_screenshot_creates_a_new_receipt(self):
+        artifact = self.root / "image-artifacts"
+        (artifact / "outbox").mkdir(parents=True)
+        (artifact / "screenshots").mkdir(parents=True)
+        (artifact / "outbox" / "report.yaml").write_text("summary: observed\n", encoding="utf-8")
+        shot = artifact / "screenshots" / "frame.png"
+        shot.write_bytes(b"\x89PNG\r\n\x1a\nfirst")
+        first = self.consolidator.consolidate("image-run", artifact)
+        shot.write_bytes(b"\x89PNG\r\n\x1a\nsecond")
+        second = self.consolidator.consolidate("image-run", artifact)
+        self.assertNotEqual(first["key"], second["key"])
+        self.assertEqual(len(self.ghost.consolidations), 2)
+
+    def test_failed_consolidation_preserves_the_task_folder(self):
+        artifact = self.root / "preserved"
+        (artifact / "outbox").mkdir(parents=True)
+        (artifact / "outbox" / "world.yaml").write_text(
+            "places: [this is not a mapping\n", encoding="utf-8",
+        )
+        receipt = self.consolidator.consolidate("bad-run", artifact)
+        self.assertEqual(receipt["state"], "consolidated")
+        self.assertTrue(artifact.is_dir())
+        self.assertTrue((artifact / "outbox" / "world.yaml").is_file())
+
 
 class ConsolidationWorkflowTests(unittest.TestCase):
     def test_workflow_converts_artifacts_and_reuses_the_receipt(self):

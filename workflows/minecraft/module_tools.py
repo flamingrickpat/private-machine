@@ -1,0 +1,24 @@
+"""Managed-run tools for the Minecraft body workflow."""
+
+from __future__ import annotations
+
+import os
+from typing import Callable
+
+from runtime.minecraft_tools import DEFAULT_MCP_URL, build_minecraft_tools
+
+
+def build_minecraft_module_tools(plan_model=None) -> Callable[[str, object], dict]:
+    """Return a ``tools_factory(run_id, environment)`` for managed runs.
+
+    ``MINECRAFT_MCP_URL`` selects the real pm-minecraft MCP endpoint.
+    """
+    url = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+
+    def factory(run_id: str, environment) -> dict:
+        return build_minecraft_tools(url, plan_model=plan_model)
+
+    return factory
+
+
+__all__ = ["build_minecraft_module_tools"]
