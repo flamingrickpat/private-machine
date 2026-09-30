@@ -25,6 +25,7 @@ from bus.envelopes import Envelope, _new_id
 from main import build_app
 from runtime.cognitive_model import LazyStageModel
 from runtime.model_activation import ChatClient, ModelActivation
+from runtime.model_io import ModelError
 from runtime.models import LlmPreset, load_config, resolve_connection
 from tests.support import Recorder, fresh_ghost, load_seed_state
 
@@ -172,18 +173,29 @@ async def jesse_next_line(
     rendered = "\n".join(
         f'{turn["speaker"]}: {turn["text"]}' for turn in transcript
     ) or "(the conversation has not started)"
-    result = await client.complete(
-        [
-            {"role": "system", "content": JESSE_SYSTEM.format(
-                role=scenario.role, facts=scenario.facts,
-            )},
-            {"role": "user", "content": f"Transcript so far:\n{rendered}\n\nWrite Jesse's next message."},
-        ],
-        temperature=0.8,
-        max_tokens=2048,
-    )
-    text = (result.choices[0].message.content or "").strip()
-    return text or "…so what are you even saying right now"
+    messages = [
+        {"role": "system", "content": JESSE_SYSTEM.format(
+            role=scenario.role, facts=scenario.facts,
+        )},
+        {"role": "user", "content": f"Transcript so far:\n{rendered}\n\nWrite Jesse's next message."},
+    ]
+    # A reasoning backend can return empty content. Retry it a few times so a
+    # transient empty response is not recorded as a scenario contract failure.
+    for attempt in range(4):
+        try:
+            result = await client.complete(
+                messages, temperature=0.8, max_tokens=2048,
+            )
+        except ModelError as error:
+            if "no content" not in str(error) or attempt == 3:
+                raise
+            await asyncio.sleep(0.5 * (attempt + 1))
+            continue
+        text = (result.choices[0].message.content or "").strip()
+        if text:
+            return text
+        await asyncio.sleep(0.5 * (attempt + 1))
+    return "…so what are you even saying right now"
 
 
 # ------------------------------------------------------------- companion app
@@ -230,7 +242,7 @@ def _step_with_retry(assistant, jesse_knoxel: int, jesse_text: str, name: str, i
     """Run one exchange, retrying a transient Windows atomic-replace lock."""
     import time
     last: BaseException | None = None
-    for attempt in range(3):
+    for attempt in range(4):
         try:
             assistant.step()
             return
@@ -239,7 +251,7 @@ def _step_with_retry(assistant, jesse_knoxel: int, jesse_text: str, name: str, i
             time.sleep(0.4 * (attempt + 1))
         except RuntimeError as error:  # transient model/backend failure
             last = error
-            if "ended unsuccessfully" not in str(error) or attempt >= 1:
+            if "ended unsuccessfully" not in str(error) or attempt >= 2:
                 raise
             time.sleep(0.5 * (attempt + 1))
         assistant.mailbox.put(Envelope(
