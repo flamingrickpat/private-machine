@@ -667,7 +667,7 @@ class AssistantDialogue(CognitiveWorkflow):
             if is_last and turn.speaker == self.ghost.get_user_name() and turn.text == current:
                 continue
             role = "user" if turn.speaker == self.ghost.get_user_name() else "assistant"
-            messages.append(AssistantMessage(role=role, content=turn.text))
+            messages.append(AssistantMessage(role=role, content=_clip(turn.text, 1500)))
         return messages
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:

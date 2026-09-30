@@ -165,13 +165,18 @@ directions, no labels. One or two sentences. Continue the conversation naturally
 """
 
 
+def _clip_turn(text: str, limit: int = 1200) -> str:
+    text = str(text)
+    return text if len(text) <= limit else text[: limit - 1] + "\u2026"
+
+
 async def jesse_next_line(
     client: ChatClient,
     scenario: Scenario,
     transcript: list[dict],
 ) -> str:
     rendered = "\n".join(
-        f'{turn["speaker"]}: {turn["text"]}' for turn in transcript
+        f'{turn["speaker"]}: {_clip_turn(turn["text"])}' for turn in transcript[-16:]
     ) or "(the conversation has not started)"
     messages = [
         {"role": "system", "content": JESSE_SYSTEM.format(
