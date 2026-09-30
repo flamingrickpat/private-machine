@@ -10,10 +10,8 @@ Set ``PM_W7_SCENARIOS`` / ``PM_W7_EXCHANGES`` for a smaller smoke run.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
-import statistics
 import subprocess
 import unittest
 from datetime import datetime, timezone
@@ -22,7 +20,7 @@ from uuid import uuid4
 
 from runtime.cognitive_model import LazyStageModel
 from runtime.model_activation import ChatClient, ModelActivation
-from runtime.models import LlmPreset, load_config, resolve_connection
+from runtime.models import load_config, resolve_connection
 from tests.live import conversation as conv
 
 EVIDENCE_ROOT = (
@@ -95,82 +93,46 @@ class ConversationAcceptanceTests(unittest.TestCase):
                     continue
                 hard_violations.append(f"{result.name}: {violation}")
 
-        evaluations: list[dict] = []
-        trajectory_scores: list[int] = []
-        evaluator_errors: list[str] = []
-        evaluator_model = ""
-        rubric_version = ""
-        shares_backend = False
-        if evaluate:
-            evaluator_connection = resolve_connection(self.config, preset=LlmPreset.UnitTestEvaluator)
-            asyncio.run(self.owner.activate(evaluator_connection, live_test=True))
-            evaluator = ChatClient(evaluator_connection, self.owner, live_test=True)
-            prompt = conv.load_evaluator_prompt()
-            evaluator_model = evaluator_connection.model
-            rubric_version = str(prompt["version"])
-            shares_backend = self.config.evaluator_shares_backend()
-            for result in results:
-                scenario = conv.scenario_by_name(result.name)
-                transcript = conv.render_transcript(result.transcript)
-                scores: list[int] = []
-                scenario_evaluations: list[dict] = []
-                for exchange in result.exchanges:
-                    reply = exchange.get("companion", "")
-                    try:
-                        score = asyncio.run(conv.evaluate_reply(
-                            evaluator, scenario=scenario, transcript=transcript,
-                            reply=reply, prompt=prompt,
-                        ))
-                    except Exception as error:  # evaluator error, not a quality failure
-                        score = {"error": f"{type(error).__name__}: {error}"}
-                        evaluator_errors.append(f"{result.name} exchange {exchange.get('index')}: {score['error']}")
-                    scenario_evaluations.append({"index": exchange.get("index"), **score})
-                    if isinstance(score.get("scale"), int):
-                        scores.append(score["scale"])
-                if scores:
-                    trajectory_scores.append(int(statistics.median(scores)))
-                else:
-                    trajectory_scores.append(-1)
-                    if not any("error" in item for item in scenario_evaluations):
-                        evaluator_errors.append(f"{result.name}: the evaluator returned no scores")
-                evaluations.append({"scenario": result.name, "replies": scenario_evaluations})
-                _save(EVIDENCE_ROOT / f"scenario-{result.name}" / "evaluations.json", scenario_evaluations)
-
-        good = sum(1 for score in trajectory_scores if score == 1)
-        summary = {
+        generation_fields = {
             "scenarios": [result.name for result in results],
             "exchanges_per_scenario": exchanges,
             "total_exchanges": sum(len(result.exchanges) for result in results),
             "hard_violations": hard_violations,
             "infrastructure_errors": infrastructure_errors,
-            "evaluator_errors": evaluator_errors,
             "rejections": [
                 violation for result in results for violation in result.violations
                 if "no committed reply" in violation
             ],
-            "evaluated": evaluate,
-            "trajectory_scores": trajectory_scores,
-            "good_trajectories": good,
-            "required_good": conv.REQUIRED_GOOD,
-            "passed": good >= conv.REQUIRED_GOOD and not hard_violations,
-            "evaluator_model": evaluator_model,
-            "rubric_version": rubric_version,
-            "evaluator_shares_backend": shares_backend,
             "application_version": "0.9.0",
             "generation_model": self.connection.model,
             "git_revision": _git_revision(),
         }
-        _save(EVIDENCE_ROOT / "evaluations.json", evaluations)
-        _save(EVIDENCE_ROOT / "summary.json", summary)
+        _save(EVIDENCE_ROOT / "summary.json", generation_fields)
+        if evaluate:
+            summary = conv.run_evaluation(
+                EVIDENCE_ROOT,
+                config=self.config,
+                owner=self.owner,
+                selected=[result.name for result in results],
+            )
+        else:
+            summary = {**generation_fields, "evaluated": False}
+            _save(EVIDENCE_ROOT / "summary.json", summary)
         print(f"run root: {EVIDENCE_ROOT}")
         print(json.dumps(summary, indent=2))
 
         self.assertEqual(hard_violations, [], f"hard contract violations: {hard_violations}")
         if evaluate:
-            self.assertEqual(evaluator_errors, [], f"evaluator errors: {evaluator_errors}")
+            # A per-reply evaluator error is reported separately from the
+            # trajectory gate. A failed trajectory evaluation is fatal.
+            trajectory_errors = [
+                error for error in (summary.get("evaluator_errors") or [])
+                if "trajectory:" in error
+            ]
+            self.assertEqual(trajectory_errors, [], f"trajectory evaluator errors: {trajectory_errors}")
             self.assertGreaterEqual(
-                good, conv.REQUIRED_GOOD,
-                f"only {good}/{len(results)} good trajectories",
+                summary["good_trajectories"], conv.REQUIRED_GOOD,
+                f"only {summary['good_trajectories']}/{len(results)} good trajectories",
             )
 
 

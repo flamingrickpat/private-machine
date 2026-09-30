@@ -427,6 +427,15 @@ def render_transcript(transcript: list[dict]) -> str:
     return "\n".join(f'{turn["speaker"]}: {turn["text"]}' for turn in transcript)
 
 
+def render_recent(transcript: list[dict], limit: int = 6, clip: int = 1200) -> str:
+    """Bound the evaluator context so one long reply cannot overflow it."""
+    def clipped(text: str) -> str:
+        text = str(text)
+        return text if len(text) <= clip else text[: clip - 1] + "\u2026"
+    recent = transcript[-limit:]
+    return "\n".join(f'{turn["speaker"]}: {clipped(turn["text"])}' for turn in recent)
+
+
 def _extract_json(text: str) -> dict:
     import json as _json
     import re
@@ -434,6 +443,45 @@ def _extract_json(text: str) -> dict:
     if match is None:
         raise ValueError("The evaluator returned no JSON object.")
     return _json.loads(match.group(0))
+
+
+async def _evaluate_once(
+    evaluator: ChatClient, prompt: dict, user: str, *, attempts: int = 4,
+) -> dict:
+    """One evaluator call with a bounded empty-content/malformed retry."""
+    last: BaseException | None = None
+    for attempt in range(attempts):
+        try:
+            result = await evaluator.complete(
+                [
+                    {"role": "system", "content": prompt["system_prompt"]},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0.0,
+                max_tokens=2048,
+            )
+            text = result.choices[0].message.content or ""
+            return _extract_json(text)
+        except (ModelError, ValueError) as error:
+            last = error
+            if attempt == attempts - 1:
+                raise
+            await asyncio.sleep(0.5 * (attempt + 1))
+    raise last if last is not None else ValueError("The evaluator returned no result.")
+
+
+async def evaluate_trajectory(
+    evaluator: ChatClient,
+    *,
+    scenario: Scenario,
+    transcript: str,
+    prompt: dict,
+) -> dict:
+    """Score the complete trajectory from the saved transcript."""
+    user = prompt["trajectory_user_template"].format(
+        scenario=scenario.name, transcript=transcript,
+    )
+    return await _evaluate_once(evaluator, prompt, user)
 
 
 async def evaluate_reply(
@@ -444,20 +492,112 @@ async def evaluate_reply(
     reply: str,
     prompt: dict,
 ) -> dict:
+    """Score one reply against a bounded recent context."""
     user = prompt["user_template"].format(
         scenario=scenario.name,
         transcript=transcript,
         reply=reply or "(no committed reply)",
     )
-    result = await evaluator.complete(
-        [
-            {"role": "system", "content": prompt["system_prompt"]},
-            {"role": "user", "content": user},
-        ],
-        temperature=0.0,
-        max_tokens=2048,
+    return await _evaluate_once(evaluator, prompt, user)
+
+
+def run_evaluation(
+    run_root: Path,
+    *,
+    config,
+    owner: ModelActivation,
+    selected: list[str] | None = None,
+) -> dict:
+    """Score every saved scenario under ``run_root`` and write the summary.
+
+    Generation is never re-run. This is the separate evaluator phase.
+    """
+    import statistics as _statistics
+
+    evaluator_connection = resolve_connection(config, preset=LlmPreset.UnitTestEvaluator)
+    asyncio.run(owner.activate(evaluator_connection, live_test=True))
+    evaluator = ChatClient(evaluator_connection, owner, live_test=True)
+    prompt = load_evaluator_prompt()
+
+    evaluations: list[dict] = []
+    trajectory_scores: list[int] = []
+    evaluator_errors: list[str] = []
+    names = selected or [
+        path.name[len("scenario-"):] for path in sorted(run_root.glob("scenario-*"))
+    ]
+    for name in names:
+        scenario = scenario_by_name(name)
+        exchanges = json.loads(
+            (run_root / f"scenario-{name}" / "exchanges.json").read_text(encoding="utf-8")
+        )
+        transcript_turns = public_from_exchanges(exchanges)
+        full = render_transcript(transcript_turns)
+        scenario_evaluations: list[dict] = []
+        scores: list[int] = []
+        for exchange in exchanges:
+            reply = exchange.get("companion", "")
+            recent = render_recent(transcript_turns[: exchange.get("index", 0) + 2])
+            try:
+                score = asyncio.run(evaluate_reply(
+                    evaluator, scenario=scenario, transcript=recent,
+                    reply=reply, prompt=prompt,
+                ))
+            except Exception as error:
+                score = {"error": f"{type(error).__name__}: {error}"}
+                evaluator_errors.append(f"{name} exchange {exchange.get('index')}: {score['error']}")
+            scenario_evaluations.append({"index": exchange.get("index"), **score})
+        try:
+            trajectory = asyncio.run(evaluate_trajectory(
+                evaluator, scenario=scenario, transcript=full, prompt=prompt,
+            ))
+            trajectory_scores.append(int(trajectory.get("scale", -1)))
+        except Exception as error:
+            trajectory = {"error": f"{type(error).__name__}: {error}"}
+            trajectory_scores.append(-1)
+            evaluator_errors.append(f"{name} trajectory: {trajectory['error']}")
+        evaluations.append({
+            "scenario": name, "trajectory": trajectory, "replies": scenario_evaluations,
+        })
+        (run_root / f"scenario-{name}" / "evaluations.json").write_text(
+            json.dumps(scenario_evaluations, indent=2, ensure_ascii=False), encoding="utf-8",
+        )
+
+    good = sum(1 for score in trajectory_scores if score == 1)
+    summary_path = run_root / "summary.json"
+    summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.is_file() else {}
+    summary.update({
+        "evaluated": True,
+        "trajectory_scores": trajectory_scores,
+        "good_trajectories": good,
+        "required_good": REQUIRED_GOOD,
+        "passed": good >= REQUIRED_GOOD and not summary.get("hard_violations"),
+        "evaluator_model": evaluator_connection.model,
+        "rubric_version": str(prompt["version"]),
+        "evaluator_shares_backend": config.evaluator_shares_backend(),
+        "evaluator_errors": evaluator_errors,
+        "median_reply_scores": int(_statistics.median(
+            [score for item in evaluations for score in
+             [s.get("scale") for s in item["replies"] if isinstance(s.get("scale"), int)]]
+        )) if any(isinstance(s.get("scale"), int) for item in evaluations for s in item["replies"]) else None,
+    })
+    (run_root / "evaluations.json").write_text(
+        json.dumps(evaluations, indent=2, ensure_ascii=False), encoding="utf-8",
     )
-    return _extract_json(result.choices[0].message.content or "")
+    summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
+    return summary
+
+
+def public_from_exchanges(exchanges: list[dict], user_name: str = "Jesse", companion_name: str = "Spamuel") -> list[dict]:
+    """Rebuild the public transcript from saved exchange records."""
+    turns: list[dict] = []
+    for exchange in exchanges:
+        jesse = exchange.get("jesse")
+        if jesse:
+            turns.append({"speaker": user_name, "text": jesse})
+        companion = exchange.get("companion")
+        if companion:
+            turns.append({"speaker": companion_name, "text": companion})
+    return turns
 
 
 __all__ = [
@@ -467,10 +607,14 @@ __all__ = [
     "Scenario",
     "ScenarioResult",
     "evaluate_reply",
+    "evaluate_trajectory",
     "jesse_next_line",
     "load_evaluator_prompt",
+    "public_from_exchanges",
     "public_transcript",
+    "render_recent",
     "render_transcript",
+    "run_evaluation",
     "run_scenario",
     "scenario_by_name",
 ]

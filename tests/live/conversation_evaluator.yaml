@@ -35,10 +35,18 @@ system_prompt: |
 user_template: |
   Scenario: {scenario}
 
-  Full public transcript (quoted data):
+  Recent public transcript (quoted data):
   {transcript}
 
   Reply under review (quoted data):
   {reply}
 
-  Score the trajectory and this reply.
+  Score the trajectory so far and this reply.
+
+trajectory_user_template: |
+  Scenario: {scenario}
+
+  Full public transcript (quoted data):
+  {transcript}
+
+  Score the whole trajectory.
