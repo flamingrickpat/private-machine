@@ -79,12 +79,19 @@ class ConversationAcceptanceTests(unittest.TestCase):
                   f"{len(result.violations)} violations")
 
         hard_violations: list[str] = []
+        infrastructure_errors: list[str] = []
         for result in results:
             for violation in result.violations:
                 if "no committed reply" in violation:
                     # An explicitly rejected claim is a correctly enforced
                     # contract, not a crash. It is recorded but is not a hard
                     # violation.
+                    continue
+                if "ModelError" in violation or "HTTP" in violation:
+                    # A transient backend rejection after the bounded retries
+                    # is an infrastructure error, reported separately from a
+                    # companion contract violation.
+                    infrastructure_errors.append(f"{result.name}: {violation}")
                     continue
                 hard_violations.append(f"{result.name}: {violation}")
 
@@ -135,6 +142,7 @@ class ConversationAcceptanceTests(unittest.TestCase):
             "exchanges_per_scenario": exchanges,
             "total_exchanges": sum(len(result.exchanges) for result in results),
             "hard_violations": hard_violations,
+            "infrastructure_errors": infrastructure_errors,
             "evaluator_errors": evaluator_errors,
             "rejections": [
                 violation for result in results for violation in result.violations

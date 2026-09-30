@@ -181,13 +181,13 @@ async def jesse_next_line(
     ]
     # A reasoning backend can return empty content. Retry it a few times so a
     # transient empty response is not recorded as a scenario contract failure.
-    for attempt in range(4):
+    for attempt in range(5):
         try:
             result = await client.complete(
                 messages, temperature=0.8, max_tokens=2048,
             )
         except ModelError as error:
-            if "no content" not in str(error) or attempt == 3:
+            if attempt == 4:
                 raise
             await asyncio.sleep(0.5 * (attempt + 1))
             continue

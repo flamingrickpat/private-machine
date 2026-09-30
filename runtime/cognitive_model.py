@@ -117,14 +117,15 @@ class LazyStageModel:
             if tools is not None:
                 generation["tools"] = tools
             last: ModelError | None = None
-            for attempt in range(2):
+            for attempt in range(3):
                 try:
                     result = await client.complete(messages, **generation)
                     return result.model_dump(mode="json")
                 except ModelError as error:
-                    if "no content" not in str(error) or attempt == 1:
-                        raise
                     last = error
+                    if attempt == 2:
+                        raise
+                    await asyncio.sleep(0.3 * (attempt + 1))
             raise last if last is not None else ModelError("The model returned no content.")
 
         return complete_tool
