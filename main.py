@@ -52,7 +52,7 @@ def default_config_path() -> str:
     return "config.example.yaml"
 
 
-def _managed_workflows() -> dict:
+def _managed_workflows(stage_model=None) -> dict:
     from workflows.minecraft.module_tools import build_minecraft_module_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
@@ -64,7 +64,9 @@ def _managed_workflows() -> dict:
         "minecraft": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md",
             namespace="minecraft",
-            tools_factory=build_minecraft_module_tools(),
+            tools_factory=build_minecraft_module_tools(
+                stage_model.complete if stage_model is not None else None,
+            ),
         ),
     }
 
@@ -120,6 +122,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             runtime_root=runtime_root,
             ghost=ghost,
         )
+        self_management.managed_workflows = frozenset(supervisor.workflows)
         return main_cog, story, assistant, self_management
     main_cog = DummyMainCogLoop(
         "main_cog", bus, on_error, clock, None,
@@ -151,6 +154,14 @@ def build_app(
     if ghost is not None and checkpoint_path is not None:
         raise ValueError("Supply a Ghost or a checkpoint path, not both.")
     resolved_config = config_path or default_config_path()
+    if cognition == "real" and stage_model is None:
+        from runtime.cognitive_model import LazyStageModel
+        from runtime.model_activation import ModelActivation
+        from runtime.models import load_config, resolve_connection
+
+        stage_model = LazyStageModel(
+            resolve_connection(load_config(resolved_config)), ModelActivation(),
+        )
 
     if ghost is None:
         checkpoint = Path(checkpoint_path) if checkpoint_path is not None else None
@@ -170,7 +181,7 @@ def build_app(
     supervisor = ManagedRunSupervisor(
         ghost,
         runtime_root=runtime_root,
-        workflows=_managed_workflows(),
+        workflows=_managed_workflows(stage_model),
         clock=clock,
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,
@@ -210,7 +221,7 @@ def build_app(
         stage_model=stage_model, config_path=resolved_config, supervisor=supervisor,
     )
     inner_thought = InnerThoughtLoop(
-        "inner_thought", bus, on_error, clock, thought_period,
+        "inner_thought", bus, on_error, clock, thought_period if cognition == "dummy" else None,
         **workflow_paths("inner_thought"),
     )
     scheduler = ScheduleSubprocesses(

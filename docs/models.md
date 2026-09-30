@@ -2,12 +2,10 @@
 
 ## Current scope
 
-W1 provides model connections, explicit activation, direct chat calls, and one embedding service.
-The terminal companion still uses dummy cognition. W4 and W5 connect real dialogue and cognitive workflows.
+The model runtime provides connections, explicit activation, direct chat calls, and one embedding service.
+The terminal uses these connections for real dialogue and cognitive workflows.
 
 Parent: [README](../README.md).
-Contracts: [models and memory](plan/models-memory.md).
-Delivery evidence: [W1 record](work-items/W1.md).
 
 ## Config
 
@@ -46,7 +44,6 @@ Config parsing and connection resolution make no network requests.
 | `pm_core/embeddings.py` | Legacy reads, new cache writes, scoped preparation, cosine search |
 
 These files contain no character policy or cognitive routing.
-No dependency repository needed a change for W1.
 
 ## Direct debugger path
 
@@ -96,7 +93,7 @@ Scripts must manage only their designated processes.
 CAUTION: Do not configure `start38_uncensored_nvfp4_long.ps1` directly as an activation script.
 Its restart loop never exits. It needs a finite wrapper for automatic activation.
 The current setup uses the manually started server and leaves `startup_script` empty.
-W1 did not change that launcher or add automatic model switching on this machine.
+The runtime does not change that launcher or automatically switch local models.
 
 All chat clients in one application share one `ModelActivation` owner.
 The owner rejects activation during an active call.
@@ -113,6 +110,11 @@ The HTTP client has a connection-establishment timeout, not an inference timeout
 Production transport errors retry until cancellation. `live_test=True` reports them immediately.
 Permanent HTTP errors and invalid responses fail with credential-free messages.
 The shared HTTP path uses [HTTPX timeout controls](https://www.python-httpx.org/advanced/timeouts/).
+
+A reasoning backend emits hidden reasoning tokens that count against the completion budget before the visible answer.
+`runtime/cognitive_model.py` sets a stage budget (`DEFAULT_MAX_TOKENS`) that leaves room for reasoning plus a structured answer.
+Without that room a JSON stage can stop mid-object and report a stage output error.
+The budget is a request limit, not a deadline; the model stops when it is done.
 
 ## Embeddings and scoped retrieval
 
@@ -146,7 +148,7 @@ The API uses OpenRouter's [embedding endpoint](https://openrouter.ai/docs/api/ap
 
 ## Tests
 
-### W1 foundation checks
+### Foundation checks
 
 Run these direct tests without a model endpoint:
 
@@ -159,7 +161,7 @@ The cancellation tests do not substitute fake model responses.
 
 ### Required live checks
 
-Run the W1 acceptance suite:
+Run the model acceptance suite:
 
 ```powershell
 uv run --locked python -m unittest tests.live.test_models -v -b
@@ -179,4 +181,4 @@ uv run --locked python -m unittest discover -s tests -v -b
 ```
 
 This command now includes the live tests.
-It validates W1 and the existing prototype, not the future cognitive acceptance suite.
+It includes live model, cognition, conversation, and Minecraft checks. Each suite needs its configured endpoints.

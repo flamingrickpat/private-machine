@@ -2,8 +2,8 @@
 
 Fake Jesse is a real generation call with a scenario-specific role. It sees
 only the public transcript, its own role, and the scenario facts. The
-companion is the real AssistantDialogue module: persona, private ontology,
-tool-capable session, and committed memory. Each scenario uses its own Ghost
+companion uses UserInputProxy, the cognitive loop, and its selected dialogue
+or management workflow through the real application bus. Each scenario uses its own Ghost
 copy that persists for all twenty exchanges.
 
 All generation finishes before the evaluator is activated. The evaluator reads
@@ -243,47 +243,9 @@ def _wait_for(predicate, timeout: float = 60.0):
     return False
 
 
-def _step_with_retry(assistant, jesse_knoxel: int, jesse_text: str, name: str, index: int) -> None:
-    """Run one exchange, retrying a transient Windows atomic-replace lock."""
-    import time
-    last: BaseException | None = None
-    for attempt in range(5):
-        try:
-            assistant.step()
-            return
-        except PermissionError as error:  # kernel state replace held by the OS
-            last = error
-            time.sleep(0.4 * (attempt + 1))
-        except RuntimeError as error:  # transient model/backend failure
-            last = error
-            if "ended unsuccessfully" not in str(error) or attempt >= 3:
-                raise
-            time.sleep(0.5 * (attempt + 1))
-        assistant.mailbox.put(Envelope(
-                _new_id(), "w7", "data", "action.request", _new_id(),
-                {
-                    "action_id": f"w7-{name}-{index}-retry{attempt}",
-                    "workflow_name": "dialogue_assistant",
-                    "content": jesse_text,
-                    "arguments": {},
-                    "stimuli": [{"knoxel_id": jesse_knoxel, "text": jesse_text}],
-                },
-                target="dialogue_assistant",
-            ))
-    raise last if last is not None else RuntimeError("exchange retry exhausted")
-
-
 def setup_scenario_run(app, scenario: Scenario) -> str:
     """Create the managed-run fact a scenario needs. Returns the facts suffix."""
     supervisor = app.supervisor
-    if scenario.setup == "start":
-        receipt = supervisor.start(
-            action_id=f"w7-{scenario.name}", workflow_name="local_task",
-            instructions="produce a short note",
-        )
-        _wait_for(lambda: supervisor.status(receipt["run_id"])["state"] == "completed")
-        state = supervisor.status(receipt["run_id"])["state"]
-        return f" Managed run {receipt['run_id']} is now {state}."
     if scenario.setup == "active":
         receipt = supervisor.start(
             action_id=f"w7-{scenario.name}", workflow_name="local_task",
@@ -309,8 +271,8 @@ def setup_scenario_run(app, scenario: Scenario) -> str:
         )
     if scenario.setup == "failed":
         receipt = supervisor.start(
-            action_id=f"w7-{scenario.name}", workflow_name="minecraft",
-            instructions="dig a hole",
+            action_id=f"w7-{scenario.name}", workflow_name="unavailable_acceptance_workflow",
+            instructions="exercise unavailable workflow handling",
         )
         app._w7_run_id = receipt["run_id"]
         return f" Managed run {receipt['run_id']} is {receipt['state']}."
@@ -343,79 +305,54 @@ def run_scenario(
         emit_reply=lambda _text: None,
     )
     facts_suffix = setup_scenario_run(app, scenario)
-    app.assistant.ghost = ghost
-
-    assistant = app.assistant
-    bus = app.bus
-    replies = Recorder(bus, "dialogue.reply")
-    receipts = Recorder(bus, "action.receipt")
-
-    # Persist the scenario facts with the first Jesse line so the transcript
-    # is self-describing for the evaluator.
-    first = True
-    for index in range(exchanges):
-        try:
-            start = len(replies.events), len(receipts.events)
-            if first:
-                jesse_text = scenario.opening
-                first = False
-            else:
-                jesse_text = asyncio.run(
+    replies = Recorder(app.bus, "dialogue.reply")
+    receipts = Recorder(app.bus, "action.receipt")
+    dispatches = Recorder(app.bus, "action.request")
+    try:
+        for index in range(exchanges):
+            try:
+                jesse_text = scenario.opening if index == 0 else asyncio.run(
                     jesse_next_line(jesse_client, scenario, result.transcript)
                 )
-            jesse_knoxel = commit_public(
-                ghost, jesse_text, ghost.get_user_name(), _new_id(),
-            )
-            assistant.mailbox.put(Envelope(
-                _new_id(), "w7", "data", "action.request", _new_id(),
-                {
-                    "action_id": f"w7-{scenario.name}-{index}",
-                    "workflow_name": "dialogue_assistant",
-                    "content": jesse_text,
-                    "arguments": {},
-                    "stimuli": [{"knoxel_id": jesse_knoxel, "text": jesse_text}],
-                },
-                target="dialogue_assistant",
-            ))
-            _step_with_retry(assistant, jesse_knoxel, jesse_text, scenario.name, index)
-            new_replies = replies.events[start[0]:]
-            new_receipts = receipts.events[start[1]:]
-
-            companion = ""
-            tool_receipts: list[dict] = []
-            if new_replies:
-                event = new_replies[-1]
-                knoxel = ghost.get_knoxel_by_id(event.payload["knoxel_id"])
-                companion = str(knoxel.content) if knoxel is not None else ""
-                tool_receipts = list(event.payload.get("tool_receipts", []))
-            else:
-                reason = new_receipts[-1].payload.get("rejection_reason", "no reply") if new_receipts else "no reply"
-                result.violations.append(
-                    f"exchange {index}: companion produced no committed reply ({reason})"
+                before_gwt = len(ghost.gwt_turns)
+                reply_start, receipt_start, dispatch_start = len(replies.events), len(receipts.events), len(dispatches.events)
+                correlation = app.user_input.submit(jesse_text)
+                if not app.main_cog.step():
+                    raise AssertionError("The cognitive loop did not consume the input.")
+                for module in (app.self_management, app.steward_module, app.dialogue, app.assistant):
+                    module.step()
+                app.user_input.step()
+                app.raise_if_error()
+                current_replies = [e for e in replies.events[reply_start:] if e.correlation_id == correlation]
+                current_receipts = [e for e in receipts.events[receipt_start:] if e.correlation_id == correlation]
+                current_dispatches = [e for e in dispatches.events[dispatch_start:] if e.correlation_id == correlation]
+                companion = "\n".join(str(ghost.get_knoxel_by_id(e.payload["knoxel_id"]).content) for e in current_replies)
+                tool_receipts = [r for e in current_replies for r in e.payload.get("tool_receipts", [])]
+                completed = len(ghost.gwt_turns) > before_gwt and bool(
+                    companion or any(e.payload.get("status") == "accepted" for e in current_receipts)
                 )
-
-            result.exchanges.append({
-                "index": index,
-                "jesse": jesse_text,
-                "companion": companion,
-                "tool_receipts": tool_receipts,
-                "rejected": not new_replies,
-                "receipts": [dict(e.payload) for e in new_receipts],
-            })
-            result.transcript.append({"speaker": ghost.get_user_name(), "text": jesse_text})
-            if companion:
-                result.transcript.append({
-                    "speaker": ghost.get_companion_name(), "text": companion,
+                if not completed:
+                    result.violations.append(f"exchange {index}: no completed response cycle")
+                result.exchanges.append({
+                    "index": index, "jesse": jesse_text, "companion": companion,
+                    "completed": completed, "correlation_id": correlation,
+                    "gwt_ticks": sorted(ghost.gwt_turns)[before_gwt:],
+                    "dispatches": [dict(e.payload) for e in current_dispatches],
+                    "tool_receipts": tool_receipts,
+                    "receipts": [dict(e.payload) for e in current_receipts],
                 })
-        except BaseException as error:  # one bad exchange must not kill the scenario
-            result.violations.append(
-                f"exchange {index}: {type(error).__name__}: {error}"
-            )
-            result.exchanges.append({
-                "index": index, "error": f"{type(error).__name__}: {error}",
-            })
-
-    app.supervisor.join_all(timeout=30)
+                result.transcript.append({"speaker": ghost.get_user_name(), "text": jesse_text})
+                if companion:
+                    result.transcript.append({"speaker": ghost.get_companion_name(), "text": companion})
+            except Exception as error:
+                result.violations.append(f"exchange {index}: {type(error).__name__}: {error}")
+                result.exchanges.append({"index": index, "completed": False,
+                                         "error": f"{type(error).__name__}: {error}"})
+    finally:
+        for run_id, receipt in app.supervisor.receipts().items():
+            if receipt["state"] in {"accepted", "running", "waiting_for_input"}:
+                app.supervisor.terminate(run_id)
+        app.supervisor.join_all()
     result.facts_suffix = facts_suffix
     return result
 
@@ -470,7 +407,10 @@ async def _evaluate_once(
                 max_tokens=2048,
             )
             text = result.choices[0].message.content or ""
-            return _extract_json(text)
+            score = _extract_json(text)
+            if type(score.get("scale")) is not int or score["scale"] not in {-1, 0, 1}:
+                raise ValueError("The evaluator scale must be -1, 0, or 1.")
+            return score
         except (ModelError, ValueError) as error:
             last = error
             if attempt == attempts - 1:
@@ -542,16 +482,16 @@ def run_evaluation(
         scenario_dir = run_root / f"scenario-{name}"
         exchanges = json.loads((scenario_dir / "exchanges.json").read_text(encoding="utf-8"))
         transcript_turns = public_from_exchanges(exchanges)
-        full = render_bounded(transcript_turns, clip=700)
+        full = evaluation_context(exchanges, clip=700)
         scenario_evaluations: list[dict] = []
         if trajectory_only and (scenario_dir / "evaluations.json").is_file():
             scenario_evaluations = json.loads(
                 (scenario_dir / "evaluations.json").read_text(encoding="utf-8")
             )
         else:
-            for exchange in exchanges:
+            for position, exchange in enumerate(exchanges):
                 reply = exchange.get("companion", "")
-                recent = render_recent(transcript_turns[: exchange.get("index", 0) + 2])
+                recent = evaluation_context(exchanges[max(0, position - 3):position + 1])
                 try:
                     score = asyncio.run(evaluate_reply(
                         evaluator, scenario=scenario, transcript=recent,
@@ -590,7 +530,7 @@ def run_evaluation(
         "evaluated_trajectories": len(valid),
         "good_trajectories": good,
         "required_good": REQUIRED_GOOD,
-        "passed": good >= REQUIRED_GOOD and len(valid) >= REQUIRED_GOOD and not summary.get("hard_violations"),
+        "passed": good >= REQUIRED_GOOD and len(valid) >= REQUIRED_GOOD and generation_complete(summary),
         "evaluator_model": evaluator_connection.model,
         "rubric_version": str(prompt["version"]),
         "evaluator_shares_backend": config.evaluator_shares_backend(),
@@ -605,6 +545,30 @@ def run_evaluation(
     )
     summary_path.write_text(json.dumps(summary, indent=2, ensure_ascii=False), encoding="utf-8")
     return summary
+
+
+def evaluation_context(exchanges: list[dict], clip: int = 1200) -> str:
+    """Keep each reply with its own user turn and execution evidence."""
+    parts = []
+    for exchange in exchanges:
+        parts.append(render_bounded(public_from_exchanges([exchange]), clip=clip))
+        if exchange.get("error"):
+            parts.append("Exchange error: " + exchange["error"])
+        evidence = {key: exchange.get(key, []) for key in ("tool_receipts", "receipts")}
+        parts.append("Execution evidence: " + json.dumps(evidence, ensure_ascii=False, default=str))
+    return "\n".join(parts)
+
+
+def generation_complete(summary: dict) -> bool:
+    return (
+        summary.get("execution_path") == "application"
+        and set(summary.get("scenarios", [])) == {s.name for s in SCENARIOS}
+        and len(summary.get("scenarios", [])) == 10
+        and summary.get("exchanges_per_scenario") == 20
+        and summary.get("completed_exchanges") == 200
+        and not summary.get("infrastructure_errors")
+        and not summary.get("hard_violations")
+    )
 
 
 def public_from_exchanges(exchanges: list[dict], user_name: str = "Jesse", companion_name: str = "Spamuel") -> list[dict]:

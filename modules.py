@@ -575,16 +575,22 @@ class SelfManagement(CognitiveWorkflow):
 
     DATA_TOPICS = frozenset({"action.request"})
     WORKFLOW_NAME = "self_management"
+    managed_workflows = frozenset()
 
     def accepts(self, envelope: Envelope) -> bool:
         if envelope.topic == "action.request" and envelope.kind == "data":
-            return envelope.target in {None, self.module_id, self.WORKFLOW_NAME}
+            return envelope.target in {None, self.module_id, self.WORKFLOW_NAME} | self.managed_workflows
         return super().accepts(envelope)
 
     def prepare_input(self, batch: list[Envelope]) -> dict:
         payload = batch[0].payload
         action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
         arguments = dict(payload.get("arguments") or {})
+        if batch[0].target in self.managed_workflows:
+            arguments = {
+                "operation": "start", "workflow_name": batch[0].target,
+                "instructions": str(payload.get("content", "")), "arguments": arguments,
+            }
         request = SelfManagementRequest(
             operation=str(arguments.get("operation", "status")),
             action_id=str(payload.get("action_id", arguments.get("action_id", ""))),

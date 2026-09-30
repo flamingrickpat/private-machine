@@ -5,10 +5,8 @@
 The shared runner calls the real pm-workflows kernel synchronously.
 Direct debugger calls and module threads use this same runner.
 The runner supports Python roles and real pm-coder roles on folder and virtual Ghost targets.
-The complete W3 gate passed against both.
 
 Parent: [project overview](../README.md).
-Related: [runtime plan](plan/runtime.md), [Ghost commits](ghost.md), and [W3 evidence](work-items/W3.md).
 
 ## Input and result
 
@@ -119,8 +117,8 @@ Python cancellation is cooperative. The runner cannot forcibly stop arbitrary Py
 Agent cancellation interrupts supported asynchronous inference and waits for session cleanup.
 Synchronous tools remain cooperative. Completed external effects cannot be undone.
 The permanent-error classifier is marker and status based, so unusual provider wording still enters the reconnect loop.
-MainCogLoop does not yet consume `workflow.question` or author `workflow.answer`; that wiring belongs to W5.
-Application child workflows do not exist yet; the child-scope contract is tested in pm-workflows.
+MainCogLoop consumes managed questions and lifecycle events. Assistant and SelfManagement can deliver correlated answers.
+The cognitive parent invokes seven child workflows through scoped runtimes.
 
 ## Code and evidence
 
@@ -130,4 +128,3 @@ Application child workflows do not exist yet; the child-scope contract is tested
 - [Direct file-permission tests](../tests/test_agent_file_scope.py)
 - [Run control tests](../tests/test_run_control.py)
 - [MCP lifetime tests](../tests/test_mcp_lifetime.py)
-- [W3 delivery record](work-items/W3.md)

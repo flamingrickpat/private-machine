@@ -1,6 +1,6 @@
 [project]
 name = "pm-next-v2"
-version = "0.10.0"
+version = "0.10.1"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "pm-workflows>=0.5.0",

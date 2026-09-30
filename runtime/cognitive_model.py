@@ -7,7 +7,8 @@ completions reuse it. Activation is therefore explicit and observable, and no
 model switch can happen while another completion is in flight.
 
 The retry rule matches checkpoint one: a reasoning backend can return empty
-content for a small completion budget. The budget defaults high, and an empty
+content for a small completion budget. The budget defaults high enough for a
+reasoning backend to finish its reasoning and its answer, and an empty
 response is retried at most once. There is no generation deadline and no
 endless reprompt loop.
 """
@@ -20,7 +21,11 @@ from runtime.model_activation import ChatClient, ModelActivation
 from runtime.model_io import ModelError
 from runtime.models import Connection
 
-DEFAULT_MAX_TOKENS = 8192
+# A local reasoning backend emits hidden reasoning tokens that count against
+# ``max_tokens`` before the visible content. A budget sized for the visible
+# answer alone stops the completion mid-object. This budget leaves room for
+# both. The configured model accepts a larger context than this value.
+DEFAULT_MAX_TOKENS = 32768
 
 
 async def complete_with_retry(

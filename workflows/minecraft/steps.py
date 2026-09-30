@@ -150,65 +150,83 @@ def run(context) -> dict:
     )
     prompts = load_prompts()
     call = context.runtime.tools["minecraft_call"]
-
+    boundary = context.runtime.tools["managed_instructions"]
+    initial = boundary()
+    request.goal = initial["instruction"] or request.goal or request.instruction
+    context.runtime.check_cancelled()
     observation = call("minecraft_observe", {"include_image": request.include_image})
     observations = [summarize(observation)]
+    images = list(observation.get("images") or [])
+
+    # Publish the observation before the optional instruction wait. Cancellation
+    # retains this evidence even when no action has started.
+    image_paths = write_images(environment, images)
+    environment.write_text("outbox/world.yaml", yaml.safe_dump(
+        build_world(request, observation, None, image_paths), sort_keys=False,
+    ))
+    environment.write_text("scratch/observations.md", observations[0] + "\n")
+    revision = boundary(wait=request.wait_for_update, close=True)
+    request.goal = revision["instruction"] or request.goal
+    context.runtime.check_cancelled()
 
     action_tool = request.action_tool
     action_arguments = dict(request.action_arguments)
-    if not action_tool and request.allowed_tools and "minecraft_plan" in context.runtime.tools:
-        plan = context.runtime.tools["minecraft_plan"](
-            observations[-1], request.allowed_tools, request.goal,
-        )
-        action_tool, action_arguments = parse_plan(plan)
-
+    if revision["revision"] != initial["revision"]:
+        # A new instruction invalidates a previously supplied action.
+        action_tool, action_arguments = "", {}
     action = None
-    if action_tool:
-        action = call(action_tool, action_arguments)
-        observations.append(summarize(action))
+    final_observation = observation
+    if observation["ok"]:
+        if not action_tool and request.goal:
+            schemas = context.runtime.tools["minecraft_tool_schemas"]()
+            allowed = set(request.allowed_tools) if request.allowed_tools else {s["name"] for s in schemas}
+            schemas = [schema for schema in schemas if schema["name"] in allowed]
+            plan = context.runtime.tools["minecraft_plan"](
+                json.dumps(observation["result"], ensure_ascii=False), schemas, request.goal,
+            )
+            action_tool, action_arguments = parse_plan(plan)
+            if action_tool not in {schema["name"] for schema in schemas}:
+                raise ValueError(f"The Minecraft planner selected an unavailable action: {action_tool}")
+        if action_tool:
+            if request.allowed_tools and action_tool not in request.allowed_tools:
+                raise ValueError(f"The Minecraft action is not granted: {action_tool}")
+            context.runtime.check_cancelled()
+            action = call(action_tool, action_arguments)
+            observations.append(summarize(action))
+            images.extend(action.get("images") or [])
+            context.runtime.check_cancelled()
+            final_observation = call("minecraft_observe", {"include_image": request.include_image})
+            observations.append(summarize(final_observation))
+            images.extend(final_observation.get("images") or [])
 
-    images = list(observation.get("images") or [])
-    if action is not None:
-        images.extend(action.get("images") or [])
     image_paths = write_images(environment, images)
-
-    world = build_world(request, observation, action, image_paths)
+    world = build_world(request, final_observation, action, image_paths)
+    accepted = observation["ok"] and final_observation["ok"] and (action is None or action["ok"])
+    if not accepted:
+        world["outcome"] = world["episodes"][0]["outcome"] = "failed"
     environment.write_text(
         "scratch/observations.md",
         f"# {prompts['observation_header'].format(body_id=request.body_id)}\n\n"
+        f"Goal: {request.goal}\nRevision: {revision['revision']}\n\n"
         + "\n".join(f"- {line}" for line in observations) + "\n",
     )
-    environment.write_text(
-        "outbox/world.yaml",
-        yaml.safe_dump(world, sort_keys=False, allow_unicode=True),
-    )
-
-    if request.wait_for_cancel:
-        # Hold the run at a declared safe boundary so a caller can update or
-        # terminate it. The evidence above is already durable on disk.
-        context.runtime.stop_event.wait()
-        context.runtime.check_cancelled()
-
-    accepted = bool(observation.get("ok")) and (action is None or bool(action.get("ok")))
+    environment.write_text("outbox/world.yaml", yaml.safe_dump(world, sort_keys=False, allow_unicode=True))
+    # Image bytes belong only in image files and evidence metadata.
+    report_action = {key: value for key, value in action.items() if key != "images"} if action else None
     report = MinecraftReport(
-        goal=request.goal,
-        body_id=request.body_id,
-        observations=observations,
-        action=action,
-        images=[{"path": path} for path in image_paths],
-        world=world,
-        accepted=accepted,
+        goal=request.goal, body_id=request.body_id, observations=observations,
+        action=report_action, images=[{"path": path} for path in image_paths],
+        world=world, accepted=accepted,
         rejection_reason="" if accepted else "the Minecraft tool reported a failure",
     )
-    environment.write_text(
-        "scratch/report.yaml",
-        yaml.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
-    )
+    environment.write_text("scratch/report.yaml", yaml.safe_dump(
+        report.model_dump(mode="json"), sort_keys=False, allow_unicode=True,
+    ))
     environment.move("scratch/report.yaml", "outbox/report.yaml")
-    return {
-        "status": "done",
-        "summary": f"minecraft body observed and {'acted' if action else 'waited'}",
-    }
+    if request.wait_for_cancel:
+        context.runtime.stop_event.wait()
+        context.runtime.check_cancelled()
+    return {"status": "done", "summary": "minecraft body finished with recorded tool evidence"}
 
 
 __all__ = [

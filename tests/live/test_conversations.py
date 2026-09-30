@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tomllib
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,7 +57,11 @@ class ConversationAcceptanceTests(unittest.TestCase):
         selected = os.environ.get("PM_W7_SCENARIOS")
         names = [name for name in selected.split(",") if name] if selected else None
         scenarios = [s for s in conv.SCENARIOS if names is None or s.name in names]
+        self.assertTrue(scenarios, "No conversation scenarios were selected.")
+        if names is not None:
+            self.assertEqual(set(names), {s.name for s in scenarios}, "Unknown scenario name.")
         exchanges = int(os.environ.get("PM_W7_EXCHANGES", "20"))
+        self.assertGreater(exchanges, 0)
         evaluate = os.environ.get("PM_W7_EVALUATE", "1") != "0"
 
         results: list[conv.ScenarioResult] = []
@@ -97,13 +102,17 @@ class ConversationAcceptanceTests(unittest.TestCase):
             "scenarios": [result.name for result in results],
             "exchanges_per_scenario": exchanges,
             "total_exchanges": sum(len(result.exchanges) for result in results),
+            "completed_exchanges": sum(
+                bool(exchange.get("completed")) for result in results for exchange in result.exchanges
+            ),
+            "execution_path": "application",
             "hard_violations": hard_violations,
             "infrastructure_errors": infrastructure_errors,
             "rejections": [
                 violation for result in results for violation in result.violations
                 if "no committed reply" in violation
             ],
-            "application_version": "0.9.0",
+            "application_version": tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"],
             "generation_model": self.connection.model,
             "git_revision": _git_revision(),
         }
@@ -122,7 +131,10 @@ class ConversationAcceptanceTests(unittest.TestCase):
         print(json.dumps(summary, indent=2))
 
         self.assertEqual(hard_violations, [], f"hard contract violations: {hard_violations}")
+        self.assertEqual(infrastructure_errors, [], f"incomplete exchanges: {infrastructure_errors}")
+        self.assertEqual(generation_fields["completed_exchanges"], len(scenarios) * exchanges)
         if evaluate:
+            self.assertTrue(summary["passed"], "Full acceptance requires all 200 application response cycles.")
             # Evaluator refusal or malformed output is an evaluation error, not
             # a poor companion score. It is reported separately. The gate runs
             # on the trajectories the evaluator could actually score.

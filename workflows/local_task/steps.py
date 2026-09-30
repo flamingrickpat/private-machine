@@ -19,6 +19,9 @@ def run(context) -> dict:
     request = yaml.safe_load(environment.read_text("inbox/request.yaml"))
     instruction = str(request.get("instruction", "")).strip() or "(no instruction)"
     answer = str(context.answer or request.get("answer", "")).strip()
+    boundary = context.runtime.tools.get("managed_instructions")
+    if boundary is not None:
+        instruction = boundary()["instruction"] or instruction
 
     environment.write_text("scratch/started.md", f"# Started\n\n{instruction}\n")
     environment.write_text(
@@ -27,8 +30,22 @@ def run(context) -> dict:
         f"answer: {answer or '(none)'}\n",
     )
     if request.get("wait_for_cancel"):
-        context.runtime.stop_event.wait()
-        context.runtime.check_cancelled()
+        if boundary is None:
+            context.runtime.stop_event.wait()
+            context.runtime.check_cancelled()
+        while True:
+            revision = boundary(wait=True)
+            instruction = revision["instruction"]
+            environment.write_text(
+                "scratch/observations.md",
+                f"# Observations\n\ninstruction: {instruction}\nrevision: {revision['revision']}\n",
+            )
+    if boundary is not None:
+        instruction = boundary(wait=bool(request.get("wait_for_update")), close=True)["instruction"] or instruction
+        environment.write_text(
+            "scratch/observations.md",
+            f"# Observations\n\ninstruction: {instruction}\nanswer: {answer or '(none)'}\n",
+        )
     if request.get("fail"):
         raise RuntimeError("the local task was asked to fail on purpose")
 

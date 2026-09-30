@@ -54,7 +54,11 @@ class LiveAppPathTests(unittest.TestCase):
 
             app.user_input.submit("the kitchen is on fire")
             self.assertTrue(app.main_cog.step(block=False))
-            self.assertTrue(app.dialogue.step(block=False))
+            save("dispatches.json", [event.payload for event in requests.events])
+            app.self_management.step(block=False)
+            story_ran = app.dialogue.step(block=False)
+            assistant_ran = app.assistant.step(block=False)
+            self.assertTrue(story_ran or assistant_ran, [event.payload for event in requests.events])
             app.user_input.step(block=False)
 
             self.assertTrue(requests.events, "cognition selected no action")

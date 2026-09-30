@@ -68,6 +68,8 @@ class Steward:
             "evidence": list(receipt.get("evidence", [])),
             "question_id": receipt.get("question_id", ""),
             "revision": receipt.get("revision", 0),
+            "applied_revision": receipt.get("applied_revision", -1),
+            "updates_open": receipt.get("updates_open", False),
             "instructions": receipt.get("instructions", ""),
         }
 
@@ -112,6 +114,7 @@ class Steward:
             "run_id": run_id,
             "request_id": request_id,
             "revision": receipt["revision"],
+            "applied_revision": receipt["applied_revision"],
             "boundary": "next declared safe boundary",
         }
 

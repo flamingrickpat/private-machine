@@ -67,8 +67,10 @@ class MinecraftTestBase(unittest.TestCase):
     def _run(self, request: dict, minecraft, root: Path):
         tools = {
             "minecraft_call": minecraft,
-            "minecraft_plan": lambda observation, allowed_tools, goal: (allowed_tools[0] if allowed_tools else ""),
+            "minecraft_plan": lambda observation, allowed_tools, goal: (allowed_tools[0]["name"] if allowed_tools else ""),
             "minecraft_list_tools": lambda: ["minecraft_observe", "minecraft_mine_block"],
+            "minecraft_tool_schemas": lambda: [{"name":"minecraft_mine_block", "parameters":{"type":"object"}}],
+            "managed_instructions": lambda **kwargs: {"instruction": request.get("instruction", ""), "revision":0},
         }
         environment = FolderEnvironment(root / "task", "bash")
         runtime = WorkflowRuntime(
@@ -95,7 +97,7 @@ class MinecraftWorkflowTests(MinecraftTestBase):
             environment, report = self._run(request, minecraft, root)
             self.assertTrue(report.accepted)
             self.assertEqual([call[0] for call in minecraft.calls],
-                             ["minecraft_observe", "minecraft_mine_block"])
+                             ["minecraft_observe", "minecraft_mine_block", "minecraft_observe"])
             # Real screenshot bytes are on disk.
             screenshot = root / "task" / report.images[0]["path"]
             self.assertTrue(screenshot.is_file())
@@ -116,14 +118,14 @@ class MinecraftWorkflowTests(MinecraftTestBase):
             self.assertFalse(report.accepted)
             self.assertIn("failure", report.rejection_reason)
 
-    def test_plan_fallback_selects_the_first_allowed_tool(self):
+    def test_planner_selects_an_allowed_tool(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             minecraft = FakeMinecraft()
             request = {"goal": "mine", "allowed_tools": ["minecraft_mine_block"]}
             _environment, report = self._run(request, minecraft, root)
             self.assertEqual([call[0] for call in minecraft.calls],
-                             ["minecraft_observe", "minecraft_mine_block"])
+                             ["minecraft_observe", "minecraft_mine_block", "minecraft_observe"])
             self.assertTrue(report.accepted)
 
 

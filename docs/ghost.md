@@ -7,8 +7,6 @@ Each bus subscriber receives an independent JSON copy.
 The same module `step()` supports direct debugging and threaded operation.
 
 Parent: [project README](../README.md).
-Contracts: [models and memory](plan/models-memory.md).
-Evidence: [W2 delivery record](work-items/W2.md).
 
 ## Accepted state
 
@@ -99,7 +97,7 @@ The source YAML remains a separate, unchanged seed.
 Restart restores accepted memory, not threads or external effects.
 Previously active run receipts become `interrupted` in the restored Ghost.
 The next commit persists this classification.
-The current dummy scheduler does not yet use these receipts. Real managed execution belongs to W6.
+The managed-run supervisor uses these receipts for real workflow execution.
 
 ## Bus behavior
 
@@ -126,9 +124,9 @@ Repeated publication can repeat an event, but it must reference the accepted rec
 
 The batch API is trusted host code, not a role permission system.
 Inherited indexes and host attributes are internal mutable state, not a Python sandbox.
-Workflow tools receive scoped copies. W3 adds scoped write grants and child-run boundaries.
+Workflow tools receive scoped copies, write grants, and child-run boundaries.
 
-The companion still uses dummy cognition.
+The terminal uses real cognition. The direct fixture tests also cover dummy modules.
 These tests establish state and delivery behavior, not dialogue quality.
 
 ## Tests

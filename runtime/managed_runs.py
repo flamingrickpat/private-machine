@@ -68,6 +68,8 @@ class ManagedRunReceipt:
     artifact_path: str
     instructions: str = ""
     revision: int = 0
+    applied_revision: int = -1
+    updates_open: bool = True
     question_id: str = ""
     answer: str = ""
     request_ids: list[str] = field(default_factory=list)
@@ -91,6 +93,8 @@ class ManagedRunReceipt:
             "artifact_path": self.artifact_path,
             "instructions": self.instructions,
             "revision": self.revision,
+            "applied_revision": self.applied_revision,
+            "updates_open": self.updates_open,
             "question_id": self.question_id,
             "answer": self.answer,
             "request_ids": list(self.request_ids),
@@ -136,6 +140,7 @@ class ManagedRunSupervisor:
         self.on_terminal = on_terminal
         self.worker_tools = worker_tools
         self._lock = threading.RLock()
+        self._updates = threading.Condition(self._lock)
         self._cancels: dict[str, threading.Event] = {}
         self._threads: dict[str, threading.Thread] = {}
         self._pending: dict[str, dict] = {}
@@ -189,13 +194,16 @@ class ManagedRunSupervisor:
         latest_event: str,
         **changes: Any,
     ) -> dict:
-        current = ManagedRunReceipt.from_dict(self.get(run_id))
-        current.state = state
-        current.latest_event = latest_event
-        current.updated_at = self.clock()
-        for name, value in changes.items():
-            setattr(current, name, value)
-        return self._persist(current)
+        with self._lock:
+            current = ManagedRunReceipt.from_dict(self.get(run_id))
+            if current.state not in ACTIVE_STATES and state != current.state:
+                return current.to_dict()
+            current.state = state
+            current.latest_event = latest_event
+            current.updated_at = self.clock()
+            for name, value in changes.items():
+                setattr(current, name, value)
+            return self._persist(current)
 
     # ------------------------------------------------------------ start
 
@@ -215,45 +223,46 @@ class ManagedRunSupervisor:
         A repeated action ID returns the original receipt. An unknown workflow
         produces an explicit failed receipt rather than a silent no-op.
         """
-        existing = self._find_by_action(action_id)
-        if existing is not None:
-            return existing
-        if workflow_name not in self.workflows:
+        with self._lock:
+            existing = self._find_by_action(action_id)
+            if existing is not None:
+                return existing
+            if workflow_name not in self.workflows:
+                receipt = ManagedRunReceipt(
+                    run_id=run_id or uuid.uuid4().hex,
+                    action_id=action_id,
+                    workflow_name=workflow_name,
+                    parent_correlation=parent_correlation,
+                    state="failed",
+                    latest_event=f"workflow {workflow_name!r} is not managed",
+                    artifact_path=artifact_path,
+                    instructions=instructions,
+                    arguments=dict(arguments or {}),
+                    created_at=self.clock(),
+                    updated_at=self.clock(),
+                )
+                return self._persist(receipt)
+
+            run_id = run_id or uuid.uuid4().hex
+            if not artifact_path:
+                artifact_path = str(self.task_root / run_id)
             receipt = ManagedRunReceipt(
-                run_id=run_id or uuid.uuid4().hex,
+                run_id=run_id,
                 action_id=action_id,
                 workflow_name=workflow_name,
                 parent_correlation=parent_correlation,
-                state="failed",
-                latest_event=f"workflow {workflow_name!r} is not managed",
+                state="accepted",
+                latest_event="accepted",
                 artifact_path=artifact_path,
                 instructions=instructions,
                 arguments=dict(arguments or {}),
                 created_at=self.clock(),
                 updated_at=self.clock(),
+                evidence=[artifact_path],
             )
-            return self._persist(receipt)
-
-        run_id = run_id or uuid.uuid4().hex
-        if not artifact_path:
-            artifact_path = str(self.task_root / run_id)
-        receipt = ManagedRunReceipt(
-            run_id=run_id,
-            action_id=action_id,
-            workflow_name=workflow_name,
-            parent_correlation=parent_correlation,
-            state="accepted",
-            latest_event="accepted",
-            artifact_path=artifact_path,
-            instructions=instructions,
-            arguments=dict(arguments or {}),
-            created_at=self.clock(),
-            updated_at=self.clock(),
-            evidence=[artifact_path],
-        )
-        persisted = self._persist(receipt)
-        self._launch(receipt, resume=False, payload=None)
-        return persisted
+            persisted = self._persist(receipt)
+            self._launch(receipt, resume=False, payload=None)
+            return persisted
 
     def _launch(self, receipt: ManagedRunReceipt, *, resume: bool, payload: dict | None) -> None:
         cancel = self._cancels.setdefault(receipt.run_id, threading.Event())
@@ -288,6 +297,9 @@ class ManagedRunSupervisor:
                 tools = dict(self.worker_tools(receipt.run_id))
             else:
                 tools = {}
+            tools["managed_instructions"] = lambda wait=False, close=False: self.instructions_at_boundary(
+                receipt.run_id, wait=wait, close=close,
+            )
             runtime = WorkflowRuntime(
                 environment=environment,
                 stop_event=cancel,
@@ -312,15 +324,16 @@ class ManagedRunSupervisor:
             )
             self._finish(receipt.run_id, result, environment)
         except BaseException as exc:  # a worker crash must become a failed receipt
+            cancelled = cancel.is_set()
             try:
                 self._transition(
-                    receipt.run_id, state="failed",
+                    receipt.run_id, state="cancelled" if cancelled else "failed",
                     latest_event=f"worker error: {type(exc).__name__}: {exc}"[-500:],
                 )
                 self._emit(receipt.run_id, "failed", error=str(exc))
             except BaseException:
                 pass
-            if self.on_error is not None:
+            if self.on_error is not None and not cancelled:
                 self.on_error(exc)
             self._notify_terminal(receipt.run_id)
 
@@ -343,48 +356,58 @@ class ManagedRunSupervisor:
 
     def _request_payload(self, receipt: ManagedRunReceipt) -> dict:
         return {
+            **dict(receipt.arguments),
             "run_id": receipt.run_id,
             "instruction": receipt.instructions,
             "artifact_path": receipt.artifact_path,
             "answer": "",
-            **dict(receipt.arguments),
         }
 
     def _finish(self, run_id: str, result: WorkflowResult, environment: Any) -> None:
-        if result.status is WorkflowStatus.Cancelled:
-            self._transition(
-                run_id, state="cancelled", latest_event="cancelled",
-                evidence=self._artifact_evidence(run_id, environment),
-            )
-            self._emit(run_id, "cancelled")
-            self._notify_terminal(run_id)
-            return
-        if result.status is WorkflowStatus.WaitingForInput:
-            with self._lock:
-                self._pending[run_id] = {
-                    "question_id": result.question_id,
-                    "resume_phase": result.resume_phase,
-                    "environment": environment,
-                }
-            self._transition(
-                run_id, state="waiting_for_input",
-                latest_event=f"waiting for answer: {result.question}",
-                question_id=str(result.question_id or ""),
-            )
-            self._emit(run_id, "waiting_for_input", question_id=result.question_id,
-                       question=result.question)
-            return
-        if result.status is WorkflowStatus.Completed:
-            self._transition(run_id, state="completed", latest_event="completed",
+        with self._lock:
+            if result.status is WorkflowStatus.Cancelled or self.get(run_id)["state"] == "cancelled":
+                self._transition(
+                    run_id, state="cancelled", latest_event="cancelled",
+                    evidence=self._artifact_evidence(run_id, environment),
+                )
+                self._emit(run_id, "cancelled")
+                self._notify_terminal(run_id)
+                return
+            if result.status is WorkflowStatus.WaitingForInput:
+                with self._lock:
+                    self._pending[run_id] = {
+                        "question_id": result.question_id,
+                        "resume_phase": result.resume_phase,
+                        "environment": environment,
+                    }
+                self._transition(
+                    run_id, state="waiting_for_input",
+                    latest_event=f"waiting for answer: {result.question}",
+                    question_id=str(result.question_id or ""),
+                )
+                self._emit(run_id, "waiting_for_input", question_id=result.question_id,
+                           question=result.question)
+                return
+            if result.status is WorkflowStatus.Completed:
+                if result.report.get("accepted") is False:
+                    self._transition(
+                        run_id, state="failed",
+                        latest_event=str(result.report.get("rejection_reason") or "workflow rejected its result"),
+                        evidence=self._artifact_evidence(run_id, environment),
+                    )
+                    self._emit(run_id, "failed")
+                    self._notify_terminal(run_id)
+                    return
+                self._transition(run_id, state="completed", latest_event="completed",
+                                 evidence=self._artifact_evidence(run_id, environment))
+                self._emit(run_id, "completed")
+                self._notify_terminal(run_id)
+                return
+            self._transition(run_id, state="failed",
+                             latest_event=f"workflow failed: {result.kernel_summary}"[-500:],
                              evidence=self._artifact_evidence(run_id, environment))
-            self._emit(run_id, "completed")
+            self._emit(run_id, "failed", summary=result.kernel_summary)
             self._notify_terminal(run_id)
-            return
-        self._transition(run_id, state="failed",
-                         latest_event=f"workflow failed: {result.kernel_summary}"[-500:],
-                         evidence=self._artifact_evidence(run_id, environment))
-        self._emit(run_id, "failed", summary=result.kernel_summary)
-        self._notify_terminal(run_id)
 
     def _artifact_evidence(self, run_id: str, environment: Any) -> list[str]:
         """List real files produced by the run without reading their content."""
@@ -408,70 +431,101 @@ class ManagedRunSupervisor:
 
     def update(self, run_id: str, instructions: str, *, request_id: str = "") -> dict:
         """Queue one instruction revision. Duplicate request IDs are idempotent."""
-        current = ManagedRunReceipt.from_dict(self.get(run_id))
-        if request_id and request_id in current.request_ids:
-            return current.to_dict()
-        if current.state not in ACTIVE_STATES:
-            raise ManagedRunError(
-                f"Run {run_id!r} is {current.state} and cannot accept an update."
-            )
-        if not instructions.strip():
-            raise ManagedRunError("An update needs nonempty instruction text.")
-        current.instructions = instructions
-        current.revision += 1
-        current.latest_event = f"instructions updated to revision {current.revision}"
-        current.updated_at = self.clock()
-        if request_id:
-            current.request_ids.append(request_id)
-        receipt = self._persist(current)
-        self._emit(run_id, "updated", revision=current.revision)
-        return receipt
+        with self._lock:
+            current = ManagedRunReceipt.from_dict(self.get(run_id))
+            if request_id and request_id in current.request_ids:
+                return current.to_dict()
+            if current.state not in ACTIVE_STATES:
+                raise ManagedRunError(
+                    f"Run {run_id!r} is {current.state} and cannot accept an update."
+                )
+            if not current.updates_open:
+                raise ManagedRunError(f"Run {run_id!r} passed its final instruction boundary.")
+            if not instructions.strip():
+                raise ManagedRunError("An update needs nonempty instruction text.")
+            current.instructions = instructions
+            current.revision += 1
+            current.latest_event = f"instruction revision {current.revision} queued"
+            current.updated_at = self.clock()
+            if request_id:
+                current.request_ids.append(request_id)
+            receipt = self._persist(current)
+            self._updates.notify_all()
+            self._emit(run_id, "updated", revision=current.revision)
+            return receipt
+
+    def instructions_at_boundary(self, run_id: str, *, wait: bool = False, close: bool = False) -> dict:
+        """Consume the latest revision on the worker thread, or wait for one.
+
+        Closing the final boundary rejects subsequent updates. The receipt
+        distinguishes a queued revision from a revision consumed by the role.
+        """
+        from pm_workflows.runtime import WorkflowTerminated
+
+        with self._updates:
+            if wait:
+                self._updates.wait_for(lambda: (
+                    self._cancels[run_id].is_set()
+                    or self.get(run_id)["revision"] > self.get(run_id)["applied_revision"]
+                ))
+            if self._cancels[run_id].is_set():
+                raise WorkflowTerminated()
+            current = ManagedRunReceipt.from_dict(self.get(run_id))
+            current.applied_revision = current.revision
+            current.updates_open = not close
+            current.latest_event = f"instruction revision {current.revision} consumed at boundary"
+            current.updated_at = self.clock()
+            self._persist(current)
+            return {"instruction": current.instructions, "revision": current.revision}
 
     def answer(self, run_id: str, question_id: str, answer: str) -> dict:
         """Deliver a correlated answer and resume the suspended run."""
-        current = ManagedRunReceipt.from_dict(self.get(run_id))
         with self._lock:
-            pending = self._pending.get(run_id)
-        if current.state != "waiting_for_input" or pending is None:
-            raise ManagedRunError(f"Run {run_id!r} is not waiting for input.")
-        if question_id and question_id != current.question_id:
-            raise ManagedRunError(
-                f"Question {question_id!r} does not match {current.question_id!r}."
-            )
-        if not answer.strip():
-            raise ManagedRunError("An answer needs nonempty text.")
-        current.answer = answer
-        current.state = "running"
-        current.latest_event = "answer received; resuming"
-        current.updated_at = self.clock()
-        receipt = self._persist(current)
-        payload = {
-            "run_id": run_id,
-            "instruction": current.instructions,
-            "artifact_path": current.artifact_path,
-            "answer": answer,
-            "question_id": current.question_id,
-            "resume_phase": pending["resume_phase"],
-            **dict(current.arguments),
-        }
-        self._launch(current, resume=True, payload=payload)
-        self._emit(run_id, "answered", question_id=current.question_id)
-        return receipt
+            current = ManagedRunReceipt.from_dict(self.get(run_id))
+            with self._lock:
+                pending = self._pending.get(run_id)
+            if current.state != "waiting_for_input" or pending is None:
+                raise ManagedRunError(f"Run {run_id!r} is not waiting for input.")
+            if question_id and question_id != current.question_id:
+                raise ManagedRunError(
+                    f"Question {question_id!r} does not match {current.question_id!r}."
+                )
+            if not answer.strip():
+                raise ManagedRunError("An answer needs nonempty text.")
+            current.answer = answer
+            current.state = "running"
+            current.latest_event = "answer received; resuming"
+            current.updated_at = self.clock()
+            receipt = self._persist(current)
+            payload = {
+                **dict(current.arguments),
+                "run_id": run_id,
+                "instruction": current.instructions,
+                "artifact_path": current.artifact_path,
+                "answer": answer,
+                "question_id": current.question_id,
+                "resume_phase": pending["resume_phase"],
+            }
+            self._launch(current, resume=True, payload=payload)
+            self._emit(run_id, "answered", question_id=current.question_id)
+            return receipt
 
     def terminate(self, run_id: str) -> dict:
         """Cancel a run through its code-owned signal. Files are untouched."""
-        current = ManagedRunReceipt.from_dict(self.get(run_id))
-        if current.state not in ACTIVE_STATES:
-            return current.to_dict()
         with self._lock:
-            cancel = self._cancels.get(run_id)
-        if cancel is not None:
-            cancel.set()
-        receipt = self._transition(
-            run_id, state="cancelled", latest_event="terminated by request",
-        )
-        self._emit(run_id, "terminated")
-        return receipt
+            current = ManagedRunReceipt.from_dict(self.get(run_id))
+            if current.state not in ACTIVE_STATES:
+                return current.to_dict()
+            with self._lock:
+                cancel = self._cancels.get(run_id)
+            if cancel is not None:
+                cancel.set()
+            self._updates.notify_all()
+            receipt = self._transition(
+                run_id, state="cancelled", latest_event="terminated by request",
+            )
+            self._emit(run_id, "terminated")
+            return receipt
 
     def join(self, run_id: str, timeout: float | None = None) -> None:
         with self._lock:

@@ -44,7 +44,7 @@ def build_minecraft_tools(
             return {
                 "tool": name,
                 "arguments": dict(arguments or {}),
-                "ok": not result.is_error,
+                "ok": not result.is_error and data["ok"] is True,
                 "result": data,
                 "images": _extract_images(result.content),
             }
@@ -59,9 +59,18 @@ def build_minecraft_tools(
                 return [tool.name for tool in await client.list_tools()]
         return asyncio.run(_list())
 
+    def minecraft_tool_schemas() -> list[dict]:
+        async def _list() -> list[dict]:
+            from fastmcp import Client
+            async with Client(mcp_url) as client:
+                return [{"name": tool.name, "description": tool.description,
+                         "parameters": tool.inputSchema} for tool in await client.list_tools()]
+        return asyncio.run(_list())
+
     tools: dict[str, Callable[..., Any]] = {
         "minecraft_call": minecraft_call,
         "minecraft_list_tools": minecraft_list_tools,
+        "minecraft_tool_schemas": minecraft_tool_schemas,
         "minecraft_plan": _build_plan_tool(plan_model),
     }
     return tools
@@ -70,10 +79,11 @@ def build_minecraft_tools(
 def _build_plan_tool(plan_model) -> Callable[..., str]:
     """Let a model choose one allowed action, with a deterministic fallback."""
 
-    def minecraft_plan(observation: str, allowed_tools: list[str], goal: str) -> str:
+    def minecraft_plan(observation: str, allowed_tools: list[dict], goal: str) -> str:
         if plan_model is None:
-            return allowed_tools[0] if allowed_tools else ""
-        tool_list = ", ".join(allowed_tools) or "(none)"
+            raise RuntimeError("Minecraft planning needs a configured model or an explicit action_tool.")
+        import json
+        tool_list = json.dumps(allowed_tools, ensure_ascii=False)
         messages = [
             {
                 "role": "system",
