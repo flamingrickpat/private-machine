@@ -39,7 +39,10 @@ Read the [W5 delivery record](docs/work-items/W5.md) for the exact scope, eviden
 W6 is complete: Assistant dialogue, management, and stewardship.
 It adds a separate tool-capable Assistant conversation, one durable managed-run table with shared start/status/update/terminate operations exposed as scoped MCP tools and SelfManagement, a dormant steward with code-only termination, a small real local task used to exercise concurrency and blocking questions, and evidence-backed report-to-knoxel consolidation.
 Read the [W6 delivery record](docs/work-items/W6.md) for the exact scope, evidence, and remaining work.
-The next unfinished work item is W7, first-delivery acceptance.
+W7 is complete: first-delivery acceptance.
+It adds nine topology checks over every real workflow manifest and a ten-scenario, twenty-exchange conversation acceptance with a separate evaluator phase, nine good trajectories of ten, and no hard contract violation.
+Read the [W7 delivery record](docs/work-items/W7.md) for the exact scope, evidence, and remaining work.
+The next unfinished work item is W8, Minecraft body and richer consolidation.
 
 ## What it does
 

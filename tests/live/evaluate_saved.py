@@ -23,6 +23,10 @@ def main(argv=None) -> int:
     parser.add_argument("run_root", type=Path)
     parser.add_argument("--scenarios", default="", help="Comma-separated subset.")
     parser.add_argument("--config", default=None)
+    parser.add_argument(
+        "--trajectory-only", action="store_true",
+        help="Re-score only the whole-trajectory judgment; keep saved reply scores.",
+    )
     args = parser.parse_args(argv)
 
     default = args.config or (
@@ -32,6 +36,7 @@ def main(argv=None) -> int:
     selected = [name for name in args.scenarios.split(",") if name] or None
     summary = conv.run_evaluation(
         args.run_root, config=config, owner=ModelActivation(), selected=selected,
+        trajectory_only=args.trajectory_only,
     )
     print(json.dumps(summary, indent=2))
     return 0 if summary.get("passed") else 1

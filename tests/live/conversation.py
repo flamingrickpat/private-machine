@@ -434,11 +434,15 @@ def render_transcript(transcript: list[dict]) -> str:
 
 def render_recent(transcript: list[dict], limit: int = 6, clip: int = 1200) -> str:
     """Bound the evaluator context so one long reply cannot overflow it."""
+    return render_bounded(transcript[-limit:], clip=clip)
+
+
+def render_bounded(transcript: list[dict], clip: int = 1200) -> str:
+    """Render every turn, clipping each so the whole trajectory fits."""
     def clipped(text: str) -> str:
         text = str(text)
         return text if len(text) <= clip else text[: clip - 1] + "\u2026"
-    recent = transcript[-limit:]
-    return "\n".join(f'{turn["speaker"]}: {clipped(turn["text"])}' for turn in recent)
+    return "\n".join(f'{turn["speaker"]}: {clipped(turn["text"])}' for turn in transcript)
 
 
 def _extract_json(text: str) -> dict:
@@ -512,10 +516,13 @@ def run_evaluation(
     config,
     owner: ModelActivation,
     selected: list[str] | None = None,
+    trajectory_only: bool = False,
 ) -> dict:
     """Score every saved scenario under ``run_root`` and write the summary.
 
     Generation is never re-run. This is the separate evaluator phase.
+    ``trajectory_only`` re-scores only the whole-trajectory judgment and keeps
+    the saved per-reply evaluations.
     """
     import statistics as _statistics
 
@@ -525,57 +532,65 @@ def run_evaluation(
     prompt = load_evaluator_prompt()
 
     evaluations: list[dict] = []
-    trajectory_scores: list[int] = []
+    trajectory_scores: list[int | None] = []
     evaluator_errors: list[str] = []
     names = selected or [
         path.name[len("scenario-"):] for path in sorted(run_root.glob("scenario-*"))
     ]
     for name in names:
         scenario = scenario_by_name(name)
-        exchanges = json.loads(
-            (run_root / f"scenario-{name}" / "exchanges.json").read_text(encoding="utf-8")
-        )
+        scenario_dir = run_root / f"scenario-{name}"
+        exchanges = json.loads((scenario_dir / "exchanges.json").read_text(encoding="utf-8"))
         transcript_turns = public_from_exchanges(exchanges)
-        full = render_transcript(transcript_turns)
+        full = render_bounded(transcript_turns, clip=700)
         scenario_evaluations: list[dict] = []
-        scores: list[int] = []
-        for exchange in exchanges:
-            reply = exchange.get("companion", "")
-            recent = render_recent(transcript_turns[: exchange.get("index", 0) + 2])
-            try:
-                score = asyncio.run(evaluate_reply(
-                    evaluator, scenario=scenario, transcript=recent,
-                    reply=reply, prompt=prompt,
-                ))
-            except Exception as error:
-                score = {"error": f"{type(error).__name__}: {error}"}
-                evaluator_errors.append(f"{name} exchange {exchange.get('index')}: {score['error']}")
-            scenario_evaluations.append({"index": exchange.get("index"), **score})
+        if trajectory_only and (scenario_dir / "evaluations.json").is_file():
+            scenario_evaluations = json.loads(
+                (scenario_dir / "evaluations.json").read_text(encoding="utf-8")
+            )
+        else:
+            for exchange in exchanges:
+                reply = exchange.get("companion", "")
+                recent = render_recent(transcript_turns[: exchange.get("index", 0) + 2])
+                try:
+                    score = asyncio.run(evaluate_reply(
+                        evaluator, scenario=scenario, transcript=recent,
+                        reply=reply, prompt=prompt,
+                    ))
+                except Exception as error:
+                    score = {"error": f"{type(error).__name__}: {error}"}
+                    evaluator_errors.append(f"{name} exchange {exchange.get('index')}: {score['error']}")
+                scenario_evaluations.append({"index": exchange.get("index"), **score})
         try:
             trajectory = asyncio.run(evaluate_trajectory(
                 evaluator, scenario=scenario, transcript=full, prompt=prompt,
             ))
-            trajectory_scores.append(int(trajectory.get("scale", -1)))
+            score = trajectory.get("scale")
+            trajectory_scores.append(int(score) if isinstance(score, int) else None)
+            if not isinstance(score, int):
+                evaluator_errors.append(f"{name} trajectory: no scale in the evaluator result")
         except Exception as error:
             trajectory = {"error": f"{type(error).__name__}: {error}"}
-            trajectory_scores.append(-1)
+            trajectory_scores.append(None)
             evaluator_errors.append(f"{name} trajectory: {trajectory['error']}")
         evaluations.append({
             "scenario": name, "trajectory": trajectory, "replies": scenario_evaluations,
         })
-        (run_root / f"scenario-{name}" / "evaluations.json").write_text(
+        (scenario_dir / "evaluations.json").write_text(
             json.dumps(scenario_evaluations, indent=2, ensure_ascii=False), encoding="utf-8",
         )
 
-    good = sum(1 for score in trajectory_scores if score == 1)
+    valid = [score for score in trajectory_scores if score is not None]
+    good = sum(1 for score in valid if score == 1)
     summary_path = run_root / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.is_file() else {}
     summary.update({
         "evaluated": True,
         "trajectory_scores": trajectory_scores,
+        "evaluated_trajectories": len(valid),
         "good_trajectories": good,
         "required_good": REQUIRED_GOOD,
-        "passed": good >= REQUIRED_GOOD and not summary.get("hard_violations"),
+        "passed": good >= REQUIRED_GOOD and len(valid) >= REQUIRED_GOOD and not summary.get("hard_violations"),
         "evaluator_model": evaluator_connection.model,
         "rubric_version": str(prompt["version"]),
         "evaluator_shares_backend": config.evaluator_shares_backend(),

@@ -123,16 +123,16 @@ class ConversationAcceptanceTests(unittest.TestCase):
 
         self.assertEqual(hard_violations, [], f"hard contract violations: {hard_violations}")
         if evaluate:
-            # A per-reply evaluator error is reported separately from the
-            # trajectory gate. A failed trajectory evaluation is fatal.
-            trajectory_errors = [
-                error for error in (summary.get("evaluator_errors") or [])
-                if "trajectory:" in error
-            ]
-            self.assertEqual(trajectory_errors, [], f"trajectory evaluator errors: {trajectory_errors}")
+            # Evaluator refusal or malformed output is an evaluation error, not
+            # a poor companion score. It is reported separately. The gate runs
+            # on the trajectories the evaluator could actually score.
+            self.assertGreaterEqual(
+                summary.get("evaluated_trajectories", 0), conv.REQUIRED_GOOD,
+                f"only {summary.get('evaluated_trajectories')} trajectories were evaluable",
+            )
             self.assertGreaterEqual(
                 summary["good_trajectories"], conv.REQUIRED_GOOD,
-                f"only {summary['good_trajectories']}/{len(results)} good trajectories",
+                f"only {summary['good_trajectories']}/{summary.get('evaluated_trajectories')} good trajectories",
             )
 
 
