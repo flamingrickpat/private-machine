@@ -103,15 +103,11 @@ class GhostBashEnvironment(WorkingEnvironment):
         return result.stdout
 
     def write_text(self, path: str, text: str) -> None:
-        target = self._abs(path)
-        parent = posixpath.dirname(target)
-        command = (
-            f"mkdir -p -- {shlex.quote(parent)} && "
-            f"printf '%s' {shlex.quote(text)} > {shlex.quote(target)}"
-        )
-        result = self.exec(command)
-        if result.exit_code != 0:
-            raise RuntimeError(result.stderr or f"write failed: {path}")
+        # Write through the user's filesystem view directly. Routing arbitrary
+        # model text through a shell ``printf`` mangles backticks and nested
+        # quotes; the direct write keeps the exact text and still enforces the
+        # read-only projection through ``_need_write``.
+        self.machine.write_text_as("workflow", self._abs(path), text)
 
     def move(self, source: str, destination: str) -> None:
         src = self._abs(source)
