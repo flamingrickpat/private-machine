@@ -200,11 +200,14 @@ def run(context) -> dict:
 
     receipts: list[ToolReceipt] = []
     final_text = ""
-    for _turn in range(request.max_tool_turns):
+    turns = request.max_tool_turns
+    for turn in range(turns):
         payload = [message.model_dump(mode="json", exclude_none=False) for message in messages]
-        raw = asyncio.run(completion(payload, tools=schemas))
+        # On the last allowed turn, ban tools so the model must answer in text.
+        allow_tools = schemas if turn < turns - 1 else []
+        raw = asyncio.run(completion(payload, tools=allow_tools))
         message = parse_completion(raw)
-        if message.get("tool_calls"):
+        if message.get("tool_calls") and allow_tools:
             messages.append(AssistantMessage(
                 role="assistant",
                 content=str(message.get("content") or ""),
@@ -217,10 +220,17 @@ def run(context) -> dict:
             receipts.extend(new_receipts)
             continue
         final_text = str(message.get("content") or "").strip()
+        if final_text:
+            messages.append(AssistantMessage(role="assistant", content=final_text))
+            break
+    if not final_text:
+        # The tool budget is done and the model returned no text. Force one
+        # final, tool-free completion so the run always produces a result.
+        payload = [message.model_dump(mode="json", exclude_none=False) for message in messages]
+        raw = asyncio.run(completion(payload, tools=[]))
+        message = parse_completion(raw)
+        final_text = str(message.get("content") or "").strip()
         messages.append(AssistantMessage(role="assistant", content=final_text))
-        break
-    else:
-        raise RuntimeError("Assistant dialogue exceeded its tool-turn budget.")
 
     accepted = bool(final_text)
     report = AssistantReport(

@@ -242,7 +242,7 @@ def _step_with_retry(assistant, jesse_knoxel: int, jesse_text: str, name: str, i
     """Run one exchange, retrying a transient Windows atomic-replace lock."""
     import time
     last: BaseException | None = None
-    for attempt in range(4):
+    for attempt in range(5):
         try:
             assistant.step()
             return
@@ -251,7 +251,7 @@ def _step_with_retry(assistant, jesse_knoxel: int, jesse_text: str, name: str, i
             time.sleep(0.4 * (attempt + 1))
         except RuntimeError as error:  # transient model/backend failure
             last = error
-            if "ended unsuccessfully" not in str(error) or attempt >= 2:
+            if "ended unsuccessfully" not in str(error) or attempt >= 3:
                 raise
             time.sleep(0.5 * (attempt + 1))
         assistant.mailbox.put(Envelope(

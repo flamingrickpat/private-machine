@@ -59,7 +59,7 @@ class AssistantRequest(BaseModel):
     workspace: str = ""
     tools: list[ToolDescriptor] = Field(default_factory=list)
     tool_grant: list[str] = Field(default_factory=list)
-    max_tool_turns: int = 6
+    max_tool_turns: int = 8
 
 
 class AssistantReport(BaseModel):

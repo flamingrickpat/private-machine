@@ -114,7 +114,7 @@ class LazyStageModel:
 
         async def complete_tool(messages: list[dict], tools=None, **generation) -> dict:
             generation.setdefault("max_tokens", self.max_tokens)
-            if tools is not None:
+            if tools:
                 generation["tools"] = tools
             last: ModelError | None = None
             for attempt in range(3):

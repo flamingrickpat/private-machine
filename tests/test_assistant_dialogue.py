@@ -178,18 +178,23 @@ class KernelTests(unittest.TestCase):
         self.assertIn("not granted", receipt.error)
         self.assertEqual(report.final_text, "I did not do that.")
 
-    def test_tool_turn_budget_is_bounded(self):
-        request = example_request(max_tool_turns=1)
-        with self.assertRaises(RuntimeError):
-            self._run([
-                completion({
-                    "content": "",
-                    "tool_calls": [{
-                        "id": "c1", "type": "function",
-                        "function": {"name": "managed_status", "arguments": '{"run_id": "r1"}'},
-                    }],
-                }),
-            ], request)
+    def test_tool_turn_budget_ends_with_a_text_result(self):
+        request = example_request(max_tool_turns=2)
+        tool_call = {
+            "content": "",
+            "tool_calls": [{
+                "id": "c1", "type": "function",
+                "function": {"name": "managed_status", "arguments": '{"run_id": "r1"}'},
+            }],
+        }
+        report = self._run([
+            completion(tool_call),
+            completion(tool_call),
+            completion({"content": "I stopped looping and answered."}),
+        ], request)
+        self.assertEqual(report.final_text, "I stopped looping and answered.")
+        # Only the first, allowed call produced a receipt.
+        self.assertEqual(len(report.tool_receipts), 1)
 
 
 class AssistantModuleTests(unittest.TestCase):
