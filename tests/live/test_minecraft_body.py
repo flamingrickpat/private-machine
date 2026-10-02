@@ -1,9 +1,13 @@
 """W8 live Minecraft body acceptance.
 
-Requires the real pm-minecraft MCP and an isolated checkpoint server. The
-endpoint comes from ``MINECRAFT_MCP_URL`` (default
-``http://127.0.0.1:6767/mcp``). A missing endpoint fails the test; it is never
-skipped silently.
+When ``MINECRAFT_MCP_URL`` is unset (or the default) and that endpoint is
+not running, the test starts a fresh server and the pm-minecraft MCP from the
+local checkout. Set ``PM_MINECRAFT_AUTOSTART=0`` to require an external
+endpoint instead. An explicitly configured external endpoint is used as-is.
+
+``PM_MINECRAFT_REPO`` selects the pm-minecraft checkout (default
+``C:/source/pm/pm-minecraft``) and ``PM_MINECRAFT_ENV`` selects its env file
+(default ``.env_tdd``).
 
 The test demonstrates observation, one real action, status, an instruction
 update, termination, and memory recovery from a reopened checkpoint.
@@ -26,6 +30,7 @@ from runtime.models import load_config, resolve_connection
 from runtime.consolidation import Consolidator
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.minecraft_tools import DEFAULT_MCP_URL, build_minecraft_tools
+from tests.live.minecraft_stack import MinecraftStack, autostart_enabled
 from workflow_adapter import PROJECT_ROOT
 
 EVIDENCE_ROOT = (
@@ -52,8 +57,27 @@ def _save(name: str, payload) -> None:
 
 
 class LiveMinecraftBodyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.mcp_url = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+        cls.stack = None
+        if autostart_enabled(cls.mcp_url):
+            # No endpoint is running. Start a fresh server and the MCP so the
+            # gate is self-contained instead of failing on a missing endpoint.
+            cls.stack = MinecraftStack(
+                repo=Path(os.environ.get("PM_MINECRAFT_REPO", "C:/source/pm/pm-minecraft")),
+                env_file=os.environ.get("PM_MINECRAFT_ENV", ".env_tdd"),
+            )
+            cls.stack.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls.stack is not None:
+            cls.stack.stop()
+            cls.stack = None
+
     def setUp(self):
-        self.mcp_url = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+        self.mcp_url = type(self).mcp_url
         tools = build_minecraft_tools(self.mcp_url)
         try:
             names = tools["minecraft_list_tools"]()

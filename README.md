@@ -130,18 +130,21 @@ Remove-Item Env:PM_W7_SCENARIOS, Env:PM_W7_EXCHANGES, Env:PM_W7_EVALUATE
 A smoke test does not establish full conversation acceptance.
 The earlier Assistant-only conversation results do not establish acceptance for the current application path.
 
-The Minecraft gate requires an isolated test server and its MCP:
+The Minecraft gate starts its own fresh test server and MCP when no endpoint is running:
 
 ```powershell
 uv run --locked python -m unittest tests.live.test_minecraft_body -v -b
 ```
 
-This test changes the configured world. Use a test endpoint.
-It checks a mined block, updated instructions, cancellation, screenshots, and checkpoint recovery.
+It copies the configured server template into a fresh run directory, starts the server and the local pm-minecraft MCP, and stops both after the run.
+Set `PM_MINECRAFT_AUTOSTART=0` to require an external endpoint instead.
+`PM_MINECRAFT_REPO` and `PM_MINECRAFT_ENV` select the checkout and its env file.
+The test checks a mined block, updated instructions, cancellation, screenshots, and checkpoint recovery.
 It retains its artifacts under `.runtime/w8/live-minecraft/`.
 
-`unittest discover -s tests` includes live suites and requires all their endpoints.
-Missing endpoints fail live checks. No live check silently skips them.
+`unittest discover -s tests` includes live suites.
+The model, embedding, and Minecraft checks start or require their configured endpoints.
+A missing model or embedding endpoint fails its suite.
 
 ## Current limits
 
