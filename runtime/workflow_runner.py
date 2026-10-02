@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 import json
 from pathlib import Path
+import time
 from typing import Any
 
 import yaml
@@ -63,12 +64,14 @@ class WorkflowRunner:
         namespace: str = "standalone",
         base_dir: Path = PROJECT_ROOT,
         success_status: str = "done",
+        state_lock_attempts: int = 5,
     ) -> None:
         self.workflow = Path(workflow)
         self.runtime_root = Path(runtime_root)
         self.namespace = namespace
         self.base_dir = Path(base_dir)
         self.success_status = success_status
+        self.state_lock_attempts = max(1, state_lock_attempts)
 
     def invoke(
         self, request: WorkflowRequest, runtime: WorkflowRuntime, *, resume: bool = False,
@@ -79,6 +82,13 @@ class WorkflowRunner:
         success report raises an error. Python role errors propagate when the
         supplied runtime enables ``propagate_python_errors``. ``resume``
         continues a suspended run from its retained journal.
+
+        The kernel projects its journal into a read-only ``state.md`` through an
+        atomic replace. Windows can hold a transient lock on that file (indexer,
+        backup, antivirus), and ``os.replace`` then raises ``PermissionError``.
+        The journal is the source of truth and is written before the projection,
+        so a bounded retry resumes from the journal instead of repeating a
+        completed phase or an external effect.
         """
         environment = runtime.environment
         if not runtime.stop_event.is_set():
@@ -89,22 +99,31 @@ class WorkflowRunner:
         allowed_mcp = (
             set(runtime.mcp_servers) if runtime.mcp_servers is not None else None
         )
-        kernel = Kernel(
-            manifest_path=self.workflow,
-            workspace=self.runtime_root / self.namespace / request.run_id / "workspace",
-            task_id=request.run_id,
-            task_text=f"Read inbox/request.yaml from the supplied working target ({request.run_id}). "
-                      "Write the final YAML report to outbox/report.yaml in that target. "
-                      "Agent tools already use the target. Use relative paths.",
-            base_dir=self.base_dir,
-            coding_agent="pm-coder" if runtime.agent_model is not None else "python",
-            kernel_data_root=self.runtime_root / "kernel",
-            run_id=request.run_id,
-            resume=resume,
-            allowed_mcp=allowed_mcp,
-            runtime=runtime,
-        )
-        summary = kernel.run()
+        summary = None
+        kernel = None
+        for attempt in range(self.state_lock_attempts):
+            try:
+                kernel = Kernel(
+                    manifest_path=self.workflow,
+                    workspace=self.runtime_root / self.namespace / request.run_id / "workspace",
+                    task_id=request.run_id,
+                    task_text=f"Read inbox/request.yaml from the supplied working target ({request.run_id}). "
+                              "Write the final YAML report to outbox/report.yaml in that target. "
+                              "Agent tools already use the target. Use relative paths.",
+                    base_dir=self.base_dir,
+                    coding_agent="pm-coder" if runtime.agent_model is not None else "python",
+                    kernel_data_root=self.runtime_root / "kernel",
+                    run_id=request.run_id,
+                    resume=resume or attempt > 0,
+                    allowed_mcp=allowed_mcp,
+                    runtime=runtime,
+                )
+                summary = kernel.run()
+                break
+            except PermissionError:
+                if attempt == self.state_lock_attempts - 1:
+                    raise
+                time.sleep(0.25 * (attempt + 1))
         status = _status(summary, self.success_status, runtime.stop_event.is_set())
         report = None
         question = question_id = resume_phase = None

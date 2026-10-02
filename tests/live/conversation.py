@@ -23,7 +23,7 @@ from pm_core.model.knoxel_enums import FeatureType, InterlocusType
 
 from bus.envelopes import Envelope, _new_id
 from main import build_app
-from runtime.cognitive_model import DEFAULT_MAX_TOKENS, LazyStageModel
+from runtime.cognitive_model import LazyStageModel
 from runtime.model_activation import ChatClient, ModelActivation
 from runtime.model_io import ModelError
 from runtime.models import LlmPreset, load_config, resolve_connection
@@ -189,7 +189,7 @@ async def jesse_next_line(
     for attempt in range(5):
         try:
             result = await client.complete(
-                messages, temperature=0.8, max_tokens=DEFAULT_MAX_TOKENS,
+                messages, temperature=0.8,
             )
         except ModelError as error:
             if attempt == 4:
@@ -404,7 +404,6 @@ async def _evaluate_once(
                     {"role": "user", "content": user},
                 ],
                 temperature=0.0,
-                max_tokens=DEFAULT_MAX_TOKENS,
             )
             text = result.choices[0].message.content or ""
             score = _extract_json(text)

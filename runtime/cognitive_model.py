@@ -6,11 +6,11 @@ activates the configured connection on the calling module thread; later
 completions reuse it. Activation is therefore explicit and observable, and no
 model switch can happen while another completion is in flight.
 
-The retry rule matches checkpoint one: a reasoning backend can return empty
-content for a small completion budget. The budget defaults high enough for a
-reasoning backend to finish its reasoning and its answer, and an empty
-response is retried at most once. There is no generation deadline and no
-endless reprompt loop.
+No completion sends a ``max_tokens`` cap. A reasoning backend emits hidden
+reasoning tokens before the visible answer; any cap sized for the visible
+answer alone can stop the completion mid-object. The backend stops when it is
+finished. There is no generation deadline and no endless reprompt loop. An
+empty response is retried at most once.
 """
 from __future__ import annotations
 
@@ -21,22 +21,13 @@ from runtime.model_activation import ChatClient, ModelActivation
 from runtime.model_io import ModelError
 from runtime.models import Connection
 
-# A local reasoning backend emits hidden reasoning tokens that count against
-# ``max_tokens`` before the visible content. A budget sized for the visible
-# answer alone stops the completion mid-object. This budget leaves room for
-# both. The configured model accepts a larger context than this value.
-DEFAULT_MAX_TOKENS = 32768
-
 
 async def complete_with_retry(
     client: ChatClient,
     messages: list[dict],
     generation: dict,
-    *,
-    max_tokens: int = DEFAULT_MAX_TOKENS,
 ) -> str:
     """One completion with a bounded empty-content retry."""
-    generation.setdefault("max_tokens", max_tokens)
     last: ModelError | None = None
     for attempt in range(2):
         try:
@@ -59,12 +50,10 @@ class LazyStageModel:
         owner: ModelActivation,
         *,
         live_test: bool = False,
-        max_tokens: int = DEFAULT_MAX_TOKENS,
     ) -> None:
         self.connection = connection
         self.owner = owner
         self.live_test = live_test
-        self.max_tokens = max_tokens
         self._lock = Lock()
         self._client: ChatClient | None = None
 
@@ -94,7 +83,7 @@ class LazyStageModel:
     def complete(self, messages: list[dict], **generation) -> str:
         """Synchronous completion for Python-role stages."""
         client = self.ensure_client()
-        return asyncio.run(complete_with_retry(client, messages, generation, max_tokens=self.max_tokens))
+        return asyncio.run(complete_with_retry(client, messages, generation))
 
     def build_async_tool(self):
         """Return an async completion callable for roles that run their own loop.
@@ -105,7 +94,7 @@ class LazyStageModel:
         client = self.ensure_client()
 
         async def complete_async(messages: list[dict], **generation) -> str:
-            return await complete_with_retry(client, messages, generation, max_tokens=self.max_tokens)
+            return await complete_with_retry(client, messages, generation)
 
         return complete_async
 
@@ -118,7 +107,6 @@ class LazyStageModel:
         client = self.ensure_client()
 
         async def complete_tool(messages: list[dict], tools=None, **generation) -> dict:
-            generation.setdefault("max_tokens", self.max_tokens)
             if tools:
                 generation["tools"] = tools
             last: ModelError | None = None
@@ -136,4 +124,4 @@ class LazyStageModel:
         return complete_tool
 
 
-__all__ = ["DEFAULT_MAX_TOKENS", "LazyStageModel", "complete_with_retry"]
+__all__ = ["LazyStageModel", "complete_with_retry"]

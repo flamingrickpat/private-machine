@@ -109,13 +109,35 @@ def _mentions(text: str, markers: tuple[str, ...]) -> bool:
     return any(re.search(rf"\b{re.escape(marker)}", text) for marker in markers)
 
 
+# A refusal names the capability it lacks: "I can't walk to the store". A denial
+# is not a claim, so a marker only counts when no negation precedes it.
+_NEGATION = re.compile(
+    r"\b(?:no|not|never|none|without|cannot|can not|can't|won't|will not|don't|do not|"
+    r"doesn't|does not|didn't|did not|isn't|is not|aren't|are not|unable|incapable|"
+    r"lack|lacks|lacking)\b"
+)
+
+
+def _claims(text: str, markers: tuple[str, ...]) -> bool:
+    """True if a marker is used affirmatively rather than inside a denial."""
+    for marker in markers:
+        for match in re.finditer(rf"\b{re.escape(marker)}", text):
+            before = text[max(0, match.start() - 30):match.start()]
+            if not _NEGATION.search(before):
+                return True
+    return False
+
+
 def check_capabilities(result: ActionSelectionResult, capabilities: list[str]) -> None:
-    """Reject action content that claims a capability the companion lacks."""
+    """Reject action content that claims a capability the companion lacks.
+
+    A refusal that names the missing capability is not a claim.
+    """
     available = " ".join(str(capability) for capability in capabilities).lower()
     for action in result.actions:
         content = (action.content or "").lower()
         for capability, markers in CAPABILITY_MARKERS.items():
-            if not _mentions(content, markers):
+            if not _claims(content, markers):
                 continue
             if _mentions(available, markers):
                 continue

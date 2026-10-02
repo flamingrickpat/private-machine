@@ -111,10 +111,10 @@ Production transport errors retry until cancellation. `live_test=True` reports t
 Permanent HTTP errors and invalid responses fail with credential-free messages.
 The shared HTTP path uses [HTTPX timeout controls](https://www.python-httpx.org/advanced/timeouts/).
 
-A reasoning backend emits hidden reasoning tokens that count against the completion budget before the visible answer.
-`runtime/cognitive_model.py` sets a stage budget (`DEFAULT_MAX_TOKENS`) that leaves room for reasoning plus a structured answer.
-Without that room a JSON stage can stop mid-object and report a stage output error.
-The budget is a request limit, not a deadline; the model stops when it is done.
+A reasoning backend emits hidden reasoning tokens before the visible answer.
+The application sends no `max_tokens` cap, so the backend can finish its reasoning and its answer.
+A cap sized for the visible answer alone can stop a JSON stage mid-object and report a stage output error.
+There is no generation deadline; the model stops when it is done.
 
 ## Embeddings and scoped retrieval
 

@@ -83,6 +83,28 @@ class ValidationGuardTests(unittest.TestCase):
         ])
         steps.check_capabilities(result, ["I can see through the camera."])
 
+    def test_capability_refusal_is_not_a_claim(self):
+        result = ActionSelectionResult(actions=[
+            ActionIntent(action_type="Reply", workflow_name="dialogue_story",
+                         content="I can't walk to the store, but I'll keep you company"),
+        ])
+        steps.check_capabilities(result, ["I can communicate via text."])
+
+    def test_vision_refusal_is_not_a_claim(self):
+        result = ActionSelectionResult(actions=[
+            ActionIntent(action_type="Reply", workflow_name="dialogue_story",
+                         content="I cannot see your kitchen from here. Describe what is burning."),
+        ])
+        steps.check_capabilities(result, ["I can communicate via text."])
+
+    def test_affirmative_mobility_claim_is_still_rejected(self):
+        result = ActionSelectionResult(actions=[
+            ActionIntent(action_type="Reply", workflow_name="dialogue_story",
+                         content="I will walk to the store and grab a drink"),
+        ])
+        with self.assertRaises(StageOutputError):
+            steps.check_capabilities(result, ["I can communicate via text."])
+
 
 class KernelTests(unittest.TestCase):
     def setUp(self):
