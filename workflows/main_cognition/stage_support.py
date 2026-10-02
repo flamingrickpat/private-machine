@@ -9,6 +9,7 @@ policy.
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import re
 from pathlib import Path
@@ -45,16 +46,22 @@ def extract_json(text: str) -> dict:
 
 
 def complete_json(context, messages: list[dict], schema: type[BaseModel], **generation):
-    """Call the injected model tool and validate its JSON into ``schema``."""
-    tool = context.runtime.tools["llm_complete"]
-    raw = tool(messages, **generation)
-    if not isinstance(raw, str):
-        raise StageOutputError("llm_complete must return the completion text as a string.")
-    payload = extract_json(raw)
-    try:
-        return schema.model_validate(payload)
-    except ValidationError as error:
-        raise StageOutputError(f"The stage model output failed validation: {error}") from None
+    """Call the injected model tool and validate its JSON into ``schema``. Tries it 10 times."""
+    temp_list = copy.deepcopy(messages)
+    error = None
+    for _ in range(10):
+        tool = context.runtime.tools["llm_complete"]
+        raw = tool(temp_list, **generation)
+        if not isinstance(raw, str):
+            raise StageOutputError("llm_complete must return the completion text as a string.")
+        payload = extract_json(raw)
+        try:
+            return schema.model_validate(payload)
+        except ValidationError as error:
+            temp_list.append({"role": "assistant", "content": raw})
+            temp_list.append({"role": "user", "content": f"This is invalid JSON, '{error}'. "
+                                                         f"Try again and and ONLY output the JSON string."})
+    raise StageOutputError(f"The stage model output failed validation: {error}") from None
 
 
 def write_report(environment, report: BaseModel) -> None:
