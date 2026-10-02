@@ -22,6 +22,7 @@ from pm_workflows.runtime import WorkflowRuntime
 
 from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_enums import FeatureType, InterlocusType
+from runtime.cognitive_model import DEFAULT_MAX_TOKENS
 from runtime.model_activation import ChatClient
 from runtime.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
@@ -40,6 +41,7 @@ def build_story_tools(client: ChatClient) -> dict:
     """The scoped generation tool. Async so the sync role owns the event loop."""
 
     async def story_complete(messages: list[dict], **generation) -> str:
+        generation.setdefault("max_tokens", DEFAULT_MAX_TOKENS)
         result = await client.complete(messages, **generation)
         return result.choices[0].message.content or ""
 
@@ -130,7 +132,7 @@ async def evaluate_candidate(
             {"role": "user", "content": user},
         ],
         temperature=0.0,
-        max_tokens=4096,
+        max_tokens=DEFAULT_MAX_TOKENS,
     )
     text = result.choices[0].message.content or ""
     return StoryQualityScore.model_validate(extract_json(text))
