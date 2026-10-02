@@ -10,3 +10,4 @@ __pycache__/
 !.env.example
 config.local.yaml
 .pytest_cache/
+site/

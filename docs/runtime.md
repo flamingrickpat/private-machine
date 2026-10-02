@@ -6,7 +6,7 @@ The shared runner calls the real pm-workflows kernel synchronously.
 Direct debugger calls and module threads use this same runner.
 The runner supports Python roles and real pm-coder roles on folder and virtual Ghost targets.
 
-Parent: [project overview](../README.md).
+Parent: [project overview](index.md).
 
 ## Input and result
 
@@ -97,19 +97,29 @@ uv run --locked python -m unittest tests.live.test_agent_workflows -v -b
 
 These synchronous checks retain evidence under `.runtime/w3/agent-targets/`.
 Each agent reads a request and a memory file, then writes a report through the supplied target.
-The checks verify the report, tool calls, unchanged memory, and absence of a report in the host journal workspace.
-One check starts a scoped Ghost MCP service on a loopback port and verifies that the agent called it.
+The checks establish the report, tool calls, unchanged memory, and absence of a report in the host journal workspace.
+One check starts a scoped Ghost MCP service on a loopback port and records the agent call.
 
 ## Scoped services and run control
 
-`WorkflowRuntime.tools` is the run-level Python grant. A role that declares `tools` sees exactly those names; an undeclared name is a `ManifestError`.
-`WorkflowRuntime.mcp_servers` supplies named scoped service descriptors. When present it replaces shared `.mcp.json` discovery and the kernel writes a private per-attempt config.
-`runtime.mcp_services.ScopedMcpRegistry` starts each named FastMCP service on an OS-assigned loopback port, holds the bound socket for its lifetime, and closes it after success, error, or cancellation.
-`WorkflowRuntime.child_factory(scope)` opens the runtime for one child invocation; without one a child reuses the parent runtime.
+`WorkflowRuntime.tools` is the run-level Python grant.
+A role that declares `tools` sees exactly those names.
+An undeclared name is a `ManifestError`.
+`WorkflowRuntime.mcp_servers` supplies named scoped service descriptors.
+This field replaces shared `.mcp.json` discovery when present.
+The kernel writes a private configuration for each attempt.
+[`runtime.mcp_services.ScopedMcpRegistry`][] starts each named FastMCP service on an OS-assigned loopback port.
+It holds the bound socket for its lifetime.
+It closes the socket after success, error, or cancellation.
+`WorkflowRuntime.child_factory(scope)` opens the runtime for one child invocation.
+Without this factory, a child reuses the parent runtime.
 
-A run's cancellation is separate from module shutdown. `ShellModuleWorkflow.cancel_run()` cancels one run; `stop()` and a terminate control cancel the active run as well.
+A run's cancellation is separate from module shutdown.
+`ShellModuleWorkflow.cancel_run()` cancels one run.
+`stop()` and a terminate control also cancel the active run.
 A run that suspends for user input publishes `workflow.question` and exposes its question ID and resume phase. A `workflow.answer` data message resumes it through a durable `pm.answer-receipt.v1`.
-`ghost_mcp.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `GhostWriteBatch`; proposals stay private until the batch commits.
+`ghost_mcp.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `GhostWriteBatch`.
+Proposals stay private until the batch commits.
 
 ## Current limits
 
@@ -122,9 +132,13 @@ The cognitive parent invokes seven child workflows through scoped runtimes.
 
 ## Code and evidence
 
-- [Shared runner](../runtime/workflow_runner.py)
-- [Bus adapter](../workflow_adapter.py)
-- [Direct runner tests](../tests/test_workflow_runner.py)
-- [Direct file-permission tests](../tests/test_agent_file_scope.py)
-- [Run control tests](../tests/test_run_control.py)
-- [MCP lifetime tests](../tests/test_mcp_lifetime.py)
+- [`runtime.workflow_runner.WorkflowRunner`][]
+- [`workflow_adapter.ShellModuleWorkflow`][]
+- Direct runner tests: `tests/test_workflow_runner.py`
+- Direct file-permission tests: `tests/test_agent_file_scope.py`
+- Run control tests: `tests/test_run_control.py`
+- MCP lifetime tests: `tests/test_mcp_lifetime.py`
+
+## Related guides
+
+Read the [system map](concepts/architecture.md) and [development loop](workflows/development.md).

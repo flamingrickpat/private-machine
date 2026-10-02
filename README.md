@@ -14,6 +14,12 @@ Internal thought generation remains disabled in real mode.
 
 ## Setup and run
 
+The [engineering manual](docs/index.md) explains operation, architecture, memory experiments, and the development loop.
+Start the local operator console with `uv run --locked python -m console.server`.
+Open `http://127.0.0.1:8090` to deploy and control instances, chat, and inspect execution evidence.
+Each console instance has a separate checkpoint. Sessions within one instance share memory.
+Read the [console procedure](docs/workflows/console.md) for details.
+
 Requirements: Python 3.12, `uv`, Git, and access to the PM dependency repositories.
 The lockfile pins `pm-workflows` and `pm-coder` to GitHub commits.
 Normal startup needs no sibling source checkout.

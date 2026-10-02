@@ -6,15 +6,15 @@ Ghost accepts a complete batch of memory changes after its checkpoint save succe
 Each bus subscriber receives an independent JSON copy.
 The same module `step()` supports direct debugging and threaded operation.
 
-Parent: [project README](../README.md).
+Parent: [project README](index.md).
 
 ## Accepted state
 
-The [Ghost service](../pm_core/ghost/service.py) owns accepted records, indexes, GWT records, revisions, counters, and commit receipts.
+The [`pm_core.ghost.service.Ghost`][] owns accepted records, indexes, GWT records, revisions, counters, and commit receipts.
 The existing knoxel classes remain unchanged.
 The service copies the seed instead of retaining its mutable objects.
 
-A [write batch](../pm_core/ghost/batch.py) captures a stable read view and collects private proposals.
+A [`pm_core.ghost.batch.GhostWriteBatch`][] captures a stable read view and collects private proposals.
 New records reserve integer IDs under the Ghost lock.
 A discarded batch can leave ID gaps.
 Other batches cannot read its proposals.
@@ -101,7 +101,7 @@ The managed-run supervisor uses these receipts for real workflow execution.
 
 ## Bus behavior
 
-[BusSystem](../bus/bus.py) serializes each envelope before delivery.
+[`bus.bus.BusSystem`][] serializes each envelope before delivery.
 Each subscriber receives a separate deserialized envelope, including its nested payload.
 Predicates and delivery callbacks run outside the subscription lock.
 The callbacks select or enqueue data. They do not run a workflow.
@@ -148,3 +148,7 @@ uv run --locked python -m unittest tests.test_ghost_concurrency -v -b
 
 The concurrent tests use two real threads, barriers, and actual checkpoint files.
 The failed-save test uses a real invalid filesystem target, not a mocked writer.
+
+## Related guides
+
+Read the [system map](concepts/architecture.md) and [development loop](workflows/development.md).

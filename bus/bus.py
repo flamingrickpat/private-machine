@@ -38,11 +38,17 @@ class Mailbox:
 
 
 class BusSystem:
-    """An in-memory fan-out bus. No worker thread, no destructive get."""
+    """An in-memory fan-out bus with private deliveries.
+
+    An optional observer receives a detached envelope and recipient before
+    delivery. Observer errors propagate. Observation must not publish messages
+    recursively or block on work that requires this delivery to finish.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._subscriptions: list[tuple[str, Callable, Callable]] = []
+        self.observer: Callable[[Envelope, str], None] | None = None
 
     def subscribe(self, name: str, accepts: Callable, deliver: Callable) -> None:
         with self._lock:
@@ -55,6 +61,8 @@ class BusSystem:
         for _name, accepts, deliver in subscriptions:
             delivered = Envelope.from_json(encoded)
             if accepts(delivered):
+                if self.observer is not None:
+                    self.observer(Envelope.from_json(encoded), _name)
                 deliver(delivered)
 
     def subscribers(self) -> list[str]:

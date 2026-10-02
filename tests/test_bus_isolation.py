@@ -6,6 +6,33 @@ from tests.test_shell import _EchoModule
 
 
 class BusIsolationTests(unittest.TestCase):
+    def test_observer_receives_an_isolated_copy_outside_the_lock(self):
+        bus = BusSystem()
+        received, observed = [], []
+        bus.subscribe("receiver", lambda envelope: True, received.append)
+
+        def observer(envelope, recipient):
+            observed.append((recipient, bus._lock._is_owned()))
+            envelope.payload["items"].append(2)
+
+        bus.observer = observer
+        bus.put(Envelope("id", "sender", "data", "ping", "corr", {"items": [1]}))
+        self.assertEqual(observed, [("receiver", False)])
+        self.assertEqual(received[0].payload, {"items": [1]})
+
+    def test_observation_error_prevents_unrecorded_delivery(self):
+        bus = BusSystem()
+        received = []
+        bus.subscribe("receiver", lambda envelope: True, received.append)
+
+        def observer(envelope, recipient):
+            raise OSError("Trace storage failed")
+
+        bus.observer = observer
+        with self.assertRaisesRegex(OSError, "Trace storage failed"):
+            bus.put(Envelope("id", "sender", "data", "ping", "corr", {}))
+        self.assertEqual(received, [])
+
     def test_sender_and_subscribers_have_independent_nested_payloads(self):
         bus = BusSystem()
         received = []

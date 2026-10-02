@@ -5,11 +5,11 @@
 The model runtime provides connections, explicit activation, direct chat calls, and one embedding service.
 The terminal uses these connections for real dialogue and cognitive workflows.
 
-Parent: [README](../README.md).
+Parent: [README](index.md).
 
 ## Config
 
-The credential-free example is [config.example.yaml](../config.example.yaml).
+The credential-free example is `config.example.yaml`.
 It contains `Default`, `UnitTestEvaluator`, and one `embedding` entry.
 Both chat presets initially use the same Qwen endpoint.
 This is a shared-backend evaluation, not an independent neutral reviewer.
@@ -114,7 +114,8 @@ The shared HTTP path uses [HTTPX timeout controls](https://www.python-httpx.org/
 A reasoning backend emits hidden reasoning tokens before the visible answer.
 The application sends no `max_tokens` cap, so the backend can finish its reasoning and its answer.
 A cap sized for the visible answer alone can stop a JSON stage mid-object and report a stage output error.
-There is no generation deadline; the model stops when it is done.
+There is no generation deadline.
+The model stops when it is done.
 
 ## Embeddings and scoped retrieval
 
@@ -182,3 +183,7 @@ uv run --locked python -m unittest discover -s tests -v -b
 
 This command now includes the live tests.
 It includes live model, cognition, conversation, and Minecraft checks. Each suite needs its configured endpoints.
+
+## Related guides
+
+Read the [system map](concepts/architecture.md) and [development loop](workflows/development.md).

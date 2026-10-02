@@ -1,0 +1,51 @@
+site_name: Spamuel engineering manual
+site_url: ""
+use_directory_urls: false
+theme:
+  name: material
+  font: false
+  palette:
+    scheme: default
+    primary: grey
+    accent: green
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - scripts/gen_reference.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["."]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_signature_annotations: true
+            show_if_no_docstring: true
+            members: true
+            docstring_style: null
+nav:
+  - Overview: index.md
+  - Workflows:
+      - Operator console: workflows/console.md
+      - Development loop: workflows/development.md
+      - One exchange: workflows/exchange.md
+      - Memory experiment: workflows/memory.md
+  - Concepts:
+      - System map: concepts/architecture.md
+      - Evidence and quality: concepts/evidence.md
+  - Subsystems:
+      - Cognition: subsystems/cognition.md
+      - Operator service: subsystems/console.md
+      - Ghost and bus: ghost.md
+      - Models: models.md
+      - Workflow runtime: runtime.md
+      - Managed work: subsystems/managed-work.md
+  - Decisions:
+      - Plan and implementation: decisions/plan.md
+      - Next experiments: decisions/experiments.md
+      - Console verification: decisions/console-verification.md
+  - API reference: reference/
