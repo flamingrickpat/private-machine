@@ -100,7 +100,7 @@ Capture never silently clips text.
 | `oversized_input` | Use an explicit narrower source or an evidence-preserving processing stage |
 
 Invalid role inputs retain partial earlier captures and take `on_invalid` before model dispatch.
-A04 owns conversion of these codes into classification INVALID and its scoped agent fallback.
+[Classification](classification.md) converts these codes into INVALID and its scoped agent fallback.
 Cancellation propagates between operations. It writes no accepted output for the cancelled dispatch.
 Existing external effects and trusted Python/shell behavior remain outside capture's rollback control.
 

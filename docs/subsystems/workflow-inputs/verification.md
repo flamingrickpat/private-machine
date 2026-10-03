@@ -104,16 +104,16 @@ This result does not establish that the original worker wrote the requested note
 7. Open `agent-result.json` and compare the actual report with its independent expected mapping.
 8. Open the pm-coder session messages and verify the actual file-tool call.
 
-The installed distribution uses `pm-workflows` 0.6.0 at `95f2842d0e14a2a2c70c41514e0e36055cac73e4`.
+A03 delivered `pm-workflows` 0.6.0 at `95f2842d0e14a2a2c70c41514e0e36055cac73e4`.
+The [A04 delivery](classification-verification.md) updates the active pin.
 The root constraint and lock select that exact commit.
 pm-coder remains pinned to `ac8327baf669dad54ea9f91580f2bed1023825b4`.
 No sibling coder implementation or model deployment changes occurred.
 
 ## Remaining acceptance
 
-A04 must implement selection, classification, INVALID routing, and scoped coding-agent recovery.
-It must verify actual context-overflow recovery with decisive classification evidence intact.
-A03 preserves pm-coder compaction but does not force overflow.
+[A04 verification](classification-verification.md) establishes selection, classification, INVALID routing, and scoped coding-agent recovery.
+A03 preserves pm-coder compaction but does not itself force overflow.
 Direct chat still sends one supplied message list.
 Model consumers must construct suitable context and reject incomplete results.
 

@@ -20,7 +20,7 @@ Extend those mechanisms and the working-environment contract.
 A03 now supplies the [binding contracts](../../subsystems/workflow-inputs/bindings.md) and
 [scoped version checks](../../subsystems/workflow-inputs/versions.md).
 These run on role and child-workflow phases today.
-The classification node and inference routes in this page remain A04 proposals.
+A04 supplies the [classification contract](../../subsystems/workflow-inputs/classification.md) and its scoped recovery handler.
 
 | Input mode | Meaning |
 | --- | --- |
@@ -65,11 +65,12 @@ Check the selected file again before capture.
 A changed file invalidates the selection attempt.
 A loop cannot quietly reuse a previous item's file as current evidence.
 
-## Proposed low-code manifest
+## Low-code manifest
 
-This is a proposed interface, **not supported syntax today**.
-The existing engine uses `kind`; the user's sketch used `type`.
-A04 must choose one canonical spelling.
+The canonical spelling is `kind: classify`.
+The following primary-node fragment uses the delivered A04 syntax.
+The complete workflow also declares its destinations and a `kind: classify` handler with `fallback_for: unit_test_checker`.
+The [contract guide](../../subsystems/workflow-inputs/classification.md) supplies a complete engine example.
 
 ```yaml
 - name: unit_test_checker
@@ -96,9 +97,10 @@ INVALID always exists, even when omitted from the user's enum.
 It can represent a semantic invalid answer or a runtime failure to classify.
 Its receipt records the concrete reason.
 
-The proposed `backend` field makes the normal LLM path explicit.
-A04 resolves the final spelling and connection contract against the existing engine.
-Optional `backend: laya` is permitted only for a use that passes the [live test requirements](model-policy.md#before-enabling-a-laya-use).
+The optional `backend: llm` field makes the default path explicit.
+`connection` selects an explicitly supplied runtime classification connection.
+The parser rejects `backend: laya`; no optional Laya adapter became active in A04.
+Any later adapter requires the [live test requirements](model-policy.md#before-enabling-a-laya-use).
 
 For a known file, replace selection with:
 

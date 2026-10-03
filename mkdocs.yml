@@ -63,6 +63,9 @@ nav:
           - Binding syntax: subsystems/workflow-inputs/bindings.md
           - Versions and replay: subsystems/workflow-inputs/versions.md
           - A03 verification: subsystems/workflow-inputs/verification.md
+          - Classification contract: subsystems/workflow-inputs/classification.md
+          - Classification recovery and context: subsystems/workflow-inputs/classification-recovery.md
+          - A04 verification: subsystems/workflow-inputs/classification-verification.md
       - Managed work: subsystems/managed-work.md
   - Decisions:
       - Plan and implementation: decisions/plan.md

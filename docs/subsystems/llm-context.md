@@ -5,7 +5,7 @@
 Laya and chat have separate context limits.
 Direct Python chat sends one supplied request, while pm-coder owns agent history and automatic compaction.
 Real-endpoint checks verify direct calls beyond Laya's input limit.
-They also exercise live agent compaction without forcing overflow.
+A04 also verifies actual server-context overflow and live agent recovery with decisive classification evidence intact.
 
 Parent: [model connections](../models.md).
 Policy: [alpha model selection](../decisions/alpha-plan/model-policy.md).
@@ -66,4 +66,5 @@ The live pm-coder checks also passed:
 Both tests passed in 15.27 seconds.
 They exercise real file edits and live compaction for two isolated agent sessions.
 That compaction check does not force a server-context overflow.
-Actual overflow recovery with retained classification evidence remains an A04 acceptance case.
+The [A04 gate](workflow-inputs/classification-verification.md) also forces actual overflow with a real-history tool result.
+It retains the provider rejection, live summaries, original instruction, class contract, checkpoint, and final source quotes.

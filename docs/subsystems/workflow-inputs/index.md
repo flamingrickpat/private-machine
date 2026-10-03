@@ -2,10 +2,10 @@
 
 ## Summary
 
-A03 supplies explicit inputs for roles, child workflows, and future classifiers.
+A03 supplies explicit inputs for roles, child workflows, and classifiers.
 The kernel captures files, folder metadata, request fields, literal data, and named producer results through the working environment.
 Receipts retain exact values and version evidence.
-Folder selection and classification inference remain A04 work.
+A04 supplies [folder selection, classification, and INVALID recovery](classification.md).
 The normal LLM remains the default.
 
 Parent: [workflow runtime](../../runtime.md).
@@ -22,7 +22,7 @@ Agent roles receive the same capture receipts in their request prompt.
 Child phases merge bound values into their explicit request.
 
 [`pm_workflows.kernel.Kernel.capture_inputs`][] is also available to a phase-kind extension.
-A04 can use it without a second host file loader.
+Classification uses it without a second host file loader.
 [`pm_workflows.inputs.InputResolver`][] exposes separate listing and selected-file capture operations.
 It performs no model inference.
 
@@ -75,7 +75,7 @@ No model, service port, or Minecraft lifecycle changes belong to A03.
 Invalid role inputs take the declared `on_invalid` route before dispatch.
 The failed entry retains earlier successful captures and the concrete input error.
 Incorrect named output projections invalidate the producer result and block older-value reuse.
-[`pm_workflows.inputs.InputError`][] exposes a stable cause code for A04's future INVALID route.
+[`pm_workflows.inputs.InputError`][] exposes a stable cause code for the classification INVALID route.
 The [version guide](versions.md) explains stale-data causes and recovery limits.
 
 Old manifests retain empty binding maps and their existing dispatch behavior.
@@ -90,4 +90,4 @@ Use the local chat configuration for the [verification gate](verification.md).
 Ordinary input capture needs no model or embedding endpoint.
 The live agent evidence gate uses chat on port 8080 and the unchanged real Spamuel seed.
 Laya remains optional and disabled for this mechanism.
-Direct chat context construction and forced-overflow recovery remain A04 acceptance requirements.
+The [classification recovery guide](classification-recovery.md) defines direct context bounds and agent compaction.

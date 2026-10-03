@@ -12,6 +12,13 @@ from working_target import FolderEnvironment, GhostBashEnvironment
 
 
 class WorkflowInputTests(unittest.TestCase):
+    def test_missing_ghost_file_keeps_the_missing_cause(self):
+        environment = GhostBashEnvironment({}, {}, "read")
+        resolver = InputResolver(environment, InputScope("test", "run"))
+        with self.assertRaises(InputError) as caught:
+            resolver.capture_file("logs/missing.log")
+        self.assertEqual(caught.exception.code, "missing_file")
+
     def test_application_metadata_keeps_host_time_and_unknown_virtual_time(self):
         with TemporaryDirectory() as directory:
             for environment, host in [(FolderEnvironment(Path(directory), "bash"), True), (GhostBashEnvironment({}, {}, "read"), False)]:

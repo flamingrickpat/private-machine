@@ -100,6 +100,9 @@ class GhostBashEnvironment(WorkingEnvironment):
         return posixpath.join("/work", relative_path(path, folder=True))
 
     def read_text(self, path: str) -> str:
+        # Use the user's view so missing data keeps its distinct INVALID cause.
+        if not self.machine.is_file_as("workflow", self._abs(path)):
+            raise FileNotFoundError(path)
         result = self.exec(f"cat -- {shlex.quote(self._abs(path))}")
         if result.exit_code != 0:
             raise RuntimeError(result.stderr or f"read failed: {path}")
