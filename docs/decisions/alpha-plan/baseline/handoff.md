@@ -11,6 +11,19 @@ Parent: [A01 baseline](index.md).
 Procedure: [local commands](commands.md).
 Results: [baseline receipts](receipts.md).
 
+## Persistent operator instructions
+
+Read `codex.md` in the repository root before the next item.
+The user requires real Spamuel history, live inference, and the actual Minecraft server for behavioral acceptance.
+The real server is `C:/source/minecraft-server-real`.
+If that server cannot be found, ask the user for its location.
+Do not replace a required live gate with dummy tests or the superflat TDD template.
+
+Use the simple-english skill for code comments, docstrings, and documentation.
+Use the project-documentation skill for detailed, linked explanations of the real implementation.
+Update the [development guide](../../../workflows/development.md) and affected subsystem pages when their behavior changes.
+Regenerate the complete HTML site with a strict build after each delivery.
+
 ## Before implementation
 
 1. Read the selected work item and its linked design.

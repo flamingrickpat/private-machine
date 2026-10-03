@@ -9,6 +9,17 @@ Update the documentation with the changed behavior.
 
 Parent: [manual](../index.md).
 Planning: [next experiments](../decisions/experiments.md).
+Alpha delivery: [baseline commands](../decisions/alpha-plan/baseline/commands.md) and [session handoff](../decisions/alpha-plan/baseline/handoff.md).
+
+## Read the session instructions
+
+1. Read `codex.md` in the repository root.
+2. Read the selected alpha work item and its linked design.
+3. Open the simple-english and project-documentation skills before writing explanatory prose.
+
+The user requires real behavioral acceptance and detailed documentation for the delivered implementation.
+The root instructions record the actual services, data, world, and maintenance requirements.
+The user supplies a separate session handoff with recent results and outstanding work.
 
 ## Prepare the environment
 
@@ -19,7 +30,9 @@ Planning: [next experiments](../decisions/experiments.md).
 uv sync --locked
 ```
 
-3. Configure the model endpoint through `config.local.yaml` or `PM_MODEL_CONFIG`.
+3. Select `config.alpha.example.yaml` for the user's local chat and embedding services.
+
+`config.local.yaml` or `PM_MODEL_CONFIG` can select another verified complete configuration.
 
 Read the [model guide](../models.md) for connection details.
 On Windows, real folder workflows need Git Bash on `PATH`.
@@ -63,33 +76,77 @@ Read [evidence and quality](../concepts/evidence.md) before you interpret the re
 ## Live application smoke
 
 ```powershell
+$env:PM_MODEL_CONFIG = 'config.alpha.example.yaml'
 uv run --locked python -m unittest tests.live.test_real_app_path tests.live.test_models -v -b
+Remove-Item Env:PM_MODEL_CONFIG
 ```
 
 The full conversation gate uses `tests.live.test_conversations`.
-The real Minecraft gate uses `tests.live.test_minecraft_body`.
-These gates can start or require external services.
+The primary companion seed is `data/spamuel_agentic_canon.yaml`, including the real Spamuel/Jesse history.
+Tiny invented seeds and fixed model responses cannot establish companion acceptance.
+Existing deterministic foundation tests remain useful for their stated contracts.
+
+The real Minecraft server is `C:/source/minecraft-server-real`.
+The historical generic W8 autostart path uses a superflat TDD template.
+Use the [A01 real-server wrapper](../decisions/alpha-plan/baseline/commands.md#real-minecraft-world-and-reset) for acceptance on the user's actual world.
+If the actual server cannot be identified, ask the user for its location.
+Do not substitute dummy tests or the superflat template for a required real-world gate.
+
+These gates require actual services and model responses.
 They retain evidence under `.runtime/`.
+
+## Write maintainable code prose
+
+1. Use simple-english for new or revised comments and docstrings.
+2. Explain state ownership and the reason for important ordering constraints beside the relevant code.
+3. Document commit boundaries, external effects, cancellation, retries, and recovery from an uncertain outcome.
+4. Describe public API inputs, results, expected exceptions, side effects, units, and limits in docstrings.
+5. Update explanatory comments when behavior changes.
+
+Comments must explain facts that a human needs to modify the implementation safely.
+A comment that repeats an assignment does not explain an invariant or a design decision.
+Precise type annotations and source-generated API references complement that explanation.
+
+## Document the real implementation
+
+Every delivered mechanism needs a detailed explanation of its actual execution path and operational behavior.
+Small prototype summaries are insufficient once a real implementation exists.
+Split complex mechanisms into focused child pages and connect them through navigation and related links.
+
+Each mechanism's documentation must cover:
+
+- Purpose, callers, entry points, and ownership.
+- Concrete input and output contracts, schemas, accepted values, and representative real data.
+- Stage order, decisions, routing, input selection, and fallback behavior.
+- State revisions, persistence, commit order, publication, and memory provenance.
+- External effects, cancellation, retries, interruption, restart, and uncertain action outcomes.
+- Configuration, actual endpoints, activation, model and tool dependencies, and measured limits.
+- Evidence files, console inspection, trace fields, and worked examples from observed runs.
+- Failure symptoms, diagnostic procedures, recovery commands, and remaining defects.
+- Reproducible acceptance commands, actual results, and the limits of each result.
+- Links from concepts to the relevant source-generated Python API objects.
+
+Active behavior, verified evidence, planned changes, and unknown behavior must remain distinguishable.
+The failure path needs the same operational detail as the successful path.
+Update affected workflow guides, subsystem pages, API docstrings, and navigation with the implementation change.
+Generated API references describe the code contract and must not replace the conceptual explanation.
 
 ## Build the documentation
 
-1. Install the documentation dependencies into the project environment.
+1. Build the complete site with strict validation after each delivery.
 
 ```powershell
-uv pip install --python .venv/Scripts/python.exe -r requirements-docs.txt
+uv run --locked --with-requirements requirements-docs.txt mkdocs build --strict
 ```
 
-2. Build the site with strict validation.
+2. Open `site/index.html`.
+3. Inspect the changed guide and its generated API links.
+4. Fix unresolved links and stale explanations before reporting delivery.
 
-```powershell
-.venv/Scripts/python.exe -m mkdocs build --strict
-```
-
-3. Open `site/index.html`.
-
-Use `.venv/Scripts/python.exe -m mkdocs serve` for automatic page reloads.
+Use `uv run --locked --with-requirements requirements-docs.txt mkdocs serve` for automatic page reloads.
 Generated HTML stays outside version control.
 The API generator reads public source modules during each build.
+Each completed item must regenerate the HTML, even when the visible change is a code comment or API docstring.
 
 ## Debugger entry points
 
@@ -99,4 +156,3 @@ Place a breakpoint in [`runtime.workflow_runner.WorkflowRunner.invoke`][] for wo
 Place a breakpoint in [`pm_core.ghost.service.Ghost.commit`][] for accepted memory.
 
 Read [workflow runtime](../runtime.md) for direct calls without module threads.
-
