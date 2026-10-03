@@ -70,6 +70,13 @@ nav:
           - Inner-loop milestones: decisions/alpha-plan/cognition-verification.md
           - Evaluation and session evidence: decisions/alpha-plan/evaluation.md
           - Decision register: decisions/alpha-plan/decision-register.md
+          - A01 baseline:
+              - Snapshot and boundaries: decisions/alpha-plan/baseline/index.md
+              - Baseline receipts: decisions/alpha-plan/baseline/receipts.md
+              - Scenario matrix: decisions/alpha-plan/baseline/scenarios.md
+              - Repeatable local commands: decisions/alpha-plan/baseline/commands.md
+              - Session handoff: decisions/alpha-plan/baseline/handoff.md
+              - Original brief: decisions/alpha-plan/baseline/original-brief.md
           - Work items:
               - A01 Baseline and scenarios: decisions/alpha-plan/work-items/a01.md
               - A02 Public pm-coder decision client: decisions/alpha-plan/work-items/a02.md

@@ -1,0 +1,20 @@
+# A01 local baseline. Existing application defaults remain in config.example.yaml.
+chat:
+  Default:
+    base_url: http://127.0.0.1:8080/v1
+    model: qwen
+    api_key: ""
+    startup_script: ""
+  UnitTestEvaluator:
+    base_url: http://127.0.0.1:8080/v1
+    model: qwen
+    api_key: ""
+    startup_script: ""
+embedding:
+  base_url: http://127.0.0.1:8081/v1
+  model: pplx-embed-v1-0.6b
+  response_model: pplx-embed-v1-0.6b
+  api_key: ""
+  dimensions: 1024
+  legacy_cache_dir: ~/.pm/embeddings
+  cache_dir: .runtime/alpha/embeddings

@@ -1,0 +1,2 @@
+# Preserve the original user brief, including its line endings and trailing spaces.
+docs/decisions/alpha-plan/baseline/original-brief.md -text whitespace=-blank-at-eol

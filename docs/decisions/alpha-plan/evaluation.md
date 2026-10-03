@@ -14,6 +14,7 @@ Related: [later milestones](cognition-verification.md) and [A01](work-items/a01.
 ## Evaluation contract
 
 A01 defines stable scenarios and a separate holdout set.
+The [delivered matrix](baseline/scenarios.md) records review status and holdout exposure.
 Routing labels come from reviewed task facts.
 The current LLM is a comparison, rather than the ground-truth label.
 

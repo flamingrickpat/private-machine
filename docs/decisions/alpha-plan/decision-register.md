@@ -75,6 +75,8 @@ The companion can have an emotional reaction to a long absence.
 Do not invent executed activity during that interval.
 
 D12: Use Agentic Babymode as the survival-light acceptance environment, plus isolated test worlds.
+For A01, the user selected `C:/source/minecraft-server-real` and its existing world-wipe script.
+The baseline records its actual seed and configuration instead of substituting the superflat TDD template.
 D13: The first Minecraft milestone must deliver a finished small house and an iron pickaxe.
 The iron must come from mining, rather than taking village supplies.
 The earlier wood task remains a developer check, rather than this milestone.
@@ -82,6 +84,12 @@ The earlier wood task remains a developer check, rather than this milestone.
 The user also requested 10–20 ordered implementation items, fresh coding sessions, and manual milestone tests.
 The user wants adaptive Minecraft work with many tool calls per meaningful subtask.
 The current one-action constraint must be removed.
+
+D14: Classification classes, descriptions, input limits, and uncertainty policies depend on the specific use case.
+Evaluate Laya on that input before adoption.
+Every classifier has an INVALID route to an LLM fallback for missing, ambiguous, or unusable evidence.
+The A01 report vocabulary is a demonstration corpus, rather than a global set of classes.
+Implementation approach: measure descriptions and thresholds before deciding whether a use case needs model retraining.
 
 ## Seed import evidence
 
@@ -93,6 +101,8 @@ Do not silently rewrite ambiguous history as a verified event.
 ## Implementation facts to resolve in A01–A02
 
 The decision service needs a free endpoint, activation policy, and CPU/GPU allocation.
+The user supplied chat on 8080, embeddings on 8081, and Laya on 8082 during A01.
+All three advertised their configured model identities during the baseline capture.
 Chat, embeddings, decisions, and Minecraft rendering must coexist on the user's machine.
 Measure contention before choosing final model placement.
 

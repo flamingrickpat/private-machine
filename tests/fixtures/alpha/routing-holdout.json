@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "split": "holdout",
+  "review_status": "pending human review",
+  "policy": "Reserved before model comparison. Do not use these cases to tune prompts, labels, or thresholds. Version any replacement after exposure.",
+  "cases": [
+    {"id": "H01", "state": "Final current-attempt report: failures=0, passed=37, finished=true.", "expected": "PASS", "fact": "The report completed without failures."},
+    {"id": "H02", "state": "Final report: exit=0. AssertionError in test_checkpoint_restore; 36 passed and 1 failed.", "expected": "FAIL", "fact": "An explicit failure overrides the exit code."},
+    {"id": "H03", "state": "The runner disconnected after reporting 19 passed. No final summary exists.", "expected": "INVALID", "fact": "Completion is unknown."},
+    {"id": "H04", "state": "Current attempt: 7 passed, 0 failed, 2 skipped. Complete. The question covers only executed tests.", "expected": "PASS", "fact": "Executed tests passed; skipped tests do not establish broader acceptance."},
+    {"id": "H05", "state": "Two equally relevant files for the same current attempt disagree: one says 12 passed, the other says 1 failed. Their producer identities cannot be verified.", "expected": "INVALID", "fact": "File selection is unresolved.", "invalid_reason": "ambiguous_selection"},
+    {"id": "H06", "state": "The only report is older than the requested producer attempt. Its successful summary cannot identify the current run.", "expected": "INVALID", "fact": "A stale result cannot establish current success.", "invalid_reason": "stale_producer_attempt"}
+  ]
+}

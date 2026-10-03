@@ -77,3 +77,4 @@ Their local repositories matched those revisions during review.
 Package upgrades must preserve this reproducibility.
 
 A01 defines the repeatable [baseline procedure](work-items/a01.md).
+The [A01 receipts](baseline/receipts.md) record subsequent runs, live failures, and the implementation snapshot.

@@ -21,7 +21,9 @@ The file size is 844,026,720 bytes.
 
 The local binary reports build 11351, revision `631109b34`.
 `C:\workspace\llama13` contains binaries, rather than a checked-out source tree.
-A02 must verify actual inference with this binary and GGUF.
+A02 must verify actual inference with the selected running binary and GGUF.
+A01 later observed the running decision service from build 11374, revision `b92761a51`, on port 8082.
+The [baseline receipts](baseline/receipts.md) record its artifact hash and separate it from the earlier chat/embedding binary.
 
 The endpoint was merged into llama.cpp on 2026-10-02.
 See [upstream pull request 29818](https://github.com/ggml-org/llama.cpp/pull/29818).
