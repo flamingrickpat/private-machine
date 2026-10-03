@@ -3,7 +3,9 @@
 ## Summary
 
 Laya becomes a reusable decision service for Python and workflows.
+The [A02 client](../../subsystems/decisions/index.md) now supplies the public Python boundary.
 Its use is optional, and existing workflows keep their model choices by default.
+Later experiments can retain Laya without adopting it in any workflow.
 A classification phase chooses declared routes from concrete inputs.
 Laya can select a relevant file from folder metadata before reading its contents.
 Exact files and named results remain available.

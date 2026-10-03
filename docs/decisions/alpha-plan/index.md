@@ -6,7 +6,8 @@ This proposed second plan contains 20 ordered work items and seven manual milest
 It develops persistent cognition, Laya decisions, adaptive Minecraft work, and source-aware reflection.
 Each item defines a handoff for a fresh coding session.
 A01 supplies the [baseline and session handoff](baseline/index.md).
-The remaining implementation items are pending.
+A02 supplies the [optional typed decision client](../../subsystems/decisions/index.md).
+A03 through A20 remain pending.
 Individual routing labels and human immersion ratings still need operator review.
 Laya is an optional capability, available when a workflow explicitly chooses it.
 Existing workflows retain their model choices by default.
@@ -54,7 +55,7 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | Order | Work item | First manual milestone |
 | --- | --- | --- |
 | A01 | [Capture baseline and evaluation scenarios](work-items/a01.md) — engineering delivery recorded | Preparation |
-| A02 | [Provide a public pm-coder decision client](work-items/a02.md) | |
+| A02 | [Provide a public pm-coder decision client](work-items/a02.md) — engineering delivery recorded | |
 | A03 | [Bind files, folders, and named outputs](work-items/a03.md) | |
 | A04 | [Add classification with INVALID fallback](work-items/a04.md) | Engine demonstration |
 | A05 | [Make Laya available in PM and evaluate suitable uses](work-items/a05.md) | M1: optional PM capability and a new demonstration workflow |

@@ -10,6 +10,7 @@ Update the documentation with the changed behavior.
 Parent: [manual](../index.md).
 Planning: [next experiments](../decisions/experiments.md).
 Alpha delivery: [baseline commands](../decisions/alpha-plan/baseline/commands.md) and [session handoff](../decisions/alpha-plan/baseline/handoff.md).
+Optional decisions: [client boundary](../subsystems/decisions/index.md), [live procedure](../subsystems/decisions/operation.md), and [A02 results](../subsystems/decisions/verification.md).
 
 ## Read the session instructions
 

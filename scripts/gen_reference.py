@@ -16,5 +16,9 @@ for path in sorted(paths):
     with mkdocs_gen_files.open(target, "w") as stream:
         stream.write(f"# {'.'.join(parts)}\n\n::: {'.'.join(parts)}\n")
     mkdocs_gen_files.set_edit_path(target, path)
+# Render the installed dependency so the manual matches the consuming lock.
+with mkdocs_gen_files.open("reference/pm_decision.md", "w") as stream:
+    stream.write("# pm_decision\n\n::: pm_decision\n    options:\n        inherited_members: [__init__]\n        show_if_no_docstring: true\n")
+nav[("pm_decision",)] = "pm_decision.md"
 with mkdocs_gen_files.open("reference/SUMMARY.md", "w") as stream:
     stream.writelines(nav.build_literate_nav())

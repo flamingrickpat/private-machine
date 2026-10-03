@@ -5,6 +5,10 @@
 The model runtime provides connections, explicit activation, direct chat calls, and one embedding service.
 The terminal uses these connections for real dialogue and cognitive workflows.
 
+The separate [typed decision client](subsystems/decisions/index.md) is available through pm-coder.
+A02 verifies its API without changing existing workflow model choices.
+Its [deployment guide](subsystems/decisions/operation.md) describes the independent Laya endpoint.
+
 Parent: [README](index.md).
 
 ## Config

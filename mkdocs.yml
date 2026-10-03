@@ -50,6 +50,11 @@ nav:
       - Operator service: subsystems/console.md
       - Ghost and bus: ghost.md
       - Models: models.md
+      - Optional typed decisions:
+          - Client boundary: subsystems/decisions/index.md
+          - Local deployment: subsystems/decisions/operation.md
+          - A02 verification: subsystems/decisions/verification.md
+          - Model observations and limits: subsystems/decisions/quality.md
       - Workflow runtime: runtime.md
       - Managed work: subsystems/managed-work.md
   - Decisions:
