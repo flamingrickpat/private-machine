@@ -248,3 +248,62 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+main {
+  max-width: 1500px;
+  margin: 0 auto;
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+aside > .toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 14px 0;
+  padding: 12px 0;
+  border-top: 1px solid #adb8b0;
+  border-bottom: 1px solid #adb8b0;
+}
+aside > .toolbar strong {
+  grid-column: 1/-1;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+button {
+  min-height: 32px;
+  font-weight: 500;
+}
+button:disabled {
+  opacity: 0.4;
+  background: #e8ebe6;
+  cursor: not-allowed;
+}
+#graph {
+  height: 360px;
+  max-height: 42vh;
+}
+#workflow-graph {
+  max-height: 240px;
+}
+#transcript {
+  height: 48vh;
+  max-height: 650px;
+}
+.chat-text {
+  max-width: 85ch;
+}
+#source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+a {
+  color: #286044;
+}
+@media (max-width: 900px) {
+  main {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+  nav {
+    flex-wrap: wrap;
+  }
+}

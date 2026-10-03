@@ -17,6 +17,14 @@
       <aside>
         <h1>Instances</h1>
         <div id="instances"></div>
+        <div class="toolbar">
+          <strong id="selected">Select or deploy an instance</strong
+          ><button data-action="start">Start</button
+          ><button data-action="stop">Stop</button
+          ><button class="danger" data-action="kill">Kill</button
+          ><button id="refresh">Read memory</button>
+        </div>
+
         <form id="deploy">
           <h2>Deploy an instance</h2>
           <label>Name<input name="name" value="Spamuel" required /></label
@@ -41,13 +49,6 @@
         </p>
       </aside>
       <section class="workspace">
-        <div class="toolbar">
-          <strong id="selected">Select or deploy an instance</strong
-          ><button data-action="start">Start</button
-          ><button data-action="stop">Stop</button
-          ><button class="danger" data-action="kill">Kill</button
-          ><button id="refresh">Read memory</button>
-        </div>
         <div id="error" role="alert"></div>
         <nav>
           <button data-tab="chat">Chat</button
@@ -55,11 +56,12 @@
           ><button data-tab="memory">Knoxels</button
           ><button data-tab="performance">Timing</button
           ><button data-tab="runs">Managed runs</button
-          ><button data-tab="logs">Worker log</button>
+          ><button data-tab="logs">Worker log</button
+          ><button data-tab="connections">Connections</button>
         </nav>
         <section id="chat" class="panel">
           <div class="toolbar">
-            <label>User name<input id="user" value="Rick" /></label
+            <label>User name<input id="user" value="Jesse" /></label
             ><label>Session<select id="session"></select></label
             ><button id="new-session">New session</button
             ><span id="unread"></span>
@@ -116,12 +118,25 @@
             </div>
             <div>
               <h2>Selected evidence</h2>
+              <div id="source-links"></div>
               <pre id="detail">Select a node, edge, or event.</pre>
             </div>
           </div>
         </section>
         <section id="memory" class="panel" hidden>
           <div class="toolbar">
+            <label>Knoxel type<input id="memory-type" list="memory-types" placeholder="All types" /></label>
+            <datalist id="memory-types"></datalist>
+            <label>Subtype<input id="memory-subtype" list="memory-subtypes" placeholder="All subtypes" /></label>
+            <datalist id="memory-subtypes"></datalist>
+            <select id="search-mode">
+              <option value="text">Text filter</option>
+              <option value="vector">Vector similarity</option></select
+            ><button id="vector-search">Search vectors</button
+            ><button id="prepare-index">Embed missing records and search</button
+            ><button id="cancel-search">Cancel search</button><span
+              id="search-status"
+            ></span>
             <input
               id="memory-search"
               placeholder="Search ID, type, or content"
@@ -163,6 +178,14 @@
             ><label>Text<textarea name="text"></textarea></label
             ><button>Apply</button>
           </form>
+        </section>
+        <section id="connections" class="panel" hidden>
+          <button id="check-connections">Check connections</button>
+          <p>
+            Probes do not activate models or perform Minecraft actions. TCP
+            reachability does not prove world readiness.
+          </p>
+          <div id="connection-status"></div>
         </section>
         <section id="logs" class="panel" hidden><pre id="log"></pre></section>
       </section>

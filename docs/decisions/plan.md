@@ -9,6 +9,7 @@ Historical acceptance results do not prove quality for a later revision.
 
 Parent: [manual](../index.md).
 Current structure: [system map](../concepts/architecture.md).
+Next delivery: [companion alpha implementation plan](alpha-plan/index.md).
 
 ## Recover the original documents
 
@@ -74,4 +75,3 @@ The intended model and integration contract remain undefined.
 ## Go deeper
 
 Read [cognition](../subsystems/cognition.md), [evidence](../concepts/evidence.md), and [next experiments](experiments.md).
-

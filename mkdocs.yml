@@ -27,6 +27,12 @@ plugins:
             show_if_no_docstring: true
             members: true
             docstring_style: null
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 nav:
   - Overview: index.md
   - Workflows:
@@ -34,6 +40,8 @@ nav:
       - Development loop: workflows/development.md
       - One exchange: workflows/exchange.md
       - Memory experiment: workflows/memory.md
+      - Minecraft run: workflows/minecraft.md
+      - Minecraft evidence and cleanup: workflows/minecraft-evidence.md
   - Concepts:
       - System map: concepts/architecture.md
       - Evidence and quality: concepts/evidence.md
@@ -46,6 +54,43 @@ nav:
       - Managed work: subsystems/managed-work.md
   - Decisions:
       - Plan and implementation: decisions/plan.md
+      - Companion alpha plan:
+          - Overview and order: decisions/alpha-plan/index.md
+          - Current implementation audit: decisions/alpha-plan/current-state.md
+          - Previous PM attempts: decisions/alpha-plan/previous-attempts.md
+          - Cognitive architecture: decisions/alpha-plan/cognition.md
+          - Private ontology and expression: decisions/alpha-plan/ontology.md
+          - Second conscious loop: decisions/alpha-plan/private-loop.md
+          - Self-model and reflection: decisions/alpha-plan/reflection.md
+          - Laya and workflow inputs: decisions/alpha-plan/decisions.md
+          - Classification inputs and INVALID: decisions/alpha-plan/workflow-inputs.md
+          - Minecraft architecture: decisions/alpha-plan/minecraft.md
+          - Minecraft body operation: decisions/alpha-plan/minecraft-operations.md
+          - Manual milestones: decisions/alpha-plan/verification.md
+          - Inner-loop milestones: decisions/alpha-plan/cognition-verification.md
+          - Evaluation and session evidence: decisions/alpha-plan/evaluation.md
+          - Decision register: decisions/alpha-plan/decision-register.md
+          - Work items:
+              - A01 Baseline and scenarios: decisions/alpha-plan/work-items/a01.md
+              - A02 Public pm-coder decision client: decisions/alpha-plan/work-items/a02.md
+              - A03 Files and folder metadata: decisions/alpha-plan/work-items/a03.md
+              - A04 Classification and INVALID: decisions/alpha-plan/work-items/a04.md
+              - A05 Optional decisions and evaluation: decisions/alpha-plan/work-items/a05.md
+              - A06 Accepted affect and goals: decisions/alpha-plan/work-items/a06.md
+              - A07 Emotional dynamics: decisions/alpha-plan/work-items/a07.md
+              - A08 Experienced memory: decisions/alpha-plan/work-items/a08.md
+              - A09 Public voice: decisions/alpha-plan/work-items/a09.md
+              - A10 Sustained Minecraft actor: decisions/alpha-plan/work-items/a10.md
+              - A11 Durable task tree: decisions/alpha-plan/work-items/a11.md
+              - A12 Interruption and recovery: decisions/alpha-plan/work-items/a12.md
+              - A13 Adaptive replanning: decisions/alpha-plan/work-items/a13.md
+              - A14 Cooperative play and initiative: decisions/alpha-plan/work-items/a14.md
+              - A15 Codelet engine: decisions/alpha-plan/work-items/a15.md
+              - A16 Codelet repertoire: decisions/alpha-plan/work-items/a16.md
+              - A17 Second conscious loop: decisions/alpha-plan/work-items/a17.md
+              - A18 Source-grounded self-model: decisions/alpha-plan/work-items/a18.md
+              - A19 Effective reflection: decisions/alpha-plan/work-items/a19.md
+              - A20 Integrated alpha trial: decisions/alpha-plan/work-items/a20.md
       - Next experiments: decisions/experiments.md
       - Console verification: decisions/console-verification.md
   - API reference: reference/

@@ -109,6 +109,53 @@ class Ghost(BaseGhost):
                    and (record.attention_frame_id is None or record.attention_frame_id in ids)}
             return GhostView(records, gwt, {record_id: self.revisions[record_id] for record_id in ids})
 
+    def dialogue_history(self, *, visible_ids=None, user: str | None = None) -> list[dict]:
+        """Return public dialogue from accepted memory, ordered by world time.
+
+        ``visible_ids`` limits the read scope. ``user`` selects that speaker
+        and the companion. This method reads no trace files or network state.
+        """
+        records = self.snapshot(visible_ids).serialize_knoxels()
+        names = {key: raw["data"]["content"] for key, raw in records.items() if raw["__type__"] == "Entity"}
+        result = []
+        for key, raw in records.items():
+            data = raw["data"]
+            if raw["__type__"] != "Feature" or data.get("feature_type") != "Dialogue" or data.get("interlocus") != 1:
+                continue
+            speaker = data.get("override_source") or names.get(data.get("entity_id"), "Unknown")
+            if user is not None and speaker not in {user, self.ghost_config.companion_name}:
+                continue
+            result.append({"id": key, "speaker": speaker, "text": data["content"],
+                           "timestamp": data.get("timestamp_world_begin") or data.get("timestamp_creation"),
+                           "tick_id": data.get("tick_id")})
+        return sorted(result, key=lambda row: (row["timestamp"] or "", row["id"]))
+
+    async def search_memory(self, query: str, embeddings, *, visible_ids=None, limit: int = 50,
+                            prepare: bool = False, cancel=None, progress=None,
+                            record_type: str = "", subtype: str = "") -> dict:
+        """Search accepted text with the supplied embedding service.
+
+        Search uses cached vectors and reports missing coverage. ``prepare``
+        explicitly embeds missing records before search. Network work never
+        holds the Ghost lock. Type and subtype filters apply before indexing and ranking.
+        Callers must pass their permitted record IDs.
+        """
+        view = self.snapshot(visible_ids)
+        records = {key: raw for key, raw in view.serialize_knoxels().items()
+                   if (not record_type or raw["__type__"] == record_type)
+                   and (not subtype or subtype in [f"{field}: {value}"
+                        for field, value in raw["data"].items() if field.endswith("_type")])}
+        texts = {key: raw["data"]["content"] for key, raw in records.items() if raw["data"].get("content", "").strip()}
+        if prepare:
+            await embeddings.prepare_index(texts, cancel=cancel, progress=progress)
+        plan = embeddings.inspect_index(texts)
+        indexed = {key: texts[key] for key in plan.hits}
+        results = await embeddings.search(query, indexed, cancel=cancel) if indexed else []
+        return {"indexed": len(indexed), "total": len(texts), "missing": len(plan.missing),
+                "model": embeddings.config.model,
+                "matches": [{"id": key, "score": score, "record": records[key],
+                             "revision": view.revisions[key]} for key, score in results[:max(1, min(limit, 250))]]}
+
     def begin_batch(self, commit_id: str, *, visible_ids=None, new_tick: bool = False, cancel: Event | None = None) -> GhostWriteBatch:
         """Capture a stable view. A new tick reserves an ID without accepting memory."""
         with self.lock:

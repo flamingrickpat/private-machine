@@ -36,6 +36,11 @@ Use `--root PATH` for another deployment directory.
 9. Send a message.
 
 All sessions within an instance share accepted memory.
+Jesse is the default user.
+After startup, the console reads public Jesse–Spamuel dialogue from Ghost.
+Select **Jesse / accepted history** to see those records.
+Memory and dialogue controls require a running instance.
+The left panel disables operations that the current state does not support.
 The console permits one pending exchange per instance.
 The worker rejects another exchange until the current reply arrives.
 
@@ -65,6 +70,18 @@ If a worker does not stop, select **Kill**.
 The kill dialog explains the interruption before execution.
 Accepted checkpoint data remains available on restart.
 
+## Connections and source files
+
+Open **Connections** and select **Check connections**.
+The result shows the chat endpoint, embedding endpoint, Minecraft TCP port, and MCP tool discovery.
+These checks do not start services or perform Minecraft actions.
+TCP reachability does not establish a ready Minecraft world.
+
+Select a network node or workflow event to show its source links.
+Select **Open** to use the Windows Markdown association.
+Python and YAML links use Sublime Text directly.
+The service accepts source paths only within this repository.
+
 ## Failures
 
 The console shows command rejections in the error area.
@@ -76,4 +93,3 @@ The dummy fixture verifies wiring without establishing companion quality.
 
 [`console.server.serve`][], [`console.server.Instance.command`][], and [`console.worker.run`][] implement this procedure.
 Read the [development loop](development.md) for code changes and verification.
-

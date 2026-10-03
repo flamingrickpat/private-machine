@@ -25,5 +25,5 @@ phases:
 One bounded Minecraft body run. The role observes the real world through the
 `minecraft_call` MCP tool, chooses one allowed action, executes it, and writes
 real evidence: text observations, a structured `outbox/world.yaml`, screenshot
-files, and a final report. Screenshot base64 can become a file or the plan
-prompt, but it never enters a text memory.
+files, and a final report. Screenshot pixels become evidence files. They do
+not enter the planning prompt or embedding text. The MCP must already be running.

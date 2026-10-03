@@ -13,7 +13,11 @@ let instanceId = "",
   tab = "chat",
   pollBusy = false,
   unread = 0;
-let chatRenderKey = "";
+let chatRenderKey = "",
+  currentInstance = null,
+  commandBusy = false,
+  searchBusy = false,
+  vectorResults = null;
 const backgroundCursors = new Map();
 const sessions = JSON.parse(localStorage.getItem("spamuel.sessions") || "{}");
 const pretty = (value) => JSON.stringify(value, null, 2);
@@ -44,12 +48,23 @@ async function api(path, body) {
 async function command(action, fields = {}) {
   if (!instanceId) throw Error("Select an instance.");
   $("error").textContent = "";
-  return api("/api/command", { instance: instanceId, action, ...fields });
+  commandBusy = true;
+  updateControls();
+  try {
+    return await api("/api/command", {
+      instance: instanceId,
+      action,
+      ...fields,
+    });
+  } finally {
+    commandBusy = false;
+    updateControls();
+  }
 }
 function sessionList() {
   if (!sessions[instanceId])
     sessions[instanceId] = [
-      { id: crypto.randomUUID(), user: "Rick", label: "Rick / 1" },
+      { id: crypto.randomUUID(), user: "Jesse", label: "Jesse / 1" },
     ];
   return sessions[instanceId];
 }
@@ -75,7 +90,7 @@ async function listInstances() {
   for (const i of list) {
     const element = text(
       "div",
-      `${i.name} · ${i.state}\n${i.cognition} · ${i.pid || "—"}`,
+      `${i.name} Â· ${i.state}\n${i.cognition} Â· ${i.pid || "â€”"}`,
       `instance ${i.id === instanceId ? "selected" : ""}`,
     );
     element.onclick = () => select(i.id);
@@ -88,6 +103,10 @@ async function select(id) {
   events = [];
   cursor = 0;
   snapshot = {};
+  currentInstance = null;
+  vectorResults = null;
+  searchBusy = false;
+  updateControls();
   nodes = [];
   selectedNode = "";
   selectedEdge = null;
@@ -156,7 +175,7 @@ document.querySelectorAll("[data-tab]").forEach(
 );
 $("new-session").onclick = () => {
   if (!instanceId) return;
-  const user = $("user").value.trim() || "Rick";
+  const user = $("user").value.trim() || "Jesse";
   const entry = {
     id: crypto.randomUUID(),
     user,
@@ -190,6 +209,40 @@ $("send").onsubmit = async (event) => {
   }
 };
 function renderChat() {
+  if (currentInstance?.worker_state !== "ready") {
+    $("transcript").replaceChildren(
+      text("p", "Start the instance to read accepted dialogue from Ghost."),
+    );
+    chatRenderKey = "";
+    return;
+  }
+  if ($("session").value === "ghost-history:Jesse") {
+    const history = (snapshot.history || []).filter((row) =>
+      ["Jesse", "Spamuel"].includes(row.speaker),
+    );
+    const key = `${instanceId}/history/${history.length}/${history.at(-1)?.id}`;
+    if (key === chatRenderKey) return;
+    chatRenderKey = key;
+    $("transcript").replaceChildren();
+    for (const row of history) {
+      const entry = text(
+        "div",
+        "",
+        `chat-entry ${row.speaker === "Spamuel" ? "assistant" : "user"}`,
+      );
+      entry.append(
+        text(
+          "div",
+          `${row.speaker} / ${row.timestamp} / knoxel ${row.id}`,
+          "meta",
+        ),
+        text("div", row.text, "chat-text"),
+      );
+      $("transcript").append(entry);
+    }
+    $("transcript").scrollTop = $("transcript").scrollHeight;
+    return;
+  }
   const chatEvents = events.filter((e) =>
     ["chat.input", "chat.reply"].includes(e.kind),
   );
@@ -210,7 +263,7 @@ function renderChat() {
     entry.append(
       text(
         "div",
-        `${e.user || "Spamuel"} · ${new Date(e.time * 1000).toLocaleTimeString()} · ${e.correlation_id || ""}`,
+        `${e.user || "Spamuel"} Â· ${new Date(e.time * 1000).toLocaleTimeString()} Â· ${e.correlation_id || ""}`,
         "meta",
       ),
       text("div", e.text, "chat-text"),
@@ -253,12 +306,21 @@ function renderGraph() {
     ids.map((id, i) => [
       id,
       {
-        x: 430 + 340 * Math.cos((2 * Math.PI * i) / ids.length - Math.PI / 2),
-        y: 250 + 215 * Math.sin((2 * Math.PI * i) / ids.length - Math.PI / 2),
-      },
+        user_input: { x: 20, y: 180 },
+        main_cog: { x: 240, y: 180 },
+        dialogue: { x: 470, y: 40 },
+        assistant: { x: 470, y: 170 },
+        self_management: { x: 470, y: 300 },
+        managed_run: { x: 720, y: 300 },
+        inner_thought: { x: 20, y: 40 },
+        scheduler: { x: 720, y: 40 },
+        status: { x: 720, y: 150 },
+        tool_dialogue: { x: 720, y: 240 },
+        steward: { x: 20, y: 300 },
+      }[id] || { x: 720, y: 360 + i * 40 },
     ]),
   );
-  $("graph").setAttribute("viewBox", "0 0 1000 550");
+  $("graph").setAttribute("viewBox", "0 0 920 400");
   $("graph").replaceChildren();
   const defs = svg("defs", {});
   const marker = svg("marker", {
@@ -298,7 +360,7 @@ function renderGraph() {
       "marker-end": "url(#arrow)",
     });
     const tooltip = svg("title", {});
-    tooltip.textContent = `${e.source} → ${e.recipient}`;
+    tooltip.textContent = `${e.source} â†’ ${e.recipient}`;
     line.append(tooltip);
     line.onclick = () => {
       selectedNode = "";
@@ -325,6 +387,7 @@ function renderGraph() {
     group.onclick = () => {
       selectedNode = id;
       selectedEdge = null;
+      showEvidence(nodes.find((node) => node.id === id) || { id });
       renderTrace();
     };
     $("graph").append(group);
@@ -353,7 +416,7 @@ function renderTrace() {
   $("detail-title").textContent = selectedNode
     ? `Node: ${selectedNode}`
     : selectedEdge
-      ? `${selectedEdge[0]} → ${selectedEdge[1]}`
+      ? `${selectedEdge[0]} â†’ ${selectedEdge[1]}`
       : "Trace";
   $("trace").replaceChildren();
   if (selectedNode) {
@@ -367,7 +430,7 @@ function renderTrace() {
       "event",
     );
     element.onclick = () => {
-      $("detail").textContent = pretty(e);
+      showEvidence(e);
     };
     $("trace").append(element);
   }
@@ -377,12 +440,82 @@ $("clear-filter").onclick = () => {
   $("correlation").value = "";
   renderGraph();
 };
+// Keep machine vectors out of the editor without deleting accepted fields.
+const vectorField = key => /embedding|(?:_vec|_vector|_vectors)$/.test(key);
+function editableMemory(value) {
+  if (Array.isArray(value)) return value.map(editableMemory);
+  if (value && typeof value === "object") return Object.fromEntries(
+    Object.entries(value).filter(([key]) => !vectorField(key))
+      .map(([key, item]) => [key, editableMemory(item)]));
+  return value;
+}
+function restoreVectors(edited, original) {
+  if (!original || typeof original !== "object") return edited;
+  for (const [key, value] of Object.entries(original)) {
+    if (vectorField(key)) edited[key] = value;
+    else if (edited[key] && typeof edited[key] === "object") restoreVectors(edited[key], value);
+  }
+  return edited;
+}
+function memorySubtype(record) {
+  return Object.entries(record.data).filter(([key]) => key.endsWith("_type"))
+    .map(([key, value]) => `${key}: ${value}`);
+}
+function memoryMatches(record) {
+  return (!$("memory-type").value || record.__type__ === $("memory-type").value) &&
+    (!$("memory-subtype").value || memorySubtype(record).includes($("memory-subtype").value));
+}
+function memoryOptions() {
+  const records = Object.values(snapshot.records || {});
+  for (const [id, values] of [
+    ["memory-types", records.map(record => record.__type__)],
+    ["memory-subtypes", records.filter(record => !$("memory-type").value || record.__type__ === $("memory-type").value).flatMap(memorySubtype)]]) {
+    $(id).replaceChildren(...[...new Set(values)].sort().map(value => {
+      const option = document.createElement("option"); option.value = value; return option;
+    }));
+  }
+}
 function renderMemory() {
+  memoryOptions();
+  if (currentInstance?.worker_state !== "ready") {
+    $("memory-list").replaceChildren(
+      text("p", "Start the instance to inspect its Ghost memory."),
+    );
+    return;
+  }
+  if (!snapshot.records) {
+    $("memory-list").replaceChildren(
+      text("p", "Ghost is loading accepted memoryâ€¦"),
+    );
+    return;
+  }
+  if ($("search-mode").value === "vector" && vectorResults) {
+    $("memory-list").replaceChildren();
+    for (const match of vectorResults.matches) {
+      if (!memoryMatches(match.record)) continue;
+      const e = text(
+        "div",
+        `${match.id} / ${match.record.__type__} / similarity ${match.score.toFixed(4)}\n${match.record.data.content}`,
+        "record",
+      );
+      e.onclick = () => {
+        memoryId = String(match.id);
+        memoryRevision = match.revision;
+        creating = false;
+        $("memory-editor").value = pretty(editableMemory(match.record));
+        updateControls();
+      };
+      $("memory-list").append(e);
+    }
+    return;
+  }
+
   const query = $("memory-search").value.toLowerCase();
   $("memory-list").replaceChildren();
   let shown = 0,
     total = 0;
   for (const [id, record] of Object.entries(snapshot.records || {})) {
+    if (!memoryMatches(record)) continue;
     if (
       !`${id} ${record.__type__} ${record.data.content || ""}`
         .toLowerCase()
@@ -393,14 +526,15 @@ function renderMemory() {
     if (shown++ >= 250) continue;
     const element = text(
       "div",
-      `${id} · ${record.__type__} · r${snapshot.revisions[id]}\n${String(record.data.content || "").slice(0, 220)}`,
+      `${id} Â· ${record.__type__} Â· r${snapshot.revisions[id]}\n${String(record.data.content || "").slice(0, 220)}`,
       "record",
     );
     element.onclick = () => {
       memoryId = id;
       memoryRevision = snapshot.revisions[id];
       creating = false;
-      $("memory-editor").value = pretty(record);
+      updateControls();
+      $("memory-editor").value = pretty(editableMemory(record));
     };
     $("memory-list").append(element);
   }
@@ -411,7 +545,13 @@ function renderMemory() {
     ),
   );
 }
-$("memory-search").oninput = renderMemory;
+for (const id of ["memory-type", "memory-subtype"]) $(id).oninput = () => {
+  renderMemory(); updateControls();
+};
+$("memory-search").oninput = () => {
+  renderMemory();
+  updateControls();
+};
 $("new-memory").onclick = () => {
   try {
     const record = JSON.parse($("memory-editor").value);
@@ -419,7 +559,7 @@ $("new-memory").onclick = () => {
     record.data.tick_id = -1;
     creating = true;
     memoryId = null;
-    $("memory-editor").value = pretty(record);
+    $("memory-editor").value = pretty(editableMemory(record));
   } catch {
     error(Error("Select a record as the template first."));
   }
@@ -428,7 +568,8 @@ $("save-memory").onclick = async () => {
   try {
     if (!creating && !memoryId) throw Error("Select a record first.");
     await command("memory", {
-      record: JSON.parse($("memory-editor").value),
+      record: creating ? JSON.parse($("memory-editor").value) : restoreVectors(
+        JSON.parse($("memory-editor").value), snapshot.records[memoryId]),
       create: creating,
       revision: creating ? null : memoryRevision,
     });
@@ -442,7 +583,7 @@ $("save-memory").onclick = async () => {
     creating = false;
     if (memoryId && snapshot.records?.[memoryId]) {
       memoryRevision = snapshot.revisions[memoryId];
-      $("memory-editor").value = pretty(snapshot.records[memoryId]);
+      $("memory-editor").value = pretty(editableMemory(snapshot.records[memoryId]));
     }
   } catch (exc) {
     error(exc);
@@ -518,6 +659,7 @@ $("run-control").onsubmit = async (event) => {
   }
 };
 function render() {
+  updateControls();
   if (tab === "chat") renderChat();
   if (tab === "network") renderGraph();
   if (tab === "memory") renderMemory();
@@ -549,27 +691,50 @@ async function poll() {
     }
     if (restored) {
       renderSessions();
-      if (
-        initial &&
-        !events.some(
-          (e) => e.kind === "chat.input" && e.session === $("session").value,
-        )
-      ) {
-        const latest = fresh.findLast((e) => e.kind === "chat.input");
-        if (latest) {
-          $("session").value = latest.session;
-          $("user").value = latest.user;
-        }
-      }
     }
-    if (data.snapshot) snapshot = data.snapshot;
+    currentInstance = data.instance;
+    if (data.snapshot && data.instance.worker_state === "ready")
+      snapshot = data.snapshot;
+    if (
+      snapshot.history &&
+      !sessionList().some((s) => s.id === "ghost-history:Jesse")
+    ) {
+      sessionList().unshift({
+        id: "ghost-history:Jesse",
+        user: "Jesse",
+        label: "Jesse / accepted history",
+      });
+      renderSessions();
+      $("session").value = "ghost-history:Jesse";
+      $("user").value = "Jesse";
+    }
     nodes = data.nodes;
     $("selected").textContent =
-      `${data.instance.name} / ${data.instance.state} (${data.instance.worker_state}) / ${data.instance.cognition} / PID ${data.instance.pid || "—"}`;
+      `${data.instance.name} / ${data.instance.state} (${data.instance.worker_state}) / ${data.instance.cognition} / PID ${data.instance.pid || "â€”"}`;
     $("log").textContent = data.log;
-    $("connection").textContent = "Connected · 1s poll";
+    $("connection").textContent = "Connected Â· 1s poll";
     for (const e of fresh) {
-      if (e.kind === "application.error" || e.kind === "rejected")
+      if (e.kind === "ready") {
+        searchBusy = false;
+        vectorResults = null;
+      }
+      if (e.kind === "memory.index") {
+        $("search-status").textContent =
+          `Embedding index: ${e.indexed} / ${e.total}`;
+      }
+      if (e.kind === "memory.search") {
+        searchBusy = false;
+        vectorResults = e.result || null;
+        $("search-status").textContent =
+          e.error ||
+          `${e.result.indexed} / ${e.result.total} records indexed (${e.result.missing} missing)`;
+        if (e.error && !initial) error(Error(e.error));
+      }
+      if (e.kind === "history") {
+        snapshot.history = e.history;
+        chatRenderKey = "";
+      }
+      if (!initial && (e.kind === "application.error" || e.kind === "rejected"))
         error(Error(e.error));
       if (e.kind === "chat.reply" && !initial) {
         if (
@@ -665,7 +830,7 @@ function renderWorkflowGraph() {
       : "ACTIVE";
     group.append(name, status);
     group.onclick = () => {
-      $("detail").textContent = pretty({ start: e, result: end || null });
+      showEvidence({ start: e, result: end || null });
     };
     container.append(group);
   });
@@ -698,3 +863,106 @@ async function backgroundPoll() {
     error(exc);
   }
 }
+
+function updateControls() {
+  const live = currentInstance?.state === "running",
+    ready = currentInstance?.worker_state === "ready";
+  document.querySelector("[data-action=start]").disabled =
+    !instanceId || live || commandBusy;
+  document.querySelector("[data-action=stop]").disabled =
+    !live || currentInstance?.worker_state === "stopping" || commandBusy;
+  document.querySelector("[data-action=kill]").disabled = !live || commandBusy;
+  for (const id of ["refresh", "new-session", "vector-search", "prepare-index"])
+    $(id).disabled =
+      !ready ||
+      commandBusy ||
+      ((id.includes("search") || id === "prepare-index") &&
+        (searchBusy || !$("memory-search").value.trim()));
+  $("save-memory").disabled = !ready || commandBusy || (!memoryId && !creating);
+  $("new-memory").disabled = !ready || commandBusy || !memoryId;
+  $("cancel-search").disabled = !ready || !searchBusy || commandBusy;
+  $("send").querySelector("button").disabled =
+    !ready || commandBusy || !$("message").value.trim() || exchangePending();
+  $("run-control").querySelector("button").disabled =
+    !ready || commandBusy || !$("run-control").elements.run_id.value;
+}
+function exchangePending() {
+  const inputs = events.filter((e) => e.kind === "chat.input");
+  return inputs.some(
+    (e) =>
+      !events.some(
+        (r) => r.kind === "chat.reply" && r.correlation_id === e.correlation_id,
+      ) && e.seq > (events.findLast((e) => e.kind === "ready")?.seq || 0),
+  );
+}
+$("message").oninput = updateControls;
+$("run-control").oninput = updateControls;
+$("search-mode").onchange = () => {
+  vectorResults = null;
+  renderMemory();
+  updateControls();
+};
+async function vectorSearch(prepare = false) {
+  try {
+    $("search-mode").value = "vector";
+    searchBusy = true;
+    $("search-status").textContent = prepare
+      ? "Embedding missing records. External requests can take time."
+      : "Searching cached vectors?";
+    await command("search", { query: $("memory-search").value, prepare,
+      record_type: $("memory-type").value, subtype: $("memory-subtype").value });
+  } catch (e) {
+    searchBusy = false;
+    error(e);
+  }
+  updateControls();
+}
+$("vector-search").onclick = () => vectorSearch();
+$("prepare-index").onclick = () => vectorSearch(true);
+$("cancel-search").onclick = () => command("cancel_search").catch(error);
+$("check-connections").onclick = async () => {
+  const button = $("check-connections");
+  button.disabled = true;
+  try {
+    const data = await api("/api/connections", { instance: instanceId });
+    $("connection-status").replaceChildren(
+      text("p", `Configuration: ${data.source}`),
+    );
+    for (const row of data.connections)
+      $("connection-status").append(text("pre", pretty(row)));
+  } catch (e) {
+    error(e);
+  } finally {
+    button.disabled = false;
+  }
+};
+function showEvidence(value) {
+  $("detail").textContent = pretty(value);
+  $("source-links").replaceChildren();
+  const paths = new Set();
+  function find(v, key = "") {
+    if (
+      typeof v === "string" &&
+      ["workflow", "skill"].includes(key) &&
+      /\.(md|py|yaml|yml)$/.test(v)
+    )
+      paths.add(v);
+    else if (v && typeof v === "object")
+      for (const [k, child] of Object.entries(v)) find(child, k);
+  }
+  find(value);
+  for (const path of paths) {
+    const link = text("a", `Open ${path.split(/[\\/]/).at(-1)}`);
+    link.href = "#";
+    link.onclick = async (e) => {
+      e.preventDefault();
+      try {
+        await api("/api/open", { path });
+      } catch (e) {
+        error(e);
+      }
+    };
+    $("source-links").append(link, text("span", " / "));
+  }
+}
+updateControls();

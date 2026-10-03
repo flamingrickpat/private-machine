@@ -17,6 +17,7 @@ This manual explains current behavior, test procedures, and the earlier implemen
 | Inject or change a memory | [Memory experiment](workflows/memory.md) |
 | Understand runtime ownership | [System map](concepts/architecture.md) |
 | Compare the plan with current code | [Plan and implementation](decisions/plan.md) |
+| Develop the companion alpha in ordered sessions | [Companion alpha plan](decisions/alpha-plan/index.md) |
 | Plan faster cognition experiments | [Next experiments](decisions/experiments.md) |
 
 ## Main boundaries
@@ -51,4 +52,3 @@ This follows the [MkDocs configuration](https://www.mkdocs.org/user-guide/config
 The reference uses [mkdocstrings-python](https://mkdocstrings.github.io/python/usage/).
 
 Build instructions appear in the [development loop](workflows/development.md).
-

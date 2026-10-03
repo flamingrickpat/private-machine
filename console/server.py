@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 from collections import deque
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
+import shutil
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -230,6 +232,25 @@ def serve(root: Path, port: int = 8090):
                 if not 0 < length <= 2_000_000:
                     raise ValueError("Invalid command size.")
                 command = json.loads(self.rfile.read(length))
+                if self.path == "/api/open":
+                    path = Path(command["path"])
+                    path = (path if path.is_absolute() else ROOT / path).resolve()
+                    if not path.is_relative_to(ROOT) or path.suffix not in {".md", ".py", ".yaml", ".yml"} or not path.is_file():
+                        raise ValueError("Select an existing source file within the project.")
+                    if path.suffix == ".md":
+                        os.startfile(str(path))
+                    else:
+                        editor = shutil.which("subl") or next((str(p) for p in
+                            [Path("C:/Program Files/Sublime Text/sublime_text.exe"),
+                             Path("C:/Program Files/Sublime Text 3/sublime_text.exe")] if p.is_file()), None)
+                        if editor is None:
+                            raise ValueError("Sublime Text is required to open Python and YAML source safely.")
+                        subprocess.Popen([editor, str(path)], creationflags=subprocess.CREATE_NO_WINDOW)
+                    return self.respond({"opened": str(path)})
+                if self.path == "/api/connections":
+                    from runtime.operator_services import connection_status
+                    instance = console.instances[command["instance"]]
+                    return self.respond(asyncio.run(connection_status(instance.settings.get("config") or None)))
                 if self.path == "/api/deploy":
                     return self.respond(console.deploy(command))
                 instance = console.instances[command.pop("instance")]

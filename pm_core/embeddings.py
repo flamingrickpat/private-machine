@@ -158,11 +158,15 @@ class EmbeddingService:
             (plan.hits if self.cache.get(text) is not None else plan.missing).append(record_id)
         return plan
 
-    async def prepare_index(self, visible_text: dict[int, str], *, cancel: Event | None = None) -> IndexPlan:
+    async def prepare_index(self, visible_text: dict[int, str], *, cancel: Event | None = None, progress=None) -> IndexPlan:
         """Explicitly fetch only missing text from the caller's scoped input."""
         plan = self.inspect_index(visible_text)
-        for record_id in plan.missing:
+        if progress is not None:
+            progress(len(plan.hits), len(visible_text))
+        for completed, record_id in enumerate(plan.missing, len(plan.hits) + 1):
             await self.embed(visible_text[record_id], cancel=cancel)
+            if progress is not None:
+                progress(completed, len(visible_text))
         return plan
 
     async def search(self, query: str, visible_text: dict[int, str], *, cancel: Event | None = None) -> list[tuple[int, float]]:

@@ -50,6 +50,8 @@ Kill terminates the worker tree on Windows.
 Startup restores an existing checkpoint before it uses the seed.
 
 The console installs observation hooks only inside its worker process.
+Memory inspection, public dialogue history, and vector search use the running Ghost.
+The HTTP service does not read checkpoints to reproduce those operations.
 The bus observer receives detached envelopes before mailbox delivery.
 Observation errors propagate instead of silently losing evidence.
 Normal terminal runs have no observer by default.
@@ -71,3 +73,14 @@ The UI does not expose model credentials from configuration files.
 ## Go deeper
 
 Read [memory experiments](../workflows/memory.md), [evidence](../concepts/evidence.md), and [`console.worker.run`][].
+
+## Endpoint configuration
+
+[`runtime.operator_services.operator_config`][] reads the project model configuration.
+It reads embedding overrides from `PM_ENV_FILE`, the repository `.env`, or the legacy `../pm_next/.env`.
+An existing credential environment variable takes precedence over a legacy file credential.
+The service never includes credentials in connection reports.
+
+`MINECRAFT_MCP_URL` selects the MCP endpoint.
+Otherwise, `PM_MC_MCP_PORT` selects its port.
+`PM_MINECRAFT_HOST` and `PM_MINECRAFT_PORT` select the TCP probe target.

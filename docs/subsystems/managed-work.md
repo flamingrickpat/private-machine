@@ -45,3 +45,5 @@ MCP transport success alone does not establish tool success.
 
 Read [workflow runtime](../runtime.md), [one exchange](../workflows/exchange.md), and [`runtime.steward.Steward`][].
 
+
+For service ownership, task isolation, and cleanup, read the [Minecraft run guide](../workflows/minecraft.md) and [evidence guide](../workflows/minecraft-evidence.md).

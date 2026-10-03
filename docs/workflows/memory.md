@@ -14,6 +14,7 @@ Contract: [Ghost commits](../ghost.md).
 
 1. Deploy a separate instance for the experiment.
 2. Start the instance.
+   Startup reads its accepted knoxels through Ghost and fills the memory list.
 3. Select **Read memory**.
 4. Open **Knoxels**.
 5. Search for a record by ID, type, or content.
@@ -53,3 +54,26 @@ The editor does not delete records or repair references automatically.
 
 Read [next experiments](../decisions/experiments.md) for broader evaluation criteria.
 
+## Vector search
+
+1. Select **Vector similarity**.
+2. Enter a query in the search field.
+3. Select **Search vectors**.
+
+The result includes cosine similarity and index coverage.
+Search uses the configured model and existing vector cache.
+Missing vectors do not silently become text matches.
+
+Select **Embed missing records and search** to prepare the accepted-text index for the selected type and subtype.
+This operation sends external embedding requests for missing records.
+The progress counter shows the indexed and total record counts.
+Select **Cancel search** to interrupt preparation without stopping Ghost.
+Completed vectors remain in the cache.
+
+[`pm_core.ghost.service.Ghost.search_memory`][] owns scoped search.
+[`pm_core.ghost.service.Ghost.dialogue_history`][] owns accepted public dialogue inspection.
+Other trusted callers can reuse these APIs with their permitted record IDs.
+
+The knoxel editor hides embedding and state-vector fields. Existing vectors remain intact when you edit other fields.
+Use the editable **Knoxel type** and **Subtype** lists before a text or vector search.
+Ghost applies these filters before vector ranking and optional indexing.

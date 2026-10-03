@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 import sys
 import threading
 import time
@@ -78,10 +79,16 @@ def run(settings: dict, root: Path) -> None:
             raise
 
     ChatClient.complete = complete
+    from runtime.operator_services import operator_config
+    model_config, environment, _ = operator_config(settings.get("config") or None)
+    import os
+    os.environ.setdefault("MINECRAFT_MCP_URL", environment.get("MINECRAFT_MCP_URL") or
+                          f"http://127.0.0.1:{environment.get('PM_MC_MCP_PORT', '6767')}/mcp")
     app = build_app(settings["seed"], root, checkpoint_path=root / "ghost.json",
                     cognition=settings["cognition"], config_path=settings.get("config") or None,
                     emit_reply=lambda text: None)
     pending: dict[str, str] = {}
+    search_cancel = threading.Event()
     submission_lock = threading.Lock()
 
     def observe(envelope, recipient):
@@ -95,6 +102,7 @@ def run(settings: dict, root: Path) -> None:
                     emit("chat.reply", session=pending.get(envelope.correlation_id, "unsolicited"),
                          correlation_id=envelope.correlation_id, text=feature.content)
                     pending.pop(envelope.correlation_id, None)
+                emit("history", history=app.ghost.dialogue_history())
 
     app.bus.observer = observe
     for module in app.modules:
@@ -122,6 +130,7 @@ def run(settings: dict, root: Path) -> None:
         while not app.shutdown_event.wait(.2):
             pass
         if app.error is not None:
+            search_cancel.set()
             emit("application.error", error=str(app.error))
 
     threading.Thread(target=monitor, daemon=True).start()
@@ -132,7 +141,25 @@ def run(settings: dict, root: Path) -> None:
         for record in records.values():
             record["data"]["embedding"] = []
         emit("snapshot", records=records, revisions=dict(view.revisions),
-             gwt=view.serialize_gwt(), runs=app.supervisor.receipts())
+             gwt=view.serialize_gwt(), runs=app.supervisor.receipts(),
+             history=app.ghost.dialogue_history(), user_name="Jesse")
+
+    snapshot()
+    search_active = threading.Event()
+
+    def search(command):
+        try:
+            from pm_core.embeddings import EmbeddingService
+            result = asyncio.run(app.ghost.search_memory(
+                command["query"], EmbeddingService(model_config.embedding, live_test=True),
+                prepare=bool(command.get("prepare")), cancel=search_cancel,
+                record_type=command.get("record_type", ""), subtype=command.get("subtype", ""),
+                progress=lambda done, total: emit("memory.index", indexed=done, total=total)))
+            emit("memory.search", result=result)
+        except BaseException as exc:
+            emit("memory.search", error=str(exc) or type(exc).__name__)
+        finally:
+            search_active.clear()
 
     try:
         for line in sys.stdin:
@@ -154,6 +181,16 @@ def run(settings: dict, root: Path) -> None:
                          text=command["text"], correlation_id=correlation)
                 elif action == "snapshot":
                     snapshot()
+                elif action == "search":
+                    if search_active.is_set():
+                        raise ValueError("A memory search is already active.")
+                    if not command.get("query", "").strip():
+                        raise ValueError("Enter a search query.")
+                    search_active.set()
+                    search_cancel.clear()
+                    threading.Thread(target=search, args=(command,), daemon=True).start()
+                elif action == "cancel_search":
+                    search_cancel.set()
                 elif action == "memory":
                     batch = app.ghost.begin_batch("console-" + request_id)
                     record = _deserialize_knoxel(command["record"])
@@ -180,6 +217,7 @@ def run(settings: dict, root: Path) -> None:
                         raise ValueError("Unknown managed-run operation.")
                     emit("run.control", result=result)
                 elif action == "stop":
+                    search_cancel.set()
                     emit("ack", request_id=request_id)
                     break
                 else:
@@ -188,6 +226,7 @@ def run(settings: dict, root: Path) -> None:
             except Exception as exc:
                 emit("rejected", request_id=request_id, error=str(exc))
     finally:
+        search_cancel.set()
         app.shutdown()
         for run_id, receipt in app.supervisor.receipts().items():
             if receipt["state"] in {"accepted", "running", "waiting_for_input"}:
