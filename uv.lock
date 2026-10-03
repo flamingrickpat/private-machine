@@ -927,15 +927,15 @@ requires-dist = [
     { name = "fastmcp" },
     { name = "httpx", specifier = ">=0.27,<1" },
     { name = "pm-coder", git = "https://github.com/flamingrickpat/pm-coder.git?rev=ac8327baf669dad54ea9f91580f2bed1023825b4" },
-    { name = "pm-workflows", git = "https://github.com/flamingrickpat/pm-workflows.git?rev=c46a5e3f947755c21e388618fb00a1ccef2628f0" },
+    { name = "pm-workflows", git = "https://github.com/flamingrickpat/pm-workflows.git?rev=95f2842d0e14a2a2c70c41514e0e36055cac73e4" },
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
 ]
 
 [[package]]
 name = "pm-workflows"
-version = "0.5.1"
-source = { git = "https://github.com/flamingrickpat/pm-workflows.git?rev=c46a5e3f947755c21e388618fb00a1ccef2628f0#c46a5e3f947755c21e388618fb00a1ccef2628f0" }
+version = "0.6.0"
+source = { git = "https://github.com/flamingrickpat/pm-workflows.git?rev=95f2842d0e14a2a2c70c41514e0e36055cac73e4#95f2842d0e14a2a2c70c41514e0e36055cac73e4" }
 dependencies = [
     { name = "httpx" },
     { name = "pm-coder" },

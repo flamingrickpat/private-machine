@@ -117,6 +117,7 @@ class WorkflowRunner:
                     resume=resume or attempt > 0,
                     allowed_mcp=allowed_mcp,
                     runtime=runtime,
+                    request_data=request.payload,
                 )
                 summary = kernel.run()
                 break

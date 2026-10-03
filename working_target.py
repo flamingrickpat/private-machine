@@ -23,7 +23,9 @@ from pm_workflows.working_target import (
     CommandResult,
     WorkingEnvironment,
     WorkingTarget,
+    HostInputEnvironment,
 )
+from pm_workflows.inputs import FileMetadata
 
 
 class _LazyGhostFile:
@@ -94,7 +96,8 @@ class GhostBashEnvironment(WorkingEnvironment):
 
     @staticmethod
     def _abs(path: str) -> str:
-        return posixpath.join("/work", path)
+        from pm_workflows.inputs import relative_path
+        return posixpath.join("/work", relative_path(path, folder=True))
 
     def read_text(self, path: str) -> str:
         result = self.exec(f"cat -- {shlex.quote(self._abs(path))}")
@@ -172,15 +175,27 @@ class FolderEnvironment(WorkingEnvironment):
         self.bash_executable = bash_executable
 
     def _path(self, path: str) -> Path:
-        return self.root / path
+        return HostInputEnvironment(self.root)._path(path, folder=True)
 
     def read_text(self, path: str) -> str:
-        return self._path(path).read_text(encoding="utf-8")
+        return HostInputEnvironment(self.root).read_text(path)
+
+    def file_metadata(self, path: str) -> FileMetadata:
+        """Return actual host stat identity and an exact-byte digest."""
+        return HostInputEnvironment(self.root).file_metadata(path)
+
+    def check_file_boundary(self, path: str, folder: str) -> None:
+        """Apply the declared folder boundary to the resolved host file."""
+        HostInputEnvironment(self.root).check_file_boundary(path, folder)
+
+    def canonical_relative_path(self, path: str) -> str:
+        """Expose host symlink targets for the kernel's path grant checks."""
+        return HostInputEnvironment(self.root).canonical_relative_path(path)
 
     def write_text(self, path: str, text: str) -> None:
         target = self._path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8")
+        target.write_text(text, encoding="utf-8", newline="")
 
     def move(self, source: str, destination: str) -> None:
         source_path = self._path(source)

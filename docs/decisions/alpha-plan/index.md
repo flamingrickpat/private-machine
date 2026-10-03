@@ -13,7 +13,8 @@ Earlier delivery: [W0–W8 plan](../plan.md).
 
 A01 supplies the [baseline and session handoff](baseline/index.md).
 A02 supplies the [optional typed decision client](../../subsystems/decisions/index.md).
-A03 through A20 remain pending.
+A03 supplies [scoped input bindings and version evidence](../../subsystems/workflow-inputs/index.md).
+A04 through A20 remain pending.
 
 The LLM is the default for selection, classification, and interpretation.
 Laya was planned for frequent use, but A02 found poor interpretation quality.
@@ -64,7 +65,7 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | --- | --- | --- |
 | A01 | [Capture baseline and evaluation scenarios](work-items/a01.md) — engineering delivery recorded | Preparation |
 | A02 | [Provide a public pm-coder decision client](work-items/a02.md) — engineering delivery recorded | |
-| A03 | [Bind files, folders, and named outputs](work-items/a03.md) | |
+| A03 | [Bind files, folders, and named outputs](work-items/a03.md) — engineering delivery recorded | |
 | A04 | [Add classification with INVALID fallback](work-items/a04.md) | Engine demonstration |
 | A05 | [Wire LLM classification in PM and retain optional Laya](work-items/a05.md) | M1: LLM classification over real artifacts |
 | A06 | [Commit affect, goals, and causal events](work-items/a06.md) | |

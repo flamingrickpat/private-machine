@@ -123,6 +123,12 @@ Proposals stay private until the batch commits.
 
 ## Current limits
 
+A03 adds [scoped input capture](subsystems/workflow-inputs/index.md) and [versioned named outputs](subsystems/workflow-inputs/bindings.md).
+The runner supplies its request payload to kernel bindings.
+Folder and Ghost reads retain their actual environment identity.
+The [version guide](subsystems/workflow-inputs/versions.md) explains path bounds, stale-data rejection, and replay receipts.
+Selection and classification inference remain A04 work.
+
 Python cancellation is cooperative. The runner cannot forcibly stop arbitrary Python code.
 Agent cancellation interrupts supported asynchronous inference and waits for session cleanup.
 Synchronous tools remain cooperative. Completed external effects cannot be undone.

@@ -57,7 +57,12 @@ nav:
           - Local deployment: subsystems/decisions/operation.md
           - A02 verification: subsystems/decisions/verification.md
           - Model observations and limits: subsystems/decisions/quality.md
-      - Workflow runtime: runtime.md
+      - Workflow runtime:
+          - Invocation and grants: runtime.md
+          - Scoped inputs: subsystems/workflow-inputs/index.md
+          - Binding syntax: subsystems/workflow-inputs/bindings.md
+          - Versions and replay: subsystems/workflow-inputs/versions.md
+          - A03 verification: subsystems/workflow-inputs/verification.md
       - Managed work: subsystems/managed-work.md
   - Decisions:
       - Plan and implementation: decisions/plan.md

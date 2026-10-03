@@ -17,6 +17,11 @@ The user confirmed folder selection plus classification.
 The engine already stores structured role results and supports child request expansion.
 Extend those mechanisms and the working-environment contract.
 
+A03 now supplies the [binding contracts](../../subsystems/workflow-inputs/bindings.md) and
+[scoped version checks](../../subsystems/workflow-inputs/versions.md).
+These run on role and child-workflow phases today.
+The classification node and inference routes in this page remain A04 proposals.
+
 | Input mode | Meaning |
 | --- | --- |
 | `input_file` | Classify this exact file; skip file-selection inference |

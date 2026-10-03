@@ -7,6 +7,7 @@ nav = mkdocs_gen_files.Nav()
 roots = [Path(name) for name in ("bus", "console", "pm_core", "runtime", "workflows")]
 paths = [p for root in roots for p in root.rglob("*.py")]
 paths += [Path(name) for name in ("main.py", "modules.py", "workflow_adapter.py", "working_target.py", "ghost_mcp.py")]
+paths.append(Path("scripts/alpha_input_gate.py"))
 for path in sorted(paths):
     if "tests" in path.parts or any(part.startswith("_") for part in path.parts):
         continue
@@ -20,5 +21,12 @@ for path in sorted(paths):
 with mkdocs_gen_files.open("reference/pm_decision.md", "w") as stream:
     stream.write("# pm_decision\n\n::: pm_decision\n    options:\n        inherited_members: [__init__]\n        show_if_no_docstring: true\n")
 nav[("pm_decision",)] = "pm_decision.md"
+# Read the installed workflow package so API links match the consuming lock.
+for module in ("inputs", "protocol", "working_target", "python_role", "kernel", "child", "manifest", "journal"):
+    identifier = f"pm_workflows.{module}"
+    target = f"reference/pm_workflows/{module}.md"
+    with mkdocs_gen_files.open(target, "w") as stream:
+        stream.write(f"# {identifier}\n\n::: {identifier}\n")
+    nav[("pm_workflows", module)] = f"pm_workflows/{module}.md"
 with mkdocs_gen_files.open("reference/SUMMARY.md", "w") as stream:
     stream.writelines(nav.build_literate_nav())
