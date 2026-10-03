@@ -8,6 +8,7 @@ The terminal uses these connections for real dialogue and cognitive workflows.
 The separate [typed decision client](subsystems/decisions/index.md) is available through pm-coder.
 A02 verifies its API without changing existing workflow model choices.
 Its [deployment guide](subsystems/decisions/operation.md) describes the independent Laya endpoint.
+The alpha's [model policy](decisions/alpha-plan/model-policy.md) uses the normal LLM by default.
 
 Parent: [README](index.md).
 
@@ -60,7 +61,7 @@ from runtime.models import load_config, resolve_connection
 from runtime.model_activation import ChatClient, ModelActivation
 
 async def run_once():
-    config = load_config("config.example.yaml")
+    config = load_config("config.alpha.example.yaml")
     connection = resolve_connection(config, preset="Default")
     owner = ModelActivation()
     await owner.activate(connection, live_test=True)
@@ -120,6 +121,12 @@ The application sends no `max_tokens` cap, so the backend can finish its reasoni
 A cap sized for the visible answer alone can stop a JSON stage mid-object and report a stage output error.
 There is no generation deadline.
 The model stops when it is done.
+
+## Context handling
+
+Laya's decision-head budget does not apply to chat or pm-coder.
+Direct Python chat sends one supplied message list, while pm-coder owns accumulated execution history and automatic compaction.
+Read [Python chat and agent context](subsystems/llm-context.md) for the actual paths, live commands, and verified input boundaries.
 
 ## Embeddings and scoped retrieval
 

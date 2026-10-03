@@ -43,7 +43,8 @@ Keep lifecycle, cancellation, schemas, and state acceptance in Python.
 Keep personality policy, routing questions, codelet definitions, and prompts inside inspectable workflow resources.
 Do not create another broker, general plugin system, or state authority.
 
-Keep existing cognitive workflows during Laya integration.
+Keep existing cognitive workflows and LLM model choices during classification integration.
+The [model policy](model-policy.md) governs every cognitive stage and later codelet.
 When later alpha behavior needs new pathways, define those pathways through suitable workflow resources and typed contracts.
 Choose classification or generative reasoning according to the pathway's task.
 Clear tool questions can take a direct Assistant pathway without running every generative planning stage.
@@ -111,10 +112,12 @@ Proposals can retrieve a memory, nominate attention, suggest an appraisal, simul
 They cannot directly mutate canonical state or issue body commands.
 
 The scheduler activates a relevant subset.
-Laya can classify stimuli and score candidates against explicit criteria.
-This is an available option, rather than a requirement for every codelet or attention decision.
+The LLM handles interpretive stimulus classification and candidate scoring by default.
+Laya remains available only for the simplest classifications after realistic live-endpoint unit tests establish that exact use.
+If enabling it requires expensive effort, keep the normal LLM and stop the experiment.
 Pure computations handle decay, thresholds, and simple activation.
 A model call is justified when interpretation is required.
+Agentic work retains pm-coder's compaction, while direct callers construct suitable task context with required evidence intact.
 
 Competing nominations form an inspectable attention decision.
 The accepted workspace informs conversation, thought, and task goals.

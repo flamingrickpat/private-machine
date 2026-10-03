@@ -6,6 +6,8 @@ Real typed inference can return incorrect interpretations.
 A02 records these observations without adopting Laya in a workflow.
 Long-input acceptance does not establish reliable classification.
 The caller must evaluate each possible use against its LLM alternative.
+The [current model policy](../../decisions/alpha-plan/model-policy.md) limits Laya to simple classifications that pass realistic live-endpoint unit tests.
+If making a candidate work requires expensive effort, keep the normal LLM.
 
 Parent: [optional typed decisions](index.md).
 Receipts and provenance: [A02 verification](verification.md).
@@ -36,6 +38,9 @@ These examples establish observations, not accepted classifier accuracy.
 Two longer layouts with an 8300-token history prefix returned HTTP 400.
 The configured architectural context, batch, and microbatch each equal 8192.
 The decision head budget equals 192 tokens and can silently truncate long questions and options.
+This head and the 8192-token context belong to Laya's separate endpoint.
+They do not configure chat on 8080 or pm-coder's agent compaction.
+The [chat context checks](../../models.md#context-handling) verify the separate direct Python path.
 The [publisher model card](https://huggingface.co/convaiinnovations/laya) identifies the base English checkpoint's trained context as 512 tokens.
 Architecture limits and observed request acceptance do not establish reliable behavior at those larger lengths.
 

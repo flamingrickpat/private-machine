@@ -63,6 +63,9 @@ The client does not claim that closing a socket stopped inference.
 Protocol success does not establish correct interpretation or calibrated confidence.
 The real A02 results include incorrect score and probability decisions.
 Existing LLM workflows remain usable without Laya.
+The [model policy](../../decisions/alpha-plan/model-policy.md) uses the normal LLM by default.
+Only the simplest Laya classifications can qualify through realistic live-endpoint unit tests.
+If qualification requires expensive effort, retain the client for later and keep the LLM.
 Later experiments can retain the technology without adopting it in any workflow.
 A suitable future use requires application-specific facts, limits, and a declared LLM fallback.
 

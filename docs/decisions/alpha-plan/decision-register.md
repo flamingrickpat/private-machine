@@ -2,7 +2,7 @@
 
 ## Summary
 
-The user confirmed optional Laya capability for workflows and normal Python code.
+The user confirmed the LLM default and restricted optional Laya use after A02's poor quality results.
 The user also specified a parallel reflective conscious loop and open-ended, self-directed Minecraft goals.
 The user answered the three question batches.
 The answers below govern the proposed alpha.
@@ -13,12 +13,13 @@ Related: [cognitive architecture](cognition.md) and [Minecraft architecture](min
 
 ## Confirmed direction
 
-D01: Provide Laya for workflow routing and suitable cognitive classifications as an optional capability.
-The user's later clarification keeps existing workflows and model choices as the default.
-New workflows can choose Laya when finite classification fits the task.
-Compare candidate uses before adopting them.
-Keep an LLM when it produces better results.
-Delivering the capability does not require converting an existing stage.
+D01: Use the normal LLM for selection, classification, and interpretation by default.
+Laya was planned for frequent classification, but A02 found poor interpretation quality, including confidently wrong answers.
+Retain the delivered technology for later experiments.
+Use it only for the simplest classifications after realistic live-endpoint unit tests establish that specific use.
+If making Laya work requires expensive effort, use the LLM and stop that experiment.
+No item requires Laya adoption, model tuning, or retraining.
+The [model policy](model-policy.md) governs all items, including later codelets.
 
 D02: The inner-thought workflow is a second conscious loop.
 It reads the main GWT and its own inner-thought shard.
@@ -45,12 +46,13 @@ Simple questions can route directly to Assistant dialogue and a concrete MCP cal
 An inventory query does not require a managed task tree.
 Longer or uncertain work uses the planner and specialist workflow.
 
-D04: The classification node can select a relevant file through Laya using a scoped folder listing and metadata.
+D04: The classification node can select a relevant file using a scoped folder listing and metadata.
+Use the LLM by default and deterministic metadata rules when they establish the required result.
 Exact file input remains available.
 Every classification has an INVALID outcome for absent, oversized, malformed, or uncertain input/results.
-The specific classification can then route to a coding agent.
-The desired 95% fast path / 5% fallback split requires measurement.
-That target applies within a suitable opt-in classifier, rather than across all PM workflows or cognitive stages.
+The specific classification can then route to a scoped coding agent.
+The earlier 95% fast path / 5% fallback target is withdrawn.
+Optional Laya selection and content classification need separate live tests before either is enabled.
 
 D05: Ship the reusable client inside pm-coder and expose a public Python API.
 D06: Use the always-present INVALID route for missing input and uncertainty.
@@ -86,10 +88,19 @@ The user wants adaptive Minecraft work with many tool calls per meaningful subta
 The current one-action constraint must be removed.
 
 D14: Classification classes, descriptions, input limits, and uncertainty policies depend on the specific use case.
-Evaluate Laya on that input before adoption.
+Optional Laya adoption requires realistic live-endpoint unit tests on that exact use.
+Tests use independently defined source facts, realistic synthetic data, and captured application inputs when available.
+Simple synthetic assertions need no separate human-label approval.
+Do not spend extensive effort making a weak Laya candidate work.
 Every classifier has an INVALID route to an LLM fallback for missing, ambiguous, or unusable evidence.
 The A01 report vocabulary is a demonstration corpus, rather than a global set of classes.
-Implementation approach: measure descriptions and thresholds before deciding whether a use case needs model retraining.
+Preserve its historical review and holdout status without making that review a prerequisite for unrelated LLM delivery.
+
+D15: The normal LLM path must work through direct Python calls and pm-coder agent sessions.
+LLM infrastructure failures and lost required context require immediate diagnosis and repair.
+Preserve pm-coder's automatic compaction for agent execution history.
+Direct chat callers must select suitable task context or explicitly compact it while preserving required evidence.
+Laya's decision-head limits do not configure chat.
 
 ## Seed import evidence
 

@@ -3,17 +3,24 @@
 ## Summary
 
 This proposed second plan contains 20 ordered work items and seven manual milestones.
-It develops persistent cognition, Laya decisions, adaptive Minecraft work, and source-aware reflection.
+It develops persistent cognition, LLM classification, adaptive Minecraft work, and source-aware reflection.
 Each item defines a handoff for a fresh coding session.
-A01 supplies the [baseline and session handoff](baseline/index.md).
-A02 supplies the [optional typed decision client](../../subsystems/decisions/index.md).
-A03 through A20 remain pending.
-Individual routing labels and human immersion ratings still need operator review.
-Laya is an optional capability, available when a workflow explicitly chooses it.
-Existing workflows retain their model choices by default.
 
 Parent: [engineering manual](../../index.md).
 Earlier delivery: [W0–W8 plan](../plan.md).
+
+## Delivery and model policy
+
+A01 supplies the [baseline and session handoff](baseline/index.md).
+A02 supplies the [optional typed decision client](../../subsystems/decisions/index.md).
+A03 through A20 remain pending.
+
+The LLM is the default for selection, classification, and interpretation.
+Laya was planned for frequent use, but A02 found poor interpretation quality.
+Retain it only for the simplest classifications after realistic live-endpoint unit tests pass.
+If making Laya work requires expensive effort, use the normal LLM.
+The [model policy](model-policy.md) governs every work item and withdraws the earlier 95% target.
+Historical routing-label review remains pending, and human immersion ratings still need operator review.
 
 ## Target behavior
 
@@ -45,7 +52,8 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | [Previous attempts](previous-attempts.md) | What to preserve, adapt, and leave behind |
 | [Cognitive architecture](cognition.md) | State, emotion, codelets, internal thought, and self-reflection |
 | [Private ontology](ontology.md) | Capability-consistent expression and protection against polluted memory |
-| [Laya and workflow inputs](decisions.md) | Public pm-coder client, file selection, classification, and INVALID fallback |
+| [Model selection and reliability](model-policy.md) | LLM default, optional Laya test requirements, and immediate LLM repairs |
+| [Models and workflow inputs](decisions.md) | Public pm-coder client, file selection, classification, and INVALID fallback |
 | [Minecraft architecture](minecraft.md) | Task trees, specialist sessions, recovery, and shared body ownership |
 | [Milestones and verification](verification.md) | Real manual tests and acceptance evidence |
 | [Decision register](decision-register.md) | The user's confirmed architecture and behavior choices |
@@ -58,7 +66,7 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | A02 | [Provide a public pm-coder decision client](work-items/a02.md) — engineering delivery recorded | |
 | A03 | [Bind files, folders, and named outputs](work-items/a03.md) | |
 | A04 | [Add classification with INVALID fallback](work-items/a04.md) | Engine demonstration |
-| A05 | [Make Laya available in PM and evaluate suitable uses](work-items/a05.md) | M1: optional PM capability and a new demonstration workflow |
+| A05 | [Wire LLM classification in PM and retain optional Laya](work-items/a05.md) | M1: LLM classification over real artifacts |
 | A06 | [Commit affect, goals, and causal events](work-items/a06.md) | |
 | A07 | [Make emotional state change behavior](work-items/a07.md) | |
 | A08 | [Retrieve and learn from experienced memory](work-items/a08.md) | |
@@ -78,6 +86,8 @@ It does not claim to prove consciousness or reproduce every human emotion.
 The order supports useful stopping points.
 A10 can start after A04 and A09, while later cognitive work remains pending.
 Individual coding sessions must respect each item's explicit dependencies.
+No dependency requires enabling Laya or making a failed Laya candidate pass.
+LLM transport, context handling, and agent compaction failures require immediate repair in the affected item.
 
 ## Session handoff
 

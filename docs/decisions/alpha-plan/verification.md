@@ -14,11 +14,11 @@ Delivery items: [ordered plan](index.md#ordered-delivery).
 
 ## M1: decisions over real artifacts
 
-**After A05.** Run the local Laya service and the delivered classification demo through PM.
-M1 adds the client and node capability, plus a new demonstration workflow.
-It does not require changing existing PM or coding-workflow manifests to use Laya.
+**After A05.** Run the normal LLM and the delivered classification demo through PM, with Laya absent.
+M1 adds the node capability and a new demonstration workflow.
+The retained A02 client does not require adoption or PM Laya wiring.
 Produce several real test reports in a host workspace.
-Let Laya select the relevant report from filenames and metadata, then classify its captured contents.
+Let the LLM select the relevant report from filenames and metadata, then classify its captured contents.
 Repeat with a fake filesystem and a changed report.
 
 Inspect both selection and classification receipts, the digest, INVALID handling, and destination.
@@ -29,9 +29,16 @@ Their existing model choices remain the default, and they run without the decisi
 
 A02 supplies a documented service command using the downloaded GGUF.
 A04 supplies an executable demo for both environments.
-A05 adds optional PM connection wiring and runs that demo through PM.
-No agent browsing is necessary on the normal Laya path.
+A05 wires the normal LLM and runs that demo through PM.
 Inspect a scoped coding-agent fallback for an oversized or ambiguous input.
+Verify required evidence through pm-coder compaction during long-file inspection.
+
+Optional Laya needs realistic live-endpoint unit tests before either selection or classification is enabled.
+Use simple, fact-based synthetic cases and captured application inputs when available.
+Compare the same inputs with the normal LLM.
+If Laya needs expensive tuning or integration work, leave it disabled.
+Its rejected candidate and deferred wiring do not fail M1.
+The [model policy](model-policy.md) defines these tests and immediate LLM repair requirements.
 
 ## M2: a continuous companion
 
@@ -44,6 +51,11 @@ The companion should remember what happened and respond in its established voice
 Its emotional behavior can evolve without an instant reset.
 Inspect startup/shutdown evidence and its reaction to the elapsed offline gap.
 It must not describe unexecuted activity during the stopped interval.
+Repeat C01's managed-run/public-reply regression and a real agent-backed note task.
+Inspect actual file contents and a useful public completion reply.
+Exercise delivery failure separately and inspect its recovery outcome.
+Repeat C02 with the same codeword before and after restart.
+Inspect actual retrieved evidence and reject unsupported claims that retained records were lost.
 
 Ask what it can currently perceive and do.
 Compare its answer with active configuration and available tools.

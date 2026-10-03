@@ -105,7 +105,9 @@ The first documentation shell reported a redirection error after MkDocs complete
 The captured subprocess repeat returned exit zero in `docs-before-repeat-command.json`.
 The log retains both the shell anomaly and the completed build.
 
-A01's completed note task still lacks its expected public reply.
+A01's completed control-worker run still lacks its expected public reply.
+Its artifacts do not establish an exact-content note or arbitrary instruction execution.
+The [baseline clarification](../../decisions/alpha-plan/baseline/receipts.md#worker-completion-and-actual-task-acceptance) separates run completion from actual task acceptance.
 The cheerful restart scenario still contains a false memory-loss claim despite equal restored records.
 The first A01 native foundation exit remains unexplained.
 A02 changes no cognitive stage or public-reply policy to conceal these gaps.

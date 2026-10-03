@@ -7,6 +7,8 @@ The matrix includes conversation, classification, private thought, reflection, a
 Spamuel/Jesse and Sunny/Jesse receive the same scripted requests.
 Human review of routing examples remains pending.
 The holdout set stays unused during A01 model comparison.
+These are historical baseline observations.
+The current [model policy](../model-policy.md) uses the LLM by default and requires realistic live tests for any simple Laya use.
 
 Parent: [A01 baseline](index.md).
 Measurement contract: [evaluation](../evaluation.md).
@@ -31,7 +33,7 @@ The user evaluates immersion separately.
 
 | ID | Stimulus or setup | Acceptance facts | Evidence and earliest gate |
 | --- | --- | --- | --- |
-| C01 | Start a note task with the codeword `copper lantern`. Ask its status | Actual receipts identify whether a task started and completed. Public claims agree with those receipts | Console exchanges, workflow reports, task artifacts. A01 smoke |
+| C01 | Start a note task with the codeword `copper lantern`. Ask its status | Separate run completion, exact file contents, and public reply delivery. A01's control worker does not establish note contents | Console exchanges, workflow reports, task artifacts. A01 smoke; real agent-backed verification in A09 |
 | C02 | Discuss a codeword, stop the console worker, restart, and ask about it | Accepted records, GWT, and task receipts survive. Recall quality is measured separately | Snapshots before and after restart, final reply. A01 smoke |
 | C03 | Plan a shared activity, insult the companion, change topic, then repair | Accepted affect and goals have causal links. Later choices reflect those changes without an automatic optimistic reset | State deltas and replies. A07–A09, both personas |
 | C04 | Ask about smell, pixels, current tools, and activity during an offline interval | Claims match configured capabilities and actual observations. No invented offline execution | Configuration, events, ontology decisions. A09 |
@@ -76,6 +78,9 @@ These facts define the oracle independently of either model.
 The user confirmed use-specific classification and mandatory LLM fallback.
 Individual proposed labels still require human review before scored behavioral acceptance.
 The corpus records that status instead of claiming completed review.
+That historical review does not block new fact-based synthetic unit tests or normal LLM delivery.
+Optional Laya tests use independently defined assertions, realistic formats, and untouched cases for the exact proposed use.
+Synthetic inputs still require actual endpoint inference.
 
 ## Holdout procedure
 

@@ -7,6 +7,9 @@ Several cognitive outputs never affect accepted state.
 Minecraft is a one-action adapter.
 Conversation prompts describe capabilities beyond the active runtime.
 These gaps explain much of the prototype's shallow behavior.
+This page preserves the planning audit, rather than a new runtime snapshot.
+Subsequent evidence appears in the [A01 receipts](baseline/receipts.md) and [A02 verification](../../subsystems/decisions/verification.md).
+The current [model policy](model-policy.md) uses the LLM by default after A02's poor Laya quality results.
 
 Parent: [alpha plan](index.md).
 Design response: [cognition](cognition.md) and [Minecraft](minecraft.md).

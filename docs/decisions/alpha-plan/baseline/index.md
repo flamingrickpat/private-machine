@@ -51,3 +51,5 @@ The engineering delivery includes the frozen snapshot, procedures, fixtures, and
 Human review of individual routing labels and immersion ratings remains an operator step.
 Later comparisons must use reviewed labels or report their pending review status.
 An unavailable service or failed gate cannot become a passing behavioral result.
+The current [model policy](../model-policy.md) permits new fact-based synthetic live tests without separate human-label approval.
+It retains this historical corpus and review status without making Laya adoption a prerequisite for alpha delivery.

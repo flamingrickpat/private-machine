@@ -148,19 +148,36 @@ Verify the installed distribution, rather than assuming that a sibling checkout 
 Do not present source review of an older PM generation as proof that its runtime works.
 Keep failed receipts visible until new real evidence establishes a repair.
 Separate durable state equality from correct retrieval, useful replies, emotional continuity, and immersion.
+Separate a completed workflow receipt from verified execution of the requested task.
+Inspect actual file contents or world effects before claiming task success.
 Record human review status without inventing ratings or treating a model's answer as a truth label.
 
 ## Decision capability
 
-Laya remains optional.
-Existing workflows retain their model choices until a specific workflow explicitly adopts classification.
+Use the normal LLM as the default for selection, classification, and interpretation.
+Laya was planned for frequent classification, but A02 found poor interpretation quality, including confidently wrong answers.
+Retain its technology for later use.
+Use Laya only for the simplest classifications after realistic live-endpoint unit tests establish that specific use.
+If making Laya work requires expensive effort, use the normal LLM and stop the experiment.
+Do not enforce a percentage of Laya usage or require adoption for an alpha item to pass.
+Read the [model policy](docs/decisions/alpha-plan/model-policy.md) before implementing classification or selecting a cognitive backend.
+
 Each classifier needs use-specific classes, descriptions, input limits, and an uncertainty policy.
-Always provide an INVALID route to an LLM fallback for missing, ambiguous, stale, oversized, or unusable evidence.
-Never force a guess to satisfy the desired fast-path percentage.
-Use real application reports for behavioral comparisons and preserve their input digests.
-Keep pending proposed labels separate from human-reviewed acceptance facts.
-Reserve a holdout before tuning prompts, labels, or thresholds.
-If tuning uses holdout results, reserve a new version before further acceptance.
+Always provide an INVALID route to a scoped LLM handler for missing, ambiguous, stale, oversized, or unusable evidence.
+Do not rely on confidence alone to catch wrong answers.
+Write unit tests that call the real endpoint with realistic synthetic inputs and independently defined expected results.
+Include captured application inputs when available, and preserve input digests.
+Synthetic inputs do not permit fixed model responses or simulated inference.
+Simple fact-based test assertions need no separate human-label approval.
+Keep human review for ambiguous interpretation and persona immersion.
+Preserve the historical A01 corpus, holdout, and their pending review status.
+Use untouched cases before enabling a specific optional classifier.
+
+The normal LLM path is a core requirement.
+Diagnose and repair direct Python failures or lost required context immediately.
+Preserve pm-coder's automatic compaction for accumulated agent execution history.
+Direct chat callers must select suitable task context or explicitly compact it while preserving necessary evidence.
+Do not treat Laya's decision-head limits as limits on chat or pm-coder.
 
 ## Comments and docstrings for human maintainers
 

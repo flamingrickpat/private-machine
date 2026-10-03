@@ -27,10 +27,25 @@ from workflow_adapter import PROJECT_ROOT
 def wait_for(predicate):
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
-        if predicate():
-            return
+        result = predicate()
+        if result:
+            return result
         time.sleep(0.01)
     raise AssertionError("The worker did not reach its expected boundary.")
+
+
+def readable_report(path):
+    """Wait for readable publication, including transient Windows file locks.
+
+    File existence alone cannot establish that a concurrent rename released
+    its handle. Invalid YAML still raises, and the caller's deadline bounds
+    the wait for an absent or inaccessible report.
+    """
+    try:
+        text = path.read_text()
+    except (FileNotFoundError, PermissionError):
+        return None
+    return yaml.safe_load(text)
 
 
 class ReconciliationTests(unittest.TestCase):
@@ -167,8 +182,7 @@ class ReconciliationTests(unittest.TestCase):
         root = Path(run["artifact_path"])
         wait_for(lambda: (root / "outbox/world.yaml").exists())
         supervisor.update(run["run_id"], "only observe the world", request_id="new-goal")
-        wait_for(lambda: (root / "outbox/report.yaml").exists())
-        report = yaml.safe_load((root / "outbox/report.yaml").read_text())
+        report = wait_for(lambda: readable_report(root / "outbox/report.yaml"))
         self.assertEqual(report["goal"], "only observe the world")
         self.assertEqual(report["action"]["tool"], "minecraft_observe")
         self.assertIn("only observe the world", prompts[-1]["content"])

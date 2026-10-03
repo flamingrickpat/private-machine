@@ -49,7 +49,9 @@ nav:
       - Cognition: subsystems/cognition.md
       - Operator service: subsystems/console.md
       - Ghost and bus: ghost.md
-      - Models: models.md
+      - Models:
+          - Connections and embeddings: models.md
+          - Python chat and agent context: subsystems/llm-context.md
       - Optional typed decisions:
           - Client boundary: subsystems/decisions/index.md
           - Local deployment: subsystems/decisions/operation.md
@@ -61,13 +63,14 @@ nav:
       - Plan and implementation: decisions/plan.md
       - Companion alpha plan:
           - Overview and order: decisions/alpha-plan/index.md
+          - Model selection and reliability: decisions/alpha-plan/model-policy.md
           - Current implementation audit: decisions/alpha-plan/current-state.md
           - Previous PM attempts: decisions/alpha-plan/previous-attempts.md
           - Cognitive architecture: decisions/alpha-plan/cognition.md
           - Private ontology and expression: decisions/alpha-plan/ontology.md
           - Second conscious loop: decisions/alpha-plan/private-loop.md
           - Self-model and reflection: decisions/alpha-plan/reflection.md
-          - Laya and workflow inputs: decisions/alpha-plan/decisions.md
+          - Models and workflow inputs: decisions/alpha-plan/decisions.md
           - Classification inputs and INVALID: decisions/alpha-plan/workflow-inputs.md
           - Minecraft architecture: decisions/alpha-plan/minecraft.md
           - Minecraft body operation: decisions/alpha-plan/minecraft-operations.md

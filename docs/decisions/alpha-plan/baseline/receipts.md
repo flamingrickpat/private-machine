@@ -4,7 +4,7 @@
 
 These receipts identify the captured implementation and observed gates on 2026-10-03.
 The real-server Minecraft gate passed.
-A task request completed its work but produced no public reply.
+A managed worker reported completion but produced no public reply.
 The current LLM comparison matched the proposed development labels.
 Historical acceptance and current runtime evidence remain separate.
 
@@ -49,7 +49,7 @@ A01 does not upgrade a dependency or execute an older PM runtime.
 | Strict documentation before A01 | Passed in 28.81 seconds | `docs-before.log` |
 | Root foundation, first uninterrupted attempt | Native process exit `0xC0000005`. No test assertion or final count | `foundation.log`. Diagnostic repeat recorded separately |
 | Root foundation, diagnostic repeat | Passed: 257 tests in 428.110 seconds. Count change from planning: zero | `foundation-verbose.log` |
-| Real console task request | Failed: no public reply within 600 seconds. The note task completed | `console-spamuel/receipt.json`, worker checkpoint, and trace |
+| Real console task request | Failed: no public reply within 600 seconds. The managed worker reported completion | `console-spamuel/receipt.json`, worker checkpoint, and trace |
 | Short console conversation and restart | Passed: three exchanges per persona. Memory, GWT, and run receipts matched across restart | `console-spamuel-dialogue/` and `console-cheerful/` |
 | Behavioral recall after restart | Sunny claimed that earlier memory was lost despite identical restored records | Final cheerful-persona reply and both snapshots |
 | Strict documentation after A01 | Passed. Final build duration appears in the machine receipt | `docs-final.log` |
@@ -87,10 +87,23 @@ Two later cognitive cycles treated run telemetry as background activity and sele
 The console therefore retained a pending exchange without a `chat.reply` event.
 
 This is a behavioral gap in the current action/reply path.
-It is not an unavailable endpoint or a failed note-writing action.
+It is not an unavailable endpoint or a failed managed-worker execution.
 A09 must address useful public response and recovery.
 Dependent conversation acceptance must retain this case and its failure evidence.
 A01 does not patch the cognitive path to make its baseline pass.
+
+### Worker completion and actual task acceptance
+
+The completed receipt establishes that the `local_task` control worker finished.
+Its Python role writes the instruction, observations, a result summary, and `outbox/report.yaml`.
+It never invokes a coding model or interprets arbitrary instructions to create a requested note.
+The captured report repeats the instruction and contains an empty `answer` field.
+These artifacts do not establish a note containing exactly `copper lantern`.
+
+The earlier description of a completed note was too strong.
+Retain C01 as a managed-run/public-reply regression.
+A repaired task-success scenario must also use a real agent-backed note task and inspect its actual output bytes.
+Run completion, task acceptance, and public reply delivery require separate evidence.
 
 ## Minecraft evidence
 

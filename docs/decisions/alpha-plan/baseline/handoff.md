@@ -6,6 +6,8 @@ Each later session identifies its source snapshot, changed contracts, commands, 
 Behavioral claims require real endpoint receipts and reviewed acceptance facts.
 Source review establishes implementation evidence only.
 The frozen A01 matrix remains the starting comparison.
+This page retains the historical A01 handoff contract.
+The current [model policy](../model-policy.md) supersedes its earlier Laya adoption assumptions.
 
 Parent: [A01 baseline](index.md).
 Procedure: [local commands](commands.md).
@@ -78,10 +80,12 @@ The command output directories must be new descendants of `.runtime`.
 The real-server reset requires `--reset-world` and rejects removal targets outside the selected server directory.
 The routing fixtures record pending human review and separate development from holdout.
 
-## Next item
+## Historical next item after A01
 
 A02 must verify typed Laya inference and expose the public pm-coder client.
 The current service advertises `laya` on port 8082.
 Service discovery is not an inference result.
 Existing workflows remain usable without the decision service.
 Future A04 comparisons need reviewed case facts and recorded input limits.
+Current A04 uses the LLM by default.
+New simple Laya uses need realistic live-endpoint unit tests, rather than mandatory review of every old example.

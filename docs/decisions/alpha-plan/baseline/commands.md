@@ -14,7 +14,7 @@ Results: [receipts](receipts.md).
 
 1. Open PowerShell in `C:/source/pm/pm_next_v2`.
 2. Run `uv sync --locked`.
-3. Start chat, embeddings, and Laya on their configured ports.
+3. Start chat and embeddings on their configured ports.
 4. Use `config.alpha.example.yaml` for the local A01 configuration.
 
 | Service | Endpoint | Observed identity |
@@ -30,6 +30,9 @@ Results: [receipts](receipts.md).
 The default `config.example.yaml` still describes a remote embedding connection.
 The A01 configuration selects the user's local embedding service without changing existing defaults.
 The decision endpoint follows the [llama.cpp decision-model article](https://huggingface.co/blog/ggml-org/decision-models-in-llamacpp).
+Start Laya separately only for its explicit client or candidate tests.
+Normal LLM workflows do not require that service.
+The [model policy](../model-policy.md) governs optional adoption after A02's quality results.
 A02 supplies the public client and actual typed inference checks.
 A01 service discovery does not establish Laya classification quality.
 The running Laya service uses `C:/workspace/llama-systemone-b11374/llama-server.exe`, build 11374, revision `b92761a51`.
@@ -90,7 +93,8 @@ The automated smoke covers the HTTP/worker path.
 A01 records no new browser usability or human immersion verdict.
 
 For the separate task-request scenario, append `--request-task` to the smoke command.
-The first A01 task-request run completed its note task but produced no public reply within 600 seconds.
+The first A01 task-request run recorded a completed control worker but produced no public reply within 600 seconds.
+That worker's artifacts do not verify the requested note contents.
 Its failed receipt remains part of the baseline.
 
 ## Current LLM comparison
