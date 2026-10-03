@@ -7,7 +7,7 @@ nav = mkdocs_gen_files.Nav()
 roots = [Path(name) for name in ("bus", "console", "pm_core", "runtime", "workflows")]
 paths = [p for root in roots for p in root.rglob("*.py")]
 paths += [Path(name) for name in ("main.py", "modules.py", "workflow_adapter.py", "working_target.py", "ghost_mcp.py")]
-paths += [Path("scripts/alpha_input_gate.py"), Path("scripts/alpha_classification_gate.py")]
+paths += [Path("scripts/alpha_input_gate.py"), Path("scripts/alpha_classification_gate.py"), Path("scripts/alpha_pm_classification_gate.py")]
 for path in sorted(paths):
     if "tests" in path.parts or any(part.startswith("_") for part in path.parts):
         continue

@@ -11,7 +11,8 @@ Related: [recovery and context](classification-recovery.md), [A03 evidence](veri
 
 ## Packages and activation
 
-The root pins pm-workflows 0.7.0 at `823b06abf69506ef8e9dc4989065b9f60894fff6`.
+A04 pinned pm-workflows 0.7.0 at `823b06abf69506ef8e9dc4989065b9f60894fff6`.
+The [A05 verification](pm-verification.md) records the current PM integration and package pin.
 Its pm-coder pin remains `ac8327baf669dad54ea9f91580f2bed1023825b4`.
 The coder implementation and compaction mechanism did not change.
 The workflow adapter now enforces its configured bound-session deadline.
@@ -141,4 +142,5 @@ Oversized initial agent instructions remain INVALID because compaction needs gen
 
 A04 does not establish the original requested note, repair public replies, or verify memory claims.
 C01 and C02 remain open for A08/A09.
-A05 through A20 remain pending.
+A05 through A20 were pending at A04 delivery.
+The [A05 verification](pm-verification.md) records the later PM wiring.

@@ -24,6 +24,7 @@ from pm_workflows.runtime import AgentModel, WorkflowRuntime
 from bus.envelopes import Envelope, _new_id
 from runtime.mcp_services import serve_services
 from runtime.shell import ShellModule
+from runtime.workflow_models import WorkflowModels
 from runtime.workflow_runner import (
     PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus,
 )
@@ -52,6 +53,7 @@ class ShellModuleWorkflow(ShellModule):
         batch_provider: Callable[[], Any] | None = None,
         mcp_services_factory: Callable[[Any], Mapping[str, FastMCP]] | None = None,
         child_factory: Callable[[str], WorkflowRuntime] | None = None,
+        workflow_models: WorkflowModels | None = None,
     ) -> None:
         super().__init__(module_id, bus, on_error, clock, tick_seconds)
         self.working_target = working_target
@@ -63,6 +65,7 @@ class ShellModuleWorkflow(ShellModule):
         self.batch_provider = batch_provider
         self.mcp_services_factory = mcp_services_factory
         self.child_factory = child_factory
+        self.workflow_models = workflow_models
         # The active run's cancellation signal. Distinct from ``stop_event``
         # so a single run can be cancelled without stopping the module.
         self.run_stop = threading.Event()
@@ -213,6 +216,7 @@ class ShellModuleWorkflow(ShellModule):
         return WorkflowRunner(
             self.workflow, self.runtime_root, namespace=self.module_id,
             success_status=self.success_status,
+            models=self.workflow_models,
         )
 
     @staticmethod

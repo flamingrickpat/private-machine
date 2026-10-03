@@ -4,6 +4,7 @@
 
 The model runtime provides connections, explicit activation, direct chat calls, and one embedding service.
 The terminal uses these connections for real dialogue and cognitive workflows.
+The [PM classification provider](subsystems/workflow-inputs/pm-connections.md) reuses chat presets with lazy activation and an explicit serving bound.
 
 The separate [typed decision client](subsystems/decisions/index.md) is available through pm-coder.
 A02 verifies its API without changing existing workflow model choices.
@@ -46,6 +47,7 @@ Config parsing and connection resolution make no network requests.
 | `runtime/models.py` | Config, presets, credential resolution, redaction |
 | `runtime/model_io.py` | Shared HTTP requests, retries, cancellation |
 | `runtime/model_activation.py` | Finite scripts, readiness, active calls, chat responses |
+| `runtime/workflow_models.py` | Lazy classification sessions, serving context, and redacted service receipts |
 | `pm_core/embeddings.py` | Legacy reads, new cache writes, scoped preparation, cosine search |
 
 These files contain no character policy or cognitive routing.

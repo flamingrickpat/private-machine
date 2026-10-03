@@ -40,6 +40,7 @@ nav:
       - Development loop: workflows/development.md
       - One exchange: workflows/exchange.md
       - Memory experiment: workflows/memory.md
+      - Artifact classification demo: workflows/classification-demo.md
       - Minecraft run: workflows/minecraft.md
       - Minecraft evidence and cleanup: workflows/minecraft-evidence.md
   - Concepts:
@@ -66,6 +67,9 @@ nav:
           - Classification contract: subsystems/workflow-inputs/classification.md
           - Classification recovery and context: subsystems/workflow-inputs/classification-recovery.md
           - A04 verification: subsystems/workflow-inputs/classification-verification.md
+          - PM classification connections: subsystems/workflow-inputs/pm-connections.md
+          - A05 verification: subsystems/workflow-inputs/pm-verification.md
+          - PM classification diagnosis: subsystems/workflow-inputs/pm-failures.md
       - Managed work: subsystems/managed-work.md
   - Decisions:
       - Plan and implementation: decisions/plan.md
@@ -98,7 +102,7 @@ nav:
               - A02 Public pm-coder decision client: decisions/alpha-plan/work-items/a02.md
               - A03 Files and folder metadata: decisions/alpha-plan/work-items/a03.md
               - A04 Classification and INVALID: decisions/alpha-plan/work-items/a04.md
-              - A05 Optional decisions and evaluation: decisions/alpha-plan/work-items/a05.md
+              - A05 PM classification wiring: decisions/alpha-plan/work-items/a05.md
               - A06 Accepted affect and goals: decisions/alpha-plan/work-items/a06.md
               - A07 Emotional dynamics: decisions/alpha-plan/work-items/a07.md
               - A08 Experienced memory: decisions/alpha-plan/work-items/a08.md

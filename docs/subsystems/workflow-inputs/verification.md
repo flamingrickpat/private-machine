@@ -105,7 +105,7 @@ This result does not establish that the original worker wrote the requested note
 8. Open the pm-coder session messages and verify the actual file-tool call.
 
 A03 delivered `pm-workflows` 0.6.0 at `95f2842d0e14a2a2c70c41514e0e36055cac73e4`.
-The [A04 delivery](classification-verification.md) updates the active pin.
+The [A05 delivery](pm-verification.md) records the current application pin after A04 classification.
 The root constraint and lock select that exact commit.
 pm-coder remains pinned to `ac8327baf669dad54ea9f91580f2bed1023825b4`.
 No sibling coder implementation or model deployment changes occurred.

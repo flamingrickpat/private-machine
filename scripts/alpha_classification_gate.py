@@ -158,6 +158,20 @@ def response_recorder(model: AgentModel, out: Path):
         def log_message(self, *args):
             pass
 
+        def do_GET(self):
+            # PM's lazy activation discovers the model through the same relay.
+            # Forward discovery unchanged. Only POST results contain inference.
+            headers = {}
+            if self.headers.get("Authorization"):
+                headers["Authorization"] = self.headers["Authorization"]
+            with httpx.Client(timeout=120) as client:
+                response = client.get(model.base_url.removesuffix("/v1") + self.path, headers=headers)
+            self.send_response(response.status_code)
+            self.send_header("Content-Type", response.headers.get("Content-Type", "application/json"))
+            self.send_header("Content-Length", str(len(response.content)))
+            self.end_headers()
+            self.wfile.write(response.content)
+
         def do_POST(self):
             nonlocal sequence
             raw = self.rfile.read(int(self.headers["Content-Length"]))

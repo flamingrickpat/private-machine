@@ -7,6 +7,7 @@ The kernel captures files, folder metadata, request fields, literal data, and na
 Receipts retain exact values and version evidence.
 A04 supplies [folder selection, classification, and INVALID recovery](classification.md).
 The normal LLM remains the default.
+A05 supplies [PM connections](pm-connections.md), the [demonstration](../../workflows/classification-demo.md), and [M1 verification](pm-verification.md).
 
 Parent: [workflow runtime](../../runtime.md).
 Delivery: [A03](../../decisions/alpha-plan/work-items/a03.md).

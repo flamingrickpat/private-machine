@@ -3,7 +3,7 @@ name = "pm-next-v2"
 version = "0.10.1"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "pm-workflows>=0.7.0",
+    "pm-workflows>=0.7.1",
     "pm-coder>=0.10.0",
     "pydantic>=2.9,<3",
     "PyYAML>=6,<7",
@@ -12,5 +12,5 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-pm-workflows = { git = "https://github.com/flamingrickpat/pm-workflows.git", rev = "823b06abf69506ef8e9dc4989065b9f60894fff6" }
+pm-workflows = { git = "https://github.com/flamingrickpat/pm-workflows.git", rev = "7c9fab4381ef77ef3f63ee9ef669a993c8df7452" }
 pm-coder = { git = "https://github.com/flamingrickpat/pm-coder.git", rev = "ac8327baf669dad54ea9f91580f2bed1023825b4" }

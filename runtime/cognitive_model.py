@@ -75,8 +75,11 @@ class LazyStageModel:
     def ensure_client(self) -> ChatClient:
         """Activate and cache the client. Safe to call from a module thread."""
         with self._lock:
-            if self._client is None:
+            # Classification can already own this same ready connection.
+            # Reuse it so the first cognitive call does not request a switch.
+            if not self.owner.is_ready(self.connection):
                 asyncio.run(self.owner.activate(self.connection, live_test=self.live_test))
+            if self._client is None:
                 self._client = ChatClient(self.connection, self.owner, live_test=self.live_test)
             return self._client
 

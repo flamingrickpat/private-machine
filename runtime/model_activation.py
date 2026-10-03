@@ -59,6 +59,11 @@ class ModelActivation:
         self._switching = False
         self._ready: dict[str, str] = {}
 
+    def is_ready(self, connection: Connection) -> bool:
+        """Return whether this owner admits calls for the resolved alias."""
+        with self._lock:
+            return not self._switching and self._ready.get(connection.base_url) == connection.model
+
     async def activate(self, connection: Connection, *, cancel: Event | None = None, live_test: bool = False):
         with self._lock:
             if self._active_calls or self._switching:

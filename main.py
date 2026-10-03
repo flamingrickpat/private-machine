@@ -35,8 +35,9 @@ from runtime.consolidation import Consolidator
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.shell import Application
 from runtime.steward import Steward
+from runtime.workflow_models import WorkflowModels
 from working_target import GhostBashWrapper
-from workflow_adapter import PROJECT_ROOT
+from workflow_adapter import PROJECT_ROOT, ShellModuleWorkflow
 
 BANNER = "DUMMY COGNITION \u2014 no LLM calls\n"
 REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
@@ -148,7 +149,14 @@ def build_app(
     cognition: str = "dummy",
     stage_model=None,
     config_path: str | None = None,
+    workflow_models: WorkflowModels | None = None,
 ) -> Application:
+    """Construct an application without service activation.
+
+    Real cognition shares its activation owner with lazy workflow classification.
+    A custom stage model can supply ``workflow_models`` explicitly. The caller
+    owns application execution, shutdown, and its separate checkpoint path.
+    """
     if cognition not in {"real", "dummy"}:
         raise ValueError("cognition must be 'real' or 'dummy'.")
     if ghost is not None and checkpoint_path is not None:
@@ -159,9 +167,11 @@ def build_app(
         from runtime.model_activation import ModelActivation
         from runtime.models import load_config, resolve_connection
 
-        stage_model = LazyStageModel(
-            resolve_connection(load_config(resolved_config)), ModelActivation(),
-        )
+        model_config = load_config(resolved_config)
+        model_owner = ModelActivation()
+        stage_model = LazyStageModel(resolve_connection(model_config), model_owner)
+        if workflow_models is None:
+            workflow_models = WorkflowModels(model_config, model_owner)
 
     if ghost is None:
         checkpoint = Path(checkpoint_path) if checkpoint_path is not None else None
@@ -185,6 +195,7 @@ def build_app(
         clock=clock,
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,
+        workflow_models=workflow_models,
     )
 
     def _on_terminal(receipt):
@@ -259,6 +270,8 @@ def build_app(
     if steward_module is not None:
         modules.append(steward_module)
     for module in modules:
+        if isinstance(module, ShellModuleWorkflow):
+            module.workflow_models = workflow_models
         bus.subscribe(module.module_id, module.accepts, module.deliver)
     app.modules = modules
 
@@ -278,6 +291,7 @@ def build_app(
     app.supervisor = supervisor
     app.consolidator = consolidator
     app.steward = steward
+    app.workflow_models = workflow_models
     return app
 
 

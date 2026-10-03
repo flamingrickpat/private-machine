@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import time
 from typing import Any
+from runtime.workflow_models import WorkflowModels
 
 import yaml
 from pm_workflows.kernel import Kernel
@@ -54,6 +55,8 @@ class WorkflowRunner:
 
     Construction starts no work. Each invocation uses the supplied environment
     and cancellation signal. The caller owns their lifetime and unique run ID.
+    Optional ``models`` supplies lazy classification sessions. Ordinary roles
+    retain their connections and create no classification service receipts.
     """
 
     def __init__(
@@ -65,6 +68,7 @@ class WorkflowRunner:
         base_dir: Path = PROJECT_ROOT,
         success_status: str = "done",
         state_lock_attempts: int = 5,
+        models: WorkflowModels | None = None,
     ) -> None:
         self.workflow = Path(workflow)
         self.runtime_root = Path(runtime_root)
@@ -72,6 +76,7 @@ class WorkflowRunner:
         self.base_dir = Path(base_dir)
         self.success_status = success_status
         self.state_lock_attempts = max(1, state_lock_attempts)
+        self.models = models
 
     def invoke(
         self, request: WorkflowRequest, runtime: WorkflowRuntime, *, resume: bool = False,
@@ -90,6 +95,8 @@ class WorkflowRunner:
         so a bounded retry resumes from the journal instead of repeating a
         completed phase or an external effect.
         """
+        if self.models is not None:
+            runtime = self.models.bind(runtime, self.runtime_root / "kernel" / request.run_id / "model-sessions.jsonl")
         environment = runtime.environment
         if not runtime.stop_event.is_set():
             environment.write_text(

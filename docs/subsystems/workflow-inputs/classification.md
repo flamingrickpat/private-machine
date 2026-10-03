@@ -6,7 +6,7 @@
 The normal LLM performs bounded selection and classification.
 INVALID sends unusable evidence or responses to a dedicated coding-agent handler.
 Existing workflows keep their original manifests and connections.
-A05 owns automatic PM connection wiring.
+A05 supplies [lazy PM connection wiring](pm-connections.md) and a [demonstration workflow](../../workflows/classification-demo.md).
 
 Parent: [scoped inputs](index.md).
 Details: [recovery and context](classification-recovery.md) and [verification](classification-verification.md).
@@ -106,6 +106,10 @@ The selected entry contains endpoint, model, credentials, serving context, and d
 Recovery uses the separate `agent_model` connection.
 A missing classification connection produces `missing_connection`; the engine does not silently select another endpoint.
 Ordinary workflows need no new mapping.
+
+PM installs the optional `classification_session` callback for lazy service ownership.
+Explicit connections retain their existing path.
+The [connection guide](pm-connections.md) defines activation, context discovery, child inheritance, and service receipts.
 
 ## Receipts and debugger output
 

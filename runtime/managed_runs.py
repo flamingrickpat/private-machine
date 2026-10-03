@@ -29,6 +29,7 @@ from runtime.workflow_runner import (
     WorkflowStatus,
 )
 from working_target import FolderEnvironment
+from runtime.workflow_models import WorkflowModels
 
 STATES = frozenset({
     "accepted", "running", "waiting_for_input", "completed", "failed",
@@ -127,6 +128,7 @@ class ManagedRunSupervisor:
         on_error: Callable[[BaseException], None] | None = None,
         on_terminal: Callable[[dict], None] | None = None,
         worker_tools: Callable[[str], Mapping[str, Callable]] | None = None,
+        workflow_models: WorkflowModels | None = None,
     ) -> None:
         self.ghost = ghost
         self.runtime_root = Path(runtime_root)
@@ -139,6 +141,7 @@ class ManagedRunSupervisor:
         self.on_error = on_error
         self.on_terminal = on_terminal
         self.worker_tools = worker_tools
+        self.workflow_models = workflow_models
         self._lock = threading.RLock()
         self._updates = threading.Condition(self._lock)
         self._cancels: dict[str, threading.Event] = {}
@@ -311,6 +314,7 @@ class ManagedRunSupervisor:
                 self.runtime_root,
                 namespace=spec.namespace or receipt.workflow_name,
                 base_dir=self.base_dir,
+                models=self.workflow_models,
             )
             if resume:
                 runner.write_answer(

@@ -291,6 +291,9 @@ class LazyModelTests(unittest.TestCase):
             def __init__(self):
                 self.activations = 0
 
+            def is_ready(self, connection):
+                return self.activations > 0
+
             async def activate(self, connection, *, live_test=False):
                 self.activations += 1
 

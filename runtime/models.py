@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt, field_validator, model_validator
 
 
 class LlmPreset(StrEnum):
@@ -27,6 +27,9 @@ class Connection(BaseModel):
     model: str = Field(min_length=1)
     api_key: SecretStr = SecretStr("")
     startup_script: Path | None = None
+    # Remote services can omit serving limits. This optional bound applies
+    # only to workflow classification and its isolated recovery agent.
+    context_window: StrictInt | None = Field(default=None, gt=0)
 
     @field_validator("base_url")
     @classmethod
@@ -61,7 +64,8 @@ class ConnectionConfig(Connection):
             if not value:
                 raise ValueError(f"Set the credential environment variable {self.api_key_env}.")
             key = SecretStr(value)
-        return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script)
+        return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script,
+                          context_window=self.context_window)
 
 
 class EmbeddingConfig(ConnectionConfig):
