@@ -68,9 +68,9 @@ Verify the active identities before each live run.
 | Component | Real location or endpoint | Identity |
 | --- | --- | --- |
 | Main repository | `C:/source/pm/pm_next_v2` | Python 3.12, `uv`, Git |
-| Local model configuration | `config.alpha.example.yaml` | Local chat and embeddings, no credentials |
+| Local model configuration | `config.alpha.example.yaml` | Local chat, OpenRouter embeddings, environment credential reference |
 | Chat and comparison LLM | `http://127.0.0.1:8080/v1` | Alias `qwen` |
-| Embeddings | `http://127.0.0.1:8081/v1` | `pplx-embed-v1-0.6b`, 1024 dimensions |
+| Embeddings | `https://openrouter.ai/api/v1` | `perplexity/pplx-embed-v1-0.6b`, 1024 dimensions, `OPENROUTER_API_KEY` |
 | Decisions | `http://127.0.0.1:8082/v1/systemone` | Alias `laya` |
 | Decision server binary | `C:/workspace/llama-systemone-b11374/llama-server.exe` | Build 11374, revision `b92761a51` |
 | Decision model | `C:/source/ai/Laya-BF16.gguf` | Laya BF16 |
@@ -81,9 +81,10 @@ Verify the active identities before each live run.
 | MCP repository | `C:/source/pm/pm-minecraft` | Real-server environment: `.env_real` |
 | Normal console | `http://127.0.0.1:8090` | Separate instance checkpoints |
 
-`config.example.yaml` still describes remote embeddings through OpenRouter.
-Select `config.alpha.example.yaml` explicitly for this machine's local services.
-The older `C:/workspace/llama13/` binary serves chat and embeddings.
+Both example configurations use OpenRouter embeddings.
+Select `config.alpha.example.yaml` explicitly for local chat with OpenRouter embeddings.
+The older `C:/workspace/llama13/` binary serves chat.
+The unused local embedding endpoint on 8081 has a recorded invalid-vector defect.
 Use the decision-capable binary listed above for Laya.
 Do not launch a second decision server on a port that the console smoke uses.
 

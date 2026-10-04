@@ -85,6 +85,20 @@ class ContextResult(BaseModel):
     active_goals: list[str] = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
     candidate_ids: list[int] = Field(default_factory=list)
+    belief_updates: list["BeliefUpdate"] = Field(default_factory=list)
+
+
+class BeliefUpdate(BaseModel):
+    """One reported user claim, copied from original evidence.
+
+    A correction replaces beliefs with the same scoped key. The runtime keeps
+    the prior beliefs and rejects quotes from generated or imagined sources.
+    """
+
+    source_id: int
+    quote: str = Field(min_length=1)
+    belief_key: str = Field(min_length=1)
+    correction: bool = False
 
 
 class AttentionNomination(BaseModel):
@@ -141,6 +155,16 @@ class ActionSelectionResult(BaseModel):
 class MemoryCandidate(BaseModel):
     knoxel_id: int
     text: str = ""
+    revision: int = 1
+    memory_kind: str = "attributed_record"
+    scope: dict = Field(default_factory=dict)
+    provenance: dict | None = None
+    source_ids: list[int] = Field(default_factory=list)
+    timestamp: str | None = None
+    historical: bool = False
+    score: float = 0.0
+    reasons: list[str] = Field(default_factory=list)
+    deception_intent_id: int | None = None
 
 
 class WorkflowOption(BaseModel):
@@ -160,6 +184,7 @@ class CognitiveRequest(BaseModel):
     active_goals: list[str] = Field(default_factory=list)
     stimuli: list[Stimulus] = Field(default_factory=list)
     memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
+    memory_trace: dict = Field(default_factory=dict)
     capabilities: list[str] = Field(default_factory=list)
     available_workflows: list[WorkflowOption] = Field(default_factory=list)
 
@@ -185,6 +210,9 @@ class CognitiveReport(BaseModel):
     affect_trace: dict = Field(default_factory=dict)
     affect_summary: str = ""
     regulation: str = ""
+    selected_memories: list[MemoryCandidate] = Field(default_factory=list)
+    memory_trace: dict = Field(default_factory=dict)
+    belief_updates: list[BeliefUpdate] = Field(default_factory=list)
 
 
 __all__ = [
@@ -192,6 +220,7 @@ __all__ = [
     "ActionIntent",
     "ActionSelectionResult",
     "AppraisalResult",
+    "BeliefUpdate",
     "AttentionNomination",
     "AttentionResult",
     "CognitiveReport",

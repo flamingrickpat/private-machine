@@ -56,6 +56,7 @@ def build_stage_runner(
     llm_complete: Callable[..., str],
     runtime_root: Path,
     run_id: str | None = None,
+    read_environment=None,
 ) -> Callable[[str, dict], dict]:
     """Return ``run_stage(name, payload)`` bound to one run's model tool.
 
@@ -66,7 +67,8 @@ def build_stage_runner(
 
     def run_stage(name: str, payload: dict) -> dict:
         stage_run_id = f"{run_id}-{name}" if run_id else f"{name}-{uuid4().hex[:12]}"
-        environment = make_environment(ghost)
+        environment = (GhostBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
+                       if read_environment is not None else make_environment(ghost))
         runtime = WorkflowRuntime(
             environment=environment,
             stop_event=threading.Event(),

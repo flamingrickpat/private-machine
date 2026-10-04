@@ -67,6 +67,7 @@ class GhostWriteBatch:
         self._runs: dict[str, dict] = {}
         self._initial_consolidations = deepcopy(ghost.consolidations)
         self._consolidations: dict[str, dict] = {}
+        self._consolidation_run_guards: set[str] = set()
         self._gwt: GwtTurnRecord | None = None
         self._cycle: CycleState | None = None
         self._closed = False
@@ -114,7 +115,16 @@ class GhostWriteBatch:
                 or raw["data"]["tick_id"] != previous["data"]["tick_id"]):
             raise ValueError("Replacement cannot change a knoxel's class, visibility scope, or creation tick.")
         self._replacements[knoxel.id] = raw
-        self._expected[knoxel.id] = self._snapshot.revisions[knoxel.id]
+        # A retrieved revision can predate this write batch. Keep its earlier
+        # read guard even when a later proposal also replaces the record.
+        self._expected.setdefault(knoxel.id, self._snapshot.revisions[knoxel.id])
+
+    def expect_revision(self, record_id: int, revision: int) -> None:
+        """Reject the whole commit if retrieved evidence changed after its read."""
+        self.check_cancelled()
+        if record_id not in self._snapshot.revisions:
+            raise ValueError("The evidence is outside the batch view.")
+        self._expected[record_id] = revision
 
     def set_gwt(self, record: GwtTurnRecord, cycle: CycleState | None = None) -> None:
         self.check_cancelled()
@@ -133,6 +143,10 @@ class GhostWriteBatch:
         """Stage one consolidation receipt. Repeated keys reuse accepted state."""
         self.check_cancelled()
         self._consolidations[key] = deepcopy(receipt)
+
+    def guard_consolidation_run(self, run_id: str) -> None:
+        """Require the run's artifact ledger to stay unchanged until commit."""
+        self._consolidation_run_guards.add(run_id)
 
     def discard(self) -> None:
         self._closed = True

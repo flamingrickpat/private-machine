@@ -46,12 +46,14 @@ Real internal thought remains disabled.
 
 ## Traps
 
-Context re-ranks supplied candidates.
-The main cognitive candidate list does not yet perform embedding retrieval.
+Context selects supplied evidence from the scoped semantic and episodic retrieval pool.
+The accepted action and dialogue receive the same selected records and original IDs.
 A scheduled action does not prove that an external task succeeded.
 Parent workflow timings include child timings.
 
 ## Go deeper
+
+Read [experienced memory](experienced-memory.md) for retrieval, attribution, and source constraints.
 
 Read [emotional dynamics](emotional-dynamics.md) for the bounded affect step.
 Read [accepted cognition state](cognition-state.md) for affect, goals, and
@@ -60,4 +62,3 @@ Read [A06 verification](cognition-state-verification.md) for the real state
 receipts.
 Read [one exchange](../workflows/exchange.md), [managed work](managed-work.md),
 and [next experiments](../decisions/experiments.md).
-

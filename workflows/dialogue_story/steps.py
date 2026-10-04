@@ -99,6 +99,9 @@ def build_story_messages(request: StoryRequest, prompts: dict) -> list[dict]:
         _bullets(prompts["feelings_title"], request.feelings),
         _bullets(prompts["memories_title"], request.memories),
         _bullets(prompts["workspace_title"], [request.workspace]),
+        # Keep the accepted action when a user stimulus supplies the last line.
+        # Otherwise, Story loses the decision that selected these memories.
+        _bullets("Selected action", [request.selected_action]),
         f"{user} says: \"{request.current_user_message}\"",
     ]
     current = "\n\n".join(part for part in context_parts if part)

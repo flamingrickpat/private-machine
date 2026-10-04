@@ -7,6 +7,7 @@ never LLM output.
 from __future__ import annotations
 
 from pathlib import Path
+import asyncio
 from datetime import datetime
 from threading import RLock
 
@@ -18,6 +19,7 @@ from pm_core.model.knoxel_core import Provenance
 from pm_core.model.knoxel_enums import ActionType, FeatureType, InterlocusType, SourceKind
 from pm_core.model.knoxel_state_change import AttentionFrameKnoxel
 from pm_core.model.mental_state_vectors import FullMentalState, create_empty_state
+from runtime.experience import consolidate_cycle, update_beliefs, utterance_metadata
 
 from bus.envelopes import Envelope, _new_id
 from runtime.shell import ShellModule
@@ -129,8 +131,17 @@ def _feature(ghost, content, feature_type, *, source, interlocus=None, causal=Tr
         kwargs["interlocus"] = interlocus
     if source_kind is not None:
         kwargs["provenance"] = Provenance(source_kind=source_kind, source_ref=str(source))
+    elif feature_type == FeatureType.Dialogue:
+        kind = SourceKind.User if source == ghost.get_user_name() else SourceKind.Self
+        kwargs["provenance"] = Provenance(source_kind=kind, source_ref=str(source))
+    kwargs["metadata"] = {
+        "memory_kind": ("utterance" if feature_type == FeatureType.Dialogue else
+                        "speculation" if feature_type in {FeatureType.Thought, FeatureType.InnerMonologue} else
+                        "executed_event"),
+        "executed_at": datetime.utcnow().isoformat(),
+    }
     if metadata:
-        kwargs["metadata"] = dict(metadata)
+        kwargs["metadata"].update(metadata)
     create = ghost.store_knoxel if changes is None else changes.create
     return create(Feature(**kwargs))
 
@@ -368,11 +379,13 @@ class MainCogLoop(CognitiveWorkflow):
         "system.lifecycle",
     })
 
-    def __init__(self, *args, workflow_catalogue=None, **kwargs):
+    def __init__(self, *args, workflow_catalogue=None, embedding_config_path=None, **kwargs):
         super().__init__(*args, **kwargs)
         # Configuration supplies the action space. The fixed catalogue remains
         # the fallback so direct tests and older callers keep working.
         self.workflow_catalogue = list(workflow_catalogue) if workflow_catalogue else None
+        self.embedding_config_path = embedding_config_path
+        self._embeddings = None
 
     def accepts(self, envelope: Envelope) -> bool:
         if envelope.topic == "workflow.question" and envelope.kind == "telemetry":
@@ -383,6 +396,7 @@ class MainCogLoop(CognitiveWorkflow):
         stimuli: list[Stimulus] = []
         self._stimulus_ids: list[int] = []
         self._stimulus_records: list[dict] = []
+        self._stimulus_revisions: dict[int, int] = {}
         correlation = ""
         for envelope in batch:
             knoxel_id, text, kind = self._stimulus_from(envelope)
@@ -394,9 +408,34 @@ class MainCogLoop(CognitiveWorkflow):
             ))
             self._stimulus_ids.append(knoxel_id)
             self._stimulus_records.append({"knoxel_id": knoxel_id, "text": text})
+            frozen = getattr(self.last_environment, "ghost_view", None)
+            if frozen is not None and knoxel_id in frozen.revisions:
+                self._stimulus_revisions[knoxel_id] = frozen.revisions[knoxel_id]
+            else:
+                with self.ghost.lock:
+                    self._stimulus_revisions[knoxel_id] = self.ghost.revisions[knoxel_id]
             if not correlation:
                 correlation = envelope.correlation_id
         self._batch_correlation = correlation
+        # The working target owns the frozen permitted view. Materialized host
+        # events remain stimuli, but cannot expose concurrent future memory.
+        environment_view = getattr(self.last_environment, "ghost_view", None)
+        memory_view = environment_view if environment_view is not None else self.ghost.snapshot()
+        sources = [memory_view.get_knoxel_by_id(item.knoxel_id) or self.ghost.get_knoxel_by_id(item.knoxel_id)
+                   for item in stimuli]
+        sources = [item for item in sources if item is not None]
+        frontier = max(((item.tick_id, item.sub_tick_id) for item in sources), default=None)
+        scopes = {(item.scope.reality_id, item.scope.frame.value) for item in sources} or None
+        if self.embedding_config_path and self._embeddings is None:
+            from pm_core.embeddings import EmbeddingService
+            from runtime.models import load_config
+            self._embeddings = EmbeddingService(load_config(self.embedding_config_path).embedding)
+        retrieval = asyncio.run(self.ghost.retrieve_experiences(
+            "\n".join(item.text for item in stimuli), self._embeddings, view=memory_view,
+            frontier=frontier, scopes=scopes, cancel=self.run_stop,
+        ))
+        self._memory_view = memory_view
+        self._memory_candidates = retrieval["matches"]
         previous = self.ghost.states[-1] if self.ghost.states else None
         previous_vec = list(previous.mental_state_latent_vec) if previous is not None else []
         age_seconds = 0.0
@@ -413,7 +452,8 @@ class MainCogLoop(CognitiveWorkflow):
             personality_vec=list(self.ghost.ghost_config.personality_profile),
             active_goals=active_goal_texts(self.ghost)[:8],
             stimuli=stimuli,
-            memory_candidates=_memory_candidates(self.ghost),
+            memory_candidates=[MemoryCandidate(**item) for item in retrieval["matches"]],
+            memory_trace=retrieval["trace"],
             capabilities=_capabilities(self.ghost),
             available_workflows=[
                 WorkflowOption(**workflow)
@@ -443,6 +483,9 @@ class MainCogLoop(CognitiveWorkflow):
             # Keep progress detail and evidence so the cycle can judge the task.
             detail = str(payload.get("detail", "") or payload.get("message", "")).strip()
             artifact = str(payload.get("artifact_path", "")).strip()
+            if artifact:
+                from runtime.consolidation import Consolidator
+                Consolidator(self.ghost, clock=self.clock).consolidate(run_id, artifact)
             text = f"Managed run {run_id} {state}"
             if detail:
                 text += f": {detail}"
@@ -455,6 +498,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "event": state,
                     "artifact_path": artifact,
                     "evidence": dict(payload),
+                    "executed_at": payload.get("executed_at") or datetime.utcnow().isoformat(),
                 },
             )
             return feature.id, text, "workflow.event"
@@ -462,12 +506,12 @@ class MainCogLoop(CognitiveWorkflow):
             knoxel_id = payload.get("knoxel_id")
             if knoxel_id is None:
                 return None, "", ""
-            knoxel = self.ghost.get_knoxel_by_id(int(knoxel_id))
+            knoxel = self._input_knoxel(int(knoxel_id))
             return int(knoxel_id), str(knoxel.content) if knoxel is not None else "", "system.lifecycle"
         if "knoxel_id" not in payload:
             return None, "", ""
         knoxel_id = int(payload["knoxel_id"])
-        knoxel = self.ghost.get_knoxel_by_id(knoxel_id)
+        knoxel = self._input_knoxel(knoxel_id)
         kind = "user.input"
         if knoxel is not None:
             if knoxel.feature_type in {FeatureType.Thought, FeatureType.InnerMonologue}:
@@ -478,6 +522,15 @@ class MainCogLoop(CognitiveWorkflow):
                 kind = "workflow.event"
         return knoxel_id, str(knoxel.content) if knoxel is not None else "", kind
 
+    def _input_knoxel(self, knoxel_id: int):
+        """Resolve a supplied ID through the frozen invocation grant."""
+        view = getattr(self.last_environment, "ghost_view", None)
+        if view is not None:
+            if knoxel_id not in view.revisions:
+                raise KeyError(f"Stimulus is outside the invocation view: {knoxel_id}")
+            return view.get(knoxel_id)
+        return self.ghost.get_knoxel_by_id(knoxel_id)
+
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
         parsed = CognitiveReport.model_validate(report)
         correlation = self._batch_correlation or (batch[0].correlation_id if batch else "")
@@ -487,6 +540,13 @@ class MainCogLoop(CognitiveWorkflow):
         )
         tick = changes.tick_id
         view = changes.view()
+        for source_id, revision in self._stimulus_revisions.items():
+            changes.expect_revision(source_id, revision)
+        for memory in parsed.selected_memories:
+            changes.expect_revision(memory.knoxel_id, memory.revision)
+            for source_id in memory.source_ids:
+                if source_id in self._memory_view.revisions:
+                    changes.expect_revision(source_id, self._memory_view.revisions[source_id])
 
         # Apply the appraisal and goal proposals into this same batch before the
         # frame. A failure here aborts the whole batch, so stale proposals never
@@ -501,6 +561,7 @@ class MainCogLoop(CognitiveWorkflow):
             evidence_ids=[int(item) for item in self._stimulus_ids],
             companion_name=self.ghost.get_companion_name(),
             projection=projection,
+            memory_trace=parsed.memory_trace,
         )
         goal_records = apply_goal_changes(
             changes, view, parsed.goal_changes,
@@ -511,6 +572,9 @@ class MainCogLoop(CognitiveWorkflow):
             if record.get("created") and record.get("intention_id") is not None
         ]
         goal_ids = [int(item.id) for item in active_intentions(changes.view())]
+        belief_receipt = update_beliefs(changes, parsed.belief_updates, user_name=self.ghost.get_user_name(),
+                                      permitted_source_ids=set(self._stimulus_ids))
+        experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, parsed.affect_summary)
 
         frame = changes.create(AttentionFrameKnoxel(
             content=parsed.frame_reason or parsed.summary,
@@ -521,7 +585,8 @@ class MainCogLoop(CognitiveWorkflow):
             control_mode=parsed.control_mode,
             frame_reason=parsed.frame_reason or parsed.summary,
         ))
-        created_order: list[int] = [frame.id, appraisal_feature.id, *created_goal_ids]
+        created_order: list[int] = [frame.id, appraisal_feature.id, *created_goal_ids, *experience_ids,
+                                    *belief_receipt["accepted_ids"]]
         published: list[tuple] = []
         rejected = []
         queued = []
@@ -551,6 +616,9 @@ class MainCogLoop(CognitiveWorkflow):
                     "arguments": dict(dispatch.arguments),
                     "affect_summary": parsed.affect_summary,
                     "regulation": parsed.regulation,
+                    "memory_evidence": [item.model_dump(mode="json") for item in parsed.selected_memories],
+                    "memory_trace": parsed.memory_trace,
+                    "belief_updates": belief_receipt,
                 },
             ))
             created_order.append(action.id)
@@ -558,7 +626,8 @@ class MainCogLoop(CognitiveWorkflow):
         changes.set_gwt(
             GwtTurnRecord(
                 tick_id=tick, attention_frame_id=frame.id,
-                knoxel_ids=list(self._stimulus_ids) + created_order,
+                knoxel_ids=list(dict.fromkeys([*self._stimulus_ids, *created_order,
+                                             *(item.knoxel_id for item in parsed.selected_memories)])),
                 summary=(
                     parsed.subjective_experience.strip()
                     or parsed.affect_summary.strip()
@@ -574,7 +643,7 @@ class MainCogLoop(CognitiveWorkflow):
         receipt = self.ghost.commit(changes)
         tick = receipt.tick_id
 
-        memory_texts = [candidate.text for candidate in _memory_candidates(self.ghost, limit=8)]
+        memory_texts = [item.text for item in parsed.selected_memories]
         self.bus.put(_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))
         for dispatch, created_id in published:
             # A repeated commit returns the original receipt and does not apply
@@ -592,6 +661,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "arguments": dict(dispatch.arguments),
                     "stimuli": list(self._stimulus_records),
                     "memories": memory_texts,
+                    "memory_evidence": [item.model_dump(mode="json") for item in parsed.selected_memories],
                     "workspace": parsed.subjective_experience or parsed.frame_reason,
                     "affect": parsed.affect_summary,
                     "regulation": parsed.regulation,
@@ -718,6 +788,7 @@ class StoryDialogue(CognitiveWorkflow):
             feelings=_recent_thoughts(self.ghost),
             memories=memories,
             workspace=str(payload.get("workspace", "")),
+            selected_action=intent,
         )
         return request.model_dump(mode="json")
 
@@ -742,6 +813,7 @@ class StoryDialogue(CognitiveWorkflow):
             self.ghost, story.candidate, FeatureType.Dialogue,
             source=self.ghost.get_companion_name(), interlocus=InterlocusType.Public,
             changes=changes,
+            metadata=utterance_metadata(changes.view(), batch[0].payload.get("knoxel_id") if batch else None),
         )
         receipt = self.ghost.commit(changes)
         self.bus.put(_envelope(

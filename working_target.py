@@ -163,7 +163,9 @@ class GhostBashWrapper(WorkingTarget):
 
     def open(self, invocation_id: str) -> GhostBashEnvironment:
         view = self.ghost.snapshot(self.visible_ids)
-        return GhostBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), self.mode)
+        environment = GhostBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), self.mode)
+        environment.ghost_view = view
+        return environment
 
 
 class FolderEnvironment(WorkingEnvironment):

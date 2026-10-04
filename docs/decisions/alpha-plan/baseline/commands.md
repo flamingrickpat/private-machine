@@ -29,6 +29,9 @@ Results: [receipts](receipts.md).
 
 The default `config.example.yaml` still describes a remote embedding connection.
 The A01 configuration selects the user's local embedding service without changing existing defaults.
+This table preserves the A01 deployment.
+The current `config.alpha.example.yaml` uses OpenRouter embeddings after the user's A08 rollback request.
+Read [model connections](../../../models.md) for the active credential and connection rules.
 The decision endpoint follows the [llama.cpp decision-model article](https://huggingface.co/blog/ggml-org/decision-models-in-llamacpp).
 Start Laya separately only for its explicit client or candidate tests.
 Normal LLM workflows do not require that service.

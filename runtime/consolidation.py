@@ -23,8 +23,9 @@ from typing import Any, Callable
 import yaml
 
 from pm_core.model.knoxel_common import Feature
+from pm_core.model.knoxel_core import Provenance
 from pm_core.model.knoxel_embodiment import BodyEpisodeKnoxel, WorldObjectKnoxel, WorldPlaceKnoxel
-from pm_core.model.knoxel_enums import FeatureType, InterlocusType
+from pm_core.model.knoxel_enums import FeatureType, InterlocusType, SourceKind
 
 TEXT_SUFFIXES = frozenset({".md", ".txt", ".yaml", ".yml", ".json"})
 IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
@@ -43,6 +44,7 @@ class ConsolidationReceipt:
     memory_ids: list[int] = field(default_factory=list)
     state: str = "consolidated"
     created_at: float = 0.0
+    memory_keys: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -55,6 +57,7 @@ class ConsolidationReceipt:
             "memory_ids": list(self.memory_ids),
             "state": self.state,
             "created_at": self.created_at,
+            "memory_keys": list(self.memory_keys),
         }
 
     @classmethod
@@ -149,7 +152,8 @@ class Consolidator:
         """Convert the inventory into typed knoxels. No model is involved."""
         images = images or []
         by_path = {item["path"]: item for item in inventory}
-        metadata = {"run_id": run_id, "evidence": [item["path"] for item in inventory]}
+        metadata = {"run_id": run_id, "evidence": [item["path"] for item in inventory],
+                    "memory_kind": "artifact_report", "factual_promotion": False}
         proposals: list[Any] = []
 
         report = by_path.get("outbox/report.yaml")
@@ -301,10 +305,38 @@ class Consolidator:
         if existing is not None:
             return dict(existing)
 
-        proposals = self.proposals(run_id, inventory, images)
         batch = self.ghost.begin_batch(f"consolidation:{key}", new_tick=True)
+        batch.guard_consolidation_run(run_id)
+        existing_keys = {memory_key for receipt in batch._initial_consolidations.values()
+                         if receipt.get("run_id") == run_id for memory_key in receipt.get("memory_keys", [])}
+        proposals = self.proposals(run_id, inventory, images)
         memory_ids: list[int] = []
+        memory_keys: list[str] = []
         for proposal in proposals:
+            kind = proposal.metadata.get("kind", "")
+            paths = {"outcome": ["outbox/report.yaml"], "observation": ["scratch/observations.md"],
+                     "experience": ["scratch/result.md"], "place": ["outbox/world.yaml"],
+                     "object": ["outbox/world.yaml"], "episode": ["outbox/world.yaml"]}.get(kind, [])
+            sources = [{"path": item["path"], "sha256": item["sha256"]}
+                       for item in inventory if item["path"] in paths]
+            if kind == "episode":
+                sources.extend({"path": item["path"], "sha256": item["sha256"]} for item in images)
+            # Identity includes the typed payload and its exact artifact hashes.
+            # Unchanged report and observation files survive progress snapshots
+            # without producing another memory of the same material.
+            material = f"{type(proposal).__name__}:{proposal.content}:{sources}"
+            memory_key = hashlib.sha256(material.encode("utf-8")).hexdigest()
+            if memory_key in existing_keys:
+                continue
+            existing_keys.add(memory_key)
+            memory_keys.append(memory_key)
+            proposal.metadata.update(memory_key=memory_key, evidence=[item["path"] for item in sources],
+                                     artifact_evidence=sources,
+                                     memory_kind="artifact_report", factual_promotion=False)
+            proposal.provenance = Provenance(source_kind=SourceKind.Workflow, source_ref=run_id)
+            if hasattr(proposal, "source_event_ids"):
+                proposal.source_event_ids = [event_id for event_id in source_event_ids or []
+                                             if event_id in batch.view().revisions]
             created = batch.create(proposal)
             memory_ids.append(created.id)
         receipt = ConsolidationReceipt(
@@ -323,6 +355,7 @@ class Consolidator:
             memory_ids=memory_ids,
             state="consolidated",
             created_at=self.clock(),
+            memory_keys=memory_keys,
         )
         batch.set_consolidation_receipt(key, receipt.to_dict())
         self.ghost.commit(batch)

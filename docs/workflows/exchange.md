@@ -31,6 +31,9 @@ Each module processes its own mailbox batch.
 [`workflows.main_cognition.pipeline.run_cycle`][] runs the ordered children.
 The parent commits accepted state before action dispatch.
 The selected dialogue module commits its reply before public output.
+The Story request retains the accepted action intent beside the current user message.
+Its selected memory texts preserve attribution and original evidence IDs.
+Read [experienced memory](../subsystems/experienced-memory.md) for the retrieval and commit boundaries.
 
 ## Evidence
 
@@ -50,4 +53,3 @@ Restart restores accepted memory, not incomplete proposals.
 ## Go deeper
 
 Read [Ghost commits](../ghost.md), [workflow runtime](../runtime.md), and [evidence and quality](../concepts/evidence.md).
-

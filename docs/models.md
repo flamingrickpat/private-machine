@@ -25,6 +25,11 @@ OpenRouter currently returns `pplx-embed-v1-0.6b` in its response.
 The explicit `response_model` field permits that alias. Other model names fail validation.
 The request model remains the cache identity, so existing vectors stay compatible.
 
+`config.alpha.example.yaml` also uses OpenRouter embeddings with local Qwen chat on port 8080.
+The credential comes from `OPENROUTER_API_KEY`.
+The unused local embedding service on port 8081 has a recorded invalid-vector defect.
+Read [A08 verification](subsystems/memory-verification.md) for the real failure and recovery evidence.
+
 ### Local setup
 
 1. Copy `config.example.yaml` to `config.local.yaml` for local changes.

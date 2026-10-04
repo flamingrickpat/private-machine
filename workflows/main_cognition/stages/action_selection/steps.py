@@ -81,6 +81,7 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         active_goals=", ".join(request.get("active_goals", [])) or "(none)",
         workspace=render_block(request.get("workspace")),
         goals=render_block(request.get("goals")),
+        context=render_block(request.get("context")),
         available_workflows=render_workflows(available_workflows),
         capabilities=render_capabilities(list(request.get("capabilities", []))),
     )

@@ -8,6 +8,7 @@ means an explicit in-memory session, not durable storage.
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 from pathlib import Path
 from threading import Event, RLock
 from uuid import uuid4
@@ -57,7 +58,23 @@ class Ghost(BaseGhost):
 
     @classmethod
     def from_yaml(cls, path: str | Path, *, checkpoint: Path | None = None) -> "Ghost":
-        return cls.from_state(load_ghost_state_from_yaml(path), checkpoint=checkpoint)
+        """Import the seed as attributed background without rewriting its file.
+
+        Imported dialogue establishes what the source says. It does not prove
+        that this runtime performed an action or had a sensory capability.
+        The original provenance remains in metadata for later inspection.
+        """
+        path = Path(path)
+        ghost = cls.from_state(load_ghost_state_from_yaml(path), checkpoint=checkpoint)
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        from pm_core.model.knoxel_core import Provenance
+        from pm_core.model.knoxel_enums import SourceKind
+        for record in ghost._all_knoxels.values():
+            record.metadata = {**record.metadata, "memory_kind": "background",
+                               "seed_sha256": digest, "seed_source": str(path.resolve()),
+                               "imported_provenance": record.provenance.model_dump(mode="json") if record.provenance else None}
+            record.provenance = Provenance(source_kind=SourceKind.Migration, source_ref=digest)
+        return ghost
 
     @classmethod
     def from_checkpoint(cls, path: str | Path) -> "Ghost":
@@ -130,6 +147,23 @@ class Ghost(BaseGhost):
                            "tick_id": data.get("tick_id")})
         return sorted(result, key=lambda row: (row["timestamp"] or "", row["id"]))
 
+    async def retrieve_experiences(self, query: str, embeddings=None, *, view=None,
+                                   visible_ids=None, frontier=None, scopes=None,
+                                   limit: int = 24, cancel=None) -> dict:
+        """Retrieve from the supplied stable view or a fresh permitted snapshot.
+
+        Scope and frontier filters run before embedding calls. The returned
+        revisions let the caller reject evidence that changed before commit.
+        """
+        from pm_core.ghost.memory import retrieve
+        return await retrieve(view if view is not None else self.snapshot(visible_ids), query,
+                              embeddings, frontier=frontier, scopes=scopes, limit=limit, cancel=cancel)
+
+    def activity_summary(self, start, end, *, visible_ids=None) -> dict:
+        """Read actual activity and original evidence IDs in one UTC interval."""
+        from pm_core.ghost.memory import activity
+        return activity(self.snapshot(visible_ids), start, end)
+
     async def search_memory(self, query: str, embeddings, *, visible_ids=None, limit: int = 50,
                             prepare: bool = False, cancel=None, progress=None,
                             record_type: str = "", subtype: str = "") -> dict:
@@ -184,6 +218,11 @@ class Ghost(BaseGhost):
                 key for key in batch._consolidations
                 if self.consolidations.get(key) != batch._initial_consolidations.get(key)
             ]
+            for run_id in batch._consolidation_run_guards:
+                before = {key: value for key, value in batch._initial_consolidations.items() if value.get("run_id") == run_id}
+                current = {key: value for key, value in self.consolidations.items() if value.get("run_id") == run_id}
+                if before != current:
+                    consolidation_conflicts.append(run_id)
             if conflicts or run_conflicts or consolidation_conflicts:
                 raise GhostConflict(
                     f"Stale memory revisions: {conflicts}. Stale run receipts: {run_conflicts}. "

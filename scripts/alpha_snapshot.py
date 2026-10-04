@@ -84,8 +84,11 @@ def main() -> None:
         ("w7/conversations/*/summary.json", "w8/live-minecraft/*/minecraft.json")
         for path in sorted((ROOT / ".runtime").glob(pattern))]
     receipt["services"] = {}
-    for role, port in (("chat", 8080), ("embedding", 8081), ("decision", 8082)):
-        url = f"http://127.0.0.1:{port}/v1/models"
+    embedding_catalogue = "embeddings/models" if "openrouter.ai" in config.embedding.base_url else "models"
+    services = (("chat", f"{config.chat['Default'].base_url}/models"),
+                ("embedding", f"{config.embedding.base_url}/{embedding_catalogue}"),
+                ("decision", "http://127.0.0.1:8082/v1/models"))
+    for role, url in services:
         try:
             with urllib.request.urlopen(url, timeout=10) as response:
                 result = {"status": "available", "models": json.load(response)}

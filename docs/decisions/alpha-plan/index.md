@@ -76,7 +76,7 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | A05 | [Wire LLM classification in PM and retain optional Laya](work-items/a05.md) — engineering delivery recorded | M1: LLM classification over real artifacts |
 | A06 | [Commit affect, goals, and causal events](work-items/a06.md) — engineering delivery recorded | |
 | A07 | [Make emotional state change behavior](work-items/a07.md) — engineering delivery recorded | |
-| A08 | [Retrieve and learn from experienced memory](work-items/a08.md) | |
+| A08 | [Retrieve and learn from experienced memory](work-items/a08.md) — engineering delivery recorded | |
 | A09 | [Unify public voice and capability grounding](work-items/a09.md) | M2: a continuous companion across restart |
 | A10 | [Run one sustained Minecraft specialist session](work-items/a10.md) | Developer check: many calls per leaf |
 | A11 | [Plan and verify durable Minecraft subtasks](work-items/a11.md) | |

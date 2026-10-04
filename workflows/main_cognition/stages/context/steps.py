@@ -35,6 +35,10 @@ def render_memories(candidates: list) -> str:
     for candidate in candidates:
         lines.append(
             f"- knoxel_id={_field(candidate, 'knoxel_id')} "
+            f"kind={_field(candidate, 'memory_kind', 'attributed_record')} "
+            f"scope={_field(candidate, 'scope', {})} "
+            f"source_ids={_field(candidate, 'source_ids', [])} "
+            f"historical={_field(candidate, 'historical', False)} "
             f"text={_field(candidate, 'text', '')!r}"
         )
     return "\n".join(lines) or "(none)"
@@ -55,6 +59,7 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         capabilities="\n".join(f"- {capability}" for capability in request.get("capabilities", []))
         or "(none)",
         memory_candidates=render_memories(request.get("memory_candidates", [])),
+        stimuli=json.dumps(request.get("stimuli", []), ensure_ascii=False),
     )
     return [
         {"role": "system", "content": system.strip()},
@@ -82,7 +87,7 @@ def run(context) -> dict:
     write_report(context.runtime.environment, result)
     return {
         "status": "done",
-        "summary": f"selected {len(result.memories)} memories and "
+        "summary": f"selected {len(result.candidate_ids)} memories and "
                    f"{len(result.active_goals)} goals",
     }
 

@@ -33,7 +33,8 @@ def _system_feature(content: str, *, event: str, boot_id: str, **metadata) -> Fe
         override_source="system",
         interlocus=InterlocusType.PrivateReportable,
         provenance=Provenance(source_kind=SourceKind.System, source_ref=boot_id),
-        metadata={"origin": "lifecycle", "event": event, "boot_id": boot_id, **metadata},
+        metadata={"origin": "lifecycle", "event": event, "boot_id": boot_id,
+                  "memory_kind": "executed_event", **metadata},
     )
 
 

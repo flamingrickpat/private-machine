@@ -108,6 +108,7 @@ def apply_appraisal(
     personality=None,
     expectation_error: float = 0.0,
     projection: AffectProjection | None = None,
+    memory_trace: dict | None = None,
 ) -> tuple[Feature, FullMentalState]:
     """Apply one appraisal to the mental state and stage an appraisal Feature.
 
@@ -147,6 +148,8 @@ def apply_appraisal(
         mental_state_appraisal_vec=updated.to_list(),
         mental_state_delta_vec=delta_vec,
         metadata={
+            "memory_kind": "internal_state",
+            "memory_trace": dict(memory_trace or {}),
             "origin": "appraisal",
             "evidence_ids": [int(item) for item in (evidence_ids or [])],
             "emotion_delta": dict(getattr(appraisal, "emotion_delta", None) or {}),

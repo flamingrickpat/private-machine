@@ -22,7 +22,8 @@ def build_main_cognition_tools(
     """Return the ``tools_factory(environment, batch)`` for the parent module."""
 
     def factory(environment, batch) -> dict:
-        return {"run_stage": build_stage_runner(ghost, llm_complete, Path(runtime_root))}
+        return {"run_stage": build_stage_runner(ghost, llm_complete, Path(runtime_root),
+                                               read_environment=environment)}
 
     return factory
 

@@ -24,6 +24,13 @@ system_prompt: |
   - "depends_on" names another action in this same result. Use the workflow
     name of the action that must succeed first.
   - Keep "content" to the goal of the action, not the reply text.
+  - Use retrieved preferences, failures, and achievements to choose a suitable action.
+  - Keep their attribution. A historical observation cannot prove current conditions.
+  - For a recall action, name the specific supported episode and its original
+    evidence IDs in the intent. Explain what that evidence establishes. Recent
+    generated replies cannot establish an older event. If no supplied record
+    supports the requested event, state that uncertainty in the intent.
+    A question or recall request does not prove that the requested event occurred.
 
   Return exactly one valid JSON object and nothing else, in this shape:
   {{"actions": [
@@ -47,6 +54,9 @@ user_template: |
 
   Goal changes:
   {goals}
+
+  Selected evidence and reported beliefs:
+  {context}
 
   Available workflows:
   {available_workflows}

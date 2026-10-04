@@ -36,6 +36,7 @@ class StoryRequest(BaseModel):
     feelings: list[str] = Field(default_factory=list)
     memories: list[str] = Field(default_factory=list)
     workspace: str = ""
+    selected_action: str = ""
 
 
 class OntologyViolation(BaseModel):

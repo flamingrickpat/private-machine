@@ -158,6 +158,16 @@ def run_cycle(
     reports["appraisal"] = {**reports["appraisal"], "affect": affect_block}
 
     call("context", {"triage": reports["triage"], "appraisal": reports["appraisal"]})
+    # Bind model selection to original evidence. Generated paraphrases cannot
+    # replace source text or become an independently remembered event.
+    memory_by_id = {int(item["knoxel_id"]): item for item in request.get("memory_candidates", [])}
+    selected_memories = []
+    for key in reports["context"].get("candidate_ids", []):
+        if int(key) not in memory_by_id:
+            raise ValueError(f"Context selected memory outside the supplied snapshot: {key}")
+        if memory_by_id[int(key)] not in selected_memories:
+            selected_memories.append(memory_by_id[int(key)])
+    reports["context"]["memories"] = [item["text"] for item in selected_memories]
     call("attention", {
         "triage": reports["triage"],
         "appraisal": reports["appraisal"],
@@ -177,6 +187,7 @@ def run_cycle(
     call("action_selection", {
         "workspace": reports["workspace"],
         "goals": reports["goals"],
+        "context": reports["context"],
         "capabilities": request.get("capabilities", []),
         "available_workflows": request.get("available_workflows") or DEFAULT_WORKFLOWS,
     })
@@ -230,6 +241,10 @@ def run_cycle(
         affect_trace=projection.trace,
         affect_summary=projection.summary,
         regulation=projection.regulation,
+        selected_memories=selected_memories,
+        memory_trace={**request.get("memory_trace", {}),
+                      "context_selected_ids": [item["knoxel_id"] for item in selected_memories]},
+        belief_updates=reports["context"].get("belief_updates", []),
     )
 
 

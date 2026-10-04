@@ -3,7 +3,7 @@
 ## Summary
 
 The client uses Laya on port 8082.
-Chat uses 8080 and embeddings use 8081.
+Chat uses 8080 and embeddings use OpenRouter.
 A02 does not add a decision entry to PM's model activation configuration.
 The live runner verifies the service and tests an independently owned failure process.
 

@@ -4,7 +4,7 @@
 
 The supervisor owns managed workflow receipts and worker lifetimes.
 Updates take effect at explicit instruction boundaries.
-Terminal artifacts enter accepted memory through consolidation.
+Progress and terminal artifacts enter accepted memory through consolidation.
 The steward stays dormant until explicit activation.
 
 Parent: [system map](../concepts/architecture.md).
@@ -32,6 +32,8 @@ Checkpoint restoration changes active receipts to `interrupted`.
 It does not resume an external task automatically.
 [`runtime.consolidation.Consolidator`][] stores evidence from terminal artifacts.
 Repeated consolidation keys do not duplicate accepted memory.
+Changed inventories also reuse unchanged artifact memories through their proposal keys.
+Read [experience consolidation](memory-consolidation.md) for evidence attribution and concurrency guards.
 
 ## Traps
 

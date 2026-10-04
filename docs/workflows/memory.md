@@ -9,6 +9,7 @@ A copied record can create a new memory with a new ID.
 
 Parent: [console procedure](console.md).
 Contract: [Ghost commits](../ghost.md).
+Live cognition: [experienced memory](../subsystems/experienced-memory.md).
 
 ## Procedure
 

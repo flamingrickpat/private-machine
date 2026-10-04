@@ -6,6 +6,7 @@ finite scenario checks through the same ``build_app`` construction.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import os
 import sys
 import threading
@@ -116,6 +117,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             runtime_root=runtime_root,
             ghost=ghost,
             workflow_catalogue=_cognition_workflow_options(supervisor),
+            embedding_config_path=config_path,
         )
         story = StoryDialogue(
             "dialogue", bus, on_error, clock, None,
@@ -222,7 +224,10 @@ def build_app(
 
     def _event_sink(event):
         try:
-            parent = supervisor.status(event["run_id"]).get("parent_correlation", "")
+            run = supervisor.status(event["run_id"])
+            parent = run.get("parent_correlation", "")
+            event = {**event, "artifact_path": run.get("artifact_path", ""),
+                     "executed_at": datetime.utcnow().isoformat()}
         except Exception:
             parent = ""
         topic = "workflow.question" if event.get("event") == "waiting_for_input" else "workflow.event"

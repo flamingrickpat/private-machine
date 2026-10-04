@@ -93,6 +93,8 @@ It wraps the existing Ghost serialization with GWT records, counters, revisions,
 Semantic `embedding` fields remain empty. Their vectors belong in the shared embedding cache.
 Mental-state arrays remain unchanged.
 The source YAML remains a separate, unchanged seed.
+Fresh YAML imports retain source hashes and explicit background provenance.
+Read [experienced memory](subsystems/experienced-memory.md) for attribution, retrieval, and interval queries.
 
 Restart restores accepted memory, not threads or external effects.
 Previously active run receipts become `interrupted` in the restored Ghost.
