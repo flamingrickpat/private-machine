@@ -7,14 +7,17 @@ never LLM output.
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime
 from threading import RLock
 
+from pm_core.model.affect_dynamics import AffectProjection
 from pm_core.model.ghost_state import CycleState
 from pm_core.model.gwt import GwtTurnRecord
 from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature
 from pm_core.model.knoxel_core import Provenance
 from pm_core.model.knoxel_enums import ActionType, FeatureType, InterlocusType, SourceKind
 from pm_core.model.knoxel_state_change import AttentionFrameKnoxel
+from pm_core.model.mental_state_vectors import FullMentalState, create_empty_state
 
 from bus.envelopes import Envelope, _new_id
 from runtime.shell import ShellModule
@@ -202,6 +205,35 @@ def _state_summary(ghost) -> str:
     return str(getattr(turns[max(turns)], "summary", ""))
 
 
+def _projection_from_report(report, previous_vec) -> AffectProjection | None:
+    """Rebuild the parent affect projection from the committed report.
+
+    The result lets the module commit the exact state that the stages already
+    saw. A report without a latent vector returns None, and the caller then
+    recomputes the step from the previous accepted state.
+    """
+    vector = list(getattr(report, "mental_state_latent_vec", None) or [])
+    if not vector:
+        return None
+    updated = FullMentalState.init_from_list(vector)
+    previous = FullMentalState.init_from_list(previous_vec) if previous_vec else create_empty_state()
+    delta = FullMentalState.init_from_list(
+        [new - old for new, old in zip(updated.to_list(), previous.to_list())]
+    )
+    trace = dict(getattr(report, "affect_trace", None) or {})
+    behavior = dict(trace.get("behavior", {})) if isinstance(trace.get("behavior"), dict) else {}
+    regulation = str(getattr(report, "regulation", "") or trace.get("regulation", "") or "")
+    return AffectProjection(
+        state=updated,
+        delta=delta,
+        trace=trace,
+        summary=str(getattr(report, "affect_summary", "") or ""),
+        attention_bias=(0.0, 0.0),
+        regulation=regulation,
+        behavior=behavior,
+    )
+
+
 class UserInputProxy(ShellModule):
     """Wraps terminal input and prints public replies."""
 
@@ -365,12 +397,20 @@ class MainCogLoop(CognitiveWorkflow):
             if not correlation:
                 correlation = envelope.correlation_id
         self._batch_correlation = correlation
+        previous = self.ghost.states[-1] if self.ghost.states else None
+        previous_vec = list(previous.mental_state_latent_vec) if previous is not None else []
+        age_seconds = 0.0
+        if previous is not None:
+            age_seconds = max(0.0, (datetime.now() - previous.timestamp).total_seconds())
         request = CognitiveRequest(
             run_id=self.invocation_id or "",
             correlation_id=correlation,
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
             state_summary=_state_summary(self.ghost),
+            mental_state_latent_vec=previous_vec,
+            mental_state_age_seconds=age_seconds,
+            personality_vec=list(self.ghost.ghost_config.personality_profile),
             active_goals=active_goal_texts(self.ghost)[:8],
             stimuli=stimuli,
             memory_candidates=_memory_candidates(self.ghost),
@@ -450,13 +490,17 @@ class MainCogLoop(CognitiveWorkflow):
 
         # Apply the appraisal and goal proposals into this same batch before the
         # frame. A failure here aborts the whole batch, so stale proposals never
-        # partly update accepted state.
-        previous_vec = self.ghost.states[-1].mental_state_latent_vec if self.ghost.states else None
+        # partly update accepted state. The parent pipeline already projected
+        # the affect step; reuse it so accepted state matches the stage input.
+        previous = self.ghost.states[-1] if self.ghost.states else None
+        previous_vec = list(previous.mental_state_latent_vec) if previous is not None else None
+        projection = _projection_from_report(parsed, previous_vec)
         appraisal_feature, mental_state = apply_appraisal(
             changes, view, parsed.appraisal,
             previous_vec=previous_vec,
             evidence_ids=[int(item) for item in self._stimulus_ids],
             companion_name=self.ghost.get_companion_name(),
+            projection=projection,
         )
         goal_records = apply_goal_changes(
             changes, view, parsed.goal_changes,
@@ -505,6 +549,8 @@ class MainCogLoop(CognitiveWorkflow):
                     "depends_on": list(dispatch.depends_on),
                     "requires_completed": list(dispatch.requires_completed),
                     "arguments": dict(dispatch.arguments),
+                    "affect_summary": parsed.affect_summary,
+                    "regulation": parsed.regulation,
                 },
             ))
             created_order.append(action.id)
@@ -513,7 +559,11 @@ class MainCogLoop(CognitiveWorkflow):
             GwtTurnRecord(
                 tick_id=tick, attention_frame_id=frame.id,
                 knoxel_ids=list(self._stimulus_ids) + created_order,
-                summary=parsed.summary,
+                summary=(
+                    parsed.subjective_experience.strip()
+                    or parsed.affect_summary.strip()
+                    or parsed.summary
+                ),
             ),
             CycleState(
                 tick_id=tick, attention_frame_id=frame.id, published_slots=["main"],
@@ -543,6 +593,8 @@ class MainCogLoop(CognitiveWorkflow):
                     "stimuli": list(self._stimulus_records),
                     "memories": memory_texts,
                     "workspace": parsed.subjective_experience or parsed.frame_reason,
+                    "affect": parsed.affect_summary,
+                    "regulation": parsed.regulation,
                 },
                 target=dispatch.workflow_name,
                 causation_id=cause,

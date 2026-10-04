@@ -44,6 +44,7 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         companion_name=request.get("companion_name", "Spamuel"),
         user_name=request.get("user_name", "Jesse"),
         state_summary=request.get("state_summary") or "(no recorded state update)",
+        affect=render_block(request.get("affect")),
         current_goals=render_goals(goals),
         appraisal=render_block(request.get("appraisal")),
         context=render_block(request.get("context")),

@@ -15,8 +15,8 @@ frame, GWT turn, and cycle receipt.
 from __future__ import annotations
 
 import re
-from copy import deepcopy
 
+from pm_core.model.affect_dynamics import AffectProjection, project_affect
 from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_core import Provenance
 from pm_core.model.knoxel_enums import (
@@ -27,19 +27,7 @@ from pm_core.model.knoxel_enums import (
     SourceKind,
 )
 from pm_core.model.knoxel_state_change import Intention
-from pm_core.model.mental_state_vectors import (
-    AppraisalGeneral,
-    AppraisalSocial,
-    FullMentalState,
-    StateEmotions,
-    StateNeeds,
-    create_empty_state,
-)
-
-EMOTION_FIELDS = frozenset(StateEmotions.model_fields)
-NEED_FIELDS = frozenset(StateNeeds.model_fields)
-APPRAISAL_GENERAL_FIELDS = frozenset(AppraisalGeneral.model_fields)
-APPRAISAL_SOCIAL_FIELDS = frozenset(AppraisalSocial.model_fields)
+from pm_core.model.mental_state_vectors import FullMentalState
 
 
 def _clamp01(value: float) -> float:
@@ -116,36 +104,33 @@ def apply_appraisal(
     previous_vec,
     evidence_ids,
     companion_name: str,
+    elapsed_seconds: float = 0.0,
+    personality=None,
+    expectation_error: float = 0.0,
+    projection: AffectProjection | None = None,
 ) -> tuple[Feature, FullMentalState]:
     """Apply one appraisal to the mental state and stage an appraisal Feature.
 
-    ``previous_vec`` is the latent vector of the last accepted cycle. The new
-    state applies emotion, need, and appraisal-axis deltas. The Feature records
-    the new total state in ``mental_state_appraisal`` and the difference in
-    ``mental_state_delta``. The caller reads ``state`` to store it on the cycle.
-    """
-    current = (
-        FullMentalState.init_from_list(previous_vec)
-        if previous_vec
-        else create_empty_state()
-    )
-    updated = deepcopy(current)
-    if appraisal is not None:
-        for name, delta in (getattr(appraisal, "emotion_delta", None) or {}).items():
-            if name in EMOTION_FIELDS:
-                value = _clamp01(float(getattr(updated.state_emotions, name)) + float(delta))
-                setattr(updated.state_emotions, name, value)
-        for name, delta in (getattr(appraisal, "need_delta", None) or {}).items():
-            if name in NEED_FIELDS:
-                value = _clamp01(float(getattr(updated.state_needs, name)) + float(delta))
-                setattr(updated.state_needs, name, value)
-        for name, delta in (getattr(appraisal, "appraisal", None) or {}).items():
-            if name in APPRAISAL_GENERAL_FIELDS:
-                setattr(updated.appraisal_general, name, float(delta))
-            elif name in APPRAISAL_SOCIAL_FIELDS:
-                setattr(updated.appraisal_social, name, float(delta))
+    ``previous_vec`` is the latent vector of the last accepted cycle. The
+    projection applies elapsed-time decay, personality gains, canonical
+    appraisal axes, explicit emotion and need deltas, and an expectation error.
+    The Feature records the new total state in ``mental_state_appraisal`` and
+    the difference in ``mental_state_delta``. The metadata carries the causal
+    trace and the behavior mapping. The caller reads ``state`` to store it on
+    the cycle.
 
-    delta_vec = [new - old for new, old in zip(updated.to_list(), current.to_list())]
+    ``projection`` may be supplied when the parent pipeline already computed
+    the same step, so the accepted state and the stage input cannot diverge.
+    """
+    if projection is None:
+        projection = project_affect(
+            previous_vec, appraisal,
+            elapsed_seconds=elapsed_seconds,
+            personality=personality,
+            expectation_error=expectation_error,
+        )
+    updated = projection.state
+    delta_vec = projection.delta.to_list()
     feeling = str(getattr(appraisal, "feeling", "") or "")
     reasoning = str(getattr(appraisal, "reasoning", "") or "")
     content = feeling or "appraisal"
@@ -166,6 +151,10 @@ def apply_appraisal(
             "evidence_ids": [int(item) for item in (evidence_ids or [])],
             "emotion_delta": dict(getattr(appraisal, "emotion_delta", None) or {}),
             "need_delta": dict(getattr(appraisal, "need_delta", None) or {}),
+            "affect_trace": projection.trace,
+            "affect_summary": projection.summary,
+            "regulation": projection.regulation,
+            "behavior": projection.behavior,
         },
     ))
     return feature, updated

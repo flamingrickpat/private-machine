@@ -50,6 +50,8 @@ nav:
       - Cognition: subsystems/cognition.md
       - Accepted cognition state: subsystems/cognition-state.md
       - A06 verification: subsystems/cognition-state-verification.md
+      - Emotional dynamics: subsystems/emotional-dynamics.md
+      - A07 verification: subsystems/emotional-dynamics-verification.md
       - Operator service: subsystems/console.md
       - Ghost and bus: ghost.md
       - Models:

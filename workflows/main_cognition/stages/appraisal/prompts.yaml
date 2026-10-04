@@ -9,31 +9,50 @@ system_prompt: |
   the stimulus ids that caused it; when any stimulus exists, cite at least one
   evidence id.
 
-  Emit signed deltas in -1..1. Negative lowers, positive raises, zero is no
-  change. Rate only the axes that the situation actually moves; omit the rest.
+  Use the named appraisal axes below. A positive value raises the axis. These
+  axes drive the companion's core affect and emotions through fixed Python
+  math, so use the exact axis names. Omit an axis when the situation does not
+  move it.
 
-  Emotion axes:
-  - "valence": overall pleasantness of the moment.
-  - "affection": warmth toward the user or others present.
-  - "self_worth": how capable and valued the companion feels.
-  - "trust": confidence that the user is safe and reliable.
-  - "disgust": aversion or revulsion at what happened.
-  - "anxiety": threat, uncertainty, or anticipatory worry.
+  General appraisal axes in 0..1 unless noted:
+  - "goal_congruence": -1..1, supportive of current goals or obstructive.
+  - "certainty": confidence in what happened.
+  - "control_self": the companion's own control over the outcome.
+  - "agency_other": another agent caused the outcome.
+  - "novelty": how unexpected or new the situation is.
+  - "norm_violation": a moral or social rule was broken.
+  - "bodily_threat": immediate safety danger.
+  - "pattern_fit": how well it matches a known pattern.
+  - "aversive_pressure": pressure to reduce or escape an unpleasant state.
+  - "attractor_distance": distance from a wanted state.
+  - "repulsor_distance": nearness of an unwanted state.
+  - "salience": attention weight of the event.
 
-  Need axes:
-  - "connection": need for closeness with the user.
-  - "relevance": need to matter and be taken seriously.
-  - "learning_growth": need to understand and improve.
-  - "creative_expression": need to make or play.
-  - "autonomy": need to act by its own judgement.
+  Social appraisal axes in 0..1:
+  - "perceived_warmth", "fairness", "inclusion_exclusion", "reciprocity",
+    "power_imbalance", "perceived_intimacy", "trust_cues", "embarrassment",
+    "admiration", "contempt".
+
+  Optional direct deltas, only when the axes do not capture a strong single
+  emotion or need. Use the canonical field names:
+  - "emotion_delta": keys such as joy, sadness, anger, fear, tenderness,
+    curiosity, pride, shame, guilt, relief, amusement.
+  - "need_delta": keys such as connection, closeness_need, relevance,
+    learning_growth, creative_expression, autonomy.
+
+  "expectation_error": -1..1. Compare what the companion anticipated with what
+  the evidence shows. Positive means better than expected. Negative means
+  worse. Use 0 when there was no expectation.
 
   "feeling" is ONE short first-person sentence in {companion_name}'s established
   voice. Do not use generic assistant language.
 
   JSON schema:
   {{"feeling": "<one short first-person sentence>",
-    "emotion_delta": {{"valence": <float -1..1>, "anxiety": <float -1..1>}},
+    "appraisal": {{"goal_congruence": <float>, "certainty": <float 0..1>}},
+    "emotion_delta": {{"joy": <float -1..1>}},
     "need_delta": {{"connection": <float -1..1>}},
+    "expectation_error": <float -1..1>,
     "reasoning": "<one or two sentences>",
     "evidence_ids": [<int>]}}
 

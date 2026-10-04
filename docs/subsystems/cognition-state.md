@@ -33,19 +33,24 @@ The module applies those proposals inside one Ghost write batch.
 
 ## Appraisal to affect
 
-[`workflows.main_cognition.state_changes.apply_appraisal`][] reads the latent
-vector of the last accepted cycle.
-It applies `emotion_delta`, `need_delta`, and optional appraisal axes.
-It writes one `Feature` with `feature_subtype=Appraisal`.
+[`workflows.main_cognition.pipeline.run_cycle`][] computes one affect
+projection after the appraisal stage.
+[`pm_core.model.affect_dynamics.project_affect`][] applies elapsed-time decay,
+personality gains, canonical appraisal axes, explicit emotion and need deltas,
+and an expectation error.
+[`workflows.main_cognition.state_changes.apply_appraisal`][] stages the result
+as one `Feature` with `feature_subtype=Appraisal`.
 The Feature carries the new total state in `mental_state_appraisal_vec`.
 It carries the difference in `mental_state_delta_vec`.
+Its metadata carries the causal `affect_trace` and the regulation mode.
 The module stores the same new state in the cycle
 `mental_state_latent_vec`.
 The appraisal Feature is self-origin (`SourceKind.Self`).
 
-The model names axes, for example `joy` or `connection`.
-The code maps each name onto the existing `StateEmotions` or `StateNeeds`
-field.
+Read [emotional dynamics](emotional-dynamics.md) for the step order, the
+personality gains, and the behavior mapping.
+The model names axes, for example `goal_congruence` or `connection`.
+The code maps each name onto the existing appraisal, emotion, or need field.
 An unknown name has no effect.
 The math uses bounded values, so state stays in range.
 
@@ -136,6 +141,7 @@ A hard process kill leaves the interval uncertain by design.
 
 ## Go deeper
 
+Read [emotional dynamics](emotional-dynamics.md) for the bounded affect step.
 Read [A06 verification](cognition-state-verification.md) for the checks and
 the receipts.
 Read [Cognition](cognition.md) for the stage order.

@@ -53,6 +53,7 @@ Parent workflow timings include child timings.
 
 ## Go deeper
 
+Read [emotional dynamics](emotional-dynamics.md) for the bounded affect step.
 Read [accepted cognition state](cognition-state.md) for affect, goals, and
 stable action identities.
 Read [A06 verification](cognition-state-verification.md) for the real state

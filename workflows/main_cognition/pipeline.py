@@ -14,8 +14,13 @@ from typing import Callable
 from workflows.main_cognition.dispatch import resolve_prerequisites, resolve_same_cycle
 from workflows.main_cognition.schemas import (
     ActionDispatch,
+    AppraisalResult,
     CognitiveReport,
     StageReceipt,
+)
+from pm_core.model.affect_dynamics import (
+    REGULATION_REACTIVE,
+    project_affect,
 )
 
 STAGE_ORDER = (
@@ -126,6 +131,32 @@ def run_cycle(
 
     call("triage", {})
     call("appraisal", {"triage": reports["triage"]})
+
+    # Project the affect step once. Later stages read the same projection, and
+    # the parent report carries it so the module commits the same state. The
+    # projection also maps accepted affect to one regulation mode.
+    appraisal_result = _appraisal_from(reports.get("appraisal"))
+    projection = project_affect(
+        request.get("mental_state_latent_vec") or None,
+        appraisal_result,
+        elapsed_seconds=float(request.get("mental_state_age_seconds", 0.0) or 0.0),
+        personality=request.get("personality_vec") or None,
+        expectation_error=float(getattr(appraisal_result, "expectation_error", 0.0) or 0.0),
+    )
+    affect_block = {
+        "summary": projection.summary,
+        "regulation": projection.regulation,
+        "attention_focus": projection.behavior.get("attention_focus", "neutral"),
+        "attention_bias": {
+            "valence_focus": round(float(projection.attention_bias[0]), 4),
+            "salience": round(float(projection.attention_bias[1]), 4),
+        },
+        "behavior": projection.behavior,
+    }
+    base["state_summary"] = projection.summary
+    base["affect"] = affect_block
+    reports["appraisal"] = {**reports["appraisal"], "affect": affect_block}
+
     call("context", {"triage": reports["triage"], "appraisal": reports["appraisal"]})
     call("attention", {
         "triage": reports["triage"],
@@ -149,6 +180,17 @@ def run_cycle(
         "capabilities": request.get("capabilities", []),
         "available_workflows": request.get("available_workflows") or DEFAULT_WORKFLOWS,
     })
+
+    # Game danger preempts slow regulation. The workspace stage validates its
+    # own mode first; this override only fires after a valid report exists.
+    if projection.regulation == REGULATION_REACTIVE:
+        workspace_report = reports["workspace"]
+        workspace_report["control_mode"] = "reactive"
+        reason = str(workspace_report.get("frame_reason", "")).strip()
+        workspace_report["frame_reason"] = (
+            f"{reason} Danger preempts contemplation.".strip()
+            if "preempt" not in reason.lower() else reason
+        )
 
     dispatches: list[ActionDispatch] = []
     for index, intent in enumerate(reports["action_selection"].get("actions", [])):
@@ -184,14 +226,17 @@ def run_cycle(
         appraisal=_appraisal_from(reports.get("appraisal")),
         goal_changes=[dict(change) for change in reports.get("goals", {}).get("changes", [])],
         event_origins=origins,
+        mental_state_latent_vec=projection.state.to_list(),
+        affect_trace=projection.trace,
+        affect_summary=projection.summary,
+        regulation=projection.regulation,
     )
 
 
-def _appraisal_from(report: dict | None):
+def _appraisal_from(report: dict | None) -> AppraisalResult | None:
     """Return a typed appraisal from a stage report, or None when absent."""
     if not report:
         return None
-    from workflows.main_cognition.schemas import AppraisalResult
     try:
         return AppraisalResult.model_validate(report)
     except Exception:

@@ -72,6 +72,10 @@ class AppraisalResult(BaseModel):
         default_factory=dict,
         description="Optional appraisal axes. Keys match AppraisalGeneral or AppraisalSocial fields.",
     )
+    expectation_error: float = Field(
+        default=0.0, ge=-1.0, le=1.0,
+        description="Observed minus anticipated outcome. Positive is better than expected.",
+    )
     reasoning: str = ""
     evidence_ids: list[int] = Field(default_factory=list)
 
@@ -150,6 +154,9 @@ class CognitiveRequest(BaseModel):
     companion_name: str = "Spamuel"
     user_name: str = "Jesse"
     state_summary: str = ""
+    mental_state_latent_vec: list[float] = Field(default_factory=list)
+    mental_state_age_seconds: float = 0.0
+    personality_vec: list[float] = Field(default_factory=list)
     active_goals: list[str] = Field(default_factory=list)
     stimuli: list[Stimulus] = Field(default_factory=list)
     memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
@@ -174,6 +181,10 @@ class CognitiveReport(BaseModel):
     appraisal: AppraisalResult | None = None
     goal_changes: list[GoalChange] = Field(default_factory=list)
     event_origins: dict[str, str] = Field(default_factory=dict)
+    mental_state_latent_vec: list[float] = Field(default_factory=list)
+    affect_trace: dict = Field(default_factory=dict)
+    affect_summary: str = ""
+    regulation: str = ""
 
 
 __all__ = [

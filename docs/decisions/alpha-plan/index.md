@@ -18,7 +18,9 @@ A04 supplies [classification and scoped INVALID recovery](../../subsystems/workf
 A05 supplies [PM connections and M1 evidence](../../subsystems/workflow-inputs/pm-verification.md).
 A06 supplies [accepted cognition state](../../subsystems/cognition-state.md) and its
 [A06 verification](../../subsystems/cognition-state-verification.md).
-A07 through A20 remain pending.
+A07 supplies [emotional dynamics](../../subsystems/emotional-dynamics.md) and its
+[A07 verification](../../subsystems/emotional-dynamics-verification.md).
+A08 through A20 remain pending.
 
 The LLM is the default for selection, classification, and interpretation.
 Laya was planned for frequent use, but A02 found poor interpretation quality.
@@ -73,7 +75,7 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | A04 | [Add classification with INVALID fallback](work-items/a04.md) — engineering delivery recorded | Engine demonstration |
 | A05 | [Wire LLM classification in PM and retain optional Laya](work-items/a05.md) — engineering delivery recorded | M1: LLM classification over real artifacts |
 | A06 | [Commit affect, goals, and causal events](work-items/a06.md) — engineering delivery recorded | |
-| A07 | [Make emotional state change behavior](work-items/a07.md) | |
+| A07 | [Make emotional state change behavior](work-items/a07.md) — engineering delivery recorded | |
 | A08 | [Retrieve and learn from experienced memory](work-items/a08.md) | |
 | A09 | [Unify public voice and capability grounding](work-items/a09.md) | M2: a continuous companion across restart |
 | A10 | [Run one sustained Minecraft specialist session](work-items/a10.md) | Developer check: many calls per leaf |
