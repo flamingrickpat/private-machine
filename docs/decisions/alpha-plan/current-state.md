@@ -49,6 +49,15 @@ The cognitive parent contract is [`workflows.main_cognition.schemas.CognitiveRep
 | Publication recovery | The bus is in memory. Accepted state can precede a crash before publication. | Restart can lose an accepted action or public reply. | A06, A12 |
 | Reply failure | An ontology rejection produces telemetry that main cognition does not fully consume. | A user turn can end without a useful reply or recovery. | A09 |
 
+A06 closed the main state path for the affect, goal, event identity, active
+goal, and dependency rows. Appraisal and goal proposals now commit with the
+attention frame. Lifecycle startup and shutdown evidence is durable. See
+[accepted cognition state](../../subsystems/cognition-state.md).
+The inner-loop and recovery parts of those rows remain open.
+
+Inferred rationale: the audit table stays as a planning record. The delivery
+column names the item that owns the repair, not the current status.
+
 The rich mental-state models already contain emotions, needs, personality, and social appraisal.
 Their existence does not establish that every field participates in live behavior.
 Repair the active state path before adding more state dimensions.

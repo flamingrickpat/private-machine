@@ -65,6 +65,10 @@ class ValidationGuardTests(unittest.TestCase):
              "reason": "already done", "priority": 0.1},
             {"change": "reprioritize", "goal": "keep the bit going",
              "reason": "the fire outranks the bit", "priority": 0.4},
+            {"change": "defer", "goal": "explore the cave",
+             "reason": "it is night", "priority": 0.2},
+            {"change": "refuse", "goal": "give away my diamonds",
+             "reason": "they are mine", "priority": 0.1},
         ]})
         steps.validate_changes(result)
 

@@ -72,6 +72,23 @@ def _managed_workflows(stage_model=None) -> dict:
     }
 
 
+def _cognition_workflow_options(supervisor) -> list[dict]:
+    """Build the main-cognition action space from the live configuration.
+
+    Dialogue and self-management are always available. Managed workflow names
+    come from the supervisor, so a configured workflow can steer work without
+    a code change.
+    """
+    options = [
+        {"name": "dialogue_story", "description": "Generate one in-character Story reply."},
+        {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools."},
+        {"name": "self_management", "description": "Start, status, update, or terminate a managed run."},
+    ]
+    for name in sorted(supervisor.workflows):
+        options.append({"name": name, "description": f"Managed workflow {name}."})
+    return options
+
+
 def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
                       runtime_root, workflow_paths, stage_model, config_path,
                       supervisor):
@@ -98,6 +115,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             tools_factory=build_main_cognition_tools(ghost, runtime_root, stage_model.complete),
             runtime_root=runtime_root,
             ghost=ghost,
+            workflow_catalogue=_cognition_workflow_options(supervisor),
         )
         story = StoryDialogue(
             "dialogue", bus, on_error, clock, None,
@@ -150,6 +168,7 @@ def build_app(
     stage_model=None,
     config_path: str | None = None,
     workflow_models: WorkflowModels | None = None,
+    record_lifecycle: bool = True,
 ) -> Application:
     """Construct an application without service activation.
 
@@ -292,6 +311,18 @@ def build_app(
     app.consolidator = consolidator
     app.steward = steward
     app.workflow_models = workflow_models
+
+    # Durable lifecycle evidence. The boot event feeds the first main cycle so
+    # the companion can appraise a real offline gap. Only real cognition runs
+    # that cycle, so the dummy fixture records the event without a stimulus.
+    from runtime.lifecycle import record_startup
+    boot = record_startup(ghost) if record_lifecycle else None
+    app.lifecycle_boot = boot
+    if cognition == "real" and boot is not None:
+        bus.put(Envelope(
+            id=_new_id(), source="system", kind="data", topic="system.lifecycle",
+            correlation_id="", payload={"knoxel_id": boot["knoxel_id"]},
+        ))
     return app
 
 

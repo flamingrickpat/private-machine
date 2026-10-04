@@ -1,8 +1,15 @@
 """Dependency resolution for typed action dispatches.
 
-A dispatch that names ``depends_on`` action IDs is only released when every
-dependency has a successful receipt. A rejected dependency produces a rejected
-dispatch with a reason, never a fabricated completion.
+Two dependency kinds are kept apart:
+
+- ``depends_on`` only orders dispatch. An action may reach the bus after an
+  earlier action in the same selection was released.
+- ``requires_completed`` names a real prerequisite. The action stays queued
+  until a ``completed`` receipt for that action exists. Missing, failed, or
+  cancelled prerequisites keep it queued or reject it, never release it.
+
+A rejected dependency produces a rejected dispatch with a reason, never a
+fabricated completion.
 """
 from __future__ import annotations
 
@@ -45,12 +52,12 @@ def resolve_dispatches(
 
 
 def resolve_same_cycle(dispatches: list[ActionDispatch]) -> list[ActionDispatch]:
-    """Resolve dependencies between actions proposed in one selection.
+    """Resolve dispatch ordering between actions proposed in one selection.
 
-    An action with no dependency is released as a scheduling intent. An
-    action is released only when every dependency names an earlier action in
-    this same list that was itself released. An unknown or rejected
-    dependency rejects the action explicitly.
+    An action with no ordering dependency is released. An action is released
+    only when every ``depends_on`` names an earlier action in this same list
+    that was itself released. An unknown or rejected ordering dependency
+    rejects the action explicitly. This function does not confirm success.
     """
     released: dict[str, bool] = {}
     resolved: list[ActionDispatch] = []
@@ -73,4 +80,45 @@ def resolve_same_cycle(dispatches: list[ActionDispatch]) -> list[ActionDispatch]
     return resolved
 
 
-__all__ = ["resolve_dispatches", "resolve_same_cycle"]
+def resolve_prerequisites(
+    dispatches: list[ActionDispatch],
+    receipts: dict[str, str],
+) -> list[ActionDispatch]:
+    """Gate success prerequisites without reordering dispatch.
+
+    A dispatch that already failed ordering resolution keeps its rejection.
+    Otherwise every ``requires_completed`` entry must have a ``completed``
+    receipt. A known failure rejects the dispatch; a missing or unfinished
+    receipt leaves it ``queued`` so a later receipt can release it.
+    """
+    resolved: list[ActionDispatch] = []
+    for dispatch in dispatches:
+        if dispatch.status == "rejected":
+            resolved.append(dispatch)
+            continue
+        failed: list[str] = []
+        pending: list[str] = []
+        for prerequisite in dispatch.requires_completed:
+            state = receipts.get(prerequisite)
+            if state == "completed":
+                continue
+            if state is None:
+                pending.append(prerequisite)
+            else:
+                failed.append(f"{prerequisite}:{state}")
+        if failed:
+            resolved.append(dispatch.model_copy(update={
+                "status": "rejected",
+                "rejection_reason": "prerequisite failed: " + ", ".join(failed),
+            }))
+        elif pending:
+            resolved.append(dispatch.model_copy(update={
+                "status": "queued",
+                "rejection_reason": "prerequisite pending: " + ", ".join(pending),
+            }))
+        else:
+            resolved.append(dispatch)
+    return resolved
+
+
+__all__ = ["resolve_dispatches", "resolve_prerequisites", "resolve_same_cycle"]

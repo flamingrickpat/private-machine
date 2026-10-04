@@ -12,7 +12,7 @@ from pathlib import Path
 from pm_workflows.runtime import WorkflowRuntime
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.main_cognition.dispatch import resolve_dispatches, resolve_same_cycle
-from workflows.main_cognition.pipeline import STAGE_ORDER, run_cycle
+from workflows.main_cognition.pipeline import STAGE_ORDER, run_cycle, stable_action_id
 from workflows.main_cognition.schemas import ActionDispatch, CognitiveReport
 from working_target import GhostBashEnvironment
 
@@ -46,7 +46,7 @@ def fake_reports() -> dict:
         "workspace": {"frame_reason": "fire", "focus_ids": [11], "subjective_experience": "Everything is loud."},
         "action_selection": {
             "actions": [
-                {"action_type": "ToolCall", "workflow_name": "self_management",
+                {"action_id": "action-0", "action_type": "ToolCall", "workflow_name": "self_management",
                  "content": "start fire response", "arguments": {}, "depends_on": []},
                 {"action_type": "Reply", "workflow_name": "dialogue_story",
                  "content": "tell Jesse to move", "arguments": {}, "depends_on": ["action-0"]},
@@ -75,7 +75,11 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("appraisal", payloads["attention"])
         self.assertIn("attention", payloads["workspace"])
         self.assertEqual(len(report.receipts), 7)
-        self.assertEqual([d.action_id for d in report.dispatches], ["action-0", "action-1"])
+        expected_ids = [
+            intent.get("action_id") or stable_action_id(intent, index)
+            for index, intent in enumerate(fake_reports()["action_selection"]["actions"])
+        ]
+        self.assertEqual([d.action_id for d in report.dispatches], expected_ids)
         self.assertEqual([d.status for d in report.dispatches], ["dispatched", "dispatched"])
 
     def test_dependency_on_an_unknown_action_is_rejected(self):
@@ -143,7 +147,8 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(result.status, WorkflowStatus.Completed)
         report = CognitiveReport.model_validate(result.report)
         self.assertEqual(len(report.receipts), 7)
-        self.assertEqual(report.dispatches[0].action_id, "action-0")
+        first = fake_reports()["action_selection"]["actions"][0]
+        self.assertEqual(report.dispatches[0].action_id, first.get("action_id") or stable_action_id(first, 0))
 
 
 if __name__ == "__main__":

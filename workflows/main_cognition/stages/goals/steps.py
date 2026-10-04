@@ -18,7 +18,7 @@ from workflows.main_cognition.stage_support import (
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
 
-ALLOWED_CHANGES = ("retain", "add", "complete", "reprioritize")
+ALLOWED_CHANGES = ("retain", "add", "complete", "reprioritize", "defer", "refuse")
 
 
 def load_prompts(path: Path | None = None) -> dict:

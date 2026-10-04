@@ -32,8 +32,10 @@ class ActionDispatch(BaseModel):
     """Typed application dispatch record (plan: workflows.md, action dispatch).
 
     ``content`` states the intent of the action, not a finished companion
-    reply. ``depends_on`` names action IDs whose successful receipts are
-    required before dispatch.
+    reply. ``depends_on`` names action IDs that must be released earlier in the
+    same selection; it only orders dispatch. ``requires_completed`` names
+    action IDs whose successful completion receipt is required before this
+    action can start. A queued prerequisite never releases dependent work.
     """
 
     action_id: str
@@ -42,8 +44,9 @@ class ActionDispatch(BaseModel):
     content: str = ""
     arguments: dict = Field(default_factory=dict)
     depends_on: list[str] = Field(default_factory=list)
+    requires_completed: list[str] = Field(default_factory=list)
     gwt_tick_id: int | None = None
-    status: str = "proposed"  # proposed | dispatched | rejected
+    status: str = "proposed"  # proposed | dispatched | queued | rejected
     rejection_reason: str = ""
 
 
@@ -65,6 +68,10 @@ class AppraisalResult(BaseModel):
     feeling: str = ""
     emotion_delta: dict[str, float] = Field(default_factory=dict)
     need_delta: dict[str, float] = Field(default_factory=dict)
+    appraisal: dict[str, float] = Field(
+        default_factory=dict,
+        description="Optional appraisal axes. Keys match AppraisalGeneral or AppraisalSocial fields.",
+    )
     reasoning: str = ""
     evidence_ids: list[int] = Field(default_factory=list)
 
@@ -96,6 +103,7 @@ class AttentionResult(BaseModel):
 class GoalChange(BaseModel):
     change: str  # retain | add | complete | reprioritize
     goal: str = ""
+    goal_key: str = ""  # stable identity; falls back to normalized goal text
     reason: str = ""
     priority: float = 0.5
 
@@ -112,11 +120,13 @@ class WorkspaceResult(BaseModel):
 
 
 class ActionIntent(BaseModel):
+    action_id: str = ""  # optional durable identity; the parent fills a stable one
     action_type: str = "Reply"
     workflow_name: str = "dialogue_story"
     content: str = ""
     arguments: dict = Field(default_factory=dict)
     depends_on: list[str] = Field(default_factory=list)
+    requires_completed: list[str] = Field(default_factory=list)
 
 
 class ActionSelectionResult(BaseModel):
@@ -161,6 +171,9 @@ class CognitiveReport(BaseModel):
     control_mode: str = "reactive"
     frame_reason: str = ""
     subjective_experience: str = ""
+    appraisal: AppraisalResult | None = None
+    goal_changes: list[GoalChange] = Field(default_factory=list)
+    event_origins: dict[str, str] = Field(default_factory=dict)
 
 
 __all__ = [

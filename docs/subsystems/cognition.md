@@ -53,5 +53,10 @@ Parent workflow timings include child timings.
 
 ## Go deeper
 
-Read [one exchange](../workflows/exchange.md), [managed work](managed-work.md), and [next experiments](../decisions/experiments.md).
+Read [accepted cognition state](cognition-state.md) for affect, goals, and
+stable action identities.
+Read [A06 verification](cognition-state-verification.md) for the real state
+receipts.
+Read [one exchange](../workflows/exchange.md), [managed work](managed-work.md),
+and [next experiments](../decisions/experiments.md).
 

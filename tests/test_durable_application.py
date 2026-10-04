@@ -44,7 +44,8 @@ class DurableApplicationTests(unittest.TestCase):
         self.assertEqual(related[2].causation_id, related[1].id)
         self.assertFalse(self.app.main_cog.step(), "own reply started another cognitive turn")
         self.assertTrue(all(module._thread is None for module in self.app.modules))
-        restarted = build_app(None, self.root / "restarted", checkpoint_path=self.path)
+        restarted = build_app(None, self.root / "restarted", checkpoint_path=self.path,
+                              record_lifecycle=False)
         self.assertEqual(restarted.ghost.state_dict(), self.app.ghost.state_dict())
 
     def test_failed_save_emits_no_gwt_or_action(self):

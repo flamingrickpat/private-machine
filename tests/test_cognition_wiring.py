@@ -21,6 +21,7 @@ from modules import MainCogLoop, StoryDialogue
 from tests.support import ManualClock, Recorder
 from workflow_adapter import PROJECT_ROOT
 from workflows.main_cognition.module_tools import build_main_cognition_tools
+from workflows.main_cognition.pipeline import stable_action_id
 from working_target import GhostBashWrapper
 
 REAL_MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
@@ -98,7 +99,10 @@ class MainCogLoopWiringTests(unittest.TestCase):
             event = requests.events[0]
             self.assertEqual(event.target, "dialogue_story")
             self.assertEqual(event.correlation_id, "corr-fire")
-            self.assertEqual(event.payload["action_id"], "action-0")
+            self.assertEqual(
+                event.payload["action_id"],
+                stable_action_id(reports["action_selection"]["actions"][0], 0),
+            )
             self.assertIn(stimulus_id, ghost.gwt_turns[ghost.current_tick_id].knoxel_ids)
             action = ghost.get_knoxel_by_id(event.payload["knoxel_id"])
             self.assertEqual(action.content, "warn Jesse about the fire")

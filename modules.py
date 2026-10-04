@@ -12,7 +12,8 @@ from threading import RLock
 from pm_core.model.ghost_state import CycleState
 from pm_core.model.gwt import GwtTurnRecord
 from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature
-from pm_core.model.knoxel_enums import ActionType, FeatureType, InterlocusType
+from pm_core.model.knoxel_core import Provenance
+from pm_core.model.knoxel_enums import ActionType, FeatureType, InterlocusType, SourceKind
 from pm_core.model.knoxel_state_change import AttentionFrameKnoxel
 
 from bus.envelopes import Envelope, _new_id
@@ -27,6 +28,12 @@ from workflows.main_cognition.schemas import (
     MemoryCandidate,
     Stimulus,
     WorkflowOption,
+)
+from workflows.main_cognition.state_changes import (
+    active_goal_texts,
+    active_intentions,
+    apply_appraisal,
+    apply_goal_changes,
 )
 from workflows.self_management.schemas import SelfManagementRequest
 from workflows.steward.schemas import StewardRequest
@@ -107,7 +114,8 @@ class TaskTable:
                 record["status"] = "terminated"
 
 
-def _feature(ghost, content, feature_type, *, source, interlocus=None, causal=True, changes=None):
+def _feature(ghost, content, feature_type, *, source, interlocus=None, causal=True, changes=None,
+             source_kind=None, metadata=None):
     kwargs = {
         "content": content,
         "feature_type": feature_type,
@@ -116,6 +124,10 @@ def _feature(ghost, content, feature_type, *, source, interlocus=None, causal=Tr
     }
     if interlocus is not None:
         kwargs["interlocus"] = interlocus
+    if source_kind is not None:
+        kwargs["provenance"] = Provenance(source_kind=source_kind, source_ref=str(source))
+    if metadata:
+        kwargs["metadata"] = dict(metadata)
     create = ghost.store_knoxel if changes is None else changes.create
     return create(Feature(**kwargs))
 
@@ -321,7 +333,14 @@ class MainCogLoop(CognitiveWorkflow):
 
     DATA_TOPICS = frozenset({
         "user.input", "thought.created", "task.telemetry", "workflow.question", "workflow.event",
+        "system.lifecycle",
     })
+
+    def __init__(self, *args, workflow_catalogue=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Configuration supplies the action space. The fixed catalogue remains
+        # the fallback so direct tests and older callers keep working.
+        self.workflow_catalogue = list(workflow_catalogue) if workflow_catalogue else None
 
     def accepts(self, envelope: Envelope) -> bool:
         if envelope.topic == "workflow.question" and envelope.kind == "telemetry":
@@ -352,11 +371,14 @@ class MainCogLoop(CognitiveWorkflow):
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
             state_summary=_state_summary(self.ghost),
-            active_goals=[str(knoxel.content) for knoxel in self.ghost.all_intentions][:8],
+            active_goals=active_goal_texts(self.ghost)[:8],
             stimuli=stimuli,
             memory_candidates=_memory_candidates(self.ghost),
             capabilities=_capabilities(self.ghost),
-            available_workflows=[WorkflowOption(**workflow) for workflow in DEFAULT_WORKFLOWS],
+            available_workflows=[
+                WorkflowOption(**workflow)
+                for workflow in (self.workflow_catalogue or DEFAULT_WORKFLOWS)
+            ],
         )
         return request.model_dump(mode="json")
 
@@ -369,6 +391,8 @@ class MainCogLoop(CognitiveWorkflow):
             feature = _feature(
                 self.ghost, f"Workflow question from {envelope.source}: {question}",
                 FeatureType.WorldEvent, source=envelope.source or "workflow",
+                source_kind=SourceKind.Workflow,
+                metadata={"origin": "workflow.question", "correlation_id": envelope.correlation_id},
             )
             return feature.id, question, "workflow.question"
         if envelope.topic == "workflow.event" and envelope.kind == "telemetry":
@@ -376,16 +400,43 @@ class MainCogLoop(CognitiveWorkflow):
             state = str(payload.get("event", "")).strip()
             if not run_id or not state:
                 return None, "", ""
+            # Keep progress detail and evidence so the cycle can judge the task.
+            detail = str(payload.get("detail", "") or payload.get("message", "")).strip()
+            artifact = str(payload.get("artifact_path", "")).strip()
             text = f"Managed run {run_id} {state}"
+            if detail:
+                text += f": {detail}"
             feature = _feature(
                 self.ghost, text, FeatureType.WorldEvent, source=envelope.source or "workflow",
+                source_kind=SourceKind.Workflow,
+                metadata={
+                    "origin": "workflow.event",
+                    "run_id": run_id,
+                    "event": state,
+                    "artifact_path": artifact,
+                    "evidence": dict(payload),
+                },
             )
             return feature.id, text, "workflow.event"
+        if envelope.topic == "system.lifecycle":
+            knoxel_id = payload.get("knoxel_id")
+            if knoxel_id is None:
+                return None, "", ""
+            knoxel = self.ghost.get_knoxel_by_id(int(knoxel_id))
+            return int(knoxel_id), str(knoxel.content) if knoxel is not None else "", "system.lifecycle"
         if "knoxel_id" not in payload:
             return None, "", ""
         knoxel_id = int(payload["knoxel_id"])
         knoxel = self.ghost.get_knoxel_by_id(knoxel_id)
-        return knoxel_id, str(knoxel.content) if knoxel is not None else "", "user.input"
+        kind = "user.input"
+        if knoxel is not None:
+            if knoxel.feature_type in {FeatureType.Thought, FeatureType.InnerMonologue}:
+                kind = "thought.created"
+            elif knoxel.feature_type == FeatureType.SystemMessage:
+                kind = "system.lifecycle"
+            elif knoxel.feature_type == FeatureType.WorldEvent:
+                kind = "workflow.event"
+        return knoxel_id, str(knoxel.content) if knoxel is not None else "", kind
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
         parsed = CognitiveReport.model_validate(report)
@@ -395,56 +446,95 @@ class MainCogLoop(CognitiveWorkflow):
             self.invocation_id or _new_id(), new_tick=True, cancel=self.stop_event,
         )
         tick = changes.tick_id
+        view = changes.view()
+
+        # Apply the appraisal and goal proposals into this same batch before the
+        # frame. A failure here aborts the whole batch, so stale proposals never
+        # partly update accepted state.
+        previous_vec = self.ghost.states[-1].mental_state_latent_vec if self.ghost.states else None
+        appraisal_feature, mental_state = apply_appraisal(
+            changes, view, parsed.appraisal,
+            previous_vec=previous_vec,
+            evidence_ids=[int(item) for item in self._stimulus_ids],
+            companion_name=self.ghost.get_companion_name(),
+        )
+        goal_records = apply_goal_changes(
+            changes, view, parsed.goal_changes,
+            evidence_ids=[int(item) for item in self._stimulus_ids],
+        )
+        created_goal_ids = [
+            int(record["intention_id"]) for record in goal_records
+            if record.get("created") and record.get("intention_id") is not None
+        ]
+        goal_ids = [int(item.id) for item in active_intentions(changes.view())]
+
         frame = changes.create(AttentionFrameKnoxel(
             content=parsed.frame_reason or parsed.summary,
             tick_id=tick,
             focus_knoxel_ids=list(parsed.focus_ids),
             winning_attention_ids=list(parsed.winning_attention_ids),
-            active_goal_ids=list(parsed.active_goal_ids),
+            active_goal_ids=goal_ids or list(parsed.active_goal_ids),
             control_mode=parsed.control_mode,
             frame_reason=parsed.frame_reason or parsed.summary,
         ))
-        published = []
+        created_order: list[int] = [frame.id, appraisal_feature.id, *created_goal_ids]
+        published: list[tuple] = []
         rejected = []
-        action_ids: list[int] = []
+        queued = []
+        duplicates = []
         for dispatch in parsed.dispatches:
+            if dispatch.status == "queued":
+                queued.append(dispatch)
+                continue
             if dispatch.status != "dispatched":
                 rejected.append(dispatch)
+                continue
+            existing = self._existing_action_identity(dispatch)
+            if existing is not None:
+                duplicates.append((dispatch, existing))
                 continue
             action = changes.create(ActionSchemaKnoxel(
                 content=dispatch.content,
                 action_type=ACTION_BY_NAME.get(dispatch.action_type, ActionType.Reply),
                 attention_frame_id=frame.id,
+                intention_ids=list(goal_ids),
                 metadata={
                     "action_id": dispatch.action_id,
                     "route": dispatch.workflow_name,
                     "workflow_name": dispatch.workflow_name,
                     "depends_on": list(dispatch.depends_on),
+                    "requires_completed": list(dispatch.requires_completed),
                     "arguments": dict(dispatch.arguments),
                 },
             ))
-            action_ids.append(action.id)
-            published.append(dispatch)
+            created_order.append(action.id)
+            published.append((dispatch, action.id))
         changes.set_gwt(
             GwtTurnRecord(
                 tick_id=tick, attention_frame_id=frame.id,
-                knoxel_ids=list(self._stimulus_ids) + [frame.id] + action_ids,
+                knoxel_ids=list(self._stimulus_ids) + created_order,
                 summary=parsed.summary,
             ),
-            CycleState(tick_id=tick, attention_frame_id=frame.id, published_slots=["main"]),
+            CycleState(
+                tick_id=tick, attention_frame_id=frame.id, published_slots=["main"],
+                stimuli_ids=list(self._stimulus_ids),
+                mental_state_latent_vec=mental_state.to_list(),
+            ),
         )
         receipt = self.ghost.commit(changes)
         tick = receipt.tick_id
-        if receipt.added_ids:
-            action_ids = list(receipt.added_ids[1:])
 
         memory_texts = [candidate.text for candidate in _memory_candidates(self.ghost, limit=8)]
         self.bus.put(_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))
-        for dispatch, action_id in zip(published, action_ids):
+        for dispatch, created_id in published:
+            # A repeated commit returns the original receipt and does not apply
+            # the new batch. Resolve the accepted action by durable identity and
+            # tick so the published id is always committed.
+            committed_id = self._committed_action_id(dispatch, tick) or created_id
             self.bus.put(_envelope(
                 self.module_id, "data", "action.request", correlation,
                 {
-                    "knoxel_id": action_id,
+                    "knoxel_id": committed_id,
                     "gwt_tick": tick,
                     "action_id": dispatch.action_id,
                     "workflow_name": dispatch.workflow_name,
@@ -457,17 +547,65 @@ class MainCogLoop(CognitiveWorkflow):
                 target=dispatch.workflow_name,
                 causation_id=cause,
             ))
+        for dispatch in queued:
+            self._publish_receipt(correlation, dispatch, "queued", cause)
         for dispatch in rejected:
-            self.bus.put(_envelope(
-                self.module_id, "telemetry", "action.receipt", correlation,
-                {
-                    "action_id": dispatch.action_id,
-                    "workflow_name": dispatch.workflow_name,
-                    "status": "rejected",
-                    "rejection_reason": dispatch.rejection_reason,
-                },
-                causation_id=cause,
-            ))
+            self._publish_receipt(correlation, dispatch, "rejected", cause)
+        for dispatch, existing_id in duplicates:
+            self._publish_receipt(
+                correlation, dispatch, "duplicate", cause,
+                detail=f"active action {existing_id} has identity {dispatch.action_id}",
+            )
+
+    def _committed_action_id(self, dispatch, tick: int) -> int | None:
+        """Return the accepted action id for this identity and tick, if any."""
+        for knoxel in self.ghost.all_knoxels.values():
+            if not isinstance(knoxel, ActionSchemaKnoxel):
+                continue
+            if int(knoxel.tick_id) != int(tick):
+                continue
+            if str(knoxel.metadata.get("action_id", "")) == dispatch.action_id:
+                return int(knoxel.id)
+        return None
+
+    def _existing_action_identity(self, dispatch) -> int | None:
+        """Return the existing non-reply action with this identity, if any.
+
+        Replies may repeat their content. A tool or start action keeps its
+        durable identity, so a repeated request does not start another task.
+        """
+        if ACTION_BY_NAME.get(dispatch.action_type, ActionType.Reply) == ActionType.Reply:
+            return None
+        for knoxel in self.ghost.all_knoxels.values():
+            if not isinstance(knoxel, ActionSchemaKnoxel):
+                continue
+            if str(knoxel.metadata.get("action_id", "")) == dispatch.action_id:
+                return int(knoxel.id)
+        return None
+
+    def _publish_receipt(self, correlation: str, dispatch, status: str, cause,
+                         detail: str = "") -> None:
+        payload = {
+            "action_id": dispatch.action_id,
+            "workflow_name": dispatch.workflow_name,
+            "status": status,
+            "rejection_reason": dispatch.rejection_reason,
+        }
+        if detail:
+            payload["detail"] = detail
+        self.bus.put(_envelope(
+            self.module_id, "telemetry", "action.receipt", correlation, payload,
+            causation_id=cause,
+        ))
+
+    def on_terminate(self) -> None:
+        """Record a clean shutdown once the module stops normally.
+
+        An abrupt process exit never reaches this hook, so its next startup
+        records an uncertain end interval instead of a clean timestamp.
+        """
+        from runtime.lifecycle import record_shutdown
+        record_shutdown(self.ghost)
 
 
 class DummyDialogue(CognitiveWorkflow):
@@ -766,6 +904,7 @@ class InnerThoughtLoop(CognitiveWorkflow):
         _feature(
             self.ghost, report["thought"], FeatureType.InnerMonologue,
             source=self.ghost.get_companion_name(), changes=changes,
+            source_kind=SourceKind.Self,
         )
         receipt = self.ghost.commit(changes)
         self.bus.put(_envelope(

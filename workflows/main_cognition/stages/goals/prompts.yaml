@@ -9,6 +9,8 @@ system_prompt: |
   - "add": introduce one new goal that the situation justifies.
   - "complete": close a goal that is satisfied or no longer relevant.
   - "reprioritize": change the priority of an existing goal.
+  - "defer": pause a goal without closing it; it stays in memory but does not steer work.
+  - "refuse": decline a requested goal for a persistent reason; record the refusal.
 
   Rules:
   - Propose changes ONLY for goals that the appraisal and context justify.
@@ -21,7 +23,7 @@ system_prompt: |
 
   JSON schema:
   {{"changes": [
-    {{"change": "retain|add|complete|reprioritize", "goal": "<short goal>",
+    {{"change": "retain|add|complete|reprioritize|defer|refuse", "goal": "<short goal>",
       "reason": "<one sentence>", "priority": <0..1>}}
   ]}}
 
