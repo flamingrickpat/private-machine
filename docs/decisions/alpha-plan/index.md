@@ -20,14 +20,17 @@ A06 supplies [accepted cognition state](../../subsystems/cognition-state.md) and
 [A06 verification](../../subsystems/cognition-state-verification.md).
 A07 supplies [emotional dynamics](../../subsystems/emotional-dynamics.md) and its
 [A07 verification](../../subsystems/emotional-dynamics-verification.md).
-A08 through A20 remain pending.
+A08 supplies [experienced memory](../../subsystems/experienced-memory.md) and its [verification](../../subsystems/memory-verification.md).
+A09 supplies [public dialogue](../../subsystems/public-dialogue.md), [publication recovery](../../subsystems/public-publication.md), and [verification](../../subsystems/public-verification.md).
+A10 through A20 remain pending.
 
 The LLM is the default for selection, classification, and interpretation.
 Laya was planned for frequent use, but A02 found poor interpretation quality.
 Retain it only for the simplest classifications after realistic live-endpoint unit tests pass.
 If making Laya work requires expensive effort, use the normal LLM.
 The [model policy](model-policy.md) governs every work item and withdraws the earlier 95% target.
-Historical routing-label review remains pending, and human immersion ratings still need operator review.
+Historical routing-label review remains pending.
+The operator completed A09's sampled M2 review; earlier baseline ratings remain separate.
 
 ## Target behavior
 
@@ -77,7 +80,7 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | A06 | [Commit affect, goals, and causal events](work-items/a06.md) — engineering delivery recorded | |
 | A07 | [Make emotional state change behavior](work-items/a07.md) — engineering delivery recorded | |
 | A08 | [Retrieve and learn from experienced memory](work-items/a08.md) — engineering delivery recorded | |
-| A09 | [Unify public voice and capability grounding](work-items/a09.md) | M2: a continuous companion across restart |
+| A09 | [Unify public voice and capability grounding](work-items/a09.md) - engineering delivery recorded | M2: a continuous companion across restart |
 | A10 | [Run one sustained Minecraft specialist session](work-items/a10.md) | Developer check: many calls per leaf |
 | A11 | [Plan and verify durable Minecraft subtasks](work-items/a11.md) | |
 | A12 | [Control and recover interrupted body work](work-items/a12.md) | |

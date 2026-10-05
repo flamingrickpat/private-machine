@@ -14,7 +14,8 @@ def build_story_tools(model) -> Callable[[object, object], dict]:
     """Return the ``tools_factory(environment, batch)`` for Story dialogue."""
 
     def factory(environment, batch) -> dict:
-        return {"story_complete": model.build_async_tool()}
+        complete = model.build_async_tool()
+        return {"story_complete": complete, "public_complete": complete}
 
     return factory
 

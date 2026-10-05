@@ -18,6 +18,7 @@ def build_assistant_tools(model, supervisor) -> Callable[[object, object], dict]
 
     def factory(environment, batch) -> dict:
         tools = {"assistant_complete": model.build_tool_completion()}
+        tools["public_complete"] = model.build_async_tool()
         tools.update(build_management_tools(supervisor))
         tools.update(build_tools(environment, batch))
         return tools

@@ -137,6 +137,9 @@ class ChatClient:
             raise ModelError("The model service returned an invalid chat completion.") from None
         if result.model != self.connection.model:
             raise ModelError("The completion model does not match the activated model alias.")
+        if result.choices[0].finish_reason in {"length", "content_filter"}:
+            raise ModelError("The model completion ended before a usable response: "
+                             f"finish_reason={result.choices[0].finish_reason}; usage={response.get('usage', {})}.")
         message = result.choices[0].message
         if not message.content and not message.tool_calls:
             raise ModelError("The model returned no content or tool call. Inspect its generation config.")

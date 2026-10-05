@@ -87,7 +87,13 @@ def run(settings: dict, root: Path) -> None:
     app = build_app(settings["seed"], root, checkpoint_path=root / "ghost.json",
                     cognition=settings["cognition"], config_path=settings.get("config") or None,
                     emit_reply=lambda text: None)
-    pending: dict[str, str] = {}
+    pending: dict[str, str] = {
+        item.metadata["exchange_correlation"]: item.metadata.get("session", "recovered")
+        for item in app.ghost.all_features if item.metadata.get("exchange_correlation")
+        and (item.metadata.get("exchange_status") == "pending"
+             or app.ghost.get_knoxel_by_id(item.metadata.get("public_reply_id")) is not None
+             and app.ghost.get_knoxel_by_id(item.metadata["public_reply_id"]).metadata.get("publication_status") == "pending")
+    }
     search_cancel = threading.Event()
     submission_lock = threading.Lock()
 
@@ -100,7 +106,8 @@ def run(settings: dict, root: Path) -> None:
             if feature is not None:
                 with submission_lock:
                     emit("chat.reply", session=pending.get(envelope.correlation_id, "unsolicited"),
-                         correlation_id=envelope.correlation_id, text=feature.content)
+                         correlation_id=envelope.correlation_id, knoxel_id=feature.id,
+                         recovery_outcome=envelope.payload.get("recovery_outcome", ""), text=feature.content)
                     pending.pop(envelope.correlation_id, None)
                 emit("history", history=app.ghost.dialogue_history())
 
@@ -175,7 +182,7 @@ def run(settings: dict, root: Path) -> None:
                             raise ValueError("Wait for the current reply before changing the user or sending another message.")
                         with app.ghost.lock:
                             app.ghost.ghost_config.user_name = command["user"]
-                        correlation = app.user_input.submit(command["text"])
+                        correlation = app.user_input.submit(command["text"], session=command["session"])
                         pending[correlation] = command["session"]
                     emit("chat.input", session=command["session"], user=command["user"],
                          text=command["text"], correlation_id=correlation)

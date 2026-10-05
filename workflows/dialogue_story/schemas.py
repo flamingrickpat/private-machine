@@ -9,6 +9,8 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from workflows.public_context import PublicContext
+from workflows.public_claims import ClaimReview
 
 
 class DialogueTurn(BaseModel):
@@ -37,6 +39,7 @@ class StoryRequest(BaseModel):
     memories: list[str] = Field(default_factory=list)
     workspace: str = ""
     selected_action: str = ""
+    public_context: PublicContext | None = None
 
 
 class OntologyViolation(BaseModel):
@@ -70,6 +73,7 @@ class StoryReport(BaseModel):
     candidate: str
     accepted: bool
     ontology: OntologyVerdict
+    claim_review: ClaimReview | None = None
 
 
 class StoryQualityScore(BaseModel):

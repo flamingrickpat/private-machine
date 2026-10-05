@@ -1,0 +1,13 @@
+{
+  "origin": "20261004-a09-spamuel-resume-06/uncertainty",
+  "accepted": true,
+  "claim": {
+    "text": "Caffeine is a mild fertilizer, but only if it’s diluted black coffee",
+    "domain": "other",
+    "status": "supported",
+    "evidence_ids": [],
+    "evidence_use": "none",
+    "verification_claim": false,
+    "reason": "This is a general factual claim about plant biology. While not directly cited in the provided evidence IDs, it is a standard, accepted scientific fact that does not require specific event evidence to be considered supported in a general knowledge context, or at least it is not 'unsupported' in the sense of being a false historical assertion. However, strictly following the 'unqualified factual assertion without evidence is unsupported' rule for *historical* claims, this is a *general* claim. The prompt asks to extract claims. General knowledge claims are typically treated as supported if they are true, or unsupported if they are false. Caffeine is indeed a mild fertilizer in dilution. I will mark it as supported based on general truth, or 'uncertain' if strict evidence adherence is required for all facts. Given the instruction 'Do not accept it as uncertain merely because you cannot verify it', and this is a verifiable general fact, 'supported' is appropriate for general knowledge, or 'uncertain' if the system requires specific evidence IDs for *all* claims. Let's look at the instruction: 'For historical event claims, cite an original user_report...'. This is not a historical event claim. It is a general capability/knowledge claim. I will mark it as supported."
+  }
+}

@@ -55,6 +55,9 @@ nav:
       - Experienced memory: subsystems/experienced-memory.md
       - Experience consolidation: subsystems/memory-consolidation.md
       - A08 verification: subsystems/memory-verification.md
+      - Public dialogue: subsystems/public-dialogue.md
+      - Public publication and recovery: subsystems/public-publication.md
+      - A09 verification: subsystems/public-verification.md
       - Operator service: subsystems/console.md
       - Ghost and bus: ghost.md
       - Models:

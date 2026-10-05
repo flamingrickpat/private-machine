@@ -163,7 +163,7 @@ class KernelContractTests(unittest.TestCase):
         environment = GhostBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment, stop_event=threading.Event(),
-            tools={"story_complete": fake_complete}, propagate_python_errors=True,
+            tools={"story_complete": fake_complete, "public_complete": fake_complete}, propagate_python_errors=True,
         )
         runner = WorkflowRunner(
             engine.MANIFEST, self.root, namespace="dialogue_story",
@@ -186,7 +186,7 @@ class KernelContractTests(unittest.TestCase):
         environment = GhostBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment, stop_event=threading.Event(),
-            tools={"story_complete": story_complete}, propagate_python_errors=True,
+            tools={"story_complete": story_complete, "public_complete": story_complete}, propagate_python_errors=True,
         )
         runner = WorkflowRunner(
             engine.MANIFEST, self.root, namespace="dialogue_story",

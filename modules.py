@@ -10,6 +10,7 @@ from pathlib import Path
 import asyncio
 from datetime import datetime
 from threading import RLock
+import yaml
 
 from pm_core.model.affect_dynamics import AffectProjection
 from pm_core.model.ghost_state import CycleState
@@ -45,6 +46,8 @@ from workflows.steward.schemas import StewardRequest
 from workflows.dialogue_assistant.schemas import AssistantMessage, AssistantReport, AssistantRequest
 from workflows.dialogue_assistant.steps import unsupported_management_claims
 from workflows.dialogue_assistant.tools import TOOL_DESCRIPTORS, TOOL_NAMES
+from workflows.public_context import build_public_context
+from runtime.publication import acknowledge_reply, commit_public_reply, exchange_record, publish_reply
 
 ACTION_BY_NAME = {member.value: member for member in ActionType}
 
@@ -150,17 +153,23 @@ def _recency(knoxel) -> tuple:
     return (getattr(knoxel, "tick_id", 0), getattr(knoxel, "id", 0))
 
 
-def _recent_public_dialogue(ghost, limit: int = 12) -> list[DialogueTurn]:
-    """Return recent public dialogue as Story transcript turns."""
+def _recent_public_dialogue(ghost, limit: int = 4, *, exclude_ids=()) -> list[DialogueTurn]:
+    """Bound prior turns and exclude the input rendered as the current message.
+
+    Rendering a pending user input twice invents a repeated conversational turn.
+    The original records remain complete in the canonical Ghost.
+    """
     features = [
         knoxel for knoxel in ghost.all_features
         if knoxel.feature_type == FeatureType.Dialogue
         and knoxel.interlocus == InterlocusType.Public
         and str(knoxel.content).strip()
+        and knoxel.id not in exclude_ids
     ]
     features.sort(key=_recency)
     return [
-        DialogueTurn(speaker=str(knoxel.override_source or "unknown"), text=str(knoxel.content))
+        DialogueTurn(speaker=str(knoxel.override_source or ghost.get_entity_name(knoxel.entity_id) or "unknown"),
+                     text=_clip(str(knoxel.content), 240))
         for knoxel in features[-limit:]
     ]
 
@@ -255,12 +264,13 @@ class UserInputProxy(ShellModule):
         self.ghost = ghost
         self.emit_reply = emit_reply
 
-    def submit(self, text: str) -> str:
+    def submit(self, text: str, *, session: str = "") -> str:
+        correlation_id = _new_id()
         feature = _feature(
             self.ghost, text, FeatureType.Dialogue,
             source=self.ghost.get_user_name(), interlocus=InterlocusType.Public,
+            metadata={"exchange_correlation": correlation_id, "exchange_status": "pending", "session": session},
         )
-        correlation_id = _new_id()
         self.bus.put(_envelope(
             self.module_id, "data", "user.input",
             correlation_id, {"knoxel_id": feature.id},
@@ -272,6 +282,7 @@ class UserInputProxy(ShellModule):
             feature = self.ghost.get_knoxel_by_id(envelope.payload["knoxel_id"])
             if feature is not None:
                 self.emit_reply(feature.content)
+                acknowledge_reply(self.ghost, feature.id)
 
 
 class CognitiveWorkflow(ShellModuleWorkflow):
@@ -374,6 +385,7 @@ class MainCogLoop(CognitiveWorkflow):
     Rejected dispatches publish an explicit receipt and never an action.
     """
 
+    WORKFLOW_NAME = "main_cognition"
     DATA_TOPICS = frozenset({
         "user.input", "thought.created", "task.telemetry", "workflow.question", "workflow.event",
         "system.lifecycle",
@@ -391,6 +403,44 @@ class MainCogLoop(CognitiveWorkflow):
         if envelope.topic == "workflow.question" and envelope.kind == "telemetry":
             return envelope.target in {None, self.module_id}
         return super().accepts(envelope)
+
+    def handle_batch(self, batch: list[Envelope]) -> None:
+        """Close a user exchange after a model protocol failure.
+
+        Logic errors still reach application shutdown. Invalid model output
+        retains its workflow artifacts and receives an explicit public receipt.
+        """
+        from runtime.model_io import ModelError
+        from pm_core.ghost.batch import GhostConflict
+        from workflows.main_cognition.stage_support import StageOutputError
+        try:
+            super().handle_batch(batch)
+        except (ModelError, StageOutputError, GhostConflict) as error:
+            if self.stop_event.is_set() or self.run_stop.is_set():
+                return
+            outcome = "stale" if isinstance(error, GhostConflict) else "protocol_failed"
+            if not any(envelope.source == "user_input" for envelope in batch):
+                # Public resolution can change a source marker while a task
+                # event cycle reads it. Reject that cycle without shutdown.
+                self.bus.put(_envelope(self.module_id, "telemetry", "action.receipt",
+                    batch[0].correlation_id if batch else "", {"status": outcome,
+                    "workflow_name": self.WORKFLOW_NAME, "rejection_reason": str(error),
+                    "recovery_outcome": "cycle_rejected"}))
+            for envelope in batch:
+                if envelope.source != "user_input":
+                    continue
+                reply_id = commit_public_reply(self.ghost,
+                    "I could not complete the decision for that request. No task result was verified.",
+                    envelope.correlation_id, commit_id="cognitive-recovery:" + envelope.id,
+                    recovery=outcome, cancel=self.stop_event)
+                self.bus.put(_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
+                    {"status": "failed", "workflow_name": self.WORKFLOW_NAME,
+                     "rejection_reason": f"{type(error).__name__}: {error}",
+                     "recovery_outcome": "published" if reply_id else "already_resolved",
+                     "public_reply_id": reply_id}, causation_id=envelope.id))
+                if reply_id is not None:
+                    publish_reply(self.bus, self.module_id, envelope.correlation_id, reply_id,
+                                  cause=envelope.id, recovery_outcome=outcome)
 
     def prepare_input(self, batch: list[Envelope]) -> dict:
         stimuli: list[Stimulus] = []
@@ -416,6 +466,11 @@ class MainCogLoop(CognitiveWorkflow):
                     self._stimulus_revisions[knoxel_id] = self.ghost.revisions[knoxel_id]
             if not correlation:
                 correlation = envelope.correlation_id
+        # A queued task event cannot take the cause of a newer user request.
+        # Individual stimuli retain their own correlation for attribution.
+        user_correlations = [item.correlation_id for item in stimuli if item.source == "user_input"]
+        if user_correlations:
+            correlation = user_correlations[-1]
         self._batch_correlation = correlation
         # The working target owns the frozen permitted view. Materialized host
         # events remain stimuli, but cannot expose concurrent future memory.
@@ -430,10 +485,31 @@ class MainCogLoop(CognitiveWorkflow):
             from pm_core.embeddings import EmbeddingService
             from runtime.models import load_config
             self._embeddings = EmbeddingService(load_config(self.embedding_config_path).embedding)
+        original_query = "\n".join(item.text for item in stimuli)
+        rewrite = getattr(self, "retrieval_query_provider", None)
+        rewrite_result = (rewrite(original_query) if rewrite is not None and any(item.source == "user_input" for item in stimuli)
+                          else {"query": original_query, "evidence_use": "general", "status": "literal"})
+        query = rewrite_result["query"]
         retrieval = asyncio.run(self.ghost.retrieve_experiences(
-            "\n".join(item.text for item in stimuli), self._embeddings, view=memory_view,
+            query, self._embeddings, view=memory_view,
             frontier=frontier, scopes=scopes, cancel=self.run_stop,
         ))
+        retrieval["trace"]["original_query"] = original_query
+        retrieval["trace"]["query_rewrite"] = rewrite_result
+        if rewrite_result["evidence_use"] == "event":
+            from pm_core.ghost.memory import evidence_role
+            records = memory_view.serialize_knoxels()
+            selected_sources = {key for item in retrieval["matches"] for key in item["source_ids"] if key in records}
+            original_sources = {key for key in selected_sources
+                                if evidence_role(memory_view, records[key]) in {"user_report", "runtime_event", "world_observation"}}
+            # An answer to a recall question cannot become event evidence for
+            # its repetition. Keep speech available for explicit speech recall.
+            rejected = [item for item in retrieval["matches"]
+                        if item["evidence_role"] in {"companion_utterance", "intent", "imagined", "interpretation"}
+                        or item["evidence_role"] == "derived" and not original_sources.intersection(item["source_ids"])]
+            rejected_ids = {item["knoxel_id"] for item in rejected}
+            retrieval["matches"] = [item for item in retrieval["matches"] if item["knoxel_id"] not in rejected_ids]
+            retrieval["trace"]["speech_only_excluded_ids"] = sorted(rejected_ids)
         self._memory_view = memory_view
         self._memory_candidates = retrieval["matches"]
         previous = self.ghost.states[-1] if self.ghost.states else None
@@ -441,6 +517,9 @@ class MainCogLoop(CognitiveWorkflow):
         age_seconds = 0.0
         if previous is not None:
             age_seconds = max(0.0, (datetime.now() - previous.timestamp).total_seconds())
+        provider = getattr(self, "capability_provider", None)
+        public = build_public_context(self.ghost, {"stimuli": [item.model_dump(mode="json") for item in stimuli]},
+                                      capabilities=provider() if provider else None)
         request = CognitiveRequest(
             run_id=self.invocation_id or "",
             correlation_id=correlation,
@@ -459,6 +538,10 @@ class MainCogLoop(CognitiveWorkflow):
                 WorkflowOption(**workflow)
                 for workflow in (self.workflow_catalogue or DEFAULT_WORKFLOWS)
             ],
+            public_context=public.model_dump(mode="json"),
+            managed_runs=[{key: run.get(key) for key in
+                          ("run_id", "workflow_name", "state", "instructions", "parent_correlation")}
+                          for run in list(self.ghost.managed_runs.values())[-16:]],
         )
         return request.model_dump(mode="json")
 
@@ -602,6 +685,13 @@ class MainCogLoop(CognitiveWorkflow):
             if existing is not None:
                 duplicates.append((dispatch, existing))
                 continue
+            from workflows.public_context import Presentation
+            presentation = Presentation.model_validate(dispatch.presentation)
+            if presentation.mode == "deceive" and (
+                not presentation.purpose or not presentation.known_fact_ids
+                or any(key not in view.revisions for key in presentation.known_fact_ids)
+            ):
+                raise ValueError("The proposed deception lacks retained factual context.")
             action = changes.create(ActionSchemaKnoxel(
                 content=dispatch.content,
                 action_type=ACTION_BY_NAME.get(dispatch.action_type, ActionType.Reply),
@@ -619,6 +709,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "memory_evidence": [item.model_dump(mode="json") for item in parsed.selected_memories],
                     "memory_trace": parsed.memory_trace,
                     "belief_updates": belief_receipt,
+                    "presentation": presentation.model_dump(mode="json"),
                 },
             ))
             created_order.append(action.id)
@@ -754,7 +845,139 @@ class DummyDialogue(CognitiveWorkflow):
             ))
 
 
-class StoryDialogue(CognitiveWorkflow):
+class PublicDialogue(CognitiveWorkflow):
+    """Shared stale guards and observable recovery for public workflows."""
+
+    capability_provider = None
+    grounding_recovery = None
+
+    def public_context(self, payload):
+        capabilities = self.capability_provider() if self.capability_provider else None
+        with self.ghost.lock:
+            self._public_context = build_public_context(self.ghost, payload, capabilities=capabilities)
+        return self._public_context
+
+    def handle_batch(self, batch: list[Envelope]) -> None:
+        # Each public action owns one report and one exchange resolution.
+        # A second envelope must not disappear inside a merged mailbox batch.
+        for envelope in batch:
+            exchange = exchange_record(self.ghost, envelope.correlation_id)
+            if exchange is not None and exchange.metadata.get("exchange_status") == "resolved":
+                continue
+            # Preparation can fail before a new snapshot exists. A prior task
+            # receipt must never become the recovery evidence for this action.
+            self._public_context = None
+            try:
+                super().handle_batch([envelope])
+            except Exception as error:
+                if self.stop_event.is_set() or self.run_stop.is_set():
+                    return
+                self.reject_reply([envelope], f"{type(error).__name__}: {error}", status="failed")
+
+    def reject_reply(self, batch, reason: str, *, status: str = "rejected") -> None:
+        """Retain a failed receipt and close the exchange with explicit recovery."""
+        envelope = batch[0]
+        stale = status == "stale"
+        text = ("That reply became stale before I could send it. Please ask again."
+                if stale else "That reply failed before I could send it. Please ask again."
+                if status == "failed" else "I could not ground that reply in the available evidence. Please ask again.")
+        context = getattr(self, "_public_context", None)
+        if status in {"rejected", "failed"} and context is not None:
+            from pm_core.ghost.batch import GhostConflict
+            from runtime.publication import validate_public_context
+            try:
+                with self.ghost.lock:
+                    validate_public_context(self.ghost, context)
+            except GhostConflict as error:
+                status, stale, reason = "stale", True, str(error)
+                text = "That reply became stale before I could send it. Please ask again."
+        recovery = None
+        # A protocol error establishes a failed request, not a user report.
+        # Keep that failure explicit instead of inventing its conversational cause.
+        if status == "rejected" and context is not None and not context.task_receipt and self.grounding_recovery is not None:
+            original = exchange_record(self.ghost, envelope.correlation_id)
+            if original is not None and original.id == context.user_frontier:
+                from runtime.model_io import ModelError
+                from workflows.main_cognition.stage_support import StageOutputError
+                try:
+                    sources = [item for item in context.evidence if item.get("evidence_role") in
+                               {"user_report", "runtime_event", "world_observation"}]
+                    fresh = self.public_context({"stimuli": [{"knoxel_id": original.id, "text": original.content}],
+                                                 "memory_evidence": sources})
+                    fresh.presentation = context.presentation
+                    fresh.capabilities["evidence_limit"]["source_use"] = context.capabilities.get(
+                        "evidence_limit", {}).get("source_use", "event")
+                    recovery = self.grounding_recovery(fresh)
+                    # The kernel already finished. Its virtual outbox no longer
+                    # exports new files, so retain this attempt in host artifacts.
+                    artifact = self.runtime_root / self.module_id / self.invocation_id / "workspace" / "outbox" / "grounding-recovery.yaml"
+                    artifact.parent.mkdir(parents=True, exist_ok=True)
+                    artifact.write_text(yaml.safe_dump(recovery, allow_unicode=True), encoding="utf-8")
+                    if recovery["accepted"]:
+                        from workflows.public_context import PublicContext
+                        self._public_context = PublicContext.model_validate(recovery["context"])
+                        self.bus.put(_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
+                            {"status": status, "workflow_name": self.WORKFLOW_NAME, "rejection_reason": reason,
+                             "recovery_outcome": "grounding_recovered", "recovery": recovery}, causation_id=envelope.id))
+                        self.accept_reply(recovery["candidate"], batch, recovery_outcome="grounding_recovered")
+                        return
+                except (ModelError, StageOutputError, ValueError, OSError) as error:
+                    reason += f"; scoped recovery failed: {type(error).__name__}: {error}"
+        if context is not None and context.task_receipt:
+            task = context.task_receipt
+            if task.get("task_verified"):
+                spec = task["report"]["note_spec"]
+                text = f"The note passed exact byte verification at {spec['path']}: {spec['text']!r}. My conversational reply failed validation."
+            else:
+                text = (f"The {task['workflow_name']} worker is {task['state']}. "
+                        "Its receipt does not verify the requested note. My conversational reply failed validation.")
+        reply_id = commit_public_reply(self.ghost, text, envelope.correlation_id,
+                                      commit_id=f"public-recovery:{envelope.id}", recovery=status,
+                                      cancel=self.stop_event)
+        self.bus.put(_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
+                               {"status": status, "workflow_name": self.WORKFLOW_NAME,
+                                "rejection_reason": reason, "recovery_outcome": "published" if reply_id else "already_resolved",
+                                "public_reply_id": reply_id, **({"recovery": recovery} if recovery is not None else {})}, causation_id=envelope.id))
+        if reply_id is not None:
+            publish_reply(self.bus, self.module_id, envelope.correlation_id, reply_id,
+                          cause=envelope.id, recovery_outcome=status)
+
+    def accept_reply(self, text: str, batch, *, tool_receipts=None, recovery_outcome="") -> None:
+        """Commit an evidence-guarded reply, or expose its stale recovery result."""
+        from pm_core.ghost.batch import GhostConflict
+        envelope = batch[0]
+        try:
+            if self.capability_provider is not None:
+                current = self.capability_provider().get("minecraft", {})
+                prior = self._public_context.capabilities.get("minecraft", {})
+                if (current.get("status"), current.get("tools")) != (prior.get("status"), prior.get("tools")):
+                    raise GhostConflict("Minecraft capability changed during public generation.")
+            if self._public_context.task_receipt.get("task_verified"):
+                from runtime.reply_recovery import task_evidence
+                try:
+                    current_task = task_evidence(self._public_context.task_receipt)
+                except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError) as error:
+                    self._public_context.task_receipt = {**self._public_context.task_receipt,
+                        "task_verified": False, "verification_error": type(error).__name__}
+                    raise GhostConflict("Task evidence became unreadable during public generation.") from error
+                if not current_task.get("task_verified"):
+                    self._public_context.task_receipt = current_task
+                    raise GhostConflict("Verified task bytes changed during public generation.")
+            reply_id = commit_public_reply(
+                self.ghost, text, envelope.correlation_id, commit_id=self.invocation_id or _new_id(),
+                action_id=None if recovery_outcome else envelope.payload.get("knoxel_id"), context=self._public_context,
+                recovery=recovery_outcome, cancel=self.stop_event,
+            )
+        except GhostConflict as error:
+            self.reject_reply(batch, str(error), status="stale")
+            return
+        if reply_id is not None:
+            publish_reply(self.bus, self.module_id, envelope.correlation_id, reply_id, cause=envelope.id,
+                          action_id=envelope.payload.get("action_id", ""), tool_receipts=tool_receipts or [],
+                          recovery_outcome=recovery_outcome)
+
+
+class StoryDialogue(PublicDialogue):
     """Real Story generation module. Accepts typed actions targeting it."""
 
     DATA_TOPICS = frozenset({"action.request"})
@@ -775,6 +998,7 @@ class StoryDialogue(CognitiveWorkflow):
         ]
         current = str(stimuli[-1]["text"]) if stimuli else intent
         memories = [str(item) for item in payload.get("memories", []) if str(item).strip()]
+        public = self.public_context(payload)
         request = StoryRequest(
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
@@ -782,13 +1006,14 @@ class StoryDialogue(CognitiveWorkflow):
             supported_capabilities=[str(item) for item in self.ghost.ghost_config.supported_capabilities],
             unsupported_capabilities=[str(item) for item in self.ghost.ghost_config.unsupported_capabilities],
             capability_notes=[str(item) for item in self.ghost.ghost_config.capability_notes],
-            temporal_context=self.ghost.build_body_and_situation_addendum(),
-            prior_dialogue=_recent_public_dialogue(self.ghost),
+            temporal_context=public.temporal_context,
+            prior_dialogue=_recent_public_dialogue(self.ghost, exclude_ids={item["knoxel_id"] for item in stimuli if "knoxel_id" in item}),
             current_user_message=current or intent or "(no message)",
-            feelings=_recent_thoughts(self.ghost),
-            memories=memories,
-            workspace=str(payload.get("workspace", "")),
+            feelings=[public.affect] if public.affect else [],
+            memories=public.memories,
+            workspace=public.workspace,
             selected_action=intent,
+            public_context=public,
         )
         return request.model_dump(mode="json")
 
@@ -798,32 +1023,10 @@ class StoryDialogue(CognitiveWorkflow):
         cause = batch[0].id if batch else None
         if not story.accepted:
             reason = "; ".join(violation.reason for violation in story.ontology.violations)
-            self.bus.put(_envelope(
-                self.module_id, "telemetry", "action.receipt", correlation,
-                {
-                    "status": "rejected",
-                    "workflow_name": self.WORKFLOW_NAME,
-                    "rejection_reason": reason or "ontology boundary",
-                },
-                causation_id=cause,
-            ))
+            reason = reason or "; ".join(story.ontology.fact_conflicts) or "ontology boundary"
+            self.reject_reply(batch, reason)
             return
-        changes = self.ghost.begin_batch(self.invocation_id or _new_id(), cancel=self.stop_event)
-        _feature(
-            self.ghost, story.candidate, FeatureType.Dialogue,
-            source=self.ghost.get_companion_name(), interlocus=InterlocusType.Public,
-            changes=changes,
-            metadata=utterance_metadata(changes.view(), batch[0].payload.get("knoxel_id") if batch else None),
-        )
-        receipt = self.ghost.commit(changes)
-        self.bus.put(_envelope(
-            self.module_id, "data", "dialogue.reply", correlation,
-            {
-                "knoxel_id": receipt.added_ids[0],
-                "action_id": batch[0].payload.get("action_id", "") if batch else "",
-            },
-            causation_id=cause,
-        ))
+        self.accept_reply(story.candidate, batch)
 
 
 class SelfManagement(CognitiveWorkflow):
@@ -848,6 +1051,7 @@ class SelfManagement(CognitiveWorkflow):
         payload = batch[0].payload
         action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
         arguments = dict(payload.get("arguments") or {})
+        original = exchange_record(self.ghost, batch[0].correlation_id)
         if batch[0].target in self.managed_workflows:
             arguments = {
                 "operation": "start", "workflow_name": batch[0].target,
@@ -863,13 +1067,18 @@ class SelfManagement(CognitiveWorkflow):
             request_id=str(arguments.get("request_id", "")),
             question_id=str(arguments.get("question_id", "")),
             answer=str(arguments.get("answer", "")),
-            arguments=dict(arguments.get("arguments", {})),
+            arguments={**dict(arguments.get("arguments", {})),
+                       "_public_reply_requested": bool(action is not None and action.action_type == ActionType.ToolCallAndReply),
+                       "_public_action_schema_id": getattr(action, "id", None),
+                       "_public_original_request": original.content if original is not None else "",
+                       "_public_original_request_id": original.id if original is not None else None},
         )
         return request.model_dump(mode="json")
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
         correlation = batch[0].correlation_id if batch else ""
         cause = batch[0].id if batch else None
+        source = self.ghost.get_knoxel_by_id(batch[0].payload.get("knoxel_id"))
         self.bus.put(_envelope(
             self.module_id, "telemetry", "action.receipt", correlation,
             {
@@ -878,12 +1087,15 @@ class SelfManagement(CognitiveWorkflow):
                 "operation": report.get("operation", ""),
                 "summary": report.get("summary", ""),
                 "receipt": report.get("receipt", {}),
+                "action_schema_id": getattr(source, "id", None),
+                "public_reply_requested": isinstance(source, ActionSchemaKnoxel)
+                and source.action_type == ActionType.ToolCallAndReply,
             },
             causation_id=cause,
         ))
 
 
-class AssistantDialogue(CognitiveWorkflow):
+class AssistantDialogue(PublicDialogue):
     """Real Assistant dialogue. Tool-capable session with a separate contract.
 
     It accepts typed actions targeting ``dialogue_assistant``. On an accepted
@@ -905,18 +1117,21 @@ class AssistantDialogue(CognitiveWorkflow):
         action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
         intent = str(action.content) if action is not None else str(payload.get("content", ""))
         current = str(payload.get("stimuli", [{}])[-1].get("text", "")) if payload.get("stimuli") else intent
+        public = self.public_context(payload)
         request = AssistantRequest(
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
             character_card=self.ghost.get_simple_character_story_block(),
             private_ontology=self._ontology(),
-            temporal_context=self.ghost.build_body_and_situation_addendum(),
-            prior_dialogue=self._prior_dialogue(current),
+            temporal_context=public.temporal_context,
+            prior_dialogue=self._prior_dialogue(current, exclude_ids={item["knoxel_id"] for item in payload.get("stimuli", []) if "knoxel_id" in item}),
             current_user_message=current or intent or "(no message)",
-            memories=[str(item) for item in payload.get("memories", []) if str(item).strip()],
-            workspace=str(payload.get("workspace", "")),
+            memories=public.memories,
+            workspace=public.workspace,
             tools=list(TOOL_DESCRIPTORS),
             tool_grant=list(TOOL_NAMES),
+            selected_action=intent,
+            public_context=public,
         )
         return request.model_dump(mode="json")
 
@@ -927,8 +1142,8 @@ class AssistantDialogue(CognitiveWorkflow):
         parts += [str(item) for item in config.capability_notes]
         return "\n".join(f"- {part}" for part in parts) or "(none declared)"
 
-    def _prior_dialogue(self, current: str) -> list[AssistantMessage]:
-        turns = _recent_public_dialogue(self.ghost)
+    def _prior_dialogue(self, current: str, *, exclude_ids=()) -> list[AssistantMessage]:
+        turns = _recent_public_dialogue(self.ghost, exclude_ids=exclude_ids)
         messages: list[AssistantMessage] = []
         for index, turn in enumerate(turns):
             is_last = index == len(turns) - 1
@@ -942,37 +1157,15 @@ class AssistantDialogue(CognitiveWorkflow):
         parsed = AssistantReport.model_validate(report)
         correlation = batch[0].correlation_id if batch else ""
         cause = batch[0].id if batch else None
-        unsupported = unsupported_management_claims(parsed.final_text, parsed.tool_receipts)
+        unsupported = (unsupported_management_claims(parsed.final_text, parsed.tool_receipts)
+                       if not self._public_context.task_receipt else [])
         if not parsed.accepted or unsupported:
             reason = parsed.rejection_reason or (
                 "unsupported management claim: " + ", ".join(unsupported)
             )
-            self.bus.put(_envelope(
-                self.module_id, "telemetry", "action.receipt", correlation,
-                {
-                    "status": "rejected",
-                    "workflow_name": self.WORKFLOW_NAME,
-                    "rejection_reason": reason,
-                },
-                causation_id=cause,
-            ))
+            self.reject_reply(batch, reason)
             return
-        changes = self.ghost.begin_batch(self.invocation_id or _new_id(), cancel=self.stop_event)
-        _feature(
-            self.ghost, parsed.final_text, FeatureType.Dialogue,
-            source=self.ghost.get_companion_name(), interlocus=InterlocusType.Public,
-            changes=changes,
-        )
-        receipt = self.ghost.commit(changes)
-        self.bus.put(_envelope(
-            self.module_id, "data", "dialogue.reply", correlation,
-            {
-                "knoxel_id": receipt.added_ids[0],
-                "action_id": batch[0].payload.get("action_id", "") if batch else "",
-                "tool_receipts": [item.model_dump(mode="json") for item in parsed.tool_receipts],
-            },
-            causation_id=cause,
-        ))
+        self.accept_reply(parsed.final_text, batch, tool_receipts=[item.model_dump(mode="json") for item in parsed.tool_receipts])
 
 
 class StewardModule(CognitiveWorkflow):

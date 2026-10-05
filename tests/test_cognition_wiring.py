@@ -195,11 +195,18 @@ class StoryDialogueWiringTests(unittest.TestCase):
         async def story_complete(messages, **generation):
             return completion
 
+        async def public_complete(messages, **generation):
+            if generation["response_format"]["json_schema"]["name"] == "literal_conditions":
+                return '{"conditions": []}'
+            accepted = "I can see you" not in completion
+            import json
+            return json.dumps({"accepted": accepted, "claims": [], "reason": "Boundary fixture."})
+
         module = StoryDialogue(
             "dialogue", bus, errors.append, ManualClock(), None,
             working_target=GhostBashWrapper(ghost, "read"),
             workflow=STORY_MANIFEST,
-            tools_factory=lambda environment, batch: {"story_complete": story_complete},
+            tools_factory=lambda environment, batch: {"story_complete": story_complete, "public_complete": public_complete},
             runtime_root=root / "runtime",
             ghost=ghost,
         )
@@ -255,7 +262,10 @@ class StoryDialogueWiringTests(unittest.TestCase):
             self.assertTrue(module.step(block=False))
 
             self.assertEqual(errors, [])
-            self.assertEqual(replies.events, [])
+            self.assertEqual(len(replies.events), 1)
+            recovery = ghost.get_knoxel_by_id(replies.events[0].payload["knoxel_id"])
+            self.assertNotIn("I can see you", recovery.content)
+            self.assertEqual(recovery.metadata["recovery_outcome"], "rejected")
             self.assertEqual(len(receipts.events), 1)
             self.assertEqual(receipts.events[0].payload["status"], "rejected")
 
@@ -352,6 +362,11 @@ class MultiExchangeTests(unittest.TestCase):
             counter["n"] += 1
             return f'Spamuel says: "Reply number {counter["n"]}."'
 
+        async def public_complete(messages, **generation):
+            if generation["response_format"]["json_schema"]["name"] == "literal_conditions":
+                return '{"conditions": []}'
+            return '{"accepted": true, "claims": [], "reason": "Boundary fixture."}'
+
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             main_cog = MainCogLoop(
@@ -365,7 +380,7 @@ class MultiExchangeTests(unittest.TestCase):
                 "dialogue", bus, errors.append, ManualClock(), None,
                 working_target=GhostBashWrapper(ghost, "read"),
                 workflow=STORY_MANIFEST,
-                tools_factory=lambda environment, batch: {"story_complete": story_complete},
+                tools_factory=lambda environment, batch: {"story_complete": story_complete, "public_complete": public_complete},
                 runtime_root=root / "story", ghost=ghost,
             )
             replies: list[str] = []

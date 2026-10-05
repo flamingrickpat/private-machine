@@ -36,6 +36,7 @@ def render_memories(candidates: list) -> str:
         lines.append(
             f"- knoxel_id={_field(candidate, 'knoxel_id')} "
             f"kind={_field(candidate, 'memory_kind', 'attributed_record')} "
+            f"evidence_role={_field(candidate, 'evidence_role', 'background')} "
             f"scope={_field(candidate, 'scope', {})} "
             f"source_ids={_field(candidate, 'source_ids', [])} "
             f"historical={_field(candidate, 'historical', False)} "
@@ -83,7 +84,22 @@ def run(context) -> dict:
     prompts = load_prompts()
     messages = build_messages(request, prompts)
     result = complete_json(context, messages, ContextResult, temperature=0.1)
-    validate_selection(result, request.get("memory_candidates", []))
+    candidates = request.get("memory_candidates", [])
+    try:
+        validate_selection(result, candidates)
+    except StageOutputError as error:
+        # The public domain context also contains IDs. They are not a grant
+        # for memory selection. Retain the invalid response and repair once.
+        context.runtime.environment.write_text("outbox/selection-rejection.json", json.dumps({
+            "error": str(error), "rejected_result": result.model_dump(mode="json"),
+            "allowed_ids": [_field(item, "knoxel_id") for item in candidates]}, indent=2))
+        recovery = [*messages, {"role": "assistant", "content": result.model_dump_json()},
+                    {"role": "user", "content": str(error) + " Select only from these candidate IDs: "
+                     + str([_field(item, "knoxel_id") for item in candidates])
+                     + ". IDs in other context fields are not granted. Return an empty selection if none fits."}]
+        result = complete_json(context, recovery, ContextResult, temperature=0.1,
+                               chat_template_kwargs={"enable_thinking": False})
+        validate_selection(result, candidates)
     write_report(context.runtime.environment, result)
     return {
         "status": "done",

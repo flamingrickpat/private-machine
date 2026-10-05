@@ -6,6 +6,7 @@ finite scenario checks through the same ``build_app`` construction.
 from __future__ import annotations
 
 import argparse
+import asyncio
 from datetime import datetime
 import os
 import sys
@@ -56,12 +57,17 @@ def default_config_path() -> str:
 
 def _managed_workflows(stage_model=None) -> dict:
     from workflows.minecraft.module_tools import build_minecraft_module_tools
+    from workflows.note_task.steps import build_note_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
     return {
         "local_task": WorkflowSpec(base / "local_task.workflow.md", namespace="local_task"),
         "local_task_question": WorkflowSpec(
             base / "local_task_question.workflow.md", namespace="local_task_question",
+        ),
+        "note_task": WorkflowSpec(
+            PROJECT_ROOT / "workflows" / "note_task" / "note_task.workflow.md",
+            namespace="note_task", tools_factory=build_note_tools(stage_model),
         ),
         "minecraft": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md",
@@ -86,7 +92,9 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
         {"name": "self_management", "description": "Start, status, update, or terminate a managed run."},
     ]
     for name in sorted(supervisor.workflows):
-        options.append({"name": name, "description": f"Managed workflow {name}."})
+        descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",
+                        "note_task": "Real pm-coder note writer. Exact UTF-8 byte verification. Optional arguments.note_spec has path and text; path stays in outbox/."}
+        options.append({"name": name, "description": descriptions.get(name, f"Managed workflow {name}.")})
     return options
 
 
@@ -287,6 +295,47 @@ def build_app(
         user_input, main_cog, dialogue, inner_thought,
         scheduler, status, tool_dialogue,
     ]
+    if cognition == "real":
+        from runtime.capabilities import capability_snapshot
+        from runtime.reply_recovery import ReplyRecovery
+        provider = lambda: capability_snapshot(ghost, supervisor.workflows)
+        main_cog.capability_provider = provider
+        def retrieval_query(text):
+            from workflows.main_cognition.stage_support import StageOutputError, extract_json
+            raw = stage_model.complete([
+                {"role": "system", "content": "Rewrite this message as a short memory search query. "
+                 "Search for original user reports or concrete executed events, not earlier answers to recall requests. "
+                 "Remove boilerplate about remembering, recorded history, and supporting conversations. "
+                 "Retain actual topics, outcomes, corrections, and dates. For an unspecified failed method, search for a practical attempt "
+                 "that did not work and its reported outcome. Never invent a specific topic. "
+                 "Also choose evidence_use: event for factual recall, preferences, or past events; utterance for what someone said; "
+                 "general for other requests or uncertainty. A request to evaluate newly reported advice is general, "
+                 "even when it mentions a familiar topic. What do you actually know about that claim asks for supported "
+                 "knowledge, not a past conversation. Use event only when the user asks to recall an event, retained "
+                 "preference, name, or plan; use utterance when recalling what someone previously said. "
+                 "Return only JSON with query and evidence_use."},
+                {"role": "user", "content": text},
+            ], temperature=0.1, chat_template_kwargs={"enable_thinking": False})
+            try:
+                result = extract_json(raw)
+            except StageOutputError:
+                return {"query": text, "evidence_use": "general", "status": "literal_fallback"}
+            query = result.get("query")
+            use = result.get("evidence_use")
+            if not isinstance(query, str) or not query.strip() or use not in {"event", "utterance", "general"}:
+                return {"query": text, "evidence_use": "general", "status": "literal_fallback"}
+            return {"query": query, "evidence_use": use, "status": "rewritten"}
+        main_cog.retrieval_query_provider = retrieval_query
+        dialogue.capability_provider = provider
+        assistant.capability_provider = provider
+        from workflows.public_recovery import recover_grounding
+        def grounding_recovery(context):
+            return asyncio.run(recover_grounding(stage_model.build_async_tool(), context))
+        dialogue.grounding_recovery = grounding_recovery
+        assistant.grounding_recovery = grounding_recovery
+        recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
+        modules.append(recovery)
+        app.reply_recovery = recovery
     if assistant is not None:
         modules.append(assistant)
     if self_management is not None:
@@ -323,6 +372,11 @@ def build_app(
     from runtime.lifecycle import record_startup
     boot = record_startup(ghost) if record_lifecycle else None
     app.lifecycle_boot = boot
+    if cognition == "real":
+        # Queue original pending requests before the startup cycle. Otherwise
+        # startup can retrieve that request and execute it without its cause,
+        # while asynchronous recovery dispatches it again in another cycle.
+        recovery.resume()
     if cognition == "real" and boot is not None:
         bus.put(Envelope(
             id=_new_id(), source="system", kind="data", topic="system.lifecycle",

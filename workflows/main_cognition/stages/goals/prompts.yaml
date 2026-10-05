@@ -19,6 +19,10 @@ system_prompt: |
   - Keep every goal short and stable. Reuse the exact wording of an existing
     goal when you retain, complete, or reprioritize it.
   - Use at most one change entry per goal.
+  - Close completed task goals from actual run receipts. Do not revive them from remembered requests.
+  - A completed one-turn reply request is not an ongoing goal for later questions.
+    Keep a persistent preference only when the original source actually states one.
+  - A conversational apology or affection does not request a new file operation.
   - ``priority`` is 0..1, where 1 is the most urgent.
 
   JSON schema:
@@ -39,5 +43,9 @@ user_template: |
   Appraisal: {appraisal}
 
   Context: {context}
+
+  Current original stimuli: {stimuli}
+
+  Existing managed-run receipts: {managed_runs}
 
   Decide the goal changes for this cycle.

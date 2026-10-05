@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from workflows.public_context import PublicContext
+from workflows.public_claims import ClaimReview
 
 
 class AssistantMessage(BaseModel):
@@ -60,6 +62,8 @@ class AssistantRequest(BaseModel):
     tools: list[ToolDescriptor] = Field(default_factory=list)
     tool_grant: list[str] = Field(default_factory=list)
     max_tool_turns: int = 8
+    selected_action: str = ""
+    public_context: PublicContext | None = None
 
 
 class AssistantReport(BaseModel):
@@ -73,6 +77,7 @@ class AssistantReport(BaseModel):
     tool_receipts: list[ToolReceipt]
     accepted: bool
     rejection_reason: str = ""
+    claim_review: ClaimReview | None = None
 
 
 __all__ = [

@@ -48,6 +48,8 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         current_goals=render_goals(goals),
         appraisal=render_block(request.get("appraisal")),
         context=render_block(request.get("context")),
+        stimuli=render_block(request.get("stimuli", [])),
+        managed_runs=render_block(request.get("managed_runs", [])),
     )
     return [
         {"role": "system", "content": system.strip()},

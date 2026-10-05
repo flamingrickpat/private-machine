@@ -4,6 +4,8 @@
 # of the seed). The current user message is a fixed new Jesse line. Running
 # the same file twice starts from the same initial Ghost state and produces
 # independent trials.
+# This file supplies a standalone conversation fixture. Runtime capability
+# discovery and accepted Ghost state supply the public domain boundaries.
 
 name: sink_dish_bedtime
 

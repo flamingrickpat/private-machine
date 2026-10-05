@@ -17,7 +17,10 @@ The supervisor accepts the request and stores a receipt.
 A worker runs the configured manifest.
 Events return through the bus to cognition.
 
-The configured targets are `local_task`, `local_task_question`, and `minecraft`.
+The configured targets are `local_task`, `local_task_question`, `note_task`, and `minecraft`.
+`local_task` is a control worker and cannot execute arbitrary note instructions.
+`note_task` uses the real pm-coder driver and verifies exact UTF-8 file bytes.
+Read [public publication and recovery](public-publication.md) for terminal task replies and note evidence.
 The console exposes update, answer, and cancellation for existing runs.
 A chat request can ask the companion to start a target through its normal action path.
 

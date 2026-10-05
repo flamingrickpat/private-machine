@@ -69,10 +69,20 @@ def build_stage_runner(
         stage_run_id = f"{run_id}-{name}" if run_id else f"{name}-{uuid4().hex[:12]}"
         environment = (GhostBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
                        if read_environment is not None else make_environment(ghost))
+        def grounded_complete(messages, **generation):
+            import json
+            boundary = payload.get("public_context")
+            if boundary:
+                messages = [*messages]
+                messages[0] = {**messages[0], "content": messages[0]["content"]
+                    + "\nPrivate ontology and domain evidence:\n" + json.dumps(boundary, ensure_ascii=False)
+                    + "\nRespect domain capabilities and source attribution. Private thoughts remain private. "
+                    "An emotion word cannot create an unimplemented state or sense."}
+            return llm_complete(messages, **generation)
         runtime = WorkflowRuntime(
             environment=environment,
             stop_event=threading.Event(),
-            tools={"llm_complete": llm_complete},
+            tools={"llm_complete": grounded_complete},
             propagate_python_errors=True,
         )
         runner = WorkflowRunner(

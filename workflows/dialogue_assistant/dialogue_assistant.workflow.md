@@ -8,6 +8,7 @@ roles:
     skill: workflows/dialogue_assistant/steps.py
     tools:
       - assistant_complete
+      - public_complete
       - ghost_get
       - ghost_search
       - ghost_gwt

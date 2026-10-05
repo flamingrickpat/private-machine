@@ -29,12 +29,18 @@ class StubStageModel:
 
     def __init__(self, completions=None):
         self.completions = list(completions or [])
+        self.activations = 0
 
     def complete(self, messages, **generation):
         return "{}"
 
     def build_async_tool(self):
+        self.activations += 1
         async def complete_async(messages, **generation):
+            if generation.get("response_format", {}).get("json_schema", {}).get("name") == "literal_conditions":
+                return '{"conditions": []}'
+            if "Review one public utterance" in messages[0]["content"]:
+                return '{"accepted": true, "claims": [], "reason": "Boundary fixture."}'
             return "Spamuel says: \"wired.\""
 
         return complete_async
@@ -129,6 +135,7 @@ class ManagementWiringTests(unittest.TestCase):
             self.assertIsNotNone(app.consolidator)
             self.assertIsNotNone(app.steward)
             self.assertTrue(app.steward.dormant)
+            self.assertEqual(model.activations, 0)
 
 
     def test_steward_module_is_dormant_and_refuses(self):

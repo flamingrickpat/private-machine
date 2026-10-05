@@ -48,6 +48,7 @@ class ActionDispatch(BaseModel):
     gwt_tick_id: int | None = None
     status: str = "proposed"  # proposed | dispatched | queued | rejected
     rejection_reason: str = ""
+    presentation: dict = Field(default_factory=dict)
 
 
 class TriageItem(BaseModel):
@@ -145,6 +146,7 @@ class ActionIntent(BaseModel):
     arguments: dict = Field(default_factory=dict)
     depends_on: list[str] = Field(default_factory=list)
     requires_completed: list[str] = Field(default_factory=list)
+    presentation: dict = Field(default_factory=dict)
 
 
 class ActionSelectionResult(BaseModel):
@@ -165,6 +167,7 @@ class MemoryCandidate(BaseModel):
     score: float = 0.0
     reasons: list[str] = Field(default_factory=list)
     deception_intent_id: int | None = None
+    evidence_role: str = "background"
 
 
 class WorkflowOption(BaseModel):
@@ -187,6 +190,8 @@ class CognitiveRequest(BaseModel):
     memory_trace: dict = Field(default_factory=dict)
     capabilities: list[str] = Field(default_factory=list)
     available_workflows: list[WorkflowOption] = Field(default_factory=list)
+    public_context: dict = Field(default_factory=dict)
+    managed_runs: list[dict] = Field(default_factory=list)
 
 
 class CognitiveReport(BaseModel):

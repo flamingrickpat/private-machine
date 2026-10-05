@@ -213,6 +213,7 @@ def run_cycle(
             arguments=dict(intent.get("arguments", {})),
             depends_on=list(intent.get("depends_on", [])),
             requires_completed=list(intent.get("requires_completed", [])),
+            presentation=dict(intent.get("presentation", {})),
         ))
     dispatches = resolve_same_cycle(dispatches)
     dispatches = resolve_prerequisites(dispatches, dict(action_receipts or {}))

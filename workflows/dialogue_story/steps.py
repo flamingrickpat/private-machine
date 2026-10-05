@@ -24,6 +24,8 @@ import re
 from pathlib import Path
 
 import yaml
+from workflows.public_context import render_public_context, render_factual_focus
+from workflows.public_claims import review_public_claims
 
 from workflows.dialogue_story.schemas import (
     DialogueTurn,
@@ -68,9 +70,7 @@ def build_story_messages(request: StoryRequest, prompts: dict) -> list[dict]:
     """Return exactly the five contract messages in order."""
     companion = request.companion_name
     user = request.user_name
-    available_tools = ", ".join(
-        [*request.supported_capabilities, *request.unsupported_capabilities]
-    )
+    available_tools = ", ".join(request.supported_capabilities) or "none declared"
 
     system = _named(prompts["system_prompt"])
 
@@ -84,6 +84,8 @@ def build_story_messages(request: StoryRequest, prompts: dict) -> list[dict]:
             prompts["capability_addendum"], companion_name=companion,
             user_name=user, available_tools=available_tools,
         ),
+        _bullets("Unavailable capabilities", request.unsupported_capabilities),
+        _bullets("Capability notes", request.capability_notes),
         _named(prompts["body_and_situation_title"]) + "\n" + request.temporal_context.strip(),
         _named(prompts["first_user_turn_end"]),
     ]
@@ -102,7 +104,9 @@ def build_story_messages(request: StoryRequest, prompts: dict) -> list[dict]:
         # Keep the accepted action when a user stimulus supplies the last line.
         # Otherwise, Story loses the decision that selected these memories.
         _bullets("Selected action", [request.selected_action]),
+        "Accepted public context\n" + render_public_context(request.public_context) if request.public_context else "",
         f"{user} says: \"{request.current_user_message}\"",
+        render_factual_focus(request.public_context) if request.public_context else "",
     ]
     current = "\n\n".join(part for part in context_parts if part)
 
@@ -232,7 +236,14 @@ def run(context) -> dict:
         raise TypeError("story_complete must return the completion text as a string.")
 
     candidate = clean_reply(raw, request.companion_name, request.user_name)
-    verdict = check_ontology(candidate, load_ontology(), request)
+    if request.public_context is not None:
+        review = asyncio.run(review_public_claims(context.runtime.tools["public_complete"], candidate, request.public_context))
+        verdict = OntologyVerdict(version="public-ontology-v2", accepted=review.accepted,
+                                  facts_checked=len(request.public_context.evidence),
+                                  fact_conflicts=[claim.reason for claim in review.claims if claim.status == "unsupported"])
+    else:
+        review = None
+        verdict = check_ontology(candidate, load_ontology(), request)
 
     report = StoryReport(
         companion_name=request.companion_name,
@@ -242,6 +253,7 @@ def run(context) -> dict:
         candidate=candidate,
         accepted=verdict.accepted,
         ontology=verdict,
+        claim_review=review,
     )
     environment.write_text(
         "scratch/report.yaml",

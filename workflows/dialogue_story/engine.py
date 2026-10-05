@@ -43,7 +43,7 @@ def build_story_tools(client: ChatClient) -> dict:
         result = await client.complete(messages, **generation)
         return result.choices[0].message.content or ""
 
-    return {"story_complete": story_complete}
+    return {"story_complete": story_complete, "public_complete": story_complete}
 
 
 def make_environment(ghost) -> GhostBashEnvironment:
@@ -88,6 +88,7 @@ def commit_accepted_dialogue(ghost, candidate: str, companion_name: str, commit_
         interlocus=InterlocusType.Public,
         causal=True,
         override_source=companion_name,
+        metadata={"memory_kind": "utterance", "factual_promotion": False},
     ))
     receipt = ghost.commit(batch)
     return {"commit_id": receipt.commit_id, "knoxel_id": feature.id}

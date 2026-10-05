@@ -82,6 +82,8 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         workspace=render_block(request.get("workspace")),
         goals=render_block(request.get("goals")),
         context=render_block(request.get("context")),
+        stimuli=render_block(request.get("stimuli", [])),
+        managed_runs=render_block(request.get("managed_runs", [])),
         available_workflows=render_workflows(available_workflows),
         capabilities=render_capabilities(list(request.get("capabilities", []))),
     )
@@ -130,11 +132,15 @@ def _claims(text: str, markers: tuple[str, ...]) -> bool:
     return False
 
 
-def check_capabilities(result: ActionSelectionResult, capabilities: list[str]) -> None:
+def check_capabilities(result: ActionSelectionResult, capabilities: list[str], public_context: dict | None = None) -> None:
     """Reject action content that claims a capability the companion lacks.
 
     A refusal that names the missing capability is not a claim.
     """
+    if public_context:
+        # Production uses domain evidence and final semantic claim review.
+        # A verb alone cannot distinguish game movement, metaphor, or refusal.
+        return
     available = " ".join(str(capability) for capability in capabilities).lower()
     for action in result.actions:
         content = (action.content or "").lower()
@@ -153,9 +159,12 @@ def run(context) -> dict:
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
     messages = build_messages(request, prompts)
-    result = complete_json(context, messages, ActionSelectionResult, temperature=0.2)
+    # Earlier stages already supply appraisal and the selected workspace.
+    # Hidden reasoning exhausted a real completion during a teasing choice.
+    result = complete_json(context, messages, ActionSelectionResult, temperature=0.2,
+                           chat_template_kwargs={"enable_thinking": False})
     validate_actions(result, list(request.get("available_workflows") or []))
-    check_capabilities(result, list(request.get("capabilities") or []))
+    check_capabilities(result, list(request.get("capabilities") or []), request.get("public_context"))
     write_report(context.runtime.environment, result)
     return {
         "status": "done",

@@ -36,6 +36,8 @@ Story dialogue produces character speech.
 Assistant dialogue can call scoped tools.
 SelfManagement operates managed runs.
 These paths have separate contracts and prompts.
+They share the [public context and grounding contract](public-dialogue.md).
+Accepted public speech uses [durable publication and recovery](public-publication.md).
 
 ## State and side effects
 

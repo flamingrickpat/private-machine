@@ -146,6 +146,7 @@ def candidate(view, key: int, raw: dict, *, terms=None, score=0.0, reasons=(), p
     if raw["__type__"] in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:
         stale = True  # A recalled observation never establishes current world state.
     kind = memory_kind(raw)
+    imported_history = kind == "background" and bool(metadata.get("seed_sha256"))
     speaker = data.get("override_source", "")
     if not speaker and data.get("entity_id") in view.revisions:
         speaker = view.get(data["entity_id"]).content
@@ -160,15 +161,50 @@ def candidate(view, key: int, raw: dict, *, terms=None, score=0.0, reasons=(), p
         label += f"; belief_key={data['belief_key']}"
     if stale:
         label += "; historical, reobserve or use the correction"
+    elif imported_history:
+        label += "; imported history, not a current observation"
     label += "] "
     return {
         "knoxel_id": key, "text": label + text, "revision": view.revisions[key],
         "memory_kind": kind, "scope": data.get("scope", {}),
         "provenance": data.get("provenance"), "source_ids": source_ids,
-        "timestamp": data.get("timestamp_world_begin"), "historical": stale,
+        "timestamp": data.get("timestamp_world_begin"), "historical": stale or imported_history,
         "score": round(score, 6), "reasons": list(reasons),
         "deception_intent_id": metadata.get("deception_intent_id"),
+        "evidence_role": evidence_role(view, raw),
     }
+
+
+def evidence_role(view, raw: dict) -> str:
+    """Separate original reports, actual events, and generated speech.
+
+    Imported reports retain attribution. A summary needs its original leaves.
+    A companion utterance establishes speech, never its described event.
+    """
+    data = raw["data"]
+    if data.get("scope", {}).get("frame", "in_world") != "in_world":
+        return "imagined"
+    if raw["__type__"] == "ActionSchemaKnoxel":
+        return "intent"
+    kind = memory_kind(raw)
+    if kind == "executed_event":
+        return "runtime_event"
+    if kind == "internal_state":
+        return "internal_state"
+    if data.get("feature_type") == "Dialogue":
+        provenance = data.get("provenance") or {}
+        entity = view.get_knoxel_by_id(data.get("entity_id"))
+        human = entity is not None and str(getattr(entity, "entity_class", "")) == "Human"
+        if provenance.get("source_kind") == "User" or human:
+            return "user_report"
+        return "companion_utterance"
+    if raw["__type__"] in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:
+        return "world_observation"
+    if kind in {"speculation", "interpretation"}:
+        return "interpretation"
+    if referenced_ids(view.get(data["id"])):
+        return "derived"
+    return "background"
 
 
 async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=None,
@@ -233,7 +269,16 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
     ranked_ids = sorted(records, key=lambda key: (-scores[key], -key))
     # Reserve recent context without allowing it to consume the older pool.
     reserve = min(4, limit // 4)
-    selected = list(dict.fromkeys([*ranked_ids[:limit - reserve], *recent[:reserve], *ranked_ids]))[:limit]
+    # Repeated generated answers can outrank their original reports. Reserve
+    # a separate source pool so recall can escape that feedback loop.
+    source_reserve = min(8, limit // 3)
+    archive_ids = [key for key in ranked_ids
+                   if (records[key]["data"].get("provenance") or {}).get("source_kind") == "Migration"]
+    original_ids = [key for key in archive_ids if evidence_role(view, records[key]) == "user_report"]
+    episode_ids = [key for key in archive_ids if records[key]["__type__"] in {"MemoryClusterKnoxel", "CauseEffectKnoxel"}]
+    source_pool = list(dict.fromkeys([*episode_ids[:source_reserve // 2], *original_ids]))[:source_reserve]
+    selected = list(dict.fromkeys([*ranked_ids[:limit - reserve - source_reserve], *source_pool,
+                                   *recent[:reserve], *ranked_ids]))[:limit]
     matches = [candidate(view, key, records[key], terms=terms, score=scores[key], reasons=[
         *( ["semantic"] if key in semantic else []),
         *( ["lexical"] if lexical[key] else []),

@@ -13,10 +13,16 @@ system_prompt: |
   - If nothing is relevant, return empty lists.
   - Background canon states what the imported source says. It does not prove runtime experience.
   - An utterance records speech. It does not prove every claim in that speech.
+  - A companion_utterance cannot establish a failed method. Select a user_report
+    or original runtime_event, with a linked episode when useful.
+  - If earlier companion speech invented a failure, do not carry that claim forward.
   - For historical recall, select records that describe a concrete older event.
     A request to recall an event does not establish that event. Recent generated
     replies and interaction guidelines cannot replace an original episode.
   - Keep speculation and predicted outcomes separate from executed events.
+  - A rule or restriction on grounding is not a failed historical method.
+  - For failed-method recall, select an actual attempt and its observed failure.
+    Do not invent a causal link between an interaction rule and an unrelated email failure.
   - A historical world observation needs reobservation before a current-world claim.
   - Prefer a corrected belief over the superseded claim. Retain conflict evidence.
   - For a meaningful current user preference or explicit correction, propose a belief update.
@@ -32,6 +38,10 @@ system_prompt: |
     "candidate_ids": [<int>],
     "belief_updates": [{{"source_id": <int>, "quote": <string>,
       "belief_key": <string>, "correction": <bool>}}]}}
+
+  A one-turn action request does not establish a persistent user preference.
+  Do not propose such a preference from an imperative unless the user explicitly makes it an ongoing preference.
+  Existing reported beliefs still require the scope and exact wording of their original user source.
 
 user_template: |
   Companion: {companion_name}

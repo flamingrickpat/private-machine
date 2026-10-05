@@ -1,4 +1,6 @@
-# Private-ontology acceptance boundary for Story dialogue.
+# Compatibility rules for requests without pm.public-context.v1.
+# Production Story and Assistant use domain-aware semantic claim review.
+# These patterns cannot establish game capability or interpret a metaphor.
 #
 # This is a conservative, evidence-named boundary. Each rule rejects an
 # explicit claim that the architecture cannot support. It deliberately does

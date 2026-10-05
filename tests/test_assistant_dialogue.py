@@ -135,7 +135,7 @@ class KernelTests(unittest.TestCase):
         runtime = WorkflowRuntime(
             environment=environment,
             stop_event=threading.Event(),
-            tools={"assistant_complete": assistant_complete, **direct},
+            tools={"assistant_complete": assistant_complete, "public_complete": assistant_complete, **direct},
             propagate_python_errors=True,
         )
         runner = WorkflowRunner(MANIFEST, self.root, namespace="assistant")
@@ -222,6 +222,13 @@ class AssistantModuleTests(unittest.TestCase):
         script = list(responses)
 
         class FakeModel:
+            def build_async_tool(self):
+                async def review(messages, **generation):
+                    if generation["response_format"]["json_schema"]["name"] == "literal_conditions":
+                        return '{"conditions": []}'
+                    return '{"accepted": true, "claims": [], "reason": "Boundary fixture."}'
+                return review
+
             def build_tool_completion(self):
                 async def complete(messages, tools=None, **generation):
                     return script.pop(0)
@@ -280,10 +287,11 @@ class AssistantModuleTests(unittest.TestCase):
             self.assertEqual(len(receipts.events), 1)
             self.assertEqual(receipts.events[0].payload["status"], "rejected")
             self.assertIn("unsupported management claim", receipts.events[0].payload["rejection_reason"])
-            # No dialogue entered memory.
+            # The rejected candidate stays out of memory. Recovery is public.
             import pm_core.model.knoxel_enums as enums
             dialogue = [k for k in ghost.all_features if k.feature_type == enums.FeatureType.Dialogue]
-            self.assertEqual(dialogue, [])
+            self.assertEqual(len(dialogue), 1)
+            self.assertEqual(dialogue[0].metadata["recovery_outcome"], "rejected")
             supervisor.join_all(timeout=10)
 
 

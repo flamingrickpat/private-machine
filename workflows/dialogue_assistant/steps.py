@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from workflows.public_context import render_public_context, render_factual_focus
+from workflows.public_claims import review_public_claims
 
 from workflows.dialogue_assistant.schemas import (
     AssistantMessage,
@@ -52,6 +54,11 @@ def build_messages(request: AssistantRequest, prompts: dict) -> list[AssistantMe
         workspace=request.workspace.strip() or "(none)",
         current_user_message=request.current_user_message,
     ).strip()
+    if request.public_context is not None:
+        user += "\n\nAccepted public context\n" + render_public_context(request.public_context)
+    user += "\n\nSelected action\n" + request.selected_action
+    if request.public_context is not None:
+        user += "\n\n" + render_factual_focus(request.public_context)
     messages = [AssistantMessage(role="system", content=system)]
     messages.extend(request.prior_dialogue)
     messages.append(AssistantMessage(role="user", content=user))
@@ -205,7 +212,7 @@ def run(context) -> dict:
         payload = [message.model_dump(mode="json", exclude_none=False) for message in messages]
         # On the last allowed turn, ban tools so the model must answer in text.
         allow_tools = schemas if turn < turns - 1 else []
-        raw = asyncio.run(completion(payload, tools=allow_tools))
+        raw = asyncio.run(completion(payload, tools=allow_tools, **prompts.get("generation", {})))
         message = parse_completion(raw)
         if message.get("tool_calls") and allow_tools:
             messages.append(AssistantMessage(
@@ -227,12 +234,17 @@ def run(context) -> dict:
         # The tool budget is done and the model returned no text. Force one
         # final, tool-free completion so the run always produces a result.
         payload = [message.model_dump(mode="json", exclude_none=False) for message in messages]
-        raw = asyncio.run(completion(payload, tools=[]))
+        raw = asyncio.run(completion(payload, tools=[], **prompts.get("generation", {})))
         message = parse_completion(raw)
         final_text = str(message.get("content") or "").strip()
         messages.append(AssistantMessage(role="assistant", content=final_text))
 
     accepted = bool(final_text)
+    review = None
+    if request.public_context is not None:
+        review = asyncio.run(review_public_claims(context.runtime.tools["public_complete"], final_text,
+                                                 request.public_context, [item.model_dump(mode="json") for item in receipts]))
+        accepted = accepted and review.accepted
     report = AssistantReport(
         companion_name=request.companion_name,
         message_roles=[message.role for message in messages],
@@ -240,7 +252,8 @@ def run(context) -> dict:
         final_text=final_text,
         tool_receipts=receipts,
         accepted=accepted,
-        rejection_reason="" if accepted else "The model returned an empty reply.",
+        rejection_reason="" if accepted else (review.reason if review is not None else "The model returned an empty reply."),
+        claim_review=review,
     )
     environment.write_text(
         "scratch/report.yaml",
