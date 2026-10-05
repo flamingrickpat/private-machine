@@ -1,0 +1,79 @@
+{
+  "source": "C:\\Users\\rick\\.agents\\skills\\minecraft-survival-coach\\SKILL.md",
+  "source_sha256": "34d78c58f7c06c4143701f0f374dc6fde1fac296999a7e0e485e18c705f6ffb4",
+  "resources": {
+    "shared": {
+      "sections": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        36,
+        37,
+        39,
+        40,
+        41,
+        42,
+        49,
+        50
+      ],
+      "sha256": "5101c93b36b1120f89cdc14bf79704118c0a5cd019855d155bc2b0b1cfadc48e"
+    },
+    "navigator": {
+      "sections": [
+        10,
+        11,
+        12,
+        13,
+        26
+      ],
+      "sha256": "50985ecfbb241447ae181a461007f15b4ab3ee85b4c3503c4f60ef61f291490a"
+    },
+    "recovery": {
+      "sections": [
+        14,
+        15,
+        16,
+        17,
+        18,
+        33,
+        34,
+        35
+      ],
+      "sha256": "d4f58ce00f4b9f71432e40c7dc36af29029d9c33b56f738e08dd45e1b52338b8"
+    },
+    "gatherer": {
+      "sections": [
+        19,
+        20,
+        21,
+        22,
+        23,
+        27,
+        28,
+        29
+      ],
+      "sha256": "54ee88e5d10adb658e0a3b3a54ea5fdb9f182267ce8671ab43db3b5a76af9f25"
+    },
+    "builder": {
+      "sections": [
+        24,
+        25
+      ],
+      "sha256": "d6b263317b7c51f55f69ef1b9ad4a756492ec9ad30969b737f980fafc964c1a2"
+    },
+    "miner": {
+      "sections": [
+        30,
+        31,
+        32
+      ],
+      "sha256": "4cba6be064686e168ae081f231d184c6d2048876f44cef06f692a7662b676d34"
+    }
+  }
+}

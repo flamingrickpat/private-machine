@@ -1,0 +1,7 @@
+<tool_call>
+<function=minecraft_count_inventory>
+<parameter=include_empty>
+false
+</parameter>
+</function>
+</tool_call>

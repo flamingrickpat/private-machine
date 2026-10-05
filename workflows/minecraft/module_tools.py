@@ -6,6 +6,7 @@ import os
 from typing import Callable
 
 from runtime.minecraft_tools import DEFAULT_MCP_URL, build_minecraft_tools
+from runtime.body_lease import BODY_LEASES
 
 
 def build_minecraft_module_tools(plan_model=None) -> Callable[[str, object], dict]:
@@ -16,7 +17,9 @@ def build_minecraft_module_tools(plan_model=None) -> Callable[[str, object], dic
     url = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
 
     def factory(run_id: str, environment) -> dict:
-        return build_minecraft_tools(url, plan_model=plan_model)
+        return {**build_minecraft_tools(url, plan_model=plan_model),
+                "minecraft_endpoint": lambda: url,
+                "minecraft_lease": lambda: BODY_LEASES.acquire(url, run_id)}
 
     return factory
 

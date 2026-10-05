@@ -58,6 +58,13 @@ The inner-loop and recovery parts of those rows remain open.
 Inferred rationale: the audit table stays as a planning record. The delivery
 column names the item that owns the repair, not the current status.
 
+A10 closed the sustained-session and managed-agent configuration gaps.
+The [actor](../../subsystems/minecraft-actor.md) now uses a native pm-coder session and a process-local body lease.
+The real five-tree return gate passed with concurrent inventory dialogue, instruction changes, and cancellation.
+Generic task trees and durable body recovery remain A11 and A12 work.
+Screenshots remain artifacts; A10 does not establish visual interpretation.
+See the [retained verification](../../subsystems/minecraft-actor-verification.md).
+
 The rich mental-state models already contain emotions, needs, personality, and social appraisal.
 Their existence does not establish that every field participates in live behavior.
 Repair the active state path before adding more state dimensions.

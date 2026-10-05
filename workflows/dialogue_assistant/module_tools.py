@@ -21,6 +21,20 @@ def build_assistant_tools(model, supervisor) -> Callable[[object, object], dict]
         tools["public_complete"] = model.build_async_tool()
         tools.update(build_management_tools(supervisor))
         tools.update(build_tools(environment, batch))
+        from runtime.minecraft_tools import build_minecraft_tools, DEFAULT_MCP_URL
+        from runtime.body_lease import BODY_LEASES
+        import os
+        endpoint = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+        minecraft = build_minecraft_tools(endpoint)
+        def minecraft_observe(include_image: bool = False):
+            """Read current numeric state. The public text model gets no pixels."""
+            with BODY_LEASES.command(endpoint):
+                result = minecraft["minecraft_call"]("minecraft_observe", {"include_image": False})
+                owner = BODY_LEASES.owner(endpoint)
+                active = supervisor.receipts().get(owner)
+            return {**{key: value for key, value in result.items() if key != "images"},
+                    "body_owner": owner, "managed_run": active}
+        tools["minecraft_observe"] = minecraft_observe
         return tools
 
     return factory

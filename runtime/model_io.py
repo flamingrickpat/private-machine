@@ -20,6 +20,21 @@ class ModelError(RuntimeError):
     pass
 
 
+def rejected_message_protocol(response: httpx.Response) -> bool:
+    """Identify llama.cpp's deterministic parser rejection without exposing text.
+
+    A malformed tool transcript cannot recover through transport retries.
+    Other server errors retain the existing transient retry behavior.
+    """
+    if response.status_code < 500:
+        return False
+    try:
+        error = response.json().get("error", {})
+    except (ValueError, AttributeError):
+        return False
+    return isinstance(error, dict) and str(error.get("message", "")).startswith("Failed to parse messages:")
+
+
 async def cancellable(awaitable, cancel: Event | None):
     """Cancel in-flight I/O without a generation deadline or worker thread."""
     if cancel is None:
@@ -63,6 +78,8 @@ class JsonClient:
                 except httpx.TransportError:
                     failure = "Model connection failed. Check the endpoint."
                 else:
+                    if rejected_message_protocol(response):
+                        raise ModelError("The model rejected the message protocol. Inspect the tool-call transcript.")
                     if response.status_code == 429 or response.status_code >= 500:
                         failure = f"Model service returned HTTP {response.status_code}."
                     elif not response.is_success:

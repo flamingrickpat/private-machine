@@ -9,6 +9,7 @@ roles:
     tools:
       - assistant_complete
       - public_complete
+      - minecraft_observe
       - ghost_get
       - ghost_search
       - ghost_gwt

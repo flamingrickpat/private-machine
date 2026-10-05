@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import yaml
 
@@ -15,7 +16,7 @@ TERMINAL = frozenset({"completed", "failed", "cancelled", "interrupted"})
 
 
 def task_evidence(receipt: dict) -> dict:
-    """Read the actual report and verify note bytes again before public dispatch."""
+    """Verify note bytes or retained Minecraft receipts before public dispatch."""
     result = dict(receipt)
     if not receipt.get("artifact_path"):
         result["task_verified"] = False
@@ -34,6 +35,19 @@ def task_evidence(receipt: dict) -> dict:
                 expected = report["note_spec"]["text"].encode("utf-8")
                 result["task_verified"] = actual == expected and report.get("verified") is True
                 result["actual_hex"] = actual.hex() if actual is not None else None
+            elif (report.get("schema") == "pm.minecraft-actor-report.v1" and report.get("verified") is True
+                  and report.get("acceptance", {}).get("kind") == "wood_return"):
+                from workflows.minecraft.actor import verify_wood_return
+                journal = (root / report["journal"]).resolve()
+                if not journal.is_relative_to(root / "scratch"):
+                    raise ValueError("The Minecraft journal escaped its task scratch directory.")
+                rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
+                calls = [row for row in rows if row["event"] == "result"]
+                if (calls and calls[0]["tool"] == calls[-1]["tool"] == "minecraft_observe"
+                    and calls[0]["ok"] and calls[-1]["ok"]):
+                    verification = verify_wood_return(calls, calls[0]["result"], calls[-1]["result"], report["acceptance"])
+                    result["minecraft_verification"] = verification
+                    result["task_verified"] = receipt.get("state") == "completed" and verification["verified"]
     # The control worker reports only its own artifacts and instruction.
     # Its completed state never establishes arbitrary note execution.
     result.setdefault("task_verified", False)

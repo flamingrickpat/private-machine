@@ -133,6 +133,40 @@ class ManagedRunTests(unittest.TestCase):
         self.assertTrue((artifact / "scratch" / "started.md").is_file())
         self.assertFalse((artifact / "outbox" / "report.yaml").exists())
 
+    def test_unchanged_boundaries_do_not_write_checkpoint(self):
+        receipt = self.supervisor.start(action_id="boundary-read", workflow_name="local_task",
+            instructions="hold", arguments={"wait_for_cancel": True})
+        run_id = receipt["run_id"]
+        artifact = Path(receipt["artifact_path"]) / "scratch/started.md"
+        self.assertTrue(_wait_for(artifact.is_file))
+        self.supervisor.instructions_at_boundary(run_id)
+        checkpoint = self.root / "ghost.json"
+        before = checkpoint.stat().st_mtime_ns
+        for _ in range(5):
+            self.supervisor.instructions_at_boundary(run_id)
+        self.assertEqual(checkpoint.stat().st_mtime_ns, before)
+        self.supervisor.instructions_at_boundary(run_id, close=True)
+        self.assertFalse(self.supervisor.status(run_id)["updates_open"])
+        self.supervisor.terminate(run_id)
+
+    def test_nested_children_keep_configuration_and_separate_folders(self):
+        from threading import Event
+        from pm_workflows.runtime import WorkflowRuntime
+        from runtime.managed_runs import scoped_children
+        from working_target import FolderEnvironment
+
+        runtime = scoped_children(WorkflowRuntime(FolderEnvironment(self.root / "scope", "bash"),
+            Event(), {}, mcp_servers={"minecraft": {"url": "http://127.0.0.1:6767/mcp"}}), self.root / "scope")
+        child = runtime.child_factory("gather")
+        nested = child.child_factory("return")
+        nested.environment.write_text("scratch/position.txt", "retained")
+        self.assertTrue((self.root / "scope/children/gather/children/return/scratch/position.txt").is_file())
+        self.assertIs(child.stop_event, runtime.stop_event)
+        self.assertIs(nested.tools, runtime.tools)
+        self.assertEqual(nested.mcp_servers, runtime.mcp_servers)
+        with self.assertRaises(ValueError):
+            runtime.child_factory("../escape")
+
     def test_blocking_question_is_answered_and_resumed(self):
         receipt = self.supervisor.start(
             action_id="action-3", workflow_name="local_task_question",

@@ -9,6 +9,9 @@ from __future__ import annotations
 from workflows.dialogue_assistant.schemas import ToolDescriptor
 
 TOOL_DESCRIPTORS: list[ToolDescriptor] = [
+    ToolDescriptor(name="minecraft_observe",
+        description="Read current Minecraft inventory, position, and vitals. Starts no managed task. Numeric evidence only.",
+        parameters={"type": "object", "properties": {"include_image": {"type": "boolean", "default": False}}}),
     ToolDescriptor(
         name="ghost_get",
         description="Read one Ghost knoxel by id from the scoped view.",

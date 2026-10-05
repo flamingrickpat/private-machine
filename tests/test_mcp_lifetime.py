@@ -41,7 +41,11 @@ class McpLifetimeTests(unittest.TestCase):
             self.assertNotEqual(ports["alpha"], ports["beta"])
             self.assertEqual(_call(descriptors["alpha"]["url"]), "A")
             self.assertEqual(_call(descriptors["beta"]["url"]), "B")
+            listeners = list(registry._listeners.values())
         self.assertEqual(registry.active_services, [])
+        for listener in listeners:
+            self.assertFalse(listener.thread.is_alive())
+            self.assertIsNone(listener.error)
 
     def test_context_manager_propagates_and_still_closes(self):
         seen: list[str] = []

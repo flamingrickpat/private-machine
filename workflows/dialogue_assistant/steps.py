@@ -173,7 +173,10 @@ async def execute_tool_calls(
         try:
             if name not in grant:
                 raise PermissionError(f"Tool {name!r} is not granted for this run.")
-            if servers:
+            if name == "minecraft_observe" and name in direct:
+                result = await asyncio.to_thread(direct[name], **arguments)
+                receipt.transport = "python"
+            elif servers:
                 result = await _call_mcp(servers, name, arguments)
                 receipt.transport = "mcp"
             elif name in direct:
@@ -194,6 +197,12 @@ async def execute_tool_calls(
     return receipts, tool_messages
 
 
+def validate_public_speech(text: str) -> None:
+    """Reject captured raw tool protocol before claim review or publication."""
+    if text.lstrip().startswith(("<tool_call>", "<function=")):
+        raise ValueError("The model returned tool protocol instead of public speech.")
+
+
 def run(context) -> dict:
     environment = context.runtime.environment
     request = AssistantRequest.model_validate(
@@ -207,6 +216,15 @@ def run(context) -> dict:
 
     receipts: list[ToolReceipt] = []
     final_text = ""
+    if request.minecraft_read == "inventory":
+        # A direct inventory question needs one fresh observation, then speech.
+        call = {"tool_calls": [{"id": "inventory-observation", "type": "function", "function": {
+            "name": "minecraft_observe", "arguments": json.dumps({"include_image": False})}}]}
+        messages.append(AssistantMessage(role="assistant", tool_calls=call["tool_calls"]))
+        observed, tool_messages = asyncio.run(execute_tool_calls(context, call, request, servers))
+        receipts.extend(observed)
+        messages.extend(tool_messages)
+        schemas = []
     turns = request.max_tool_turns
     for turn in range(turns):
         payload = [message.model_dump(mode="json", exclude_none=False) for message in messages]
@@ -239,6 +257,7 @@ def run(context) -> dict:
         final_text = str(message.get("content") or "").strip()
         messages.append(AssistantMessage(role="assistant", content=final_text))
 
+    validate_public_speech(final_text)
     accepted = bool(final_text)
     review = None
     if request.public_context is not None:

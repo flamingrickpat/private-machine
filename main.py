@@ -88,12 +88,13 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
     """
     options = [
         {"name": "dialogue_story", "description": "Generate one in-character Story reply."},
-        {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools."},
+        {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools. Inventory questions use arguments.minecraft_read=inventory for one live read and no task."},
         {"name": "self_management", "description": "Start, status, update, or terminate a managed run."},
     ]
     for name in sorted(supervisor.workflows):
         descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",
-                        "note_task": "Real pm-coder note writer. Exact UTF-8 byte verification. Optional arguments.note_spec has path and text; path stays in outbox/."}
+                        "note_task": "Real pm-coder note writer. Exact UTF-8 byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.",
+                        "minecraft": "Sustained survival specialist. Exclusive body lease, many calls, instruction updates, and cancellation. No task for a direct inventory question."}
         options.append({"name": name, "description": descriptions.get(name, f"Managed workflow {name}.")})
     return options
 

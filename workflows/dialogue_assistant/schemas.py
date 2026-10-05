@@ -64,6 +64,7 @@ class AssistantRequest(BaseModel):
     max_tool_turns: int = 8
     selected_action: str = ""
     public_context: PublicContext | None = None
+    minecraft_read: Literal["", "inventory"] = ""
 
 
 class AssistantReport(BaseModel):

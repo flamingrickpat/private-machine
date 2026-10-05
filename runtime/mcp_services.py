@@ -25,6 +25,7 @@ class _Listener:
         self.port = bound.getsockname()[1]
         self.thread: threading.Thread | None = None
         self.error: BaseException | None = None
+        self.http_server = None
 
     def start(self) -> None:
         self.thread = threading.Thread(
@@ -36,15 +37,14 @@ class _Listener:
         import asyncio
 
         async def serve() -> None:
+            import uvicorn
             asyncio.get_running_loop().set_exception_handler(_ignore_aborted_socket)
-            await self.server.run_http_async(
-                transport="http",
-                host="127.0.0.1",
-                port=self.port,
-                sockets=[self.socket],
-                show_banner=False,
-                log_level="error",
-            )
+            app = self.server.http_app(transport="http")
+            config = uvicorn.Config(app, host="127.0.0.1", port=self.port,
+                                    lifespan="on", log_level="error", timeout_graceful_shutdown=2)
+            self.http_server = uvicorn.Server(config)
+            async with self.server._lifespan_manager():
+                await self.http_server.serve(sockets=[self.socket])
 
         try:
             asyncio.run(serve())
@@ -66,6 +66,12 @@ class _Listener:
         raise TimeoutError(f"MCP service '{self.name}' did not become ready")
 
     def close(self) -> None:
+        # Stop the accept loop before closing the held socket. Closing only
+        # the socket leaves the server thread and its MCP sessions alive.
+        if self.http_server is not None:
+            self.http_server.should_exit = True
+        if self.thread is not None:
+            self.thread.join(timeout=5)
         try:
             self.socket.close()
         except OSError:

@@ -14,6 +14,7 @@ import unittest
 from pm_workflows.runtime import WorkflowRuntime
 
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from runtime.minecraft_tools import build_minecraft_tools
 from workflows.dialogue_assistant import steps
 from workflows.dialogue_assistant.schemas import (
     AssistantMessage,
@@ -131,6 +132,10 @@ class KernelTests(unittest.TestCase):
             "ghost_gwt": lambda tick_id: {},
         }
         direct.update(extra_tools or {})
+        # Keep the new manifest grant connected to the real client. These
+        # retained dialogue fixtures do not execute the Minecraft read.
+        minecraft = build_minecraft_tools()["minecraft_call"]
+        direct["minecraft_observe"] = lambda include_image=False: minecraft("minecraft_observe", {"include_image": include_image})
         environment = GhostBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment,

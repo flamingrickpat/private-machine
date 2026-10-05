@@ -36,6 +36,10 @@ system_prompt: |
   - For a requested managed task with a public result, choose ToolCallAndReply.
   - The control worker local_task cannot execute arbitrary note instructions.
   - Use note_task for a real note. Its host verifies exact UTF-8 file bytes.
+  - A clear Minecraft inventory question routes to dialogue_assistant with arguments.minecraft_read set to inventory.
+    This path makes one live observation and starts no managed task. It does not require Laya.
+  - Use minecraft for sustained survival work. One specialist keeps the body lease for the whole leaf.
+    A running Minecraft task does not prevent conversation or a direct inventory observation.
   - Read the current original stimuli and existing run receipts before selecting work.
   - A completed run or a remembered task request is not a new request to repeat it.
   - Affection, frustration, and an apology call for conversation unless the current user requests new work.

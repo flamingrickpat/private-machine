@@ -1,10 +1,9 @@
 """Minecraft body role.
 
-Entry point: ``run(context)``. The role observes the real world through the
-injected ``minecraft_call`` tool, chooses one bounded action (explicitly or
-through the optional ``minecraft_plan`` model tool), executes it, and writes
-real evidence: text observations, a structured ``outbox/world.yaml``, the
-screenshot files, and a final report.
+Entry point: ``run(context)``. The default runs a sustained native pm-coder
+actor. The explicit boundary-check mode retains the earlier one-action path.
+Both paths hold the body lease and write observations, screenshots, world
+evidence, and a final report.
 
 Screenshot pixels are written as files, never into a prompt. The tool result
 base64 is the source of that file.
@@ -143,13 +142,17 @@ def build_world(
     }
 
 
-def run(context) -> dict:
+def _run_boundary_check(context) -> dict:
     environment = context.runtime.environment
-    request = MinecraftRequest.model_validate(
-        yaml.safe_load(environment.read_text("inbox/request.yaml"))
-    )
+    payload = yaml.safe_load(environment.read_text("inbox/request.yaml"))
+    request = MinecraftRequest.model_validate({key: value for key, value in payload.items()
+                                             if not key.startswith("_public_")})
     prompts = load_prompts()
-    call = context.runtime.tools["minecraft_call"]
+    from runtime.body_lease import BODY_LEASES
+    endpoint = context.runtime.tools["minecraft_endpoint"]()
+    def call(name, arguments=None):
+        with BODY_LEASES.command(endpoint, context.runtime.stop_event):
+            return context.runtime.tools["minecraft_call"](name, arguments)
     boundary = context.runtime.tools["managed_instructions"]
     initial = boundary()
     request.goal = initial["instruction"] or request.goal or request.instruction
@@ -227,6 +230,21 @@ def run(context) -> dict:
         context.runtime.stop_event.wait()
         context.runtime.check_cancelled()
     return {"status": "done", "summary": "minecraft body finished with recorded tool evidence"}
+
+
+def run(context) -> dict:
+    """Select sustained work or the retained explicit W8 boundary check."""
+    payload = yaml.safe_load(context.runtime.environment.read_text("inbox/request.yaml"))
+    # Existing explicit actions and wait fixtures retain their narrow contract.
+    narrow = payload.get("mode") == "boundary_check" or payload.get("action_tool") or payload.get("wait_for_cancel") or payload.get("wait_for_update")
+    if narrow:
+        lease = context.runtime.tools.get("minecraft_lease")
+        if lease is not None:
+            with lease():
+                return _run_boundary_check(context)
+        return _run_boundary_check(context)
+    from workflows.minecraft.actor import run_actor
+    return run_actor(context)
 
 
 __all__ = [

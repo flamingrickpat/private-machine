@@ -17,6 +17,7 @@ from bus.envelopes import Envelope
 from main import build_app
 from runtime.managed_runs import ManagedRunError, ManagedRunSupervisor, WorkflowSpec
 from runtime.minecraft_tools import build_minecraft_tools
+from runtime.body_lease import BODY_LEASES
 from tests.live.conversation import SCENARIOS, evaluation_context, generation_complete
 from tests.support import ManualClock
 from tests.test_design_contracts import small_ghost
@@ -87,9 +88,12 @@ class ReconciliationTests(unittest.TestCase):
             return {"ok": ok, "reason": None if ok else "unreachable", "position": position}
 
         tools = build_minecraft_tools(server, plan_model=planner)
+        def factory(run_id, environment):
+            return {**tools, "minecraft_endpoint": lambda: "fixture://reconciliation",
+                    "minecraft_lease": lambda: BODY_LEASES.acquire("fixture://reconciliation", run_id)}
         return self.supervisor(minecraft=WorkflowSpec(
             PROJECT_ROOT / "workflows/minecraft/minecraft.workflow.md",
-            tools_factory=lambda run_id, environment: tools,
+            tools_factory=factory,
         ))
 
     def test_real_mode_has_no_periodic_dummy_thought(self):
@@ -157,7 +161,8 @@ class ReconciliationTests(unittest.TestCase):
             return 'minecraft_mine_block {"position":{"x":5,"y":1,"z":3}}'
 
         supervisor = self.minecraft(planner=planner)
-        run = supervisor.start(action_id="plan", workflow_name="minecraft", instructions="mine one nearby log")
+        run = supervisor.start(action_id="plan", workflow_name="minecraft", instructions="mine one nearby log",
+                               arguments={"mode": "boundary_check"})
         supervisor.join_all()
         self.assertEqual(supervisor.status(run["run_id"])["state"], "completed")
         self.assertIn("mine one nearby log", prompts[-1]["content"])

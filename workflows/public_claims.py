@@ -22,6 +22,7 @@ class PublicClaim(BaseModel):
     domain: Literal["history", "task", "human_sense", "minecraft", "emotion", "private", "other"]
     status: Literal["supported", "figurative", "uncertain", "intentional_deception", "unsupported"]
     evidence_ids: list[int] = Field(default_factory=list)
+    tool_receipt_ids: list[str] = Field(default_factory=list)
     evidence_use: Literal["event", "utterance", "state", "none"] = "event"
     verification_claim: bool = True
     time_scope: Literal["past", "current", "stable", "unspecified"] = "unspecified"
@@ -183,7 +184,7 @@ async def review_public_claims(complete, candidate: str, context: PublicContext,
                 if claim.domain in {"history", "other"} or claim.external_physical_state:
                     claim.external_physical_state = True
                     claim.time_scope = condition.time_scope
-    review = validate_claim_review(review, candidate, context)
+    review = validate_claim_review(review, candidate, context, receipts=receipts)
     selected = [(index, claim) for index, claim in enumerate(review.claims)
                 if claim.status == "supported" and claim.domain == "history"] if review.accepted else []
     if selected:
@@ -247,11 +248,12 @@ async def review_public_claims(complete, candidate: str, context: PublicContext,
             if not check.supported:
                 review.claims[check.claim_index].status = "unsupported"
                 review.claims[check.claim_index].reason = check.reason
-        review = validate_claim_review(review, candidate, context)
+        review = validate_claim_review(review, candidate, context, receipts=receipts)
     return review
 
 
-def validate_claim_review(review: ClaimReview, candidate: str, context: PublicContext) -> ClaimReview:
+def validate_claim_review(review: ClaimReview, candidate: str, context: PublicContext,
+                          *, receipts: list[dict] | None = None) -> ClaimReview:
     """Apply source and intent constraints to one parsed real review.
 
     This boundary cannot establish semantic entailment. It rejects citations
@@ -264,6 +266,11 @@ def validate_claim_review(review: ClaimReview, candidate: str, context: PublicCo
     event_ids = {int(item["knoxel_id"]) for item in context.evidence
                  if item.get("evidence_role") in {"user_report", "runtime_event", "world_observation"}}
     by_id = {int(item["knoxel_id"]): item for item in context.evidence}
+    # Executed calls are invocation evidence, not Ghost records. Give them
+    # their actual tool_call_id instead of requiring invented numeric IDs.
+    tools = {item["tool_call_id"]: item for item in receipts or [] if item.get("executed")
+             and not item.get("error") and isinstance(item.get("result"), dict)
+             and item["result"].get("ok") is not False}
     for condition in review.literal_conditions:
         matching = [claim for claim in review.claims if condition.text.casefold() in claim.text.casefold()
                     or claim.text.casefold() in condition.text.casefold()]
@@ -284,13 +291,19 @@ def validate_claim_review(review: ClaimReview, candidate: str, context: PublicCo
         if any(key not in allowed for key in claim.evidence_ids):
             claim.status = "unsupported"
             claim.reason = "The claim cites evidence outside the supplied snapshot."
+        if any(key not in tools for key in claim.tool_receipt_ids):
+            claim.status = "unsupported"
+            claim.reason = "The claim cites an absent, denied, or failed tool receipt."
         if claim.domain == "history" and claim.status == "supported" and not claim.evidence_ids:
             claim.status = "unsupported"
             claim.reason = "A positive historical assertion requires a supplied source, even when labeled knowledge state."
         if claim.status == "supported" and claim.external_physical_state and claim.time_scope == "current":
             fresh = [by_id[key] for key in claim.evidence_ids if key in by_id
                      and not by_id[key].get("historical") and key in event_ids]
-            if not fresh:
+            observed = (claim.domain == "minecraft" and any(
+                tools[key]["name"] == "minecraft_observe" and tools[key]["result"].get("ok") is True
+                for key in claim.tool_receipt_ids if key in tools))
+            if not fresh and not observed:
                 claim.status = "unsupported"
                 claim.reason = "Historical reports cannot establish a current external physical condition."
         if claim.domain == "history" and claim.status == "supported" and claim.evidence_use == "event":

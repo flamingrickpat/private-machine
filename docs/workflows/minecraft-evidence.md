@@ -31,6 +31,10 @@ The Minecraft role writes these artifacts:
 - `outbox/world.yaml`: structured places, objects, and a body episode.
 - `screenshots/`: image files from MCP observations.
 
+The sustained actor also writes `scratch/actor-journal.jsonl`, `scratch/task-card.md`, and `outbox/handoff.md`.
+Its report keeps independent completion checks beside the model's candidate.
+Read [sustained actor evidence](../subsystems/minecraft-actor.md#completion-evidence).
+
 `main.build_app` connects the supervisor terminal callback to [`runtime.consolidation.Consolidator`][].
 This callback also handles failed and cancelled runs when evidence exists.
 It inventories recognized top-level text artifacts and image directories.

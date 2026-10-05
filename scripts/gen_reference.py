@@ -11,6 +11,7 @@ paths += [Path("scripts/alpha_input_gate.py"), Path("scripts/alpha_classificatio
 paths += [Path("scripts/alpha_a08_memory_gate.py"), Path("scripts/alpha_memory_index.py")]
 paths += [Path("scripts/alpha_a09_dialogue_gate.py"), Path("scripts/alpha_a09_claim_gate.py")]
 paths += [Path("scripts/alpha_a09_public_gate.py")]
+paths += [Path("scripts/compile_minecraft_skill.py"), Path("scripts/alpha_a10_minecraft_gate.py")]
 for path in sorted(paths):
     if "tests" in path.parts or any(part.startswith("_") for part in path.parts):
         continue

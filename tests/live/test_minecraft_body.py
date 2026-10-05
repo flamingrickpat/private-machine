@@ -13,6 +13,7 @@ The test demonstrates observation, one real action, status, an instruction
 update, termination, and memory recovery from a reopened checkpoint.
 """
 from __future__ import annotations
+from runtime.body_lease import BODY_LEASES
 
 import json
 import os
@@ -114,7 +115,11 @@ class LiveMinecraftBodyTests(unittest.TestCase):
                 "minecraft": WorkflowSpec(
                     MANIFEST,
                     namespace="minecraft",
-                    tools_factory=lambda run_id, environment: build_minecraft_tools(self.mcp_url, plan_model=self.model.complete),
+                    tools_factory=lambda run_id, environment: {
+                        **build_minecraft_tools(self.mcp_url, plan_model=self.model.complete),
+                        "minecraft_endpoint": lambda: self.mcp_url,
+                        "minecraft_lease": lambda: BODY_LEASES.acquire(self.mcp_url, run_id),
+                    },
                 ),
             },
             clock=time.monotonic,

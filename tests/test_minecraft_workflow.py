@@ -20,6 +20,7 @@ from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunne
 from workflows.minecraft import steps
 from workflows.minecraft.schemas import MinecraftReport
 from working_target import FolderEnvironment
+from runtime.body_lease import BODY_LEASES
 
 MANIFEST = PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md"
 PNG = b"\x89PNG\r\n\x1a\n" + b"deterministic-minecraft-frame"
@@ -65,7 +66,10 @@ class FakeMinecraft:
 
 class MinecraftTestBase(unittest.TestCase):
     def _run(self, request: dict, minecraft, root: Path):
+        request = {"mode": "boundary_check", **request}
         tools = {
+            "minecraft_endpoint": lambda: "fixture://boundary",
+            "minecraft_lease": lambda: BODY_LEASES.acquire("fixture://boundary", "minecraft-1"),
             "minecraft_call": minecraft,
             "minecraft_plan": lambda observation, allowed_tools, goal: (allowed_tools[0]["name"] if allowed_tools else ""),
             "minecraft_list_tools": lambda: ["minecraft_observe", "minecraft_mine_block"],

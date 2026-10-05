@@ -3,12 +3,12 @@
 Parent: [managed work](../subsystems/managed-work.md).
 Next: [evidence and cleanup](minecraft-evidence.md).
 
-## What is implemented
+## Summary
 
-A managed Minecraft run observes the world, performs at most one action, and observes the result.
-`MinecraftRequest.max_actions` accepts only `1`.
-A goal can describe a house, but this workflow does not repeat actions until the house exists.
-One MCP action can execute a longer skill. That does not create a workflow-level goal loop.
+The default Minecraft run uses a [sustained specialist](../subsystems/minecraft-actor.md) with many real tool calls.
+Its request has no action-count ceiling.
+Explicit W8 actions retain the narrow observe/action/observe path described below.
+General task trees, replanning, and generic completion verification belong to A11–A14.
 
 The normal workflow requires an existing Minecraft server and MCP service.
 It opens MCP client connections when needed. It does not start or stop the MCP process.
@@ -39,7 +39,7 @@ The connection panel probes services. It does not start them or perform world ac
 The MCP configuration sets `MCMCP_AGENT_HOME`, its persistent character directory.
 Startup creates missing directories and templates. Startup does not clear existing character files.
 
-## Run one bounded task
+## Run the explicit boundary check
 
 Ask Spamuel to start the managed `minecraft` workflow with a precise goal and an allowed tool list.
 For the first check, allow only `minecraft_observe`.
@@ -47,6 +47,8 @@ For a world-changing check, use an explicit action and arguments that match the 
 Natural-language requests still depend on cognition choosing the managed-work action.
 They are not a guaranteed command interface.
 
+Use `mode: boundary_check` for the narrow experiment.
+An explicit `action_tool` also selects this path.
 The request accepts `goal`, `action_tool`, `action_arguments`, `allowed_tools`, and `include_image`.
 An empty allowed list does not restrict action names. Supply a list for a bounded experiment.
 The console **Managed runs** panel controls existing runs; it does not directly create these requests.
@@ -83,6 +85,7 @@ Stopping Spamuel does not stop either external server.
 ## Source and tests
 
 Read [`workflows.minecraft.schemas.MinecraftRequest`][], [`runtime.managed_runs.ManagedRunSupervisor`][], and [`runtime.minecraft_tools.build_minecraft_tools`][].
+Read [actor controls](../subsystems/minecraft-actor-controls.md) for sustained updates, cancellation, and direct inventory dialogue.
 The role is `workflows/minecraft/steps.py`; its manifest is `workflows/minecraft/minecraft.workflow.md`.
 
 `tests/live/test_minecraft_body.py` and `tests/live/minecraft_stack.py` define the isolated live gate.

@@ -16,6 +16,7 @@ from __future__ import annotations
 import threading
 import uuid
 from dataclasses import dataclass, field
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -46,14 +47,36 @@ class UnavailableWorkflow(ManagedRunError):
     """The run named a workflow the application does not manage."""
 
 
+def scoped_children(runtime: WorkflowRuntime, root: Path) -> WorkflowRuntime:
+    """Give each child a folder while retaining model, tools, and cancellation.
+
+    Nested children remain below their parent. This is runtime configuration,
+    not a durable task tree or an independent body owner.
+    """
+    from pm_workflows.inputs import relative_path
+
+    def child(scope: str) -> WorkflowRuntime:
+        path = root / "children" / relative_path(scope)
+        child_runtime = replace(runtime, environment=FolderEnvironment(path, "bash"))
+        return scoped_children(child_runtime, path)
+    runtime.child_factory = child
+    return runtime
+
+
 @dataclass(frozen=True)
 class WorkflowSpec:
-    """One managed workflow: its manifest and optional environment builder."""
+    """One workflow with explicit agent, MCP, and child runtime configuration.
+
+    Children retain cancellation and tool ownership. Each child gets its own
+    directory. Trusted Python roles keep their existing MCP configuration.
+    """
 
     manifest: Path
     environment_factory: Callable[[str], Any] | None = None
     namespace: str = ""
     tools_factory: Callable[[str, Any], Mapping[str, Callable]] | None = None
+    agent_model: Any = None
+    mcp_servers: Mapping[str, Mapping[str, Any]] | None = None
 
 
 @dataclass
@@ -308,7 +331,10 @@ class ManagedRunSupervisor:
                 stop_event=cancel,
                 tools=tools,
                 propagate_python_errors=True,
+                agent_model=spec.agent_model,
+                mcp_servers=spec.mcp_servers,
             )
+            scoped_children(runtime, Path(receipt.artifact_path))
             runner = WorkflowRunner(
                 spec.manifest,
                 self.runtime_root,
@@ -354,18 +380,32 @@ class ManagedRunSupervisor:
             pass
 
     def _environment(self, receipt: ManagedRunReceipt) -> Any:
+        spec = self.workflows[receipt.workflow_name]
+        if spec.environment_factory is not None:
+            return spec.environment_factory(receipt.run_id)
         if self.environment_factory is not None:
             return self.environment_factory(receipt.run_id)
         return FolderEnvironment(Path(receipt.artifact_path), "bash")
 
     def _request_payload(self, receipt: ManagedRunReceipt) -> dict:
-        return {
+        payload = {
             **dict(receipt.arguments),
             "run_id": receipt.run_id,
             "instruction": receipt.instructions,
             "artifact_path": receipt.artifact_path,
             "answer": "",
         }
+        if receipt.workflow_name == "minecraft":
+            from workflows.public_context import build_public_context
+            with self.ghost.lock:
+                public = build_public_context(self.ghost, {}).model_dump(mode="json")
+                payload["persona_context"] = {
+                    "companion_name": self.ghost.get_companion_name(),
+                    "user_name": self.ghost.get_user_name(),
+                    "character_card": self.ghost.get_simple_character_story_block(),
+                    "accepted_context": public,
+                }
+        return payload
 
     def _finish(self, run_id: str, result: WorkflowResult, environment: Any) -> None:
         with self._lock:
@@ -475,6 +515,10 @@ class ManagedRunSupervisor:
             if self._cancels[run_id].is_set():
                 raise WorkflowTerminated()
             current = ManagedRunReceipt.from_dict(self.get(run_id))
+            if current.applied_revision == current.revision and current.updates_open == (not close):
+                # Checking an unchanged boundary must not rewrite the full
+                # companion checkpoint before every Minecraft tool call.
+                return {"instruction": current.instructions, "revision": current.revision}
             current.applied_revision = current.revision
             current.updates_open = not close
             current.latest_event = f"instruction revision {current.revision} consumed at boundary"

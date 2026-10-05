@@ -79,6 +79,7 @@ Earlier generated speech cannot independently establish its described event.
 Assistant preserves normal user, assistant, and tool messages.
 Its tool loop retains execution results, denied calls, errors, and transport attribution.
 The common context supplies the selected action and accepted emotional state beside those receipts.
+The [direct Minecraft inventory route](minecraft-actor-controls.md#direct-inventory-dialogue) uses one coordinated observation and starts no managed task.
 The existing management guard still rejects an operation claim without execution support.
 
 Both prompt resources require public speech.
@@ -193,6 +194,10 @@ Each claim also has `verification_claim`.
 `external_physical_state` identifies literal conditions that need fresh evidence.
 The host retains the first phase's time interpretation for matching claims.
 A supported current physical condition requires a nonhistorical original report or observation.
+`tool_receipt_ids` cite invocation-local `tool_call_id` strings separately from numeric Ghost `evidence_ids`.
+A successful executed `minecraft_observe` receipt can establish its current Minecraft snapshot.
+Absent, denied, and failed receipts cannot supply that condition.
+Historical claims still require their original numeric source chain.
 Omitting a current extracted condition rejects the review.
 This flag identifies a current executed operation, verified task state, or actual current file or world effect.
 Conversational naming, metaphor, future speech, and imported historical reports do not establish those effects.

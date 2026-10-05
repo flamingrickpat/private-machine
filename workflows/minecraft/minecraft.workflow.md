@@ -6,7 +6,7 @@ state_policy: {mutation_model: append_only}
 roles:
   body:
     skill: workflows/minecraft/steps.py
-    tools: [minecraft_call, minecraft_plan, minecraft_list_tools, minecraft_tool_schemas, managed_instructions]
+    tools: [minecraft_call, minecraft_plan, minecraft_list_tools, minecraft_tool_schemas, minecraft_endpoint, minecraft_lease, managed_instructions]
     result_contract:
       type: json
       schema:
@@ -22,8 +22,8 @@ phases:
 
 # Minecraft body
 
-One bounded Minecraft body run. The role observes the real world through the
-`minecraft_call` MCP tool, chooses one allowed action, executes it, and writes
-real evidence: text observations, a structured `outbox/world.yaml`, screenshot
-files, and a final report. Screenshot pixels become evidence files. They do
-not enter the planning prompt or embedding text. The MCP must already be running.
+The default role runs one sustained pm-coder specialist through a scoped MCP
+gateway. The session retains one body lease and checks instructions before
+each tool call. It writes an actor journal, screenshots, a world record, and
+a task handoff. The configured text model cannot interpret screenshot pixels.
+Explicit W8 actions retain the narrow boundary-check path. The MCP must be running.

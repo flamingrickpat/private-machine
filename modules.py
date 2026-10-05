@@ -1132,6 +1132,7 @@ class AssistantDialogue(PublicDialogue):
             tool_grant=list(TOOL_NAMES),
             selected_action=intent,
             public_context=public,
+            minecraft_read=payload.get("arguments", {}).get("minecraft_read", ""),
         )
         return request.model_dump(mode="json")
 

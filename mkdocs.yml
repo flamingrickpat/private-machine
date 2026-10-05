@@ -58,6 +58,9 @@ nav:
       - Public dialogue: subsystems/public-dialogue.md
       - Public publication and recovery: subsystems/public-publication.md
       - A09 verification: subsystems/public-verification.md
+      - Sustained Minecraft actor: subsystems/minecraft-actor.md
+      - Minecraft actor controls: subsystems/minecraft-actor-controls.md
+      - A10 verification: subsystems/minecraft-actor-verification.md
       - Operator service: subsystems/console.md
       - Ghost and bus: ghost.md
       - Models:

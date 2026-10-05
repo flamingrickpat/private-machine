@@ -51,9 +51,14 @@ system_prompt: |
   Without a supplied source, classify that explanation as unsupported unless the utterance explicitly qualifies it as uncertain.
   A current user report of someone else's advice proves that advice was reported, not that the advice is correct.
   Use supplied original evidence IDs. Do not invent IDs.
+  Numeric evidence_ids refer only to original records in the accepted context.
+  Executed tool receipts have string tool_call_id values. Cite those exact values in tool_receipt_ids.
+  For facts from a fresh Minecraft observation, use its tool_receipt_ids and leave evidence_ids empty unless a supplied record also supports the claim.
+  An observation's managed_run field is the actual task-state receipt at that read boundary.
+  Cite that same executed receipt for its inventory snapshot and its actual managed-run state.
   Return this shape:
   {"accepted": true, "public_form": "speech|narration|private_transcript|empty", "claims": [{"text": "exact claim text", "domain": "history|task|human_sense|minecraft|emotion|private|other",
-  "status": "supported|figurative|uncertain|intentional_deception|unsupported", "evidence_ids": [],
+  "status": "supported|figurative|uncertain|intentional_deception|unsupported", "evidence_ids": [], "tool_receipt_ids": [],
   "evidence_use": "event|utterance|state|none", "verification_claim": false,
   "time_scope": "past|current|stable|unspecified", "external_physical_state": false,
   "reason": "evidence comparison"}], "reason": "overall decision"}
