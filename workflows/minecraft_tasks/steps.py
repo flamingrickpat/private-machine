@@ -99,7 +99,8 @@ def progress_facts(observation: dict) -> dict:
 
 
 def scoped_reads(reads: list[dict]) -> list[dict]:
-    """Keep relevant observation fields and a digest of each original result."""
+    """Retain exact evidence and distinguish known air from an unavailable read."""
+    from runtime.minecraft_actor import observed_target
     scoped = []
     for row in reads:
         data = row["result"]
@@ -109,7 +110,10 @@ def scoped_reads(reads: list[dict]) -> list[dict]:
                                               "pattern", "matches", "total_recipes") if key in data}
         if row["tool"] == "minecraft_observe":
             relevant.update(inventory=data.get("inventory", []), camera=data.get("camera", {}), player=data.get("player", {}))
+        available = (observed_target(row, row["arguments"]["position"])
+                     if row["tool"] == "minecraft_inspect_block" else bool(row["ok"]))
         scoped.append({**{key: value for key, value in row.items() if key != "result"},
+                       "observation_available": available,
                        "result": relevant, "original_digest": digest(data)})
     return scoped
 
@@ -149,6 +153,17 @@ def plan(context: RoleContext, store: TreeStore) -> dict:
     first = "planning/observations/0001.json"
     store.state.setdefault("initial_observation", first if store.path_for(first).is_file() else observation_path)
     store.save()
+    # A replacement kernel starts at observation, not at the old act cursor.
+    # Keep the accepted tree when the instruction did not change.
+    if context.phase == "plan" and store.state["revision"] and any(
+            row["state"] == "running" for row in store.state["attempts"]):
+        for attempt in store.state["attempts"]:
+            if attempt["state"] == "running":
+                attempt.update(state="interrupted", journal=attempt["path"] + "/scratch/actor-journal.jsonl")
+        store.state["recovery_observation"] = observation_path
+        store.save()
+        if current["revision"] == store.state["instruction_revision"]:
+            return {"status": "planned", "summary": "Retained the task tree after fresh restart observation. Reconcile the interrupted leaf."}
     # The supplied planner schema defines omitted defaults. This representation
     # round-trips exactly, while rejected raw output remains intact for repair.
     previous = store.load().model_dump(mode="json", exclude_defaults=True) if store.state["revision"] else None
@@ -370,6 +385,8 @@ def act(context: RoleContext, store: TreeStore) -> dict:
         if current["revision"] != parent_revision:
             raise InstructionsChanged("The project instruction changed. Replan from retained world effects.")
         return {**current, "instruction": node.instruction}
+    instructions.authorize = getattr(parent_boundary, "authorize", None)
+    instructions.cancelled = getattr(parent_boundary, "cancelled", None)
     endpoint = context.runtime.tools["minecraft_endpoint"]()
     tools = {**context.runtime.tools, "managed_instructions": instructions,
              "minecraft_lease": lambda: BODY_LEASES.acquire(endpoint, child_id)}
@@ -396,6 +413,7 @@ def act(context: RoleContext, store: TreeStore) -> dict:
         previous = earlier[-1]
         handoff = store.path_for(previous["path"] + "/outbox/handoff.md")
         acceptance["previous_attempt"] = {"identity": previous, "handoff": handoff.read_text(encoding="utf-8") if handoff.is_file() else "",
+                                          "journals": [str(store.path_for(row["path"] + "/scratch/actor-journal.jsonl")) for row in earlier],
                                           "scope": "Past work; current specification and fresh observations take precedence."}
     payload = MinecraftRequest(goal=node.instruction, instruction=node.instruction, body_id=req.body_id,
         specialist=node.specialist, persona_context=req.persona_context, include_image=req.include_image,

@@ -14,6 +14,7 @@ import asyncio
 from typing import Any, Callable
 
 DEFAULT_MCP_URL = "http://127.0.0.1:6767/mcp"
+MCP_REQUEST_TIMEOUT_SECONDS = 660
 
 
 def _extract_images(content: list) -> list[dict]:
@@ -35,11 +36,16 @@ def build_minecraft_tools(
 ) -> dict[str, Callable[..., Any]]:
     """Return the Minecraft tools for one managed run."""
 
-    async def _call(name: str, arguments: dict) -> dict:
+    async def _call(name: str, arguments: dict, token: dict | None = None) -> dict:
         from fastmcp import Client
 
-        async with Client(mcp_url) as client:
-            result = await client.call_tool(name, arguments or {})
+        async with Client(mcp_url, timeout=MCP_REQUEST_TIMEOUT_SECONDS) as client:
+            dispatch_name, dispatch_arguments = name, arguments or {}
+            if token is not None:
+                dispatch_name = "minecraft_body_call"
+                dispatch_arguments = {**{key: token[key] for key in ("owner", "epoch", "session")},
+                                      "tool": name, "arguments": arguments or {}}
+            result = await client.call_tool(dispatch_name, dispatch_arguments)
             data = result.data if result.data is not None else result.structured_content
             return {
                 "tool": name,
@@ -51,6 +57,18 @@ def build_minecraft_tools(
 
     def minecraft_call(name: str, arguments: dict | None = None) -> dict:
         return asyncio.run(_call(name, dict(arguments or {})))
+
+    def minecraft_fenced_call(name: str, arguments: dict, token: dict) -> dict:
+        """Send the pinned epoch to the server with the original tool schema."""
+        return asyncio.run(_call(name, arguments, token))
+
+    def minecraft_claim(token: dict) -> dict:
+        """Wait for old server work before activating this local lease."""
+        return minecraft_call("minecraft_body_claim", {key: token[key] for key in ("owner", "epoch", "session")})
+
+    def minecraft_release(token: dict) -> dict:
+        """Release remote ownership after external cleanup. Retain its epoch."""
+        return minecraft_call("minecraft_body_release", {key: token[key] for key in ("owner", "epoch", "session")})
 
     def minecraft_list_tools() -> list[str]:
         async def _list() -> list[str]:
@@ -64,15 +82,25 @@ def build_minecraft_tools(
             from fastmcp import Client
             async with Client(mcp_url) as client:
                 return [{"name": tool.name, "description": tool.description,
-                         "parameters": tool.inputSchema} for tool in await client.list_tools()]
+                         "parameters": tool.inputSchema} for tool in await client.list_tools()
+                        if not tool.name.startswith("minecraft_body_")]
         return asyncio.run(_list())
 
     tools: dict[str, Callable[..., Any]] = {
         "minecraft_call": minecraft_call,
+        "minecraft_fenced_call": minecraft_fenced_call,
+        "minecraft_claim": minecraft_claim,
+        "minecraft_release": minecraft_release,
         "minecraft_list_tools": minecraft_list_tools,
         "minecraft_tool_schemas": minecraft_tool_schemas,
         "minecraft_plan": _build_plan_tool(plan_model),
     }
+    # These capabilities stay on the granted transport closure. A role cannot
+    # obtain another connection or invent a token through its public tool list.
+    if isinstance(mcp_url, str):
+        minecraft_call.claim = minecraft_claim
+        minecraft_call.release = minecraft_release
+        minecraft_call.fenced_call = minecraft_fenced_call
     return tools
 
 

@@ -14,6 +14,7 @@ Artifacts are written to a real task folder and preserved after cancellation.
 from __future__ import annotations
 
 import threading
+from copy import deepcopy
 import uuid
 from dataclasses import dataclass, field
 from dataclasses import replace
@@ -31,6 +32,7 @@ from runtime.workflow_runner import (
 )
 from working_target import FolderEnvironment
 from runtime.workflow_models import WorkflowModels
+from runtime.body_lease import ProcessLock, BodyBusy, atomic_json, read_json
 
 STATES = frozenset({
     "accepted", "running", "waiting_for_input", "completed", "failed",
@@ -101,6 +103,11 @@ class ManagedRunReceipt:
     evidence: list[str] = field(default_factory=list)
     created_at: float = 0.0
     updated_at: float = 0.0
+    execution_epoch: int = 1
+    control_version: int = 0
+    interrupted_from: str = ""
+    events: list[dict] = field(default_factory=list)
+    resume_requests: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.state not in STATES:
@@ -126,11 +133,16 @@ class ManagedRunReceipt:
             "evidence": list(self.evidence),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "execution_epoch": self.execution_epoch,
+            "control_version": self.control_version,
+            "interrupted_from": self.interrupted_from,
+            "events": list(self.events),
+            "resume_requests": list(self.resume_requests),
         }
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "ManagedRunReceipt":
-        known = {name: data[name] for name in cls.__dataclass_fields__ if name in data}
+        known = {name: deepcopy(data[name]) for name in cls.__dataclass_fields__ if name in data}
         return cls(**known)
 
 
@@ -170,22 +182,49 @@ class ManagedRunSupervisor:
         self._cancels: dict[str, threading.Event] = {}
         self._threads: dict[str, threading.Thread] = {}
         self._pending: dict[str, dict] = {}
+        self._worker_locks: dict[str, ProcessLock] = {}
+        self._checkpoint_stamp: int | None = None
+        self._checkpoint_runs: dict[str, dict] = {}
 
     # ------------------------------------------------------------- table
 
     def receipts(self) -> dict[str, dict]:
         with self.ghost.lock:
-            return {
-                run_id: dict(receipt)
-                for run_id, receipt in self.ghost.managed_runs.items()
-            }
+            ids = list(self.ghost.managed_runs)
+        return {run_id: self.get(run_id) for run_id in ids}
 
     def get(self, run_id: str) -> dict:
+        with self._lock:
+            return self._read_control(run_id)
+
+    def _read_control(self, run_id: str) -> dict:
+        """Read the newer accepted receipt under the supervisor mutex."""
         with self.ghost.lock:
             receipt = self.ghost.managed_runs.get(run_id)
             if receipt is None:
                 raise ManagedRunError(f"No managed run {run_id!r}.")
-            return dict(receipt)
+            # Control edits must enter a Ghost batch. Nested event acknowledgments
+            # and request IDs cannot mutate the accepted in-memory row first.
+            receipt = deepcopy(receipt)
+        if receipt.get("artifact_path"):
+            path = Path(receipt["artifact_path"]) / "control.json"
+            if path.is_file():
+                durable = read_json(path)
+                if durable.get("control_version", 0) > receipt.get("control_version", 0):
+                    receipt = durable
+        # Ghost commits before its mirror. A different process can die between
+        # those writes. Read a changed checkpoint before authorizing old work.
+        # Cache only its managed rows; unchanged calls require one stat.
+        checkpoint = self.ghost.checkpoint
+        if checkpoint is not None and checkpoint.is_file():
+            stamp = checkpoint.stat().st_mtime_ns
+            if stamp != self._checkpoint_stamp:
+                self._checkpoint_runs = read_json(checkpoint).get("managed_runs", {})
+                self._checkpoint_stamp = stamp
+            committed = self._checkpoint_runs.get(run_id)
+            if committed and committed.get("control_version", 0) > receipt.get("control_version", 0):
+                receipt = deepcopy(committed)
+        return receipt
 
     def _find_by_action(self, action_id: str) -> dict | None:
         if not action_id:
@@ -193,11 +232,41 @@ class ManagedRunSupervisor:
         with self.ghost.lock:
             for receipt in self.ghost.managed_runs.values():
                 if receipt.get("action_id") == action_id:
-                    return dict(receipt)
+                    return self.get(receipt["run_id"])
         return None
 
     def _persist(self, receipt: ManagedRunReceipt) -> dict:
-        """Serialize one table write. Retries a stale batch once."""
+        """Commit Ghost, then mirror control for other processes.
+
+        The file mutex rejects a stale control write. A crash between commits
+        leaves the accepted Ghost receipt as the restart source.
+        """
+        with self._lock:
+            if receipt.artifact_path:
+                path = Path(receipt.artifact_path) / "control.json"
+                lock = ProcessLock(path.with_suffix(".lock")).acquire(wait=True)
+            else:
+                path, lock = None, None
+            try:
+                with self.ghost.lock:
+                    known = receipt.run_id in self.ghost.managed_runs
+                if known and self._read_control(receipt.run_id).get("control_version", 0) > receipt.control_version:
+                    raise ManagedRunError("The accepted Ghost control receipt changed. Read it again before writing.")
+                if path is not None and path.exists():
+                    durable = read_json(path)
+                    if durable.get("control_version", 0) > receipt.control_version:
+                        raise ManagedRunError("The managed control receipt changed. Read it again before writing.")
+                receipt.control_version += 1
+                result = self._commit_receipt(receipt)
+                if path is not None:
+                    atomic_json(path, result)
+                return result
+            finally:
+                if lock is not None:
+                    lock.close()
+
+    def _commit_receipt(self, receipt: ManagedRunReceipt) -> dict:
+        """Retry a Ghost revision conflict once without launching external work."""
         with self._lock:
             for _attempt in range(2):
                 batch = self.ghost.begin_batch(
@@ -291,6 +360,11 @@ class ManagedRunSupervisor:
             return persisted
 
     def _launch(self, receipt: ManagedRunReceipt, *, resume: bool, payload: dict | None) -> None:
+        if receipt.run_id not in self._worker_locks:
+            try:
+                self._worker_locks[receipt.run_id] = ProcessLock(Path(receipt.artifact_path) / "worker.lock").acquire()
+            except BodyBusy as error:
+                raise ManagedRunError("Another process owns this managed worker.") from error
         cancel = self._cancels.setdefault(receipt.run_id, threading.Event())
         thread = threading.Thread(
             target=self._worker,
@@ -312,7 +386,7 @@ class ManagedRunSupervisor:
                     receipt.run_id, state="running", latest_event="workflow started",
                     question_id="",
                 )
-                self._emit(receipt.run_id, "started", receipt=receipt.to_dict())
+                self._emit(receipt.run_id, "started", receipt={key: value for key, value in receipt.to_dict().items() if key != "events"})
             spec = self.workflows[receipt.workflow_name]
             environment = self._environment(receipt)
             if payload is None:
@@ -324,8 +398,13 @@ class ManagedRunSupervisor:
             else:
                 tools = {}
             tools["managed_instructions"] = lambda wait=False, close=False: self.instructions_at_boundary(
-                receipt.run_id, wait=wait, close=close,
+                receipt.run_id, wait=wait, close=close, epoch=receipt.execution_epoch,
             )
+            tools["managed_authorize"] = lambda revision, commit: self.authorize_dispatch(
+                receipt.run_id, receipt.execution_epoch, revision, commit)
+            tools["managed_instructions"].authorize = tools["managed_authorize"]
+            tools["managed_instructions"].cancelled = lambda: self.cancelled_at_boundary(
+                receipt.run_id, receipt.execution_epoch)
             runtime = WorkflowRuntime(
                 environment=environment,
                 stop_event=cancel,
@@ -337,7 +416,8 @@ class ManagedRunSupervisor:
             scoped_children(runtime, Path(receipt.artifact_path))
             runner = WorkflowRunner(
                 spec.manifest,
-                self.runtime_root,
+                self.runtime_root if receipt.execution_epoch == 1 else
+                self.runtime_root / "recovery" / receipt.run_id / f"epoch-{receipt.execution_epoch:04d}",
                 namespace=spec.namespace or receipt.workflow_name,
                 base_dir=self.base_dir,
                 models=self.workflow_models,
@@ -356,16 +436,27 @@ class ManagedRunSupervisor:
         except BaseException as exc:  # a worker crash must become a failed receipt
             cancelled = cancel.is_set()
             try:
-                self._transition(
-                    receipt.run_id, state="cancelled" if cancelled else "failed",
-                    latest_event=f"worker error: {type(exc).__name__}: {exc}"[-500:],
-                )
-                self._emit(receipt.run_id, "failed", error=str(exc))
+                current = self.get(receipt.run_id)
+                if current["state"] in ACTIVE_STATES:
+                    self._transition(
+                        receipt.run_id, state="cancelled" if cancelled else "failed",
+                        latest_event=f"worker error: {type(exc).__name__}: {exc}"[-500:],
+                    )
+                    self._emit(receipt.run_id, "failed", error=str(exc))
+                else:
+                    # Publication can fail after a terminal receipt commits.
+                    # Keep that actual outcome and identify the delivery error.
+                    self._emit(receipt.run_id, "publication_interrupted", error=str(exc))
             except BaseException:
                 pass
             if self.on_error is not None and not cancelled:
                 self.on_error(exc)
             self._notify_terminal(receipt.run_id)
+        finally:
+            with self._lock:
+                lock = self._worker_locks.pop(receipt.run_id, None)
+            if lock is not None:
+                lock.close()
 
     # ----------------------------------------------------------- terminal
 
@@ -464,9 +555,33 @@ class ManagedRunSupervisor:
         return paths
 
     def _emit(self, run_id: str, event: str, **fields: Any) -> None:
-        if self.event_sink is None:
-            return
-        self.event_sink({"run_id": run_id, "event": event, **fields})
+        """Commit an event before publication. Consumers acknowledge its identity."""
+        with self._lock:
+            current = ManagedRunReceipt.from_dict(self.get(run_id))
+            identity = f"{run_id}:{current.execution_epoch}:{len(current.events) + 1}"
+            message = {"run_id": run_id, "event": event, "event_id": identity,
+                       "execution_epoch": current.execution_epoch, **fields}
+            current.events.append({"message": message, "published": False})
+            self._persist(current)
+        if self.event_sink is not None:
+            self.event_sink(message)
+
+    def acknowledge_event(self, run_id: str, event_id: str) -> None:
+        """Mark a consumed event. A repeated acknowledgment changes no identity."""
+        with self._lock:
+            current = ManagedRunReceipt.from_dict(self.get(run_id))
+            row = next((row for row in current.events if row["message"]["event_id"] == event_id), None)
+            if row is not None and not row["published"]:
+                row["published"] = True
+                self._persist(current)
+
+    def replay_events(self) -> None:
+        """Publish pending progress with the original event IDs, without a worker."""
+        if self.event_sink is not None:
+            for receipt in self.receipts().values():
+                for row in receipt.get("events", []):
+                    if not row["published"]:
+                        self.event_sink(row["message"])
 
     # -------------------------------------------------------- operations
 
@@ -498,7 +613,8 @@ class ManagedRunSupervisor:
             self._emit(run_id, "updated", revision=current.revision)
             return receipt
 
-    def instructions_at_boundary(self, run_id: str, *, wait: bool = False, close: bool = False) -> dict:
+    def instructions_at_boundary(self, run_id: str, *, wait: bool = False, close: bool = False,
+                                 epoch: int | None = None) -> dict:
         """Consume the latest revision on the worker thread, or wait for one.
 
         Closing the final boundary rejects subsequent updates. The receipt
@@ -508,23 +624,101 @@ class ManagedRunSupervisor:
 
         with self._updates:
             if wait:
-                self._updates.wait_for(lambda: (
-                    self._cancels[run_id].is_set()
-                    or self.get(run_id)["revision"] > self.get(run_id)["applied_revision"]
-                ))
+                while (not self._cancels[run_id].is_set()
+                       and self.get(run_id)["state"] != "cancelled"
+                       and self.get(run_id)["revision"] <= self.get(run_id)["applied_revision"]):
+                    self._updates.wait(0.1)
             if self._cancels[run_id].is_set():
                 raise WorkflowTerminated()
             current = ManagedRunReceipt.from_dict(self.get(run_id))
-            if current.applied_revision == current.revision and current.updates_open == (not close):
+            if current.state == "cancelled" or (epoch is not None and current.execution_epoch != epoch):
+                self._cancels[run_id].set()
+                raise WorkflowTerminated()
+            updates_open = current.updates_open and not close
+            if current.applied_revision == current.revision and current.updates_open == updates_open:
                 # Checking an unchanged boundary must not rewrite the full
                 # companion checkpoint before every Minecraft tool call.
                 return {"instruction": current.instructions, "revision": current.revision}
             current.applied_revision = current.revision
-            current.updates_open = not close
+            current.updates_open = updates_open
             current.latest_event = f"instruction revision {current.revision} consumed at boundary"
             current.updated_at = self.clock()
             self._persist(current)
             return {"instruction": current.instructions, "revision": current.revision}
+
+    def authorize_dispatch(self, run_id: str, epoch: int, revision: int, commit: Callable) -> bool:
+        """Order a durable dispatch marker against accepted control changes.
+
+        The marker defines the start of an in-flight call. Later cancellation
+        retains its result. A superseded revision cannot obtain a new marker.
+        """
+        with self._lock:
+            root = Path(self.get(run_id)["artifact_path"])
+            lock = ProcessLock(root / "control.lock").acquire(wait=True)
+            try:
+                current = self.get(run_id)
+                if current["state"] == "cancelled" or current.get("execution_epoch", 1) != epoch:
+                    from pm_workflows.runtime import WorkflowTerminated
+                    raise WorkflowTerminated()
+                if current["revision"] != revision:
+                    return False
+                commit()
+                return True
+            finally:
+                lock.close()
+
+    def cancelled_at_boundary(self, run_id: str, epoch: int) -> bool:
+        """Poll durable cancellation during a long external call.
+
+        This read consumes no instruction revision. A control accepted by a
+        different process still reaches the active worker's stop watcher.
+        """
+        with self._lock:
+            current = self.get(run_id)
+            cancelled = current["state"] == "cancelled" or current.get("execution_epoch", 1) != epoch
+            if cancelled:
+                self._cancels[run_id].set()
+            return cancelled
+
+    def resume(self, run_id: str, *, request_id: str = "") -> dict:
+        """Explicitly resume retained body intent with a new worker epoch.
+
+        Cancelled, failed, and interrupted body runs retain their identity.
+        No old kernel cursor or uncertain action is replayed. The workflow
+        starts at its observation boundary with the existing task evidence.
+        """
+        with self._lock:
+            current = ManagedRunReceipt.from_dict(self.get(run_id))
+            if request_id and request_id in current.resume_requests:
+                return current.to_dict()
+            if current.workflow_name not in {"minecraft", "minecraft_project"}:
+                raise ManagedRunError("Explicit recovery is available only for body workflows.")
+            if current.state not in {"interrupted", "cancelled", "failed"}:
+                raise ManagedRunError(f"Run {run_id!r} is {current.state} and cannot resume.")
+            thread = self._threads.get(run_id)
+            if thread is not None and thread.is_alive():
+                raise ManagedRunError("The previous worker still needs external cleanup.")
+            try:
+                lock = ProcessLock(Path(current.artifact_path) / "worker.lock").acquire()
+            except BodyBusy as error:
+                raise ManagedRunError("Another process owns this managed worker.") from error
+            try:
+                current.interrupted_from = current.state
+                current.state, current.updates_open = "accepted", True
+                current.execution_epoch += 1
+                current.latest_event = "explicit resume accepted; fresh observation required"
+                current.updated_at = self.clock()
+                if request_id:
+                    current.resume_requests.append(request_id)
+                receipt = self._persist(current)
+                self._cancels[run_id] = threading.Event()
+                self._worker_locks[run_id] = lock
+                self._launch(current, resume=False, payload=None)
+                return receipt
+            except BaseException:
+                lock.close()
+                self._worker_locks.pop(run_id, None)
+                raise
 
     def answer(self, run_id: str, question_id: str, answer: str) -> dict:
         """Deliver a correlated answer and resume the suspended run."""
@@ -558,12 +752,20 @@ class ManagedRunSupervisor:
             self._emit(run_id, "answered", question_id=current.question_id)
             return receipt
 
-    def terminate(self, run_id: str) -> dict:
-        """Cancel a run through its code-owned signal. Files are untouched."""
+    def terminate(self, run_id: str, *, request_id: str = "") -> dict:
+        """Cancel through the owned signal and retain a stable request ID.
+
+        Replaying an acknowledged cancel must not cancel a later resumed epoch.
+        Direct callers can omit the ID for a new, unconditional cancellation.
+        """
         with self._lock:
             current = ManagedRunReceipt.from_dict(self.get(run_id))
-            if current.state not in ACTIVE_STATES:
+            if request_id and request_id in current.request_ids:
                 return current.to_dict()
+            if request_id:
+                current.request_ids.append(request_id)
+            if current.state not in ACTIVE_STATES:
+                return self._persist(current) if request_id else current.to_dict()
             with self._lock:
                 cancel = self._cancels.get(run_id)
             if cancel is not None:
@@ -571,6 +773,7 @@ class ManagedRunSupervisor:
             self._updates.notify_all()
             receipt = self._transition(
                 run_id, state="cancelled", latest_event="terminated by request",
+                request_ids=current.request_ids,
             )
             self._emit(run_id, "terminated")
             return receipt

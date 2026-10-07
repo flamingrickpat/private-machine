@@ -12,8 +12,8 @@ Evidence: [A10 verification](minecraft-actor-verification.md).
 
 ## Lease boundary
 
-[`runtime.body_lease.BodyLeases`][] owns a process-local table keyed by the configured MCP endpoint.
-All application instances in that process use the shared `BODY_LEASES` registry.
+[`runtime.body_lease.BodyLeases`][] owns operating-system leases keyed by the configured MCP endpoint.
+Application instances and local processes use the shared durable registry.
 A request's `body_id` is a descriptive label and cannot obtain another lease.
 The registry normalizes a trailing slash.
 A second session receives `BodyBusy` before it sends a world call.
@@ -29,10 +29,9 @@ Any later direct mutation must acquire the same lease.
 Horizon scans rotate the camera and therefore require ownership.
 Tool names outside the explicit read set also require ownership.
 
-Process restart and multiple separate PM processes need durable leases and epochs.
-A12 owns that work.
-An alternate MCP endpoint for the same avatar is not identified by the current process-local key.
-Use one configured endpoint per avatar.
+A12 adds [durable body leases](body-leases.md), server epochs, and [explicit interruption recovery](body-recovery.md).
+The server retains its epoch and rejects stale commands after ownership changes.
+Use one configured endpoint per avatar and one shared local lease directory.
 
 ## Updates between actions
 

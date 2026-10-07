@@ -64,6 +64,10 @@ nav:
       - Durable Minecraft projects: subsystems/minecraft-tasks.md
       - Minecraft task evidence: subsystems/minecraft-task-evidence.md
       - A11 verification: subsystems/minecraft-task-verification.md
+      - Body interruption and recovery: subsystems/body-recovery.md
+      - Durable body leases: subsystems/body-leases.md
+      - Intent and progress recovery: subsystems/recovery-publication.md
+      - A12 verification: subsystems/body-recovery-verification.md
       - Operator service: subsystems/console.md
       - Ghost and bus: ghost.md
       - Models:

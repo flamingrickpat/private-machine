@@ -900,7 +900,7 @@ wheels = [
 [[package]]
 name = "pm-coder"
 version = "0.10.0"
-source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=ac8327baf669dad54ea9f91580f2bed1023825b4#ac8327baf669dad54ea9f91580f2bed1023825b4" }
+source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=061170544037d323c376acac8d7c241ffacf2685#061170544037d323c376acac8d7c241ffacf2685" }
 dependencies = [
     { name = "httpx" },
     { name = "just-bash" },
@@ -926,8 +926,8 @@ dependencies = [
 requires-dist = [
     { name = "fastmcp" },
     { name = "httpx", specifier = ">=0.27,<1" },
-    { name = "pm-coder", git = "https://github.com/flamingrickpat/pm-coder.git?rev=ac8327baf669dad54ea9f91580f2bed1023825b4" },
-    { name = "pm-workflows", git = "https://github.com/flamingrickpat/pm-workflows.git?rev=7c9fab4381ef77ef3f63ee9ef669a993c8df7452" },
+    { name = "pm-coder", git = "https://github.com/flamingrickpat/pm-coder.git?rev=061170544037d323c376acac8d7c241ffacf2685" },
+    { name = "pm-workflows", git = "https://github.com/flamingrickpat/pm-workflows.git?rev=e3d05a35d84122030d6992afc5d168559435457c" },
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
 ]
@@ -935,7 +935,7 @@ requires-dist = [
 [[package]]
 name = "pm-workflows"
 version = "0.7.1"
-source = { git = "https://github.com/flamingrickpat/pm-workflows.git?rev=7c9fab4381ef77ef3f63ee9ef669a993c8df7452#7c9fab4381ef77ef3f63ee9ef669a993c8df7452" }
+source = { git = "https://github.com/flamingrickpat/pm-workflows.git?rev=e3d05a35d84122030d6992afc5d168559435457c#e3d05a35d84122030d6992afc5d168559435457c" }
 dependencies = [
     { name = "httpx" },
     { name = "pm-coder" },

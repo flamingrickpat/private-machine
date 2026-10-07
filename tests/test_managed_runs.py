@@ -58,6 +58,8 @@ class ManagedRunTests(unittest.TestCase):
         )
 
     def tearDown(self):
+        for run_id in self.supervisor.receipts():
+            self.supervisor.terminate(run_id)
         self.supervisor.join_all(timeout=10)
         self._tmp.cleanup()
 

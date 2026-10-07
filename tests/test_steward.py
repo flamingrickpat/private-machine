@@ -162,6 +162,7 @@ class StewardWorkflowTests(unittest.TestCase):
                     "steward_answer": steward.answer,
                     "steward_update": steward.update,
                     "steward_terminate": steward.terminate,
+                    "steward_resume": steward.resume,
                 },
                 propagate_python_errors=True,
             )

@@ -1,4 +1,6 @@
-"""Exercise real process-local body ownership without a game substitute."""
+"""Exercise real body locks in an isolated registry."""
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import threading
 import unittest
 
@@ -6,8 +8,13 @@ from runtime.body_lease import BodyBusy, BodyLeases
 
 
 class BodyLeaseTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.leases = BodyLeases(Path(self.tmp.name))
+
     def test_second_actor_is_rejected_until_the_owner_finishes(self):
-        leases = BodyLeases()
+        leases = self.leases
         with leases.acquire("http://127.0.0.1:6767/mcp/", "first"):
             with self.assertRaises(BodyBusy):
                 with leases.acquire("http://127.0.0.1:6767/mcp", "second"):
@@ -17,21 +24,21 @@ class BodyLeaseTests(unittest.TestCase):
             self.assertEqual(leases.owner("http://127.0.0.1:6767/mcp"), "second")
 
     def test_error_releases_ownership(self):
-        leases = BodyLeases()
+        leases = self.leases
         with self.assertRaises(ValueError):
             with leases.acquire("avatar", "first"):
                 raise ValueError("The actor stopped before another action.")
         self.assertIsNone(leases.owner("avatar"))
 
     def test_same_owner_cannot_start_an_overlapping_session(self):
-        leases = BodyLeases()
+        leases = self.leases
         with leases.acquire("avatar", "first"):
             with self.assertRaises(BodyBusy):
                 with leases.acquire("avatar", "first"):
                     self.fail("The session overlapped itself.")
 
     def test_other_thread_cannot_take_the_active_body(self):
-        leases = BodyLeases()
+        leases = self.leases
         denied = threading.Event()
         def contender():
             try:

@@ -94,7 +94,7 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
     options = [
         {"name": "dialogue_story", "description": "Generate one in-character Story reply."},
         {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools. Inventory questions use arguments.minecraft_read=inventory for one live read and no task."},
-        {"name": "self_management", "description": "Start, status, update, or terminate a managed run."},
+        {"name": "self_management", "description": "Start, status, update, terminate, or explicitly resume an interrupted body run."},
     ]
     for name in sorted(supervisor.workflows):
         descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",

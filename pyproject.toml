@@ -12,5 +12,5 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-pm-workflows = { git = "https://github.com/flamingrickpat/pm-workflows.git", rev = "7c9fab4381ef77ef3f63ee9ef669a993c8df7452" }
-pm-coder = { git = "https://github.com/flamingrickpat/pm-coder.git", rev = "ac8327baf669dad54ea9f91580f2bed1023825b4" }
+pm-workflows = { git = "https://github.com/flamingrickpat/pm-workflows.git", rev = "e3d05a35d84122030d6992afc5d168559435457c" }
+pm-coder = { git = "https://github.com/flamingrickpat/pm-coder.git", rev = "061170544037d323c376acac8d7c241ffacf2685" }

@@ -710,6 +710,15 @@ class MainCogLoop(CognitiveWorkflow):
                     "memory_trace": parsed.memory_trace,
                     "belief_updates": belief_receipt,
                     "presentation": presentation.model_dump(mode="json"),
+                    "dispatch_status": "pending",
+                    "dispatch_target": dispatch.workflow_name,
+                    "dispatch_correlation": correlation,
+                    "dispatch_payload": {"action_id": dispatch.action_id, "workflow_name": dispatch.workflow_name,
+                        "content": dispatch.content, "arguments": dict(dispatch.arguments),
+                        "stimuli": list(self._stimulus_records), "memories": [item.text for item in parsed.selected_memories],
+                        "memory_evidence": [item.model_dump(mode="json") for item in parsed.selected_memories],
+                        "workspace": parsed.subjective_experience or parsed.frame_reason,
+                        "affect": parsed.affect_summary, "regulation": parsed.regulation},
                 },
             ))
             created_order.append(action.id)
@@ -1079,6 +1088,9 @@ class SelfManagement(CognitiveWorkflow):
         correlation = batch[0].correlation_id if batch else ""
         cause = batch[0].id if batch else None
         source = self.ghost.get_knoxel_by_id(batch[0].payload.get("knoxel_id"))
+        if source is not None:
+            from runtime.intents import acknowledge_intent
+            acknowledge_intent(self.ghost, source.id)
         self.bus.put(_envelope(
             self.module_id, "telemetry", "action.receipt", correlation,
             {

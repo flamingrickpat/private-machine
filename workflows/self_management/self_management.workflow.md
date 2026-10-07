@@ -13,6 +13,7 @@ roles:
       - managed_update
       - managed_terminate
       - managed_answer
+      - managed_resume
     result_contract:
       type: json
       schema:

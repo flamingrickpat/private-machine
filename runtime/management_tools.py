@@ -44,13 +44,17 @@ def build_management_tools(supervisor: ManagedRunSupervisor) -> dict[str, Callab
         """Queue one instruction revision at the next safe boundary."""
         return supervisor.update(run_id, instructions, request_id=request_id)
 
-    def managed_terminate(run_id: str) -> dict:
+    def managed_terminate(run_id: str, request_id: str = "") -> dict:
         """Set the run's code-owned cancellation signal. Files are untouched."""
-        return supervisor.terminate(run_id)
+        return supervisor.terminate(run_id, request_id=request_id)
 
     def managed_answer(run_id: str, question_id: str, answer: str) -> dict:
         """Deliver a correlated answer to a waiting run and resume it."""
         return supervisor.answer(run_id, question_id, answer)
+
+    def managed_resume(run_id: str, request_id: str = "") -> dict:
+        """Resume retained body work after cleanup and fresh observation."""
+        return supervisor.resume(run_id, request_id=request_id)
 
     return {
         "managed_start": managed_start,
@@ -59,6 +63,7 @@ def build_management_tools(supervisor: ManagedRunSupervisor) -> dict[str, Callab
         "managed_update": managed_update,
         "managed_terminate": managed_terminate,
         "managed_answer": managed_answer,
+        "managed_resume": managed_resume,
     }
 
 

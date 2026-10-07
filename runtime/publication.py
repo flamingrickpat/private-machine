@@ -52,6 +52,11 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
         if exchange is not None:
             exchange.metadata.update(exchange_status="resolved", public_reply_id=reply.id, recovery_outcome=recovery)
             batch.replace(exchange)
+        if action_id is not None and action_id in ghost.revisions:
+            action = ghost.snapshot({action_id}).get(action_id)
+            if action.metadata.get("dispatch_status") == "pending":
+                action.metadata["dispatch_status"] = "admitted"
+                batch.replace(action)
         receipt = ghost.commit(batch)
         return receipt.added_ids[0]
 

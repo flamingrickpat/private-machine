@@ -1,0 +1,4269 @@
+[
+  {
+    "phase": "before_call",
+    "token": {
+      "endpoint": "http://127.0.0.1:6767/mcp",
+      "owner": "a12-protocol",
+      "epoch": 5,
+      "session": "edcb47a68cba490ba631129e8357fcb2",
+      "pid": 14300,
+      "active": true,
+      "acquired_at": 1791370254.5483763
+    },
+    "reconciliation": {
+      "schema": "pm.body-reconciliation.v1",
+      "epoch": 6,
+      "instruction_revision": 0,
+      "observation_seq": 2,
+      "retained_actions": [],
+      "target_reads": [],
+      "automatic_mutation_replay": false,
+      "time": 1791370255.5717685
+    },
+    "rejection": "ToolError: Error calling tool 'minecraft_body_call': Stale Minecraft body epoch.",
+    "observation": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "camera": {
+        "feet_position": {
+          "x": 4.5,
+          "y": 114.0,
+          "z": -3.7
+        },
+        "eye_position": {
+          "x": 4.5,
+          "y": 115.62,
+          "z": -3.7
+        },
+        "block_position": {
+          "x": 4,
+          "y": 114,
+          "z": -4
+        },
+        "yaw": 359.85,
+        "pitch": 0.0,
+        "cardinal": "south",
+        "look_vector": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 1.0
+        }
+      },
+      "player": {
+        "health": 20.0,
+        "max_health": 20.0,
+        "food": 20,
+        "oxygen": 20,
+        "xp_level": 0,
+        "biome": "meadow",
+        "dimension": "overworld",
+        "time_of_day": 1121,
+        "is_day": true,
+        "is_raining": true,
+        "on_ground": true,
+        "in_water": false
+      },
+      "held_item": null,
+      "hotbar": [
+        {
+          "slot": 0,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 1,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 2,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 3,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 4,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 5,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 6,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 7,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 8,
+          "item": null,
+          "count": 0
+        }
+      ],
+      "inventory": [],
+      "nearby_blocks": [
+        {
+          "block_name": "air",
+          "display_name": "Air",
+          "count": 2563,
+          "nearest": {
+            "x": 5,
+            "y": 114,
+            "z": -4
+          },
+          "distance": 0.58
+        },
+        {
+          "block_name": "grass",
+          "display_name": "Grass",
+          "count": 55,
+          "nearest": {
+            "x": 4,
+            "y": 114,
+            "z": -3
+          },
+          "distance": 0.86
+        },
+        {
+          "block_name": "grass_block",
+          "display_name": "Grass Block",
+          "count": 269,
+          "nearest": {
+            "x": 5,
+            "y": 113,
+            "z": -4
+          },
+          "distance": 1.16
+        },
+        {
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "count": 80,
+          "nearest": {
+            "x": 5,
+            "y": 114,
+            "z": -5
+          },
+          "distance": 1.39
+        },
+        {
+          "block_name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 2,
+          "nearest": {
+            "x": 5,
+            "y": 115,
+            "z": -5
+          },
+          "distance": 1.71
+        },
+        {
+          "block_name": "dirt",
+          "display_name": "Dirt",
+          "count": 389,
+          "nearest": {
+            "x": 4,
+            "y": 113,
+            "z": -2
+          },
+          "distance": 2.03
+        },
+        {
+          "block_name": "birch_log",
+          "display_name": "Birch Log",
+          "count": 2,
+          "nearest": {
+            "x": 7,
+            "y": 114,
+            "z": -3
+          },
+          "distance": 2.6
+        },
+        {
+          "block_name": "stone",
+          "display_name": "Stone",
+          "count": 1510,
+          "nearest": {
+            "x": 4,
+            "y": 112,
+            "z": -2
+          },
+          "distance": 2.67
+        },
+        {
+          "block_name": "tall_grass",
+          "display_name": "Tall Grass",
+          "count": 16,
+          "nearest": {
+            "x": 1,
+            "y": 113,
+            "z": -7
+          },
+          "distance": 4.91
+        },
+        {
+          "block_name": "dandelion",
+          "display_name": "Dandelion",
+          "count": 14,
+          "nearest": {
+            "x": 8,
+            "y": 112,
+            "z": -7
+          },
+          "distance": 5.21
+        },
+        {
+          "block_name": "coal_ore",
+          "display_name": "Coal Ore",
+          "count": 12,
+          "nearest": {
+            "x": 4,
+            "y": 106,
+            "z": -4
+          },
+          "distance": 8.02
+        },
+        {
+          "block_name": "emerald_ore",
+          "display_name": "Emerald Ore",
+          "count": 1,
+          "nearest": {
+            "x": -4,
+            "y": 106,
+            "z": -10
+          },
+          "distance": 13.26
+        }
+      ],
+      "nearby_entities": [
+        {
+          "entity_id": 8,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 115.0,
+            "z": -5.25
+          },
+          "distance": 1.94,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 10,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 112.0,
+            "z": -3.34
+          },
+          "distance": 2.13,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 6,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 112.0,
+            "z": -3.31
+          },
+          "distance": 2.13,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 9,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.42,
+            "y": 112.0,
+            "z": -3.32
+          },
+          "distance": 2.24,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 7,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.71,
+            "y": 115.0,
+            "z": -5.33
+          },
+          "distance": 2.26,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 5,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.88,
+            "y": 115.0,
+            "z": -6.5
+          },
+          "distance": 3.27,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 14,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.63,
+            "y": 114.0,
+            "z": -5.05
+          },
+          "distance": 4.1,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 13,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.06,
+            "y": 114.0,
+            "z": -4.75
+          },
+          "distance": 4.56,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 4,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": 0.04,
+            "y": 114.0,
+            "z": -4.8
+          },
+          "distance": 4.59,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 64,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.01,
+            "y": 114.0,
+            "z": -4.66
+          },
+          "distance": 4.61,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 24,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.03,
+            "y": 114.0,
+            "z": -4.79
+          },
+          "distance": 4.66,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 11,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.13,
+            "y": 113.0,
+            "z": -5.26
+          },
+          "distance": 4.74,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 50,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.18,
+            "y": 115.0,
+            "z": -3.39
+          },
+          "distance": 4.8,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 51,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.13,
+            "y": 113.0,
+            "z": -5.47
+          },
+          "distance": 5.06,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 68,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.45,
+            "y": 114.0,
+            "z": -5.09
+          },
+          "distance": 5.14,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 44,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.56,
+            "y": 115.0,
+            "z": -3.95
+          },
+          "distance": 5.16,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 56,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.07,
+            "y": 113.0,
+            "z": -5.9
+          },
+          "distance": 5.17,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 41,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.63,
+            "y": 114.0,
+            "z": -4.57
+          },
+          "distance": 5.2,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 48,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.67,
+            "y": 115.0,
+            "z": -3.74
+          },
+          "distance": 5.27,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 37,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.8,
+            "y": 114.0,
+            "z": -4.12
+          },
+          "distance": 5.32,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 29,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.76,
+            "y": 115.0,
+            "z": -3.94
+          },
+          "distance": 5.36,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 30,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.5,
+            "y": 113.0,
+            "z": -5.48
+          },
+          "distance": 5.4,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 67,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.86,
+            "y": 115.0,
+            "z": -3.16
+          },
+          "distance": 5.48,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 34,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.95,
+            "y": 114.0,
+            "z": -4.41
+          },
+          "distance": 5.5,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 45,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.84,
+            "y": 114.0,
+            "z": -5.02
+          },
+          "distance": 5.5,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 54,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.89,
+            "y": 115.0,
+            "z": -3.15
+          },
+          "distance": 5.51,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 60,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.82,
+            "y": 113.0,
+            "z": -5.31
+          },
+          "distance": 5.65,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 46,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.65,
+            "y": 113.0,
+            "z": -5.86
+          },
+          "distance": 5.67,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 22,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.09,
+            "y": 115.0,
+            "z": -3.96
+          },
+          "distance": 5.68,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 63,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.08,
+            "y": 115.0,
+            "z": -3.16
+          },
+          "distance": 5.7,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 33,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.85,
+            "y": 113.0,
+            "z": -5.51
+          },
+          "distance": 5.74,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 61,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.94,
+            "y": 113.0,
+            "z": -5.81
+          },
+          "distance": 5.92,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 62,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.56,
+            "y": 113.0,
+            "z": -6.65
+          },
+          "distance": 5.94,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 57,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.18,
+            "y": 113.0,
+            "z": -5.25
+          },
+          "distance": 5.98,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 65,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.92,
+            "y": 113.0,
+            "z": -6.02
+          },
+          "distance": 5.99,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 47,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.01,
+            "y": 113.0,
+            "z": -5.91
+          },
+          "distance": 6.02,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 26,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.39,
+            "y": 114.0,
+            "z": -4.98
+          },
+          "distance": 6.03,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 20,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 113.0,
+            "z": -6.0
+          },
+          "distance": 6.05,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 40,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.47,
+            "y": 115.0,
+            "z": -3.42
+          },
+          "distance": 6.06,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 38,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.73,
+            "y": 113.0,
+            "z": -6.63
+          },
+          "distance": 6.08,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 49,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.94,
+            "y": 113.0,
+            "z": -6.26
+          },
+          "distance": 6.1,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 36,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.2,
+            "y": 113.0,
+            "z": -5.71
+          },
+          "distance": 6.12,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 12,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.22,
+            "y": 112.0,
+            "z": -7.87
+          },
+          "distance": 6.3,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 43,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.29,
+            "y": 113.0,
+            "z": -6.05
+          },
+          "distance": 6.33,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 31,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.32,
+            "y": 112.0,
+            "z": -7.44
+          },
+          "distance": 6.42,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 21,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 113.0,
+            "z": -7.0
+          },
+          "distance": 6.49,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 53,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.37,
+            "y": 113.0,
+            "z": -6.28
+          },
+          "distance": 6.49,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 23,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.34,
+            "y": 113.0,
+            "z": -6.68
+          },
+          "distance": 6.63,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 32,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.83,
+            "y": 113.0,
+            "z": -5.6
+          },
+          "distance": 6.68,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 59,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -2.22,
+            "y": 114.0,
+            "z": -4.44
+          },
+          "distance": 6.76,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 28,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.58,
+            "y": 113.0,
+            "z": -6.58
+          },
+          "distance": 6.81,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 69,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.46,
+            "y": 113.0,
+            "z": -6.88
+          },
+          "distance": 6.83,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 39,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.68,
+            "y": 113.0,
+            "z": -6.52
+          },
+          "distance": 6.86,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 35,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.03,
+            "y": 112.0,
+            "z": -7.47
+          },
+          "distance": 6.98,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 27,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.71,
+            "y": 113.0,
+            "z": -6.76
+          },
+          "distance": 7.0,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 52,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.88,
+            "y": 113.0,
+            "z": -6.42
+          },
+          "distance": 7.01,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 58,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.87,
+            "y": 112.0,
+            "z": -7.77
+          },
+          "distance": 7.03,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 25,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.9,
+            "y": 113.0,
+            "z": -6.56
+          },
+          "distance": 7.08,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 55,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.86,
+            "y": 112.0,
+            "z": -8.08
+          },
+          "distance": 7.21,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 42,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.75,
+            "y": 112.0,
+            "z": -7.28
+          },
+          "distance": 7.47,
+          "health": null,
+          "hostile": false
+        }
+      ],
+      "image": null
+    },
+    "exit_code": 1
+  },
+  {
+    "phase": "in_flight",
+    "token": {
+      "endpoint": "http://127.0.0.1:6767/mcp",
+      "owner": "a12-protocol",
+      "epoch": 7,
+      "session": "576c2cbddf7e4703b294c2fbcd5b2b79",
+      "pid": 3268,
+      "active": true,
+      "acquired_at": 1791370258.8519502
+    },
+    "reconciliation": {
+      "schema": "pm.body-reconciliation.v1",
+      "epoch": 8,
+      "instruction_revision": 0,
+      "observation_seq": 3,
+      "retained_actions": [
+        {
+          "source": "scratch/actor-journal.jsonl",
+          "dispatch": {
+            "seq": 2,
+            "event": "dispatch",
+            "tool": "minecraft_fine_control",
+            "arguments": {
+              "sneak": true
+            },
+            "revision": 0,
+            "time": 1791370259.3297124,
+            "epoch": 7,
+            "session": "576c2cbddf7e4703b294c2fbcd5b2b79"
+          },
+          "result": null,
+          "outcome": "uncertain"
+        }
+      ],
+      "target_reads": [],
+      "automatic_mutation_replay": false,
+      "time": 1791370259.8103147
+    },
+    "rejection": "ToolError: Error calling tool 'minecraft_body_call': Stale Minecraft body epoch.",
+    "observation": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "camera": {
+        "feet_position": {
+          "x": 4.5,
+          "y": 114.0,
+          "z": -3.7
+        },
+        "eye_position": {
+          "x": 4.5,
+          "y": 115.62,
+          "z": -3.7
+        },
+        "block_position": {
+          "x": 4,
+          "y": 114,
+          "z": -4
+        },
+        "yaw": 359.85,
+        "pitch": 0.0,
+        "cardinal": "south",
+        "look_vector": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 1.0
+        }
+      },
+      "player": {
+        "health": 20.0,
+        "max_health": 20.0,
+        "food": 20,
+        "oxygen": 20,
+        "xp_level": 0,
+        "biome": "meadow",
+        "dimension": "overworld",
+        "time_of_day": 1221,
+        "is_day": true,
+        "is_raining": true,
+        "on_ground": true,
+        "in_water": false
+      },
+      "held_item": null,
+      "hotbar": [
+        {
+          "slot": 0,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 1,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 2,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 3,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 4,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 5,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 6,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 7,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 8,
+          "item": null,
+          "count": 0
+        }
+      ],
+      "inventory": [],
+      "nearby_blocks": [
+        {
+          "block_name": "air",
+          "display_name": "Air",
+          "count": 2563,
+          "nearest": {
+            "x": 5,
+            "y": 114,
+            "z": -4
+          },
+          "distance": 0.58
+        },
+        {
+          "block_name": "grass",
+          "display_name": "Grass",
+          "count": 55,
+          "nearest": {
+            "x": 4,
+            "y": 114,
+            "z": -3
+          },
+          "distance": 0.86
+        },
+        {
+          "block_name": "grass_block",
+          "display_name": "Grass Block",
+          "count": 269,
+          "nearest": {
+            "x": 5,
+            "y": 113,
+            "z": -4
+          },
+          "distance": 1.16
+        },
+        {
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "count": 80,
+          "nearest": {
+            "x": 5,
+            "y": 114,
+            "z": -5
+          },
+          "distance": 1.39
+        },
+        {
+          "block_name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 2,
+          "nearest": {
+            "x": 5,
+            "y": 115,
+            "z": -5
+          },
+          "distance": 1.71
+        },
+        {
+          "block_name": "dirt",
+          "display_name": "Dirt",
+          "count": 389,
+          "nearest": {
+            "x": 4,
+            "y": 113,
+            "z": -2
+          },
+          "distance": 2.03
+        },
+        {
+          "block_name": "birch_log",
+          "display_name": "Birch Log",
+          "count": 2,
+          "nearest": {
+            "x": 7,
+            "y": 114,
+            "z": -3
+          },
+          "distance": 2.6
+        },
+        {
+          "block_name": "stone",
+          "display_name": "Stone",
+          "count": 1510,
+          "nearest": {
+            "x": 4,
+            "y": 112,
+            "z": -2
+          },
+          "distance": 2.67
+        },
+        {
+          "block_name": "tall_grass",
+          "display_name": "Tall Grass",
+          "count": 16,
+          "nearest": {
+            "x": 1,
+            "y": 113,
+            "z": -7
+          },
+          "distance": 4.91
+        },
+        {
+          "block_name": "dandelion",
+          "display_name": "Dandelion",
+          "count": 14,
+          "nearest": {
+            "x": 8,
+            "y": 112,
+            "z": -7
+          },
+          "distance": 5.21
+        },
+        {
+          "block_name": "coal_ore",
+          "display_name": "Coal Ore",
+          "count": 12,
+          "nearest": {
+            "x": 4,
+            "y": 106,
+            "z": -4
+          },
+          "distance": 8.02
+        },
+        {
+          "block_name": "emerald_ore",
+          "display_name": "Emerald Ore",
+          "count": 1,
+          "nearest": {
+            "x": -4,
+            "y": 106,
+            "z": -10
+          },
+          "distance": 13.26
+        }
+      ],
+      "nearby_entities": [
+        {
+          "entity_id": 8,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 115.0,
+            "z": -5.25
+          },
+          "distance": 1.94,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 10,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 112.0,
+            "z": -3.34
+          },
+          "distance": 2.13,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 6,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 112.0,
+            "z": -3.31
+          },
+          "distance": 2.13,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 9,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.42,
+            "y": 112.0,
+            "z": -3.32
+          },
+          "distance": 2.24,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 7,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.71,
+            "y": 115.0,
+            "z": -5.33
+          },
+          "distance": 2.26,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 5,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.88,
+            "y": 115.0,
+            "z": -6.5
+          },
+          "distance": 3.27,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 14,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.63,
+            "y": 114.0,
+            "z": -5.05
+          },
+          "distance": 4.1,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 13,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.06,
+            "y": 114.0,
+            "z": -4.75
+          },
+          "distance": 4.56,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 4,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": 0.04,
+            "y": 114.0,
+            "z": -4.8
+          },
+          "distance": 4.59,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 64,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.01,
+            "y": 114.0,
+            "z": -4.66
+          },
+          "distance": 4.61,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 24,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.03,
+            "y": 114.0,
+            "z": -4.79
+          },
+          "distance": 4.66,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 11,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.13,
+            "y": 113.0,
+            "z": -5.26
+          },
+          "distance": 4.74,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 50,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.18,
+            "y": 115.0,
+            "z": -3.39
+          },
+          "distance": 4.8,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 51,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.13,
+            "y": 113.0,
+            "z": -5.47
+          },
+          "distance": 5.06,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 68,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.45,
+            "y": 114.0,
+            "z": -5.09
+          },
+          "distance": 5.14,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 44,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.56,
+            "y": 115.0,
+            "z": -3.95
+          },
+          "distance": 5.16,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 56,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.07,
+            "y": 113.0,
+            "z": -5.9
+          },
+          "distance": 5.17,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 41,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.63,
+            "y": 114.0,
+            "z": -4.57
+          },
+          "distance": 5.2,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 48,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.67,
+            "y": 115.0,
+            "z": -3.74
+          },
+          "distance": 5.27,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 37,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.8,
+            "y": 114.0,
+            "z": -4.12
+          },
+          "distance": 5.32,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 29,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.76,
+            "y": 115.0,
+            "z": -3.94
+          },
+          "distance": 5.36,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 30,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.5,
+            "y": 113.0,
+            "z": -5.48
+          },
+          "distance": 5.4,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 67,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.86,
+            "y": 115.0,
+            "z": -3.16
+          },
+          "distance": 5.48,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 34,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.95,
+            "y": 114.0,
+            "z": -4.41
+          },
+          "distance": 5.5,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 45,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.84,
+            "y": 114.0,
+            "z": -5.02
+          },
+          "distance": 5.5,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 54,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.89,
+            "y": 115.0,
+            "z": -3.15
+          },
+          "distance": 5.51,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 60,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.82,
+            "y": 113.0,
+            "z": -5.31
+          },
+          "distance": 5.65,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 46,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.65,
+            "y": 113.0,
+            "z": -5.86
+          },
+          "distance": 5.67,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 22,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.09,
+            "y": 115.0,
+            "z": -3.96
+          },
+          "distance": 5.68,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 63,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.08,
+            "y": 115.0,
+            "z": -3.16
+          },
+          "distance": 5.7,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 33,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.85,
+            "y": 113.0,
+            "z": -5.51
+          },
+          "distance": 5.74,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 61,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.94,
+            "y": 113.0,
+            "z": -5.81
+          },
+          "distance": 5.92,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 62,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.56,
+            "y": 113.0,
+            "z": -6.65
+          },
+          "distance": 5.94,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 57,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.18,
+            "y": 113.0,
+            "z": -5.25
+          },
+          "distance": 5.98,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 65,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.92,
+            "y": 113.0,
+            "z": -6.02
+          },
+          "distance": 5.99,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 47,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.01,
+            "y": 113.0,
+            "z": -5.91
+          },
+          "distance": 6.02,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 26,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.39,
+            "y": 114.0,
+            "z": -4.98
+          },
+          "distance": 6.03,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 20,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 113.0,
+            "z": -6.0
+          },
+          "distance": 6.05,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 40,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.47,
+            "y": 115.0,
+            "z": -3.42
+          },
+          "distance": 6.06,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 38,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.73,
+            "y": 113.0,
+            "z": -6.63
+          },
+          "distance": 6.08,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 49,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.94,
+            "y": 113.0,
+            "z": -6.26
+          },
+          "distance": 6.1,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 36,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.2,
+            "y": 113.0,
+            "z": -5.71
+          },
+          "distance": 6.12,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 12,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.22,
+            "y": 112.0,
+            "z": -7.87
+          },
+          "distance": 6.3,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 43,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.29,
+            "y": 113.0,
+            "z": -6.05
+          },
+          "distance": 6.33,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 31,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.32,
+            "y": 112.0,
+            "z": -7.44
+          },
+          "distance": 6.42,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 21,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 113.0,
+            "z": -7.0
+          },
+          "distance": 6.49,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 53,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.37,
+            "y": 113.0,
+            "z": -6.28
+          },
+          "distance": 6.49,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 23,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.34,
+            "y": 113.0,
+            "z": -6.68
+          },
+          "distance": 6.63,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 32,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.83,
+            "y": 113.0,
+            "z": -5.6
+          },
+          "distance": 6.68,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 59,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -2.22,
+            "y": 114.0,
+            "z": -4.44
+          },
+          "distance": 6.76,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 28,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.58,
+            "y": 113.0,
+            "z": -6.58
+          },
+          "distance": 6.81,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 69,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.46,
+            "y": 113.0,
+            "z": -6.88
+          },
+          "distance": 6.83,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 39,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.68,
+            "y": 113.0,
+            "z": -6.52
+          },
+          "distance": 6.86,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 35,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.03,
+            "y": 112.0,
+            "z": -7.47
+          },
+          "distance": 6.98,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 27,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.71,
+            "y": 113.0,
+            "z": -6.76
+          },
+          "distance": 7.0,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 52,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.88,
+            "y": 113.0,
+            "z": -6.42
+          },
+          "distance": 7.01,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 58,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.87,
+            "y": 112.0,
+            "z": -7.77
+          },
+          "distance": 7.03,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 25,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.9,
+            "y": 113.0,
+            "z": -6.56
+          },
+          "distance": 7.08,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 55,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.86,
+            "y": 112.0,
+            "z": -8.08
+          },
+          "distance": 7.21,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 42,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.75,
+            "y": 112.0,
+            "z": -7.28
+          },
+          "distance": 7.47,
+          "health": null,
+          "hostile": false
+        }
+      ],
+      "image": null
+    },
+    "exit_code": 1
+  },
+  {
+    "phase": "after_effect",
+    "token": {
+      "endpoint": "http://127.0.0.1:6767/mcp",
+      "owner": "a12-protocol",
+      "epoch": 9,
+      "session": "cc8b6560f2424c52ae867dc4ac3f0aa2",
+      "pid": 21816,
+      "active": true,
+      "acquired_at": 1791370262.9753902
+    },
+    "reconciliation": {
+      "schema": "pm.body-reconciliation.v1",
+      "epoch": 10,
+      "instruction_revision": 0,
+      "observation_seq": 3,
+      "retained_actions": [
+        {
+          "source": "scratch/actor-journal.jsonl",
+          "dispatch": {
+            "seq": 2,
+            "event": "dispatch",
+            "tool": "minecraft_rotate",
+            "arguments": {
+              "yaw_degrees": 15,
+              "pitch_degrees": 0
+            },
+            "revision": 0,
+            "time": 1791370263.568178,
+            "epoch": 9,
+            "session": "cc8b6560f2424c52ae867dc4ac3f0aa2"
+          },
+          "result": null,
+          "outcome": "uncertain"
+        }
+      ],
+      "target_reads": [],
+      "automatic_mutation_replay": false,
+      "time": 1791370264.2894444
+    },
+    "rejection": "ToolError: Error calling tool 'minecraft_body_call': Stale Minecraft body epoch.",
+    "observation": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "camera": {
+        "feet_position": {
+          "x": 4.5,
+          "y": 114.0,
+          "z": -3.7
+        },
+        "eye_position": {
+          "x": 4.5,
+          "y": 115.62,
+          "z": -3.7
+        },
+        "block_position": {
+          "x": 4,
+          "y": 114,
+          "z": -4
+        },
+        "yaw": 194.85,
+        "pitch": 0.0,
+        "cardinal": "north",
+        "look_vector": {
+          "x": 0.26,
+          "y": 0.0,
+          "z": -0.97
+        }
+      },
+      "player": {
+        "health": 20.0,
+        "max_health": 20.0,
+        "food": 20,
+        "oxygen": 20,
+        "xp_level": 0,
+        "biome": "meadow",
+        "dimension": "overworld",
+        "time_of_day": 1301,
+        "is_day": true,
+        "is_raining": true,
+        "on_ground": true,
+        "in_water": false
+      },
+      "held_item": null,
+      "hotbar": [
+        {
+          "slot": 0,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 1,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 2,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 3,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 4,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 5,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 6,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 7,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 8,
+          "item": null,
+          "count": 0
+        }
+      ],
+      "inventory": [],
+      "nearby_blocks": [
+        {
+          "block_name": "air",
+          "display_name": "Air",
+          "count": 2563,
+          "nearest": {
+            "x": 5,
+            "y": 114,
+            "z": -4
+          },
+          "distance": 0.58
+        },
+        {
+          "block_name": "grass",
+          "display_name": "Grass",
+          "count": 55,
+          "nearest": {
+            "x": 4,
+            "y": 114,
+            "z": -3
+          },
+          "distance": 0.86
+        },
+        {
+          "block_name": "grass_block",
+          "display_name": "Grass Block",
+          "count": 269,
+          "nearest": {
+            "x": 5,
+            "y": 113,
+            "z": -4
+          },
+          "distance": 1.16
+        },
+        {
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "count": 80,
+          "nearest": {
+            "x": 5,
+            "y": 114,
+            "z": -5
+          },
+          "distance": 1.39
+        },
+        {
+          "block_name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 2,
+          "nearest": {
+            "x": 5,
+            "y": 115,
+            "z": -5
+          },
+          "distance": 1.71
+        },
+        {
+          "block_name": "dirt",
+          "display_name": "Dirt",
+          "count": 389,
+          "nearest": {
+            "x": 4,
+            "y": 113,
+            "z": -2
+          },
+          "distance": 2.03
+        },
+        {
+          "block_name": "birch_log",
+          "display_name": "Birch Log",
+          "count": 2,
+          "nearest": {
+            "x": 7,
+            "y": 114,
+            "z": -3
+          },
+          "distance": 2.6
+        },
+        {
+          "block_name": "stone",
+          "display_name": "Stone",
+          "count": 1510,
+          "nearest": {
+            "x": 4,
+            "y": 112,
+            "z": -2
+          },
+          "distance": 2.67
+        },
+        {
+          "block_name": "tall_grass",
+          "display_name": "Tall Grass",
+          "count": 16,
+          "nearest": {
+            "x": 1,
+            "y": 113,
+            "z": -7
+          },
+          "distance": 4.91
+        },
+        {
+          "block_name": "dandelion",
+          "display_name": "Dandelion",
+          "count": 14,
+          "nearest": {
+            "x": 8,
+            "y": 112,
+            "z": -7
+          },
+          "distance": 5.21
+        },
+        {
+          "block_name": "coal_ore",
+          "display_name": "Coal Ore",
+          "count": 12,
+          "nearest": {
+            "x": 4,
+            "y": 106,
+            "z": -4
+          },
+          "distance": 8.02
+        },
+        {
+          "block_name": "emerald_ore",
+          "display_name": "Emerald Ore",
+          "count": 1,
+          "nearest": {
+            "x": -4,
+            "y": 106,
+            "z": -10
+          },
+          "distance": 13.26
+        }
+      ],
+      "nearby_entities": [
+        {
+          "entity_id": 8,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 115.0,
+            "z": -5.25
+          },
+          "distance": 1.94,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 10,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 112.0,
+            "z": -3.34
+          },
+          "distance": 2.13,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 6,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 112.0,
+            "z": -3.31
+          },
+          "distance": 2.13,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 9,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.42,
+            "y": 112.0,
+            "z": -3.32
+          },
+          "distance": 2.24,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 7,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.71,
+            "y": 115.0,
+            "z": -5.33
+          },
+          "distance": 2.26,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 5,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.88,
+            "y": 115.0,
+            "z": -6.5
+          },
+          "distance": 3.27,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 14,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.63,
+            "y": 114.0,
+            "z": -5.05
+          },
+          "distance": 4.1,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 13,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.06,
+            "y": 114.0,
+            "z": -4.75
+          },
+          "distance": 4.56,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 4,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": 0.04,
+            "y": 114.0,
+            "z": -4.8
+          },
+          "distance": 4.59,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 64,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.01,
+            "y": 114.0,
+            "z": -4.66
+          },
+          "distance": 4.61,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 24,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.03,
+            "y": 114.0,
+            "z": -4.79
+          },
+          "distance": 4.66,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 11,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.13,
+            "y": 113.0,
+            "z": -5.26
+          },
+          "distance": 4.74,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 50,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.18,
+            "y": 115.0,
+            "z": -3.39
+          },
+          "distance": 4.8,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 51,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.13,
+            "y": 113.0,
+            "z": -5.47
+          },
+          "distance": 5.06,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 68,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.45,
+            "y": 114.0,
+            "z": -5.09
+          },
+          "distance": 5.14,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 44,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.56,
+            "y": 115.0,
+            "z": -3.95
+          },
+          "distance": 5.16,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 56,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.07,
+            "y": 113.0,
+            "z": -5.9
+          },
+          "distance": 5.17,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 41,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.63,
+            "y": 114.0,
+            "z": -4.57
+          },
+          "distance": 5.2,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 48,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.67,
+            "y": 115.0,
+            "z": -3.74
+          },
+          "distance": 5.27,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 37,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.8,
+            "y": 114.0,
+            "z": -4.12
+          },
+          "distance": 5.32,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 29,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.76,
+            "y": 115.0,
+            "z": -3.94
+          },
+          "distance": 5.36,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 30,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.5,
+            "y": 113.0,
+            "z": -5.48
+          },
+          "distance": 5.4,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 67,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.86,
+            "y": 115.0,
+            "z": -3.16
+          },
+          "distance": 5.48,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 34,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.95,
+            "y": 114.0,
+            "z": -4.41
+          },
+          "distance": 5.5,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 45,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.84,
+            "y": 114.0,
+            "z": -5.02
+          },
+          "distance": 5.5,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 54,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.89,
+            "y": 115.0,
+            "z": -3.15
+          },
+          "distance": 5.51,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 60,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.82,
+            "y": 113.0,
+            "z": -5.31
+          },
+          "distance": 5.65,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 46,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.65,
+            "y": 113.0,
+            "z": -5.86
+          },
+          "distance": 5.67,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 22,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.09,
+            "y": 115.0,
+            "z": -3.96
+          },
+          "distance": 5.68,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 63,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.08,
+            "y": 115.0,
+            "z": -3.16
+          },
+          "distance": 5.7,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 33,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.85,
+            "y": 113.0,
+            "z": -5.51
+          },
+          "distance": 5.74,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 61,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.94,
+            "y": 113.0,
+            "z": -5.81
+          },
+          "distance": 5.92,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 62,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.56,
+            "y": 113.0,
+            "z": -6.65
+          },
+          "distance": 5.94,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 57,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.18,
+            "y": 113.0,
+            "z": -5.25
+          },
+          "distance": 5.98,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 65,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.92,
+            "y": 113.0,
+            "z": -6.02
+          },
+          "distance": 5.99,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 47,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.01,
+            "y": 113.0,
+            "z": -5.91
+          },
+          "distance": 6.02,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 26,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.39,
+            "y": 114.0,
+            "z": -4.98
+          },
+          "distance": 6.03,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 20,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 113.0,
+            "z": -6.0
+          },
+          "distance": 6.05,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 40,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.47,
+            "y": 115.0,
+            "z": -3.42
+          },
+          "distance": 6.06,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 38,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.73,
+            "y": 113.0,
+            "z": -6.63
+          },
+          "distance": 6.08,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 49,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.94,
+            "y": 113.0,
+            "z": -6.26
+          },
+          "distance": 6.1,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 36,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.2,
+            "y": 113.0,
+            "z": -5.71
+          },
+          "distance": 6.12,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 12,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.22,
+            "y": 112.0,
+            "z": -7.87
+          },
+          "distance": 6.3,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 43,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.29,
+            "y": 113.0,
+            "z": -6.05
+          },
+          "distance": 6.33,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 31,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.32,
+            "y": 112.0,
+            "z": -7.44
+          },
+          "distance": 6.42,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 21,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 113.0,
+            "z": -7.0
+          },
+          "distance": 6.49,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 53,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.37,
+            "y": 113.0,
+            "z": -6.28
+          },
+          "distance": 6.49,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 23,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.34,
+            "y": 113.0,
+            "z": -6.68
+          },
+          "distance": 6.63,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 32,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.83,
+            "y": 113.0,
+            "z": -5.6
+          },
+          "distance": 6.68,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 59,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -2.22,
+            "y": 114.0,
+            "z": -4.44
+          },
+          "distance": 6.76,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 28,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.58,
+            "y": 113.0,
+            "z": -6.58
+          },
+          "distance": 6.81,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 69,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.46,
+            "y": 113.0,
+            "z": -6.88
+          },
+          "distance": 6.83,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 39,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.68,
+            "y": 113.0,
+            "z": -6.52
+          },
+          "distance": 6.86,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 35,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.03,
+            "y": 112.0,
+            "z": -7.47
+          },
+          "distance": 6.98,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 27,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.71,
+            "y": 113.0,
+            "z": -6.76
+          },
+          "distance": 7.0,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 52,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.88,
+            "y": 113.0,
+            "z": -6.42
+          },
+          "distance": 7.01,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 58,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.87,
+            "y": 112.0,
+            "z": -7.77
+          },
+          "distance": 7.03,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 25,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.9,
+            "y": 113.0,
+            "z": -6.56
+          },
+          "distance": 7.08,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 55,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.86,
+            "y": 112.0,
+            "z": -8.08
+          },
+          "distance": 7.21,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 42,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.75,
+            "y": 112.0,
+            "z": -7.28
+          },
+          "distance": 7.47,
+          "health": null,
+          "hostile": false
+        }
+      ],
+      "image": null
+    },
+    "exit_code": 1
+  },
+  {
+    "phase": "before_publication",
+    "token": {
+      "endpoint": "http://127.0.0.1:6767/mcp",
+      "owner": "a12-protocol",
+      "epoch": 11,
+      "session": "78511f79475b4b439de5f96e7c5dcb89",
+      "pid": 4988,
+      "active": true,
+      "acquired_at": 1791370267.3364613
+    },
+    "reconciliation": {
+      "schema": "pm.body-reconciliation.v1",
+      "epoch": 12,
+      "instruction_revision": 0,
+      "observation_seq": 3,
+      "retained_actions": [
+        {
+          "source": "scratch/actor-journal.jsonl",
+          "dispatch": {
+            "seq": 2,
+            "event": "dispatch",
+            "tool": "minecraft_rotate",
+            "arguments": {
+              "yaw_degrees": 15,
+              "pitch_degrees": 0
+            },
+            "revision": 0,
+            "time": 1791370267.8332498,
+            "epoch": 11,
+            "session": "78511f79475b4b439de5f96e7c5dcb89"
+          },
+          "result": {
+            "seq": 2,
+            "event": "result",
+            "tool": "minecraft_rotate",
+            "arguments": {
+              "yaw_degrees": 15,
+              "pitch_degrees": 0
+            },
+            "revision": 0,
+            "time": 1791370268.3670156,
+            "epoch": 11,
+            "session": "78511f79475b4b439de5f96e7c5dcb89",
+            "ok": true,
+            "result": {
+              "warnings": [],
+              "ok": true,
+              "reason": null,
+              "message": null,
+              "camera": {
+                "feet_position": {
+                  "x": 4.5,
+                  "y": 114.0,
+                  "z": -3.7
+                },
+                "eye_position": {
+                  "x": 4.5,
+                  "y": 115.62,
+                  "z": -3.7
+                },
+                "block_position": {
+                  "x": 4,
+                  "y": 114,
+                  "z": -4
+                },
+                "yaw": 29.85,
+                "pitch": 0.0,
+                "cardinal": "south",
+                "look_vector": {
+                  "x": -0.5,
+                  "y": 0.0,
+                  "z": 0.87
+                }
+              },
+              "yaw_delta": -165.0,
+              "pitch_delta": 0.0,
+              "image": {
+                "frame_id": "fac5d316e39214388eefcea2d8df9a53",
+                "captured_at": "2026-10-07T10:51:08.134895Z",
+                "width": 640,
+                "height": 480
+              }
+            },
+            "images": [
+              {
+                "path": "screenshots/call-00002-0.png",
+                "media_type": "image/png"
+              }
+            ]
+          },
+          "outcome": "recorded"
+        }
+      ],
+      "target_reads": [],
+      "automatic_mutation_replay": false,
+      "time": 1791370268.936149
+    },
+    "rejection": "ToolError: Error calling tool 'minecraft_body_call': Stale Minecraft body epoch.",
+    "observation": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "camera": {
+        "feet_position": {
+          "x": 4.5,
+          "y": 114.0,
+          "z": -3.7
+        },
+        "eye_position": {
+          "x": 4.5,
+          "y": 115.62,
+          "z": -3.7
+        },
+        "block_position": {
+          "x": 4,
+          "y": 114,
+          "z": -4
+        },
+        "yaw": 29.85,
+        "pitch": 0.0,
+        "cardinal": "south",
+        "look_vector": {
+          "x": -0.5,
+          "y": 0.0,
+          "z": 0.87
+        }
+      },
+      "player": {
+        "health": 20.0,
+        "max_health": 20.0,
+        "food": 20,
+        "oxygen": 20,
+        "xp_level": 0,
+        "biome": "meadow",
+        "dimension": "overworld",
+        "time_of_day": 1401,
+        "is_day": true,
+        "is_raining": true,
+        "on_ground": true,
+        "in_water": false
+      },
+      "held_item": null,
+      "hotbar": [
+        {
+          "slot": 0,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 1,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 2,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 3,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 4,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 5,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 6,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 7,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 8,
+          "item": null,
+          "count": 0
+        }
+      ],
+      "inventory": [],
+      "nearby_blocks": [
+        {
+          "block_name": "air",
+          "display_name": "Air",
+          "count": 2563,
+          "nearest": {
+            "x": 5,
+            "y": 114,
+            "z": -4
+          },
+          "distance": 0.58
+        },
+        {
+          "block_name": "grass",
+          "display_name": "Grass",
+          "count": 55,
+          "nearest": {
+            "x": 4,
+            "y": 114,
+            "z": -3
+          },
+          "distance": 0.86
+        },
+        {
+          "block_name": "grass_block",
+          "display_name": "Grass Block",
+          "count": 269,
+          "nearest": {
+            "x": 5,
+            "y": 113,
+            "z": -4
+          },
+          "distance": 1.16
+        },
+        {
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "count": 80,
+          "nearest": {
+            "x": 5,
+            "y": 114,
+            "z": -5
+          },
+          "distance": 1.39
+        },
+        {
+          "block_name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 2,
+          "nearest": {
+            "x": 5,
+            "y": 115,
+            "z": -5
+          },
+          "distance": 1.71
+        },
+        {
+          "block_name": "dirt",
+          "display_name": "Dirt",
+          "count": 389,
+          "nearest": {
+            "x": 4,
+            "y": 113,
+            "z": -2
+          },
+          "distance": 2.03
+        },
+        {
+          "block_name": "birch_log",
+          "display_name": "Birch Log",
+          "count": 2,
+          "nearest": {
+            "x": 7,
+            "y": 114,
+            "z": -3
+          },
+          "distance": 2.6
+        },
+        {
+          "block_name": "stone",
+          "display_name": "Stone",
+          "count": 1510,
+          "nearest": {
+            "x": 4,
+            "y": 112,
+            "z": -2
+          },
+          "distance": 2.67
+        },
+        {
+          "block_name": "tall_grass",
+          "display_name": "Tall Grass",
+          "count": 16,
+          "nearest": {
+            "x": 1,
+            "y": 113,
+            "z": -7
+          },
+          "distance": 4.91
+        },
+        {
+          "block_name": "dandelion",
+          "display_name": "Dandelion",
+          "count": 14,
+          "nearest": {
+            "x": 8,
+            "y": 112,
+            "z": -7
+          },
+          "distance": 5.21
+        },
+        {
+          "block_name": "coal_ore",
+          "display_name": "Coal Ore",
+          "count": 12,
+          "nearest": {
+            "x": 4,
+            "y": 106,
+            "z": -4
+          },
+          "distance": 8.02
+        },
+        {
+          "block_name": "emerald_ore",
+          "display_name": "Emerald Ore",
+          "count": 1,
+          "nearest": {
+            "x": -4,
+            "y": 106,
+            "z": -10
+          },
+          "distance": 13.26
+        }
+      ],
+      "nearby_entities": [
+        {
+          "entity_id": 8,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 115.0,
+            "z": -5.25
+          },
+          "distance": 1.94,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 10,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 112.0,
+            "z": -3.34
+          },
+          "distance": 2.13,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 6,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.12,
+            "y": 112.0,
+            "z": -3.31
+          },
+          "distance": 2.13,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 9,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.42,
+            "y": 112.0,
+            "z": -3.32
+          },
+          "distance": 2.24,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 7,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.71,
+            "y": 115.0,
+            "z": -5.33
+          },
+          "distance": 2.26,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 5,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 5.88,
+            "y": 115.0,
+            "z": -6.5
+          },
+          "distance": 3.27,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 14,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.63,
+            "y": 114.0,
+            "z": -5.05
+          },
+          "distance": 4.1,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 13,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.06,
+            "y": 114.0,
+            "z": -4.75
+          },
+          "distance": 4.56,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 4,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": 0.04,
+            "y": 114.0,
+            "z": -4.8
+          },
+          "distance": 4.59,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 64,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.01,
+            "y": 114.0,
+            "z": -4.66
+          },
+          "distance": 4.61,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 24,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.03,
+            "y": 114.0,
+            "z": -4.79
+          },
+          "distance": 4.66,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 11,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.13,
+            "y": 113.0,
+            "z": -5.26
+          },
+          "distance": 4.74,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 50,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.18,
+            "y": 115.0,
+            "z": -3.39
+          },
+          "distance": 4.8,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 51,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.13,
+            "y": 113.0,
+            "z": -5.47
+          },
+          "distance": 5.06,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 68,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.45,
+            "y": 114.0,
+            "z": -5.09
+          },
+          "distance": 5.14,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 44,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.56,
+            "y": 115.0,
+            "z": -3.95
+          },
+          "distance": 5.16,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 56,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.07,
+            "y": 113.0,
+            "z": -5.9
+          },
+          "distance": 5.17,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 41,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.63,
+            "y": 114.0,
+            "z": -4.57
+          },
+          "distance": 5.2,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 48,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.67,
+            "y": 115.0,
+            "z": -3.74
+          },
+          "distance": 5.27,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 37,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.8,
+            "y": 114.0,
+            "z": -4.12
+          },
+          "distance": 5.32,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 29,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.76,
+            "y": 115.0,
+            "z": -3.94
+          },
+          "distance": 5.36,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 30,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.5,
+            "y": 113.0,
+            "z": -5.48
+          },
+          "distance": 5.4,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 67,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.86,
+            "y": 115.0,
+            "z": -3.16
+          },
+          "distance": 5.48,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 34,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.95,
+            "y": 114.0,
+            "z": -4.41
+          },
+          "distance": 5.5,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 45,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.84,
+            "y": 114.0,
+            "z": -5.02
+          },
+          "distance": 5.5,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 54,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.89,
+            "y": 115.0,
+            "z": -3.15
+          },
+          "distance": 5.51,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 60,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.82,
+            "y": 113.0,
+            "z": -5.31
+          },
+          "distance": 5.65,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 1117,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.32,
+            "y": 113.0,
+            "z": -6.5
+          },
+          "distance": 5.67,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 46,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.65,
+            "y": 113.0,
+            "z": -5.86
+          },
+          "distance": 5.67,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 22,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.09,
+            "y": 115.0,
+            "z": -3.96
+          },
+          "distance": 5.68,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 63,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.08,
+            "y": 115.0,
+            "z": -3.16
+          },
+          "distance": 5.7,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 33,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.85,
+            "y": 113.0,
+            "z": -5.51
+          },
+          "distance": 5.74,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 61,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.94,
+            "y": 113.0,
+            "z": -5.81
+          },
+          "distance": 5.92,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 62,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.56,
+            "y": 113.0,
+            "z": -6.65
+          },
+          "distance": 5.94,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 57,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.18,
+            "y": 113.0,
+            "z": -5.25
+          },
+          "distance": 5.98,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 65,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.92,
+            "y": 113.0,
+            "z": -6.02
+          },
+          "distance": 5.99,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 47,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.01,
+            "y": 113.0,
+            "z": -5.91
+          },
+          "distance": 6.02,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 26,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.39,
+            "y": 114.0,
+            "z": -4.98
+          },
+          "distance": 6.03,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 20,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 113.0,
+            "z": -6.0
+          },
+          "distance": 6.05,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 40,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.47,
+            "y": 115.0,
+            "z": -3.42
+          },
+          "distance": 6.06,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 38,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.73,
+            "y": 113.0,
+            "z": -6.63
+          },
+          "distance": 6.08,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 49,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.94,
+            "y": 113.0,
+            "z": -6.26
+          },
+          "distance": 6.1,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 36,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.2,
+            "y": 113.0,
+            "z": -5.71
+          },
+          "distance": 6.12,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 12,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": 0.22,
+            "y": 112.0,
+            "z": -7.87
+          },
+          "distance": 6.3,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 43,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.29,
+            "y": 113.0,
+            "z": -6.05
+          },
+          "distance": 6.33,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 31,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.32,
+            "y": 112.0,
+            "z": -7.44
+          },
+          "distance": 6.42,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 21,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 113.0,
+            "z": -7.0
+          },
+          "distance": 6.49,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 53,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.37,
+            "y": 113.0,
+            "z": -6.28
+          },
+          "distance": 6.49,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 23,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.34,
+            "y": 113.0,
+            "z": -6.68
+          },
+          "distance": 6.63,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 32,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.83,
+            "y": 113.0,
+            "z": -5.6
+          },
+          "distance": 6.68,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 59,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -2.22,
+            "y": 114.0,
+            "z": -4.44
+          },
+          "distance": 6.76,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 28,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.58,
+            "y": 113.0,
+            "z": -6.58
+          },
+          "distance": 6.81,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 69,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.46,
+            "y": 113.0,
+            "z": -6.88
+          },
+          "distance": 6.83,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 39,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.68,
+            "y": 113.0,
+            "z": -6.52
+          },
+          "distance": 6.86,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 35,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.03,
+            "y": 112.0,
+            "z": -7.47
+          },
+          "distance": 6.98,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 27,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.71,
+            "y": 113.0,
+            "z": -6.76
+          },
+          "distance": 7.0,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 52,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.88,
+            "y": 113.0,
+            "z": -6.42
+          },
+          "distance": 7.01,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 58,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.87,
+            "y": 112.0,
+            "z": -7.77
+          },
+          "distance": 7.03,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 25,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.9,
+            "y": 113.0,
+            "z": -6.56
+          },
+          "distance": 7.08,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 55,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.86,
+            "y": 112.0,
+            "z": -8.08
+          },
+          "distance": 7.21,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 42,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.75,
+            "y": 112.0,
+            "z": -7.28
+          },
+          "distance": 7.47,
+          "health": null,
+          "hostile": false
+        }
+      ],
+      "image": null
+    },
+    "exit_code": 1
+  }
+]

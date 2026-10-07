@@ -59,10 +59,11 @@ Inferred rationale: the audit table stays as a planning record. The delivery
 column names the item that owns the repair, not the current status.
 
 A10 closed the sustained-session and managed-agent configuration gaps.
-The [actor](../../subsystems/minecraft-actor.md) now uses a native pm-coder session and a process-local body lease.
+The [actor](../../subsystems/minecraft-actor.md) uses a native pm-coder session.
+A10 used a process-local body lease; A12 replaces it with shared process ownership and a server fence.
 The real five-tree return gate passed with concurrent inventory dialogue, instruction changes, and cancellation.
 Generic task trees and durable project verification are delivered by A11.
-Durable body recovery across processes remains A12 work.
+Durable body recovery across processes is delivered by A12.
 Screenshots remain artifacts; A10 does not establish visual interpretation.
 See the [retained verification](../../subsystems/minecraft-actor-verification.md).
 
@@ -74,6 +75,13 @@ returned invalid native output. A separate 83-cell inspection then passed every
 house structure, door, air, support, and alive check without changing the world.
 The retained [A11 record](../../subsystems/minecraft-task-verification.md) keeps
 the failed attempts beside the accepted evidence.
+
+A12 adds explicit body resume, durable worker and body epochs, fresh interruption reconciliation,
+and accepted-intent, progress, and public-reply recovery.
+Its real gates retain the original failed attempts beside later passing evidence.
+The final house case inspects and preserves the existing 83-cell structure after process restart.
+It makes no new construction or entry claim.
+See [body recovery](../../subsystems/body-recovery.md) and [A12 verification](../../subsystems/body-recovery-verification.md).
 
 The rich mental-state models already contain emotions, needs, personality, and social appraisal.
 Their existence does not establish that every field participates in live behavior.

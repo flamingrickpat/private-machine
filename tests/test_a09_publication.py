@@ -18,6 +18,7 @@ from pm_core.model.knoxel_common import ActionSchemaKnoxel
 from pm_core.model.knoxel_enums import ActionType
 from runtime.publication import acknowledge_reply, commit_public_reply, exchange_record
 from runtime.reply_recovery import ReplyRecovery, task_evidence
+from runtime.managed_runs import ManagedRunSupervisor
 from workflows.public_context import build_public_context
 from workflows.public_claims import ClaimReview, validate_claim_review
 
@@ -27,6 +28,11 @@ class PublicationTests(unittest.TestCase):
         self.ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
         self.bus = BusSystem()
         self.proxy = UserInputProxy("user_input", self.bus, self.fail, lambda: 0, self.ghost, lambda text: None)
+        self.tmp = TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def supervisor(self, ghost):
+        return ManagedRunSupervisor(ghost, runtime_root=Path(self.tmp.name), workflows={}, clock=lambda: 0)
 
     def test_stale_revision_cannot_publish_candidate(self):
         correlation = self.proxy.submit("Keep this original report.")
@@ -108,7 +114,7 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(exchange_record(restored, correlation).metadata["public_reply_id"], reply_id)
             self.assertIsNone(commit_public_reply(restored, "Duplicate answer.", correlation, commit_id="duplicate"))
             recovery = ReplyRecovery("reply_recovery", self.bus, self.fail, lambda: 0, None,
-                                     ghost=restored, supervisor=_EmptySupervisor())
+                                     ghost=restored, supervisor=self.supervisor(restored))
             from tests.support import Recorder
             replies = Recorder(self.bus, "dialogue.reply")
             recovery.resume()
@@ -152,7 +158,7 @@ class PublicationTests(unittest.TestCase):
         from tests.support import Recorder
         inputs = Recorder(self.bus, "user.input")
         recovery = ReplyRecovery("reply_recovery", self.bus, self.fail, lambda: 0, None,
-                                 ghost=self.ghost, supervisor=_EmptySupervisor())
+                                 ghost=self.ghost, supervisor=self.supervisor(self.ghost))
         recovery.resume()
         self.assertEqual(inputs.events[0].correlation_id, correlation)
         self.assertEqual(inputs.events[0].payload["knoxel_id"], source.id)
@@ -161,7 +167,7 @@ class PublicationTests(unittest.TestCase):
     def test_rejected_task_request_closes_its_exchange(self):
         correlation = self.proxy.submit("An unavailable task request.")
         recovery = ReplyRecovery("reply_recovery", self.bus, self.fail, lambda: 0, None,
-                                 ghost=self.ghost, supervisor=_EmptySupervisor())
+                                 ghost=self.ghost, supervisor=self.supervisor(self.ghost))
         recovery.handle_batch([Envelope(id="rejected-task", source="self_management", kind="telemetry",
             topic="action.receipt", correlation_id=correlation, payload={"workflow_name": "self_management",
                 "public_reply_requested": True, "status": "rejected", "summary": "The workflow is unavailable."})])
@@ -193,11 +199,6 @@ class PublicationTests(unittest.TestCase):
         result = validate_claim_review(review, capture["candidate"], context)
         self.assertFalse(result.accepted)
         self.assertEqual(result.claims[0].status, "unsupported")
-
-
-class _EmptySupervisor:
-    def receipts(self):
-        return {}
 
 
 if __name__ == "__main__":

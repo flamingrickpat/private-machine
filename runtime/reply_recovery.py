@@ -62,7 +62,7 @@ def task_evidence(receipt: dict) -> dict:
 class ReplyRecovery(ShellModule):
     """Dispatch a terminal reply only when the prior action selected public speech."""
 
-    DATA_TOPICS = frozenset({"workflow.event", "action.receipt", "public.resume"})
+    DATA_TOPICS = frozenset({"workflow.event", "workflow.question", "action.receipt", "public.resume"})
 
     def __init__(self, *args, ghost, supervisor, **kwargs):
         super().__init__(*args, **kwargs)
@@ -71,6 +71,8 @@ class ReplyRecovery(ShellModule):
 
     def handle_batch(self, batch):
         for envelope in batch:
+            if envelope.topic in {"workflow.event", "workflow.question"} and envelope.payload.get("event_id"):
+                self.supervisor.acknowledge_event(envelope.payload["run_id"], envelope.payload["event_id"])
             if envelope.topic == "public.resume":
                 self.resume()
             elif envelope.topic == "workflow.event" and envelope.payload.get("event") in TERMINAL:
@@ -147,6 +149,9 @@ class ReplyRecovery(ShellModule):
 
     def resume(self):
         """Replay pending publication and task replies after a checkpoint restart."""
+        from runtime.intents import replay_intents
+        handled = replay_intents(self.ghost, self.bus, self.supervisor)
+        self.supervisor.replay_events()
         for item in self.ghost.all_features:
             if item.metadata.get("publication_status") == "pending":
                 publish_reply(self.bus, self.module_id, item.metadata.get("reply_correlation", ""), item.id,
@@ -157,6 +162,7 @@ class ReplyRecovery(ShellModule):
                 self.reply_to_task(receipt)
         waiting = {receipt.get("parent_correlation") for receipt in receipts.values()
                    if receipt.get("arguments", {}).get("_public_reply_requested")}
+        waiting.update(handled)
         for item in self.ghost.all_features:
             correlation = item.metadata.get("exchange_correlation")
             if (correlation and item.metadata.get("exchange_status") == "pending" and correlation not in waiting):

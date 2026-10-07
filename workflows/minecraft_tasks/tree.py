@@ -133,8 +133,8 @@ class TreeStore:
     """Own one task folder's specification and evidence index.
 
     Writes use atomic replacement. Immutable snapshots and attempt directories
-    survive cancellation. This store does not resume uncertain world actions.
-    Cross-process ownership and interruption recovery belong to A12.
+    survive cancellation. Managed worker locks prevent concurrent writers.
+    A replacement actor observes retained world effects before choosing work.
     """
 
     def __init__(self, root: Path):

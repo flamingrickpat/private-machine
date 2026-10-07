@@ -73,6 +73,9 @@ def write_images(environment, images: list[dict]) -> list[str]:
     """Write screenshot pixels to real files and return their paths."""
     paths: list[str] = []
     for index, image in enumerate(images):
+        if image.get("path"):
+            paths.append(image["path"])
+            continue
         payload = image.get("base64")
         if not payload:
             continue
@@ -149,10 +152,11 @@ def _run_boundary_check(context) -> dict:
                                              if not key.startswith("_public_")})
     prompts = load_prompts()
     from runtime.body_lease import BODY_LEASES
+    from runtime.minecraft_actor import ActorGateway
     endpoint = context.runtime.tools["minecraft_endpoint"]()
+    gateway = ActorGateway(endpoint, context.task_id, environment, context.runtime, dict(context.runtime.tools))
     def call(name, arguments=None):
-        with BODY_LEASES.command(endpoint, context.runtime.stop_event):
-            return context.runtime.tools["minecraft_call"](name, arguments)
+        return gateway.call(name, arguments or {})
     boundary = context.runtime.tools["managed_instructions"]
     initial = boundary()
     request.goal = initial["instruction"] or request.goal or request.instruction
@@ -169,6 +173,7 @@ def _run_boundary_check(context) -> dict:
     ))
     environment.write_text("scratch/observations.md", observations[0] + "\n")
     revision = boundary(wait=request.wait_for_update, close=True)
+    gateway.revision = revision["revision"]
     request.goal = revision["instruction"] or request.goal
     context.runtime.check_cancelled()
 
@@ -238,10 +243,17 @@ def run(context) -> dict:
     # Existing explicit actions and wait fixtures retain their narrow contract.
     narrow = payload.get("mode") == "boundary_check" or payload.get("action_tool") or payload.get("wait_for_cancel") or payload.get("wait_for_update")
     if narrow:
+        from runtime.body_lease import BODY_LEASES
         lease = context.runtime.tools.get("minecraft_lease")
         if lease is not None:
             with lease():
-                return _run_boundary_check(context)
+                try:
+                    return _run_boundary_check(context)
+                finally:
+                    token = BODY_LEASES.token(context.runtime.tools["minecraft_endpoint"](), context.task_id)
+                    release = getattr(context.runtime.tools["minecraft_call"], "release", None)
+                    if release is not None:
+                        release(token)
         return _run_boundary_check(context)
     from workflows.minecraft.actor import run_actor
     return run_actor(context)

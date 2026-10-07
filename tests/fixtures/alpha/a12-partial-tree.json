@@ -1,0 +1,2665 @@
+{
+  "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a12-final-03\\wood\\app\\managed_tasks\\9c3352e00a2444c3968da01551fcc215\\scratch\\actor-journal.jsonl",
+  "receipts": [
+    {
+      "seq": 1,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791372141.5739524,
+      "epoch": 32,
+      "session": "86f3ae8890e5468699e477f549e0baab",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": -26.31,
+            "y": 112.0,
+            "z": 3.47
+          },
+          "eye_position": {
+            "x": -26.31,
+            "y": 113.62,
+            "z": 3.47
+          },
+          "block_position": {
+            "x": -27,
+            "y": 112,
+            "z": 3
+          },
+          "yaw": 128.25,
+          "pitch": 77.4,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -0.17,
+            "y": 0.98,
+            "z": -0.14
+          }
+        },
+        "player": {
+          "health": 20.0,
+          "max_health": 20.0,
+          "food": 20,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "birch_forest",
+          "dimension": "overworld",
+          "time_of_day": 4128,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "birch_log",
+          "display_name": "Birch Log",
+          "count": 11,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "birch_log",
+            "count": 11
+          },
+          {
+            "slot": 1,
+            "item": "egg",
+            "count": 9
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 11,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 9,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2142,
+            "nearest": {
+              "x": -26,
+              "y": 112,
+              "z": 3
+            },
+            "distance": 0.56
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 277,
+            "nearest": {
+              "x": -26,
+              "y": 111,
+              "z": 3
+            },
+            "distance": 1.15
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 22,
+            "nearest": {
+              "x": -27,
+              "y": 112,
+              "z": 5
+            },
+            "distance": 1.68
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 841,
+            "nearest": {
+              "x": -26,
+              "y": 110,
+              "z": 3
+            },
+            "distance": 2.08
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 330,
+            "nearest": {
+              "x": -25,
+              "y": 114,
+              "z": 3
+            },
+            "distance": 2.43
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 27,
+            "nearest": {
+              "x": -27,
+              "y": 115,
+              "z": 3
+            },
+            "distance": 3.12
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1255,
+            "nearest": {
+              "x": -23,
+              "y": 109,
+              "z": 5
+            },
+            "distance": 4.72
+          },
+          {
+            "block_name": "poppy",
+            "display_name": "Poppy",
+            "count": 3,
+            "nearest": {
+              "x": -21,
+              "y": 116,
+              "z": 6
+            },
+            "distance": 7.11
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 15,
+            "nearest": {
+              "x": -32,
+              "y": 105,
+              "z": 9
+            },
+            "distance": 10.58
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "nearest": {
+              "x": -19,
+              "y": 118,
+              "z": 11
+            },
+            "distance": 12.09
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 102,
+            "entity_type": "sheep",
+            "display_name": "Sheep",
+            "position": {
+              "x": -25.57,
+              "y": 112.0,
+              "z": -1.26
+            },
+            "distance": 4.79,
+            "health": null,
+            "hostile": false
+          },
+          {
+            "entity_id": 104,
+            "entity_type": "sheep",
+            "display_name": "Sheep",
+            "position": {
+              "x": -28.62,
+              "y": 112.0,
+              "z": -0.87
+            },
+            "distance": 4.92,
+            "health": null,
+            "hostile": false
+          },
+          {
+            "entity_id": 103,
+            "entity_type": "sheep",
+            "display_name": "Sheep",
+            "position": {
+              "x": -26.64,
+              "y": 112.0,
+              "z": -1.87
+            },
+            "distance": 5.35,
+            "health": null,
+            "hostile": false
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 2,
+      "event": "result",
+      "tool": "minecraft_find_block",
+      "arguments": {
+        "pattern": "*log"
+      },
+      "revision": 1,
+      "time": 1791372189.3349905,
+      "epoch": 32,
+      "session": "86f3ae8890e5468699e477f549e0baab",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "*log",
+        "matched_types": [
+          "birch_log"
+        ],
+        "total_matches": 99,
+        "nearest": {
+          "position": {
+            "x": -27,
+            "y": 115,
+            "z": 3
+          },
+          "block_name": "birch_log",
+          "display_name": "Birch Log",
+          "distance": 3.12,
+          "exposed_faces": [
+            "north",
+            "south",
+            "east",
+            "west",
+            "down"
+          ],
+          "harvestable_with_held": true
+        },
+        "results": [
+          {
+            "position": {
+              "x": -27,
+              "y": 115,
+              "z": 3
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 3.12,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west",
+              "down"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -24,
+              "y": 114,
+              "z": 1
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 3.93,
+            "exposed_faces": [
+              "down"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -33,
+              "y": 111,
+              "z": 2
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 6.93,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -33,
+              "y": 110,
+              "z": 2
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 7.14,
+            "exposed_faces": [
+              "north",
+              "south",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -29,
+              "y": 114,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 8.24,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -29,
+              "y": 115,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 8.54,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -23,
+              "y": 117,
+              "z": -3
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 8.82,
+            "exposed_faces": [
+              "down"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -29,
+              "y": 116,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 8.94,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -28,
+              "y": 112,
+              "z": -6
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 9.62,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -28,
+              "y": 111,
+              "z": -6
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 9.67,
+            "exposed_faces": [
+              "north",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -28,
+              "y": 113,
+              "z": -6
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 9.67,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -24,
+              "y": 112,
+              "z": -7
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.72,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -34,
+              "y": 112,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.76,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -24,
+              "y": 113,
+              "z": -7
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.77,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -34,
+              "y": 113,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.81,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -22,
+              "y": 120,
+              "z": 10
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 11.19,
+            "exposed_faces": [
+              "down"
+            ],
+            "harvestable_with_held": true
+          }
+        ],
+        "coverage": {
+          "center": {
+            "x": -26.31,
+            "y": 112.0,
+            "z": 3.47
+          },
+          "bounds": {
+            "min": {
+              "x": -59,
+              "y": 88,
+              "z": -29
+            },
+            "max": {
+              "x": 5,
+              "y": 128,
+              "z": 35
+            }
+          },
+          "chunks_loaded": 1021,
+          "columns_scanned": 1021,
+          "note": null
+        },
+        "candidates": null,
+        "duration_ms": 500.0
+      },
+      "images": []
+    },
+    {
+      "seq": 3,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": -27,
+          "y": 112,
+          "z": 3
+        }
+      },
+      "revision": 1,
+      "time": 1791372190.9951477,
+      "epoch": 32,
+      "session": "86f3ae8890e5468699e477f549e0baab",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at -27, 112, 3.",
+        "position": {
+          "x": -27,
+          "y": 112,
+          "z": 3
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 4,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": -27,
+          "y": 114,
+          "z": 3
+        }
+      },
+      "revision": 1,
+      "time": 1791372192.1127732,
+      "epoch": 32,
+      "session": "86f3ae8890e5468699e477f549e0baab",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at -27, 114, 3.",
+        "position": {
+          "x": -27,
+          "y": 114,
+          "z": 3
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 5,
+      "event": "result",
+      "tool": "minecraft_harvest_tree",
+      "arguments": {
+        "base": {
+          "x": -33,
+          "y": 111,
+          "z": 2
+        }
+      },
+      "revision": 1,
+      "time": 1791372204.9401958,
+      "epoch": 32,
+      "session": "86f3ae8890e5468699e477f549e0baab",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "base": {
+          "x": -33,
+          "y": 111,
+          "z": 2
+        },
+        "logs_collected": 2,
+        "saplings_collected": 0,
+        "other_drops": [],
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "birch_log",
+              "before": 11,
+              "after": 13,
+              "delta": 2
+            }
+          ],
+          "total_items_before": 20,
+          "total_items_after": 22
+        },
+        "image": {
+          "frame_id": "458f70953f6278c37260b53011c536e1",
+          "captured_at": "2026-10-07T11:23:24.764066Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00005-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 6,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 1,
+      "time": 1791372269.4871557,
+      "epoch": 33,
+      "session": "fb25615d4afa4db6afa0cd98d270997d",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": -32.49,
+            "y": 110.0,
+            "z": 3.62
+          },
+          "eye_position": {
+            "x": -32.49,
+            "y": 111.62,
+            "z": 3.62
+          },
+          "block_position": {
+            "x": -33,
+            "y": 110,
+            "z": 3
+          },
+          "yaw": 0.75,
+          "pitch": -45.15,
+          "cardinal": "south",
+          "look_vector": {
+            "x": -0.01,
+            "y": -0.71,
+            "z": 0.71
+          }
+        },
+        "player": {
+          "health": 20.0,
+          "max_health": 20.0,
+          "food": 20,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "birch_forest",
+          "dimension": "overworld",
+          "time_of_day": 6688,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "birch_log",
+          "display_name": "Birch Log",
+          "count": 13,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "birch_log",
+            "count": 13
+          },
+          {
+            "slot": 1,
+            "item": "egg",
+            "count": 9
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 13,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 9,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 246,
+            "nearest": {
+              "x": -32,
+              "y": 110,
+              "z": 4
+            },
+            "distance": 0.62
+          },
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2759,
+            "nearest": {
+              "x": -33,
+              "y": 110,
+              "z": 4
+            },
+            "distance": 0.64
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 645,
+            "nearest": {
+              "x": -32,
+              "y": 109,
+              "z": 4
+            },
+            "distance": 1.18
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 251,
+            "nearest": {
+              "x": -32,
+              "y": 112,
+              "z": 4
+            },
+            "distance": 2.09
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 11,
+            "nearest": {
+              "x": -31,
+              "y": 111,
+              "z": 2
+            },
+            "distance": 2.41
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 22,
+            "nearest": {
+              "x": -33,
+              "y": 112,
+              "z": 2
+            },
+            "distance": 2.62
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 950,
+            "nearest": {
+              "x": -32,
+              "y": 106,
+              "z": 4
+            },
+            "distance": 4.05
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 23,
+            "nearest": {
+              "x": -32,
+              "y": 105,
+              "z": 9
+            },
+            "distance": 7.36
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 6,
+            "nearest": {
+              "x": -32,
+              "y": 102,
+              "z": -3
+            },
+            "distance": 10.39
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 104,
+            "entity_type": "sheep",
+            "display_name": "Sheep",
+            "position": {
+              "x": -28.62,
+              "y": 112.0,
+              "z": -0.87
+            },
+            "distance": 6.25,
+            "health": null,
+            "hostile": false
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 7,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": -33,
+          "y": 111,
+          "z": 2
+        }
+      },
+      "revision": 1,
+      "time": 1791372269.6862907,
+      "epoch": 33,
+      "session": "fb25615d4afa4db6afa0cd98d270997d",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at -33, 111, 2.",
+        "position": {
+          "x": -33,
+          "y": 111,
+          "z": 2
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 8,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 1,
+      "time": 1791372283.6922174,
+      "epoch": 33,
+      "session": "fb25615d4afa4db6afa0cd98d270997d",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": -32.49,
+            "y": 110.0,
+            "z": 3.62
+          },
+          "eye_position": {
+            "x": -32.49,
+            "y": 111.62,
+            "z": 3.62
+          },
+          "block_position": {
+            "x": -33,
+            "y": 110,
+            "z": 3
+          },
+          "yaw": 0.75,
+          "pitch": -45.15,
+          "cardinal": "south",
+          "look_vector": {
+            "x": -0.01,
+            "y": -0.71,
+            "z": 0.71
+          }
+        },
+        "player": {
+          "health": 20.0,
+          "max_health": 20.0,
+          "food": 20,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "birch_forest",
+          "dimension": "overworld",
+          "time_of_day": 6968,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "birch_log",
+          "display_name": "Birch Log",
+          "count": 13,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "birch_log",
+            "count": 13
+          },
+          {
+            "slot": 1,
+            "item": "egg",
+            "count": 9
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 13,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 9,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 246,
+            "nearest": {
+              "x": -32,
+              "y": 110,
+              "z": 4
+            },
+            "distance": 0.62
+          },
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2759,
+            "nearest": {
+              "x": -33,
+              "y": 110,
+              "z": 4
+            },
+            "distance": 0.64
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 645,
+            "nearest": {
+              "x": -32,
+              "y": 109,
+              "z": 4
+            },
+            "distance": 1.18
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 251,
+            "nearest": {
+              "x": -32,
+              "y": 112,
+              "z": 4
+            },
+            "distance": 2.09
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 11,
+            "nearest": {
+              "x": -31,
+              "y": 111,
+              "z": 2
+            },
+            "distance": 2.41
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 22,
+            "nearest": {
+              "x": -33,
+              "y": 112,
+              "z": 2
+            },
+            "distance": 2.62
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 950,
+            "nearest": {
+              "x": -32,
+              "y": 106,
+              "z": 4
+            },
+            "distance": 4.05
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 23,
+            "nearest": {
+              "x": -32,
+              "y": 105,
+              "z": 9
+            },
+            "distance": 7.36
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 6,
+            "nearest": {
+              "x": -32,
+              "y": 102,
+              "z": -3
+            },
+            "distance": 10.39
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 104,
+            "entity_type": "sheep",
+            "display_name": "Sheep",
+            "position": {
+              "x": -28.62,
+              "y": 112.0,
+              "z": -0.87
+            },
+            "distance": 6.25,
+            "health": null,
+            "hostile": false
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 9,
+      "event": "result",
+      "tool": "minecraft_harvest_tree",
+      "arguments": {
+        "base": {
+          "x": -33,
+          "y": 111,
+          "z": 2
+        }
+      },
+      "revision": 1,
+      "time": 1791372294.313274,
+      "epoch": 33,
+      "session": "fb25615d4afa4db6afa0cd98d270997d",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "base": {
+          "x": -33,
+          "y": 112,
+          "z": 2
+        },
+        "logs_collected": 1,
+        "saplings_collected": 0,
+        "other_drops": [],
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "birch_log",
+              "before": 13,
+              "after": 14,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 22,
+          "total_items_after": 23
+        },
+        "image": {
+          "frame_id": "1651d692f1ee39a0bfd6298f85de8e49",
+          "captured_at": "2026-10-07T11:24:54.179170Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00009-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 10,
+      "event": "result",
+      "tool": "minecraft_find_block",
+      "arguments": {
+        "pattern": "*log"
+      },
+      "revision": 1,
+      "time": 1791372295.7491229,
+      "epoch": 33,
+      "session": "fb25615d4afa4db6afa0cd98d270997d",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "*log",
+        "matched_types": [
+          "birch_log"
+        ],
+        "total_matches": 104,
+        "nearest": {
+          "position": {
+            "x": -33,
+            "y": 113,
+            "z": 2
+          },
+          "block_name": "birch_log",
+          "display_name": "Birch Log",
+          "distance": 3.08,
+          "exposed_faces": [
+            "down"
+          ],
+          "harvestable_with_held": true
+        },
+        "results": [
+          {
+            "position": {
+              "x": -33,
+              "y": 113,
+              "z": 2
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 3.08,
+            "exposed_faces": [
+              "down"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -27,
+              "y": 115,
+              "z": 3
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 7.44,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west",
+              "down"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -34,
+              "y": 112,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 8.86,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -34,
+              "y": 113,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 9.14,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -24,
+              "y": 114,
+              "z": 1
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 9.51,
+            "exposed_faces": [
+              "down"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -28,
+              "y": 111,
+              "z": -6
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 9.67,
+            "exposed_faces": [
+              "north",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -28,
+              "y": 112,
+              "z": -6
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 9.82,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -29,
+              "y": 114,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.02,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -28,
+              "y": 113,
+              "z": -6
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.07,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -38,
+              "y": 110,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.13,
+            "exposed_faces": [
+              "north",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -38,
+              "y": 111,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.18,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -29,
+              "y": 115,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.46,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -29,
+              "y": 116,
+              "z": 11
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 10.98,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -24,
+              "y": 112,
+              "z": -7
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 12.9,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -33,
+              "y": 104,
+              "z": -9
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 12.98,
+            "exposed_faces": [
+              "north",
+              "south",
+              "east",
+              "west"
+            ],
+            "harvestable_with_held": true
+          },
+          {
+            "position": {
+              "x": -23,
+              "y": 117,
+              "z": -3
+            },
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "distance": 13.01,
+            "exposed_faces": [
+              "down"
+            ],
+            "harvestable_with_held": true
+          }
+        ],
+        "coverage": {
+          "center": {
+            "x": -32.49,
+            "y": 110.0,
+            "z": 2.5
+          },
+          "bounds": {
+            "min": {
+              "x": -65,
+              "y": 86,
+              "z": -30
+            },
+            "max": {
+              "x": -1,
+              "y": 126,
+              "z": 34
+            }
+          },
+          "chunks_loaded": 1021,
+          "columns_scanned": 1021,
+          "note": null
+        },
+        "candidates": null,
+        "duration_ms": 453.0
+      },
+      "images": []
+    },
+    {
+      "seq": 11,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": -33,
+          "y": 113,
+          "z": 2
+        }
+      },
+      "revision": 1,
+      "time": 1791372301.5426264,
+      "epoch": 33,
+      "session": "fb25615d4afa4db6afa0cd98d270997d",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": -33,
+            "y": 113,
+            "z": 2
+          },
+          "block_name": "birch_log",
+          "display_name": "Birch Log"
+        },
+        "tool_used": "birch_log",
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "birch_log"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "birch_log",
+              "before": 14,
+              "after": 15,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 23,
+          "total_items_after": 24
+        },
+        "image": {
+          "frame_id": "77d507ab5c7f770ae1813414240059cd",
+          "captured_at": "2026-10-07T11:25:01.402543Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 4109.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00011-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 12,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 1,
+      "time": 1791372302.8026373,
+      "epoch": 33,
+      "session": "fb25615d4afa4db6afa0cd98d270997d",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": -32.49,
+            "y": 110.0,
+            "z": 2.5
+          },
+          "eye_position": {
+            "x": -32.49,
+            "y": 111.62,
+            "z": 2.5
+          },
+          "block_position": {
+            "x": -33,
+            "y": 110,
+            "z": 2
+          },
+          "yaw": 90.0,
+          "pitch": 89.85,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -0.0,
+            "y": 1.0,
+            "z": 0.0
+          }
+        },
+        "player": {
+          "health": 20.0,
+          "max_health": 20.0,
+          "food": 20,
+          "oxygen": 4,
+          "xp_level": 0,
+          "biome": "birch_forest",
+          "dimension": "overworld",
+          "time_of_day": 7348,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "birch_log",
+          "display_name": "Birch Log",
+          "count": 15,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "birch_log",
+            "count": 15
+          },
+          {
+            "slot": 1,
+            "item": "egg",
+            "count": 9
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 9,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 240,
+            "nearest": {
+              "x": -32,
+              "y": 110,
+              "z": 2
+            },
+            "distance": 0.7
+          },
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2892,
+            "nearest": {
+              "x": -33,
+              "y": 110,
+              "z": 2
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 616,
+            "nearest": {
+              "x": -32,
+              "y": 109,
+              "z": 2
+            },
+            "distance": 1.22
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 11,
+            "nearest": {
+              "x": -31,
+              "y": 111,
+              "z": 2
+            },
+            "distance": 1.87
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 233,
+            "nearest": {
+              "x": -32,
+              "y": 112,
+              "z": 2
+            },
+            "distance": 2.12
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 890,
+            "nearest": {
+              "x": -30,
+              "y": 107,
+              "z": 2
+            },
+            "distance": 3.93
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 11,
+            "nearest": {
+              "x": -33,
+              "y": 114,
+              "z": 2
+            },
+            "distance": 4.06
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 14,
+            "nearest": {
+              "x": -32,
+              "y": 105,
+              "z": 9
+            },
+            "distance": 8.22
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 6,
+            "nearest": {
+              "x": -32,
+              "y": 102,
+              "z": -3
+            },
+            "distance": 9.72
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 104,
+            "entity_type": "sheep",
+            "display_name": "Sheep",
+            "position": {
+              "x": -28.62,
+              "y": 112.0,
+              "z": -0.87
+            },
+            "distance": 5.51,
+            "health": null,
+            "hostile": false
+          },
+          {
+            "entity_id": 103,
+            "entity_type": "sheep",
+            "display_name": "Sheep",
+            "position": {
+              "x": -26.64,
+              "y": 112.0,
+              "z": -1.87
+            },
+            "distance": 7.57,
+            "health": null,
+            "hostile": false
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 13,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": -33,
+          "y": 114,
+          "z": 2
+        }
+      },
+      "revision": 1,
+      "time": 1791372308.6037679,
+      "epoch": 33,
+      "session": "fb25615d4afa4db6afa0cd98d270997d",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": -33,
+            "y": 114,
+            "z": 2
+          },
+          "block_name": "birch_log",
+          "display_name": "Birch Log"
+        },
+        "tool_used": "birch_log",
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "birch_log"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "birch_log",
+              "before": 15,
+              "after": 16,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 24,
+          "total_items_after": 25
+        },
+        "image": {
+          "frame_id": "cf3e45fc601f6659f9ec40cbe548f0a8",
+          "captured_at": "2026-10-07T11:25:08.390069Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 4078.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00013-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 14,
+      "event": "result",
+      "tool": "minecraft_walk_to_exact",
+      "arguments": {
+        "x": -26,
+        "y": 112,
+        "z": 3
+      },
+      "revision": 1,
+      "time": 1791372910.129977,
+      "epoch": 33,
+      "session": "fb25615d4afa4db6afa0cd98d270997d",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": -26.0,
+          "y": 112.0,
+          "z": 3.0
+        },
+        "final_position": {
+          "x": -32.3,
+          "y": 110.0,
+          "z": 5.48
+        },
+        "distance_remaining": 7.06,
+        "target_offset": {
+          "x": 6.3,
+          "y": 2.0,
+          "z": -2.48
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": "success",
+          "error_name": "WalkTimeout",
+          "error_message": "The walk time limit expired.",
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": -32.3,
+            "y": 110.0,
+            "z": 5.48
+          },
+          "eye_position": {
+            "x": -32.3,
+            "y": 111.62,
+            "z": 5.48
+          },
+          "block_position": {
+            "x": -33,
+            "y": 110,
+            "z": 5
+          },
+          "yaw": 320.81,
+          "pitch": 0.0,
+          "cardinal": "south",
+          "look_vector": {
+            "x": 0.63,
+            "y": 0.0,
+            "z": 0.78
+          }
+        },
+        "image": null,
+        "duration_ms": 600178.99
+      },
+      "images": []
+    }
+  ],
+  "initial": {
+    "warnings": [],
+    "ok": true,
+    "reason": null,
+    "message": null,
+    "camera": {
+      "feet_position": {
+        "x": -26.31,
+        "y": 112.0,
+        "z": 3.47
+      },
+      "eye_position": {
+        "x": -26.31,
+        "y": 113.62,
+        "z": 3.47
+      },
+      "block_position": {
+        "x": -27,
+        "y": 112,
+        "z": 3
+      },
+      "yaw": 128.25,
+      "pitch": 77.4,
+      "cardinal": "west",
+      "look_vector": {
+        "x": -0.17,
+        "y": 0.98,
+        "z": -0.14
+      }
+    },
+    "player": {
+      "health": 20.0,
+      "max_health": 20.0,
+      "food": 20,
+      "oxygen": 20,
+      "xp_level": 0,
+      "biome": "birch_forest",
+      "dimension": "overworld",
+      "time_of_day": 4128,
+      "is_day": true,
+      "is_raining": false,
+      "on_ground": true,
+      "in_water": false
+    },
+    "held_item": {
+      "name": "birch_log",
+      "display_name": "Birch Log",
+      "count": 11,
+      "slot": null,
+      "durability": null,
+      "max_durability": null
+    },
+    "hotbar": [
+      {
+        "slot": 0,
+        "item": "birch_log",
+        "count": 11
+      },
+      {
+        "slot": 1,
+        "item": "egg",
+        "count": 9
+      },
+      {
+        "slot": 2,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 3,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 4,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 5,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 6,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 7,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 8,
+        "item": null,
+        "count": 0
+      }
+    ],
+    "inventory": [
+      {
+        "name": "birch_log",
+        "display_name": "Birch Log",
+        "count": 11,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "egg",
+        "display_name": "Egg",
+        "count": 9,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      }
+    ],
+    "nearby_blocks": [
+      {
+        "block_name": "air",
+        "display_name": "Air",
+        "count": 2142,
+        "nearest": {
+          "x": -26,
+          "y": 112,
+          "z": 3
+        },
+        "distance": 0.56
+      },
+      {
+        "block_name": "grass_block",
+        "display_name": "Grass Block",
+        "count": 277,
+        "nearest": {
+          "x": -26,
+          "y": 111,
+          "z": 3
+        },
+        "distance": 1.15
+      },
+      {
+        "block_name": "grass",
+        "display_name": "Grass",
+        "count": 22,
+        "nearest": {
+          "x": -27,
+          "y": 112,
+          "z": 5
+        },
+        "distance": 1.68
+      },
+      {
+        "block_name": "dirt",
+        "display_name": "Dirt",
+        "count": 841,
+        "nearest": {
+          "x": -26,
+          "y": 110,
+          "z": 3
+        },
+        "distance": 2.08
+      },
+      {
+        "block_name": "birch_leaves",
+        "display_name": "Birch Leaves",
+        "count": 330,
+        "nearest": {
+          "x": -25,
+          "y": 114,
+          "z": 3
+        },
+        "distance": 2.43
+      },
+      {
+        "block_name": "birch_log",
+        "display_name": "Birch Log",
+        "count": 27,
+        "nearest": {
+          "x": -27,
+          "y": 115,
+          "z": 3
+        },
+        "distance": 3.12
+      },
+      {
+        "block_name": "stone",
+        "display_name": "Stone",
+        "count": 1255,
+        "nearest": {
+          "x": -23,
+          "y": 109,
+          "z": 5
+        },
+        "distance": 4.72
+      },
+      {
+        "block_name": "poppy",
+        "display_name": "Poppy",
+        "count": 3,
+        "nearest": {
+          "x": -21,
+          "y": 116,
+          "z": 6
+        },
+        "distance": 7.11
+      },
+      {
+        "block_name": "coal_ore",
+        "display_name": "Coal Ore",
+        "count": 15,
+        "nearest": {
+          "x": -32,
+          "y": 105,
+          "z": 9
+        },
+        "distance": 10.58
+      },
+      {
+        "block_name": "dandelion",
+        "display_name": "Dandelion",
+        "count": 1,
+        "nearest": {
+          "x": -19,
+          "y": 118,
+          "z": 11
+        },
+        "distance": 12.09
+      }
+    ],
+    "nearby_entities": [
+      {
+        "entity_id": 102,
+        "entity_type": "sheep",
+        "display_name": "Sheep",
+        "position": {
+          "x": -25.57,
+          "y": 112.0,
+          "z": -1.26
+        },
+        "distance": 4.79,
+        "health": null,
+        "hostile": false
+      },
+      {
+        "entity_id": 104,
+        "entity_type": "sheep",
+        "display_name": "Sheep",
+        "position": {
+          "x": -28.62,
+          "y": 112.0,
+          "z": -0.87
+        },
+        "distance": 4.92,
+        "health": null,
+        "hostile": false
+      },
+      {
+        "entity_id": 103,
+        "entity_type": "sheep",
+        "display_name": "Sheep",
+        "position": {
+          "x": -26.64,
+          "y": 112.0,
+          "z": -1.87
+        },
+        "distance": 5.35,
+        "health": null,
+        "hostile": false
+      }
+    ],
+    "image": null
+  },
+  "final": {
+    "warnings": [],
+    "ok": true,
+    "reason": null,
+    "message": null,
+    "camera": {
+      "feet_position": {
+        "x": -32.49,
+        "y": 110.0,
+        "z": 2.5
+      },
+      "eye_position": {
+        "x": -32.49,
+        "y": 111.62,
+        "z": 2.5
+      },
+      "block_position": {
+        "x": -33,
+        "y": 110,
+        "z": 2
+      },
+      "yaw": 90.0,
+      "pitch": 89.85,
+      "cardinal": "west",
+      "look_vector": {
+        "x": -0.0,
+        "y": 1.0,
+        "z": 0.0
+      }
+    },
+    "player": {
+      "health": 20.0,
+      "max_health": 20.0,
+      "food": 20,
+      "oxygen": 4,
+      "xp_level": 0,
+      "biome": "birch_forest",
+      "dimension": "overworld",
+      "time_of_day": 7348,
+      "is_day": true,
+      "is_raining": false,
+      "on_ground": true,
+      "in_water": false
+    },
+    "held_item": {
+      "name": "birch_log",
+      "display_name": "Birch Log",
+      "count": 15,
+      "slot": null,
+      "durability": null,
+      "max_durability": null
+    },
+    "hotbar": [
+      {
+        "slot": 0,
+        "item": "birch_log",
+        "count": 15
+      },
+      {
+        "slot": 1,
+        "item": "egg",
+        "count": 9
+      },
+      {
+        "slot": 2,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 3,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 4,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 5,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 6,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 7,
+        "item": null,
+        "count": 0
+      },
+      {
+        "slot": 8,
+        "item": null,
+        "count": 0
+      }
+    ],
+    "inventory": [
+      {
+        "name": "birch_log",
+        "display_name": "Birch Log",
+        "count": 15,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "egg",
+        "display_name": "Egg",
+        "count": 9,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      }
+    ],
+    "nearby_blocks": [
+      {
+        "block_name": "grass_block",
+        "display_name": "Grass Block",
+        "count": 240,
+        "nearest": {
+          "x": -32,
+          "y": 110,
+          "z": 2
+        },
+        "distance": 0.7
+      },
+      {
+        "block_name": "air",
+        "display_name": "Air",
+        "count": 2892,
+        "nearest": {
+          "x": -33,
+          "y": 110,
+          "z": 2
+        },
+        "distance": 0.71
+      },
+      {
+        "block_name": "dirt",
+        "display_name": "Dirt",
+        "count": 616,
+        "nearest": {
+          "x": -32,
+          "y": 109,
+          "z": 2
+        },
+        "distance": 1.22
+      },
+      {
+        "block_name": "grass",
+        "display_name": "Grass",
+        "count": 11,
+        "nearest": {
+          "x": -31,
+          "y": 111,
+          "z": 2
+        },
+        "distance": 1.87
+      },
+      {
+        "block_name": "birch_leaves",
+        "display_name": "Birch Leaves",
+        "count": 233,
+        "nearest": {
+          "x": -32,
+          "y": 112,
+          "z": 2
+        },
+        "distance": 2.12
+      },
+      {
+        "block_name": "stone",
+        "display_name": "Stone",
+        "count": 890,
+        "nearest": {
+          "x": -30,
+          "y": 107,
+          "z": 2
+        },
+        "distance": 3.93
+      },
+      {
+        "block_name": "birch_log",
+        "display_name": "Birch Log",
+        "count": 11,
+        "nearest": {
+          "x": -33,
+          "y": 114,
+          "z": 2
+        },
+        "distance": 4.06
+      },
+      {
+        "block_name": "coal_ore",
+        "display_name": "Coal Ore",
+        "count": 14,
+        "nearest": {
+          "x": -32,
+          "y": 105,
+          "z": 9
+        },
+        "distance": 8.22
+      },
+      {
+        "block_name": "gravel",
+        "display_name": "Gravel",
+        "count": 6,
+        "nearest": {
+          "x": -32,
+          "y": 102,
+          "z": -3
+        },
+        "distance": 9.72
+      }
+    ],
+    "nearby_entities": [
+      {
+        "entity_id": 104,
+        "entity_type": "sheep",
+        "display_name": "Sheep",
+        "position": {
+          "x": -28.62,
+          "y": 112.0,
+          "z": -0.87
+        },
+        "distance": 5.51,
+        "health": null,
+        "hostile": false
+      },
+      {
+        "entity_id": 103,
+        "entity_type": "sheep",
+        "display_name": "Sheep",
+        "position": {
+          "x": -26.64,
+          "y": 112.0,
+          "z": -1.87
+        },
+        "distance": 7.57,
+        "health": null,
+        "hostile": false
+      }
+    ],
+    "image": null
+  }
+}

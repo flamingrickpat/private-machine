@@ -39,6 +39,10 @@ def run(context) -> dict:
 
 def _dispatch(request: SelfManagementRequest, tools) -> SelfManagementReport:
     operation = request.operation
+    if operation == "resume":
+        receipt = tools["managed_resume"](run_id=request.run_id, request_id=request.request_id or request.action_id)
+        return SelfManagementReport(operation=operation, accepted=True,
+                                    summary=f"run {receipt['run_id']} recovery accepted", receipt=receipt)
     if operation == "start":
         receipt = tools["managed_start"](
             action_id=request.action_id,
@@ -70,7 +74,7 @@ def _dispatch(request: SelfManagementRequest, tools) -> SelfManagementReport:
     if operation == "update":
         receipt = tools["managed_update"](
             run_id=request.run_id, instructions=request.instructions,
-            request_id=request.request_id,
+            request_id=request.request_id or request.action_id,
         )
         return SelfManagementReport(
             operation=operation, accepted=True,
@@ -78,7 +82,7 @@ def _dispatch(request: SelfManagementRequest, tools) -> SelfManagementReport:
             receipt=receipt,
         )
     if operation == "terminate":
-        receipt = tools["managed_terminate"](run_id=request.run_id)
+        receipt = tools["managed_terminate"](run_id=request.run_id, request_id=request.request_id or request.action_id)
         return SelfManagementReport(
             operation=operation, accepted=True,
             summary=f"run {receipt['run_id']} is {receipt['state']}",

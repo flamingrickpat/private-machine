@@ -40,7 +40,9 @@ def verify_wood_return(receipts: list[dict], initial: dict, final: dict, accepta
         if receipt["tool"] == "minecraft_harvest_tree" and receipt["ok"] and data.get("logs_collected", 0) > 0:
             base = data.get("base")
             if base:
-                trees[tuple(base[key] for key in ("x", "y", "z"))] = data["logs_collected"]
+                # A partial harvest can expose a higher base in the same trunk.
+                # Recovery must not count that column as another physical tree.
+                trees[(base["x"], base["z"])] = base
     def logs(data):
         return sum(item["count"] for item in data.get("inventory", [])
                    if item["name"].endswith(("_log", "_wood", "_stem", "_hyphae")))
@@ -58,7 +60,7 @@ def verify_wood_return(receipts: list[dict], initial: dict, final: dict, accepta
               "alive_on_ground": final["player"]["health"] > 0 and final["player"]["on_ground"]
                                  and not final["player"].get("in_water", False)}
     return {"verified": all(checks.values()), "checks": checks, "trees": len(trees),
-            "tree_bases": [list(base) for base in trees], "initial_logs": logs(initial),
+            "tree_bases": [[base[key] for key in ("x", "y", "z")] for base in trees.values()], "initial_logs": logs(initial),
             "final_logs": logs(final), "maximum_travel": traveled, "return_distance": return_distance}
 
 
@@ -80,6 +82,14 @@ def run_actor(context) -> dict:
             initial = gateway.call("minecraft_observe", {"include_image": request.include_image})
             if not initial["ok"]:
                 raise RuntimeError("The actor has no usable initial observation.")
+            previous = request.acceptance.get("previous_attempt", {})
+            sources = [Path(path) for path in previous.get("journals", [])]
+            reconciliation = gateway.reconcile(sources)
+            # Retained receipts define the original wood-return home across epochs.
+            original = next((row for row in gateway.receipts if row["tool"] == "minecraft_observe" and row["ok"]), None)
+            baseline = original["result"] if original else initial["result"]
+            reconciliation["original_observation"] = baseline
+            environment.write_text("inbox/reconciliation.json", json.dumps(reconciliation, ensure_ascii=False, indent=2))
             schemas = runtime.tools["minecraft_tool_schemas"]()
             allowed = set(request.allowed_tools) if request.allowed_tools else {row["name"] for row in schemas}
             # Scripts can hide multiple actions from the instruction boundary.
@@ -109,13 +119,17 @@ def run_actor(context) -> dict:
                       "Read acceptance.project before choosing work locations; its ancestor criteria reserve future construction cells. "
                       "Keep workbenches outside reserved floors, interiors, and entrance clearance. "
                       "A previous_attempt handoff records earlier work. Current specifications and fresh observations take precedence. "
+                      "Read inbox/reconciliation.json. It retains earlier calls and fresh reads after interruption. "
+                      "Its original_observation records the original home and inventory baseline across restarts. "
+                      "Never repeat an uncertain mutation from its old plan. Choose work from the current state. "
                       "This configured actor uses text evidence. It cannot interpret screenshot pixels. "
                       "Images are retained as separate artifacts. After an instruction_changed result, "
                       "discard the pending plan and obey the new instruction. Call actor_instructions at milestones. "
                       "Write a concise task card to scratch/task-card.md and a durable handoff to outbox/handoff.md. "
                       "Continue until the requested leaf succeeds, yields, needs replanning, or meets a real blocker. "
                       "Return only JSON with status (complete, yield, blocked, replan), summary, and handoff. "
-                      "A wood-return check requires distinct harvest_tree bases with positive logs, travel, and return. "
+                      "A wood-return check requires distinct trunk columns (x,z) with positive harvest_tree logs, travel, and return. "
+                      "Repeated partial harvests at higher bases in the same column count as ONE physical tree. "
                       "Do not finish after merely locating trees. Save starting coordinates for the return.")
             skill_path = context.kernel_data / "actor-skill.md"
             skill_path.write_text(skill, encoding="utf-8")
@@ -125,6 +139,9 @@ def run_actor(context) -> dict:
             session = (nullcontext(runtime.agent_model) if runtime.agent_model is not None else
                        runtime.classification_session("Default", False, runtime.stop_event))
             with session as model, serve_services({"minecraft_actor": gateway.server(schemas)}) as servers:
+                # Cover the body's 600-second action budget and cleanup reads.
+                # The native loader must honor this per-server timeout.
+                servers["minecraft_actor"]["requestTimeoutMs"] = 660000
                 config = context.kernel_data / "actor-mcp.json"
                 config.write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
                 agent_runtime = replace(runtime, agent_model=model, mcp_servers=servers)
@@ -147,7 +164,7 @@ def run_actor(context) -> dict:
             final = gateway.call("minecraft_observe", {"include_image": request.include_image}, close=True)
             verification = {"verified": False, "reason": "Independent generic leaf verification belongs to A11."}
             if request.acceptance.get("kind") == "wood_return" and final["ok"]:
-                verification = verify_wood_return(gateway.receipts, initial["result"], final["result"], request.acceptance)
+                verification = verify_wood_return(gateway.receipts, baseline, final["result"], request.acceptance)
             accepted = outcome.status == "complete" and verification["verified"]
             image_paths = [frame["path"] for row in gateway.receipts for frame in row["images"]]
             world = build_world(request, final, None, image_paths)
@@ -161,7 +178,8 @@ def run_actor(context) -> dict:
                       "task_reference": request.task_reference,
                       "agent_session": result.session_ref, "instruction_revision": gateway.revision,
                       "call_count": len(gateway.receipts), "visual_interpretation": False,
-                      "initial_observation": initial["result"], "final_observation": final["result"],
+                      "initial_observation": baseline, "final_observation": final["result"],
+                      "execution_epoch": gateway.token["epoch"], "reconciliation": reconciliation,
                       "journal": "scratch/actor-journal.jsonl", "images": image_paths,
                       "rejection_reason": "" if accepted else "The leaf completion was not independently verified."}
             runtime.check_cancelled()

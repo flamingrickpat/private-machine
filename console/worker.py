@@ -215,11 +215,13 @@ def run(settings: dict, root: Path) -> None:
                 elif action == "run_control":
                     operation = command["operation"]
                     if operation == "cancel":
-                        result = app.supervisor.terminate(command["run_id"])
+                        result = app.supervisor.terminate(command["run_id"], request_id=request_id)
                     elif operation == "update":
-                        result = app.supervisor.update(command["run_id"], command["text"])
+                        result = app.supervisor.update(command["run_id"], command["text"], request_id=request_id)
                     elif operation == "answer":
                         result = app.supervisor.answer(command["run_id"], command["question_id"], command["text"])
+                    elif operation == "resume":
+                        result = app.supervisor.resume(command["run_id"], request_id=command.get("request_id", ""))
                     else:
                         raise ValueError("Unknown managed-run operation.")
                     emit("run.control", result=result)

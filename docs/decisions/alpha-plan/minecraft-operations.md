@@ -22,6 +22,8 @@ A12 makes ownership durable across disconnects and worker restarts.
 Use session epochs and fresh observation to reject stale commands.
 Cancellation cannot undo an action already sent to Minecraft.
 The next action must respect the latest accepted instructions.
+The active [lease contract](../../subsystems/body-leases.md) defines shared locks and server tokens.
+The [recovery manual](../../subsystems/body-recovery.md) defines explicit resume and interruption evidence.
 
 A pm-coder session continues until its leaf succeeds, yields, or needs replanning.
 Context compaction retains the goal, evidence, map, and current method.

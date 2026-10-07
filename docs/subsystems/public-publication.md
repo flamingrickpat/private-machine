@@ -9,6 +9,7 @@ Checkpoint restart can replay an unacknowledged utterance or dispatch a selected
 
 Parent: [public dialogue](public-dialogue.md).
 Related: [operator service](console.md), [managed work](managed-work.md), and [A09 verification](public-verification.md).
+Accepted companion actions and managed progress also use [durable publication recovery](recovery-publication.md).
 
 ## Input and durable ownership
 

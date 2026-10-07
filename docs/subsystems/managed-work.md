@@ -23,6 +23,7 @@ The configured targets include `local_task`, `local_task_question`, `note_task`,
 `minecraft_project` runs [durable subtasks](minecraft-tasks.md) with fresh actors and independent world verification.
 Read [public publication and recovery](public-publication.md) for terminal task replies and note evidence.
 The console exposes update, answer, and cancellation for existing runs.
+It also exposes [explicit body recovery](body-recovery.md) after interruption, cancellation, or failure.
 A chat request can ask the companion to start a target through its normal action path.
 
 ## State

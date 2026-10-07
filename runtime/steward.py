@@ -118,11 +118,20 @@ class Steward:
             "boundary": "next declared safe boundary",
         }
 
-    def terminate(self, run_id: str) -> dict:
+    def resume(self, run_id: str, *, request_id: str = "") -> dict:
+        """Request explicit body recovery through the shared control domain."""
+        if self.dormant:
+            return self._refuse_dormant()
+        try:
+            return {"accepted": True, **self.supervisor.resume(run_id, request_id=request_id)}
+        except ManagedRunError as error:
+            return {"accepted": False, "run_id": run_id, "reason": str(error)}
+
+    def terminate(self, run_id: str, *, request_id: str = "") -> dict:
         """Set the run's code-owned cancellation signal. Files are untouched."""
         if self.dormant:
             return self._refuse_dormant()
-        receipt = self.supervisor.terminate(run_id)
+        receipt = self.supervisor.terminate(run_id, request_id=request_id)
         return {
             "accepted": True,
             "run_id": run_id,
@@ -140,6 +149,7 @@ def build_steward_tools(steward: Steward) -> dict[str, Callable[..., object]]:
         "steward_answer": steward.answer,
         "steward_update": steward.update,
         "steward_terminate": steward.terminate,
+        "steward_resume": steward.resume,
     }
 
 

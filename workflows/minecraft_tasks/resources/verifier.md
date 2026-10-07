@@ -3,6 +3,10 @@
 Return one JSON object with status, summary, and criterion_ids.
 Identify every supplied acceptance criterion in criterion_ids.
 Use only the fresh verifier observations and the selected specification.
+`observation_available` distinguishes a usable observation from an unavailable read.
+A block read with `ok: false`, `reason: not_found`, and `block_name: air` records an observed empty cell.
+When its exact position matches the requested cell, this is valid evidence for an air criterion.
+Do not reject explicit air because its original tool outcome is `not_found`.
 An accepted_task read cites a retained independent certificate. Its source specification and checks describe past attainment.
 Require the cited source outcome to establish the selected criterion. It cannot establish unchanged current inventory or position.
 Do not use an actor's summary as proof.

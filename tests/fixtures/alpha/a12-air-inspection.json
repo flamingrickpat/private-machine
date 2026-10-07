@@ -1,0 +1,42 @@
+{
+  "source": ".runtime\\alpha\\a12-final-02\\wood\\app\\managed_tasks\\5c84c1e059f248d5b63efb275f35e4ed\\scratch\\actor-journal.jsonl",
+  "receipt": {
+    "seq": 6,
+    "event": "result",
+    "tool": "minecraft_inspect_block",
+    "arguments": {
+      "position": {
+        "x": -24,
+        "y": 113,
+        "z": 1
+      }
+    },
+    "revision": 1,
+    "time": 1791371938.773264,
+    "epoch": 23,
+    "session": "f9add931130a46239b03bbf609dfb77d",
+    "ok": false,
+    "result": {
+      "warnings": [],
+      "ok": false,
+      "reason": "not_found",
+      "message": "No block exists at -24, 113, 1.",
+      "position": {
+        "x": -24,
+        "y": 113,
+        "z": 1
+      },
+      "block_name": "air",
+      "display_name": "Air",
+      "is_solid": false,
+      "exposed_faces": [],
+      "neighbors": [],
+      "best_tools": [],
+      "can_harvest_with_held": null,
+      "drops": [],
+      "hardness": null,
+      "image": null
+    },
+    "images": []
+  }
+}

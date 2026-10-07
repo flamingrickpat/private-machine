@@ -6,7 +6,7 @@ state_policy: {mutation_model: append_only}
 roles:
   steward:
     skill: workflows/steward/steps.py
-    tools: [steward_status, steward_answer, steward_update, steward_terminate]
+    tools: [steward_status, steward_answer, steward_update, steward_terminate, steward_resume]
     result_contract:
       type: json
       schema:
@@ -22,6 +22,6 @@ phases:
 
 # Steward
 
-One deterministic steward operation: status, answer, update, or terminate. It
+One deterministic steward operation: status, answer, update, terminate, or resume. It
 stays dormant until explicitly activated. It reads committed progress and
 returns the evidence it read; it never edits a file or a prompt.

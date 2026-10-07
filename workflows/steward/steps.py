@@ -45,7 +45,9 @@ def _dispatch(request: StewardRequest, tools) -> dict:
             request_id=request.request_id,
         )
     if operation == "terminate":
-        return tools["steward_terminate"](run_id=request.run_id)
+        return tools["steward_terminate"](run_id=request.run_id, request_id=request.request_id)
+    if operation == "resume":
+        return tools["steward_resume"](run_id=request.run_id, request_id=request.request_id)
     return {"accepted": False, "reason": f"Unknown steward operation {operation!r}."}
 
 
