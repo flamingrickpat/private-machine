@@ -1,0 +1,858 @@
+{
+  "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\20261006-a11-plan-02\\app\\managed_tasks\\58ddfd26843c48dbb02287fa524b5430\\decisions\\0001-planner\\output.json",
+  "scope": "Captured rejected planner proposal; no actor dispatched.",
+  "tree": {
+    "schema_version": "pm.minecraft-task-tree.v1",
+    "goal_id": "goal_house",
+    "revision": 1,
+    "nodes": [
+      {
+        "id": "goal_house",
+        "revision": 1,
+        "kind": "goal",
+        "parent": null,
+        "children": [
+          "survey_site",
+          "gather_logs",
+          "craft_materials",
+          "build_shell",
+          "entry_house",
+          "exit_house"
+        ],
+        "depends_on": [],
+        "instruction": "Build a small usable birch wooden house near the observed spawn point, then prove entry and exit in ordinary survival.",
+        "specialist": "gatherer",
+        "criteria": [
+          {
+            "id": "c_goal_roof",
+            "description": "The roof layer at y=116 is birch planks over the 4x4 footprint.",
+            "kind": "block",
+            "names": [
+              "birch_planks"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 3,
+                "y": 116,
+                "z": -7
+              },
+              {
+                "x": 4,
+                "y": 116,
+                "z": -7
+              },
+              {
+                "x": 5,
+                "y": 116,
+                "z": -7
+              },
+              {
+                "x": 6,
+                "y": 116,
+                "z": -7
+              },
+              {
+                "x": 3,
+                "y": 116,
+                "z": -6
+              },
+              {
+                "x": 4,
+                "y": 116,
+                "z": -6
+              },
+              {
+                "x": 5,
+                "y": 116,
+                "z": -6
+              },
+              {
+                "x": 6,
+                "y": 116,
+                "z": -6
+              },
+              {
+                "x": 3,
+                "y": 116,
+                "z": -5
+              },
+              {
+                "x": 4,
+                "y": 116,
+                "z": -5
+              },
+              {
+                "x": 5,
+                "y": 116,
+                "z": -5
+              },
+              {
+                "x": 6,
+                "y": 116,
+                "z": -5
+              },
+              {
+                "x": 3,
+                "y": 116,
+                "z": -4
+              },
+              {
+                "x": 4,
+                "y": 116,
+                "z": -4
+              },
+              {
+                "x": 5,
+                "y": 116,
+                "z": -4
+              },
+              {
+                "x": 6,
+                "y": 116,
+                "z": -4
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_goal_door",
+            "description": "A birch door is installed in the bottom doorway cell.",
+            "kind": "block",
+            "names": [
+              "birch_door"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 4,
+                "y": 114,
+                "z": -4
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_goal_interior",
+            "description": "The 2x2 interior is clear air at both wall levels.",
+            "kind": "block",
+            "names": [
+              "air"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 4,
+                "y": 114,
+                "z": -6
+              },
+              {
+                "x": 5,
+                "y": 114,
+                "z": -6
+              },
+              {
+                "x": 4,
+                "y": 114,
+                "z": -5
+              },
+              {
+                "x": 5,
+                "y": 114,
+                "z": -5
+              },
+              {
+                "x": 4,
+                "y": 115,
+                "z": -6
+              },
+              {
+                "x": 5,
+                "y": 115,
+                "z": -6
+              },
+              {
+                "x": 4,
+                "y": 115,
+                "z": -5
+              },
+              {
+                "x": 5,
+                "y": 115,
+                "z": -5
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": [
+          {
+            "id": "c_goal_alive",
+            "description": "The player remains alive throughout the task.",
+            "kind": "alive",
+            "names": [],
+            "minimum": 1,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ]
+      },
+      {
+        "id": "survey_site",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": null,
+        "children": [],
+        "depends_on": [],
+        "instruction": "Survey the 4x4 site x=3..6, z=-7..-4 with floor level y=113 from the current position; clear major surface obstacles without assuming a pre-cleared area.",
+        "specialist": "navigator",
+        "criteria": [
+          {
+            "id": "c_survey_pos",
+            "description": "The player is near the observed spawn while choosing the site.",
+            "kind": "position",
+            "names": [],
+            "minimum": 1,
+            "position": {
+              "x": 5,
+              "y": 113,
+              "z": -5
+            },
+            "positions": [],
+            "end": null,
+            "radius": 12.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      },
+      {
+        "id": "gather_logs",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": null,
+        "children": [],
+        "depends_on": [
+          "survey_site"
+        ],
+        "instruction": "Harvest at least twenty additional birch logs in survival; the starting inventory is empty, so obtain at least 20 birch logs.",
+        "specialist": "gatherer",
+        "criteria": [
+          {
+            "id": "c_gather_logs",
+            "description": "At least 20 birch logs have been obtained.",
+            "kind": "inventory",
+            "names": [
+              "birch_log"
+            ],
+            "minimum": 20,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      },
+      {
+        "id": "craft_materials",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": null,
+        "children": [],
+        "depends_on": [
+          "gather_logs"
+        ],
+        "instruction": "Craft a counted amount of birch planks enough for the shell plus a door, then craft one birch door, leaving at least 60 planks and one door available.",
+        "specialist": "builder",
+        "criteria": [
+          {
+            "id": "c_craft_planks",
+            "description": "At least 60 birch planks are available.",
+            "kind": "inventory",
+            "names": [
+              "birch_planks"
+            ],
+            "minimum": 60,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_craft_door",
+            "description": "A birch door is available.",
+            "kind": "inventory",
+            "names": [
+              "birch_door"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      },
+      {
+        "id": "build_shell",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": null,
+        "children": [],
+        "depends_on": [
+          "craft_materials"
+        ],
+        "instruction": "Build the shell at x=3..6, z=-7..-4: 4x4 birch plank floor at y=113, two-block perimeter walls at y=114/115, full 4x4 roof at y=116, a two-cell doorway at x=4,z=-4 with a birch door in the bottom cell and air above, and a clear 2x2 interior.",
+        "specialist": "builder",
+        "criteria": [
+          {
+            "id": "c_floor",
+            "description": "The 4x4 floor at y=113 is birch planks.",
+            "kind": "block",
+            "names": [
+              "birch_planks"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 3,
+                "y": 113,
+                "z": -7
+              },
+              {
+                "x": 4,
+                "y": 113,
+                "z": -7
+              },
+              {
+                "x": 5,
+                "y": 113,
+                "z": -7
+              },
+              {
+                "x": 6,
+                "y": 113,
+                "z": -7
+              },
+              {
+                "x": 3,
+                "y": 113,
+                "z": -6
+              },
+              {
+                "x": 4,
+                "y": 113,
+                "z": -6
+              },
+              {
+                "x": 5,
+                "y": 113,
+                "z": -6
+              },
+              {
+                "x": 6,
+                "y": 113,
+                "z": -6
+              },
+              {
+                "x": 3,
+                "y": 113,
+                "z": -5
+              },
+              {
+                "x": 4,
+                "y": 113,
+                "z": -5
+              },
+              {
+                "x": 5,
+                "y": 113,
+                "z": -5
+              },
+              {
+                "x": 6,
+                "y": 113,
+                "z": -5
+              },
+              {
+                "x": 3,
+                "y": 113,
+                "z": -4
+              },
+              {
+                "x": 4,
+                "y": 113,
+                "z": -4
+              },
+              {
+                "x": 5,
+                "y": 113,
+                "z": -4
+              },
+              {
+                "x": 6,
+                "y": 113,
+                "z": -4
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_wall_ring",
+            "description": "The two-block perimeter wall ring is birch planks except the doorway cells.",
+            "kind": "block",
+            "names": [
+              "birch_planks"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 3,
+                "y": 114,
+                "z": -7
+              },
+              {
+                "x": 4,
+                "y": 114,
+                "z": -7
+              },
+              {
+                "x": 5,
+                "y": 114,
+                "z": -7
+              },
+              {
+                "x": 6,
+                "y": 114,
+                "z": -7
+              },
+              {
+                "x": 3,
+                "y": 114,
+                "z": -6
+              },
+              {
+                "x": 3,
+                "y": 114,
+                "z": -5
+              },
+              {
+                "x": 6,
+                "y": 114,
+                "z": -6
+              },
+              {
+                "x": 6,
+                "y": 114,
+                "z": -5
+              },
+              {
+                "x": 3,
+                "y": 114,
+                "z": -4
+              },
+              {
+                "x": 5,
+                "y": 114,
+                "z": -4
+              },
+              {
+                "x": 6,
+                "y": 114,
+                "z": -4
+              },
+              {
+                "x": 3,
+                "y": 115,
+                "z": -7
+              },
+              {
+                "x": 4,
+                "y": 115,
+                "z": -7
+              },
+              {
+                "x": 5,
+                "y": 115,
+                "z": -7
+              },
+              {
+                "x": 6,
+                "y": 115,
+                "z": -7
+              },
+              {
+                "x": 3,
+                "y": 115,
+                "z": -6
+              },
+              {
+                "x": 3,
+                "y": 115,
+                "z": -5
+              },
+              {
+                "x": 6,
+                "y": 115,
+                "z": -6
+              },
+              {
+                "x": 6,
+                "y": 115,
+                "z": -5
+              },
+              {
+                "x": 3,
+                "y": 115,
+                "z": -4
+              },
+              {
+                "x": 5,
+                "y": 115,
+                "z": -4
+              },
+              {
+                "x": 6,
+                "y": 115,
+                "z": -4
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_roof",
+            "description": "The full 4x4 roof at y=116 is birch planks.",
+            "kind": "block",
+            "names": [
+              "birch_planks"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 3,
+                "y": 116,
+                "z": -7
+              },
+              {
+                "x": 4,
+                "y": 116,
+                "z": -7
+              },
+              {
+                "x": 5,
+                "y": 116,
+                "z": -7
+              },
+              {
+                "x": 6,
+                "y": 116,
+                "z": -7
+              },
+              {
+                "x": 3,
+                "y": 116,
+                "z": -6
+              },
+              {
+                "x": 4,
+                "y": 116,
+                "z": -6
+              },
+              {
+                "x": 5,
+                "y": 116,
+                "z": -6
+              },
+              {
+                "x": 6,
+                "y": 116,
+                "z": -6
+              },
+              {
+                "x": 3,
+                "y": 116,
+                "z": -5
+              },
+              {
+                "x": 4,
+                "y": 116,
+                "z": -5
+              },
+              {
+                "x": 5,
+                "y": 116,
+                "z": -5
+              },
+              {
+                "x": 6,
+                "y": 116,
+                "z": -5
+              },
+              {
+                "x": 3,
+                "y": 116,
+                "z": -4
+              },
+              {
+                "x": 4,
+                "y": 116,
+                "z": -4
+              },
+              {
+                "x": 5,
+                "y": 116,
+                "z": -4
+              },
+              {
+                "x": 6,
+                "y": 116,
+                "z": -4
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_door",
+            "description": "A birch door is installed in the bottom doorway cell.",
+            "kind": "block",
+            "names": [
+              "birch_door"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 4,
+                "y": 114,
+                "z": -4
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_door_top_air",
+            "description": "The top doorway cell remains air for a passable two-cell doorway.",
+            "kind": "block",
+            "names": [
+              "air"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 4,
+                "y": 115,
+                "z": -4
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_interior",
+            "description": "The 2x2 interior is clear air at both wall levels.",
+            "kind": "block",
+            "names": [
+              "air"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 4,
+                "y": 114,
+                "z": -6
+              },
+              {
+                "x": 5,
+                "y": 114,
+                "z": -6
+              },
+              {
+                "x": 4,
+                "y": 114,
+                "z": -5
+              },
+              {
+                "x": 5,
+                "y": 114,
+                "z": -5
+              },
+              {
+                "x": 4,
+                "y": 115,
+                "z": -6
+              },
+              {
+                "x": 5,
+                "y": 115,
+                "z": -6
+              },
+              {
+                "x": 4,
+                "y": 115,
+                "z": -5
+              },
+              {
+                "x": 5,
+                "y": 115,
+                "z": -5
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      },
+      {
+        "id": "entry_house",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": null,
+        "children": [],
+        "depends_on": [
+          "build_shell"
+        ],
+        "instruction": "Enter through the doorway and end inside the clear 2x2 interior of the house.",
+        "specialist": "navigator",
+        "criteria": [
+          {
+            "id": "c_entry_alive",
+            "description": "The player is alive while entering the house.",
+            "kind": "alive",
+            "names": [],
+            "minimum": 1,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_entry_pos1",
+            "description": "The player ends near one corner of the interior.",
+            "kind": "position",
+            "names": [],
+            "minimum": 1,
+            "position": {
+              "x": 4,
+              "y": 114,
+              "z": -6
+            },
+            "positions": [],
+            "end": null,
+            "radius": 1.5,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_entry_pos2",
+            "description": "The player ends near the opposite corner of the interior.",
+            "kind": "position",
+            "names": [],
+            "minimum": 1,
+            "position": {
+              "x": 5,
+              "y": 114,
+              "z": -5
+            },
+            "positions": [],
+            "end": null,
+            "radius": 1.5,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      },
+      {
+        "id": "exit_house",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": null,
+        "children": [],
+        "depends_on": [
+          "entry_house"
+        ],
+        "instruction": "Exit through the doorway and end outside adjacent to the doorway.",
+        "specialist": "navigator",
+        "criteria": [
+          {
+            "id": "c_exit_alive",
+            "description": "The player is alive while exiting the house.",
+            "kind": "alive",
+            "names": [],
+            "minimum": 1,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_exit_pos1",
+            "description": "The player ends outside near the doorway side x=4.",
+            "kind": "position",
+            "names": [],
+            "minimum": 1,
+            "position": {
+              "x": 4,
+              "y": 113,
+              "z": -3
+            },
+            "positions": [],
+            "end": null,
+            "radius": 1.5,
+            "dimension": "overworld"
+          },
+          {
+            "id": "c_exit_pos2",
+            "description": "The player ends outside near the doorway side x=5.",
+            "kind": "position",
+            "names": [],
+            "minimum": 1,
+            "position": {
+              "x": 5,
+              "y": 113,
+              "z": -3
+            },
+            "positions": [],
+            "end": null,
+            "radius": 1.5,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      }
+    ]
+  }
+}

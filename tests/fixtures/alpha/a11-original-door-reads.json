@@ -1,0 +1,438 @@
+{
+  "scope": "Original world results; criterion labels and dimension binding are contract envelopes, not new companion behavior.",
+  "successful_source": ".runtime/alpha/a11-door-01/receipt.json",
+  "failed_source": ".runtime\\alpha\\a11h13\\app\\managed_tasks\\fa0d1b15460f4a46adb858e21e0ff706\\attempts\\actor-0008\\scratch\\actor-journal.jsonl",
+  "native_build": {
+    "tool": "minecraft_build",
+    "arguments": {
+      "shape": "fill",
+      "material": "birch_door",
+      "start": {
+        "x": 7,
+        "y": 114,
+        "z": -3
+      },
+      "end": {
+        "x": 7,
+        "y": 114,
+        "z": -3
+      }
+    },
+    "time": 1791361977.3573039,
+    "ok": true,
+    "result": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "shape": "fill",
+      "material_requested": "birch_door",
+      "material_resolved": "birch_door",
+      "bounds": {
+        "min": {
+          "x": 7,
+          "y": 114,
+          "z": -3
+        },
+        "max": {
+          "x": 7,
+          "y": 114,
+          "z": -3
+        }
+      },
+      "planned_cells": 1,
+      "placed_count": 2,
+      "placed": [
+        {
+          "position": {
+            "x": 7,
+            "y": 114,
+            "z": -3
+          },
+          "block_name": "birch_door"
+        },
+        {
+          "position": {
+            "x": 7,
+            "y": 115,
+            "z": -3
+          },
+          "block_name": "birch_door"
+        }
+      ],
+      "occupied": [],
+      "out_of_range": [],
+      "missing_material_cells": 0,
+      "inventory_delta": {
+        "changes": [
+          {
+            "item": "birch_door",
+            "before": 4,
+            "after": 3,
+            "delta": -1
+          }
+        ],
+        "total_items_before": 18,
+        "total_items_after": 17
+      },
+      "candidates": null,
+      "image": null,
+      "duration_ms": 203.0
+    },
+    "images": []
+  },
+  "successful_reads": [
+    {
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 7,
+          "y": 114,
+          "z": -3
+        },
+        "include_image": false
+      },
+      "time": 1791361977.6163054,
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 7,
+          "y": 114,
+          "z": -3
+        },
+        "block_name": "birch_door",
+        "display_name": "Birch Door",
+        "is_solid": true,
+        "exposed_faces": [
+          "north",
+          "south",
+          "east",
+          "west"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 7,
+              "y": 114,
+              "z": -4
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 7,
+              "y": 114,
+              "z": -2
+            },
+            "block_name": "grass",
+            "solid": false
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 8,
+              "y": 114,
+              "z": -3
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 6,
+              "y": 114,
+              "z": -3
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 7,
+              "y": 115,
+              "z": -3
+            },
+            "block_name": "birch_door",
+            "solid": true
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 7,
+              "y": 113,
+              "z": -3
+            },
+            "block_name": "grass_block",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": [],
+      "criterion_id": "door",
+      "observed_dimension": "overworld"
+    },
+    {
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 7,
+          "y": 115,
+          "z": -3
+        },
+        "include_image": false
+      },
+      "time": 1791361977.896304,
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 7,
+          "y": 115,
+          "z": -3
+        },
+        "block_name": "birch_door",
+        "display_name": "Birch Door",
+        "is_solid": true,
+        "exposed_faces": [
+          "north",
+          "south",
+          "east",
+          "west",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 7,
+              "y": 115,
+              "z": -4
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 7,
+              "y": 115,
+              "z": -2
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 8,
+              "y": 115,
+              "z": -3
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 6,
+              "y": 115,
+              "z": -3
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 7,
+              "y": 116,
+              "z": -3
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 7,
+              "y": 114,
+              "z": -3
+            },
+            "block_name": "birch_door",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": [],
+      "criterion_id": "door",
+      "observed_dimension": "overworld"
+    }
+  ],
+  "failed_reads": [
+    {
+      "seq": 7,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 5,
+          "y": 115,
+          "z": -5
+        }
+      },
+      "revision": 0,
+      "time": 1791361237.8613405,
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 5,
+          "y": 115,
+          "z": -5
+        },
+        "block_name": "birch_door",
+        "display_name": "Birch Door",
+        "is_solid": true,
+        "exposed_faces": [
+          "north",
+          "south",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 5,
+              "y": 115,
+              "z": -6
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 5,
+              "y": 115,
+              "z": -4
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 6,
+              "y": 115,
+              "z": -5
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 4,
+              "y": 115,
+              "z": -5
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 5,
+              "y": 116,
+              "z": -5
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 5,
+              "y": 114,
+              "z": -5
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": [],
+      "criterion_id": "door",
+      "observed_dimension": "overworld"
+    },
+    {
+      "seq": 8,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 5,
+          "y": 116,
+          "z": -5
+        }
+      },
+      "revision": 0,
+      "time": 1791361238.9288752,
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 5, 116, -5.",
+        "position": {
+          "x": 5,
+          "y": 116,
+          "z": -5
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": [],
+      "criterion_id": "door",
+      "observed_dimension": "overworld"
+    }
+  ]
+}

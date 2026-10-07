@@ -76,6 +76,11 @@ def _managed_workflows(stage_model=None) -> dict:
                 stage_model.complete if stage_model is not None else None,
             ),
         ),
+        "minecraft_project": WorkflowSpec(
+            PROJECT_ROOT / "workflows" / "minecraft_tasks" / "minecraft_tasks.workflow.md",
+            namespace="minecraft_project",
+            tools_factory=build_minecraft_module_tools(stage_model.complete if stage_model is not None else None),
+        ),
     }
 
 
@@ -94,7 +99,8 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
     for name in sorted(supervisor.workflows):
         descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",
                         "note_task": "Real pm-coder note writer. Exact UTF-8 byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.",
-                        "minecraft": "Sustained survival specialist. Exclusive body lease, many calls, instruction updates, and cancellation. No task for a direct inventory question."}
+                        "minecraft": "One sustained survival specialist leaf. Exclusive body lease, many calls, instruction updates, and cancellation.",
+                        "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals. Inventory questions use direct Assistant observation."}
         options.append({"name": name, "description": descriptions.get(name, f"Managed workflow {name}.")})
     return options
 

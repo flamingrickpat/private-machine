@@ -86,12 +86,29 @@ def run_actor(context) -> dict:
             # Operator resets are not part of the configured survival action space.
             allowed -= {"minecraft_execute_typescript", "minecraft_suicide"}
             schemas = [row for row in schemas if row["name"] in allowed]
+            # Keep observed deployment behavior beside the callable tool.
+            # A long specialist resource can be overlooked during selection.
+            environment.write_text("inbox/original-tool-schemas.json", json.dumps(schemas, ensure_ascii=False, indent=2))
+            schemas = [dict(row) for row in schemas]
+            for row in schemas:
+                if row["name"] == "minecraft_mine_block":
+                    row["description"] = row.get("description", "") + (
+                        "\nInspect the exact target before digging and skip air. "
+                        "The current body supports digging grass and tall_grass. "
+                        "is_solid describes collision bounds; plants with empty bounds can still be dug. "
+                        "Observe the resulting cell and preserve required support below it.")
             environment.write_text("inbox/tool-schemas.json", json.dumps(schemas, ensure_ascii=False, indent=2))
             environment.write_text("inbox/persona.yaml", yaml.safe_dump(request.persona_context, allow_unicode=True))
             resources = [RESOURCES / "shared.md", RESOURCES / "navigator.md", RESOURCES / f"{request.specialist}.md"]
             skill = "\n\n".join(path.read_text(encoding="utf-8") for path in dict.fromkeys(resources))
             skill += ("\n\nYou are a private specialist of the same companion. Do not address the user. "
                       "Read inbox/persona.yaml and inbox/request.yaml. Tools use the live MCP schemas. "
+                      "Accepted references in acceptance.criteria cite parent-verified earlier leaves. "
+                      "Read their original specification, identity, and checks in acceptance.prerequisites. "
+                      "Those certificates record past attainment. Perform this leaf's remaining world outcomes. "
+                      "Read acceptance.project before choosing work locations; its ancestor criteria reserve future construction cells. "
+                      "Keep workbenches outside reserved floors, interiors, and entrance clearance. "
+                      "A previous_attempt handoff records earlier work. Current specifications and fresh observations take precedence. "
                       "This configured actor uses text evidence. It cannot interpret screenshot pixels. "
                       "Images are retained as separate artifacts. After an instruction_changed result, "
                       "discard the pending plan and obey the new instruction. Call actor_instructions at milestones. "
@@ -114,7 +131,9 @@ def run_actor(context) -> dict:
                 driver = PmCoderDriver(log_root=context.kernel_data / "actor-agent")
                 result = driver.run_session(run_id=context.task_id + "-actor", attempt=1,
                     skill=str(skill_path), prompt="Execute the Minecraft leaf in inbox/request.yaml. "
-                    "Read the fresh initial observation in scratch/actor-journal.jsonl. Use the Minecraft MCP tools.",
+                    "Read the fresh initial observation in scratch/actor-journal.jsonl. Use the Minecraft MCP tools. "
+                    "Your final JSON must include exactly status, summary, and handoff. "
+                    "The required handoff string can name your written outbox/handoff.md.",
                     work_dir=context.workspace, runtime=agent_runtime, mcp_config=config,
                     trace_file=context.kernel_data / "actor-agent-trace.jsonl")
             runtime.check_cancelled()
@@ -139,6 +158,7 @@ def run_actor(context) -> dict:
                       "body_id": request.body_id, "summary": outcome.summary,
                       "outcome": outcome.model_dump(), "verification": verification,
                       "acceptance": request.acceptance, "verified": accepted,
+                      "task_reference": request.task_reference,
                       "agent_session": result.session_ref, "instruction_revision": gateway.revision,
                       "call_count": len(gateway.receipts), "visual_interpretation": False,
                       "initial_observation": initial["result"], "final_observation": final["result"],

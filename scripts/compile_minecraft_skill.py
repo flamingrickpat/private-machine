@@ -15,7 +15,7 @@ SECTIONS = {"shared": [*range(1, 10), 36, 37, 39, 40, 41, 42, 49, 50],
 
 
 def compile_skill(source: Path, output: Path) -> dict:
-    """Copy selected sections and record exact input and output digests."""
+    """Copy upstream sections and local guidance; record every source digest."""
     raw = source.read_bytes()
     text = raw.decode("utf-8")
     matches = list(re.finditer(r"^## (\d+)\. .*$", text, flags=re.MULTILINE))
@@ -26,9 +26,15 @@ def compile_skill(source: Path, output: Path) -> dict:
     for name, numbers in SECTIONS.items():
         content = f"# Minecraft {name} resource\n\nCompiled from minecraft-survival-coach. Shared and specialist resources preserve the upstream sections.\n\n"
         content += "\n".join(sections[number] for number in numbers)
+        guidance = ROOT / "workflows/minecraft/guidance" / f"{name}.md"
+        addition = {}
+        if guidance.is_file():
+            content = content.rstrip("\n") + "\n" + guidance.read_text(encoding="utf-8")
+            addition = {"guidance_source": str(guidance.relative_to(ROOT)),
+                        "guidance_sha256": hashlib.sha256(guidance.read_bytes()).hexdigest()}
         target = output / f"{name}.md"
         target.write_text(content, encoding="utf-8", newline="\n")
-        manifest["resources"][name] = {"sections": numbers, "sha256": hashlib.sha256(target.read_bytes()).hexdigest()}
+        manifest["resources"][name] = {"sections": numbers, "sha256": hashlib.sha256(target.read_bytes()).hexdigest(), **addition}
     (output / "source.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest
 

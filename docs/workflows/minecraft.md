@@ -8,7 +8,8 @@ Next: [evidence and cleanup](minecraft-evidence.md).
 The default Minecraft run uses a [sustained specialist](../subsystems/minecraft-actor.md) with many real tool calls.
 Its request has no action-count ceiling.
 Explicit W8 actions retain the narrow observe/action/observe path described below.
-General task trees, replanning, and generic completion verification belong to A11–A14.
+The [durable project workflow](../subsystems/minecraft-tasks.md) adds generic task trees and independent completion verification.
+Interruption recovery and cooperative survival remain later alpha work.
 
 The normal workflow requires an existing Minecraft server and MCP service.
 It opens MCP client connections when needed. It does not start or stop the MCP process.

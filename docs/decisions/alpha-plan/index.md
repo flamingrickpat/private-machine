@@ -24,7 +24,9 @@ A08 supplies [experienced memory](../../subsystems/experienced-memory.md) and it
 A09 supplies [public dialogue](../../subsystems/public-dialogue.md), [publication recovery](../../subsystems/public-publication.md), and [verification](../../subsystems/public-verification.md).
 A10 supplies the [sustained Minecraft actor](../../subsystems/minecraft-actor.md),
 [body controls](../../subsystems/minecraft-actor-controls.md), and [verification](../../subsystems/minecraft-actor-verification.md).
-A11 through A20 remain pending.
+A11 supplies [durable Minecraft projects](../../subsystems/minecraft-tasks.md),
+[task evidence](../../subsystems/minecraft-task-evidence.md), and [verification](../../subsystems/minecraft-task-verification.md).
+A12 through A20 remain pending.
 
 The LLM is the default for selection, classification, and interpretation.
 Laya was planned for frequent use, but A02 found poor interpretation quality.
@@ -84,7 +86,7 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | A08 | [Retrieve and learn from experienced memory](work-items/a08.md) — engineering delivery recorded | |
 | A09 | [Unify public voice and capability grounding](work-items/a09.md) - engineering delivery recorded | M2: a continuous companion across restart |
 | A10 | [Run one sustained Minecraft specialist session](work-items/a10.md) - engineering delivery recorded | Developer check: many calls per leaf |
-| A11 | [Plan and verify durable Minecraft subtasks](work-items/a11.md) | |
+| A11 | [Plan and verify durable Minecraft subtasks](work-items/a11.md) — engineering delivery recorded | |
 | A12 | [Control and recover interrupted body work](work-items/a12.md) | |
 | A13 | [Replan expected gameplay failures](work-items/a13.md) | M3: finished small house and self-crafted iron pickaxe |
 | A14 | [Play as a cooperative survival partner](work-items/a14.md) | M4: house, expedition, and changed conditions |

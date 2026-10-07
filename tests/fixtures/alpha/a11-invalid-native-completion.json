@@ -1,0 +1,9 @@
+{
+  "provenance": {
+    "source": ".runtime/alpha/a11h9/app/managed_tasks/c417ae791ecb4eda883ca77cda2dfb71/kernel-children/kernel/c417ae791ecb4eda883ca77cda2dfb71-actor-0002/actor-agent/c417ae791ecb4eda883ca77cda2dfb71-actor-0002-actor_1/messages.json",
+    "source_sha256": "f06055df1eedf27c358f1551cb87336e9ba06d02f5d74595cf98e52f528dd13f",
+    "scope": "Unchanged native crafting final text from the real A11 house-09 failure. It cannot establish acceptance.",
+    "model": "qwen"
+  },
+  "text": "{\"status\":\"complete\",\"summary\":\"craft_materials leaf complete: crafted 54 birch planks (from 15 logs + 1 log for crafting table) and 3 birch doors (from 6 planks). Inventory verified at 54 birch_planks, 3 birch_door, 39 birch_log. Player alive (19/20 health, food 18) at (-35.5,112.0,29.47), overworld, night. Crafting table placed at (-36,113,29). Handoff written to outbox/handoff.md; task card at scratch/task-card.md; journal note saved.\"}"
+}

@@ -395,7 +395,7 @@ class ManagedRunSupervisor:
             "artifact_path": receipt.artifact_path,
             "answer": "",
         }
-        if receipt.workflow_name == "minecraft":
+        if receipt.workflow_name in {"minecraft", "minecraft_project"}:
             from workflows.public_context import build_public_context
             with self.ghost.lock:
                 public = build_public_context(self.ghost, {}).model_dump(mode="json")

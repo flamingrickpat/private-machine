@@ -1,0 +1,111 @@
+{
+  "provenance": {
+    "source": ".runtime\\alpha\\a11h8\\app\\managed_tasks\\c5dd26b5022c408dae158035b16552f6\\attempts\\actor-0006\\scratch\\actor-journal.jsonl",
+    "sequence": 14,
+    "scope": "Original real block inspection before the solid-only mining tool rejected tall grass."
+  },
+  "read": {
+    "seq": 14,
+    "event": "result",
+    "tool": "minecraft_inspect_block",
+    "arguments": {
+      "position": {
+        "x": 3,
+        "y": 112,
+        "z": -8
+      }
+    },
+    "revision": 0,
+    "time": 1791353248.8803735,
+    "ok": true,
+    "result": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "position": {
+        "x": 3,
+        "y": 112,
+        "z": -8
+      },
+      "block_name": "tall_grass",
+      "display_name": "Tall Grass",
+      "is_solid": false,
+      "exposed_faces": [
+        "north",
+        "south",
+        "east",
+        "west",
+        "up"
+      ],
+      "neighbors": [
+        {
+          "direction": "north",
+          "position": {
+            "x": 3,
+            "y": 112,
+            "z": -9
+          },
+          "block_name": "air",
+          "solid": false
+        },
+        {
+          "direction": "south",
+          "position": {
+            "x": 3,
+            "y": 112,
+            "z": -7
+          },
+          "block_name": "air",
+          "solid": false
+        },
+        {
+          "direction": "east",
+          "position": {
+            "x": 4,
+            "y": 112,
+            "z": -8
+          },
+          "block_name": "grass",
+          "solid": false
+        },
+        {
+          "direction": "west",
+          "position": {
+            "x": 2,
+            "y": 112,
+            "z": -8
+          },
+          "block_name": "air",
+          "solid": false
+        },
+        {
+          "direction": "up",
+          "position": {
+            "x": 3,
+            "y": 113,
+            "z": -8
+          },
+          "block_name": "tall_grass",
+          "solid": false
+        },
+        {
+          "direction": "down",
+          "position": {
+            "x": 3,
+            "y": 111,
+            "z": -8
+          },
+          "block_name": "grass_block",
+          "solid": true
+        }
+      ],
+      "best_tools": [],
+      "can_harvest_with_held": null,
+      "drops": [],
+      "hardness": null,
+      "image": null
+    },
+    "images": []
+  }
+}

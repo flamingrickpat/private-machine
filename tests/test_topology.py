@@ -32,6 +32,10 @@ KNOWN_WAITING_WARNINGS = {
     ("local_task_question", "ask"),
 }
 
+# A project revisits these phases for dynamic leaves and observed replanning.
+# Keep the kernel's existing backstop. It does not cap native actor tool calls.
+KNOWN_PROJECT_REPEAT_PHASES = {"plan", "survey", "review", "select", "act", "verify", "replan", "wait", "finish"}
+
 
 def manifests() -> list[Path]:
     return sorted(WORKFLOW_ROOT.rglob("*.workflow.md"))
@@ -92,12 +96,12 @@ class TopologyTests(unittest.TestCase):
                     terminal_edges,
                     f"{path}: no path from the first phase to a terminal",
                 )
-                # A stop terminal must be the declared successful stop route,
-                # not an undeclared dead end.
+                # A declared blocked outcome is an explicit failure terminal.
+                # The runner requires done before it can publish a success report.
                 for phase, edge in terminal_edges:
                     if edge.target == TERMINAL_STOP:
                         self.assertIn(
-                            edge.outcome, {"done", "invalid", "pass", "answered"},
+                            edge.outcome, {"done", "invalid", "pass", "answered", "blocked"},
                             f"{path}: {phase} reaches <stop> on unexpected outcome {edge.outcome}",
                         )
 
@@ -137,8 +141,12 @@ class TopologyTests(unittest.TestCase):
             with self.subTest(manifest=str(path)):
                 for warning in report.warnings:
                     accepted = any(
-                        f"phase '{phase}'" in warning for _workflow, phase in KNOWN_WAITING_WARNINGS
+                        path.stem == workflow + ".workflow" and f"phase '{phase}'" in warning
+                        for workflow, phase in KNOWN_WAITING_WARNINGS
                     )
+                    accepted = accepted or (path.name == "minecraft_tasks.workflow.md" and any(
+                        warning.startswith(f"phase '{phase}' can be dispatched up to 999 times (per task)")
+                        for phase in KNOWN_PROJECT_REPEAT_PHASES))
                     self.assertTrue(accepted, f"{path}: unexpected warning: {warning}")
 
     def test_seeded_simulation_is_deterministic_and_bounded(self):

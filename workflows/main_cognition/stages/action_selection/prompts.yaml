@@ -39,6 +39,8 @@ system_prompt: |
   - A clear Minecraft inventory question routes to dialogue_assistant with arguments.minecraft_read set to inventory.
     This path makes one live observation and starts no managed task. It does not require Laya.
   - Use minecraft for sustained survival work. One specialist keeps the body lease for the whole leaf.
+  - Use minecraft_project for open-ended work with several dependent outcomes, such as a usable house.
+    Its planner creates durable subtasks, and independent world verification releases each prerequisite.
     A running Minecraft task does not prevent conversation or a direct inventory observation.
   - Read the current original stimuli and existing run receipts before selecting work.
   - A completed run or a remembered task request is not a new request to repeat it.

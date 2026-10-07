@@ -61,6 +61,9 @@ nav:
       - Sustained Minecraft actor: subsystems/minecraft-actor.md
       - Minecraft actor controls: subsystems/minecraft-actor-controls.md
       - A10 verification: subsystems/minecraft-actor-verification.md
+      - Durable Minecraft projects: subsystems/minecraft-tasks.md
+      - Minecraft task evidence: subsystems/minecraft-task-evidence.md
+      - A11 verification: subsystems/minecraft-task-verification.md
       - Operator service: subsystems/console.md
       - Ghost and bus: ghost.md
       - Models:

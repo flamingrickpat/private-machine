@@ -9,7 +9,8 @@ Story dialogue produces a character utterance. Assistant dialogue can use scoped
 
 Managed workflows support start, status, instruction updates, questions, and cancellation.
 The application stores their receipts in Ghost and consolidates their artifacts into memory.
-The Minecraft workflow supports one action per run through the real Minecraft MCP.
+Minecraft supports sustained specialist leaves and durable projects through the real Minecraft MCP.
+The project planner orders subtasks and independently verifies their world effects.
 Internal thought generation remains disabled in real mode.
 
 ## Setup and run
@@ -51,7 +52,9 @@ Dummy behavior does not establish real companion quality.
 ## Managed workflows
 
 `local_task` writes a note. `local_task_question` first asks which artifact to produce.
-`minecraft` observes the world, performs one action, observes again, and stores the evidence.
+`minecraft` runs one sustained native specialist session and retains original tool evidence.
+`minecraft_project` plans durable subtasks, dispatches fresh specialists, and independently verifies each outcome.
+Read the [project guide](docs/subsystems/minecraft-tasks.md) for revision rules and evidence.
 Cognition can dispatch these targets through SelfManagement.
 Assistant tools use the same supervisor operations.
 
@@ -62,7 +65,8 @@ After the final instruction boundary, the supervisor rejects new updates.
 Cancellation wakes a worker that waits for an update.
 
 The local worker can consume updates while held.
-Minecraft consumes updates before action planning and closes updates before the action starts.
+Minecraft specialists consume updates before each tool call.
+Project instruction changes invalidate the selected leaf and request replanning from retained world effects.
 A revised goal invalidates an earlier explicit action.
 Completed external effects cannot be undone.
 
@@ -154,7 +158,7 @@ A missing model or embedding endpoint fails its suite.
 
 ## Current limits
 
-Minecraft performs one action per run. It has no sustained survival policy.
+Durable Minecraft projects require real acceptance evidence. Sustained survival and interruption recovery remain separate alpha gates.
 Python cancellation is cooperative. A synchronous external call can finish before cancellation takes effect.
 Context selection re-ranks supplied candidates; the main cognitive candidate list does not yet use embedding retrieval.
 Memory and quality checks cover different contracts. Passing foundation tests does not establish dialogue quality.

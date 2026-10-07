@@ -10,6 +10,7 @@ The configured text model uses numeric observations and retains screenshots as s
 Parent: [managed work](managed-work.md).
 Operation: [actor controls](minecraft-actor-controls.md).
 Evidence: [A10 verification](minecraft-actor-verification.md).
+Projects: [durable subtasks](minecraft-tasks.md).
 
 ## Request and execution
 
@@ -25,6 +26,7 @@ Trusted Python roles retain their existing MCP configuration.
 [`workflows.minecraft.schemas.MinecraftRequest`][] defaults to `mode: actor` and `specialist: gatherer`.
 The other specialist values are `navigator`, `recovery`, `builder`, and `miner`.
 The request contains `instruction`, `goal`, `body_id`, `allowed_tools`, `include_image`, `persona_context`, and `acceptance`.
+Project children also carry `task_reference` with the selected leaf, specification revision, and actor attempt.
 The supervisor supplies the current companion identity, character, affect, goals, ontology, and selected public context.
 This context preserves attribution and the real imported history.
 It is a scoped snapshot, not the entire history.
@@ -47,6 +49,9 @@ This deadline is independent of the number of tools or actions.
 [`scripts.compile_minecraft_skill.compile_skill`][] copies selected upstream sections into project resources.
 It leaves `C:/Users/rick/.agents/skills/minecraft-survival-coach/SKILL.md` intact.
 `workflows/minecraft/resources/source.json` records its digest and each compiled resource digest.
+Local builder guidance lives in `workflows/minecraft/guidance/builder.md`.
+The compiler appends it and records its separate source digest.
+Recompilation preserves that guidance without changing the installed upstream skill.
 Git preserves LF line endings for these resources so their byte digests survive a fresh checkout.
 
 | Resource | Upstream sections | Purpose |

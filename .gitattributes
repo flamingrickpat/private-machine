@@ -2,3 +2,4 @@
 docs/decisions/alpha-plan/baseline/original-brief.md -text whitespace=-blank-at-eol
 # Keep compiled resource bytes equal to their provenance hashes after checkout.
 workflows/minecraft/resources/*.md text eol=lf whitespace=-blank-at-eof
+workflows/minecraft/guidance/* text eol=lf

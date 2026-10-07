@@ -18,6 +18,7 @@ def build_minecraft_module_tools(plan_model=None) -> Callable[[str, object], dic
 
     def factory(run_id: str, environment) -> dict:
         return {**build_minecraft_tools(url, plan_model=plan_model),
+                "minecraft_reason": plan_model,
                 "minecraft_endpoint": lambda: url,
                 "minecraft_lease": lambda: BODY_LEASES.acquire(url, run_id)}
 

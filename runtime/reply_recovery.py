@@ -27,6 +27,11 @@ def task_evidence(receipt: dict) -> dict:
         report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
         if isinstance(report, dict):
             result["report"] = report
+            if report.get("schema") == "pm.minecraft-project-report.v1" and report.get("verified") is True:
+                from workflows.minecraft_tasks.verification import verified_project
+                verification = verified_project(root)
+                result["minecraft_verification"] = verification
+                result["task_verified"] = receipt.get("state") == "completed" and verification["verified"]
             if report.get("schema") == "pm.note-verification.v1" and report.get("verified") is True:
                 path = (root / report["note_spec"]["path"]).resolve()
                 if not path.is_relative_to(root / "outbox"):

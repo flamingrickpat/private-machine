@@ -65,7 +65,9 @@
         24,
         25
       ],
-      "sha256": "d6b263317b7c51f55f69ef1b9ad4a756492ec9ad30969b737f980fafc964c1a2"
+      "sha256": "b7934e7fc28f375a09312330539124526d27cca20c66877a784ef0f5c6ca7c3d",
+      "guidance_source": "workflows\\minecraft\\guidance\\builder.md",
+      "guidance_sha256": "f69b3b74b429d89b38676afe3c1e2f47e684bf0e4b5f1a7dc2c0552f2cdddd7c"
     },
     "miner": {
       "sections": [
