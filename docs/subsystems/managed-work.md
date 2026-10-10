@@ -44,8 +44,9 @@ Read [experience consolidation](memory-consolidation.md) for evidence attributio
 
 Minecraft defaults to a [sustained specialist session](minecraft-actor.md).
 The explicit W8 boundary check retains one action per run.
-The actor has a process-local body lease and a native pm-coder history.
-Durable ownership across separate processes belongs to A12.
+The actor has a shared [body lease](body-leases.md) and a native pm-coder history.
+Durable ownership and explicit recovery use the delivered A12 implementation.
+Projects publish one [gameplay milestone](gameplay-evidence.md#meaningful-progress-publication) per completed actor attempt.
 Cancellation is cooperative.
 A completed external effect remains complete after cancellation.
 MCP transport success alone does not establish tool success.

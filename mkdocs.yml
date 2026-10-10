@@ -68,6 +68,21 @@ nav:
       - Durable body leases: subsystems/body-leases.md
       - Intent and progress recovery: subsystems/recovery-publication.md
       - A12 verification: subsystems/body-recovery-verification.md
+      - Expected gameplay failures: subsystems/gameplay-recovery.md
+      - Gameplay history and cognition: subsystems/gameplay-evidence.md
+      - A13 verification:
+          - Overview: subsystems/gameplay-verification.md
+          - Failure fixtures: subsystems/gameplay-fixture-verification.md
+          - M3 house and iron: subsystems/gameplay-m3-verification.md
+          - Concrete replanning: subsystems/gameplay-replanning-verification.md
+          - Task and gate review: subsystems/gameplay-task-gate-review.md
+          - Earlier evidence:
+              - Fixture receipts: subsystems/gameplay-fixture-history.md
+              - Hazard diagnoses: subsystems/gameplay-fixture-diagnostics.md
+              - Tool repairs: subsystems/gameplay-tool-repair-history.md
+              - Plan context: subsystems/gameplay-plan-context-history.md
+              - Review repairs: subsystems/gameplay-review-repair-history.md
+              - Engineering checks: subsystems/gameplay-engineering-history.md
       - Operator service: subsystems/console.md
       - Ghost and bus: ghost.md
       - Models:

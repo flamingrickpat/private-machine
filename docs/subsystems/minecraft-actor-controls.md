@@ -9,6 +9,7 @@ Original calls and uncertain outcomes remain in the actor journal.
 
 Parent: [sustained actor](minecraft-actor.md).
 Evidence: [A10 verification](minecraft-actor-verification.md).
+Interaction semantics: [block activation evidence](gameplay-block-interaction.md).
 
 ## Lease boundary
 

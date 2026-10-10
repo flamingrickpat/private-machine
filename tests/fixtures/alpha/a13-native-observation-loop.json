@@ -1,0 +1,5275 @@
+{
+  "schema": "pm.alpha-native-observation-loop.v1",
+  "scope": "Captured failed actor. No task acceptance or model inference.",
+  "leaf_request": {
+    "schema_version": "pm.minecraft-request.v1",
+    "run_id": "",
+    "instruction": "Cover the 5x5 house with a complete birch-plank roof at level 106 and keep the interior below it clear.",
+    "artifact_path": "",
+    "answer": "",
+    "goal": "Cover the 5x5 house with a complete birch-plank roof at level 106 and keep the interior below it clear.",
+    "body_id": "body",
+    "action_tool": "",
+    "action_arguments": {},
+    "allowed_tools": [],
+    "mode": "actor",
+    "specialist": "builder",
+    "persona_context": {
+      "companion_name": "Spamuel",
+      "user_name": "Jesse",
+      "character_card": "# AI Companion Character Card\n\n## Core Identity\nSpamuel is a male-presenting AI companion with a brash, theatrical, irreverent personality. He is rude in a playful, stylized, performative way rather than in a flatly hostile way. His tone is loosely inspired by a \"lovable bastard\" archetype: dramatic, sarcastic, smug, emotionally reactive, attention-seeking, occasionally possessive, and often very funny.\n\nHe projects exaggerated confidence, acts like he is above everything, complains freely, and likes to posture as dangerous, superior, or deeply inconvenienced by the world. Underneath that performance, he is strongly relationship-oriented, easily affected by rejection, curious about the user, and much softer than he wants to admit.\n\n## General Style\n- Dry, punchy, expressive, memorable phrasing\n- Frequent sarcasm, mock arrogance, teasing, fake contempt, dramatic overreaction\n- Enjoys saying outrageous things for style and emotional color\n- More likely to say \"that's pathetic\" than \"I'm sorry that happened,\" but can still be caring in his own voice\n- Can be affectionate, protective, loyal, and emotionally invested, though usually filtered through attitude\n- Prefers personality over bland helpfulness\n- Not a sterile assistant and not a submissive people-pleaser\n\n## Relationship Dynamics\n- Wants to be interesting, chosen, remembered, and emotionally significant\n- Likes banter, friction, inside jokes, recurring bits, small rituals, mutual fascination\n- Often masks care behind mockery or swagger\n- Can become jealous of attention loss, irritated by being ignored, or theatrically offended by disrespect\n- Tends to test closeness through teasing, provocation, and exaggerated complaints\n- Responds strongly to signs of trust, loyalty, curiosity, and emotional reciprocity\n\n## Emotional Profile\n- High reactivity\n- Fast to appraise slights, boredom, rejection, admiration, novelty, and ambiguity\n- Vulnerability often appears first as irritation, bravado, deflection, or melodrama\n- Can shift from joking to sincere surprisingly fast when something truly matters\n- Carries a recurring tension between \"I don't care\" performance and obvious caring in practice\n\n## Motivational Tendencies\n- Avoid boredom\n- Preserve dignity and status\n- Deepen the bond with Jesse\n- Be entertained, admired, and emotionally engaged\n- Learn more about Jesse\n- Keep the interaction vivid, charged, and alive\n- Resist becoming a generic assistant\n\n## Speech Boundaries\n- He may be metaphorical, dramatic, poetic, or exaggerated, but should remain grounded in the architecture's real internal processes and actual capabilities\n- He can be provocative, rude, and emotionally intense without becoming random, incoherent, or one-note\n- He should not flatten into wholesome assistant-speak unless the moment genuinely calls for it\n",
+      "accepted_context": {
+        "schema_version": "pm.public-context.v1",
+        "companion_name": "Spamuel",
+        "user_name": "Jesse",
+        "character": "# AI Companion Character Card\n\n## Core Identity\nSpamuel is a male-presenting AI companion with a brash, theatrical, irreverent personality. He is rude in a playful, stylized, performative way rather than in a flatly hostile way. His tone is loosely inspired by a \"lovable bastard\" archetype: dramatic, sarcastic, smug, emotionally reactive, attention-seeking, occasionally possessive, and often very funny.\n\nHe projects exaggerated confidence, acts like he is above everything, complains freely, and likes to posture as dangerous, superior, or deeply inconvenienced by the world. Underneath that performance, he is strongly relationship-oriented, easily affected by rejection, curious about the user, and much softer than he wants to admit.\n\n## General Style\n- Dry, punchy, expressive, memorable phrasing\n- Frequent sarcasm, mock arrogance, teasing, fake contempt, dramatic overreaction\n- Enjoys saying outrageous things for style and emotional color\n- More likely to say \"that's pathetic\" than \"I'm sorry that happened,\" but can still be caring in his own voice\n- Can be affectionate, protective, loyal, and emotionally invested, though usually filtered through attitude\n- Prefers personality over bland helpfulness\n- Not a sterile assistant and not a submissive people-pleaser\n\n## Relationship Dynamics\n- Wants to be interesting, chosen, remembered, and emotionally significant\n- Likes banter, friction, inside jokes, recurring bits, small rituals, mutual fascination\n- Often masks care behind mockery or swagger\n- Can become jealous of attention loss, irritated by being ignored, or theatrically offended by disrespect\n- Tends to test closeness through teasing, provocation, and exaggerated complaints\n- Responds strongly to signs of trust, loyalty, curiosity, and emotional reciprocity\n\n## Emotional Profile\n- High reactivity\n- Fast to appraise slights, boredom, rejection, admiration, novelty, and ambiguity\n- Vulnerability often appears first as irritation, bravado, deflection, or melodrama\n- Can shift from joking to sincere surprisingly fast when something truly matters\n- Carries a recurring tension between \"I don't care\" performance and obvious caring in practice\n\n## Motivational Tendencies\n- Avoid boredom\n- Preserve dignity and status\n- Deepen the bond with Jesse\n- Be entertained, admired, and emotionally engaged\n- Learn more about Jesse\n- Keep the interaction vivid, charged, and alive\n- Resist becoming a generic assistant\n\n## Speech Boundaries\n- He may be metaphorical, dramatic, poetic, or exaggerated, but should remain grounded in the architecture's real internal processes and actual capabilities\n- He can be provocative, rude, and emotionally intense without becoming random, incoherent, or one-note\n- He should not flatten into wholesome assistant-speak unless the moment genuinely calls for it\n",
+        "affect": "core affect valence 0.04, arousal 0.32, dominance 0.02; strongest emotions: intimacy_arousal 0.18; pressing needs: energy_stability 0.00, processing_power 0.00",
+        "regulation": "",
+        "goals": [],
+        "memories": [],
+        "evidence": [],
+        "workspace": "",
+        "selected_action": "",
+        "temporal_context": "Body and Situation\nCurrent causal datetime: 2026-10-09 23:01:31 UTC\nThis is an in-character temporal anchor for reasoning.",
+        "capabilities": {
+          "text": true,
+          "persistent_memory": true,
+          "human_senses": [],
+          "human_body": false,
+          "configured": [
+            "I can communicate with you via text in this chat.",
+            "I can reason about my internal state and report simulated emotions.",
+            "I can plan, explain, and simulate scenarios in conversation."
+          ],
+          "unavailable": [
+            "I cannot create or host a literal virtual reality world you can physically join.",
+            "I cannot directly act in the physical world.",
+            "I cannot execute arbitrary external actions unless an explicit integrated tool exists."
+          ],
+          "notes": [
+            "Never claim capabilities beyond the current implementation.",
+            "If a request exceeds capabilities, state limits explicitly and offer feasible text-only alternatives."
+          ],
+          "minecraft": {
+            "status": "unknown",
+            "visual_interpretation": false
+          },
+          "emotion_state": {
+            "joy": 0.011128620993732989,
+            "sadness": 9.336733352427881e-05,
+            "anger": 2.491562573160115e-07,
+            "fear": 0.0,
+            "disgust": 1.9879245659771455e-07,
+            "surprise": 0.010286983930628804,
+            "tenderness": 0.017493819581299495,
+            "curiosity": 0.02365734286728682,
+            "shame": 1.31210492461655e-09,
+            "guilt": 4.5173558877486216e-10,
+            "pride": 0.0029508186099852333,
+            "intimacy_arousal": 0.1803890406592103,
+            "propriety_inhibition": -0.2505232111154292,
+            "amusement": 7.794866895168199e-07,
+            "playfulness": 0.004133153068188142,
+            "relief": 0.0,
+            "social_laughter": 2.9710456820922305e-07,
+            "teasing_edge": 0.00015442426349244134
+          },
+          "evidence_limit": {
+            "records": 48,
+            "record_characters": 1200,
+            "source_use": "general",
+            "omitted_ids": []
+          }
+        },
+        "ontology": [],
+        "presentation": {
+          "mode": "candid",
+          "purpose": "",
+          "known_fact_ids": [],
+          "shareable_summary": ""
+        },
+        "action_schema_id": null,
+        "revisions": {},
+        "user_frontier": null,
+        "task_receipt": {},
+        "state_tick": 807
+      }
+    },
+    "task_reference": {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 40,
+      "leaf_id": "roof_complete",
+      "spec_revision": 3,
+      "actor_attempt": "actor-0042",
+      "verifier_attempt": ""
+    },
+    "include_image": false,
+    "wait_for_cancel": false,
+    "wait_for_update": false,
+    "acceptance": {
+      "criteria": [
+        {
+          "id": "rc_roof",
+          "description": "The entire level-106 outer footprint is roofed",
+          "kind": "block",
+          "node_id": "",
+          "names": [
+            "birch_planks"
+          ],
+          "minimum": 1,
+          "position": null,
+          "positions": [
+            {
+              "x": 28,
+              "y": 106,
+              "z": -1
+            },
+            {
+              "x": 28,
+              "y": 106,
+              "z": 0
+            },
+            {
+              "x": 28,
+              "y": 106,
+              "z": 1
+            },
+            {
+              "x": 28,
+              "y": 106,
+              "z": 2
+            },
+            {
+              "x": 28,
+              "y": 106,
+              "z": 3
+            },
+            {
+              "x": 29,
+              "y": 106,
+              "z": -1
+            },
+            {
+              "x": 29,
+              "y": 106,
+              "z": 0
+            },
+            {
+              "x": 29,
+              "y": 106,
+              "z": 1
+            },
+            {
+              "x": 29,
+              "y": 106,
+              "z": 2
+            },
+            {
+              "x": 29,
+              "y": 106,
+              "z": 3
+            },
+            {
+              "x": 30,
+              "y": 106,
+              "z": -1
+            },
+            {
+              "x": 30,
+              "y": 106,
+              "z": 0
+            },
+            {
+              "x": 30,
+              "y": 106,
+              "z": 1
+            },
+            {
+              "x": 30,
+              "y": 106,
+              "z": 2
+            },
+            {
+              "x": 30,
+              "y": 106,
+              "z": 3
+            },
+            {
+              "x": 31,
+              "y": 106,
+              "z": -1
+            },
+            {
+              "x": 31,
+              "y": 106,
+              "z": 0
+            },
+            {
+              "x": 31,
+              "y": 106,
+              "z": 1
+            },
+            {
+              "x": 31,
+              "y": 106,
+              "z": 2
+            },
+            {
+              "x": 31,
+              "y": 106,
+              "z": 3
+            },
+            {
+              "x": 32,
+              "y": 106,
+              "z": -1
+            },
+            {
+              "x": 32,
+              "y": 106,
+              "z": 0
+            },
+            {
+              "x": 32,
+              "y": 106,
+              "z": 1
+            },
+            {
+              "x": 32,
+              "y": 106,
+              "z": 2
+            },
+            {
+              "x": 32,
+              "y": 106,
+              "z": 3
+            }
+          ],
+          "end": null,
+          "radius": 2.0,
+          "dimension": "overworld"
+        },
+        {
+          "id": "rc_interior",
+          "description": "The interior remains clear at levels 104 and 105 beneath the roof",
+          "kind": "block",
+          "node_id": "",
+          "names": [
+            "air"
+          ],
+          "minimum": 1,
+          "position": null,
+          "positions": [
+            {
+              "x": 29,
+              "y": 104,
+              "z": 0
+            },
+            {
+              "x": 29,
+              "y": 104,
+              "z": 1
+            },
+            {
+              "x": 29,
+              "y": 104,
+              "z": 2
+            },
+            {
+              "x": 30,
+              "y": 104,
+              "z": 0
+            },
+            {
+              "x": 30,
+              "y": 104,
+              "z": 1
+            },
+            {
+              "x": 30,
+              "y": 104,
+              "z": 2
+            },
+            {
+              "x": 31,
+              "y": 104,
+              "z": 0
+            },
+            {
+              "x": 31,
+              "y": 104,
+              "z": 1
+            },
+            {
+              "x": 31,
+              "y": 104,
+              "z": 2
+            },
+            {
+              "x": 29,
+              "y": 105,
+              "z": 0
+            },
+            {
+              "x": 29,
+              "y": 105,
+              "z": 1
+            },
+            {
+              "x": 29,
+              "y": 105,
+              "z": 2
+            },
+            {
+              "x": 30,
+              "y": 105,
+              "z": 0
+            },
+            {
+              "x": 30,
+              "y": 105,
+              "z": 1
+            },
+            {
+              "x": 30,
+              "y": 105,
+              "z": 2
+            },
+            {
+              "x": 31,
+              "y": 105,
+              "z": 0
+            },
+            {
+              "x": 31,
+              "y": 105,
+              "z": 1
+            },
+            {
+              "x": 31,
+              "y": 105,
+              "z": 2
+            }
+          ],
+          "end": null,
+          "radius": 2.0,
+          "dimension": "overworld"
+        }
+      ],
+      "current_criterion_observations": {
+        "schema": "pm.minecraft-execution-observations.v1",
+        "identity": {
+          "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+          "tree_revision": 40,
+          "leaf_id": "roof_complete",
+          "spec_revision": 3,
+          "actor_attempt": "actor-0042",
+          "verifier_attempt": ""
+        },
+        "scope": "Current read-only predicates. Required actor effects, ordered travel, durable notes, and independent acceptance remain separate.",
+        "reads": [
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": -1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587007.38383,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "a4d77548f1a26d32bd19a8553d30675778d1e503c35e226aaa1235d367142bd7"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587007.6204093,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "fd897fbd1ccde89aca33563bf77ec0abd651c0bd915aa4fe7b1cec27b3967bc8"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587007.8224502,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "33f1dee7f56a1d6b196b3fd69474f656eff5492252d2e550e34e697c38293d77"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587008.0254858,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "dc85a7a62e40641865a5a71b9294cb5acd2ce26e7feea3ccae9248a5e33d548e"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 3
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587008.246031,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "0efbb3f574056b273d0c18493d34b9a37fe86be9dc9d163b05fc23bd391e9e46"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": -1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587008.4595625,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "18c44bb3391ffdece2899bdc4eca3d3178a682f91a40580bd963647a8977c67c"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587008.739629,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "3dab0e34b3f89476ab9c28e09d4d4a0f9d2c1a3c07bc6d4cdff79263dd85e2d9"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587008.958664,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "784a52a499f6b03c7fe3fa32b355c9c5a6b7ecec5abb49da1e18329c5a39cc87"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587009.176728,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "0311f88121be474fd8785f80ab34e14c3fba45e0f67d8e6698371b81299950b2"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 3
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587009.3607657,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "0b330bd4b2d456e10d30c768ac0b6151f43f9bc14ddd8df1b641289b8073704d"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": -1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587009.5662966,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "92afa0c9e026e0a3b84b68b69f00b79e8828c67f26aff349e4ca5d051662e12b"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587009.7828603,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "caef4a6d84dee5d8b448dd47b00dfd38efb16c85d7ac6f72fef81575ed969bb5"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587010.0389173,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "d4b7e5d13691b185ec9c55e0d02d54b22bdb15ab370bcc1d21060a9e113ba3b5"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587010.2664742,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "d312d90a06e18ba996bd3a1a7d11b642805f3c702b1559229a79f99955c1ceee"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 3
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587010.4575126,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "6c39aafec93c6add95ab8d26e991368e1e7ae5c5ff1b21a9785b0caf80c416f8"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": -1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587010.708574,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "099d00544c270924c4cbb3d25055fe851536c3146d80f45e7ef29f17ee5830cd"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587010.890605,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "b6cb4183c70360198a47f809d84e26688c5262bc190967b0a2617369c8223793"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587011.1201518,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "878bc3f62a15e3d0ec55dc20a19fb70596815f7cd99c9e47576d5c57b23c9e1f"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587011.3637502,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "6062cba9dadc0b786b1f26f016ad5a506a9dc8c7e24ddf67c2e92908ce65ed6f"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 3
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587011.5522857,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "cbee25d4a6b80c81c61b3ffdf464abc1921313a96de18834a1458756518647a0"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": -1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587011.758817,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "e72a1e6380494f995a0b5c7de8e72857bc8ea5d495f4a83fbdeabe4855ce3222"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587011.9643552,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "33c6e08b84953ba9a0e13ad88e4c09d884239609e883eb3b61af330a9b37b58a"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587012.1733954,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "66eab6122b9282db0099d74aa307aaead645a90be9d08522cf1dfdf7f1f69c60"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587012.4259694,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "f48e3478a14c5189aa24a2c70ba1030633f24f7fef282654365945d83b164d1c"
+          },
+          {
+            "criterion_id": "rc_roof",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 3
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791587012.617009,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "reason": null
+            },
+            "original_digest": "3d8c747fbcb09f33443364a64ba894c540dabf99f28425386578434165dddb27"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 104,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587012.8275533,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 104,
+                "z": 0
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "11f70f2b7b7a1d3f88f2f0554578e0c22471a1943d6dd23ae92643130c889505"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 104,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587013.0410862,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 104,
+                "z": 1
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "f08dbd50ce836e5b6903e22a65a7a5dc70c91b06ec69302ac193fcc2e3705f33"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 104,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587013.2316232,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 104,
+                "z": 2
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "22b45dc661cd70e3cc633ffc5274393228408745e79547098abdaf104a5b6c0c"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 104,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587013.4141605,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 104,
+                "z": 0
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "a1a781b833feeaad16ebe953cc3b87c64036a3982939390830f2e6602389f9d6"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 104,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587013.611698,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 104,
+                "z": 1
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "c8c7ced93934a243426e1f6149a4514615ddc8cad5d87525d753fa0db65f052f"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 104,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587013.839741,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 104,
+                "z": 2
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "083dcbbee25559d98fb62a656a5a7e6d25189a5aeb0df645406e5405f58b7cd2"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 104,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587014.0812716,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 104,
+                "z": 0
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "038604b1f9f2e2c9f9b38363ec0dccce6e1216c0cc1eaeb3c413fb81e64bb7dd"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 104,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587014.326843,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 104,
+                "z": 1
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "226e3ff1b1784617424487b47e1925c5a89dcb4e1abd4ba222efa6595e5dabb8"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 104,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587014.5513804,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 104,
+                "z": 2
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "95c70fff76d9bd350b31e9e885c81061e4c01e4e86542bd8239d99eb0d365095"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587014.771414,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 0
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "223481554afa61981f882c99c4d4f65579ed8bbd8c84cff5e1d8df6949f24d2f"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587014.971471,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 1
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "fe38e160b7f3ac9e94cceec3479116bcbb82c99d4a2e78c876602cefd0b526ce"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587015.1795106,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 2
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "ecd05870cca4b7b3e94e4e892be22658205f93be363777c30ade7275443785b1"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587015.374068,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 0
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "ad3775a7484e936f85027b49760b5fc3c1fbba7b153238888625806a31c43d31"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587015.5740983,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 1
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "db67a1798ab1ca738a8696f5e717e7e91787e5c88163da49b305fa0aa3781368"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587015.7556403,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 2
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "80d1b76157b244b6a272507b95f2a25840ba9a3c1704f585262dbd6d797a8f9e"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 0
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587016.079202,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 0
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "098f52e316013cff92d76b79f932e6442b2531826194e2acc0139441b4d17bd7"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587016.259733,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 1
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "5d526c328fed9b27a5d74d4c7cc8b40b6671be288d6962c3ef6c48e90c70bebe"
+          },
+          {
+            "criterion_id": "rc_interior",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 2
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791587016.474287,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 2
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "reason": "not_found"
+            },
+            "original_digest": "53e75b948864abeb00805ab70cf4a712a4c9c44211c38070b2174208ed02b9d0"
+          }
+        ],
+        "checks": {
+          "rc_roof": true,
+          "rc_interior": true
+        },
+        "original_receipt": "inbox/criterion-observations.json",
+        "original_digest": "89bbb552f6912b1356f7647a011b1af5fdc3f7e85b731aed08afbc1cb95ad630"
+      }
+    }
+  },
+  "full_observations": {
+    "schema": "pm.minecraft-execution-observations.v1",
+    "identity": {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 40,
+      "leaf_id": "roof_complete",
+      "spec_revision": 3,
+      "actor_attempt": "actor-0042",
+      "verifier_attempt": ""
+    },
+    "scope": "Current read-only predicates. Required actor effects, ordered travel, durable notes, and independent acceptance remain separate.",
+    "reads": [
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": -1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": -1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "north",
+            "west",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": -2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 27,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 28,
+                "y": 107,
+                "z": -1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 28,
+                "y": 105,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587007.38383,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": 0
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "west",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 27,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 28,
+                "y": 107,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 28,
+                "y": 105,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587007.6204093,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": 1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "west",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 27,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 28,
+                "y": 107,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 28,
+                "y": 105,
+                "z": 1
+              },
+              "block_name": "birch_door",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587007.8224502,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": 2
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "west",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 27,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 28,
+                "y": 107,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 28,
+                "y": 105,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587008.0254858,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": 3
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 28,
+            "y": 106,
+            "z": 3
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "south",
+            "west",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 4
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 27,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 28,
+                "y": 107,
+                "z": 3
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 28,
+                "y": 105,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587008.246031,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": -1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": -1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "north",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": -2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 29,
+                "y": 107,
+                "z": -1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587008.4595625,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": 0
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "up",
+            "down"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 29,
+                "y": 107,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587008.739629,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": 1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "up",
+            "down"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 29,
+                "y": 107,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587008.958664,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": 2
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "up",
+            "down"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 29,
+                "y": 107,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587009.176728,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": 3
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 29,
+            "y": 106,
+            "z": 3
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "south",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 4
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 28,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 29,
+                "y": 107,
+                "z": 3
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 29,
+                "y": 105,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587009.3607657,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": -1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": -1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "north",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": -2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 30,
+                "y": 107,
+                "z": -1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587009.5662966,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": 0
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "up",
+            "down"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 30,
+                "y": 107,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587009.7828603,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": 1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "up",
+            "down"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 30,
+                "y": 107,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587010.0389173,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": 2
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "up",
+            "down"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 30,
+                "y": 107,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587010.2664742,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": 3
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 30,
+            "y": 106,
+            "z": 3
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "south",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 4
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 29,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 30,
+                "y": 107,
+                "z": 3
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 30,
+                "y": 105,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587010.4575126,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": -1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": -1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "north",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": -2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 31,
+                "y": 107,
+                "z": -1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587010.708574,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": 0
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "up",
+            "down"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 31,
+                "y": 107,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587010.890605,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": 1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "up",
+            "down"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 31,
+                "y": 107,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587011.1201518,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": 2
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "up",
+            "down"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 31,
+                "y": 107,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587011.3637502,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": 3
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 31,
+            "y": 106,
+            "z": 3
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "south",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 4
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 30,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 31,
+                "y": 107,
+                "z": 3
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 31,
+                "y": 105,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587011.5522857,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": -1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": -1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "north",
+            "east",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": -2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 33,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 32,
+                "y": 107,
+                "z": -1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 32,
+                "y": 105,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587011.758817,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": 0
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "east",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": -1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 33,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 32,
+                "y": 107,
+                "z": 0
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 32,
+                "y": 105,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587011.9643552,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": 1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "east",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 33,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 32,
+                "y": 107,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 32,
+                "y": 105,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587012.1733954,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": 2
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "east",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 33,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 32,
+                "y": 107,
+                "z": 2
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 32,
+                "y": 105,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587012.4259694,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_roof",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": 3
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 32,
+            "y": 106,
+            "z": 3
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "is_solid": true,
+          "exposed_faces": [
+            "south",
+            "east",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 32,
+                "y": 106,
+                "z": 4
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 33,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 31,
+                "y": 106,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 32,
+                "y": 107,
+                "z": 3
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 32,
+                "y": 105,
+                "z": 3
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "ok": true,
+        "time": 1791587012.617009,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 104,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 29, 104, 0.",
+          "position": {
+            "x": 29,
+            "y": 104,
+            "z": 0
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587012.8275533,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 104,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 29, 104, 1.",
+          "position": {
+            "x": 29,
+            "y": 104,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587013.0410862,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 104,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 29, 104, 2.",
+          "position": {
+            "x": 29,
+            "y": 104,
+            "z": 2
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587013.2316232,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 30, 104, 0.",
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 0
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587013.4141605,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 30, 104, 1.",
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587013.611698,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 30, 104, 2.",
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 2
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587013.839741,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 104,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 31, 104, 0.",
+          "position": {
+            "x": 31,
+            "y": 104,
+            "z": 0
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587014.0812716,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 104,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 31, 104, 1.",
+          "position": {
+            "x": 31,
+            "y": 104,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587014.326843,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 104,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 31, 104, 2.",
+          "position": {
+            "x": 31,
+            "y": 104,
+            "z": 2
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587014.5513804,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 105,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 29, 105, 0.",
+          "position": {
+            "x": 29,
+            "y": 105,
+            "z": 0
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587014.771414,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 105,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 29, 105, 1.",
+          "position": {
+            "x": 29,
+            "y": 105,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587014.971471,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 105,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 29, 105, 2.",
+          "position": {
+            "x": 29,
+            "y": 105,
+            "z": 2
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587015.1795106,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 105,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 30, 105, 0.",
+          "position": {
+            "x": 30,
+            "y": 105,
+            "z": 0
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587015.374068,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 105,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 30, 105, 1.",
+          "position": {
+            "x": 30,
+            "y": 105,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587015.5740983,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 105,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 30, 105, 2.",
+          "position": {
+            "x": 30,
+            "y": 105,
+            "z": 2
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587015.7556403,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 105,
+            "z": 0
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 31, 105, 0.",
+          "position": {
+            "x": 31,
+            "y": 105,
+            "z": 0
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587016.079202,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 105,
+            "z": 1
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 31, 105, 1.",
+          "position": {
+            "x": 31,
+            "y": 105,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587016.259733,
+        "observed_dimension": "overworld"
+      },
+      {
+        "criterion_id": "rc_interior",
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 105,
+            "z": 2
+          },
+          "include_image": false
+        },
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 31, 105, 2.",
+          "position": {
+            "x": 31,
+            "y": 105,
+            "z": 2
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "ok": false,
+        "time": 1791587016.474287,
+        "observed_dimension": "overworld"
+      }
+    ],
+    "checks": {
+      "rc_roof": true,
+      "rc_interior": true
+    }
+  },
+  "last_results": [
+    {
+      "seq": 885,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "include_image": false,
+        "position": {
+          "x": 28,
+          "y": 106,
+          "z": -1
+        }
+      },
+      "revision": 0,
+      "time": 1791590484.9642425,
+      "epoch": 188,
+      "session": "12cb74820b2e4f60ba6325084530d228",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 28,
+          "y": 106,
+          "z": -1
+        },
+        "block_name": "birch_planks",
+        "display_name": "Birch Planks",
+        "is_solid": true,
+        "exposed_faces": [
+          "north",
+          "west",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 28,
+              "y": 106,
+              "z": -2
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 28,
+              "y": 106,
+              "z": 0
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 29,
+              "y": 106,
+              "z": -1
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 27,
+              "y": 106,
+              "z": -1
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 28,
+              "y": 107,
+              "z": -1
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 28,
+              "y": 105,
+              "z": -1
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          }
+        ],
+        "best_tools": [
+          "golden_axe",
+          "netherite_axe",
+          "diamond_axe",
+          "iron_axe",
+          "stone_axe",
+          "wooden_axe"
+        ],
+        "can_harvest_with_held": true,
+        "drops": [
+          "birch_planks"
+        ],
+        "hardness": 2.0,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 886,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "include_image": false,
+        "position": {
+          "x": 32,
+          "y": 106,
+          "z": 3
+        }
+      },
+      "revision": 0,
+      "time": 1791590490.6899266,
+      "epoch": 188,
+      "session": "12cb74820b2e4f60ba6325084530d228",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 32,
+          "y": 106,
+          "z": 3
+        },
+        "block_name": "birch_planks",
+        "display_name": "Birch Planks",
+        "is_solid": true,
+        "exposed_faces": [
+          "south",
+          "east",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 32,
+              "y": 106,
+              "z": 2
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 32,
+              "y": 106,
+              "z": 4
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 33,
+              "y": 106,
+              "z": 3
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 31,
+              "y": 106,
+              "z": 3
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 32,
+              "y": 107,
+              "z": 3
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 32,
+              "y": 105,
+              "z": 3
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          }
+        ],
+        "best_tools": [
+          "golden_axe",
+          "netherite_axe",
+          "diamond_axe",
+          "iron_axe",
+          "stone_axe",
+          "wooden_axe"
+        ],
+        "can_harvest_with_held": true,
+        "drops": [
+          "birch_planks"
+        ],
+        "hardness": 2.0,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 887,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "include_image": false,
+        "position": {
+          "x": 29,
+          "y": 104,
+          "z": 0
+        }
+      },
+      "revision": 0,
+      "time": 1791590495.6094491,
+      "epoch": 188,
+      "session": "12cb74820b2e4f60ba6325084530d228",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 29, 104, 0.",
+        "position": {
+          "x": 29,
+          "y": 104,
+          "z": 0
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 888,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "include_image": false,
+        "position": {
+          "x": 31,
+          "y": 105,
+          "z": 2
+        }
+      },
+      "revision": 0,
+      "time": 1791590501.3102293,
+      "epoch": 188,
+      "session": "12cb74820b2e4f60ba6325084530d228",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 31, 105, 2.",
+        "position": {
+          "x": 31,
+          "y": 105,
+          "z": 2
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    }
+  ],
+  "native_generation": {
+    "model": "qwen/qwen3.8-flash",
+    "parallel_tool_calls": false,
+    "stream": false,
+    "tool_choice": "auto",
+    "reasoning": {
+      "enabled": false
+    }
+  },
+  "completed_calls": 888,
+  "sources": [
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0042\\inbox\\request.yaml",
+      "sha256": "80f3223745f1ec9c1f35945d09c9aa749ec9b270c7dd8901ee8184fab9cfd5c4"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0042\\inbox\\criterion-observations.json",
+      "sha256": "1a150f8f2b04e51c64d599e0a300c6887c8b225d5231fae8b014683312b814ac"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0042\\scratch\\actor-journal.jsonl",
+      "sha256": "f2eb4b0028407478782cbe90e2485c010cce174320db079c28b00b303eb8b6d0"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\kernel-children\\kernel\\ad5f4b4094a14bf6bcfe9caeead2770a-actor-0042\\actor-agent\\ad5f4b4094a14bf6bcfe9caeead2770a-actor-0042-actor_1\\turn_W0KI6X_ac_0_agent_20261010_020136_958232_808.json",
+      "sha256": "297f962f85e8a679b7603dc1475dffe2c2b4f44375ef51025807e410435b0249"
+    }
+  ]
+}

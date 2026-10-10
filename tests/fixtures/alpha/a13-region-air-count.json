@@ -1,0 +1,305 @@
+{
+  "scope": "Actual failed independent site verification. Counter tests can project a condition accepting all air variants; that projection is not native completion or an M3 pass.",
+  "sources": {
+    "verification": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\verification\\verifier-0070-site_survey.json",
+      "sha256": "039afbd61db4cfd5aec3ddb0b6f2a02d5fcc960ccd56c574afff5ce9d443ec9c"
+    },
+    "specification": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\planning\\specs\\0010.json",
+      "sha256": "66b067980b2ffdbeb3a20e55ea1853a7180f8f10b547fa5b7a6641259fd7113b"
+    }
+  },
+  "documents": {
+    "node": {
+      "id": "site_survey",
+      "revision": 5,
+      "kind": "leaf",
+      "parent": "wooden_home_iron_pickaxe",
+      "children": [],
+      "depends_on": [
+        "prep_wood",
+        "stone_pickaxe"
+      ],
+      "instruction": "Survey a stable nearby site for a modest 5 by 5 outer wooden house with a clear interior and a door approach. Verify the foundation support and air clearance at the proposed site.",
+      "specialist": "navigator",
+      "deferred": false,
+      "defer_reason": "",
+      "criteria": [
+        {
+          "id": "ss_foundation",
+          "description": "The foundation support layer at Y=102 beneath the 5x5 house footprint has sufficient solid ground",
+          "kind": "region",
+          "node_id": "",
+          "names": [
+            "grass_block",
+            "dirt",
+            "stone"
+          ],
+          "minimum": 15,
+          "position": {
+            "x": 28,
+            "y": 102,
+            "z": -1
+          },
+          "positions": [],
+          "end": {
+            "x": 32,
+            "y": 102,
+            "z": 3
+          },
+          "radius": 2.0,
+          "dimension": "overworld"
+        },
+        {
+          "id": "ss_air_clear",
+          "description": "The air volume above the proposed floor at Y=103 through Y=106 is clear for walls and roof",
+          "kind": "region",
+          "node_id": "",
+          "names": [
+            "air"
+          ],
+          "minimum": 60,
+          "position": {
+            "x": 28,
+            "y": 104,
+            "z": -1
+          },
+          "positions": [],
+          "end": {
+            "x": 32,
+            "y": 106,
+            "z": 3
+          },
+          "radius": 2.0,
+          "dimension": "overworld"
+        },
+        {
+          "id": "ss_approach_air",
+          "description": "The door approach cells at (27,104,1) and (27,105,1) are clear air",
+          "kind": "block",
+          "node_id": "",
+          "names": [
+            "air"
+          ],
+          "minimum": 1,
+          "position": null,
+          "positions": [
+            {
+              "x": 27,
+              "y": 104,
+              "z": 1
+            },
+            {
+              "x": 27,
+              "y": 105,
+              "z": 1
+            }
+          ],
+          "end": null,
+          "radius": 2.0,
+          "dimension": "overworld"
+        }
+      ],
+      "assumptions": []
+    },
+    "verification": {
+      "schema": "pm.minecraft-leaf-verification.v1",
+      "identity": {
+        "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+        "tree_revision": 10,
+        "leaf_id": "site_survey",
+        "spec_revision": 5,
+        "actor_attempt": "actor-0009",
+        "verifier_attempt": "verifier-0070-site_survey"
+      },
+      "verified": false,
+      "reads": [
+        {
+          "criterion_id": "ss_foundation",
+          "tool": "minecraft_analyze_area",
+          "arguments": {
+            "start": {
+              "x": 28,
+              "y": 102,
+              "z": -1
+            },
+            "end": {
+              "x": 32,
+              "y": 102,
+              "z": 3
+            }
+          },
+          "result": {
+            "warnings": [],
+            "ok": true,
+            "reason": null,
+            "message": null,
+            "bounds": {
+              "min": {
+                "x": 28,
+                "y": 102,
+                "z": -1
+              },
+              "max": {
+                "x": 32,
+                "y": 102,
+                "z": 3
+              }
+            },
+            "blocks": [
+              {
+                "block_name": "grass_block",
+                "display_name": "Grass Block",
+                "count": 14
+              },
+              {
+                "block_name": "dirt",
+                "display_name": "Dirt",
+                "count": 9
+              }
+            ],
+            "total_cells": 25,
+            "solid_cells": 23,
+            "air_cells": 1,
+            "unseen_cells": 1,
+            "entities": []
+          },
+          "ok": true,
+          "time": 1791488683.6374753,
+          "observed_dimension": "overworld"
+        },
+        {
+          "criterion_id": "ss_air_clear",
+          "tool": "minecraft_analyze_area",
+          "arguments": {
+            "start": {
+              "x": 28,
+              "y": 104,
+              "z": -1
+            },
+            "end": {
+              "x": 32,
+              "y": 106,
+              "z": 3
+            }
+          },
+          "result": {
+            "warnings": [],
+            "ok": true,
+            "reason": null,
+            "message": null,
+            "bounds": {
+              "min": {
+                "x": 28,
+                "y": 104,
+                "z": -1
+              },
+              "max": {
+                "x": 32,
+                "y": 106,
+                "z": 3
+              }
+            },
+            "blocks": [],
+            "total_cells": 75,
+            "solid_cells": 0,
+            "air_cells": 75,
+            "unseen_cells": 0,
+            "entities": []
+          },
+          "ok": true,
+          "time": 1791488683.872939,
+          "observed_dimension": "overworld"
+        },
+        {
+          "criterion_id": "ss_approach_air",
+          "tool": "minecraft_inspect_block",
+          "arguments": {
+            "position": {
+              "x": 27,
+              "y": 104,
+              "z": 1
+            },
+            "include_image": false
+          },
+          "result": {
+            "warnings": [],
+            "ok": false,
+            "reason": "not_found",
+            "message": "No block exists at 27, 104, 1.",
+            "position": {
+              "x": 27,
+              "y": 104,
+              "z": 1
+            },
+            "block_name": "air",
+            "display_name": "Air",
+            "is_solid": false,
+            "exposed_faces": [],
+            "neighbors": [],
+            "best_tools": [],
+            "can_harvest_with_held": null,
+            "drops": [],
+            "hardness": null,
+            "image": null
+          },
+          "ok": false,
+          "time": 1791488684.132509,
+          "observed_dimension": "overworld"
+        },
+        {
+          "criterion_id": "ss_approach_air",
+          "tool": "minecraft_inspect_block",
+          "arguments": {
+            "position": {
+              "x": 27,
+              "y": 105,
+              "z": 1
+            },
+            "include_image": false
+          },
+          "result": {
+            "warnings": [],
+            "ok": false,
+            "reason": "not_found",
+            "message": "No block exists at 27, 105, 1.",
+            "position": {
+              "x": 27,
+              "y": 105,
+              "z": 1
+            },
+            "block_name": "air",
+            "display_name": "Air",
+            "is_solid": false,
+            "exposed_faces": [],
+            "neighbors": [],
+            "best_tools": [],
+            "can_harvest_with_held": null,
+            "drops": [],
+            "hardness": null,
+            "image": null
+          },
+          "ok": false,
+          "time": 1791488684.3334417,
+          "observed_dimension": "overworld"
+        }
+      ],
+      "checks": {
+        "ss_foundation": false,
+        "ss_air_clear": false,
+        "ss_approach_air": true
+      },
+      "review": {
+        "status": "replan",
+        "summary": "The foundation support layer at Y=102 beneath the 5x5 house footprint has only 23 solid blocks (14 grass_block, 9 dirt), which is below the required minimum of 15 solid blocks. The air volume above the proposed floor at Y=103 through Y=106 is clear, but the foundation support is insufficient. The door approach cells at (27,104,1) and (27,105,1) are clear air. The site is not suitable for a 5x5 wooden house due to insufficient foundation support.",
+        "criterion_ids": [
+          "ss_foundation",
+          "ss_air_clear",
+          "ss_approach_air"
+        ]
+      },
+      "outcome": "unmet_completion_conditions"
+    }
+  }
+}

@@ -9,7 +9,8 @@ from pathlib import Path
 from pm_workflows.python_role import RoleContext
 
 from runtime.body_lease import BODY_LEASES
-from workflows.minecraft_tasks.schemas import Condition
+from workflows.minecraft_tasks.schemas import Condition, Node
+from workflows.minecraft_tasks.tree import TreeStore
 
 
 def observe_conditions(context: RoleContext, conditions: list[Condition]) -> list[dict]:
@@ -53,7 +54,7 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
                               "result": reply["result"], "ok": reply["ok"], "time": time.time(),
                               "observed_dimension": observed_dimension})
             continue
-        if condition.kind in {"inventory", "position", "alive"}:
+        if condition.kind in {"inventory", "position", "alive", "food", "health"}:
             tool, arguments = "minecraft_observe", {"include_image": False}
         elif condition.kind == "block":
             tool, arguments = "minecraft_inspect_block", {"position": condition.position.model_dump(), "include_image": False}
@@ -104,6 +105,12 @@ def evaluate(conditions: list[Condition], reads: list[dict], *, certificates: di
             passed = count >= condition.minimum
         elif condition.kind == "alive" and row["tool"] == "minecraft_observe" and row["ok"]:
             passed = data.get("player", {}).get("health", 0) > 0
+        elif condition.kind in {"food", "health"} and row["tool"] == "minecraft_observe" and row["ok"]:
+            player = data.get("player", {})
+            value = player.get(condition.kind)
+            passed = (isinstance(value, (int, float)) and not isinstance(value, bool)
+                      and condition.minimum <= value <= 20
+                      and player.get("dimension") == condition.dimension)
         elif condition.kind == "position" and row["tool"] == "minecraft_observe" and row["ok"]:
             point = data.get("camera", {}).get("feet_position")
             passed = bool(point) and data["player"]["dimension"] == condition.dimension and math.dist(
@@ -117,15 +124,58 @@ def evaluate(conditions: list[Condition], reads: list[dict], *, certificates: di
         elif condition.kind == "region" and row["tool"] == "minecraft_analyze_area" and row["ok"]:
             start, end = condition.position.model_dump(), condition.end.model_dump()
             volume = math.prod(abs(start[axis] - end[axis]) + 1 for axis in start)
-            count = sum(block["count"] for block in data.get("blocks", []) if block["block_name"] in condition.names)
+            # The MCP omits empty cells from blocks and combines all three
+            # air variants in air_cells. That count cannot prove one variant.
+            air_names = {"air", "cave_air", "void_air"}
+            aggregate_air = air_names.issubset(condition.names)
+            count = sum(block["count"] for block in data.get("blocks", [])
+                        if block["block_name"] in condition.names
+                        and not (aggregate_air and block["block_name"] in air_names))
+            air_cells = data.get("air_cells")
+            air_known = not aggregate_air or type(air_cells) is int and 0 <= air_cells <= volume
+            if aggregate_air and air_known:
+                count += air_cells
             bounds = {"min": {axis: min(start[axis], end[axis]) for axis in start},
                       "max": {axis: max(start[axis], end[axis]) for axis in start}}
-            passed = (row["arguments"] == {"start": start, "end": end} and data.get("unseen_cells") == 0
+            passed = (air_known and row["arguments"] == {"start": start, "end": end} and data.get("unseen_cells") == 0
                       and data.get("bounds") == bounds and data.get("total_cells") == volume and count >= condition.minimum)
         if condition.kind in {"block", "region"}:
             passed = passed and row.get("observed_dimension") == condition.dimension
         checks[condition.id] = bool(passed)
     return checks
+
+
+def accepted_actor_matches(store: TreeStore, node: Node, report: dict) -> bool:
+    """Bind retained actor calls to their original acceptance identity.
+
+    Exact specification content and unchanged files must pass ``store.valid``.
+    Native restoration can change the current revision counter without changing
+    that content. The original certificate owns the actor's revision counters.
+    This function sends no world calls and changes no evidence.
+    """
+    if not store.valid(node.id):
+        return False
+    identity = store.state["acceptances"][node.id]["identity"]
+    if report["identity"] != identity:
+        return False
+    actor = next((attempt for attempt in store.state["attempts"]
+                  if attempt["id"] == identity["actor_attempt"]), None)
+    if (actor is None or actor["leaf_id"] != node.id
+            or actor["spec_revision"] != identity["spec_revision"]
+            or actor["tree_revision"] != identity["tree_revision"]):
+        return False
+    import yaml
+    outcome = yaml.safe_load(store.path_for(actor["report"]).read_text(encoding="utf-8"))
+    rows = [json.loads(line) for line in store.path_for(actor["journal"]).read_text(encoding="utf-8").splitlines()]
+    dispatches = {row["seq"]: row for row in rows if row["event"] == "dispatch"}
+    results = [row for row in rows if row["event"] == "result"]
+    reference = outcome.get("task_reference", {})
+    return (outcome["outcome"]["status"] == "complete" and bool(results)
+            and all(reference.get(key) == identity[key]
+                    for key in ("task_id", "tree_revision", "leaf_id", "spec_revision", "actor_attempt"))
+            and len(dispatches) == len(results) and len({row["seq"] for row in results}) == len(results)
+            and all(row["seq"] in dispatches and dispatches[row["seq"]]["tool"] == row["tool"]
+                    and dispatches[row["seq"]]["arguments"] == row["arguments"] for row in results))
 
 
 def verified_project(root: Path) -> dict:
@@ -134,7 +184,6 @@ def verified_project(root: Path) -> dict:
     This establishes verified attainment at the recorded time. Current world
     truth requires a new observation. Changed files invalidate the claim.
     """
-    from workflows.minecraft_tasks.tree import TreeStore
     store = TreeStore(root)
     if not store.state["revision"]:
         return {"verified": False, "reason": "No durable task specification."}
@@ -150,22 +199,7 @@ def verified_project(root: Path) -> dict:
         if (not checks or not all(checks.values()) or report["review"]["status"] != "accepted"
             or set(report["review"]["criterion_ids"]) != {row.id for row in node.criteria}):
             return {"verified": False, "reason": "Independent observations do not meet acceptance."}
-        if node.kind == "leaf":
-            actor = next((attempt for attempt in store.state["attempts"] if attempt["id"] == report["identity"]["actor_attempt"]), None)
-            if actor is None or actor["leaf_id"] != node.id or actor["spec_revision"] != node.revision:
-                return {"verified": False, "reason": "The verifier names a different actor attempt."}
-            import yaml
-            outcome = yaml.safe_load(store.path_for(actor["report"]).read_text(encoding="utf-8"))
-            rows = [json.loads(line) for line in store.path_for(actor["journal"]).read_text(encoding="utf-8").splitlines()]
-            dispatches = {row["seq"]: row for row in rows if row["event"] == "dispatch"}
-            results = [row for row in rows if row["event"] == "result"]
-            reference = outcome.get("task_reference", {})
-            if (outcome["outcome"]["status"] != "complete" or not results
-                or reference.get("leaf_id") != node.id or reference.get("spec_revision") != node.revision
-                or reference.get("actor_attempt") != actor["id"]
-                or len(dispatches) != len(results) or len({row["seq"] for row in results}) != len(results)
-                or any(row["seq"] not in dispatches or dispatches[row["seq"]]["tool"] != row["tool"]
-                       or dispatches[row["seq"]]["arguments"] != row["arguments"] for row in results)):
-                return {"verified": False, "reason": "Original actor calls do not support this completion candidate."}
+        if node.kind == "leaf" and not accepted_actor_matches(store, node, report):
+            return {"verified": False, "reason": "Original actor calls do not support this completion candidate."}
     return {"verified": True, "goal_id": tree.goal_id, "tree_revision": tree.revision,
             "accepted_nodes": list(store.state["acceptances"]), "scope": "retained independent world observations"}

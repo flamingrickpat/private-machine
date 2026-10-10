@@ -11,6 +11,8 @@ An accepted_task read cites a retained independent certificate. Its source speci
 Require the cited source outcome to establish the selected criterion. It cannot establish unchanged current inventory or position.
 Do not use an actor's summary as proof.
 A region histogram counts currently visible blocks, not past harvesting locations.
+The separate air_cells count combines air, cave_air, and void_air. A region must accept all three to use that count.
+Exact air variants need block conditions. Region acceptance requires unseen_cells zero.
 Do not infer an actor's route from differences between inventory and remaining region counts.
 Unseen cells establish incomplete coverage, not proof that the actor harvested elsewhere.
 The mechanical gate must pass every criterion before acceptance.

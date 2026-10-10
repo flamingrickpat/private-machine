@@ -10,6 +10,7 @@ Specifications, attempts, and verification receipts remain separate.
 
 Parent: [managed work](managed-work.md).
 Related: [sustained actor](minecraft-actor.md), [task evidence](minecraft-task-evidence.md), and [A11 verification](minecraft-task-verification.md).
+Gameplay failures use [retained method history and recovery priority](gameplay-recovery.md).
 
 ## Place in the system
 
@@ -118,7 +119,9 @@ It does not require Laya.
 Planner, reviewer, and verifier calls disable hidden thinking, like native actor sessions and cognitive action selection.
 Each decision retains that generation setting beside its exact messages.
 There is no output-token cap that could truncate a specification or verdict.
-Direct decisions receive one scoped snapshot with an explicit 120,000-character input budget.
+Direct decisions receive one snapshot with a token budget derived from the actual serving context.
+`context_input_fraction` reserves response space; there is no character limit.
+See [context measurement](llm-context.md#direct-project-decisions-use-token-percentages).
 Planner snapshots omit fields whose defaults the supplied schema defines.
 That tree representation restores the exact full specification through schema validation.
 Malformed model output stays intact as repair input; it cannot become an accepted tree.
@@ -171,7 +174,19 @@ The existing actor cleanup waits before releasing body ownership.
 
 A11 persists plans and evidence but does not automatically resume interrupted world actions.
 The supervisor records an interrupted run after restart.
-Cross-process ownership, epochs, and interruption recovery remain A12 work.
+The delivered [A12 recovery](body-recovery.md) provides explicit resume, shared ownership, epochs, and fresh observation.
+The [A13 implementation](gameplay-recovery.md) retains unsuccessful methods, local searches, and recovery across actor attempts.
+Its real acceptance remains [pending](gameplay-verification.md).
+
+Callers can configure optional `minecraft_plan_constraints` and `minecraft_project_check` callbacks through the workflow tool factory and explicit role grants.
+The plan callback receives the proposed tree before the ordinary world survey and independent model review.
+Its recorded errors request native specification repair and clear cached review approval.
+The completion callback runs after all independent certificates pass, before publication and instruction closure.
+Its recorded errors require a concrete leaf change; existing certificates and world effects remain retained.
+Both callbacks return an `errors` list and cannot grant acceptance.
+The M3 runner saves a fresh manifest copy with each additional grant and records both manifest digests.
+Projects without these callbacks retain their existing generic behavior.
+The [M3 procedure](gameplay-m3-verification.md) describes the scenario contracts and original evidence checks.
 
 ## Go deeper
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import math
 import os
 import threading
 import time
@@ -11,9 +12,11 @@ from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.tools import Tool, ToolResult
+from jsonschema.validators import validator_for
 from pydantic import Field
 
 from runtime.body_lease import BODY_LEASES, StaleEpoch
+from runtime.minecraft_outcomes import GameplayEvidence
 
 # These tools do not move or rotate the body. Horizon scans do rotate it.
 READ_TOOLS = frozenset({
@@ -24,6 +27,69 @@ READ_TOOLS = frozenset({
     "minecraft_screenshot", "minecraft_analyze_area", "minecraft_find_path",
     "minecraft_is_safe_to_dig", "minecraft_recall",
 })
+
+
+def uncertain_world_effects(history: list[dict]) -> list[dict]:
+    """Select unresolved mutations from every retained actor, without replay.
+
+    Keep exact dispatch operands and source identity in the opening context.
+    Native furnace placements are historical candidates, not current contents.
+    A later explicit collection with matching slot accounting reconciles that
+    old batch. Inventory absence alone cannot establish lost container input.
+    """
+    entries = {(source["source"], row.get("seq"), row.get("event")): row
+               for source in history for row in source["calls"]
+               if row.get("event") in {"dispatch", "result", "uncertain"}}
+    rows = sorted(((source, row) for (source, _, _), row in entries.items()), key=lambda entry: entry[1].get("time", 0))
+    furnaces, pending = [], {}
+    for source, row in rows:
+        key = (source, row.get("seq"))
+        if row["event"] == "dispatch" and row["tool"] not in READ_TOOLS:
+            if (source, row["seq"], "result") not in entries:
+                pending[key] = {"source": source, "seq": row["seq"], "tool": row["tool"],
+                    "arguments": row["arguments"], "time": row.get("time"),
+                    "candidate_furnaces": list(furnaces) if row["tool"] == "minecraft_smelt_item" else []}
+        elif row["event"] == "result":
+            data = row["result"]
+            if row["tool"] == "minecraft_build" and row["ok"]:
+                furnaces.extend({"source": source, "seq": row["seq"], "position": cell["position"]}
+                                for cell in data.get("placed", []) if cell["block_name"] == "furnace")
+            if row["tool"] == "minecraft_smelt_item" and data.get("recovered_output"):
+                window, recovered = data.get("furnace_before") or {}, data["recovered_output"]
+                slots = {slot["slot"]: slot for slot in window.get("slots", [])}
+                raw, output = slots.get(0, {}), slots.get(2, {})
+                for old_key, action in list(pending.items()):
+                    if (action["tool"] == row["tool"] and action["arguments"].get("input") == data.get("input_item")
+                            and window.get("position") in [cell["position"] for cell in action["candidate_furnaces"]]
+                            and raw.get("item") == data.get("input_item") and output.get("item") == recovered.get("name")
+                            and output.get("count") == recovered.get("count")
+                            and raw.get("count", 0) + output.get("count", 0) == action["arguments"].get("input_count", 1)):
+                        del pending[old_key]
+    return sorted(pending.values(), key=lambda action: action.get("time") or 0, reverse=True)
+
+
+def canonical_actor_tool(name: str, allowed: set[str] | frozenset[str]) -> str:
+    """Bind a client's actor prefix to one admitted upstream tool.
+
+    The private client exposes minecraft_actor_<upstream name>. Permits use
+    the same upstream name as dispatch. Unknown names cannot mint a permit.
+    """
+    canonical = name.removeprefix("minecraft_actor_")
+    if canonical not in allowed:
+        raise ValueError(f"Unknown actor action {name!r}. Select an admitted Minecraft tool name.")
+    return canonical
+
+
+def argument_errors(schema: dict, arguments: dict) -> list[dict]:
+    """Validate operands against the actual upstream JSON schema.
+
+    Invalid operands have no external effects. The caller can correct them
+    without replaying an uncertain action or entering service recovery.
+    Schema defaults remain comparison facts; this function never inserts them.
+    """
+    validator = validator_for(schema)(schema)
+    return [{"path": error.json_path, "message": error.message}
+            for error in validator.iter_errors(arguments)]
 
 
 class ActorGateway:
@@ -52,6 +118,9 @@ class ActorGateway:
         if cancellation is not None:
             self.raw_tools.setdefault("managed_cancelled", cancellation)
         self.visual = visual
+        self.tool_schemas = raw_tools["minecraft_tool_schemas"]()
+        self._argument_schemas = {row["name"]: row["parameters"] for row in self.tool_schemas}
+        self._tool_names = frozenset(row["name"] for row in self.tool_schemas) - {"minecraft_execute_typescript", "minecraft_suicide"}
         self._lock = threading.Lock()
         self._journal_lock = threading.RLock()
         self.receipts: list[dict] = []
@@ -59,6 +128,10 @@ class ActorGateway:
         self.observed_epoch = False
         path = environment._path("scratch/actor-journal.jsonl")
         self.previous = read_actor_journal(path)
+        self.gameplay = GameplayEvidence(self.tool_schemas)
+        self.journal_source = str(path.resolve())
+        for row in self.previous:
+            self.gameplay.consume(row, self.journal_source)
         self.receipts = [row for row in self.previous if row.get("event") == "result"]
         self.sequence = max((row.get("seq", 0) for row in self.previous), default=0)
         self.revision = runtime.tools["managed_instructions"]()["revision"]
@@ -104,11 +177,24 @@ class ActorGateway:
                           "revision": self.revision, "instruction": current["instruction"], "time": time.time()})
             return {"ok": False, "reason": "instruction_changed", **current,
                     "message": "No action was sent. Choose again from the new instruction."}
+        errors = argument_errors(self._argument_schemas.get(name, {}), arguments)
+        if errors:
+            # Reject known contract errors before recording a dispatch. The
+            # upstream service cannot have changed the world through this call.
+            self._append({"event": "arguments_rejected", "tool": name, "arguments": arguments,
+                          "errors": errors, "time": time.time()})
+            return {"ok": False, "reason": "invalid_arguments", "errors": errors,
+                    "message": "No action was sent. Correct the operands using the live tool schema."}
         if name not in READ_TOOLS:
             if self.token is None:
                 raise StaleEpoch("This session does not own the Minecraft body.")
             if not self.observed_epoch:
                 raise StaleEpoch("A fresh observation must precede the first mutation in this epoch.")
+        rejected = self.gameplay.guard(name, arguments)
+        if rejected:
+            self._append({"event": "gameplay_rejected", "tool": name, "arguments": arguments,
+                          "reason": rejected["reason"], "time": time.time()})
+            return rejected
         self.runtime.check_cancelled()
         self.sequence += 1
         seq = self.sequence
@@ -168,12 +254,38 @@ class ActorGateway:
         self._append(receipt)
         if name == "minecraft_observe" and result["ok"]:
             self.observed_epoch = True
-        return {**result, "images": images, "instruction_revision": self.revision}
+        return {**result, "images": images, "instruction_revision": self.revision,
+                "journal_sequence": seq, "gameplay": {"outcome": next((row for row in reversed(self.gameplay.outcomes)
+                    if row["source"] == self.journal_source and row["seq"] == seq), None),
+                    "recovery": self.gameplay.recovery_guidance(),
+                    "failed_recovery": self.gameplay.current_failed_recovery(),
+                    "paused_methods": self.gameplay.paused_methods(name, arguments),
+                    "decision_evidence": "scratch/decision-evidence.json",
+                    "full_history": "scratch/gameplay-evidence.json"}}
 
     def _append(self, receipt: dict) -> None:
         """Serialize a complete journal append before exposing its result."""
         with self._journal_lock:
             self._write_receipt(receipt)
+            self.gameplay.consume(receipt, self.journal_source)
+            from runtime.body_lease import atomic_json
+            atomic_json(self.environment._path("scratch/gameplay-evidence.json"), self.gameplay.snapshot())
+            atomic_json(self.environment._path("scratch/decision-evidence.json"), self.gameplay.decision_snapshot())
+
+    def diagnose(self, diagnosis: str, evidence_sequences: list[int], next_tool: str,
+                 next_arguments: dict, recovery_action: bool = False) -> dict:
+        """Bind fresh diagnostic evidence to one concrete next action.
+
+        This private tool sends no world command. Recovery actions require an
+        explicit safety reason. The journal retains both failures and diagnosis.
+        """
+        with self._lock:
+            self.runtime.check_cancelled()
+            next_tool = canonical_actor_tool(next_tool, self._tool_names)
+            record = self.gameplay.diagnosis(diagnosis, evidence_sequences, next_tool, next_arguments, recovery_action)
+            self._append({**record, "time": time.time(), "revision": self.revision})
+            return {"ok": True, "permitted_action": {"tool": next_tool, "arguments": next_arguments},
+                    "recovery": self.gameplay.recovery_guidance(), "evidence": "scratch/gameplay-evidence.json"}
 
     def _write_receipt(self, receipt: dict) -> None:
         """Retain a torn append marker, then flush the next complete receipt."""
@@ -194,7 +306,7 @@ class ActorGateway:
             stream.flush()
             os.fsync(stream.fileno())
 
-    def reconcile(self, sources: list) -> dict:
+    def reconcile(self, sources: list, *, history_sources: list | None = None) -> dict:
         """Read uncertain target cells after the new epoch's body observation.
 
         Original dispatches and results remain separate evidence. A current
@@ -204,6 +316,15 @@ class ActorGateway:
         retained = [{"source": "scratch/actor-journal.jsonl", "calls": self.previous}]
         for path in sources:
             retained.append({"source": str(path), "calls": read_actor_journal(path)})
+        # Earlier actors share one history. Replay only evidence into this
+        # projection, then apply the replacement actor's fresh observations.
+        self.gameplay = GameplayEvidence(self.tool_schemas)
+        history = [{"source": str(path), "calls": read_actor_journal(path)} for path in (history_sources or sources)]
+        for source in history + [{"source": self.journal_source, "calls": read_actor_journal(
+                self.environment._path("scratch/actor-journal.jsonl"))}]:
+            for row in source["calls"]:
+                self.gameplay.consume(row, source["source"])
+        atomic_json(self.environment._path("scratch/gameplay-evidence.json"), self.gameplay.snapshot())
         pending, positions = [], {}
         for source in retained:
             rows = source["calls"]
@@ -214,16 +335,25 @@ class ActorGateway:
                 result = results.get(row["seq"])
                 pending.append({"source": source["source"], "dispatch": row,
                                 "result": result, "outcome": "recorded" if result else "uncertain"})
-                for key in ("position", "target", "base"):
+                for key in ("position", "target", "base", "chest"):
                     point = row.get("arguments", {}).get(key)
                     if isinstance(point, dict) and set(point) >= {"x", "y", "z"}:
+                        # Camera and movement targets use continuous coordinates.
+                        # Inspect their containing cells without changing history.
+                        point = target_block_cell(point)
                         positions[json.dumps(point, sort_keys=True)] = point
+        uncertain = uncertain_world_effects(history + retained)
+        for action in uncertain:
+            for furnace in action["candidate_furnaces"]:
+                point = target_block_cell(furnace["position"])
+                positions[json.dumps(point, sort_keys=True)] = point
         reads = [self.call("minecraft_inspect_block", {"position": point}) for point in positions.values()]
         if any(not observed_target(row, point) for row, point in zip(reads, positions.values())):
             raise RuntimeError("An interrupted action target could not be observed. Do not resume mutation.")
         receipt = {"schema": "pm.body-reconciliation.v1", "epoch": self.token["epoch"] if self.token else None,
                    "instruction_revision": self.revision, "observation_seq": next(
                        row["seq"] for row in reversed(self.receipts) if row["tool"] == "minecraft_observe"),
+                   "uncertain_world_effects": uncertain,
                    "retained_actions": pending, "target_reads": reads, "automatic_mutation_replay": False,
                    "time": time.time()}
         atomic_json(self.environment._path(f"scratch/reconciliation-{receipt['epoch']}.json"), receipt)
@@ -241,12 +371,23 @@ class ActorGateway:
 
     def server(self, schemas: list[dict]) -> FastMCP:
         """Expose the upstream argument schemas and a private boundary tool."""
+        self._tool_names = frozenset(row["name"] for row in schemas)
         server = FastMCP("minecraft_actor")
         for schema in schemas:
             server.add_tool(ActorTool(name=schema["name"], description=schema["description"],
                                       parameters=schema["parameters"], gateway=self))
         server.add_tool(Tool.from_function(self.boundary, name="actor_instructions"))
+        server.add_tool(Tool.from_function(self.diagnose, name="actor_diagnose"))
         return server
+
+
+def target_block_cell(point: dict) -> dict[str, int]:
+    """Map a world position to its containing integer block cell.
+
+    Floor each axis, including negative coordinates. Retained action operands
+    stay unchanged. Invalid or nonfinite coordinates fail before inspection.
+    """
+    return {axis: math.floor(point[axis]) for axis in ("x", "y", "z")}
 
 
 def observed_target(receipt: dict, point: dict) -> bool:

@@ -4,13 +4,14 @@ version = "0.10.1"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "pm-workflows>=0.7.1",
-    "pm-coder>=0.10.0",
+    "pm-coder @ git+https://github.com/flamingrickpat/pm-coder.git@main",
     "pydantic>=2.9,<3",
     "PyYAML>=6,<7",
     "fastmcp",
     "httpx>=0.27,<1",
+    "jsonschema>=4.26,<5",
+    "tiktoken>=0.14,<1",
 ]
 
 [tool.uv.sources]
-pm-workflows = { git = "https://github.com/flamingrickpat/pm-workflows.git", rev = "e3d05a35d84122030d6992afc5d168559435457c" }
-pm-coder = { git = "https://github.com/flamingrickpat/pm-coder.git", rev = "061170544037d323c376acac8d7c241ffacf2685" }
+pm-workflows = { git = "https://github.com/flamingrickpat/pm-workflows.git", branch = "main" }

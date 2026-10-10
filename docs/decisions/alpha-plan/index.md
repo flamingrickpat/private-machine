@@ -28,7 +28,11 @@ A11 supplies [durable Minecraft projects](../../subsystems/minecraft-tasks.md),
 [task evidence](../../subsystems/minecraft-task-evidence.md), and [verification](../../subsystems/minecraft-task-verification.md).
 A12 supplies [body recovery](../../subsystems/body-recovery.md), [durable publication](../../subsystems/recovery-publication.md),
 and [real interruption evidence](../../subsystems/body-recovery-verification.md).
-A13 through A20 remain pending.
+A13 implementation is delivered at the operator's request; its remaining behavioral acceptance is deferred.
+The best working state includes the completed house, self-crafted iron pickaxe, verified entry and exit, and saved home waypoint.
+The revised return-route gate and remaining fresh acceptance cases have no completion claim.
+A14 through A20 remain pending.
+A13's [gate review](../../subsystems/gameplay-task-gate-review.md) records the pending real acceptance and implemented workflow split.
 
 The LLM is the default for selection, classification, and interpretation.
 Laya was planned for frequent use, but A02 found poor interpretation quality.

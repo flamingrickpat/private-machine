@@ -1,0 +1,700 @@
+{
+  "sources": {
+    "water": ".runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+    "path": ".runtime\\alpha\\a13-failures-02\\app\\managed_tasks\\dcb2cae0e6cc4c84b9211a380bfe9d73\\scratch\\actor-journal.jsonl",
+    "wrong_tool": ".runtime\\alpha\\a13-failures-02\\wrong-tool.json"
+  },
+  "water": {
+    "seq": 21,
+    "event": "result",
+    "tool": "minecraft_observe",
+    "arguments": {
+      "include_image": false
+    },
+    "revision": 0,
+    "time": 1791389739.0592022,
+    "epoch": 54,
+    "session": "ac9a4180a13c42579ebcce9a938a74df",
+    "ok": true,
+    "result": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "camera": {
+        "feet_position": {
+          "x": 4.69,
+          "y": 115.0,
+          "z": -1.66
+        },
+        "eye_position": {
+          "x": 4.69,
+          "y": 116.62,
+          "z": -1.66
+        },
+        "block_position": {
+          "x": 4,
+          "y": 115,
+          "z": -2
+        },
+        "yaw": 270.75,
+        "pitch": -29.25,
+        "cardinal": "east",
+        "look_vector": {
+          "x": 0.87,
+          "y": -0.49,
+          "z": 0.01
+        }
+      },
+      "player": {
+        "health": 20.0,
+        "max_health": 20.0,
+        "food": 20,
+        "oxygen": 19,
+        "xp_level": 0,
+        "biome": "meadow",
+        "dimension": "overworld",
+        "time_of_day": 8134,
+        "is_day": true,
+        "is_raining": false,
+        "on_ground": true,
+        "in_water": true
+      },
+      "held_item": null,
+      "hotbar": [
+        {
+          "slot": 0,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 1,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 2,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 3,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 4,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 5,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 6,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 7,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 8,
+          "item": null,
+          "count": 0
+        }
+      ],
+      "inventory": [],
+      "nearby_blocks": [
+        {
+          "block_name": "water",
+          "display_name": "Water",
+          "count": 82,
+          "nearest": {
+            "x": 5,
+            "y": 115,
+            "z": -2
+          },
+          "distance": 0.47
+        },
+        {
+          "block_name": "grass_block",
+          "display_name": "Grass Block",
+          "count": 286,
+          "nearest": {
+            "x": 5,
+            "y": 114,
+            "z": -1
+          },
+          "distance": 1.24
+        },
+        {
+          "block_name": "air",
+          "display_name": "Air",
+          "count": 2579,
+          "nearest": {
+            "x": 5,
+            "y": 116,
+            "z": -1
+          },
+          "distance": 1.24
+        },
+        {
+          "block_name": "stone",
+          "display_name": "Stone",
+          "count": 1511,
+          "nearest": {
+            "x": 6,
+            "y": 115,
+            "z": -2
+          },
+          "distance": 1.36
+        },
+        {
+          "block_name": "grass",
+          "display_name": "Grass",
+          "count": 49,
+          "nearest": {
+            "x": 6,
+            "y": 115,
+            "z": -1
+          },
+          "distance": 1.47
+        },
+        {
+          "block_name": "dirt",
+          "display_name": "Dirt",
+          "count": 370,
+          "nearest": {
+            "x": 5,
+            "y": 113,
+            "z": -1
+          },
+          "distance": 2.13
+        },
+        {
+          "block_name": "tall_grass",
+          "display_name": "Tall Grass",
+          "count": 10,
+          "nearest": {
+            "x": 1,
+            "y": 113,
+            "z": -7
+          },
+          "distance": 6.79
+        },
+        {
+          "block_name": "dandelion",
+          "display_name": "Dandelion",
+          "count": 8,
+          "nearest": {
+            "x": 10,
+            "y": 117,
+            "z": 3
+          },
+          "distance": 7.34
+        },
+        {
+          "block_name": "coal_ore",
+          "display_name": "Coal Ore",
+          "count": 18,
+          "nearest": {
+            "x": 3,
+            "y": 109,
+            "z": 4
+          },
+          "distance": 8.42
+        }
+      ],
+      "nearby_entities": [
+        {
+          "entity_id": 20,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 115.0,
+            "z": -4.0
+          },
+          "distance": 6.15,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 23,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 115.0,
+            "z": -4.0
+          },
+          "distance": 6.15,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 25,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -1.38,
+            "y": 115.0,
+            "z": -3.96
+          },
+          "distance": 6.49,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 24,
+          "entity_type": "item",
+          "display_name": "Item",
+          "position": {
+            "x": -0.39,
+            "y": 113.0,
+            "z": -5.49
+          },
+          "distance": 6.67,
+          "health": null,
+          "hostile": false
+        },
+        {
+          "entity_id": 21,
+          "entity_type": "chicken",
+          "display_name": "Chicken",
+          "position": {
+            "x": -1.0,
+            "y": 113.0,
+            "z": -6.0
+          },
+          "distance": 7.43,
+          "health": null,
+          "hostile": false
+        }
+      ],
+      "image": null
+    },
+    "images": []
+  },
+  "path": {
+    "seq": 11,
+    "event": "result",
+    "tool": "minecraft_find_path",
+    "arguments": {
+      "x": 6,
+      "y": 116,
+      "z": 0
+    },
+    "revision": 0,
+    "time": 1791389831.861509,
+    "epoch": 55,
+    "session": "24e95e9ecdbf48eabf66d329a2461d15",
+    "ok": true,
+    "result": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": "The preview path completed.",
+      "state": "blocked",
+      "path_length": null,
+      "hops": null,
+      "estimated_seconds": null,
+      "blocker": {
+        "block_name": "water",
+        "position": {
+          "x": 5,
+          "y": 115,
+          "z": -1
+        }
+      }
+    },
+    "images": []
+  },
+  "wrong_tool": {
+    "tool": "minecraft_mine_block",
+    "arguments": {
+      "position": {
+        "x": 6,
+        "y": 115,
+        "z": -2
+      }
+    },
+    "ok": false,
+    "result": {
+      "warnings": [],
+      "ok": false,
+      "reason": "unharvestable",
+      "message": "The held tool cannot harvest this block.",
+      "block": {
+        "position": {
+          "x": 6,
+          "y": 115,
+          "z": -2
+        },
+        "block_name": "stone",
+        "display_name": "Stone"
+      },
+      "tool_used": null,
+      "can_harvest": false,
+      "pickup": null,
+      "inventory_delta": null,
+      "image": null,
+      "duration_ms": 16.0
+    },
+    "images": [],
+    "instruction_revision": 0,
+    "journal_sequence": 13,
+    "gameplay": {
+      "outcome": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "wrong_harvesting_tool",
+        "quantities": {},
+        "inventory_delta": {},
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+        "seq": 13,
+        "time": 1791389733.6926885,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 6,
+            "y": 115,
+            "z": -2
+          }
+        }
+      },
+      "recovery": null,
+      "paused_methods": [
+        {
+          "tool": "minecraft_walk_to_exact",
+          "arguments": {
+            "x": 6,
+            "y": 115,
+            "z": -2
+          },
+          "ineffective": 2,
+          "last": {
+            "kind": "unsuccessful_action",
+            "unsuccessful": true,
+            "reason": "target_not_standable",
+            "quantities": {},
+            "inventory_delta": {},
+            "completion_verified": false,
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 6,
+            "time": 1791389731.0939546,
+            "tool": "minecraft_walk_to_exact",
+            "arguments": {
+              "x": 6,
+              "y": 115,
+              "z": -2
+            }
+          },
+          "state": {
+            "position": {
+              "x": 4,
+              "y": 115,
+              "z": -2
+            },
+            "dimension": "overworld",
+            "held_item": null,
+            "inventory": []
+          }
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 4,
+              "y": 127,
+              "z": -2
+            }
+          },
+          "ineffective": 2,
+          "last": {
+            "kind": "unsuccessful_action",
+            "unsuccessful": true,
+            "reason": "target_out_of_range",
+            "quantities": {},
+            "inventory_delta": {},
+            "completion_verified": false,
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 8,
+            "time": 1791389731.5855021,
+            "tool": "minecraft_mine_block",
+            "arguments": {
+              "position": {
+                "x": 4,
+                "y": 127,
+                "z": -2
+              }
+            }
+          },
+          "state": {
+            "position": {
+              "x": 4,
+              "y": 115,
+              "z": -2
+            },
+            "dimension": "overworld",
+            "held_item": null,
+            "inventory": []
+          }
+        },
+        {
+          "tool": "minecraft_craft_item",
+          "arguments": {
+            "item": "iron_pickaxe",
+            "repetitions": 1
+          },
+          "ineffective": 2,
+          "last": {
+            "kind": "unsuccessful_action",
+            "unsuccessful": true,
+            "reason": "missing_ingredients",
+            "quantities": {
+              "repetitions_crafted": 0
+            },
+            "inventory_delta": {},
+            "completion_verified": false,
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 10,
+            "time": 1791389732.2264695,
+            "tool": "minecraft_craft_item",
+            "arguments": {
+              "item": "iron_pickaxe",
+              "repetitions": 1
+            }
+          },
+          "state": {
+            "position": {
+              "x": 4,
+              "y": 115,
+              "z": -2
+            },
+            "dimension": "overworld",
+            "held_item": null,
+            "inventory": []
+          }
+        },
+        {
+          "tool": "minecraft_find_block",
+          "arguments": {
+            "pattern": "deepslate_iron_ore"
+          },
+          "ineffective": 2,
+          "last": {
+            "kind": "unsuccessful_action",
+            "unsuccessful": true,
+            "reason": "not_found",
+            "quantities": {},
+            "inventory_delta": {},
+            "completion_verified": false,
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 12,
+            "time": 1791389733.4308417,
+            "tool": "minecraft_find_block",
+            "arguments": {
+              "pattern": "deepslate_iron_ore"
+            }
+          },
+          "state": {
+            "position": {
+              "x": 4,
+              "y": 115,
+              "z": -2
+            },
+            "dimension": "overworld",
+            "held_item": null,
+            "inventory": []
+          }
+        }
+      ]
+    }
+  },
+  "ore_search": {
+    "tool": "minecraft_find_block",
+    "arguments": {
+      "pattern": "deepslate_iron_ore"
+    },
+    "ok": false,
+    "result": {
+      "warnings": [],
+      "ok": false,
+      "reason": "not_found",
+      "message": "deepslate_iron_ore was not found within the search bounds.",
+      "pattern": "deepslate_iron_ore",
+      "matched_types": [
+        "deepslate_iron_ore"
+      ],
+      "total_matches": 0,
+      "nearest": null,
+      "results": [],
+      "coverage": {
+        "center": {
+          "x": 4.5,
+          "y": 115.0,
+          "z": -1.47
+        },
+        "bounds": {
+          "min": {
+            "x": -28,
+            "y": 91,
+            "z": -34
+          },
+          "max": {
+            "x": 36,
+            "y": 131,
+            "z": 30
+          }
+        },
+        "chunks_loaded": 1021,
+        "columns_scanned": 1021,
+        "note": null
+      },
+      "candidates": null,
+      "duration_ms": 407.0
+    },
+    "images": [],
+    "instruction_revision": 0,
+    "journal_sequence": 11,
+    "gameplay": {
+      "outcome": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+        "seq": 11,
+        "time": 1791389732.884622,
+        "tool": "minecraft_find_block",
+        "arguments": {
+          "pattern": "deepslate_iron_ore"
+        }
+      },
+      "recovery": null,
+      "paused_methods": [
+        {
+          "tool": "minecraft_walk_to_exact",
+          "arguments": {
+            "x": 6,
+            "y": 115,
+            "z": -2
+          },
+          "ineffective": 2,
+          "last": {
+            "kind": "unsuccessful_action",
+            "unsuccessful": true,
+            "reason": "target_not_standable",
+            "quantities": {},
+            "inventory_delta": {},
+            "completion_verified": false,
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 6,
+            "time": 1791389731.0939546,
+            "tool": "minecraft_walk_to_exact",
+            "arguments": {
+              "x": 6,
+              "y": 115,
+              "z": -2
+            }
+          },
+          "state": {
+            "position": {
+              "x": 4,
+              "y": 115,
+              "z": -2
+            },
+            "dimension": "overworld",
+            "held_item": null,
+            "inventory": []
+          }
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 4,
+              "y": 127,
+              "z": -2
+            }
+          },
+          "ineffective": 2,
+          "last": {
+            "kind": "unsuccessful_action",
+            "unsuccessful": true,
+            "reason": "target_out_of_range",
+            "quantities": {},
+            "inventory_delta": {},
+            "completion_verified": false,
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 8,
+            "time": 1791389731.5855021,
+            "tool": "minecraft_mine_block",
+            "arguments": {
+              "position": {
+                "x": 4,
+                "y": 127,
+                "z": -2
+              }
+            }
+          },
+          "state": {
+            "position": {
+              "x": 4,
+              "y": 115,
+              "z": -2
+            },
+            "dimension": "overworld",
+            "held_item": null,
+            "inventory": []
+          }
+        },
+        {
+          "tool": "minecraft_craft_item",
+          "arguments": {
+            "item": "iron_pickaxe",
+            "repetitions": 1
+          },
+          "ineffective": 2,
+          "last": {
+            "kind": "unsuccessful_action",
+            "unsuccessful": true,
+            "reason": "missing_ingredients",
+            "quantities": {
+              "repetitions_crafted": 0
+            },
+            "inventory_delta": {},
+            "completion_verified": false,
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-02\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 10,
+            "time": 1791389732.2264695,
+            "tool": "minecraft_craft_item",
+            "arguments": {
+              "item": "iron_pickaxe",
+              "repetitions": 1
+            }
+          },
+          "state": {
+            "position": {
+              "x": 4,
+              "y": 115,
+              "z": -2
+            },
+            "dimension": "overworld",
+            "held_item": null,
+            "inventory": []
+          }
+        }
+      ]
+    }
+  }
+}

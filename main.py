@@ -74,12 +74,14 @@ def _managed_workflows(stage_model=None) -> dict:
             namespace="minecraft",
             tools_factory=build_minecraft_module_tools(
                 stage_model.complete if stage_model is not None else None,
+                stage_model.measure_context if stage_model is not None else None,
             ),
         ),
         "minecraft_project": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "minecraft_tasks" / "minecraft_tasks.workflow.md",
             namespace="minecraft_project",
-            tools_factory=build_minecraft_module_tools(stage_model.complete if stage_model is not None else None),
+            tools_factory=build_minecraft_module_tools(stage_model.complete if stage_model is not None else None,
+                stage_model.measure_context if stage_model is not None else None),
         ),
     }
 
@@ -238,6 +240,9 @@ def build_app(
         consolidator.consolidate(receipt["run_id"], receipt["artifact_path"])
 
     def _event_sink(event):
+        if event.get("event") == "gameplay_progress":
+            run = supervisor.status(event["run_id"])
+            consolidator.consolidate(event["run_id"], run["artifact_path"])
         try:
             run = supervisor.status(event["run_id"])
             parent = run.get("parent_correlation", "")

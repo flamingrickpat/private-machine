@@ -22,11 +22,13 @@ Each console instance has a separate checkpoint. Sessions within one instance sh
 Read the [console procedure](docs/workflows/console.md) for details.
 
 Requirements: Python 3.12, `uv`, Git, and access to the PM dependency repositories.
-The lockfile pins `pm-workflows` and `pm-coder` to GitHub commits.
+The Git dependencies follow `main` for `pm-workflows` and `pm-coder`.
+Refresh both dependencies during installation to fetch their current branch heads.
+The lockfile records the commits resolved by that installation.
 Normal startup needs no sibling source checkout.
 
 ```powershell
-uv sync --locked
+uv sync --upgrade-package pm-workflows --upgrade-package pm-coder
 uv run --locked python main.py
 ```
 

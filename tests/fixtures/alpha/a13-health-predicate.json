@@ -1,0 +1,613 @@
+{
+  "scope": "Actual M3-30 low-health observation, rejected alive-kind health criterion, and current server rules. Projected health predicates in boundary tests do not establish new inference or recovery.",
+  "sources": {
+    "planner": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/decisions/0095-planner/output.json",
+      "sha256": "7c18c282f90328dffebcc58bb2708c25ce2ba60af46b2ba3d5ee7bb1f971b3d1"
+    },
+    "review": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/decisions/0096-reviewer/output.json",
+      "sha256": "f738dd008512c1355f742fe7104423c042fb87fc4eb3e521cb948420ce2190e4"
+    },
+    "planner_input": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/decisions/0097-planner/input.json",
+      "sha256": "de1ff5a73658a741a2a54b31e3d43201c69c1084acd49584709939c9ce185f79"
+    },
+    "server_rules": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/planning/server-rules/0097.json",
+      "sha256": "89ff6b6c67ab515e8bdffb9f3639970380299c8b9a2beb357b8dfeba9ccd1ddf"
+    },
+    "observation": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/planning/observations/0097.json",
+      "sha256": "80366cb00dab40e6c69cb75c3bd6083f0e8611b89fa8f2a882e7c41f90e3486c"
+    }
+  },
+  "observation": {
+    "warnings": [],
+    "ok": true,
+    "reason": null,
+    "message": null,
+    "camera": {
+      "feet_position": {
+        "x": 12.3,
+        "y": 31.0,
+        "z": 1.7
+      },
+      "eye_position": {
+        "x": 12.3,
+        "y": 32.62,
+        "z": 1.7
+      },
+      "block_position": {
+        "x": 12,
+        "y": 31,
+        "z": 1
+      },
+      "yaw": 315.01,
+      "pitch": -82.35,
+      "cardinal": "south",
+      "look_vector": {
+        "x": 0.09,
+        "y": -0.99,
+        "z": 0.09
+      }
+    },
+    "player": {
+      "health": 5.0,
+      "max_health": 20.0,
+      "food": 18,
+      "oxygen": 20,
+      "xp_level": 0,
+      "biome": "meadow",
+      "dimension": "overworld",
+      "time_of_day": 3795,
+      "is_day": true,
+      "is_raining": false,
+      "on_ground": true,
+      "in_water": false
+    },
+    "body_session": "da362853aee94b108fa9d9bddb7d5a3d",
+    "death_count": 0,
+    "held_item": {
+      "name": "stone_pickaxe",
+      "display_name": "Stone Pickaxe",
+      "count": 1,
+      "slot": null,
+      "durability": 111,
+      "max_durability": 131
+    },
+    "hotbar": [
+      {
+        "slot": 0,
+        "item": "stone_pickaxe",
+        "count": 1
+      },
+      {
+        "slot": 1,
+        "item": "crafting_table",
+        "count": 1
+      },
+      {
+        "slot": 2,
+        "item": "cobblestone",
+        "count": 64
+      },
+      {
+        "slot": 3,
+        "item": "raw_iron",
+        "count": 2
+      },
+      {
+        "slot": 4,
+        "item": "dandelion",
+        "count": 1
+      },
+      {
+        "slot": 5,
+        "item": "wooden_pickaxe",
+        "count": 1
+      },
+      {
+        "slot": 6,
+        "item": "moss_block",
+        "count": 7
+      },
+      {
+        "slot": 7,
+        "item": "wooden_pickaxe",
+        "count": 1
+      },
+      {
+        "slot": 8,
+        "item": "cobblestone",
+        "count": 64
+      }
+    ],
+    "inventory": [
+      {
+        "name": "cobblestone",
+        "display_name": "Cobblestone",
+        "count": 134,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "birch_planks",
+        "display_name": "Birch Planks",
+        "count": 60,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "dirt",
+        "display_name": "Dirt",
+        "count": 17,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "birch_log",
+        "display_name": "Birch Log",
+        "count": 15,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "stick",
+        "display_name": "Stick",
+        "count": 8,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "moss_block",
+        "display_name": "Moss Block",
+        "count": 7,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "birch_door",
+        "display_name": "Birch Door",
+        "count": 3,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "raw_iron",
+        "display_name": "Raw Iron",
+        "count": 2,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "wooden_pickaxe",
+        "display_name": "Wooden Pickaxe",
+        "count": 2,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "birch_sapling",
+        "display_name": "Birch Sapling",
+        "count": 1,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "crafting_table",
+        "display_name": "Crafting Table",
+        "count": 1,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "dandelion",
+        "display_name": "Dandelion",
+        "count": 1,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      {
+        "name": "stone_pickaxe",
+        "display_name": "Stone Pickaxe",
+        "count": 1,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      }
+    ],
+    "nearby_blocks": [
+      {
+        "block_name": "air",
+        "display_name": "Air",
+        "count": 2387,
+        "nearest": {
+          "x": 12,
+          "y": 31,
+          "z": 2
+        },
+        "distance": 0.42
+      },
+      {
+        "block_name": "stone",
+        "display_name": "Stone",
+        "count": 1500,
+        "nearest": {
+          "x": 13,
+          "y": 30,
+          "z": 2
+        },
+        "distance": 1.26
+      },
+      {
+        "block_name": "water",
+        "display_name": "Water",
+        "count": 60,
+        "nearest": {
+          "x": 12,
+          "y": 30,
+          "z": -1
+        },
+        "distance": 2.89
+      },
+      {
+        "block_name": "clay",
+        "display_name": "Clay",
+        "count": 230,
+        "nearest": {
+          "x": 14,
+          "y": 31,
+          "z": -1
+        },
+        "distance": 3.19
+      },
+      {
+        "block_name": "coal_ore",
+        "display_name": "Coal Ore",
+        "count": 87,
+        "nearest": {
+          "x": 15,
+          "y": 31,
+          "z": -1
+        },
+        "distance": 3.82
+      },
+      {
+        "block_name": "big_dripleaf_stem",
+        "display_name": "Big Dripleaf Stem",
+        "count": 6,
+        "nearest": {
+          "x": 10,
+          "y": 31,
+          "z": -2
+        },
+        "distance": 4.36
+      },
+      {
+        "block_name": "big_dripleaf",
+        "display_name": "Big Dripleaf",
+        "count": 5,
+        "nearest": {
+          "x": 10,
+          "y": 32,
+          "z": -2
+        },
+        "distance": 4.47
+      },
+      {
+        "block_name": "small_dripleaf",
+        "display_name": "Small Dripleaf",
+        "count": 2,
+        "nearest": {
+          "x": 17,
+          "y": 31,
+          "z": -1
+        },
+        "distance": 5.42
+      },
+      {
+        "block_name": "moss_block",
+        "display_name": "Moss Block",
+        "count": 57,
+        "nearest": {
+          "x": 18,
+          "y": 31,
+          "z": 1
+        },
+        "distance": 5.74
+      },
+      {
+        "block_name": "moss_carpet",
+        "display_name": "Moss Carpet",
+        "count": 6,
+        "nearest": {
+          "x": 18,
+          "y": 32,
+          "z": 1
+        },
+        "distance": 5.83
+      },
+      {
+        "block_name": "grass",
+        "display_name": "Grass",
+        "count": 9,
+        "nearest": {
+          "x": 18,
+          "y": 31,
+          "z": 3
+        },
+        "distance": 5.85
+      },
+      {
+        "block_name": "granite",
+        "display_name": "Granite",
+        "count": 186,
+        "nearest": {
+          "x": 12,
+          "y": 25,
+          "z": 2
+        },
+        "distance": 6.01
+      },
+      {
+        "block_name": "cave_vines",
+        "display_name": "Cave Vines",
+        "count": 14,
+        "nearest": {
+          "x": 12,
+          "y": 37,
+          "z": 4
+        },
+        "distance": 6.43
+      },
+      {
+        "block_name": "gravel",
+        "display_name": "Gravel",
+        "count": 28,
+        "nearest": {
+          "x": 9,
+          "y": 31,
+          "z": -4
+        },
+        "distance": 6.59
+      },
+      {
+        "block_name": "tall_grass",
+        "display_name": "Tall Grass",
+        "count": 4,
+        "nearest": {
+          "x": 19,
+          "y": 31,
+          "z": 2
+        },
+        "distance": 6.71
+      },
+      {
+        "block_name": "lapis_ore",
+        "display_name": "Lapis Lazuli Ore",
+        "count": 3,
+        "nearest": {
+          "x": 10,
+          "y": 27,
+          "z": -4
+        },
+        "distance": 7.33
+      },
+      {
+        "block_name": "cave_vines_plant",
+        "display_name": "Cave Vines Plant",
+        "count": 39,
+        "nearest": {
+          "x": 12,
+          "y": 38,
+          "z": 4
+        },
+        "distance": 7.37
+      },
+      {
+        "block_name": "copper_ore",
+        "display_name": "Copper Ore",
+        "count": 9,
+        "nearest": {
+          "x": 11,
+          "y": 26,
+          "z": 7
+        },
+        "distance": 7.4
+      },
+      {
+        "block_name": "andesite",
+        "display_name": "Andesite",
+        "count": 200,
+        "nearest": {
+          "x": 7,
+          "y": 31,
+          "z": -4
+        },
+        "distance": 7.78
+      },
+      {
+        "block_name": "vine",
+        "display_name": "Vines",
+        "count": 32,
+        "nearest": {
+          "x": 18,
+          "y": 32,
+          "z": -4
+        },
+        "distance": 8.12
+      },
+      {
+        "block_name": "diorite",
+        "display_name": "Diorite",
+        "count": 48,
+        "nearest": {
+          "x": 9,
+          "y": 35,
+          "z": -6
+        },
+        "distance": 9.28
+      },
+      {
+        "block_name": "iron_ore",
+        "display_name": "Iron Ore",
+        "count": 1,
+        "nearest": {
+          "x": 6,
+          "y": 24,
+          "z": 2
+        },
+        "distance": 9.42
+      }
+    ],
+    "nearby_entities": [],
+    "image": null
+  },
+  "proposal": {
+    "status": "planned",
+    "summary": "Revised recovery_exit leaf to match active recovery requirements: dry stable landing with full air clearance, health above 10, and food at least 7.",
+    "updates": [
+      {
+        "id": "recovery_exit",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": "wooden_home_iron_pickaxe",
+        "children": [],
+        "depends_on": [],
+        "instruction": "Recover from the cave at (12,31,1) by confirming a dry stable landing with full air clearance, restoring health above 10, and ensuring food is at least 7. Use the stone pickaxe to dig out if needed. Do not take damage during escape.",
+        "specialist": "recovery",
+        "deferred": false,
+        "defer_reason": "",
+        "criteria": [
+          {
+            "id": "rec_alive",
+            "description": "The body is alive",
+            "kind": "alive",
+            "node_id": "",
+            "names": [],
+            "minimum": 1,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "rec_health",
+            "description": "The body has health above 10",
+            "kind": "alive",
+            "node_id": "",
+            "names": [],
+            "minimum": 1,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "rec_food",
+            "description": "The body has food at least 7",
+            "kind": "food",
+            "node_id": "",
+            "names": [],
+            "minimum": 7,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "rec_floor",
+            "description": "The body is standing on a solid block",
+            "kind": "block",
+            "node_id": "",
+            "names": [
+              "stone",
+              "dirt",
+              "grass_block",
+              "cobblestone",
+              "moss_block"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 12,
+                "y": 30,
+                "z": 1
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "rec_air",
+            "description": "The body has air clearance above",
+            "kind": "block",
+            "node_id": "",
+            "names": [
+              "air"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 12,
+                "y": 32,
+                "z": 1
+              },
+              {
+                "x": 12,
+                "y": 33,
+                "z": 1
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      }
+    ],
+    "queries": [],
+    "recipe_queries": []
+  },
+  "review": {
+    "status": "revise",
+    "summary": "The recovery_exit leaf has an incorrect recovery predicate. The active recovery is caused by damage and low health (health 5.0), not low supplies. The criteria require food >= 7, but the body already has food 18, and the hazard is health, not starvation. The recovery criteria should require health above a safe threshold (e.g., >10) and alive, but should not impose a food minimum that is not part of the active hazard. Additionally, the recovery leaf's position criteria (floor at y=30, air at y=32/33) are consistent with the current body cells, but the food criterion is an incorrect predicate for this recovery type. Revise the recovery_exit criteria to remove the food minimum and focus on health and safe landing.",
+    "target_id": "recovery_exit"
+  },
+  "server_info": {
+    "warnings": [],
+    "ok": true,
+    "reason": null,
+    "message": null,
+    "username": "tdd_player",
+    "server_rules": "Agentic Babymode v0.5.0 â€” current rules:\nPlayer: move 1.50x | mine 5.0x | underwater air 10.0x | mined loot to inventory, overflow to ground | natural regen off | PvP off\nMobs: move 0.07x | deal 0.07x damage | attack cooldown 3.0x | take 2.0x from you\nSleepiness: 0â†’100 over 30.0 days; only a bed resets it. Slowness/Mining Fatigue at 50+, can't sprint at 100.\nNutrition (grain/protein/produce 0-100): decays to 0 over 90.0 days.\n  grain <40.0/<15.0 â†’ Slowness I/II | protein <40.0/<15.0 â†’ Weakness I/II | produce <40.0/<15.0 â†’ Mining Fatigue I/II\n  avg <10.0 â†’ STARVING (-4 max HP, hunger, no sprint)\nFood bar: drains to 0 in 30.0 days idle; actions drain 1.00x.\nCommands: /babymode version | help | status | status json | reload | reset <0-100>",
+    "server": "127.0.0.1:12345",
+    "body_url": "http://127.0.0.1:6768",
+    "agent_home": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\character",
+    "connected": true,
+    "spawned": true,
+    "death_count": 0,
+    "schema_version": "2.0",
+    "uptime_seconds": 412.16
+  }
+}

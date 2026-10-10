@@ -40,14 +40,18 @@ def validate_tree(tree: TaskTree) -> dict[str, set[str]]:
             raise ValueError("Criterion IDs must be unique within a node.")
         if node.kind == "leaf" and node.children or node.kind != "leaf" and not node.children:
             raise ValueError("Leaves have no children; goals and stories need children.")
-        for key in node.children + node.depends_on:
-            if key not in nodes:
-                raise ValueError(f"Missing task dependency or child: {key}")
+        for field in ("children", "depends_on"):
+            missing = [key for key in getattr(node, field) if key not in nodes]
+            if missing:
+                raise ValueError(f"Missing task dependency or child: {', '.join(missing)}. "
+                                 f"Node {node.id}, field {field}. Every referenced ID must exist in tree.nodes.")
         for child in node.children:
             if nodes[child].parent != node.id:
-                raise ValueError("Parent and child references disagree.")
+                raise ValueError(f"Parent and child references disagree. Node {node.id} lists child {child}, "
+                                 f"but that child's parent is {nodes[child].parent}.")
         if node.parent is not None and (node.parent not in nodes or node.id not in nodes[node.parent].children):
-            raise ValueError("A node needs a matching parent reference.")
+            raise ValueError(f"A node needs a matching parent reference. Node {node.id} declares parent "
+                             f"{node.parent}; that parent must exist and list {node.id} in children.")
     try:
         list(TopologicalSorter({key: set(node.children) for key, node in nodes.items()}).static_order())
     except CycleError as error:
@@ -81,7 +85,8 @@ def validate_tree(tree: TaskTree) -> dict[str, set[str]]:
                 continue
             source = condition.node_id
             if source not in nodes or source == node.id:
-                raise ValueError("An acceptance reference needs a different existing node.")
+                raise ValueError(f"An acceptance reference needs a different existing node. Node {node.id}, "
+                                 f"condition {condition.id}, references {source}.")
             prerequisites = set()
             cursor = node.id
             while cursor is not None:
@@ -99,7 +104,13 @@ def validate_tree(tree: TaskTree) -> dict[str, set[str]]:
                 collect(node.id)
                 allowed = source in subtree or descendants(source) <= prerequisites
             if not allowed:
-                raise ValueError("Acceptance references must name descendants or declared prerequisites.")
+                detail = (f"Allowed leaf prerequisites: {sorted(graph[node.id])}. "
+                          f"If {source} is required, declare it directly in this leaf's depends_on. "
+                          "A dependency of another dependency is insufficient for this certificate reference."
+                          if node.kind == "leaf" else
+                          "Cite a descendant or declare the source in this node's depends_on.")
+                raise ValueError("Acceptance references must name descendants or declared prerequisites. "
+                                 f"Node {node.id}, condition {condition.id}, references {source}. {detail}")
     try:
         list(TopologicalSorter(acceptance_requirements(tree, graph)).static_order())
     except CycleError as error:
@@ -189,8 +200,11 @@ class TreeStore:
         validate_tree(proposed)
         old = {node.id: node for node in self.load().nodes} if self.state["revision"] else {}
         new = {node.id: node for node in proposed.nodes}
-        if old and (not old.keys() <= new.keys() or proposed.goal_id != self.load().goal_id):
-            raise ValueError("A revision cannot remove stable nodes or replace the goal ID.")
+        if old and not old.keys() <= new.keys():
+            raise ValueError("A revision cannot remove stable nodes: " + ", ".join(sorted(old.keys() - new.keys()))
+                             + ". Preserve each ID; refine a leaf into a story under that same ID.")
+        if old and proposed.goal_id != self.load().goal_id:
+            raise ValueError(f"A revision cannot replace goal ID {self.load().goal_id!r} with {proposed.goal_id!r}.")
         if target:
             selected = old[target]
             permitted = {target}
@@ -199,11 +213,15 @@ class TreeStore:
                 for child in new[key].children:
                     collect(child)
             collect(target)
-            for key in old.keys() - permitted:
+            for key in sorted(old.keys() - permitted):
                 if node_digest(old[key]) != node_digest(new[key]):
-                    raise ValueError("Refinement changed an unrelated node.")
+                    fields = [field for field in type(old[key]).model_fields if field != "revision"
+                              and getattr(old[key], field) != getattr(new[key], field)]
+                    raise ValueError(f"Refinement of {target!r} changed unrelated node {key!r}: {', '.join(fields)}. "
+                                     "Keep that node's original fields and parent; add new children under the refinement target.")
             if [row.model_dump() for row in selected.criteria] != [row.model_dump() for row in new[target].criteria]:
                 raise ValueError("Refinement must preserve the selected acceptance conditions.")
+        self.archive_acceptances(self.state, "planning/state.json")
         for key, node in new.items():
             if key in old and node.parent != old[key].parent:
                 raise ValueError("A revision cannot move an existing node to another parent.")
@@ -215,18 +233,116 @@ class TreeStore:
         self.state["revision"] = proposed.revision
         self.state.pop("reviewed_revision", None)
         self.invalidate()
+        self.restore_acceptances()
         self.save()
         return proposed
 
-    def valid(self, key: str, visiting: set | None = None) -> bool:
+    def archive_acceptances(self, snapshot: dict, source: str) -> None:
+        """Retain valid certificate records without accepting a revised outcome.
+
+        The caller supplies a retained state snapshot and its source receipt.
+        Original specifications, file hashes, and dependencies must still match.
+        This also imports certificates from older receipts during a restart.
+        """
+        if not snapshot.get("revision"):
+            return
+        historical = TreeStore(self.root)
+        historical.state = snapshot
+        nodes = {node.id: node for node in historical.load().nodes}
+        for key, record in snapshot.get("acceptances", {}).items():
+            if not historical.valid(key):
+                continue
+            relative = f"planning/acceptance-archive/{digest(record)}.json"
+            if not self.path_for(relative).exists():
+                self.write(relative, {"certificate": record, "specification": nodes[key].model_dump(mode="json"),
+                                      "source": source})
+
+    def acceptance_candidates(self) -> list[dict]:
+        """Expose retained proof and exact specifications for native plan repair."""
+        rows = [json.loads(path.read_text(encoding="utf-8")) | {"archive": str(path.relative_to(self.root))}
+                for path in sorted((self.root / "planning/acceptance-archive").glob("*.json"))]
+        needed = {expected for row in rows if not self.valid(row["certificate"]["identity"]["leaf_id"])
+                  for expected in row["certificate"]["dependencies"].values()}
+        nodes = {node.id: node for node in self.load().nodes}
+        candidates = {}
+        for row in rows:
+            record = row["certificate"]
+            if digest(record) in self.state.get("revoked_certificate_digests", []):
+                continue
+            key = record["identity"]["leaf_id"]
+            if self.valid(key) and record == self.state["acceptances"][key]:
+                continue
+            if self.valid(key) and digest(record) not in needed:
+                continue
+            previous = candidates.get(key)
+            rank = (key in nodes and record["spec_digest"] == node_digest(nodes[key]), record["identity"]["tree_revision"])
+            old_rank = ((previous["certificate"]["spec_digest"] == node_digest(nodes[key]),
+                         previous["certificate"]["identity"]["tree_revision"]) if previous and key in nodes else None)
+            if previous is None or rank > old_rank:
+                candidates[key] = row
+        return list(candidates.values())
+
+    def restore_acceptances(self) -> None:
+        """Restore exact historical attainment after a native specification repair.
+
+        Changed operands, file contents, and dependency certificate hashes fail
+        the normal validity guard. Historical reads never prove current geometry.
+        """
+        pending = self.acceptance_candidates()
+        while pending:
+            restored = False
+            for row in pending[:]:
+                record = row["certificate"]
+                key = record["identity"]["leaf_id"]
+                if self.valid(key):
+                    pending.remove(row)
+                    continue
+                self.state["acceptances"][key] = record
+                if self.valid(key):
+                    pending.remove(row)
+                    restored = True
+                else:
+                    del self.state["acceptances"][key]
+            if not restored:
+                break
+
+    def restore_specifications(self, proposed: TaskTree, keys: list[str]) -> TaskTree:
+        """Apply explicit native restorations and validate their original proof.
+
+        This operation changes no files or state. A missing candidate, changed
+        receipt, or unrestored dependency raises ValueError before plan commit.
+        The caller still runs normal tree validation, review, and final reads.
+        """
+        if not keys:
+            return proposed
+        candidates = {row["specification"]["id"]: row for row in self.acceptance_candidates()}
+        missing = set(keys) - candidates.keys()
+        if missing:
+            raise ValueError("No retained restoration candidate exists for: " + ", ".join(sorted(missing)))
+        restored = {key: Node.model_validate(candidates[key]["specification"]) for key in keys}
+        proposed = proposed.model_copy(deep=True)
+        proposed.nodes = [restored.get(node.id, node) for node in proposed.nodes]
+        validate_tree(proposed)
+        records = {**self.state["acceptances"], **{key: candidates[key]["certificate"] for key in keys}}
+        for key in keys:
+            if not self.valid(key, tree=proposed, records=records):
+                changed = [dependency for dependency, expected in records[key]["dependencies"].items()
+                           if dependency not in records or digest(records[dependency]) != expected]
+                raise ValueError(f"Restoration of {key!r} cannot reuse its original proof. "
+                                 f"Changed certificate dependencies: {changed}. Restore the listed historical candidates too; changed original files remain invalid.")
+        return proposed
+
+    def valid(self, key: str, visiting: set | None = None, *, tree: TaskTree | None = None, records: dict | None = None) -> bool:
         """Recompute provenance and prerequisite guards for one acceptance."""
-        record = self.state["acceptances"].get(key)
+        records = self.state["acceptances"] if records is None else records
+        record = records.get(key)
         if not record:
             return False
-        nodes = {node.id: node for node in self.load().nodes}
+        tree = self.load() if tree is None else tree
+        nodes = {node.id: node for node in tree.nodes}
         if key not in nodes or record["spec_digest"] != node_digest(nodes[key]):
             return False
-        expected_dependencies = self.requirements(key)
+        expected_dependencies = acceptance_requirements(tree)[key]
         if set(record["dependencies"]) != expected_dependencies:
             return False
         visiting = (visiting or set()) | {key}
@@ -235,9 +351,9 @@ class TreeStore:
             if not path.is_relative_to(self.root.resolve()) or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
                 return False
         for dependency, expected in record["dependencies"].items():
-            if dependency in visiting or not self.valid(dependency, visiting):
+            if dependency in visiting or not self.valid(dependency, visiting, tree=tree, records=records):
                 return False
-            if digest(self.state["acceptances"][dependency]) != expected:
+            if digest(records[dependency]) != expected:
                 return False
         return True
 
@@ -248,11 +364,20 @@ class TreeStore:
             del self.state["acceptances"][key]
         return invalid
 
+    def revoke(self, key: str) -> None:
+        """Prevent reuse when fresh assumptions revoke historical attainment."""
+        record = self.state["acceptances"].pop(key)
+        revoked = self.state.setdefault("revoked_certificate_digests", [])
+        if digest(record) not in revoked:
+            revoked.append(digest(record))
+
     def eligible(self) -> list[str]:
         """Return unfinished leaves whose prerequisites have verified evidence."""
         graph = validate_tree(self.load())
+        nodes = {node.id: node for node in self.load().nodes}
         return [key for key in TopologicalSorter(graph).static_order()
-                if not self.valid(key) and all(self.valid(dependency) for dependency in self.requirements(key))]
+                if not nodes[key].deferred and not self.valid(key)
+                and all(self.valid(dependency) for dependency in self.requirements(key))]
 
     def requirements(self, key: str) -> set[str]:
         """Return every certificate that must remain valid for this node."""

@@ -900,7 +900,7 @@ wheels = [
 [[package]]
 name = "pm-coder"
 version = "0.10.0"
-source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=061170544037d323c376acac8d7c241ffacf2685#061170544037d323c376acac8d7c241ffacf2685" }
+source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=main#1e96e03c536bd6744b33afdc521f40985af5ff08" }
 dependencies = [
     { name = "httpx" },
     { name = "just-bash" },
@@ -916,26 +916,30 @@ source = { virtual = "." }
 dependencies = [
     { name = "fastmcp" },
     { name = "httpx" },
+    { name = "jsonschema" },
     { name = "pm-coder" },
     { name = "pm-workflows" },
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "tiktoken" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastmcp" },
     { name = "httpx", specifier = ">=0.27,<1" },
-    { name = "pm-coder", git = "https://github.com/flamingrickpat/pm-coder.git?rev=061170544037d323c376acac8d7c241ffacf2685" },
-    { name = "pm-workflows", git = "https://github.com/flamingrickpat/pm-workflows.git?rev=e3d05a35d84122030d6992afc5d168559435457c" },
+    { name = "jsonschema", specifier = ">=4.26,<5" },
+    { name = "pm-coder", git = "https://github.com/flamingrickpat/pm-coder.git?rev=main" },
+    { name = "pm-workflows", git = "https://github.com/flamingrickpat/pm-workflows.git?branch=main" },
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
+    { name = "tiktoken", specifier = ">=0.14,<1" },
 ]
 
 [[package]]
 name = "pm-workflows"
 version = "0.7.1"
-source = { git = "https://github.com/flamingrickpat/pm-workflows.git?rev=e3d05a35d84122030d6992afc5d168559435457c#e3d05a35d84122030d6992afc5d168559435457c" }
+source = { git = "https://github.com/flamingrickpat/pm-workflows.git?branch=main#47e24d8e1dadd97e20b2143e374be8f6b29240bb" }
 dependencies = [
     { name = "httpx" },
     { name = "pm-coder" },

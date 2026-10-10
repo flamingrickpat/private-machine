@@ -1,0 +1,6528 @@
+{
+  "source": ".runtime/alpha/a13-m3-03/app/managed_tasks/2fc9def81525447b88d54f21c9d776e2/attempts/actor-0006/scratch/actor-journal.jsonl",
+  "source_sha256": "ce3bd03cf64985f8b09a3db85b7a4d75d4a0c2126c452db84fc060ad9fbf012c",
+  "receipt": ".runtime/alpha/a13-m3-12/receipt.json",
+  "rows": [
+    {
+      "event": "epoch_acquired",
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "owner": "2fc9def81525447b88d54f21c9d776e2-actor-0006",
+      "time": 1791443784.5583255
+    },
+    {
+      "seq": 1,
+      "event": "dispatch",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791443784.5643463,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 1,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791443784.7782981,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 56.5,
+            "y": 85.0,
+            "z": -4.5
+          },
+          "eye_position": {
+            "x": 56.5,
+            "y": 86.62,
+            "z": -4.5
+          },
+          "block_position": {
+            "x": 56,
+            "y": 85,
+            "z": -5
+          },
+          "yaw": 180.02,
+          "pitch": -68.7,
+          "cardinal": "north",
+          "look_vector": {
+            "x": 0.0,
+            "y": -0.93,
+            "z": -0.36
+          }
+        },
+        "player": {
+          "health": 18.0,
+          "max_health": 20.0,
+          "food": 9,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "birch_forest",
+          "dimension": "overworld",
+          "time_of_day": 11303,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 54,
+          "max_durability": 59
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "dirt",
+            "count": 5
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 4
+          },
+          {
+            "slot": 3,
+            "item": "birch_planks",
+            "count": 3
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 54,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 5,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 4,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 1898,
+            "nearest": {
+              "x": 56,
+              "y": 85,
+              "z": -5
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 282,
+            "nearest": {
+              "x": 56,
+              "y": 85,
+              "z": -4
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 912,
+            "nearest": {
+              "x": 56,
+              "y": 84,
+              "z": -4
+            },
+            "distance": 1.22
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 23,
+            "nearest": {
+              "x": 56,
+              "y": 86,
+              "z": -4
+            },
+            "distance": 1.22
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 31,
+            "nearest": {
+              "x": 58,
+              "y": 85,
+              "z": -7
+            },
+            "distance": 2.92
+          },
+          {
+            "block_name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "nearest": {
+              "x": 59,
+              "y": 85,
+              "z": -6
+            },
+            "distance": 2.92
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 367,
+            "nearest": {
+              "x": 57,
+              "y": 88,
+              "z": -5
+            },
+            "distance": 3.08
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1268,
+            "nearest": {
+              "x": 55,
+              "y": 82,
+              "z": -3
+            },
+            "distance": 3.67
+          },
+          {
+            "block_name": "bee_nest",
+            "display_name": "Bee Nest",
+            "count": 1,
+            "nearest": {
+              "x": 62,
+              "y": 86,
+              "z": -5
+            },
+            "distance": 5.61
+          },
+          {
+            "block_name": "dark_oak_leaves",
+            "display_name": "Dark Oak Leaves",
+            "count": 56,
+            "nearest": {
+              "x": 60,
+              "y": 86,
+              "z": -9
+            },
+            "distance": 5.79
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 6,
+            "nearest": {
+              "x": 52,
+              "y": 89,
+              "z": -1
+            },
+            "distance": 6.96
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 32,
+            "nearest": {
+              "x": 54,
+              "y": 79,
+              "z": -8
+            },
+            "distance": 7.38
+          },
+          {
+            "block_name": "dark_oak_log",
+            "display_name": "Dark Oak Log",
+            "count": 36,
+            "nearest": {
+              "x": 61,
+              "y": 85,
+              "z": -11
+            },
+            "distance": 7.91
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 2,
+      "event": "dispatch",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791443823.6530936,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 2,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791443823.9527507,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 56.5,
+            "y": 85.0,
+            "z": -4.5
+          },
+          "eye_position": {
+            "x": 56.5,
+            "y": 86.62,
+            "z": -4.5
+          },
+          "block_position": {
+            "x": 56,
+            "y": 85,
+            "z": -5
+          },
+          "yaw": 180.02,
+          "pitch": -68.7,
+          "cardinal": "north",
+          "look_vector": {
+            "x": 0.0,
+            "y": -0.93,
+            "z": -0.36
+          }
+        },
+        "player": {
+          "health": 18.0,
+          "max_health": 20.0,
+          "food": 9,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "birch_forest",
+          "dimension": "overworld",
+          "time_of_day": 12083,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 54,
+          "max_durability": 59
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "dirt",
+            "count": 5
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 4
+          },
+          {
+            "slot": 3,
+            "item": "birch_planks",
+            "count": 3
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 54,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 5,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 4,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 1898,
+            "nearest": {
+              "x": 56,
+              "y": 85,
+              "z": -5
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 282,
+            "nearest": {
+              "x": 56,
+              "y": 85,
+              "z": -4
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 912,
+            "nearest": {
+              "x": 56,
+              "y": 84,
+              "z": -4
+            },
+            "distance": 1.22
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 23,
+            "nearest": {
+              "x": 56,
+              "y": 86,
+              "z": -4
+            },
+            "distance": 1.22
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 31,
+            "nearest": {
+              "x": 58,
+              "y": 85,
+              "z": -7
+            },
+            "distance": 2.92
+          },
+          {
+            "block_name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "nearest": {
+              "x": 59,
+              "y": 85,
+              "z": -6
+            },
+            "distance": 2.92
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 367,
+            "nearest": {
+              "x": 57,
+              "y": 88,
+              "z": -5
+            },
+            "distance": 3.08
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1268,
+            "nearest": {
+              "x": 55,
+              "y": 82,
+              "z": -3
+            },
+            "distance": 3.67
+          },
+          {
+            "block_name": "bee_nest",
+            "display_name": "Bee Nest",
+            "count": 1,
+            "nearest": {
+              "x": 62,
+              "y": 86,
+              "z": -5
+            },
+            "distance": 5.61
+          },
+          {
+            "block_name": "dark_oak_leaves",
+            "display_name": "Dark Oak Leaves",
+            "count": 56,
+            "nearest": {
+              "x": 60,
+              "y": 86,
+              "z": -9
+            },
+            "distance": 5.79
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 6,
+            "nearest": {
+              "x": 52,
+              "y": 89,
+              "z": -1
+            },
+            "distance": 6.96
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 32,
+            "nearest": {
+              "x": 54,
+              "y": 79,
+              "z": -8
+            },
+            "distance": 7.38
+          },
+          {
+            "block_name": "dark_oak_log",
+            "display_name": "Dark Oak Log",
+            "count": 36,
+            "nearest": {
+              "x": 61,
+              "y": 85,
+              "z": -11
+            },
+            "distance": 7.91
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 3,
+      "event": "dispatch",
+      "tool": "minecraft_recall",
+      "arguments": {
+        "pattern": "site*"
+      },
+      "revision": 0,
+      "time": 1791443825.7820096,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 3,
+      "event": "result",
+      "tool": "minecraft_recall",
+      "arguments": {
+        "pattern": "site*"
+      },
+      "revision": 0,
+      "time": 1791443825.9994426,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "Memory text was not found for pattern: site*",
+        "pattern": "site*",
+        "hits": [],
+        "total_notes": 2
+      },
+      "images": []
+    },
+    {
+      "seq": 4,
+      "event": "dispatch",
+      "tool": "minecraft_recall",
+      "arguments": {
+        "pattern": "*"
+      },
+      "revision": 0,
+      "time": 1791443827.2466912,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 4,
+      "event": "result",
+      "tool": "minecraft_recall",
+      "arguments": {
+        "pattern": "*"
+      },
+      "revision": 0,
+      "time": 1791443827.482693,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "*",
+        "hits": [
+          {
+            "kind": "journal",
+            "file": "memory/journal.jsonl",
+            "note_id": "8d413f585833424589c41f6fdb01ddeb",
+            "markdown": "Session actor-0005: Mined 4 cobblestone from exposed stone at (55-56, 81, -3 to -5). Crafted wooden_pickaxe (3 birch_planks + 2 sticks) at crafting_table (59,85,-6). Equipped pickaxe (durability 59/59). Inventory: 4 cobblestone, 54 birch_log, 3 birch_planks, 10 stick, 5 dirt, 1 wooden_pickaxe. Position: (56.5, 85, -4.5), overworld, birch_forest. Crafting table placed at (59,85,-6) - adjacent east of base position (58,85,-6).",
+            "created_at": "2026-10-08T07:15:35.529194+00:00"
+          },
+          {
+            "kind": "journal",
+            "file": "memory/journal.jsonl",
+            "note_id": "cdfce373f12d4204ba47fe7196534ced",
+            "markdown": "## actor-0004 - Recovery Leaf Complete (journal seq 9)\n\nPosition: (58.5, 85.0, -5.5), overworld, birch_forest.\nHealth: 19/20. Food: 10. Oxygen: 20. On ground. Day (time 1363).\n\nRecovery cause: crafting_table at head cell (58,86,-6) placed by actor-0003 (journal seq 127).\nAction: Mined crafting_table at (58,86,-6) (journal seq 6). Item picked up into inventory.\nVerification: Head (58,86,-6) = air (seq 8). Floor (58,84,-6) = grass_block solid (seq 4). Feet (58,85,-6) = air (seq 5).\nTwo fresh observations (seq 7, 9) confirm: recovery=null, health 19/20, food 10, oxygen 20, on_ground=true.\n\nInventory: birch_log x54, stick x12, birch_planks x6, dirt x4, crafting_table x1.\nNearby resources: coal_ore at (56,78,-7), stone at (56,81,-4), dark_oak_log at (61,85,-11).\nHouse site: (-3, 118, 6), entrance south face z=3.\nCrafting table at (-33, 104, -8) still placed.\nNext: craft wooden_pickaxe (3 planks + 2 sticks), mine coal/stone.",
+            "created_at": "2026-10-08T07:08:33.108884+00:00"
+          }
+        ],
+        "total_notes": 2
+      },
+      "images": []
+    },
+    {
+      "seq": 5,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": -3,
+        "z": 6
+      },
+      "revision": 0,
+      "time": 1791443832.7258778,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 5,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": -3,
+        "z": 6
+      },
+      "revision": 0,
+      "time": 1791443953.3309927,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": -3.0,
+          "y": 119.0,
+          "z": 6.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 99.34,
+          "z": -4.64
+        },
+        "distance_remaining": 41.78,
+        "target_offset": {
+          "x": -35.3,
+          "y": 19.66,
+          "z": 10.64
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "grass",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 99.34,
+            "z": -4.64
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 100.96,
+            "z": -4.64
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -5
+          },
+          "yaw": 100.04,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -0.98,
+            "y": -0.0,
+            "z": -0.17
+          }
+        },
+        "image": null,
+        "duration_ms": 120159.27
+      },
+      "images": []
+    },
+    {
+      "seq": 6,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": -15,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791443955.5376189,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 6,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": -15,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444075.9239607,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": -17.0,
+          "y": 123.0,
+          "z": 8.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 99.0,
+          "z": -4.64
+        },
+        "distance_remaining": 56.27,
+        "target_offset": {
+          "x": -49.3,
+          "y": 24.0,
+          "z": 12.64
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "birch_leaves",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 99.0,
+            "z": -4.64
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 100.62,
+            "z": -4.64
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -5
+          },
+          "yaw": 144.97,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.57,
+            "y": -0.0,
+            "z": -0.82
+          }
+        },
+        "image": null,
+        "duration_ms": 120159.52
+      },
+      "images": []
+    },
+    {
+      "seq": 7,
+      "event": "dispatch",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444077.9656389,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 7,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444078.199633,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 99.0,
+            "z": -4.64
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 100.62,
+            "z": -4.64
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -5
+          },
+          "yaw": 144.97,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.57,
+            "y": -0.0,
+            "z": -0.82
+          }
+        },
+        "player": {
+          "health": 18.0,
+          "max_health": 20.0,
+          "food": 8,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 17163,
+          "is_day": false,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 54,
+          "max_durability": 59
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "dirt",
+            "count": 5
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 4
+          },
+          {
+            "slot": 3,
+            "item": "birch_planks",
+            "count": 3
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 54,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 5,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 4,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2931,
+            "nearest": {
+              "x": 32,
+              "y": 99,
+              "z": -5
+            },
+            "distance": 0.47
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 334,
+            "nearest": {
+              "x": 32,
+              "y": 98,
+              "z": -5
+            },
+            "distance": 1.1
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 314,
+            "nearest": {
+              "x": 31,
+              "y": 98,
+              "z": -5
+            },
+            "distance": 1.68
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 47,
+            "nearest": {
+              "x": 31,
+              "y": 100,
+              "z": -5
+            },
+            "distance": 1.68
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1135,
+            "nearest": {
+              "x": 31,
+              "y": 98,
+              "z": -3
+            },
+            "distance": 2.32
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 18,
+            "nearest": {
+              "x": 32,
+              "y": 99,
+              "z": -2
+            },
+            "distance": 2.66
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 69,
+            "nearest": {
+              "x": 31,
+              "y": 95,
+              "z": -5
+            },
+            "distance": 4.22
+          },
+          {
+            "block_name": "diorite",
+            "display_name": "Diorite",
+            "count": 42,
+            "nearest": {
+              "x": 33,
+              "y": 93,
+              "z": 1
+            },
+            "distance": 8.27
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 2,
+            "nearest": {
+              "x": 24,
+              "y": 97,
+              "z": -5
+            },
+            "distance": 8.55
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 21,
+            "nearest": {
+              "x": 24,
+              "y": 96,
+              "z": -2
+            },
+            "distance": 9.21
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 8,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": -10,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444080.7611246,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 8,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": -10,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444201.1710422,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": -10.0,
+          "y": 117.0,
+          "z": 0.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 99.0,
+          "z": -4.64
+        },
+        "distance_remaining": 46.2,
+        "target_offset": {
+          "x": -42.3,
+          "y": 18.0,
+          "z": 4.64
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "grass",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 99.0,
+            "z": -4.64
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 100.62,
+            "z": -4.64
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -5
+          },
+          "yaw": 100.04,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -0.98,
+            "y": -0.0,
+            "z": -0.17
+          }
+        },
+        "image": null,
+        "duration_ms": 120154.46
+      },
+      "images": []
+    },
+    {
+      "seq": 9,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 20,
+        "y": 110,
+        "z": -5
+      },
+      "revision": 0,
+      "time": 1791444203.214588,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 9,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 20,
+        "y": 110,
+        "z": -5
+      },
+      "revision": 0,
+      "time": 1791444204.1595826,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 31,
+            "y": 109,
+            "z": -5
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 10,
+      "event": "dispatch",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444205.7350986,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 10,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444206.0151742,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 99.0,
+            "z": -4.64
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 100.62,
+            "z": -4.64
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -5
+          },
+          "yaw": 100.04,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -0.98,
+            "y": -0.0,
+            "z": -0.17
+          }
+        },
+        "player": {
+          "health": 18.0,
+          "max_health": 20.0,
+          "food": 8,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 19723,
+          "is_day": false,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 54,
+          "max_durability": 59
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "dirt",
+            "count": 5
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 4
+          },
+          {
+            "slot": 3,
+            "item": "birch_planks",
+            "count": 3
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 54,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 5,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 4,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2931,
+            "nearest": {
+              "x": 32,
+              "y": 99,
+              "z": -5
+            },
+            "distance": 0.47
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 334,
+            "nearest": {
+              "x": 32,
+              "y": 98,
+              "z": -5
+            },
+            "distance": 1.1
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 314,
+            "nearest": {
+              "x": 31,
+              "y": 98,
+              "z": -5
+            },
+            "distance": 1.68
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 47,
+            "nearest": {
+              "x": 31,
+              "y": 100,
+              "z": -5
+            },
+            "distance": 1.68
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1135,
+            "nearest": {
+              "x": 31,
+              "y": 98,
+              "z": -3
+            },
+            "distance": 2.32
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 18,
+            "nearest": {
+              "x": 32,
+              "y": 99,
+              "z": -2
+            },
+            "distance": 2.66
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 69,
+            "nearest": {
+              "x": 31,
+              "y": 95,
+              "z": -5
+            },
+            "distance": 4.22
+          },
+          {
+            "block_name": "diorite",
+            "display_name": "Diorite",
+            "count": 42,
+            "nearest": {
+              "x": 33,
+              "y": 93,
+              "z": 1
+            },
+            "distance": 8.27
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 2,
+            "nearest": {
+              "x": 24,
+              "y": 97,
+              "z": -5
+            },
+            "distance": 8.55
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 21,
+            "nearest": {
+              "x": 24,
+              "y": 96,
+              "z": -2
+            },
+            "distance": 9.21
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 11,
+      "event": "dispatch",
+      "tool": "minecraft_rotate",
+      "arguments": {
+        "pitch_degrees": 10,
+        "yaw_degrees": 0
+      },
+      "revision": 0,
+      "time": 1791444208.1754603,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 11,
+      "event": "result",
+      "tool": "minecraft_rotate",
+      "arguments": {
+        "pitch_degrees": 10,
+        "yaw_degrees": 0
+      },
+      "revision": 0,
+      "time": 1791444208.531369,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 99.0,
+            "z": -4.64
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 100.62,
+            "z": -4.64
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -5
+          },
+          "yaw": 280.04,
+          "pitch": 10.05,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.97,
+            "y": 0.17,
+            "z": 0.17
+          }
+        },
+        "yaw_delta": 180.0,
+        "pitch_delta": 10.05,
+        "image": {
+          "frame_id": "04c92956b6fafa4ce76003820432e9a5",
+          "captured_at": "2026-10-08T07:23:28.347936Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00011-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 12,
+      "event": "dispatch",
+      "tool": "minecraft_scan_horizon",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444210.2637784,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 12,
+      "event": "result",
+      "tool": "minecraft_scan_horizon",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444210.5138125,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "origin": {
+          "x": 32.3,
+          "y": 99.0,
+          "z": -4.64
+        },
+        "rays": [
+          {
+            "heading_degrees": 0,
+            "cardinal": "N",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 0,
+            "cardinal": "N",
+            "pitch": 0,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 0,
+            "cardinal": "N",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 6.88
+          },
+          {
+            "heading_degrees": 15,
+            "cardinal": "N",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 15,
+            "cardinal": "N",
+            "pitch": 0,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 15,
+            "cardinal": "N",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 7.25
+          },
+          {
+            "heading_degrees": 30,
+            "cardinal": "NE",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 30,
+            "cardinal": "NE",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "birch_leaves",
+            "distance": 46.6
+          },
+          {
+            "heading_degrees": 30,
+            "cardinal": "NE",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass_block",
+            "distance": 3.67
+          },
+          {
+            "heading_degrees": 45,
+            "cardinal": "NE",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 45,
+            "cardinal": "NE",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 45,
+            "cardinal": "NE",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 60,
+            "cardinal": "NE",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 60,
+            "cardinal": "NE",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 60,
+            "cardinal": "NE",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 75,
+            "cardinal": "E",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 75,
+            "cardinal": "E",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 75,
+            "cardinal": "E",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 90,
+            "cardinal": "E",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 90,
+            "cardinal": "E",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 90,
+            "cardinal": "E",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 105,
+            "cardinal": "E",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 105,
+            "cardinal": "E",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 105,
+            "cardinal": "E",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 120,
+            "cardinal": "SE",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 120,
+            "cardinal": "SE",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 120,
+            "cardinal": "SE",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 135,
+            "cardinal": "SE",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 135,
+            "cardinal": "SE",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 135,
+            "cardinal": "SE",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 150,
+            "cardinal": "SE",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 150,
+            "cardinal": "SE",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass_block",
+            "distance": 2.18
+          },
+          {
+            "heading_degrees": 150,
+            "cardinal": "SE",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 1.48
+          },
+          {
+            "heading_degrees": 165,
+            "cardinal": "S",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 4.84
+          },
+          {
+            "heading_degrees": 165,
+            "cardinal": "S",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass_block",
+            "distance": 2.18
+          },
+          {
+            "heading_degrees": 165,
+            "cardinal": "S",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass_block",
+            "distance": 2.18
+          },
+          {
+            "heading_degrees": 180,
+            "cardinal": "S",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass_block",
+            "distance": 15.03
+          },
+          {
+            "heading_degrees": 180,
+            "cardinal": "S",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "dandelion",
+            "distance": 7.67
+          },
+          {
+            "heading_degrees": 180,
+            "cardinal": "S",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "dandelion",
+            "distance": 3.11
+          },
+          {
+            "heading_degrees": 195,
+            "cardinal": "S",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 14.31
+          },
+          {
+            "heading_degrees": 195,
+            "cardinal": "S",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass_block",
+            "distance": 9.81
+          },
+          {
+            "heading_degrees": 195,
+            "cardinal": "S",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 4.05
+          },
+          {
+            "heading_degrees": 210,
+            "cardinal": "SW",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 210,
+            "cardinal": "SW",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass_block",
+            "distance": 12.09
+          },
+          {
+            "heading_degrees": 210,
+            "cardinal": "SW",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 8.89
+          },
+          {
+            "heading_degrees": 225,
+            "cardinal": "SW",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 225,
+            "cardinal": "SW",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 15.82
+          },
+          {
+            "heading_degrees": 225,
+            "cardinal": "SW",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass",
+            "distance": 12.79
+          },
+          {
+            "heading_degrees": 240,
+            "cardinal": "SW",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 240,
+            "cardinal": "SW",
+            "pitch": 0,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 240,
+            "cardinal": "SW",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "grass_block",
+            "distance": 17.95
+          },
+          {
+            "heading_degrees": 255,
+            "cardinal": "W",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 255,
+            "cardinal": "W",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "spruce_leaves",
+            "distance": 97.86
+          },
+          {
+            "heading_degrees": 255,
+            "cardinal": "W",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "dark_oak_leaves",
+            "distance": 57.57
+          },
+          {
+            "heading_degrees": 270,
+            "cardinal": "W",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 270,
+            "cardinal": "W",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "spruce_leaves",
+            "distance": 68.7
+          },
+          {
+            "heading_degrees": 270,
+            "cardinal": "W",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "spruce_leaves",
+            "distance": 59.78
+          },
+          {
+            "heading_degrees": 285,
+            "cardinal": "W",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 285,
+            "cardinal": "W",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "spruce_leaves",
+            "distance": 88.83
+          },
+          {
+            "heading_degrees": 285,
+            "cardinal": "W",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "spruce_log",
+            "distance": 63.16
+          },
+          {
+            "heading_degrees": 300,
+            "cardinal": "NW",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 300,
+            "cardinal": "NW",
+            "pitch": 0,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 300,
+            "cardinal": "NW",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "dark_oak_leaves",
+            "distance": 33.58
+          },
+          {
+            "heading_degrees": 315,
+            "cardinal": "NW",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 315,
+            "cardinal": "NW",
+            "pitch": 0,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 315,
+            "cardinal": "NW",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "spruce_leaves",
+            "distance": 36.02
+          },
+          {
+            "heading_degrees": 330,
+            "cardinal": "NW",
+            "pitch": 15,
+            "hit": false,
+            "block_name": null,
+            "distance": null
+          },
+          {
+            "heading_degrees": 330,
+            "cardinal": "NW",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "spruce_leaves",
+            "distance": 76.32
+          },
+          {
+            "heading_degrees": 330,
+            "cardinal": "NW",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "spruce_leaves",
+            "distance": 40.53
+          },
+          {
+            "heading_degrees": 345,
+            "cardinal": "N",
+            "pitch": 15,
+            "hit": true,
+            "block_name": "spruce_log",
+            "distance": 40.9
+          },
+          {
+            "heading_degrees": 345,
+            "cardinal": "N",
+            "pitch": 0,
+            "hit": true,
+            "block_name": "spruce_leaves",
+            "distance": 36.42
+          },
+          {
+            "heading_degrees": 345,
+            "cardinal": "N",
+            "pitch": -15,
+            "hit": true,
+            "block_name": "spruce_log",
+            "distance": 40.97
+          }
+        ],
+        "sectors": [
+          {
+            "cardinal": "N",
+            "terrain": "_terrain",
+            "notable_blocks": [
+              "grass",
+              "spruce_log",
+              "spruce_leaves"
+            ]
+          },
+          {
+            "cardinal": "NE",
+            "terrain": "solid_wall",
+            "notable_blocks": [
+              "birch_leaves",
+              "grass_block",
+              "grass"
+            ]
+          },
+          {
+            "cardinal": "E",
+            "terrain": "solid_wall",
+            "notable_blocks": [
+              "grass"
+            ]
+          },
+          {
+            "cardinal": "SE",
+            "terrain": "solid_wall",
+            "notable_blocks": [
+              "grass",
+              "grass_block"
+            ]
+          },
+          {
+            "cardinal": "S",
+            "terrain": "solid_wall",
+            "notable_blocks": [
+              "grass",
+              "grass_block",
+              "dandelion"
+            ]
+          },
+          {
+            "cardinal": "SW",
+            "terrain": "_terrain",
+            "notable_blocks": [
+              "grass_block",
+              "grass"
+            ]
+          },
+          {
+            "cardinal": "W",
+            "terrain": "_terrain",
+            "notable_blocks": [
+              "spruce_leaves",
+              "dark_oak_leaves",
+              "spruce_log"
+            ]
+          },
+          {
+            "cardinal": "NW",
+            "terrain": "_terrain",
+            "notable_blocks": [
+              "dark_oak_leaves",
+              "spruce_leaves"
+            ]
+          }
+        ],
+        "landmarks": [],
+        "image": null,
+        "duration_ms": 250.0
+      },
+      "images": []
+    },
+    {
+      "seq": 13,
+      "event": "dispatch",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "jump": true
+      },
+      "revision": 0,
+      "time": 1791444213.938554,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 13,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "jump": true
+      },
+      "revision": 0,
+      "time": 1791444214.551309,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": true,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 256.85,
+        "pose_before": {
+          "x": 32.3,
+          "y": 99.0,
+          "z": -4.64
+        },
+        "pose_after": {
+          "x": 32.65,
+          "y": 100.17,
+          "z": -4.7
+        },
+        "camera": {
+          "feet_position": {
+            "x": 32.65,
+            "y": 100.17,
+            "z": -4.7
+          },
+          "eye_position": {
+            "x": 32.65,
+            "y": 101.79,
+            "z": -4.7
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": -5
+          },
+          "yaw": 280.04,
+          "pitch": 10.05,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.97,
+            "y": 0.17,
+            "z": 0.17
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "b530bcb9585568e6bacfad8c13db8d47",
+          "captured_at": "2026-10-08T07:23:34.369439Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00013-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 14,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 10,
+        "y": 105,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444216.9084604,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 14,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 10,
+        "y": 105,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444218.1565185,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 31,
+            "y": 104,
+            "z": -5
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 15,
+      "event": "dispatch",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444220.1272569,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 15,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444220.3748193,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 32.65,
+            "y": 99.0,
+            "z": -4.7
+          },
+          "eye_position": {
+            "x": 32.65,
+            "y": 100.62,
+            "z": -4.7
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -5
+          },
+          "yaw": 280.04,
+          "pitch": 10.05,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.97,
+            "y": 0.17,
+            "z": 0.17
+          }
+        },
+        "player": {
+          "health": 18.0,
+          "max_health": 20.0,
+          "food": 8,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 20003,
+          "is_day": false,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 54,
+          "max_durability": 59
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "dirt",
+            "count": 5
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 4
+          },
+          {
+            "slot": 3,
+            "item": "birch_planks",
+            "count": 3
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 54,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 5,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 4,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2931,
+            "nearest": {
+              "x": 33,
+              "y": 99,
+              "z": -5
+            },
+            "distance": 0.46
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 334,
+            "nearest": {
+              "x": 32,
+              "y": 98,
+              "z": -5
+            },
+            "distance": 1.23
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 314,
+            "nearest": {
+              "x": 31,
+              "y": 98,
+              "z": -5
+            },
+            "distance": 1.95
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 47,
+            "nearest": {
+              "x": 31,
+              "y": 100,
+              "z": -5
+            },
+            "distance": 1.95
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1135,
+            "nearest": {
+              "x": 31,
+              "y": 98,
+              "z": -3
+            },
+            "distance": 2.57
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 18,
+            "nearest": {
+              "x": 32,
+              "y": 99,
+              "z": -2
+            },
+            "distance": 2.78
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 69,
+            "nearest": {
+              "x": 31,
+              "y": 95,
+              "z": -5
+            },
+            "distance": 4.34
+          },
+          {
+            "block_name": "diorite",
+            "display_name": "Diorite",
+            "count": 42,
+            "nearest": {
+              "x": 33,
+              "y": 93,
+              "z": 1
+            },
+            "distance": 8.29
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 2,
+            "nearest": {
+              "x": 24,
+              "y": 97,
+              "z": -5
+            },
+            "distance": 8.88
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 21,
+            "nearest": {
+              "x": 24,
+              "y": 96,
+              "z": -2
+            },
+            "distance": 9.55
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 16,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 10,
+        "y": 100,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444222.7040732,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 16,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 10,
+        "y": 100,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444223.7578654,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "grass_block",
+          "position": {
+            "x": 30,
+            "y": 100,
+            "z": -5
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 17,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 100,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444225.6412966,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 17,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 100,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444226.6995153,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 32,
+            "y": 99,
+            "z": -4
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 18,
+      "event": "dispatch",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 32,
+          "y": 99,
+          "z": -5
+        }
+      },
+      "revision": 0,
+      "time": 1791444228.6988358,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 18,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 32,
+          "y": 99,
+          "z": -5
+        }
+      },
+      "revision": 0,
+      "time": 1791444228.9413996,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 32, 99, -5.",
+        "position": {
+          "x": 32,
+          "y": 99,
+          "z": -5
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 19,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 35,
+        "y": 99,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444230.9646015,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 19,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 35,
+        "y": 99,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444232.0278146,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 33,
+            "y": 98,
+            "z": -4
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 20,
+      "event": "dispatch",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 32,
+          "y": 98,
+          "z": -5
+        }
+      },
+      "revision": 0,
+      "time": 1791444234.1091795,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 20,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 32,
+          "y": 98,
+          "z": -5
+        }
+      },
+      "revision": 0,
+      "time": 1791444234.348688,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 32,
+          "y": 98,
+          "z": -5
+        },
+        "block_name": "grass_block",
+        "display_name": "Grass Block",
+        "is_solid": true,
+        "exposed_faces": [
+          "north",
+          "east",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 32,
+              "y": 98,
+              "z": -6
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 32,
+              "y": 98,
+              "z": -4
+            },
+            "block_name": "grass_block",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 33,
+              "y": 98,
+              "z": -5
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 31,
+              "y": 98,
+              "z": -5
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 32,
+              "y": 99,
+              "z": -5
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 32,
+              "y": 97,
+              "z": -5
+            },
+            "block_name": "dirt",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 21,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 99,
+        "z": -6
+      },
+      "revision": 0,
+      "time": 1791444236.7921035,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 21,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 99,
+        "z": -6
+      },
+      "revision": 0,
+      "time": 1791444237.656302,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 32,
+            "y": 98,
+            "z": -6
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 22,
+      "event": "dispatch",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 32,
+          "y": 98,
+          "z": -5
+        }
+      },
+      "revision": 0,
+      "time": 1791444239.645797,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 22,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 32,
+          "y": 98,
+          "z": -5
+        }
+      },
+      "revision": 0,
+      "time": 1791444241.9241247,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": 32,
+            "y": 98,
+            "z": -5
+          },
+          "block_name": "grass_block",
+          "display_name": "Grass Block"
+        },
+        "tool_used": "wooden_pickaxe",
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "dirt"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "dirt",
+              "before": 5,
+              "after": 6,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 77,
+          "total_items_after": 78
+        },
+        "image": {
+          "frame_id": "d8d955e30676e707cf6ad9426e987512",
+          "captured_at": "2026-10-08T07:24:01.734198Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 2015.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00022-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 23,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 97,
+        "z": -6
+      },
+      "revision": 0,
+      "time": 1791444244.2052164,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 23,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 97,
+        "z": -6
+      },
+      "revision": 0,
+      "time": 1791444244.4287248,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "reachable",
+        "path_length": 0.0,
+        "hops": 1,
+        "estimated_seconds": 0.0,
+        "blocker": null
+      },
+      "images": []
+    },
+    {
+      "seq": 24,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 20,
+        "y": 110,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444246.5962362,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 24,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 20,
+        "y": 110,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444247.6895971,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 31,
+            "y": 109,
+            "z": -5
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 25,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 15,
+        "y": 115,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444249.820897,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 25,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 15,
+        "y": 115,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444251.0870702,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 31,
+            "y": 114,
+            "z": -5
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 26,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 120,
+        "z": 20
+      },
+      "revision": 0,
+      "time": 1791444253.3965204,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 26,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 120,
+        "z": 20
+      },
+      "revision": 0,
+      "time": 1791444253.6344926,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "unknown",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": null
+      },
+      "images": []
+    },
+    {
+      "seq": 27,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 20,
+        "y": 118,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444256.0713005,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 27,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 20,
+        "y": 118,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444257.3723962,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 31,
+            "y": 117,
+            "z": -4
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 28,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 118,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444259.6698835,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 28,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 118,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444260.8603992,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 32,
+            "y": 117,
+            "z": -4
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 29,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 118,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444263.1660385,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 29,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 118,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444264.3585157,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 32,
+            "y": 117,
+            "z": -4
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 30,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 120,
+        "z": 30
+      },
+      "revision": 0,
+      "time": 1791444266.418941,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 30,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 120,
+        "z": 30
+      },
+      "revision": 0,
+      "time": 1791444266.6579418,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "unknown",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": null
+      },
+      "images": []
+    },
+    {
+      "seq": 31,
+      "event": "dispatch",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444268.6124625,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 31,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444268.8649778,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 32.65,
+            "y": 98.0,
+            "z": -4.7
+          },
+          "eye_position": {
+            "x": 32.65,
+            "y": 99.62,
+            "z": -4.7
+          },
+          "block_position": {
+            "x": 32,
+            "y": 98,
+            "z": -5
+          },
+          "yaw": 143.84,
+          "pitch": -83.25,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.07,
+            "y": -0.99,
+            "z": -0.09
+          }
+        },
+        "player": {
+          "health": 18.0,
+          "max_health": 20.0,
+          "food": 8,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 20983,
+          "is_day": false,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 53,
+          "max_durability": 59
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "dirt",
+            "count": 6
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 4
+          },
+          {
+            "slot": 3,
+            "item": "birch_planks",
+            "count": 3
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 54,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 6,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 4,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2664,
+            "nearest": {
+              "x": 33,
+              "y": 98,
+              "z": -5
+            },
+            "distance": 0.46
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 353,
+            "nearest": {
+              "x": 32,
+              "y": 98,
+              "z": -4
+            },
+            "distance": 0.96
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 356,
+            "nearest": {
+              "x": 32,
+              "y": 97,
+              "z": -5
+            },
+            "distance": 1.23
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1298,
+            "nearest": {
+              "x": 31,
+              "y": 97,
+              "z": -5
+            },
+            "distance": 1.95
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 47,
+            "nearest": {
+              "x": 31,
+              "y": 100,
+              "z": -5
+            },
+            "distance": 2.61
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 18,
+            "nearest": {
+              "x": 32,
+              "y": 99,
+              "z": -2
+            },
+            "distance": 2.96
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 71,
+            "nearest": {
+              "x": 31,
+              "y": 95,
+              "z": -5
+            },
+            "distance": 3.44
+          },
+          {
+            "block_name": "diorite",
+            "display_name": "Diorite",
+            "count": 72,
+            "nearest": {
+              "x": 33,
+              "y": 93,
+              "z": 1
+            },
+            "distance": 7.59
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 30,
+            "nearest": {
+              "x": 34,
+              "y": 90,
+              "z": -5
+            },
+            "distance": 8.12
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 4,
+            "nearest": {
+              "x": 24,
+              "y": 97,
+              "z": -5
+            },
+            "distance": 8.71
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 32,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 99,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444272.017178,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 32,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 99,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444272.2581286,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "reachable",
+        "path_length": 4.0,
+        "hops": 5,
+        "estimated_seconds": 0.93,
+        "blocker": null
+      },
+      "images": []
+    },
+    {
+      "seq": 33,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 110,
+        "z": 15
+      },
+      "revision": 0,
+      "time": 1791444274.6157799,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 33,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 110,
+        "z": 15
+      },
+      "revision": 0,
+      "time": 1791444275.8558059,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 32,
+            "y": 109,
+            "z": -4
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 34,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 35,
+        "y": 110,
+        "z": 20
+      },
+      "revision": 0,
+      "time": 1791444278.282005,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 34,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 35,
+        "y": 110,
+        "z": 20
+      },
+      "revision": 0,
+      "time": 1791444279.6042101,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 32,
+            "y": 109,
+            "z": -4
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 35,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 40,
+        "y": 105,
+        "z": 25
+      },
+      "revision": 0,
+      "time": 1791444282.0448465,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 35,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 40,
+        "y": 105,
+        "z": 25
+      },
+      "revision": 0,
+      "time": 1791444283.6005962,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 32,
+            "y": 104,
+            "z": -4
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 36,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 50,
+        "y": 99,
+        "z": 20
+      },
+      "revision": 0,
+      "time": 1791444285.9440749,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 36,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 50,
+        "y": 99,
+        "z": 20
+      },
+      "revision": 0,
+      "time": 1791444287.6607063,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 33,
+            "y": 98,
+            "z": -4
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 37,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 50,
+        "y": 99,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444290.0233803,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 37,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 50,
+        "y": 99,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444291.3561358,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 33,
+            "y": 98,
+            "z": -5
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 38,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 56,
+        "y": 85,
+        "z": -4
+      },
+      "revision": 0,
+      "time": 1791444293.6995885,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 38,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 56,
+        "y": 85,
+        "z": -4
+      },
+      "revision": 0,
+      "time": 1791444293.9856796,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "reachable",
+        "path_length": 36.0,
+        "hops": 25,
+        "estimated_seconds": 8.37,
+        "blocker": null
+      },
+      "images": []
+    },
+    {
+      "seq": 39,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 45,
+        "y": 95,
+        "z": -4
+      },
+      "revision": 0,
+      "time": 1791444296.36134,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 39,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 45,
+        "y": 95,
+        "z": -4
+      },
+      "revision": 0,
+      "time": 1791444297.5638642,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "dirt",
+          "position": {
+            "x": 33,
+            "y": 96,
+            "z": -5
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 40,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 99,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444300.7490256,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 40,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 32,
+        "y": 99,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791444301.9631827,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "grass_block",
+          "position": {
+            "x": 32,
+            "y": 99,
+            "z": 2
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 41,
+      "event": "dispatch",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 32,
+          "y": 99,
+          "z": 2
+        }
+      },
+      "revision": 0,
+      "time": 1791444304.7175066,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 41,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 32,
+          "y": 99,
+          "z": 2
+        }
+      },
+      "revision": 0,
+      "time": 1791444304.9916992,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 32,
+          "y": 99,
+          "z": 2
+        },
+        "block_name": "grass_block",
+        "display_name": "Grass Block",
+        "is_solid": true,
+        "exposed_faces": [
+          "north",
+          "east",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 32,
+              "y": 99,
+              "z": 1
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 32,
+              "y": 99,
+              "z": 3
+            },
+            "block_name": "grass_block",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 33,
+              "y": 99,
+              "z": 2
+            },
+            "block_name": "grass",
+            "solid": false
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 31,
+              "y": 99,
+              "z": 2
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 32,
+              "y": 100,
+              "z": 2
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 32,
+              "y": 98,
+              "z": 2
+            },
+            "block_name": "dirt",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 42,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 32,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444307.6083517,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 42,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 32,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444428.008515,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 30.0,
+          "y": 102.0,
+          "z": -2.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 99.19,
+          "z": -3.53
+        },
+        "distance_remaining": 3.94,
+        "target_offset": {
+          "x": -2.3,
+          "y": 2.81,
+          "z": 1.53
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 99.19,
+            "z": -3.53
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 100.81,
+            "z": -3.53
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -4
+          },
+          "yaw": 92.4,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -1.0,
+            "y": -0.0,
+            "z": -0.04
+          }
+        },
+        "image": null,
+        "duration_ms": 120151.55
+      },
+      "images": []
+    },
+    {
+      "seq": 43,
+      "event": "dispatch",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444430.3013334,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 43,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444430.5559084,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 99.0,
+            "z": -3.53
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 100.62,
+            "z": -3.53
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -4
+          },
+          "yaw": 92.4,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -1.0,
+            "y": -0.0,
+            "z": -0.04
+          }
+        },
+        "player": {
+          "health": 18.0,
+          "max_health": 20.0,
+          "food": 8,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 223,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 53,
+          "max_durability": 59
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "dirt",
+            "count": 6
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 4
+          },
+          {
+            "slot": 3,
+            "item": "birch_planks",
+            "count": 3
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 54,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 6,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 4,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2845,
+            "nearest": {
+              "x": 32,
+              "y": 99,
+              "z": -4
+            },
+            "distance": 0.55
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 334,
+            "nearest": {
+              "x": 32,
+              "y": 98,
+              "z": -4
+            },
+            "distance": 1.14
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 314,
+            "nearest": {
+              "x": 31,
+              "y": 99,
+              "z": -3
+            },
+            "distance": 1.41
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 18,
+            "nearest": {
+              "x": 32,
+              "y": 99,
+              "z": -2
+            },
+            "distance": 1.56
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1203,
+            "nearest": {
+              "x": 31,
+              "y": 98,
+              "z": -3
+            },
+            "distance": 1.73
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 47,
+            "nearest": {
+              "x": 31,
+              "y": 100,
+              "z": -5
+            },
+            "distance": 2.2
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 69,
+            "nearest": {
+              "x": 31,
+              "y": 95,
+              "z": -3
+            },
+            "distance": 4.24
+          },
+          {
+            "block_name": "diorite",
+            "display_name": "Diorite",
+            "count": 59,
+            "nearest": {
+              "x": 33,
+              "y": 93,
+              "z": 1
+            },
+            "distance": 7.55
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 3,
+            "nearest": {
+              "x": 24,
+              "y": 97,
+              "z": -4
+            },
+            "distance": 8.55
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 21,
+            "nearest": {
+              "x": 24,
+              "y": 96,
+              "z": -2
+            },
+            "distance": 8.96
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 44,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 56,
+        "z": -4
+      },
+      "revision": 0,
+      "time": 1791444433.8639343,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 44,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 56,
+        "z": -4
+      },
+      "revision": 0,
+      "time": 1791444554.272175,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 54.0,
+          "y": 94.0,
+          "z": -6.0
+        },
+        "final_position": {
+          "x": 44.95,
+          "y": 93.0,
+          "z": -2.3
+        },
+        "distance_remaining": 9.83,
+        "target_offset": {
+          "x": 9.05,
+          "y": 1.0,
+          "z": -3.7
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "birch_leaves",
+          "feet_block": "grass",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 44.95,
+            "y": 93.0,
+            "z": -2.3
+          },
+          "eye_position": {
+            "x": 44.95,
+            "y": 94.62,
+            "z": -2.3
+          },
+          "block_position": {
+            "x": 44,
+            "y": 93,
+            "z": -3
+          },
+          "yaw": 214.65,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": 0.57,
+            "y": -0.0,
+            "z": -0.82
+          }
+        },
+        "image": null,
+        "duration_ms": 120156.07
+      },
+      "images": []
+    },
+    {
+      "seq": 45,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 56,
+        "z": -5
+      },
+      "revision": 0,
+      "time": 1791444556.9476285,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 45,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 56,
+        "z": -5
+      },
+      "revision": 0,
+      "time": 1791444677.425682,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 54.0,
+          "y": 94.0,
+          "z": -7.0
+        },
+        "final_position": {
+          "x": 44.95,
+          "y": 93.0,
+          "z": -2.3
+        },
+        "distance_remaining": 10.25,
+        "target_offset": {
+          "x": 9.05,
+          "y": 1.0,
+          "z": -4.7
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "birch_leaves",
+          "feet_block": "grass",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 44.95,
+            "y": 93.0,
+            "z": -2.3
+          },
+          "eye_position": {
+            "x": 44.95,
+            "y": 94.62,
+            "z": -2.3
+          },
+          "block_position": {
+            "x": 44,
+            "y": 93,
+            "z": -3
+          },
+          "yaw": 214.65,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": 0.57,
+            "y": -0.0,
+            "z": -0.82
+          }
+        },
+        "image": null,
+        "duration_ms": 120158.98
+      },
+      "images": []
+    },
+    {
+      "seq": 46,
+      "event": "dispatch",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444680.1328697,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 46,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791444680.3980627,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 44.95,
+            "y": 93.0,
+            "z": -2.3
+          },
+          "eye_position": {
+            "x": 44.95,
+            "y": 94.62,
+            "z": -2.3
+          },
+          "block_position": {
+            "x": 44,
+            "y": 93,
+            "z": -3
+          },
+          "yaw": 214.65,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": 0.57,
+            "y": -0.0,
+            "z": -0.82
+          }
+        },
+        "player": {
+          "health": 18.0,
+          "max_health": 20.0,
+          "food": 7,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 5203,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 53,
+          "max_durability": 59
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "dirt",
+            "count": 6
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 4
+          },
+          {
+            "slot": 3,
+            "item": "birch_planks",
+            "count": 3
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 54,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 6,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 4,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2651,
+            "nearest": {
+              "x": 45,
+              "y": 93,
+              "z": -2
+            },
+            "distance": 0.3
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 307,
+            "nearest": {
+              "x": 44,
+              "y": 93,
+              "z": -2
+            },
+            "distance": 0.99
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 45,
+            "nearest": {
+              "x": 44,
+              "y": 93,
+              "z": -3
+            },
+            "distance": 1.18
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 534,
+            "nearest": {
+              "x": 44,
+              "y": 92,
+              "z": -2
+            },
+            "distance": 1.41
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1026,
+            "nearest": {
+              "x": 44,
+              "y": 90,
+              "z": -2
+            },
+            "distance": 3.16
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 12,
+            "nearest": {
+              "x": 48,
+              "y": 92,
+              "z": -1
+            },
+            "distance": 3.47
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 55,
+            "nearest": {
+              "x": 49,
+              "y": 93,
+              "z": -2
+            },
+            "distance": 4.07
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 115,
+            "nearest": {
+              "x": 43,
+              "y": 92,
+              "z": 3
+            },
+            "distance": 5.73
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 34,
+            "nearest": {
+              "x": 40,
+              "y": 90,
+              "z": -3
+            },
+            "distance": 5.83
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 3,
+            "nearest": {
+              "x": 44,
+              "y": 89,
+              "z": 2
+            },
+            "distance": 5.95
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 3,
+            "nearest": {
+              "x": 51,
+              "y": 93,
+              "z": -3
+            },
+            "distance": 6.09
+          },
+          {
+            "block_name": "diorite",
+            "display_name": "Diorite",
+            "count": 128,
+            "nearest": {
+              "x": 40,
+              "y": 90,
+              "z": 2
+            },
+            "distance": 7.21
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 47,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 50,
+        "z": -5
+      },
+      "revision": 0,
+      "time": 1791444683.535691,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 47,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 50,
+        "z": -5
+      },
+      "revision": 0,
+      "time": 1791444686.7221317,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "status": "reached",
+        "requested": {
+          "x": 51.0,
+          "y": 96.0,
+          "z": -4.0
+        },
+        "final_position": {
+          "x": 51.43,
+          "y": 96.0,
+          "z": -3.5
+        },
+        "distance_remaining": 0.66,
+        "target_offset": {
+          "x": -0.43,
+          "y": 0.0,
+          "z": -0.5
+        },
+        "diagnostics": {
+          "cause": "goal_reached",
+          "path_status": "success",
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "birch_leaves",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 1,
+        "camera": {
+          "feet_position": {
+            "x": 51.43,
+            "y": 96.0,
+            "z": -3.5
+          },
+          "eye_position": {
+            "x": 51.43,
+            "y": 97.62,
+            "z": -3.5
+          },
+          "block_position": {
+            "x": 51,
+            "y": 96,
+            "z": -4
+          },
+          "yaw": 324.6,
+          "pitch": -0.0,
+          "cardinal": "south",
+          "look_vector": {
+            "x": 0.58,
+            "y": -0.0,
+            "z": 0.82
+          }
+        },
+        "image": null,
+        "duration_ms": 2953.67
+      },
+      "images": []
+    },
+    {
+      "seq": 48,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 40,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444689.6297133,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 48,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 40,
+        "z": 0
+      },
+      "revision": 0,
+      "time": 1791444698.358409,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "status": "reached",
+        "requested": {
+          "x": 38.0,
+          "y": 97.0,
+          "z": 2.0
+        },
+        "final_position": {
+          "x": 38.34,
+          "y": 97.0,
+          "z": 2.42
+        },
+        "distance_remaining": 0.54,
+        "target_offset": {
+          "x": -0.34,
+          "y": 0.0,
+          "z": -0.42
+        },
+        "diagnostics": {
+          "cause": "goal_reached",
+          "path_status": "partial",
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 1,
+        "camera": {
+          "feet_position": {
+            "x": 38.34,
+            "y": 97.0,
+            "z": 2.42
+          },
+          "eye_position": {
+            "x": 38.34,
+            "y": 98.62,
+            "z": 2.42
+          },
+          "block_position": {
+            "x": 38,
+            "y": 97,
+            "z": 2
+          },
+          "yaw": 234.3,
+          "pitch": -0.0,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.81,
+            "y": -0.0,
+            "z": -0.58
+          }
+        },
+        "image": null,
+        "duration_ms": 8487.41
+      },
+      "images": []
+    },
+    {
+      "seq": 49,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 25,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791444700.9205184,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 49,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 25,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791444821.3203712,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 23.0,
+          "y": 108.0,
+          "z": 6.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.19,
+          "z": 2.5
+        },
+        "distance_remaining": 12.64,
+        "target_offset": {
+          "x": -9.3,
+          "y": 7.81,
+          "z": 3.5
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.19,
+            "z": 2.5
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.81,
+            "z": 2.5
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 2
+          },
+          "yaw": 141.37,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.62,
+            "y": -0.0,
+            "z": -0.78
+          }
+        },
+        "image": null,
+        "duration_ms": 120161.45
+      },
+      "images": []
+    },
+    {
+      "seq": 50,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 15,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791444824.0525794,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 50,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 15,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791444944.4160616,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 13.0,
+          "y": 118.0,
+          "z": 6.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.0,
+          "z": 2.5
+        },
+        "distance_remaining": 26.62,
+        "target_offset": {
+          "x": -19.3,
+          "y": 18.0,
+          "z": 3.5
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "grass",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.0,
+            "z": 2.5
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.62,
+            "z": 2.5
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 2
+          },
+          "yaw": 141.37,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.62,
+            "y": -0.0,
+            "z": -0.78
+          }
+        },
+        "image": null,
+        "duration_ms": 120155.13
+      },
+      "images": []
+    },
+    {
+      "seq": 51,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 10,
+        "y": 118,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791444947.7336571,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 51,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 10,
+        "y": 118,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791444947.9536064,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "reachable",
+        "path_length": 28.68,
+        "hops": 22,
+        "estimated_seconds": 6.67,
+        "blocker": null
+      },
+      "images": []
+    },
+    {
+      "seq": 52,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 10,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791444950.9661207,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 52,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 10,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791445071.3760173,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 9.0,
+          "y": 119.0,
+          "z": 6.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.0,
+          "z": 2.5
+        },
+        "distance_remaining": 30.27,
+        "target_offset": {
+          "x": -23.3,
+          "y": 19.0,
+          "z": 3.5
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "grass",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.0,
+            "z": 2.5
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.62,
+            "z": 2.5
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 2
+          },
+          "yaw": 90.0,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -1.0,
+            "y": -0.0,
+            "z": -0.0
+          }
+        },
+        "image": null,
+        "duration_ms": 120167.96
+      },
+      "images": []
+    },
+    {
+      "seq": 53,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 20,
+        "y": 118,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791445074.0113585,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 53,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 20,
+        "y": 118,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791445075.1691484,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 31,
+            "y": 117,
+            "z": 2
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 54,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 15,
+        "y": 118,
+        "z": 6
+      },
+      "revision": 0,
+      "time": 1791445077.868842,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 54,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 15,
+        "y": 118,
+        "z": 6
+      },
+      "revision": 0,
+      "time": 1791445079.147025,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 31,
+            "y": 117,
+            "z": 2
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 55,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 10,
+        "y": 118,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791445081.9491186,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 55,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 10,
+        "y": 118,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791445083.2151527,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 31,
+            "y": 117,
+            "z": 2
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 56,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 20,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791445201.328437,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 56,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 20,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791445321.7084312,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 18.0,
+          "y": 118.0,
+          "z": 12.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.0,
+          "z": 2.5
+        },
+        "distance_remaining": 24.87,
+        "target_offset": {
+          "x": -14.3,
+          "y": 18.0,
+          "z": 9.5
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.0,
+            "z": 2.5
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.62,
+            "z": 2.5
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 2
+          },
+          "yaw": 90.0,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -1.0,
+            "y": -0.0,
+            "z": -0.0
+          }
+        },
+        "image": null,
+        "duration_ms": 120151.15
+      },
+      "images": []
+    },
+    {
+      "seq": 57,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 30,
+        "z": 20
+      },
+      "revision": 0,
+      "time": 1791445323.8826768,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 57,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 30,
+        "z": 20
+      },
+      "revision": 0,
+      "time": 1791445444.2866344,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 28.0,
+          "y": 111.0,
+          "z": 20.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.0,
+          "z": 2.5
+        },
+        "distance_remaining": 21.11,
+        "target_offset": {
+          "x": -4.3,
+          "y": 11.0,
+          "z": 17.5
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.0,
+            "z": 2.5
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.62,
+            "z": 2.5
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 2
+          },
+          "yaw": 141.37,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.62,
+            "y": -0.0,
+            "z": -0.78
+          }
+        },
+        "image": null,
+        "duration_ms": 120161.52
+      },
+      "images": []
+    },
+    {
+      "seq": 58,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 30,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791445446.5396411,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 58,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 30,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791445566.9245546,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 28.0,
+          "y": 107.0,
+          "z": 12.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.0,
+          "z": 2.5
+        },
+        "distance_remaining": 12.56,
+        "target_offset": {
+          "x": -4.3,
+          "y": 7.0,
+          "z": 9.5
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.0,
+            "z": 2.5
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.62,
+            "z": 2.5
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 2
+          },
+          "yaw": 141.37,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.62,
+            "y": -0.0,
+            "z": -0.78
+          }
+        },
+        "image": null,
+        "duration_ms": 120157.79
+      },
+      "images": []
+    },
+    {
+      "seq": 59,
+      "event": "dispatch",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 100,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791445568.7311716,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 59,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 30,
+        "y": 100,
+        "z": 10
+      },
+      "revision": 0,
+      "time": 1791445569.709621,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "grass_block",
+          "position": {
+            "x": 31,
+            "y": 100,
+            "z": 3
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 60,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 30,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791445571.615458,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "seq": 60,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 30,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791445692.0012493,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 28.0,
+          "y": 105.0,
+          "z": 7.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.0,
+          "z": 2.5
+        },
+        "distance_remaining": 7.98,
+        "target_offset": {
+          "x": -4.3,
+          "y": 5.0,
+          "z": 4.5
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.0,
+            "z": 2.5
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.62,
+            "z": 2.5
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 2
+          },
+          "yaw": 141.37,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.62,
+            "y": -0.0,
+            "z": -0.78
+          }
+        },
+        "image": null,
+        "duration_ms": 120150.15
+      },
+      "images": []
+    },
+    {
+      "seq": 61,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 28,
+        "z": 3
+      },
+      "revision": 0,
+      "time": 1791445694.2090073,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953"
+    },
+    {
+      "event": "stop_dispatch",
+      "epoch": 122,
+      "time": 1791445733.3951652
+    },
+    {
+      "event": "stop_result",
+      "epoch": 122,
+      "result": {
+        "tool": "minecraft_stop",
+        "arguments": {
+          "scope": "both"
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "scope": "both",
+          "stopped_command": "minecraft_walk_to_surface",
+          "stopped_skill": null,
+          "camera": {
+            "feet_position": {
+              "x": 32.3,
+              "y": 100.0,
+              "z": 2.5
+            },
+            "eye_position": {
+              "x": 32.3,
+              "y": 101.62,
+              "z": 2.5
+            },
+            "block_position": {
+              "x": 32,
+              "y": 100,
+              "z": 2
+            },
+            "yaw": 90.0,
+            "pitch": -0.0,
+            "cardinal": "west",
+            "look_vector": {
+              "x": -1.0,
+              "y": -0.0,
+              "z": -0.0
+            }
+          }
+        },
+        "images": []
+      },
+      "time": 1791445733.9127007
+    },
+    {
+      "seq": 61,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 28,
+        "z": 3
+      },
+      "revision": 0,
+      "time": 1791445733.9758132,
+      "epoch": 122,
+      "session": "f472f53f024a4a35a56b1b06236c3953",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "stopped",
+        "message": "The walk was stopped.",
+        "status": "partial",
+        "requested": {
+          "x": 26.0,
+          "y": 105.0,
+          "z": 3.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.0,
+          "z": 2.5
+        },
+        "distance_remaining": 8.06,
+        "target_offset": {
+          "x": -6.3,
+          "y": 5.0,
+          "z": 0.5
+        },
+        "diagnostics": {
+          "cause": "stopped",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.0,
+            "z": 2.5
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.62,
+            "z": 2.5
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 2
+          },
+          "yaw": 90.0,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -1.0,
+            "y": -0.0,
+            "z": -0.0
+          }
+        },
+        "image": null,
+        "duration_ms": 39345.21
+      },
+      "images": []
+    }
+  ]
+}

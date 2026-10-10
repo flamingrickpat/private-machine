@@ -11,3 +11,4 @@ __pycache__/
 config.local.yaml
 .pytest_cache/
 site/
+hs_err_pid*.log

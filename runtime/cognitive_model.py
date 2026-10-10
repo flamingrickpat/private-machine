@@ -88,6 +88,14 @@ class LazyStageModel:
         client = self.ensure_client()
         return asyncio.run(complete_with_retry(client, messages, generation))
 
+    def measure_context(self, messages: list[dict], *, cancel=None, **generation) -> dict:
+        """Measure tokens using the same activated connection as inference."""
+        from threading import Event
+        from runtime.model_context import measure_context
+        self.ensure_client()
+        with self.owner.use(self.connection):
+            return asyncio.run(measure_context(self.connection, messages, cancel if cancel is not None else Event(), **generation))
+
     def build_async_tool(self):
         """Return an async completion callable for roles that run their own loop.
 

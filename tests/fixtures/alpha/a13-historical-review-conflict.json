@@ -1,0 +1,98 @@
+{
+  "scope": "Actual hosted M3-48 review and planner patch; no actor ran.",
+  "sources": {
+    "review_request": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\decisions\\0156-reviewer\\input.json",
+      "sha256": "6d67e4c7ff83c1ae27f9e120b82443d103ffbe8dd4c412e08b8a560d7b785612"
+    },
+    "review_response": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\decisions\\0156-reviewer\\output.json",
+      "sha256": "405fe9d0550dc1da80d6e423a15e7ef69ca1a54523f2e199e8743c1c00cd5bb4"
+    },
+    "planner_request": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\decisions\\0157-planner\\input.json",
+      "sha256": "b9e3a338473559713d2d18a06951c729cdddf67b90a04136ad5424f3577c4f33"
+    },
+    "planner_response": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\decisions\\0157-planner\\output.json",
+      "sha256": "dc48a5bb790b666595da7a16c0168eb16446e704514a02e14c36160773249916"
+    }
+  },
+  "native_review": {
+    "evidence_requests": [],
+    "status": "revise",
+    "summary": "The 'iron_mine' leaf criteria are insufficient for the goal's requirement to obtain raw iron from *actual exposed iron ore mining*. The current criteria only check for inventory count (>=3) and alive status. They do not verify that the iron was mined from exposed ore, nor do they enforce the prerequisite of having a stone pickaxe ready for mining (though it is in dependencies, the criteria should reflect the successful acquisition method or at least ensure the tool is present if the instruction implies using it). More critically, the goal states 'Obtain at least three raw iron from actual iron ore mining'. The existing certificate shows `im_raw` passed, but the review scope is for the *current* revision 32 which seems to be re-evaluating or updating this leaf. The instruction says 'mine at least 1 more', implying the body already has 2. However, the criteria `minimum: 3` is correct for the total. The issue is that the criteria do not explicitly validate the *source* or the *method* beyond the implicit dependency. But looking closer at the rules: 'Require acceptance conditions that cover the actual requested goal.' The goal asks for mining exposed iron. The criteria just ask for raw iron in inventory. If the player had 3 raw iron from village supplies (forbidden), this criterion would pass. While the dependency `stone_pickaxe` exists, the criteria themselves don't prove the *act* of mining occurred or that the source was valid (non-village). However, usually, we rely on the specialist's report for method. Let's look at the prerequisites. `recovery_exit` is accepted. `stone_pickaxe` is accepted. The main issue might be the assumption about current state. The observation shows `raw_iron` is NOT in the hotbar/inventory list provided in `original_observation`? Wait, `original_observation` inventory does NOT list `raw_iron`. It lists `iron_ingot` (3), `iron_pickaxe` (1), etc. The `project_initial_observation` also doesn't show raw iron. The instruction says 'The body currently has 2 raw_iron'. This contradicts the `original_observation` which shows no raw iron. If the body has no raw iron, the minimum of 3 is fine. But if the instruction assumes 2 exist, and they don't, the actor might fail or need to mine 3. The bigger problem: The goal requires 'self-mined iron'. The criteria `inventory >= 3` could be satisfied by non-self-mined sources if not carefully constrained by the specialist's behavior, but typically we trust the specialist. However, there is a mismatch between the instruction ('currently has 2') and the observation (has 0 raw iron, has 3 ingots). This suggests the instruction is based on stale data or incorrect assumptions. Also, the goal requires smelting *that same* raw iron. If the player already has ingots, did they come from self-mined ore? The previous `iron_smelt` node depends on `iron_mine`. If `iron_mine` passes with just inventory count, it doesn't guarantee the chain. But the most direct violation is the factual inconsistency in the instruction regarding current inventory vs observations. The instruction claims 2 raw iron; observations show 0. This makes the 'mine at least 1 more' part confusing/incorrect relative to reality. The criteria should simply require >= 3 raw iron. The instruction needs correction to match reality (mine 3 from scratch) or the criteria need to account for the lack of starting raw iron. Given the conflict, revise is appropriate to fix the instruction/criteria alignment with observed state.",
+    "target_id": "iron_mine"
+  },
+  "native_patch": {
+    "evidence_requests": [],
+    "status": "planned",
+    "summary": "Revised the iron_mine leaf to align with current observations (0 raw_iron) and enforce the self-mined requirement by explicitly checking for the stone pickaxe tool in criteria, ensuring the mining action is feasible and valid.",
+    "updates": [
+      {
+        "id": "iron_mine",
+        "revision": 8,
+        "kind": "leaf",
+        "parent": "wooden_home_iron_pickaxe",
+        "children": [],
+        "depends_on": [
+          "stone_pickaxe",
+          "recovery_exit"
+        ],
+        "instruction": "Locate exposed iron ore through surface-level finds, mine at least three raw iron from actual exposed iron ore using a stone pickaxe, and avoid buried-cell probing. The body currently has 0 raw_iron; mine 3 from exposed iron ore.",
+        "specialist": "miner",
+        "deferred": false,
+        "defer_reason": "",
+        "criteria": [
+          {
+            "id": "im_raw",
+            "description": "At least three raw iron are in inventory",
+            "kind": "inventory",
+            "node_id": "",
+            "names": [
+              "raw_iron"
+            ],
+            "minimum": 3,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "im_tool",
+            "description": "A stone pickaxe is held or available for mining",
+            "kind": "inventory",
+            "node_id": "",
+            "names": [
+              "stone_pickaxe"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "im_alive",
+            "description": "The body is alive",
+            "kind": "alive",
+            "node_id": "",
+            "names": [],
+            "minimum": 1,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      }
+    ],
+    "restore_nodes": [],
+    "queries": [],
+    "recipe_queries": []
+  }
+}

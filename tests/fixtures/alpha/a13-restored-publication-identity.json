@@ -1,0 +1,274 @@
+{
+  "scope": "Original actor indexes for the retained revision-25 certificates. No new gameplay pass.",
+  "sources": {
+    "receipt": {
+      "path": ".runtime\\alpha\\a13-m3-42\\receipt.json",
+      "sha256": "fdd582ca4cba24a0437ff2751edb2f56be7d051394712a34390db973b4177451"
+    }
+  },
+  "attempts": [
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 2,
+      "leaf_id": "craft_table",
+      "spec_revision": 1,
+      "actor_attempt": "actor-0001",
+      "verifier_attempt": "",
+      "id": "actor-0001",
+      "path": "attempts/actor-0001",
+      "started": 1791485134.463416,
+      "state": "complete",
+      "prerequisites": {},
+      "summary": "Crafted a crafting table from self-gathered wood. Crafted birch_planks (1 recipe: -1 birch_log, +4 birch_planks, bringing 2 -> 6), then craft_item crafting_table x1 (-4 birch_planks, +1 crafting_table). Verified 1 crafting_table in inventory via count_inventory. Player remains at overworld (28.5, 104.0, -1.5), health 20, food 16, day, no threats. Inventory: 33 birch_log, 2 birch_planks, 1 crafting_table, 4 stick, 4 cobblestone, 3 dirt, 2 wooden_pickaxe, 1 birch_sapling, 1 rotten_flesh. Task card at scratch/task-card.md; handoff at outbox/handoff.md; journal note saved. Table kept portable (not placed) to respect reserved interior/entrance clearance for later leaves.",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0001-actor_1",
+      "report": "attempts/actor-0001/outbox/report.yaml",
+      "journal": "attempts/actor-0001/scratch/actor-journal.jsonl",
+      "progress_digest": "96ac0bbcd80b019dd3967973f17050f04323de7545608ace6a5b42d024ec7277"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 2,
+      "leaf_id": "prep_wood",
+      "spec_revision": 2,
+      "actor_attempt": "actor-0002",
+      "verifier_attempt": "",
+      "id": "actor-0002",
+      "path": "attempts/actor-0002",
+      "started": 1791485223.54464,
+      "state": "complete",
+      "prerequisites": {
+        "craft_table": {
+          "verification": "verification/verifier-0049-craft_table.json",
+          "certificate_digest": "8397e150986147b58bbaa874b5dd9fa910e552448f700d4801a04157c9b5ed15"
+        }
+      },
+      "summary": "Prep_wood leaf (spec rev 2) complete. Fresh observation confirmed starting state: 33 birch_log + 2 birch_planks, overworld (28.5, 104.0, -1.5), day, no threats. Verified recipe via recipe_search (1 birch_log -> 4 birch_planks, no table required). Crafted birch_planks x17 (-17 log 33->16, +64 planks 2->64), then x1 (-1 log 16->15, +10 planks 64->74). count_inventory verified 74 birch_planks in inventory, satisfying criterion prep_planks (>= 67). Retained 15 birch_log for fuel/tools. Player at overworld (28.5, 104.0, -1.5), health 20, food 16, on ground, day, no threats. Task card at scratch/task-card.md, handoff at outbox/handoff.md, journal note saved. No recovery active. Next project leaf: site_survey.",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0002-actor_1",
+      "report": "attempts/actor-0002/outbox/report.yaml",
+      "journal": "attempts/actor-0002/scratch/actor-journal.jsonl",
+      "progress_digest": "926ddac70b8c22711857085416ce66e23df52fd021028f4b4d1750ad0351b418"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 2,
+      "leaf_id": "stone_pickaxe",
+      "spec_revision": 2,
+      "actor_attempt": "actor-0003",
+      "verifier_attempt": "",
+      "id": "actor-0003",
+      "path": "attempts/actor-0003",
+      "started": 1791485310.8544657,
+      "state": "complete",
+      "prerequisites": {
+        "craft_table": {
+          "verification": "verification/verifier-0049-craft_table.json",
+          "certificate_digest": "8397e150986147b58bbaa874b5dd9fa910e552448f700d4801a04157c9b5ed15"
+        }
+      },
+      "summary": "Crafted a stone pickaxe using available cobblestone and sticks. Crafted 2 stick recipes (-4 planks 74->70, +8 sticks 4->12), then placed crafting table at (30,103,-3) outside spawn area, crafted stone_pickaxe x1 (-3 cobblestone 4->1, -2 sticks 12->10, +1 stone_pickaxe), mined table back into inventory. Verified 1 stone_pickaxe in inventory via count_inventory; equipped, durability 131/131. Player at overworld (28.5, 104.0, -1.5), health 20, food 16, oxygen 20, day, no threats. Inventory: 70 birch_planks, 15 birch_log, 10 stick, 1 cobblestone, 3 dirt, 2 wooden_pickaxe, 1 birch_sapling, 1 crafting_table, 1 rotten_flesh, 1 stone_pickaxe. Criterion sp_stone_pickaxe (minimum 1 stone_pickaxe in inventory) satisfied.",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0003-actor_1",
+      "report": "attempts/actor-0003/outbox/report.yaml",
+      "journal": "attempts/actor-0003/scratch/actor-journal.jsonl",
+      "progress_digest": "74f90138be88052473f8c2e1cfb31fb6b3aa2a16c5b26825ed027059b57ffe03"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 14,
+      "leaf_id": "site_survey",
+      "spec_revision": 8,
+      "actor_attempt": "actor-0013",
+      "verifier_attempt": "",
+      "id": "actor-0013",
+      "path": "attempts/actor-0013",
+      "started": 1791493741.6741285,
+      "state": "complete",
+      "prerequisites": {
+        "stone_pickaxe": {
+          "verification": "verification/verifier-0051-stone_pickaxe.json",
+          "certificate_digest": "f7fd26ff51c227fca850ecf09c8825e418bbd14911bb9c4754f6305f6cf5eb68"
+        },
+        "prep_wood": {
+          "verification": "verification/verifier-0050-prep_wood.json",
+          "certificate_digest": "05b6a04bfd892203f031cb8b7c90ec2a48d250bad0929603c5f8f111460b6c9b"
+        }
+      },
+      "summary": "Site survey complete at x=28..32, z=-1..3, overworld. All three criteria verified with fresh reads (journal seq 50-55): ss_foundation \u2014 all 25 cells at Y=102 are solid (23 grass_block, 2 dirt), no filling needed; ss_air_clear \u2014 all 75 cells at Y=104..106 are air; ss_approach_air \u2014 (27,104,1) and (27,105,1) are both air. Player at (29.5,103.0,3.52), health 20, food 15, day, no threats, no recovery active. No world mutations this attempt. Task card at scratch/task-card.md, durable handoff at outbox/handoff.md, place note saved to memory. Next project leaf: house_build (note: 64 planks on hand may be short of the ~84 needed for floor+walls+roof; convert the 15 birch_log first).",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0013-actor_1",
+      "report": "attempts/actor-0013/outbox/report.yaml",
+      "journal": "attempts/actor-0013/scratch/actor-journal.jsonl",
+      "progress_digest": "ee40d1f4c2e6060e5abeaabb677ad3e4dc434acdfe96b4b8e8cb691abd1ded5f"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 25,
+      "leaf_id": "recovery_exit",
+      "spec_revision": 10,
+      "actor_attempt": "actor-0021",
+      "verifier_attempt": "",
+      "id": "actor-0021",
+      "path": "attempts/actor-0021",
+      "started": 1791527330.3717577,
+      "state": "complete",
+      "prerequisites": {},
+      "summary": "Recovery leaf recovery_exit complete. Fresh reads confirm the body is alive at the respawn position (-8, 119, 10) in the overworld with health 20/20, food 20, oxygen 20, on ground, not in water. Floor cell (-8,118,10) is a solid grass_block; head cell (-8,120,10) is air. No adjacent lava, water, or hostile entities; no recovery mutation was required and recovery auto-cleared. Inventory is empty (fresh respawn). Task card and handoff written.",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0021-actor_1",
+      "report": "attempts/actor-0021/outbox/report.yaml",
+      "journal": "attempts/actor-0021/scratch/actor-journal.jsonl",
+      "progress_digest": "6056f467c196a2bda60878ecc9abd6c4012e2b69c46b5d93f9a468c600e51d67"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 25,
+      "leaf_id": "iron_mine",
+      "spec_revision": 2,
+      "actor_attempt": "actor-0023",
+      "verifier_attempt": "",
+      "id": "actor-0023",
+      "path": "attempts/actor-0023",
+      "started": 1791528976.5064807,
+      "state": "complete",
+      "prerequisites": {
+        "recovery_exit": {
+          "verification": "verification/verifier-0117-recovery_exit.json",
+          "certificate_digest": "884c7612f1425460d3e872e988e49e9fac825a0a26b8dc00adc44dbdfac0a064"
+        },
+        "stone_pickaxe": {
+          "verification": "verification/verifier-0051-stone_pickaxe.json",
+          "certificate_digest": "f7fd26ff51c227fca850ecf09c8825e418bbd14911bb9c4754f6305f6cf5eb68"
+        }
+      },
+      "summary": "Iron_mine leaf complete. Located 4 exposed iron_ore cells via surface-level find_block scan (no buried-cell probing). Harvested birch tree, crafted crafting table at (6,121,19), then crafted stone_pickaxe from 3 mined cobblestone + 2 sticks. Mined exposed iron_ore at (5,118,18), (5,118,17), (4,118,18) with stone pickaxe, collecting 3 raw_iron total. Fresh count_inventory confirms 3 raw_iron; fresh observe confirms body alive, health 20/20, food 20, overworld. Both criteria (im_raw min 3, im_alive) are met.",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0023-actor_1",
+      "report": "attempts/actor-0023/outbox/report.yaml",
+      "journal": "attempts/actor-0023/scratch/actor-journal.jsonl",
+      "progress_digest": "dd29246e03f5239bf16e69d0a493c97ee6ca22c12cf5d5e008f8d5b50d53c5f3"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 25,
+      "leaf_id": "floor_clear",
+      "spec_revision": 2,
+      "actor_attempt": "actor-0024",
+      "verifier_attempt": "",
+      "id": "actor-0024",
+      "path": "attempts/actor-0024",
+      "started": 1791529570.4503067,
+      "state": "complete",
+      "prerequisites": {
+        "site_survey": {
+          "verification": "verification/verifier-0083-site_survey.json",
+          "certificate_digest": "5fc8f6f9b287debaaf639c59f27fb97a1a894e5e3e9dd243e52d94ccd49f69ef"
+        }
+      },
+      "summary": "All 25 target cells at y=103 (x=28..32, z=-1..3) are air. No vegetation is present in the target box. Nearest vegetation is 5+ blocks away. The floor_clear leaf criterion is satisfied.",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0024-actor_1",
+      "report": "attempts/actor-0024/outbox/report.yaml",
+      "journal": "attempts/actor-0024/scratch/actor-journal.jsonl",
+      "progress_digest": "df7187385fda1d2be30413ebfef1a4291c2f716b21ab47f9cb685fdef92e67da"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 25,
+      "leaf_id": "iron_smelt",
+      "spec_revision": 1,
+      "actor_attempt": "actor-0029",
+      "verifier_attempt": "",
+      "id": "actor-0029",
+      "path": "attempts/actor-0029",
+      "started": 1791546796.6576648,
+      "state": "complete",
+      "prerequisites": {
+        "iron_mine": {
+          "verification": "verification/verifier-0119-iron_mine.json",
+          "certificate_digest": "8d8dfcf2655e265df1b24c3d20f113e7792581c059b0def715f12937215cb0fb"
+        }
+      },
+      "summary": "Iron_smelt leaf complete. Player was stuck in a cave at (25.7,97,-3.7). Crafted a crafting_table at (24,97,-4), then a furnace at (24,97,-5). Smelted 5 raw_iron into 5 iron_ingot using 4 birch_log as fuel. Inventory now contains 6 iron_ingot (1 pre-existing + 5 smelted). Fresh observe confirms body alive, health 20/20, food 19, overworld, on ground. Both criteria met: is_ingots (6 >= 3) and is_alive (health 20/20).",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0029-actor_1",
+      "report": "attempts/actor-0029/outbox/report.yaml",
+      "journal": "attempts/actor-0029/scratch/actor-journal.jsonl",
+      "progress_digest": "b71eeff98a89e85c54d04c55eefbbc3d4ae2c2e4baa8680ee0b64bac9cc6a7b8"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 25,
+      "leaf_id": "floor_place",
+      "spec_revision": 3,
+      "actor_attempt": "actor-0030",
+      "verifier_attempt": "",
+      "id": "actor-0030",
+      "path": "attempts/actor-0030",
+      "started": 1791547274.281845,
+      "state": "complete",
+      "prerequisites": {
+        "site_survey": {
+          "verification": "verification/verifier-0083-site_survey.json",
+          "certificate_digest": "5fc8f6f9b287debaaf639c59f27fb97a1a894e5e3e9dd243e52d94ccd49f69ef"
+        },
+        "floor_clear": {
+          "verification": "verification/verifier-0120-floor_clear.json",
+          "certificate_digest": "09815b708fe3fe4f2720205c5204b5ac17cc98b3f1f91c218590a1b49a542075"
+        }
+      },
+      "summary": "Placed a supported birch-plank floor for the 5x5 house at level 103. All 25 floor cells (x=28..32, z=-1..3, y=103) are birch_planks, verified via individual inspections. The door approach cell (27,103,1) is also birch_planks. The floor is supported by dirt/grass_block at y=102. The interior (y=104) and door approach clearance (y=104-105) are preserved as air. Player is safe at (30.21, 104.0, 1.81), health 18/20, no recovery active. Task card at scratch/task-card.md, handoff at outbox/handoff.md.",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0030-actor_1",
+      "report": "attempts/actor-0030/outbox/report.yaml",
+      "journal": "attempts/actor-0030/scratch/actor-journal.jsonl",
+      "progress_digest": "b39160ecd045201d3ae391d2557e5b04a285b218646a254f16d4725a25052123"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 25,
+      "leaf_id": "iron_pickaxe",
+      "spec_revision": 1,
+      "actor_attempt": "actor-0031",
+      "verifier_attempt": "",
+      "id": "actor-0031",
+      "path": "attempts/actor-0031",
+      "started": 1791547718.5393803,
+      "state": "complete",
+      "prerequisites": {
+        "iron_mine": {
+          "verification": "verification/verifier-0119-iron_mine.json",
+          "certificate_digest": "8d8dfcf2655e265df1b24c3d20f113e7792581c059b0def715f12937215cb0fb"
+        },
+        "iron_smelt": {
+          "verification": "verification/verifier-0125-iron_smelt.json",
+          "certificate_digest": "98ee37b1e952d6026cdd59ac0253a2a5e64083829fcb5c85a3863234626c8829"
+        }
+      },
+      "summary": "Crafted an iron pickaxe from smelted iron ingots. The player had 6 iron_ingot and 12 stick in inventory at (30,104,1). Walked to (29.5,104,5.3) to reach the crafting table at (30,102,6), opened the table window, and crafted 1 iron_pickaxe (consuming 3 iron_ingot + 2 sticks). Verified via count_inventory: 1 iron_pickaxe in inventory. All three criteria met: ip_pickaxe (iron_pickaxe=1), ip_smelt (accepted prerequisite), ip_mine (accepted prerequisite).",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0031-actor_1",
+      "report": "attempts/actor-0031/outbox/report.yaml",
+      "journal": "attempts/actor-0031/scratch/actor-journal.jsonl",
+      "progress_digest": "bff1a4914bde63e5e1b2ae8a7da3a0962f39019222b49250c0c19554523c0216"
+    },
+    {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 25,
+      "leaf_id": "walls_door",
+      "spec_revision": 2,
+      "actor_attempt": "actor-0032",
+      "verifier_attempt": "",
+      "id": "actor-0032",
+      "path": "attempts/actor-0032",
+      "started": 1791547862.5130959,
+      "state": "complete",
+      "prerequisites": {
+        "site_survey": {
+          "verification": "verification/verifier-0083-site_survey.json",
+          "certificate_digest": "5fc8f6f9b287debaaf639c59f27fb97a1a894e5e3e9dd243e52d94ccd49f69ef"
+        },
+        "floor_place": {
+          "verification": "verification/verifier-0126-floor_place.json",
+          "certificate_digest": "bce2580e94bf3098c4579df3830332464afcb3ce8ab0fb28f43377020e208aad"
+        }
+      },
+      "summary": "Built the two-block-high outer birch-plank walls at levels 104 and 105 (x=28..32, z=-1..3) and installed a birch wooden door in the west-side two-cell entrance at (28,104,1)+(28,105,1). All 30 wall cells verified birch_planks except the two door cells which are birch_door; all 18 interior cells verified air; both approach cells (27,104,1)+(27,105,1) verified air. Handoff written to outbox/handoff.md.",
+      "session": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0032-actor_1",
+      "report": "attempts/actor-0032/outbox/report.yaml",
+      "journal": "attempts/actor-0032/scratch/actor-journal.jsonl",
+      "progress_digest": "ba5ece27f20f38405257099b0d55520c8e717696518e97a3e58cf8fb96b3e7a8"
+    }
+  ]
+}

@@ -83,7 +83,10 @@ Verify the active identities before each live run.
 
 Both example configurations use OpenRouter embeddings.
 Select `config.alpha.example.yaml` explicitly for local chat with OpenRouter embeddings.
-The older `C:/workspace/llama13/` binary serves chat.
+Chat currently runs through `C:/source/strata2/serve/server.py` with `C:/source/strata2/strata-orca-iq3_xxs.json`.
+It serves Qwen3.8-Flash-Next-Uncensored under alias `qwen`, with 262,144 serving tokens.
+The externally owned chat service remains running across Minecraft fixture shutdowns.
+Earlier receipts used the `C:/workspace/llama13/` chat binary.
 The unused local embedding endpoint on 8081 has a recorded invalid-vector defect.
 Use the decision-capable binary listed above for Laya.
 Do not launch a second decision server on a port that the console smoke uses.

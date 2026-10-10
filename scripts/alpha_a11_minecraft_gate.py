@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import shutil
 import subprocess
 import sys
 import time
@@ -33,6 +34,33 @@ DEFAULT_GOAL = (
 )
 
 
+def project_contract_manifest(source: Path, target: Path, *, plan: bool, completion: bool, evidence: bool = False,
+                              generation: bool = False) -> Path:
+    """Grant optional scenario checks to their actual trusted Python roles.
+
+    The original manifest stays unchanged. The fresh runtime copy retains all
+    existing role grants and records the caller's additional capabilities.
+    """
+    _, header, body = source.read_text(encoding="utf-8").split("---", 2)
+    config = yaml.safe_load(header)
+    for enabled, role, tool in ((plan, "planner", "minecraft_plan_constraints"),
+                                (plan, "reviewer", "minecraft_plan_constraints"),
+                                (completion, "final_verifier", "minecraft_project_check")):
+        if enabled:
+            config["roles"][role]["tools"].append(tool)
+    if evidence:
+        for role in config["roles"].values():
+            if "minecraft_reason" in role["tools"]:
+                role["tools"].append("minecraft_evidence_sources")
+    if generation:
+        for role in config["roles"].values():
+            if "minecraft_reason" in role["tools"]:
+                role["tools"].append("minecraft_decision_generation")
+    with target.open("x", encoding="utf-8") as file:
+        file.write("---\n" + yaml.safe_dump(config, sort_keys=False) + "---" + body)
+    return target
+
+
 def run(args) -> None:
     """Own the real stack and retain a reviewed plan or verified project receipt.
 
@@ -49,12 +77,45 @@ def run(args) -> None:
     out, server = args.out.resolve(), args.server.resolve()
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Keep evidence below the workspace .runtime directory.")
+    previous, resume_root = None, getattr(args, "resume_from", None)
+    runtime_root, checkpoint, character = out / "app", out / "ghost.json", out / "character"
+    goal = args.goal or DEFAULT_GOAL
+    generation_path = getattr(args, "decision_generation", None)
+    decision_generation = json.loads(generation_path.read_text(encoding="utf-8")) if generation_path else {}
+    if not isinstance(decision_generation, dict) or set(decision_generation) & {"model", "messages", "stream", "response_format"}:
+        raise ValueError("Decision generation settings cannot change routing, messages, or the result schema.")
+    if resume_root is not None:
+        resume_root = resume_root.resolve()
+        if not resume_root.is_relative_to(ROOT / ".runtime") or resume_root == out:
+            raise ValueError("Resume retained evidence below .runtime into a fresh output directory.")
+        if args.reset_world or args.source_tree:
+            raise ValueError("An explicit resume preserves the world and original task tree.")
+        previous = json.loads((resume_root / "receipt.json").read_text(encoding="utf-8"))
+        retained = previous["managed_receipt"]
+        if (Path(previous["server"]).resolve() != server or previous["plan_only"] != args.plan_only
+                or retained["instructions"] != goal):
+            raise ValueError("Resume must retain the server, execution mode, and original instructions.")
+        runtime_root = Path(previous.get("runtime_root", resume_root / "app")).resolve()
+        checkpoint = Path(previous.get("checkpoint_path", resume_root / "ghost.json")).resolve()
+        character = Path(previous.get("character_root", resume_root / "character")).resolve()
+        for path in (runtime_root, checkpoint, character):
+            if not path.is_relative_to(ROOT / ".runtime") or not path.exists():
+                raise ValueError("Retained resume paths must exist below the workspace .runtime directory.")
+        if Path(previous["task_root"]).resolve() != runtime_root / "managed_tasks" / previous["run_id"]:
+            raise ValueError("The original task must belong to the retained runtime.")
+        # Cleanup can cancel a waiting task after its failed receipt was saved.
+        # Preserve that snapshot and inspect the canonical control boundary.
+        control = json.loads((Path(previous["task_root"]) / "control.json").read_text(encoding="utf-8"))
+        if control["state"] not in {"cancelled", "failed", "interrupted"}:
+            raise ValueError("Stop the original worker before an explicit resume.")
     out.mkdir(parents=True, exist_ok=False)
+    if previous is not None:
+        (out / "previous-receipt.json").write_bytes((resume_root / "receipt.json").read_bytes())
     properties = load_env_file(server / "server.properties")
     values = load_env_file(ROOT.parent / "pm-minecraft/.env_real")
     values.update({"MINECRAFT_PORT": properties["server-port"], "MINECRAFT_RCON_PORT": properties["rcon.port"],
         "MINECRAFT_RCON_PASSWORD": properties["rcon.password"], "MINECRAFT_PLAYER": "tdd_player",
-        "MCMCP_TEST_MODE": "true", "MCMCP_AGENT_HOME": str(out / "character"), "MCMCP_INSPECTOR_ENABLED": "false",
+        "MCMCP_TEST_MODE": "true", "MCMCP_AGENT_HOME": str(character), "MCMCP_INSPECTOR_ENABLED": "false",
         "JAVA_EXE": "C:/Users/rick/AppData/Roaming/PrismLauncher/java/java-runtime-gamma/bin/java.exe",
         "PYTHON_EXE": str(ROOT.parent / "pm-minecraft/.venv/Scripts/python.exe"),
         "TEST_RUN_ROOT": str(out), "SERVER_MEMORY": "1G", "SERVER_START_TIMEOUT_SECONDS": "180"})
@@ -63,15 +124,25 @@ def run(args) -> None:
             probe.bind(("127.0.0.1", int(values[key])))
     env_path = out / ".env.alpha"
     env_path.write_text("\n".join(f"{key}={value}" for key, value in values.items()) + "\n", encoding="utf-8")
-    receipt = {"item": "A11", "status": "running", "started": datetime.now(timezone.utc).isoformat(),
+    item = getattr(args, "item", "A11")
+    receipt = {"item": item, "status": "running", "started": datetime.now(timezone.utc).isoformat(),
         "server": str(server), "seed": properties["level-seed"], "reset_world": args.reset_world,
         "plan_only": args.plan_only, "item_grants": False, "checks": {},
+        "decision_generation": decision_generation,
+        "runtime_root": str(runtime_root), "checkpoint_path": str(checkpoint), "character_root": str(character),
         "source_seed_sha256": hashlib.sha256((ROOT / "data/spamuel_agentic_canon.yaml").read_bytes()).hexdigest(),
         "source_files_sha256": {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
             for folder in ("runtime", "workflows/minecraft", "workflows/minecraft_tasks")
             for path in (ROOT / folder).rglob("*") if path.is_file() and path.suffix in {".py", ".md"}}}
     receipt["source_files_sha256"].update({name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
         for name in ("main.py", "scripts/alpha_a11_minecraft_gate.py", "workflows/main_cognition/stages/action_selection/prompts.yaml")})
+    import inspect
+    from importlib.metadata import distribution
+    import pm_coder
+    installed_agent = Path(inspect.getfile(pm_coder))
+    receipt["agent_component"] = {"installed_source": str(installed_agent),
+        "source_sha256": hashlib.sha256(installed_agent.read_bytes()).hexdigest(),
+        "distribution_origin": json.loads(distribution("pm-coder").read_text("direct_url.json"))}
     component = ROOT.parent / "pm-minecraft"
     receipt["minecraft_component"] = {
         "repository": str(component),
@@ -85,6 +156,9 @@ def run(args) -> None:
     save()
     stack, app = RealServerStack(server, out, env_path), None
     try:
+        if previous is not None and (previous["seed"] != receipt["seed"]
+                or previous["source_seed_sha256"] != receipt["source_seed_sha256"]):
+            raise ValueError("An explicit resume must retain the server and character seeds.")
         configuration = yaml.safe_load(args.config.read_text(encoding="utf-8"))
         chat = configuration["chat"]["Default"]
         with urlopen(chat["base_url"].rstrip("/") + "/models", timeout=30) as response:
@@ -93,6 +167,20 @@ def run(args) -> None:
             raise ValueError("The selected model is absent from the live chat catalog.")
         receipt["model_identity"] = {"base_url": chat["base_url"], "model": chat["model"], "catalog": catalog,
             "embedding": {key: configuration["embedding"][key] for key in ("base_url", "model", "dimensions", "api_key_env")}}
+        if previous is not None:
+            for key in ("embedding",):
+                if previous["model_identity"][key] != receipt["model_identity"][key]:
+                    raise ValueError("An explicit resume must retain its model connections.")
+            changed_model = any(previous["model_identity"][key] != receipt["model_identity"][key]
+                                for key in ("base_url", "model"))
+            if changed_model and not getattr(args, "allow_model_change", False):
+                raise ValueError("A different continuation model requires explicit --allow-model-change.")
+            if changed_model:
+                receipt["model_transition"] = {"explicit": True,
+                    "previous": {key: previous["model_identity"][key] for key in ("base_url", "model")},
+                    "current": {key: receipt["model_identity"][key] for key in ("base_url", "model")}}
+            receipt["resume_from"] = str(resume_root)
+            receipt["previous_receipt_sha256"] = hashlib.sha256((out / "previous-receipt.json").read_bytes()).hexdigest()
         save()
         if args.reset_world:
             if properties["level-name"] != "world":
@@ -102,23 +190,74 @@ def run(args) -> None:
                 if not target.is_relative_to(server) or target == server:
                     raise ValueError("A world reset target escaped the named server directory.")
             subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(server / "wipe-world.ps1")], check=True)
-        stack.start()
+        stack.start(reset_character=previous is None)
         os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
-        app = build_app(ROOT / "data/spamuel_agentic_canon.yaml", out / "app", cognition="real",
-            config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.json", record_lifecycle=False)
+        app = build_app(ROOT / "data/spamuel_agentic_canon.yaml", runtime_root, cognition="real",
+            config_path=str(args.config.resolve()), checkpoint_path=checkpoint, record_lifecycle=False)
+        plan_constraints = getattr(args, "plan_constraints", None)
+        project_check = getattr(args, "project_check", None)
+        if plan_constraints is not None or project_check is not None or decision_generation:
+            from dataclasses import replace
+            import inspect
+            spec = app.supervisor.workflows["minecraft_project"]
+            factory = spec.tools_factory
+            def constrained_tools(run_id, environment):
+                tools = dict(factory(run_id, environment))
+                tools["minecraft_evidence_sources"] = lambda: {
+                    "companion_seed": str(ROOT / "data/spamuel_agentic_canon.yaml"),
+                    "companion_checkpoint": str(checkpoint)}
+                if decision_generation:
+                    tools["minecraft_decision_generation"] = lambda: dict(decision_generation)
+                if plan_constraints is not None:
+                    tools["minecraft_plan_constraints"] = plan_constraints
+                if project_check is not None:
+                    tools["minecraft_project_check"] = lambda root, tree: project_check(root, tree, receipt["initial_observation"], character)
+                return tools
+            manifest = project_contract_manifest(spec.manifest, out / "minecraft_tasks.workflow.md",
+                                                 plan=plan_constraints is not None, completion=project_check is not None,
+                                                 evidence=True, generation=bool(decision_generation))
+            app.supervisor.workflows["minecraft_project"] = replace(spec, manifest=manifest, tools_factory=constrained_tools)
+            receipt["project_contracts"] = {"manifest": {
+                "source": str(spec.manifest), "source_sha256": hashlib.sha256(spec.manifest.read_bytes()).hexdigest(),
+                "runtime": str(manifest), "runtime_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest()}}
+            for name, callback in (("plan", plan_constraints), ("completion", project_check)):
+                if callback is not None:
+                    source = Path(inspect.getsourcefile(callback))
+                    receipt["project_contracts"][name] = {"module": callback.__module__, "function": callback.__name__,
+                        "source": str(source), "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
         app.supervisor.on_error = lambda error: print(f"Worker error: {type(error).__name__}: {error}", flush=True)
         from runtime.minecraft_tools import build_minecraft_tools
         initial = build_minecraft_tools(stack.mcp_url)["minecraft_call"]("minecraft_observe", {"include_image": False})
-        receipt["initial_observation"] = initial["result"]
+        receipt["initial_observation"] = previous["initial_observation"] if previous else initial["result"]
+        if previous is not None:
+            receipt["resume_observation"] = initial["result"]
         save()
         arguments = {"plan_only": args.plan_only}
         if args.source_tree:
             arguments["proposed_tree"] = json.loads(args.source_tree.read_text(encoding="utf-8"))
             receipt["source_tree_sha256"] = hashlib.sha256(args.source_tree.read_bytes()).hexdigest()
-        goal = args.goal or DEFAULT_GOAL
-        task = app.supervisor.start(action_id="a11-project", workflow_name="minecraft_project", instructions=goal, arguments=arguments)
+        if previous is not None:
+            retained = app.supervisor.status(previous["run_id"])
+            if retained["instructions"] != goal or retained["arguments"] != previous["managed_receipt"]["arguments"]:
+                raise ValueError("The checkpoint task differs from the saved original intent.")
+            # Import retained proof before the worker starts. The native planner
+            # must restore exact specifications before these records can count.
+            archive = TreeStore(Path(previous["task_root"]))
+            archive.archive_acceptances(previous["state"], str(resume_root / "receipt.json"))
+            ancestor_path = resume_root / "previous-receipt.json"
+            if ancestor_path.is_file() and previous.get("previous_receipt_sha256"):
+                if hashlib.sha256(ancestor_path.read_bytes()).hexdigest() != previous["previous_receipt_sha256"]:
+                    raise ValueError("The retained predecessor receipt changed.")
+                ancestor = json.loads(ancestor_path.read_text(encoding="utf-8"))
+                if ancestor["run_id"] != previous["run_id"] or ancestor["task_root"] != previous["task_root"]:
+                    raise ValueError("The predecessor certificate snapshot belongs to another task.")
+                archive.archive_acceptances(ancestor["state"], str(ancestor_path))
+            task = app.supervisor.resume(previous["run_id"], request_id="alpha-resume-" + out.name)
+        else:
+            task = app.supervisor.start(action_id=item.lower() + "-project", workflow_name="minecraft_project", instructions=goal, arguments=arguments)
         receipt["run_id"] = run_id = task["run_id"]
         receipt["task_root"] = str(task_root := Path(task["artifact_path"]))
+        receipt["execution_epoch"] = task["execution_epoch"]
         save()
         deadline = time.monotonic() + args.timeout
         last = None
@@ -183,6 +322,11 @@ def run(args) -> None:
                     app.supervisor.terminate(row["run_id"])
             app.supervisor.join_all(30)
         stack.stop()
+        # Explicit resumes share a character directory. Save its body log
+        # before a later body startup replaces that file.
+        body_log = character / "body.log"
+        if body_log.exists():
+            shutil.copy2(body_log, out / "services/body.log")
         receipt["finished"] = datetime.now(timezone.utc).isoformat()
         save()
         print(out / "receipt.json", flush=True)
@@ -197,5 +341,7 @@ if __name__ == "__main__":
     parser.add_argument("--goal")
     parser.add_argument("--plan-only", action="store_true")
     parser.add_argument("--reset-world", action="store_true")
+    parser.add_argument("--resume-from", type=Path, help="Resume a stopped project and retain its original evidence and inventory baseline.")
+    parser.add_argument("--decision-generation", type=Path, help="JSON generation settings for direct decisions; result schema and routing stay fixed.")
     parser.add_argument("--timeout", type=float, default=10800)
     run(parser.parse_args())

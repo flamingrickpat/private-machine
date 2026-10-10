@@ -9,7 +9,7 @@ from runtime.minecraft_tools import DEFAULT_MCP_URL, build_minecraft_tools
 from runtime.body_lease import BODY_LEASES
 
 
-def build_minecraft_module_tools(plan_model=None) -> Callable[[str, object], dict]:
+def build_minecraft_module_tools(plan_model=None, context_measure=None) -> Callable[[str, object], dict]:
     """Return a ``tools_factory(run_id, environment)`` for managed runs.
 
     ``MINECRAFT_MCP_URL`` selects the real pm-minecraft MCP endpoint.
@@ -19,6 +19,7 @@ def build_minecraft_module_tools(plan_model=None) -> Callable[[str, object], dic
     def factory(run_id: str, environment) -> dict:
         return {**build_minecraft_tools(url, plan_model=plan_model),
                 "minecraft_reason": plan_model,
+                "minecraft_context_measure": context_measure,
                 "minecraft_endpoint": lambda: url,
                 "minecraft_lease": lambda: BODY_LEASES.acquire(url, run_id)}
 

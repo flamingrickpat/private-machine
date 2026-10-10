@@ -9,7 +9,9 @@ The default Minecraft run uses a [sustained specialist](../subsystems/minecraft-
 Its request has no action-count ceiling.
 Explicit W8 actions retain the narrow observe/action/observe path described below.
 The [durable project workflow](../subsystems/minecraft-tasks.md) adds generic task trees and independent completion verification.
-Interruption recovery and cooperative survival remain later alpha work.
+[Interruption recovery](../subsystems/body-recovery.md) is delivered.
+[Expected gameplay failures](../subsystems/gameplay-recovery.md) have an implementation with real acceptance pending.
+Cooperative survival remains later alpha work.
 
 The normal workflow requires an existing Minecraft server and MCP service.
 It opens MCP client connections when needed. It does not start or stop the MCP process.

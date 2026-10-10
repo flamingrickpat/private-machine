@@ -97,12 +97,13 @@ class MinecraftStack:
 
     # -------------------------------------------------------------- lifecycle
 
-    def start(self, *, timeout: float | None = None, body_timeout: float = 180.0) -> None:
+    def start(self, *, timeout: float | None = None, body_timeout: float = 180.0, reset_character: bool = True) -> None:
         self.run_dir.parent.mkdir(parents=True, exist_ok=True)
         self._start_server(timeout or float(self.values.get("SERVER_START_TIMEOUT_SECONDS", "180")))
         self._start_mcp()
         _wait_port(self.mcp, self.host, self.port, 60, "The MCP")
-        self._control("/test/reset")
+        if reset_character:
+            self._control("/test/reset")
         self._control("/test/body/start")
         self._wait_body(body_timeout)
 

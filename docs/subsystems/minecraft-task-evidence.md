@@ -13,7 +13,7 @@ Related: [public publication](public-publication.md) and [A11 verification](mine
 
 ## Observation primitives
 
-[`workflows.minecraft_tasks.schemas.Condition`][] supplies six generic primitives.
+[`workflows.minecraft_tasks.schemas.Condition`][] supplies seven generic primitives.
 They do not encode house, mining, or farm goal categories.
 
 | Kind | Independent tool | Required fact |
@@ -23,6 +23,8 @@ They do not encode house, mining, or farm goal categories.
 | `region` | `minecraft_analyze_area` | Complete visible coverage and enough explicitly named blocks |
 | `position` | `minecraft_observe` | Correct dimension and distance within `radius` blocks |
 | `alive` | `minecraft_observe` | Observed health is greater than zero |
+| `health` | `minecraft_observe` | Observed health is at least `minimum` points on the 0..20 scale, in the requested dimension |
+| `food` | `minecraft_observe` | Observed food meets `minimum` on the 0..20 scale in the requested dimension |
 | `accepted` | Retained independent certificate | A descendant or prerequisite node has valid verified attainment |
 
 Inventory names accept globs.
@@ -39,6 +41,11 @@ Only that specific empty-cell result can satisfy an air condition.
 
 Region bounds use inclusive integer corners.
 The evaluator requires the expected cell volume and zero unseen cells.
+The area tool counts empty cells in `air_cells`, outside its nonempty block histogram.
+That count combines `air`, `cave_air`, and `void_air`.
+To use the count, a region condition must explicitly accept all three names.
+An exact air variant requires individual block inspections.
+Missing, invalid, or out-of-range aggregate counters cannot establish those empty cells.
 A histogram with hidden cells cannot establish an enclosed roof or room.
 Exact cell inspection supplies that evidence instead.
 Block and region checks also require a fresh dimension observation.
@@ -60,6 +67,28 @@ Refinement preserves references to a stable node when that leaf becomes a story.
 The story must meet its original criteria after all its children pass.
 Its certificate releases dependent work before that work consumes the observed materials.
 Final structure criteria still use fresh block reads.
+
+### Retained certificates after an accidental revision
+
+[`workflows.minecraft_tasks.tree.TreeStore.archive_acceptances`][] retains valid certificate records before a specification changes.
+Each archive includes the exact specification, original certificate, and source receipt.
+The files live under `planning/acceptance-archive/` in the owning task.
+The planner receives candidates for invalid work and its changed certificate dependencies.
+The native planner must explicitly restore the exact earlier specification.
+
+[`workflows.minecraft_tasks.tree.TreeStore.restore_acceptances`][] then applies the normal specification, original-file, and dependency-hash guards.
+It restores prerequisites before their dependents.
+Changed files, changed operands, and different dependency certificates prevent reuse.
+Fresh assumption failures revoke the original certificate digest permanently.
+Historical attainment cannot establish current inventory or final geometry.
+
+The real acceptance wrapper imports older valid certificate snapshots before restarting its worker.
+It checks the retained predecessor receipt's digest and owning task first.
+This supports tasks that predate certificate archives without changing their accepted specifications.
+M3-43 changed an accepted recovery dependency and removed three completed iron certificates.
+The captured regression retains 24 original evidence files with their exact bytes and hashes.
+The compressed fixture is `a13-recovery-certificate-preservation.json`.
+Its checks establish safe reuse rules; they do not establish a new live acceptance.
 
 Assumptions represent facts that must remain true.
 The selector reads accepted nodes' assumptions before it releases another leaf.
@@ -102,6 +131,17 @@ It also requires valid prerequisite acceptance.
 The record hashes the verifier receipt and original actor report and journal.
 Dependent records retain hashes of their prerequisite acceptance records.
 Changed evidence invalidates the affected acceptance chain.
+
+[`workflows.minecraft_tasks.tree.TreeStore.restore_specifications`][] applies explicit `restore_nodes` requests from the native planner.
+Every restored node requires its original files and recursive dependency certificate hashes.
+The planner must list changed historical dependencies too.
+The operation validates the proposed tree before it changes durable state.
+
+Restoration can increase the current specification revision counter while recovering exactly the original specification content.
+[`workflows.minecraft_tasks.verification.accepted_actor_matches`][] therefore compares actor counters with the original certificate identity.
+It also requires exact current specification content, unchanged evidence files, matching task identity, and complete dispatch-result pairing.
+The original actor, verifier, and certificate counters remain unchanged.
+Fresh final project reads still establish current structure and inventory.
 
 [`workflows.minecraft_tasks.verification.verified_project`][] checks the complete retained chain again.
 It recomputes numeric conditions, interpretation coverage, actor identity, and original call pairing.

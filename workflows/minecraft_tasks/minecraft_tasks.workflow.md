@@ -4,9 +4,16 @@ driver: {kind: python}
 human_resolver: {mode: external}
 state_policy: {mutation_model: append_only}
 roles:
+  retention:
+    skill: workflows/minecraft_tasks/steps.py
+    tools: [minecraft_call, minecraft_endpoint, minecraft_reason, minecraft_context_measure, managed_instructions]
+    result_contract:
+      schema:
+        status: {enum: [planned, unchanged, invalid, waiting, blocked]}
+        summary: string
   planner:
     skill: workflows/minecraft_tasks/steps.py
-    tools: [minecraft_call, minecraft_endpoint, minecraft_reason, managed_instructions]
+    tools: [minecraft_call, minecraft_tool_schemas, minecraft_endpoint, minecraft_reason, minecraft_context_measure, managed_instructions]
     result_contract:
       schema:
         status: {enum: [planned, survey, invalid, waiting, blocked]}
@@ -20,7 +27,7 @@ roles:
         summary: string
   reviewer:
     skill: workflows/minecraft_tasks/steps.py
-    tools: [minecraft_call, minecraft_endpoint, minecraft_reason, managed_instructions]
+    tools: [minecraft_call, minecraft_tool_schemas, minecraft_endpoint, minecraft_reason, minecraft_context_measure, managed_instructions]
     result_contract:
       schema:
         status: {enum: [accepted, inspect, refine, revise, waiting, blocked]}
@@ -34,26 +41,31 @@ roles:
         summary: string
   specialist:
     skill: workflows/minecraft_tasks/steps.py
-    tools: [minecraft_call, minecraft_plan, minecraft_list_tools, minecraft_tool_schemas, minecraft_endpoint, minecraft_lease, managed_instructions]
+    tools: [minecraft_call, minecraft_plan, minecraft_list_tools, minecraft_tool_schemas, minecraft_endpoint, minecraft_lease, managed_instructions, managed_milestone]
     result_contract:
       schema:
         status: {enum: [candidate, progress, replan, waiting]}
         summary: string
   verifier:
     skill: workflows/minecraft_tasks/steps.py
-    tools: [minecraft_call, minecraft_endpoint, minecraft_reason, managed_instructions]
+    tools: [minecraft_call, minecraft_endpoint, minecraft_reason, minecraft_context_measure, managed_instructions]
     result_contract:
       schema:
         status: {enum: [accepted, replan, waiting, blocked]}
         summary: string
   final_verifier:
     skill: workflows/minecraft_tasks/steps.py
-    tools: [minecraft_call, minecraft_endpoint, minecraft_reason, managed_instructions]
+    tools: [minecraft_call, minecraft_endpoint, minecraft_reason, minecraft_context_measure, managed_instructions]
     result_contract:
       schema:
         status: {enum: [done, replan, waiting, blocked]}
         summary: string
 phases:
+  - name: retain
+    kind: role
+    role: retention
+    on_status: {planned: review, unchanged: plan, invalid: replan, waiting: wait, blocked: stop}
+    on_invalid: {action: retry_with_feedback, max_attempts: 3}
   - name: plan
     kind: role
     role: planner

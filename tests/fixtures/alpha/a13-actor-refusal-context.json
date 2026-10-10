@@ -1,0 +1,6729 @@
+{
+  "scope": "Actual M3-31 rejected calls and retained paused-method projection. Selected replay checks refusal size and diagnosis authority; it does not establish new model inference or healing. Original repeated client reply retained separately from concise current projection.",
+  "sources": {
+    "journal": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/attempts/actor-0016/scratch/actor-journal.jsonl",
+      "sha256": "278d4108b1701ae6b6f08d4f4b5aa20c9973429a6c01d70df6139375a855319d"
+    },
+    "projection": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/attempts/actor-0016/scratch/gameplay-evidence.json",
+      "sha256": "c0b95b5e7b3c719c0b7338e15050a564fab6c86881d39ac6b46e375ff9ac76b2"
+    },
+    "native_messages": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/kernel-children/kernel/ad5f4b4094a14bf6bcfe9caeead2770a-actor-0016/actor-agent/ad5f4b4094a14bf6bcfe9caeead2770a-actor-0016-actor_1/messages.json",
+      "sha256": "a20e0b54ba321ecb432684647b3702bbe147b2ce36325b391d2c7b909896bfa0"
+    }
+  },
+  "rows": [
+    {
+      "event": "epoch_acquired",
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "owner": "ad5f4b4094a14bf6bcfe9caeead2770a-actor-0016",
+      "time": 1791520947.7810857
+    },
+    {
+      "seq": 1,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791520948.0210998,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 12.3,
+            "y": 31.0,
+            "z": 1.7
+          },
+          "eye_position": {
+            "x": 12.3,
+            "y": 32.62,
+            "z": 1.7
+          },
+          "block_position": {
+            "x": 12,
+            "y": 31,
+            "z": 1
+          },
+          "yaw": 315.01,
+          "pitch": -82.35,
+          "cardinal": "south",
+          "look_vector": {
+            "x": 0.09,
+            "y": -0.99,
+            "z": 0.09
+          }
+        },
+        "player": {
+          "health": 5.0,
+          "max_health": 20.0,
+          "food": 18,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 10361,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "body_session": "66797f18ea8d47f7b82675358245b9e2",
+        "death_count": 0,
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 111,
+          "max_durability": 131
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "stone_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "crafting_table",
+            "count": 1
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 64
+          },
+          {
+            "slot": 3,
+            "item": "raw_iron",
+            "count": 2
+          },
+          {
+            "slot": 4,
+            "item": "dandelion",
+            "count": 1
+          },
+          {
+            "slot": 5,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 6,
+            "item": "moss_block",
+            "count": 7
+          },
+          {
+            "slot": 7,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 8,
+            "item": "cobblestone",
+            "count": 64
+          }
+        ],
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 134,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 60,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 17,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 8,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "moss_block",
+            "display_name": "Moss Block",
+            "count": 7,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2387,
+            "nearest": {
+              "x": 12,
+              "y": 31,
+              "z": 2
+            },
+            "distance": 0.42
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1500,
+            "nearest": {
+              "x": 13,
+              "y": 30,
+              "z": 2
+            },
+            "distance": 1.26
+          },
+          {
+            "block_name": "water",
+            "display_name": "Water",
+            "count": 60,
+            "nearest": {
+              "x": 12,
+              "y": 30,
+              "z": -1
+            },
+            "distance": 2.89
+          },
+          {
+            "block_name": "clay",
+            "display_name": "Clay",
+            "count": 230,
+            "nearest": {
+              "x": 14,
+              "y": 31,
+              "z": -1
+            },
+            "distance": 3.19
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 87,
+            "nearest": {
+              "x": 15,
+              "y": 31,
+              "z": -1
+            },
+            "distance": 3.82
+          },
+          {
+            "block_name": "big_dripleaf_stem",
+            "display_name": "Big Dripleaf Stem",
+            "count": 6,
+            "nearest": {
+              "x": 10,
+              "y": 31,
+              "z": -2
+            },
+            "distance": 4.36
+          },
+          {
+            "block_name": "big_dripleaf",
+            "display_name": "Big Dripleaf",
+            "count": 5,
+            "nearest": {
+              "x": 10,
+              "y": 32,
+              "z": -2
+            },
+            "distance": 4.47
+          },
+          {
+            "block_name": "small_dripleaf",
+            "display_name": "Small Dripleaf",
+            "count": 2,
+            "nearest": {
+              "x": 17,
+              "y": 31,
+              "z": -1
+            },
+            "distance": 5.42
+          },
+          {
+            "block_name": "moss_block",
+            "display_name": "Moss Block",
+            "count": 57,
+            "nearest": {
+              "x": 18,
+              "y": 31,
+              "z": 1
+            },
+            "distance": 5.74
+          },
+          {
+            "block_name": "moss_carpet",
+            "display_name": "Moss Carpet",
+            "count": 6,
+            "nearest": {
+              "x": 18,
+              "y": 32,
+              "z": 1
+            },
+            "distance": 5.83
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 9,
+            "nearest": {
+              "x": 18,
+              "y": 31,
+              "z": 3
+            },
+            "distance": 5.85
+          },
+          {
+            "block_name": "granite",
+            "display_name": "Granite",
+            "count": 186,
+            "nearest": {
+              "x": 12,
+              "y": 25,
+              "z": 2
+            },
+            "distance": 6.01
+          },
+          {
+            "block_name": "cave_vines",
+            "display_name": "Cave Vines",
+            "count": 14,
+            "nearest": {
+              "x": 12,
+              "y": 37,
+              "z": 4
+            },
+            "distance": 6.43
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 28,
+            "nearest": {
+              "x": 9,
+              "y": 31,
+              "z": -4
+            },
+            "distance": 6.59
+          },
+          {
+            "block_name": "tall_grass",
+            "display_name": "Tall Grass",
+            "count": 4,
+            "nearest": {
+              "x": 19,
+              "y": 31,
+              "z": 2
+            },
+            "distance": 6.71
+          },
+          {
+            "block_name": "lapis_ore",
+            "display_name": "Lapis Lazuli Ore",
+            "count": 3,
+            "nearest": {
+              "x": 10,
+              "y": 27,
+              "z": -4
+            },
+            "distance": 7.33
+          },
+          {
+            "block_name": "cave_vines_plant",
+            "display_name": "Cave Vines Plant",
+            "count": 39,
+            "nearest": {
+              "x": 12,
+              "y": 38,
+              "z": 4
+            },
+            "distance": 7.37
+          },
+          {
+            "block_name": "copper_ore",
+            "display_name": "Copper Ore",
+            "count": 9,
+            "nearest": {
+              "x": 11,
+              "y": 26,
+              "z": 7
+            },
+            "distance": 7.4
+          },
+          {
+            "block_name": "andesite",
+            "display_name": "Andesite",
+            "count": 200,
+            "nearest": {
+              "x": 7,
+              "y": 31,
+              "z": -4
+            },
+            "distance": 7.78
+          },
+          {
+            "block_name": "vine",
+            "display_name": "Vines",
+            "count": 32,
+            "nearest": {
+              "x": 18,
+              "y": 32,
+              "z": -4
+            },
+            "distance": 8.12
+          },
+          {
+            "block_name": "diorite",
+            "display_name": "Diorite",
+            "count": 48,
+            "nearest": {
+              "x": 9,
+              "y": 35,
+              "z": -6
+            },
+            "distance": 9.28
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 1,
+            "nearest": {
+              "x": 6,
+              "y": 24,
+              "z": 2
+            },
+            "distance": 9.42
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 2,
+      "event": "result",
+      "tool": "minecraft_info",
+      "arguments": {},
+      "revision": 0,
+      "time": 1791520948.2550108,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "username": "tdd_player",
+        "server_rules": "Agentic Babymode v0.5.0 â€” current rules:\nPlayer: move 1.50x | mine 5.0x | underwater air 10.0x | mined loot to inventory, overflow to ground | natural regen off | PvP off\nMobs: move 0.07x | deal 0.07x damage | attack cooldown 3.0x | take 2.0x from you\nSleepiness: 0â†’100 over 30.0 days; only a bed resets it. Slowness/Mining Fatigue at 50+, can't sprint at 100.\nNutrition (grain/protein/produce 0-100): decays to 0 over 90.0 days.\n  grain <40.0/<15.0 â†’ Slowness I/II | protein <40.0/<15.0 â†’ Weakness I/II | produce <40.0/<15.0 â†’ Mining Fatigue I/II\n  avg <10.0 â†’ STARVING (-4 max HP, hunger, no sprint)\nFood bar: drains to 0 in 30.0 days idle; actions drain 1.00x.\nCommands: /babymode version | help | status | status json | reload | reset <0-100>",
+        "server": "127.0.0.1:12345",
+        "body_url": "http://127.0.0.1:6768",
+        "agent_home": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\character",
+        "connected": true,
+        "spawned": true,
+        "death_count": 0,
+        "schema_version": "2.0",
+        "uptime_seconds": 236.57
+      },
+      "images": []
+    },
+    {
+      "seq": 3,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 30,
+          "z": 1
+        },
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791520979.0625181,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 12,
+          "y": 30,
+          "z": 1
+        },
+        "block_name": "stone",
+        "display_name": "Stone",
+        "is_solid": true,
+        "exposed_faces": [
+          "south",
+          "west",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 12,
+              "y": 30,
+              "z": 0
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 12,
+              "y": 30,
+              "z": 2
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 13,
+              "y": 30,
+              "z": 1
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 11,
+              "y": 30,
+              "z": 1
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 12,
+              "y": 31,
+              "z": 1
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 12,
+              "y": 29,
+              "z": 1
+            },
+            "block_name": "stone",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 4,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 31,
+          "z": 1
+        },
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791520982.4301314,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 12, 31, 1.",
+        "position": {
+          "x": 12,
+          "y": 31,
+          "z": 1
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 5,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 32,
+          "z": 1
+        },
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791520985.7522411,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 12, 32, 1.",
+        "position": {
+          "x": 12,
+          "y": 32,
+          "z": 1
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 6,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 33,
+          "z": 1
+        },
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791520989.0908756,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 12, 33, 1.",
+        "position": {
+          "x": 12,
+          "y": 33,
+          "z": 1
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 7,
+      "event": "result",
+      "tool": "minecraft_recipe_search",
+      "arguments": {
+        "pattern": "*",
+        "craftable_now": true
+      },
+      "revision": 0,
+      "time": 1791520995.5790648,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "*",
+        "matches": [
+          {
+            "item_name": "birch_button",
+            "display_name": "Birch Button",
+            "grid": "A",
+            "legend": {
+              "A": "birch_planks"
+            },
+            "ingredients": [
+              {
+                "item": "birch_planks",
+                "display_name": "birch planks",
+                "required": 1,
+                "have": 60,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          },
+          {
+            "item_name": "birch_planks",
+            "display_name": "Birch Planks",
+            "grid": "A",
+            "legend": {
+              "A": "birch_log"
+            },
+            "ingredients": [
+              {
+                "item": "birch_log",
+                "display_name": "birch log",
+                "required": 1,
+                "have": 15,
+                "missing": 0
+              }
+            ],
+            "output_count": 4,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          },
+          {
+            "item_name": "birch_pressure_plate",
+            "display_name": "Birch Pressure Plate",
+            "grid": "AB",
+            "legend": {
+              "A": "birch_planks",
+              "B": "birch_planks"
+            },
+            "ingredients": [
+              {
+                "item": "birch_planks",
+                "display_name": "birch planks",
+                "required": 2,
+                "have": 60,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          },
+          {
+            "item_name": "birch_wood",
+            "display_name": "Birch Wood",
+            "grid": "AB\nCD",
+            "legend": {
+              "A": "birch_log",
+              "B": "birch_log",
+              "C": "birch_log",
+              "D": "birch_log"
+            },
+            "ingredients": [
+              {
+                "item": "birch_log",
+                "display_name": "birch log",
+                "required": 4,
+                "have": 15,
+                "missing": 0
+              }
+            ],
+            "output_count": 3,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          },
+          {
+            "item_name": "crafting_table",
+            "display_name": "Crafting Table",
+            "grid": "AB\nCD",
+            "legend": {
+              "A": "birch_planks",
+              "B": "birch_planks",
+              "C": "birch_planks",
+              "D": "birch_planks"
+            },
+            "ingredients": [
+              {
+                "item": "birch_planks",
+                "display_name": "birch planks",
+                "required": 4,
+                "have": 60,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          },
+          {
+            "item_name": "lever",
+            "display_name": "Lever",
+            "grid": "A\nB",
+            "legend": {
+              "A": "stick",
+              "B": "cobblestone"
+            },
+            "ingredients": [
+              {
+                "item": "stick",
+                "display_name": "stick",
+                "required": 1,
+                "have": 8,
+                "missing": 0
+              },
+              {
+                "item": "cobblestone",
+                "display_name": "cobblestone",
+                "required": 1,
+                "have": 134,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          },
+          {
+            "item_name": "moss_carpet",
+            "display_name": "Moss Carpet",
+            "grid": "AB",
+            "legend": {
+              "A": "moss_block",
+              "B": "moss_block"
+            },
+            "ingredients": [
+              {
+                "item": "moss_block",
+                "display_name": "moss block",
+                "required": 2,
+                "have": 7,
+                "missing": 0
+              }
+            ],
+            "output_count": 3,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          },
+          {
+            "item_name": "mossy_cobblestone",
+            "display_name": "Mossy Cobblestone",
+            "grid": "AB",
+            "legend": {
+              "A": "cobblestone",
+              "B": "moss_block"
+            },
+            "ingredients": [
+              {
+                "item": "cobblestone",
+                "display_name": "cobblestone",
+                "required": 1,
+                "have": 134,
+                "missing": 0
+              },
+              {
+                "item": "moss_block",
+                "display_name": "moss block",
+                "required": 1,
+                "have": 7,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          },
+          {
+            "item_name": "stick",
+            "display_name": "Stick",
+            "grid": "A\nB",
+            "legend": {
+              "A": "birch_planks",
+              "B": "birch_planks"
+            },
+            "ingredients": [
+              {
+                "item": "birch_planks",
+                "display_name": "birch planks",
+                "required": 2,
+                "have": 60,
+                "missing": 0
+              }
+            ],
+            "output_count": 4,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          },
+          {
+            "item_name": "yellow_dye",
+            "display_name": "Yellow Dye",
+            "grid": "A",
+            "legend": {
+              "A": "dandelion"
+            },
+            "ingredients": [
+              {
+                "item": "dandelion",
+                "display_name": "dandelion",
+                "required": 1,
+                "have": 1,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          }
+        ],
+        "total_recipes": 667,
+        "duration_ms": 16.0
+      },
+      "images": []
+    },
+    {
+      "seq": 8,
+      "event": "result",
+      "tool": "minecraft_distance",
+      "arguments": {
+        "a": {
+          "x": 12,
+          "y": 31,
+          "z": 1
+        },
+        "b": {
+          "x": 12,
+          "y": 32,
+          "z": 2
+        }
+      },
+      "revision": 0,
+      "time": 1791520999.9827068,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "distance": 1.41,
+        "manhattan": 2.0,
+        "dx": 0.0,
+        "dy": 1.0,
+        "dz": 1.0
+      },
+      "images": []
+    },
+    {
+      "seq": 9,
+      "event": "result",
+      "tool": "minecraft_is_safe_to_dig",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 31,
+          "z": 2
+        }
+      },
+      "revision": 0,
+      "time": 1791521003.8823044,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 12,
+          "y": 31,
+          "z": 2
+        },
+        "risk": "unknown",
+        "hazards": [],
+        "will_fall": null,
+        "fall_depth": null
+      },
+      "images": []
+    },
+    {
+      "seq": 10,
+      "event": "result",
+      "tool": "minecraft_relative",
+      "arguments": {
+        "forward": 0,
+        "up": 1
+      },
+      "revision": 0,
+      "time": 1791521012.0610826,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "cell": {
+          "x": 12,
+          "y": 32,
+          "z": 1
+        },
+        "camera": {
+          "feet_position": {
+            "x": 12.3,
+            "y": 31.0,
+            "z": 1.7
+          },
+          "eye_position": {
+            "x": 12.3,
+            "y": 32.62,
+            "z": 1.7
+          },
+          "block_position": {
+            "x": 12,
+            "y": 31,
+            "z": 1
+          },
+          "yaw": 315.01,
+          "pitch": -82.35,
+          "cardinal": "south",
+          "look_vector": {
+            "x": 0.09,
+            "y": -0.99,
+            "z": 0.09
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 11,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 31,
+          "z": 2
+        },
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791521016.7122269,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 12, 31, 2.",
+        "position": {
+          "x": 12,
+          "y": 31,
+          "z": 2
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 12,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 12,
+        "y": 33,
+        "z": 2
+      },
+      "revision": 0,
+      "time": 1791521021.662877,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "blocked",
+        "path_length": null,
+        "hops": null,
+        "estimated_seconds": null,
+        "blocker": {
+          "block_name": "air",
+          "position": {
+            "x": 12,
+            "y": 32,
+            "z": 2
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 13,
+      "event": "result",
+      "tool": "minecraft_relative",
+      "arguments": {
+        "forward": 0,
+        "up": 1
+      },
+      "revision": 0,
+      "time": 1791521025.7290215,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "cell": {
+          "x": 12,
+          "y": 32,
+          "z": 1
+        },
+        "camera": {
+          "feet_position": {
+            "x": 12.3,
+            "y": 31.0,
+            "z": 1.7
+          },
+          "eye_position": {
+            "x": 12.3,
+            "y": 32.62,
+            "z": 1.7
+          },
+          "block_position": {
+            "x": 12,
+            "y": 31,
+            "z": 1
+          },
+          "yaw": 315.01,
+          "pitch": -82.35,
+          "cardinal": "south",
+          "look_vector": {
+            "x": 0.09,
+            "y": -0.99,
+            "z": 0.09
+          }
+        }
+      },
+      "images": []
+    },
+    {
+      "seq": 14,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 11,
+          "y": 31,
+          "z": 1
+        },
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791521030.0486684,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 11, 31, 1.",
+        "position": {
+          "x": 11,
+          "y": 31,
+          "z": 1
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 15,
+      "event": "result",
+      "tool": "minecraft_count_inventory",
+      "arguments": {
+        "pattern": "*"
+      },
+      "revision": 0,
+      "time": 1791521034.092793,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "*",
+        "matches": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 134,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 60,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 17,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 8,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "moss_block",
+            "display_name": "Moss Block",
+            "count": 7,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "total_matching_items": 252,
+        "candidates": null
+      },
+      "images": []
+    },
+    {
+      "seq": 16,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791521367.8491566,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 12.3,
+            "y": 31.0,
+            "z": 1.7
+          },
+          "eye_position": {
+            "x": 12.3,
+            "y": 32.62,
+            "z": 1.7
+          },
+          "block_position": {
+            "x": 12,
+            "y": 31,
+            "z": 1
+          },
+          "yaw": 315.01,
+          "pitch": -82.35,
+          "cardinal": "south",
+          "look_vector": {
+            "x": 0.09,
+            "y": -0.99,
+            "z": 0.09
+          }
+        },
+        "player": {
+          "health": 5.0,
+          "max_health": 20.0,
+          "food": 18,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 18761,
+          "is_day": false,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "body_session": "66797f18ea8d47f7b82675358245b9e2",
+        "death_count": 0,
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 111,
+          "max_durability": 131
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "stone_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "crafting_table",
+            "count": 1
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 64
+          },
+          {
+            "slot": 3,
+            "item": "raw_iron",
+            "count": 2
+          },
+          {
+            "slot": 4,
+            "item": "dandelion",
+            "count": 1
+          },
+          {
+            "slot": 5,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 6,
+            "item": "moss_block",
+            "count": 7
+          },
+          {
+            "slot": 7,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 8,
+            "item": "cobblestone",
+            "count": 64
+          }
+        ],
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 134,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 60,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 17,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 8,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "moss_block",
+            "display_name": "Moss Block",
+            "count": 7,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2387,
+            "nearest": {
+              "x": 12,
+              "y": 31,
+              "z": 2
+            },
+            "distance": 0.42
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1500,
+            "nearest": {
+              "x": 13,
+              "y": 30,
+              "z": 2
+            },
+            "distance": 1.26
+          },
+          {
+            "block_name": "water",
+            "display_name": "Water",
+            "count": 60,
+            "nearest": {
+              "x": 12,
+              "y": 30,
+              "z": -1
+            },
+            "distance": 2.89
+          },
+          {
+            "block_name": "clay",
+            "display_name": "Clay",
+            "count": 230,
+            "nearest": {
+              "x": 14,
+              "y": 31,
+              "z": -1
+            },
+            "distance": 3.19
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 87,
+            "nearest": {
+              "x": 15,
+              "y": 31,
+              "z": -1
+            },
+            "distance": 3.82
+          },
+          {
+            "block_name": "big_dripleaf_stem",
+            "display_name": "Big Dripleaf Stem",
+            "count": 6,
+            "nearest": {
+              "x": 10,
+              "y": 31,
+              "z": -2
+            },
+            "distance": 4.36
+          },
+          {
+            "block_name": "big_dripleaf",
+            "display_name": "Big Dripleaf",
+            "count": 5,
+            "nearest": {
+              "x": 10,
+              "y": 32,
+              "z": -2
+            },
+            "distance": 4.47
+          },
+          {
+            "block_name": "small_dripleaf",
+            "display_name": "Small Dripleaf",
+            "count": 2,
+            "nearest": {
+              "x": 17,
+              "y": 31,
+              "z": -1
+            },
+            "distance": 5.42
+          },
+          {
+            "block_name": "moss_block",
+            "display_name": "Moss Block",
+            "count": 57,
+            "nearest": {
+              "x": 18,
+              "y": 31,
+              "z": 1
+            },
+            "distance": 5.74
+          },
+          {
+            "block_name": "moss_carpet",
+            "display_name": "Moss Carpet",
+            "count": 6,
+            "nearest": {
+              "x": 18,
+              "y": 32,
+              "z": 1
+            },
+            "distance": 5.83
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 9,
+            "nearest": {
+              "x": 18,
+              "y": 31,
+              "z": 3
+            },
+            "distance": 5.85
+          },
+          {
+            "block_name": "granite",
+            "display_name": "Granite",
+            "count": 186,
+            "nearest": {
+              "x": 12,
+              "y": 25,
+              "z": 2
+            },
+            "distance": 6.01
+          },
+          {
+            "block_name": "cave_vines",
+            "display_name": "Cave Vines",
+            "count": 14,
+            "nearest": {
+              "x": 12,
+              "y": 37,
+              "z": 4
+            },
+            "distance": 6.43
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 28,
+            "nearest": {
+              "x": 9,
+              "y": 31,
+              "z": -4
+            },
+            "distance": 6.59
+          },
+          {
+            "block_name": "tall_grass",
+            "display_name": "Tall Grass",
+            "count": 4,
+            "nearest": {
+              "x": 19,
+              "y": 31,
+              "z": 2
+            },
+            "distance": 6.71
+          },
+          {
+            "block_name": "lapis_ore",
+            "display_name": "Lapis Lazuli Ore",
+            "count": 3,
+            "nearest": {
+              "x": 10,
+              "y": 27,
+              "z": -4
+            },
+            "distance": 7.33
+          },
+          {
+            "block_name": "cave_vines_plant",
+            "display_name": "Cave Vines Plant",
+            "count": 39,
+            "nearest": {
+              "x": 12,
+              "y": 38,
+              "z": 4
+            },
+            "distance": 7.37
+          },
+          {
+            "block_name": "copper_ore",
+            "display_name": "Copper Ore",
+            "count": 9,
+            "nearest": {
+              "x": 11,
+              "y": 26,
+              "z": 7
+            },
+            "distance": 7.4
+          },
+          {
+            "block_name": "andesite",
+            "display_name": "Andesite",
+            "count": 200,
+            "nearest": {
+              "x": 7,
+              "y": 31,
+              "z": -4
+            },
+            "distance": 7.78
+          },
+          {
+            "block_name": "vine",
+            "display_name": "Vines",
+            "count": 32,
+            "nearest": {
+              "x": 18,
+              "y": 32,
+              "z": -4
+            },
+            "distance": 8.12
+          },
+          {
+            "block_name": "diorite",
+            "display_name": "Diorite",
+            "count": 48,
+            "nearest": {
+              "x": 9,
+              "y": 35,
+              "z": -6
+            },
+            "distance": 9.28
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 1,
+            "nearest": {
+              "x": 6,
+              "y": 24,
+              "z": 2
+            },
+            "distance": 9.42
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "event": "diagnosis",
+      "diagnosis": "Body at feet (12.3, 31.0, 1.7), block cell (12, 31, 1), on solid ground (on_ground=true), in_water=false, oxygen=20, food=18, health=5/20. Recovery active due to damage/low_health. The body cells are: floor (12,30,1), feet (12,31,1), head (12,32,1). The player is already on a stable dry landing with air clearance above. The remaining requirement is to restore health above 10 (need >=11). The only food in inventory is 1 dandelion. With natural regen OFF (server rules), eating food should restore health via nutrition. I will eat the dandelion to heal. Evidence: journal seq 16 (fresh observe showing vitals and position).",
+      "evidence_sequences": [
+        16
+      ],
+      "next_tool": "minecraft_eat_best",
+      "next_arguments": {},
+      "recovery_action": true,
+      "time": 1791521374.5395036,
+      "revision": 0
+    },
+    {
+      "seq": 17,
+      "event": "result",
+      "tool": "minecraft_eat_best",
+      "arguments": {},
+      "revision": 0,
+      "time": 1791521376.1493702,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "no_food",
+        "message": "The food was not found in your inventory.",
+        "action": null,
+        "item": null,
+        "stat_delta": null,
+        "inventory_delta": null,
+        "considered": []
+      },
+      "images": []
+    },
+    {
+      "seq": 18,
+      "event": "result",
+      "tool": "minecraft_recipe_search",
+      "arguments": {
+        "pattern": "*potion*"
+      },
+      "revision": 0,
+      "time": 1791521383.174314,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "*potion*",
+        "matches": [],
+        "total_recipes": 667,
+        "duration_ms": 15.0
+      },
+      "images": []
+    },
+    {
+      "seq": 19,
+      "event": "result",
+      "tool": "minecraft_info",
+      "arguments": {},
+      "revision": 0,
+      "time": 1791521386.8220823,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "username": "tdd_player",
+        "server_rules": "Agentic Babymode v0.5.0 â€” current rules:\nPlayer: move 1.50x | mine 5.0x | underwater air 10.0x | mined loot to inventory, overflow to ground | natural regen off | PvP off\nMobs: move 0.07x | deal 0.07x damage | attack cooldown 3.0x | take 2.0x from you\nSleepiness: 0â†’100 over 30.0 days; only a bed resets it. Slowness/Mining Fatigue at 50+, can't sprint at 100.\nNutrition (grain/protein/produce 0-100): decays to 0 over 90.0 days.\n  grain <40.0/<15.0 â†’ Slowness I/II | protein <40.0/<15.0 â†’ Weakness I/II | produce <40.0/<15.0 â†’ Mining Fatigue I/II\n  avg <10.0 â†’ STARVING (-4 max HP, hunger, no sprint)\nFood bar: drains to 0 in 30.0 days idle; actions drain 1.00x.\nCommands: /babymode version | help | status | status json | reload | reset <0-100>",
+        "server": "127.0.0.1:12345",
+        "body_url": "http://127.0.0.1:6768",
+        "agent_home": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\character",
+        "connected": true,
+        "spawned": true,
+        "death_count": 0,
+        "schema_version": "2.0",
+        "uptime_seconds": 675.12
+      },
+      "images": []
+    },
+    {
+      "seq": 20,
+      "event": "result",
+      "tool": "minecraft_recipe_search",
+      "arguments": {
+        "pattern": "*_cooked*"
+      },
+      "revision": 0,
+      "time": 1791521405.2777362,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "The recipe was not found for the pattern: *_cooked*",
+        "pattern": "*_cooked*",
+        "matches": [],
+        "total_recipes": 0,
+        "duration_ms": 0.0
+      },
+      "images": []
+    },
+    {
+      "seq": 21,
+      "event": "result",
+      "tool": "minecraft_recipe_search",
+      "arguments": {
+        "pattern": "*golden*"
+      },
+      "revision": 0,
+      "time": 1791521415.9127595,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "*golden*",
+        "matches": [
+          {
+            "item_name": "golden_apple",
+            "display_name": "Golden Apple",
+            "grid": "ABC\nDEF\nGHI",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "gold_ingot",
+              "C": "gold_ingot",
+              "D": "gold_ingot",
+              "E": "apple",
+              "F": "gold_ingot",
+              "G": "gold_ingot",
+              "H": "gold_ingot",
+              "I": "gold_ingot"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 8,
+                "have": 0,
+                "missing": 8
+              },
+              {
+                "item": "apple",
+                "display_name": "apple",
+                "required": 1,
+                "have": 0,
+                "missing": 1
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_axe",
+            "display_name": "Golden Axe",
+            "grid": "AB\nCD\n.E",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "gold_ingot",
+              "C": "gold_ingot",
+              "D": "stick",
+              "E": "stick"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 3,
+                "have": 0,
+                "missing": 3
+              },
+              {
+                "item": "stick",
+                "display_name": "stick",
+                "required": 2,
+                "have": 8,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_boots",
+            "display_name": "Golden Boots",
+            "grid": "A.B\nC.D",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "gold_ingot",
+              "C": "gold_ingot",
+              "D": "gold_ingot"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 4,
+                "have": 0,
+                "missing": 4
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_carrot",
+            "display_name": "Golden Carrot",
+            "grid": "ABC\nDEF\nGHI",
+            "legend": {
+              "A": "gold_nugget",
+              "B": "gold_nugget",
+              "C": "gold_nugget",
+              "D": "gold_nugget",
+              "E": "carrot",
+              "F": "gold_nugget",
+              "G": "gold_nugget",
+              "H": "gold_nugget",
+              "I": "gold_nugget"
+            },
+            "ingredients": [
+              {
+                "item": "gold_nugget",
+                "display_name": "gold nugget",
+                "required": 8,
+                "have": 0,
+                "missing": 8
+              },
+              {
+                "item": "carrot",
+                "display_name": "carrot",
+                "required": 1,
+                "have": 0,
+                "missing": 1
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_chestplate",
+            "display_name": "Golden Chestplate",
+            "grid": "A.B\nCDE\nFGH",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "gold_ingot",
+              "C": "gold_ingot",
+              "D": "gold_ingot",
+              "E": "gold_ingot",
+              "F": "gold_ingot",
+              "G": "gold_ingot",
+              "H": "gold_ingot"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 8,
+                "have": 0,
+                "missing": 8
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_helmet",
+            "display_name": "Golden Helmet",
+            "grid": "ABC\nD.E",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "gold_ingot",
+              "C": "gold_ingot",
+              "D": "gold_ingot",
+              "E": "gold_ingot"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 5,
+                "have": 0,
+                "missing": 5
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_hoe",
+            "display_name": "Golden Hoe",
+            "grid": "AB\n.C\n.D",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "gold_ingot",
+              "C": "stick",
+              "D": "stick"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 2,
+                "have": 0,
+                "missing": 2
+              },
+              {
+                "item": "stick",
+                "display_name": "stick",
+                "required": 2,
+                "have": 8,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_leggings",
+            "display_name": "Golden Leggings",
+            "grid": "ABC\nD.E\nF.G",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "gold_ingot",
+              "C": "gold_ingot",
+              "D": "gold_ingot",
+              "E": "gold_ingot",
+              "F": "gold_ingot",
+              "G": "gold_ingot"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 7,
+                "have": 0,
+                "missing": 7
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_pickaxe",
+            "display_name": "Golden Pickaxe",
+            "grid": "ABC\n.D.\n.E.",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "gold_ingot",
+              "C": "gold_ingot",
+              "D": "stick",
+              "E": "stick"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 3,
+                "have": 0,
+                "missing": 3
+              },
+              {
+                "item": "stick",
+                "display_name": "stick",
+                "required": 2,
+                "have": 8,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_shovel",
+            "display_name": "Golden Shovel",
+            "grid": "A\nB\nC",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "stick",
+              "C": "stick"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 1,
+                "have": 0,
+                "missing": 1
+              },
+              {
+                "item": "stick",
+                "display_name": "stick",
+                "required": 2,
+                "have": 8,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          },
+          {
+            "item_name": "golden_sword",
+            "display_name": "Golden Sword",
+            "grid": "A\nB\nC",
+            "legend": {
+              "A": "gold_ingot",
+              "B": "gold_ingot",
+              "C": "stick"
+            },
+            "ingredients": [
+              {
+                "item": "gold_ingot",
+                "display_name": "gold ingot",
+                "required": 2,
+                "have": 0,
+                "missing": 2
+              },
+              {
+                "item": "stick",
+                "display_name": "stick",
+                "required": 1,
+                "have": 8,
+                "missing": 0
+              }
+            ],
+            "output_count": 1,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          }
+        ],
+        "total_recipes": 667,
+        "duration_ms": 0.0
+      },
+      "images": []
+    },
+    {
+      "seq": 22,
+      "event": "result",
+      "tool": "minecraft_recall",
+      "arguments": {
+        "pattern": "*food*"
+      },
+      "revision": 0,
+      "time": 1791521422.1930797,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "Memory text was not found for pattern: *food*",
+        "pattern": "*food*",
+        "hits": [],
+        "total_notes": 0
+      },
+      "images": []
+    },
+    {
+      "seq": 23,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 34,
+          "z": 1
+        },
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791521428.339816,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 12, 34, 1.",
+        "position": {
+          "x": 12,
+          "y": 34,
+          "z": 1
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 24,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 35,
+          "z": 1
+        },
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791521439.5730772,
+      "epoch": 162,
+      "session": "0e0e385adc384f759717b699a162da5f",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 12, 35, 1.",
+        "position": {
+          "x": 12,
+          "y": 35,
+          "z": 1
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    }
+  ],
+  "rejections": [
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "dandelion"
+      },
+      "reason": "recovery_required",
+      "time": 1791520972.6502743
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "dirt"
+      },
+      "reason": "recovery_required",
+      "time": 1791520992.059464
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "dirt"
+      },
+      "reason": "recovery_required",
+      "time": 1791521007.456448
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "dirt"
+      },
+      "reason": "recovery_required",
+      "time": 1791521038.0919216
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "dirt"
+      },
+      "reason": "recovery_required",
+      "time": 1791521042.1145573
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "dirt"
+      },
+      "reason": "recovery_required",
+      "time": 1791521046.227199
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "dirt"
+      },
+      "reason": "recovery_required",
+      "time": 1791521050.2788622
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "dirt"
+      },
+      "reason": "recovery_required",
+      "time": 1791521054.3780007
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "dirt"
+      },
+      "reason": "recovery_required",
+      "time": 1791521059.1586516
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521063.840319
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521172.930169
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521175.224736
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521177.6112938
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521180.1103725
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521182.736973
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521185.4745739
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521188.5241444
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521191.59322
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521194.7220058
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521197.9425654
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521201.2958374
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521204.7746923
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521208.3803415
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521212.0448146
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521215.7849739
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521219.665801
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521223.6797302
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521227.767619
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521231.9479215
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521236.1814287
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521240.562724
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521245.022149
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521249.6389217
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521348.0586095
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521350.3685641
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521352.7205553
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521355.189054
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521357.7490544
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521360.3805974
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_equip",
+      "arguments": {
+        "item": "moss_block"
+      },
+      "reason": "recovery_required",
+      "time": 1791521363.3031685
+    },
+    {
+      "event": "gameplay_rejected",
+      "tool": "minecraft_scan_horizon",
+      "arguments": {
+        "include_image": false
+      },
+      "reason": "recovery_required",
+      "time": 1791521433.512404
+    }
+  ],
+  "paused_methods": [
+    {
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "left": true
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "no_motion",
+        "quantities": {
+          "moved_blocks": 0.0
+        },
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 497,
+        "time": 1791500068.966955,
+        "tool": "minecraft_fine_control",
+        "arguments": {
+          "forward": true,
+          "left": true
+        }
+      },
+      "state": {
+        "position": {
+          "x": 12,
+          "y": 48,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 3,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 94,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_use_block",
+      "arguments": {
+        "position": {
+          "x": 30,
+          "y": 103,
+          "z": 3
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0004\\scratch\\actor-journal.jsonl",
+        "seq": 40,
+        "time": 1791485536.5767643,
+        "tool": "minecraft_use_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 103,
+            "z": 3
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 32,
+          "y": 101,
+          "z": 2
+        },
+        "dimension": "overworld",
+        "held_item": null,
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 70,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 29,
+          "y": 103,
+          "z": 3
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0012\\scratch\\actor-journal.jsonl",
+        "seq": 66,
+        "time": 1791493395.8938437,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 103,
+            "z": 3
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 29,
+          "y": 103,
+          "z": 3
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 3,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 31,
+          "y": 102,
+          "z": 4
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0007\\scratch\\actor-journal.jsonl",
+        "seq": 46,
+        "time": 1791488006.140275,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 31,
+            "y": 102,
+            "z": 4
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 29,
+          "y": 103,
+          "z": 3
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 3,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 29,
+          "y": 103,
+          "z": -1
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0012\\scratch\\actor-journal.jsonl",
+        "seq": 89,
+        "time": 1791493455.6829002,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 103,
+            "z": -1
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 29,
+          "y": 103,
+          "z": 3
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 3,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 29,
+          "y": 103,
+          "z": 0
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0012\\scratch\\actor-journal.jsonl",
+        "seq": 90,
+        "time": 1791493458.2639828,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 29,
+            "y": 103,
+            "z": 0
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 29,
+          "y": 103,
+          "z": 3
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 3,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_vein",
+      "arguments": {
+        "block": "iron_ore"
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "no_path",
+        "quantities": {
+          "mined_count": 0
+        },
+        "inventory_delta": {
+          "changes": [],
+          "total_items_before": 117,
+          "total_items_after": 117
+        },
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+        "seq": 18,
+        "time": 1791493981.2169318,
+        "tool": "minecraft_mine_vein",
+        "arguments": {
+          "block": "iron_ore"
+        }
+      },
+      "state": {
+        "position": {
+          "x": 18,
+          "y": 86,
+          "z": -4
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 126,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 5,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_staircase_down",
+      "arguments": {
+        "depth": 8,
+        "torch": false
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "zero_output",
+        "quantities": {
+          "depth_achieved": 0
+        },
+        "inventory_delta": {
+          "changes": [],
+          "total_items_before": 152,
+          "total_items_after": 152
+        },
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 283,
+        "time": 1791498151.039157,
+        "tool": "minecraft_staircase_down",
+        "arguments": {
+          "depth": 8,
+          "torch": false
+        }
+      },
+      "state": {
+        "position": {
+          "x": 17,
+          "y": 68,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 61,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 42,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 16,
+          "y": 86,
+          "z": 1
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+        "seq": 93,
+        "time": 1791495044.6767175,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 16,
+            "y": 86,
+            "z": 1
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 19,
+          "y": 86,
+          "z": -3
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "cobblestone",
+          "display_name": "Cobblestone",
+          "count": 3,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 17,
+          "y": 86,
+          "z": 2
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "target_out_of_range",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+        "seq": 23,
+        "time": 1791493994.7808962,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 17,
+            "y": 86,
+            "z": 2
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 18,
+          "y": 86,
+          "z": -4
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 126,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 5,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_walk_to_visible",
+      "arguments": {
+        "x": 16,
+        "y": 86,
+        "z": 1
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "no_path",
+        "quantities": {
+          "moved_blocks": 0.0
+        },
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+        "seq": 52,
+        "time": 1791494789.7543535,
+        "tool": "minecraft_walk_to_visible",
+        "arguments": {
+          "x": 16,
+          "y": 86,
+          "z": 1
+        }
+      },
+      "state": {
+        "position": {
+          "x": 19,
+          "y": 83,
+          "z": -3
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 124,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 7,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 15,
+          "y": 86,
+          "z": 1
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "target_out_of_range",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+        "seq": 84,
+        "time": 1791494999.2801683,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 15,
+            "y": 86,
+            "z": 1
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 19,
+          "y": 83,
+          "z": -3
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 124,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 7,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 80,
+          "z": -2
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "target_out_of_range",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 80,
+        "time": 1791496421.8772388,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 12,
+            "y": 80,
+            "z": -2
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 17,
+          "y": 82,
+          "z": -3
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 118,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 17,
+          "y": 80,
+          "z": -1
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 114,
+        "time": 1791496686.3508053,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 17,
+            "y": 80,
+            "z": -1
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 17,
+          "y": 80,
+          "z": -2
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 105,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 6,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 14,
+        "y": 85,
+        "z": 1
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "blocked",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 162,
+        "time": 1791497160.5275378,
+        "tool": "minecraft_find_path",
+        "arguments": {
+          "x": 14,
+          "y": 85,
+          "z": 1
+        }
+      },
+      "state": {
+        "position": {
+          "x": 17,
+          "y": 79,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 86,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 25,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 16,
+          "y": 85,
+          "z": 0
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "target_out_of_range",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 163,
+        "time": 1791497163.2846236,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 16,
+            "y": 85,
+            "z": 0
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 17,
+          "y": 79,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 86,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 25,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_pillar_up",
+      "arguments": {
+        "count": 4
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_placeable",
+        "quantities": {
+          "blocks_placed": 0,
+          "climbed": 0
+        },
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 169,
+        "time": 1791497191.6965952,
+        "tool": "minecraft_pillar_up",
+        "arguments": {
+          "count": 4
+        }
+      },
+      "state": {
+        "position": {
+          "x": 17,
+          "y": 79,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 86,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 25,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "rotten_flesh",
+            "display_name": "Rotten Flesh",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_walk_to_exact",
+      "arguments": {
+        "x": 16,
+        "y": 58,
+        "z": 0
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "target_not_standable",
+        "quantities": {
+          "moved_blocks": 0.0
+        },
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 357,
+        "time": 1791498910.6592102,
+        "tool": "minecraft_walk_to_exact",
+        "arguments": {
+          "x": 16,
+          "y": 58,
+          "z": 0
+        }
+      },
+      "state": {
+        "position": {
+          "x": 17,
+          "y": 58,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 51,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 52,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 59,
+          "z": 0
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 445,
+        "time": 1791499593.690493,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 12,
+            "y": 59,
+            "z": 0
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 12,
+          "y": 58,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 31,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 69,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 5,
+          "y": 50,
+          "z": -6
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "target_out_of_range",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 463,
+        "time": 1791499797.9457562,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 5,
+            "y": 50,
+            "z": -6
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 12,
+          "y": 58,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 31,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 69,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 12,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 7,
+          "y": 50,
+          "z": 2
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "target_out_of_range",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 530,
+        "time": 1791500355.9639397,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 7,
+            "y": 50,
+            "z": 2
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 12,
+          "y": 48,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 1,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 96,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 8,
+          "y": 51,
+          "z": 2
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "target_out_of_range",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 526,
+        "time": 1791500339.7889316,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 8,
+            "y": 51,
+            "z": 2
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 12,
+          "y": 48,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 1,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 96,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 11,
+          "y": 39,
+          "z": -1
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 627,
+        "time": 1791501228.7451851,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 11,
+            "y": 39,
+            "z": -1
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 12,
+          "y": 44,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 32,
+          "max_durability": 59
+        },
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 120,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 10,
+          "y": 39,
+          "z": -1
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "target_out_of_range",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 628,
+        "time": 1791501232.1872897,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 10,
+            "y": 39,
+            "z": -1
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 12,
+          "y": 44,
+          "z": 0
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "wooden_pickaxe",
+          "display_name": "Wooden Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 32,
+          "max_durability": 59
+        },
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 120,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 64,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 10,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    },
+    {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 12,
+          "y": 41,
+          "z": 1
+        }
+      },
+      "ineffective": 2,
+      "last": {
+        "kind": "unsuccessful_action",
+        "unsuccessful": true,
+        "reason": "not_found",
+        "quantities": {},
+        "inventory_delta": {},
+        "made_progress": false,
+        "completion_verified": false,
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 739,
+        "time": 1791502591.410814,
+        "tool": "minecraft_mine_block",
+        "arguments": {
+          "position": {
+            "x": 12,
+            "y": 41,
+            "z": 1
+          }
+        }
+      },
+      "state": {
+        "position": {
+          "x": 12,
+          "y": 44,
+          "z": 1
+        },
+        "dimension": "overworld",
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 116,
+          "max_durability": 131
+        },
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 130,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 60,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 16,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 8,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "moss_block",
+            "display_name": "Moss Block",
+            "count": 7,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ]
+      }
+    }
+  ],
+  "original_refusal": {
+    "tool_name": "minecraft_actor_minecraft_scan_horizon",
+    "content": {
+      "ok": false,
+      "reason": "recovery_required",
+      "message": "No action was sent. Inspect the cause, then use actor_diagnose to bind a concrete next action. Observe the current body, held tool, and inventory after a change. Unchanged operands need observations that establish changed preconditions. Stalled walking requires a fresh body observation even when the destination changes.",
+      "recovery": {
+        "causes": [
+          "damage",
+          "low_health"
+        ],
+        "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "seq": 741,
+        "started_at": 1791520948.0210998,
+        "life": {
+          "body_session": "66797f18ea8d47f7b82675358245b9e2",
+          "death_count": 0
+        },
+        "prior_life_unverified": true,
+        "current_body_cells": {
+          "floor": {
+            "x": 12,
+            "y": 30,
+            "z": 1
+          },
+          "feet": {
+            "x": 12,
+            "y": 31,
+            "z": 1
+          },
+          "head": {
+            "x": 12,
+            "y": 32,
+            "z": 1
+          }
+        },
+        "next_step": "Use current_body_cells exactly; do not round the floating feet position. Observe current vitals. Inspect one reachable dry landing's floor, feet, and head. Use actor_diagnose with current journal sequences and recovery_action=true, then execute its exact escape action. Use the feet cell above the floor as the destination. Use walk_to_exact for that dry landing; walk_to_visible can stop beside it in water. A route preview cannot prove dry body space. Retreat beyond adjacent recorded lava cells or obtain fresh evidence that those cells changed. More numeric previews cannot end recovery.",
+        "observed_route": null
+      },
+      "navigation": {
+        "ineffective": 0,
+        "last": {
+          "kind": "partial_progress",
+          "unsuccessful": true,
+          "reason": "no_path",
+          "quantities": {
+            "moved_blocks": 12.0
+          },
+          "inventory_delta": {},
+          "made_progress": true,
+          "completion_verified": false,
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 740,
+          "time": 1791502594.6174011,
+          "tool": "minecraft_walk_to_visible",
+          "arguments": {
+            "x": 11,
+            "y": 44,
+            "z": 1
+          }
+        },
+        "position": {
+          "x": 12.3,
+          "y": 31.0,
+          "z": 1.7
+        }
+      },
+      "paused_methods": [
+        {
+          "tool": "minecraft_fine_control",
+          "arguments": {
+            "forward": true,
+            "left": true
+          },
+          "ineffective": 2,
+          "reason": "no_motion",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 497
+        },
+        {
+          "tool": "minecraft_use_block",
+          "arguments": {
+            "position": {
+              "x": 30,
+              "y": 103,
+              "z": 3
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0004\\scratch\\actor-journal.jsonl",
+          "seq": 40
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 29,
+              "y": 103,
+              "z": 3
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0012\\scratch\\actor-journal.jsonl",
+          "seq": 66
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 31,
+              "y": 102,
+              "z": 4
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0007\\scratch\\actor-journal.jsonl",
+          "seq": 46
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 29,
+              "y": 103,
+              "z": -1
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0012\\scratch\\actor-journal.jsonl",
+          "seq": 89
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 29,
+              "y": 103,
+              "z": 0
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0012\\scratch\\actor-journal.jsonl",
+          "seq": 90
+        },
+        {
+          "tool": "minecraft_mine_vein",
+          "arguments": {
+            "block": "iron_ore"
+          },
+          "ineffective": 2,
+          "reason": "no_path",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+          "seq": 18
+        },
+        {
+          "tool": "minecraft_staircase_down",
+          "arguments": {
+            "depth": 8,
+            "torch": false
+          },
+          "ineffective": 2,
+          "reason": "zero_output",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 283
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 16,
+              "y": 86,
+              "z": 1
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+          "seq": 93
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 17,
+              "y": 86,
+              "z": 2
+            }
+          },
+          "ineffective": 2,
+          "reason": "target_out_of_range",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+          "seq": 23
+        },
+        {
+          "tool": "minecraft_walk_to_visible",
+          "arguments": {
+            "x": 16,
+            "y": 86,
+            "z": 1
+          },
+          "ineffective": 2,
+          "reason": "no_path",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+          "seq": 52
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 15,
+              "y": 86,
+              "z": 1
+            }
+          },
+          "ineffective": 2,
+          "reason": "target_out_of_range",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+          "seq": 84
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 12,
+              "y": 80,
+              "z": -2
+            }
+          },
+          "ineffective": 2,
+          "reason": "target_out_of_range",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 80
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 17,
+              "y": 80,
+              "z": -1
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 114
+        },
+        {
+          "tool": "minecraft_find_path",
+          "arguments": {
+            "x": 14,
+            "y": 85,
+            "z": 1
+          },
+          "ineffective": 2,
+          "reason": "blocked",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 162
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 16,
+              "y": 85,
+              "z": 0
+            }
+          },
+          "ineffective": 2,
+          "reason": "target_out_of_range",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 163
+        },
+        {
+          "tool": "minecraft_pillar_up",
+          "arguments": {
+            "count": 4
+          },
+          "ineffective": 2,
+          "reason": "not_placeable",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 169
+        },
+        {
+          "tool": "minecraft_walk_to_exact",
+          "arguments": {
+            "x": 16,
+            "y": 58,
+            "z": 0
+          },
+          "ineffective": 2,
+          "reason": "target_not_standable",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 357
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 12,
+              "y": 59,
+              "z": 0
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 445
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 5,
+              "y": 50,
+              "z": -6
+            }
+          },
+          "ineffective": 2,
+          "reason": "target_out_of_range",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 463
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 7,
+              "y": 50,
+              "z": 2
+            }
+          },
+          "ineffective": 2,
+          "reason": "target_out_of_range",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 530
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 8,
+              "y": 51,
+              "z": 2
+            }
+          },
+          "ineffective": 2,
+          "reason": "target_out_of_range",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 526
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 11,
+              "y": 39,
+              "z": -1
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 627
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 10,
+              "y": 39,
+              "z": -1
+            }
+          },
+          "ineffective": 2,
+          "reason": "target_out_of_range",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 628
+        },
+        {
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 12,
+              "y": 41,
+              "z": 1
+            }
+          },
+          "ineffective": 2,
+          "reason": "not_found",
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+          "seq": 739
+        }
+      ],
+      "evidence": "scratch/gameplay-evidence.json"
+    },
+    "tool_call_id": "77YxvIU2DkWZdpoUWJm4hYmUI6yb6bz0",
+    "tool_kind": null,
+    "metadata": null,
+    "timestamp": "2026-10-09T04:50:33.673452Z",
+    "outcome": "success",
+    "part_kind": "tool-return"
+  }
+}

@@ -32,6 +32,42 @@ The original request remains exact, and the agent resumes from retained work.
 A single oversized initial request with no execution history requires input selection rather than agent-history compaction.
 Long-file classification uses scoped agent reads and preserves required conclusions through compaction.
 
+## Direct project decisions use token percentages
+
+[`runtime.model_context.measure_context`][] measures the selected connection before each Minecraft project decision.
+The serving window comes from configured `context_window` or the endpoint's current `/props` response.
+Training-context metadata cannot establish the serving window.
+`context_input_fraction` defaults to `0.8` and accepts a number strictly between zero and one.
+The input budget equals that fraction of the serving window, in tokens.
+The remainder reserves room for the response; it does not impose a generation cap.
+
+Compatible servers apply their actual chat template and tokenize the resulting prompt.
+Receipts label this exact measurement `server.chat_template_and_tokenizer`.
+Servers without the template route use a labelled tiktoken estimate.
+Their serving capacity still comes from `/props` when available.
+Providers without that discovery route require configured `context_window`.
+The estimate includes chat framing but cannot promise the provider's exact token count.
+The provider remains authoritative if its tokenizer differs.
+Transport errors, invalid measurement responses, and cancellation retain explicit failure boundaries.
+
+When the original input exceeds its token budget, the project selects retained context and measures it again.
+The original input remains archived with its digest.
+An oversized selected input fails in tokens with its serving capacity and percentage in the error.
+There is no character limit.
+The same policy scales with 98,304, 186,624, and 1,000,000 serving tokens.
+Native pm-coder history still uses its own serving-context discovery and automatic compaction.
+
+The earlier A13 planner rejected 130,147 characters before contacting the model.
+The previous llama.cpp server tokenized that retained, templated request as 50,160 tokens.
+It advertised 131,072 serving tokens, so the old character limit caused an unnecessary rejection.
+Older context-size receipts remain historical evidence of that application defect.
+
+The current local chat server uses Strata and Qwen3.8-Flash-Next-Uncensored.
+It advertises 262,144 serving tokens through `/props`.
+It does not expose `/apply-template`, so direct project receipts label their token counts as estimates.
+The default input budget is 209,715 tokens.
+Strata reports actual prompt tokens through `/status`; those observations can differ from the application estimate.
+
 ## Verified direct Python calls
 
 Run the retained gate against the actual chat service:

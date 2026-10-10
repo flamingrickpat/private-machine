@@ -1,0 +1,489 @@
+{
+  "scope": "Captured native mining, furnace placements, uncertain insufficient-fuel dispatch, and read-only saved-world contents. Subsequent action results in tests are explicit projections, not live receipts.",
+  "sources": {
+    "journal": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0025\\scratch\\actor-journal.jsonl",
+      "sha256": "88f634226ef1ce459b207af39e8ca4d500d42eb9d169d5cdc7c425d4d203b7eb"
+    },
+    "mining_journal": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0023\\scratch\\actor-journal.jsonl",
+      "sha256": "83f0bd1553aa890a0ff2c3db16e675f0079413e68f8be47346b41d79e6715cfa"
+    },
+    "saved_world_read": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13\\retained-furnaces-37.json",
+      "sha256": "866cf438ede680d1d5b59b1af3aafc8517bd85038e0ac0d96fb084757634bb1a"
+    }
+  },
+  "rows": [
+    {
+      "seq": 43,
+      "event": "dispatch",
+      "tool": "minecraft_craft_item",
+      "arguments": {
+        "item": "furnace"
+      },
+      "revision": 0,
+      "time": 1791530008.867561,
+      "epoch": 171,
+      "session": "f958edf17eca410386e730af3ce92789"
+    },
+    {
+      "seq": 43,
+      "event": "result",
+      "tool": "minecraft_craft_item",
+      "arguments": {
+        "item": "furnace"
+      },
+      "revision": 0,
+      "time": 1791530010.0428102,
+      "epoch": 171,
+      "session": "f958edf17eca410386e730af3ce92789",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "requested": "furnace",
+        "resolved_item": "furnace",
+        "repetitions_requested": 1,
+        "repetitions_crafted": 1,
+        "output": {
+          "name": "furnace",
+          "display_name": "Furnace",
+          "count": 1,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "cobblestone",
+              "before": 8,
+              "after": 0,
+              "delta": -8
+            },
+            {
+              "item": "furnace",
+              "before": 0,
+              "after": 1,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 92,
+          "total_items_after": 85
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 19
+          },
+          {
+            "slot": 1,
+            "item": "birch_log",
+            "count": 15
+          },
+          {
+            "slot": 2,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": "stone_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 5,
+            "item": "raw_iron",
+            "count": 3
+          },
+          {
+            "slot": 6,
+            "item": "dandelion",
+            "count": 3
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "crafting_table_used": {
+          "x": 30,
+          "y": 102,
+          "z": 6
+        },
+        "candidates": null,
+        "missing_ingredients": null
+      },
+      "images": []
+    },
+    {
+      "seq": 44,
+      "event": "dispatch",
+      "tool": "minecraft_build",
+      "arguments": {
+        "shape": "fill",
+        "material": "furnace",
+        "start": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791530012.5614204,
+      "epoch": 171,
+      "session": "f958edf17eca410386e730af3ce92789"
+    },
+    {
+      "seq": 44,
+      "event": "result",
+      "tool": "minecraft_build",
+      "arguments": {
+        "shape": "fill",
+        "material": "furnace",
+        "start": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791530013.0559099,
+      "epoch": 171,
+      "session": "f958edf17eca410386e730af3ce92789",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "shape": "fill",
+        "material_requested": "furnace",
+        "material_resolved": "furnace",
+        "bounds": {
+          "min": {
+            "x": 30,
+            "y": 102,
+            "z": 5
+          },
+          "max": {
+            "x": 30,
+            "y": 102,
+            "z": 5
+          }
+        },
+        "planned_cells": 1,
+        "placed_count": 1,
+        "placed": [
+          {
+            "position": {
+              "x": 30,
+              "y": 102,
+              "z": 5
+            },
+            "block_name": "furnace"
+          }
+        ],
+        "occupied": [],
+        "out_of_range": [],
+        "missing_material_cells": 0,
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "furnace",
+              "before": 1,
+              "after": 0,
+              "delta": -1
+            }
+          ],
+          "total_items_before": 85,
+          "total_items_after": 84
+        },
+        "candidates": null,
+        "image": null,
+        "duration_ms": 125.0
+      },
+      "images": []
+    },
+    {
+      "seq": 45,
+      "event": "dispatch",
+      "tool": "minecraft_smelt_item",
+      "arguments": {
+        "input": "raw_iron",
+        "input_count": 3,
+        "fuel": "birch_log"
+      },
+      "revision": 0,
+      "time": 1791530014.9993644,
+      "epoch": 171,
+      "session": "f958edf17eca410386e730af3ce92789"
+    },
+    {
+      "seq": 45,
+      "event": "uncertain",
+      "tool": "minecraft_smelt_item",
+      "arguments": {
+        "input": "raw_iron",
+        "input_count": 3,
+        "fuel": "birch_log"
+      },
+      "revision": 0,
+      "time": 1791530014.9993644,
+      "epoch": 171,
+      "session": "f958edf17eca410386e730af3ce92789",
+      "error": "ToolError: Error calling tool 'minecraft_body_call': HTTPConnectionPool(host='127.0.0.1', port=6768): Read timed out. (read timeout=180)"
+    }
+  ],
+  "mining_rows": [
+    {
+      "seq": 373,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 5,
+          "y": 118,
+          "z": 18
+        }
+      },
+      "revision": 0,
+      "time": 1791529420.4270802,
+      "epoch": 169,
+      "session": "e5d9eacc757845db88a278f86825f603",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": 5,
+            "y": 118,
+            "z": 18
+          },
+          "block_name": "iron_ore",
+          "display_name": "Iron Ore"
+        },
+        "tool_used": "stone_pickaxe",
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "raw_iron"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "raw_iron",
+              "before": 0,
+              "after": 1,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 80,
+          "total_items_after": 81
+        },
+        "image": {
+          "frame_id": "4f48edac98d9adfc448fcf7e6180ae56",
+          "captured_at": "2026-10-09T07:03:40.251546Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 2266.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00373-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 379,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 5,
+          "y": 118,
+          "z": 17
+        }
+      },
+      "revision": 0,
+      "time": 1791529441.4330862,
+      "epoch": 169,
+      "session": "e5d9eacc757845db88a278f86825f603",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": 5,
+            "y": 118,
+            "z": 17
+          },
+          "block_name": "iron_ore",
+          "display_name": "Iron Ore"
+        },
+        "tool_used": "stone_pickaxe",
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "raw_iron"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "raw_iron",
+              "before": 1,
+              "after": 2,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 81,
+          "total_items_after": 82
+        },
+        "image": {
+          "frame_id": "875a42cbe34b38517f978f20c3ed4943",
+          "captured_at": "2026-10-09T07:04:01.261526Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 2265.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00379-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 385,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 4,
+          "y": 118,
+          "z": 18
+        }
+      },
+      "revision": 0,
+      "time": 1791529474.2487257,
+      "epoch": 169,
+      "session": "e5d9eacc757845db88a278f86825f603",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": 4,
+            "y": 118,
+            "z": 18
+          },
+          "block_name": "iron_ore",
+          "display_name": "Iron Ore"
+        },
+        "tool_used": "stone_pickaxe",
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "raw_iron"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "raw_iron",
+              "before": 2,
+              "after": 3,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 84,
+          "total_items_after": 85
+        },
+        "image": {
+          "frame_id": "67e24a9d9a65fd4b8706dce3a283ec17",
+          "captured_at": "2026-10-09T07:04:34.065674Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 2218.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00385-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    }
+  ],
+  "saved_furnaces": {
+    "source": "C:/source/minecraft-server-real/world/region/r.0.0.mca",
+    "chunk": {
+      "x": 1,
+      "z": 0
+    },
+    "compressed_chunk_sha256": "0fb443dd9d3f5aee5e0e34b35997c9c32045bc961e14b380f0a37195afb396cb",
+    "region_mtime": "2026-10-09T07:17:36.833Z",
+    "furnaces": [
+      {
+        "CookTime": 0,
+        "keepPacked": 0,
+        "BurnTime": 0,
+        "x": 30,
+        "y": 102,
+        "Items": [
+          {
+            "Slot": 0,
+            "id": "minecraft:raw_iron",
+            "Count": 2
+          },
+          {
+            "Slot": 2,
+            "id": "minecraft:iron_ingot",
+            "Count": 1
+          }
+        ],
+        "z": 5,
+        "id": "minecraft:furnace",
+        "CookTimeTotal": 200,
+        "RecipesUsed": {
+          "minecraft:iron_ingot_from_smelting_raw_iron": 1
+        }
+      }
+    ]
+  }
+}

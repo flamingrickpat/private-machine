@@ -239,6 +239,13 @@ class Consolidator:
                 "images": [item["path"] for item in images],
             }]
         for episode in episodes:
+            gameplay = episode.get("gameplay", {})
+            recent = gameplay.get("recent_outcomes", [])
+            failures = [row for row in recent if row.get("unsuccessful")]
+            consequence = (f" Retained {gameplay.get('outcome_count', 0)} gameplay outcomes."
+                           f" Latest failure: {failures[-1].get('reason')}." if failures else "")
+            if gameplay.get("recovery"):
+                consequence += f" Recovery remains active: {gameplay['recovery']['causes']}."
             attached = [
                 self._image_evidence(images_by_path[path])
                 for path in (episode.get("images") or [])
@@ -249,13 +256,13 @@ class Consolidator:
             proposals.append(BodyEpisodeKnoxel(
                 content=self._clip(
                     f"Body episode for {episode.get('body_id', 'body')}: "
-                    f"{episode.get('outcome', 'observed')}. {episode.get('goal', '')}"
+                    f"{episode.get('outcome', 'observed')}. {episode.get('goal', '')}{consequence}"
                 ),
                 body_id=str(episode.get("body_id", "body")),
                 goal=episode.get("goal"),
                 outcome=str(episode.get("outcome", "unknown")),
                 action_count=int(episode.get("action_count", 0)),
-                evidence={"images": attached, "run_id": run_id},
+                evidence={"images": attached, "run_id": run_id, "gameplay": episode.get("gameplay", {})},
                 metadata={"run_id": run_id, "kind": "episode"},
             ))
         return proposals

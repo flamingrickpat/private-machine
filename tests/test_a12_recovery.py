@@ -12,7 +12,7 @@ import unittest
 from pm_workflows.runtime import WorkflowRuntime
 from runtime.body_lease import BodyBusy, BodyLeases, ProcessLock, StaleEpoch, atomic_json
 from runtime.managed_runs import ManagedRunError, ManagedRunReceipt, ManagedRunSupervisor, WorkflowSpec
-from runtime.minecraft_actor import observed_target, read_actor_journal
+from runtime.minecraft_actor import observed_target, read_actor_journal, target_block_cell
 from pm_core.ghost.service import Ghost
 from tests.test_design_contracts import small_ghost
 from workflow_adapter import PROJECT_ROOT
@@ -20,6 +20,30 @@ from working_target import FolderEnvironment
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_captured_continuous_targets_use_observed_integer_cells(self):
+        from jsonschema.validators import validator_for
+        capture = json.loads((PROJECT_ROOT / "tests/fixtures/alpha/a13-reconciliation-world-cells.json").read_text(encoding="utf-8"))
+        parameters = capture["tool_schema"]["parameters"]
+        validator = validator_for(parameters)(parameters)
+        self.assertTrue(capture["rejected"])
+        for case in capture["cases"]:
+            point = case["dispatch"]["arguments"]["position"]
+            original = json.dumps(point, sort_keys=True)
+            self.assertTrue(list(validator.iter_errors({"position": point})))
+            cell = target_block_cell(point)
+            self.assertEqual(cell, case["world_read"]["arguments"]["position"])
+            self.assertEqual(cell, case["world_read"]["result"]["position"])
+            self.assertEqual(list(validator.iter_errors({"position": cell})), [])
+            self.assertTrue(observed_target(case["world_read"], cell))
+            self.assertEqual(json.dumps(point, sort_keys=True), original)
+
+    def test_captured_negative_positions_use_body_block_coordinates(self):
+        capture = json.loads((PROJECT_ROOT / "tests/fixtures/alpha/a13-reconciliation-world-cells.json").read_text(encoding="utf-8"))
+        self.assertTrue(capture["body_cases"])
+        for case in capture["body_cases"]:
+            camera = case["receipt"]["result"]["camera"]
+            self.assertEqual(target_block_cell(camera["feet_position"]), camera["block_position"])
+
     def test_captured_partial_harvests_count_as_one_physical_tree(self):
         from workflows.minecraft.actor import verify_wood_return
         capture = json.loads((PROJECT_ROOT / "tests/fixtures/alpha/a12-partial-tree.json").read_text())

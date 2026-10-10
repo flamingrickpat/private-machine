@@ -405,6 +405,8 @@ class ManagedRunSupervisor:
             tools["managed_instructions"].authorize = tools["managed_authorize"]
             tools["managed_instructions"].cancelled = lambda: self.cancelled_at_boundary(
                 receipt.run_id, receipt.execution_epoch)
+            tools["managed_milestone"] = lambda key, summary, evidence: self.milestone(
+                receipt.run_id, receipt.execution_epoch, key, summary, evidence)
             runtime = WorkflowRuntime(
                 environment=environment,
                 stop_event=cancel,
@@ -574,6 +576,28 @@ class ManagedRunSupervisor:
             if row is not None and not row["published"]:
                 row["published"] = True
                 self._persist(current)
+
+    def milestone(self, run_id: str, epoch: int, key: str, summary: str, evidence: str) -> None:
+        """Publish one retained attempt boundary to cognition with stable identity.
+
+        Repeated delivery keeps the original event. Stale workers cannot publish
+        new progress. A milestone reports evidence, never verified completion.
+        """
+        with self._lock:
+            current = ManagedRunReceipt.from_dict(self.get(run_id))
+            if current.execution_epoch != epoch or current.state != "running":
+                raise ManagedRunError("This worker no longer owns progress publication.")
+            if any(row["message"].get("milestone_key") == key for row in current.events):
+                return
+            identity = f"{run_id}:{epoch}:{len(current.events) + 1}"
+            message = {"run_id": run_id, "event": "gameplay_progress", "event_id": identity,
+                       "execution_epoch": epoch, "milestone_key": key, "detail": summary, "evidence": evidence}
+            current.events.append({"message": message, "published": False})
+            self._persist(current)
+        # The sink can commit Ghost memory. Keep that commit outside this lock
+        # so another cognition thread can inspect the managed receipt.
+        if self.event_sink is not None:
+            self.event_sink(message)
 
     def replay_events(self) -> None:
         """Publish pending progress with the original event IDs, without a worker."""

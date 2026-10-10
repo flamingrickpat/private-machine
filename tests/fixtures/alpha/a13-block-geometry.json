@@ -1,0 +1,2162 @@
+{
+  "scope": "Captured read-only protocol evidence; not native task acceptance.",
+  "sources": [
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-block-geometry64\\receipt.json",
+      "sha256": "0d4970f54b6911e21c235220cdad329e4c72978656942b7ee8211066df47aebd"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-block-geometry63\\receipt.json",
+      "sha256": "05b60f8c0e12e0bcc888521d061c5c68ec6517dcf011bc82819fb772e65be8cc"
+    }
+  ],
+  "confirmed_probe": {
+    "status": "passed",
+    "started": "2026-10-10T11:10:51.276762+00:00",
+    "scope": "Read-only real inspection boundary. No task acceptance, mutation, reset, or grant.",
+    "calls": [
+      {
+        "tool": "minecraft_observe",
+        "arguments": {
+          "include_image": false
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "camera": {
+            "feet_position": {
+              "x": 27.7,
+              "y": 104.0,
+              "z": 1.5
+            },
+            "eye_position": {
+              "x": 27.7,
+              "y": 105.62,
+              "z": 1.5
+            },
+            "block_position": {
+              "x": 27,
+              "y": 104,
+              "z": 1
+            },
+            "yaw": 270.04,
+            "pitch": -54.45,
+            "cardinal": "east",
+            "look_vector": {
+              "x": 0.58,
+              "y": -0.81,
+              "z": 0.0
+            }
+          },
+          "player": {
+            "health": 20.0,
+            "max_health": 20.0,
+            "food": 20,
+            "oxygen": 20,
+            "xp_level": 0,
+            "biome": "meadow",
+            "dimension": "overworld",
+            "time_of_day": 3258,
+            "is_day": true,
+            "is_raining": false,
+            "on_ground": true,
+            "in_water": false
+          },
+          "body_session": "3f365dd213d34062929427fe7b243024",
+          "death_count": 0,
+          "held_item": {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          "hotbar": [
+            {
+              "slot": 0,
+              "item": "egg",
+              "count": 2
+            },
+            {
+              "slot": 1,
+              "item": "cobblestone",
+              "count": 3
+            },
+            {
+              "slot": 2,
+              "item": "iron_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 3,
+              "item": "stone_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 4,
+              "item": "birch_door",
+              "count": 3
+            },
+            {
+              "slot": 5,
+              "item": "dirt",
+              "count": 17
+            },
+            {
+              "slot": 6,
+              "item": "iron_ingot",
+              "count": 3
+            },
+            {
+              "slot": 7,
+              "item": "dandelion",
+              "count": 3
+            },
+            {
+              "slot": 8,
+              "item": null,
+              "count": 0
+            }
+          ],
+          "inventory": [
+            {
+              "name": "dirt",
+              "display_name": "Dirt",
+              "count": 17,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "birch_door",
+              "display_name": "Birch Door",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "cobblestone",
+              "display_name": "Cobblestone",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_ingot",
+              "display_name": "Iron Ingot",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "egg",
+              "display_name": "Egg",
+              "count": 2,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_pickaxe",
+              "display_name": "Iron Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "stone_pickaxe",
+              "display_name": "Stone Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            }
+          ],
+          "nearby_blocks": [
+            {
+              "block_name": "birch_planks",
+              "display_name": "Birch Planks",
+              "count": 98,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 2
+              },
+              "distance": 0.58
+            },
+            {
+              "block_name": "air",
+              "display_name": "Air",
+              "count": 2570,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 1
+              },
+              "distance": 0.58
+            },
+            {
+              "block_name": "grass_block",
+              "display_name": "Grass Block",
+              "count": 268,
+              "nearest": {
+                "x": 27,
+                "y": 103,
+                "z": 2
+              },
+              "distance": 1.32
+            },
+            {
+              "block_name": "dirt",
+              "display_name": "Dirt",
+              "count": 300,
+              "nearest": {
+                "x": 28,
+                "y": 102,
+                "z": 2
+              },
+              "distance": 2.08
+            },
+            {
+              "block_name": "grass",
+              "display_name": "Grass",
+              "count": 28,
+              "nearest": {
+                "x": 25,
+                "y": 105,
+                "z": 1
+              },
+              "distance": 2.92
+            },
+            {
+              "block_name": "stone",
+              "display_name": "Stone",
+              "count": 1580,
+              "nearest": {
+                "x": 26,
+                "y": 102,
+                "z": 3
+              },
+              "distance": 3.02
+            },
+            {
+              "block_name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 22,
+              "nearest": {
+                "x": 25,
+                "y": 104,
+                "z": -1
+              },
+              "distance": 3.68
+            },
+            {
+              "block_name": "furnace",
+              "display_name": "Furnace",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 5
+              },
+              "distance": 4.64
+            },
+            {
+              "block_name": "crafting_table",
+              "display_name": "Crafting Table",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 6
+              },
+              "distance": 5.43
+            },
+            {
+              "block_name": "coal_ore",
+              "display_name": "Coal Ore",
+              "count": 39,
+              "nearest": {
+                "x": 22,
+                "y": 104,
+                "z": 2
+              },
+              "distance": 5.72
+            },
+            {
+              "block_name": "iron_ore",
+              "display_name": "Iron Ore",
+              "count": 1,
+              "nearest": {
+                "x": 23,
+                "y": 97,
+                "z": -4
+              },
+              "distance": 10.07
+            },
+            {
+              "block_name": "gravel",
+              "display_name": "Gravel",
+              "count": 2,
+              "nearest": {
+                "x": 28,
+                "y": 96,
+                "z": -7
+              },
+              "distance": 11.68
+            },
+            {
+              "block_name": "copper_ore",
+              "display_name": "Copper Ore",
+              "count": 1,
+              "nearest": {
+                "x": 19,
+                "y": 96,
+                "z": 2
+              },
+              "distance": 11.83
+            }
+          ],
+          "nearby_entities": [
+            {
+              "entity_id": 465,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.13
+              },
+              "distance": 4.6,
+              "health": null,
+              "hostile": false
+            },
+            {
+              "entity_id": 466,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.89
+              },
+              "distance": 4.76,
+              "health": null,
+              "hostile": false
+            }
+          ],
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 1,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 28,
+            "y": 104,
+            "z": 1
+          }
+        },
+        "ok": false,
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 28, 104, 1.",
+          "position": {
+            "x": 28,
+            "y": 104,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "properties": {},
+          "collision_shapes": [],
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 2,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 28,
+            "y": 105,
+            "z": 1
+          }
+        },
+        "ok": false,
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 28, 105, 1.",
+          "position": {
+            "x": 28,
+            "y": 105,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "properties": {},
+          "collision_shapes": [],
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 3,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 1
+          }
+        },
+        "ok": false,
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 30, 104, 1.",
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "properties": {},
+          "collision_shapes": [],
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 4,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 103,
+            "z": 1
+          }
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 30,
+            "y": 103,
+            "z": 1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "properties": {},
+          "collision_shapes": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          ],
+          "is_solid": true,
+          "exposed_faces": [
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 30,
+                "y": 103,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 30,
+                "y": 103,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 31,
+                "y": 103,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 29,
+                "y": 103,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 30,
+                "y": 104,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 30,
+                "y": 102,
+                "z": 1
+              },
+              "block_name": "dirt",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 5,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 102,
+            "z": 5
+          }
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 30,
+            "y": 102,
+            "z": 5
+          },
+          "block_name": "furnace",
+          "display_name": "Furnace",
+          "properties": {
+            "lit": false,
+            "facing": "north"
+          },
+          "collision_shapes": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          ],
+          "is_solid": true,
+          "exposed_faces": [
+            "north",
+            "east",
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 30,
+                "y": 102,
+                "z": 4
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 30,
+                "y": 102,
+                "z": 6
+              },
+              "block_name": "crafting_table",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 31,
+                "y": 102,
+                "z": 5
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 29,
+                "y": 102,
+                "z": 5
+              },
+              "block_name": "dirt",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 30,
+                "y": 103,
+                "z": 5
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 30,
+                "y": 101,
+                "z": 5
+              },
+              "block_name": "dirt",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_pickaxe",
+            "netherite_pickaxe",
+            "diamond_pickaxe",
+            "iron_pickaxe",
+            "stone_pickaxe",
+            "wooden_pickaxe"
+          ],
+          "can_harvest_with_held": false,
+          "drops": [
+            "furnace"
+          ],
+          "hardness": 3.5,
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 6,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_observe",
+        "arguments": {
+          "include_image": false
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "camera": {
+            "feet_position": {
+              "x": 27.7,
+              "y": 104.0,
+              "z": 1.5
+            },
+            "eye_position": {
+              "x": 27.7,
+              "y": 105.62,
+              "z": 1.5
+            },
+            "block_position": {
+              "x": 27,
+              "y": 104,
+              "z": 1
+            },
+            "yaw": 270.04,
+            "pitch": -54.45,
+            "cardinal": "east",
+            "look_vector": {
+              "x": 0.58,
+              "y": -0.81,
+              "z": 0.0
+            }
+          },
+          "player": {
+            "health": 20.0,
+            "max_health": 20.0,
+            "food": 20,
+            "oxygen": 20,
+            "xp_level": 0,
+            "biome": "meadow",
+            "dimension": "overworld",
+            "time_of_day": 3318,
+            "is_day": true,
+            "is_raining": false,
+            "on_ground": true,
+            "in_water": false
+          },
+          "body_session": "3f365dd213d34062929427fe7b243024",
+          "death_count": 0,
+          "held_item": {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          "hotbar": [
+            {
+              "slot": 0,
+              "item": "egg",
+              "count": 2
+            },
+            {
+              "slot": 1,
+              "item": "cobblestone",
+              "count": 3
+            },
+            {
+              "slot": 2,
+              "item": "iron_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 3,
+              "item": "stone_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 4,
+              "item": "birch_door",
+              "count": 3
+            },
+            {
+              "slot": 5,
+              "item": "dirt",
+              "count": 17
+            },
+            {
+              "slot": 6,
+              "item": "iron_ingot",
+              "count": 3
+            },
+            {
+              "slot": 7,
+              "item": "dandelion",
+              "count": 3
+            },
+            {
+              "slot": 8,
+              "item": null,
+              "count": 0
+            }
+          ],
+          "inventory": [
+            {
+              "name": "dirt",
+              "display_name": "Dirt",
+              "count": 17,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "birch_door",
+              "display_name": "Birch Door",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "cobblestone",
+              "display_name": "Cobblestone",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_ingot",
+              "display_name": "Iron Ingot",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "egg",
+              "display_name": "Egg",
+              "count": 2,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_pickaxe",
+              "display_name": "Iron Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "stone_pickaxe",
+              "display_name": "Stone Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            }
+          ],
+          "nearby_blocks": [
+            {
+              "block_name": "birch_planks",
+              "display_name": "Birch Planks",
+              "count": 98,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 2
+              },
+              "distance": 0.58
+            },
+            {
+              "block_name": "air",
+              "display_name": "Air",
+              "count": 2570,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 1
+              },
+              "distance": 0.58
+            },
+            {
+              "block_name": "grass_block",
+              "display_name": "Grass Block",
+              "count": 268,
+              "nearest": {
+                "x": 27,
+                "y": 103,
+                "z": 2
+              },
+              "distance": 1.32
+            },
+            {
+              "block_name": "dirt",
+              "display_name": "Dirt",
+              "count": 300,
+              "nearest": {
+                "x": 28,
+                "y": 102,
+                "z": 2
+              },
+              "distance": 2.08
+            },
+            {
+              "block_name": "grass",
+              "display_name": "Grass",
+              "count": 28,
+              "nearest": {
+                "x": 25,
+                "y": 105,
+                "z": 1
+              },
+              "distance": 2.92
+            },
+            {
+              "block_name": "stone",
+              "display_name": "Stone",
+              "count": 1580,
+              "nearest": {
+                "x": 26,
+                "y": 102,
+                "z": 3
+              },
+              "distance": 3.02
+            },
+            {
+              "block_name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 22,
+              "nearest": {
+                "x": 25,
+                "y": 104,
+                "z": -1
+              },
+              "distance": 3.68
+            },
+            {
+              "block_name": "furnace",
+              "display_name": "Furnace",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 5
+              },
+              "distance": 4.64
+            },
+            {
+              "block_name": "crafting_table",
+              "display_name": "Crafting Table",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 6
+              },
+              "distance": 5.43
+            },
+            {
+              "block_name": "coal_ore",
+              "display_name": "Coal Ore",
+              "count": 39,
+              "nearest": {
+                "x": 22,
+                "y": 104,
+                "z": 2
+              },
+              "distance": 5.72
+            },
+            {
+              "block_name": "iron_ore",
+              "display_name": "Iron Ore",
+              "count": 1,
+              "nearest": {
+                "x": 23,
+                "y": 97,
+                "z": -4
+              },
+              "distance": 10.07
+            },
+            {
+              "block_name": "gravel",
+              "display_name": "Gravel",
+              "count": 2,
+              "nearest": {
+                "x": 28,
+                "y": 96,
+                "z": -7
+              },
+              "distance": 11.68
+            },
+            {
+              "block_name": "copper_ore",
+              "display_name": "Copper Ore",
+              "count": 1,
+              "nearest": {
+                "x": 19,
+                "y": 96,
+                "z": 2
+              },
+              "distance": 11.83
+            }
+          ],
+          "nearby_entities": [
+            {
+              "entity_id": 465,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.13
+              },
+              "distance": 4.6,
+              "health": null,
+              "hostile": false
+            },
+            {
+              "entity_id": 466,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.89
+              },
+              "distance": 4.76,
+              "health": null,
+              "hostile": false
+            }
+          ],
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 7,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      }
+    ],
+    "oracles": [
+      {
+        "command": "execute if block 28 104 1 minecraft:air[] run data get entity tdd_player Pos",
+        "result": "tdd_player has the following entity data: [27.7d, 104.0d, 1.5006543060287711d]"
+      },
+      {
+        "command": "execute if block 28 105 1 minecraft:air[] run data get entity tdd_player Pos",
+        "result": "tdd_player has the following entity data: [27.7d, 104.0d, 1.5006543060287711d]"
+      },
+      {
+        "command": "execute if block 30 102 5 minecraft:furnace[lit=false,facing=north] run data get entity tdd_player Pos",
+        "result": "tdd_player has the following entity data: [27.7d, 104.0d, 1.5006543060287711d]"
+      }
+    ],
+    "checks": {
+      "all_sampled_states_match_server": true,
+      "native_removed_door_cells_observed_as_air": true,
+      "furnace_properties_and_collision_observed": true,
+      "observed_air_has_no_collision": true,
+      "full_floor_collision": true,
+      "same_position_inventory_vitals": true
+    },
+    "finished": "2026-10-10T11:11:15.547517+00:00"
+  },
+  "failed_initial_assumption": {
+    "status": "failed",
+    "started": "2026-10-10T11:09:51.750189+00:00",
+    "scope": "Read-only real inspection boundary. No task acceptance, mutation, reset, or grant.",
+    "calls": [
+      {
+        "tool": "minecraft_observe",
+        "arguments": {
+          "include_image": false
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "camera": {
+            "feet_position": {
+              "x": 27.7,
+              "y": 104.0,
+              "z": 1.5
+            },
+            "eye_position": {
+              "x": 27.7,
+              "y": 105.62,
+              "z": 1.5
+            },
+            "block_position": {
+              "x": 27,
+              "y": 104,
+              "z": 1
+            },
+            "yaw": 270.04,
+            "pitch": -54.45,
+            "cardinal": "east",
+            "look_vector": {
+              "x": 0.58,
+              "y": -0.81,
+              "z": 0.0
+            }
+          },
+          "player": {
+            "health": 20.0,
+            "max_health": 20.0,
+            "food": 20,
+            "oxygen": 20,
+            "xp_level": 0,
+            "biome": "meadow",
+            "dimension": "overworld",
+            "time_of_day": 3141,
+            "is_day": true,
+            "is_raining": false,
+            "on_ground": true,
+            "in_water": false
+          },
+          "body_session": "44b3d7279b7c463fb3dcd19190037c6d",
+          "death_count": 0,
+          "held_item": {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          "hotbar": [
+            {
+              "slot": 0,
+              "item": "egg",
+              "count": 2
+            },
+            {
+              "slot": 1,
+              "item": "cobblestone",
+              "count": 3
+            },
+            {
+              "slot": 2,
+              "item": "iron_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 3,
+              "item": "stone_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 4,
+              "item": "birch_door",
+              "count": 3
+            },
+            {
+              "slot": 5,
+              "item": "dirt",
+              "count": 17
+            },
+            {
+              "slot": 6,
+              "item": "iron_ingot",
+              "count": 3
+            },
+            {
+              "slot": 7,
+              "item": "dandelion",
+              "count": 3
+            },
+            {
+              "slot": 8,
+              "item": null,
+              "count": 0
+            }
+          ],
+          "inventory": [
+            {
+              "name": "dirt",
+              "display_name": "Dirt",
+              "count": 17,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "birch_door",
+              "display_name": "Birch Door",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "cobblestone",
+              "display_name": "Cobblestone",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_ingot",
+              "display_name": "Iron Ingot",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "egg",
+              "display_name": "Egg",
+              "count": 2,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_pickaxe",
+              "display_name": "Iron Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "stone_pickaxe",
+              "display_name": "Stone Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            }
+          ],
+          "nearby_blocks": [
+            {
+              "block_name": "birch_planks",
+              "display_name": "Birch Planks",
+              "count": 98,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 2
+              },
+              "distance": 0.58
+            },
+            {
+              "block_name": "air",
+              "display_name": "Air",
+              "count": 2570,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 1
+              },
+              "distance": 0.58
+            },
+            {
+              "block_name": "grass_block",
+              "display_name": "Grass Block",
+              "count": 268,
+              "nearest": {
+                "x": 27,
+                "y": 103,
+                "z": 2
+              },
+              "distance": 1.32
+            },
+            {
+              "block_name": "dirt",
+              "display_name": "Dirt",
+              "count": 300,
+              "nearest": {
+                "x": 28,
+                "y": 102,
+                "z": 2
+              },
+              "distance": 2.08
+            },
+            {
+              "block_name": "grass",
+              "display_name": "Grass",
+              "count": 28,
+              "nearest": {
+                "x": 25,
+                "y": 105,
+                "z": 1
+              },
+              "distance": 2.92
+            },
+            {
+              "block_name": "stone",
+              "display_name": "Stone",
+              "count": 1580,
+              "nearest": {
+                "x": 26,
+                "y": 102,
+                "z": 3
+              },
+              "distance": 3.02
+            },
+            {
+              "block_name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 22,
+              "nearest": {
+                "x": 25,
+                "y": 104,
+                "z": -1
+              },
+              "distance": 3.68
+            },
+            {
+              "block_name": "furnace",
+              "display_name": "Furnace",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 5
+              },
+              "distance": 4.64
+            },
+            {
+              "block_name": "crafting_table",
+              "display_name": "Crafting Table",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 6
+              },
+              "distance": 5.43
+            },
+            {
+              "block_name": "coal_ore",
+              "display_name": "Coal Ore",
+              "count": 39,
+              "nearest": {
+                "x": 22,
+                "y": 104,
+                "z": 2
+              },
+              "distance": 5.72
+            },
+            {
+              "block_name": "iron_ore",
+              "display_name": "Iron Ore",
+              "count": 1,
+              "nearest": {
+                "x": 23,
+                "y": 97,
+                "z": -4
+              },
+              "distance": 10.07
+            },
+            {
+              "block_name": "gravel",
+              "display_name": "Gravel",
+              "count": 2,
+              "nearest": {
+                "x": 28,
+                "y": 96,
+                "z": -7
+              },
+              "distance": 11.68
+            },
+            {
+              "block_name": "copper_ore",
+              "display_name": "Copper Ore",
+              "count": 1,
+              "nearest": {
+                "x": 19,
+                "y": 96,
+                "z": 2
+              },
+              "distance": 11.83
+            }
+          ],
+          "nearby_entities": [
+            {
+              "entity_id": 20,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.13
+              },
+              "distance": 4.6,
+              "health": null,
+              "hostile": false
+            },
+            {
+              "entity_id": 21,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.89
+              },
+              "distance": 4.76,
+              "health": null,
+              "hostile": false
+            }
+          ],
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 1,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 28,
+            "y": 104,
+            "z": 1
+          }
+        },
+        "ok": false,
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 28, 104, 1.",
+          "position": {
+            "x": 28,
+            "y": 104,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "properties": {},
+          "collision_shapes": [],
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 2,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 28,
+            "y": 105,
+            "z": 1
+          }
+        },
+        "ok": false,
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 28, 105, 1.",
+          "position": {
+            "x": 28,
+            "y": 105,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "properties": {},
+          "collision_shapes": [],
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 3,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 1
+          }
+        },
+        "ok": false,
+        "result": {
+          "warnings": [],
+          "ok": false,
+          "reason": "not_found",
+          "message": "No block exists at 30, 104, 1.",
+          "position": {
+            "x": 30,
+            "y": 104,
+            "z": 1
+          },
+          "block_name": "air",
+          "display_name": "Air",
+          "properties": {},
+          "collision_shapes": [],
+          "is_solid": false,
+          "exposed_faces": [],
+          "neighbors": [],
+          "best_tools": [],
+          "can_harvest_with_held": null,
+          "drops": [],
+          "hardness": null,
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 4,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_inspect_block",
+        "arguments": {
+          "position": {
+            "x": 30,
+            "y": 103,
+            "z": 1
+          }
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "position": {
+            "x": 30,
+            "y": 103,
+            "z": 1
+          },
+          "block_name": "birch_planks",
+          "display_name": "Birch Planks",
+          "properties": {},
+          "collision_shapes": [
+            [
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              1.0,
+              1.0
+            ]
+          ],
+          "is_solid": true,
+          "exposed_faces": [
+            "up"
+          ],
+          "neighbors": [
+            {
+              "direction": "north",
+              "position": {
+                "x": 30,
+                "y": 103,
+                "z": 0
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "south",
+              "position": {
+                "x": 30,
+                "y": 103,
+                "z": 2
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "east",
+              "position": {
+                "x": 31,
+                "y": 103,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "west",
+              "position": {
+                "x": 29,
+                "y": 103,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "solid": true
+            },
+            {
+              "direction": "up",
+              "position": {
+                "x": 30,
+                "y": 104,
+                "z": 1
+              },
+              "block_name": "air",
+              "solid": false
+            },
+            {
+              "direction": "down",
+              "position": {
+                "x": 30,
+                "y": 102,
+                "z": 1
+              },
+              "block_name": "dirt",
+              "solid": true
+            }
+          ],
+          "best_tools": [
+            "golden_axe",
+            "netherite_axe",
+            "diamond_axe",
+            "iron_axe",
+            "stone_axe",
+            "wooden_axe"
+          ],
+          "can_harvest_with_held": true,
+          "drops": [
+            "birch_planks"
+          ],
+          "hardness": 2.0,
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 5,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      },
+      {
+        "tool": "minecraft_observe",
+        "arguments": {
+          "include_image": false
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "camera": {
+            "feet_position": {
+              "x": 27.7,
+              "y": 104.0,
+              "z": 1.5
+            },
+            "eye_position": {
+              "x": 27.7,
+              "y": 105.62,
+              "z": 1.5
+            },
+            "block_position": {
+              "x": 27,
+              "y": 104,
+              "z": 1
+            },
+            "yaw": 270.04,
+            "pitch": -54.45,
+            "cardinal": "east",
+            "look_vector": {
+              "x": 0.58,
+              "y": -0.81,
+              "z": 0.0
+            }
+          },
+          "player": {
+            "health": 20.0,
+            "max_health": 20.0,
+            "food": 20,
+            "oxygen": 20,
+            "xp_level": 0,
+            "biome": "meadow",
+            "dimension": "overworld",
+            "time_of_day": 3181,
+            "is_day": true,
+            "is_raining": false,
+            "on_ground": true,
+            "in_water": false
+          },
+          "body_session": "44b3d7279b7c463fb3dcd19190037c6d",
+          "death_count": 0,
+          "held_item": {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          "hotbar": [
+            {
+              "slot": 0,
+              "item": "egg",
+              "count": 2
+            },
+            {
+              "slot": 1,
+              "item": "cobblestone",
+              "count": 3
+            },
+            {
+              "slot": 2,
+              "item": "iron_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 3,
+              "item": "stone_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 4,
+              "item": "birch_door",
+              "count": 3
+            },
+            {
+              "slot": 5,
+              "item": "dirt",
+              "count": 17
+            },
+            {
+              "slot": 6,
+              "item": "iron_ingot",
+              "count": 3
+            },
+            {
+              "slot": 7,
+              "item": "dandelion",
+              "count": 3
+            },
+            {
+              "slot": 8,
+              "item": null,
+              "count": 0
+            }
+          ],
+          "inventory": [
+            {
+              "name": "dirt",
+              "display_name": "Dirt",
+              "count": 17,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "birch_door",
+              "display_name": "Birch Door",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "cobblestone",
+              "display_name": "Cobblestone",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_ingot",
+              "display_name": "Iron Ingot",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "egg",
+              "display_name": "Egg",
+              "count": 2,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_pickaxe",
+              "display_name": "Iron Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "stone_pickaxe",
+              "display_name": "Stone Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            }
+          ],
+          "nearby_blocks": [
+            {
+              "block_name": "birch_planks",
+              "display_name": "Birch Planks",
+              "count": 98,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 2
+              },
+              "distance": 0.58
+            },
+            {
+              "block_name": "air",
+              "display_name": "Air",
+              "count": 2570,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 1
+              },
+              "distance": 0.58
+            },
+            {
+              "block_name": "grass_block",
+              "display_name": "Grass Block",
+              "count": 268,
+              "nearest": {
+                "x": 27,
+                "y": 103,
+                "z": 2
+              },
+              "distance": 1.32
+            },
+            {
+              "block_name": "dirt",
+              "display_name": "Dirt",
+              "count": 300,
+              "nearest": {
+                "x": 28,
+                "y": 102,
+                "z": 2
+              },
+              "distance": 2.08
+            },
+            {
+              "block_name": "grass",
+              "display_name": "Grass",
+              "count": 28,
+              "nearest": {
+                "x": 25,
+                "y": 105,
+                "z": 1
+              },
+              "distance": 2.92
+            },
+            {
+              "block_name": "stone",
+              "display_name": "Stone",
+              "count": 1580,
+              "nearest": {
+                "x": 26,
+                "y": 102,
+                "z": 3
+              },
+              "distance": 3.02
+            },
+            {
+              "block_name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 22,
+              "nearest": {
+                "x": 25,
+                "y": 104,
+                "z": -1
+              },
+              "distance": 3.68
+            },
+            {
+              "block_name": "furnace",
+              "display_name": "Furnace",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 5
+              },
+              "distance": 4.64
+            },
+            {
+              "block_name": "crafting_table",
+              "display_name": "Crafting Table",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 6
+              },
+              "distance": 5.43
+            },
+            {
+              "block_name": "coal_ore",
+              "display_name": "Coal Ore",
+              "count": 39,
+              "nearest": {
+                "x": 22,
+                "y": 104,
+                "z": 2
+              },
+              "distance": 5.72
+            },
+            {
+              "block_name": "iron_ore",
+              "display_name": "Iron Ore",
+              "count": 1,
+              "nearest": {
+                "x": 23,
+                "y": 97,
+                "z": -4
+              },
+              "distance": 10.07
+            },
+            {
+              "block_name": "gravel",
+              "display_name": "Gravel",
+              "count": 2,
+              "nearest": {
+                "x": 28,
+                "y": 96,
+                "z": -7
+              },
+              "distance": 11.68
+            },
+            {
+              "block_name": "copper_ore",
+              "display_name": "Copper Ore",
+              "count": 1,
+              "nearest": {
+                "x": 19,
+                "y": 96,
+                "z": 2
+              },
+              "distance": 11.83
+            }
+          ],
+          "nearby_entities": [
+            {
+              "entity_id": 20,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.13
+              },
+              "distance": 4.6,
+              "health": null,
+              "hostile": false
+            },
+            {
+              "entity_id": 21,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.89
+              },
+              "distance": 4.76,
+              "health": null,
+              "hostile": false
+            }
+          ],
+          "image": null
+        },
+        "images": [],
+        "instruction_revision": 0,
+        "journal_sequence": 6,
+        "gameplay": {
+          "outcome": null,
+          "recovery": null,
+          "failed_recovery": null,
+          "paused_methods": [],
+          "decision_evidence": "scratch/decision-evidence.json",
+          "full_history": "scratch/gameplay-evidence.json"
+        }
+      }
+    ],
+    "oracles": [
+      {
+        "command": "execute if block 28 104 1 minecraft:air[] run data get entity tdd_player Pos",
+        "result": "tdd_player has the following entity data: [27.7d, 104.0d, 1.5006543060287711d]"
+      },
+      {
+        "command": "execute if block 28 105 1 minecraft:air[] run data get entity tdd_player Pos",
+        "result": "tdd_player has the following entity data: [27.7d, 104.0d, 1.5006543060287711d]"
+      }
+    ],
+    "checks": {
+      "both_door_states_match_server": true,
+      "door_collision_boxes_observed": false,
+      "observed_air_has_no_collision": true,
+      "full_floor_collision": true,
+      "same_position_inventory_vitals": true
+    },
+    "error": "AssertionError: {'both_door_states_match_server': True, 'door_collision_boxes_observed': False, 'observed_air_has_no_collision': True, 'full_floor_collision': True, 'same_position_inventory_vitals': True}",
+    "finished": "2026-10-10T11:10:17.757886+00:00"
+  }
+}

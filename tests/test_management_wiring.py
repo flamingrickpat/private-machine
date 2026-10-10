@@ -34,6 +34,10 @@ class StubStageModel:
     def complete(self, messages, **generation):
         return "{}"
 
+    def measure_context(self, messages, **generation):
+        """Refuse inference measurement in wiring tests that require no model."""
+        raise AssertionError("Management wiring must not measure an inference request.")
+
     def build_async_tool(self):
         self.activations += 1
         async def complete_async(messages, **generation):

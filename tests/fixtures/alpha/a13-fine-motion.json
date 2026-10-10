@@ -1,0 +1,2174 @@
+{
+  "scope": "Original native M3-28 fine-control receipts. Captured boundary evidence; the stopped M3 run remains failed.",
+  "sources": {
+    "journal": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+      "sha256": "81b08c5d216c574c47c4ff3a08d8b393480399e2d151d64a9597abd388b6f374"
+    }
+  },
+  "rows": [
+    {
+      "seq": 25,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791493999.582048,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 257.23,
+        "pose_before": {
+          "x": 18.3,
+          "y": 86.0,
+          "z": -3.24
+        },
+        "pose_after": {
+          "x": 18.27,
+          "y": 84.85,
+          "z": -2.46
+        },
+        "camera": {
+          "feet_position": {
+            "x": 18.27,
+            "y": 84.85,
+            "z": -2.46
+          },
+          "eye_position": {
+            "x": 18.27,
+            "y": 86.47,
+            "z": -2.46
+          },
+          "block_position": {
+            "x": 18,
+            "y": 84,
+            "z": -3
+          },
+          "yaw": 159.18,
+          "pitch": -1.35,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.36,
+            "y": -0.02,
+            "z": -0.93
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "15fb7c3992c1e596cd8edf4cf348beec",
+          "captured_at": "2026-10-08T21:13:19.363050Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00025-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 54,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791494798.6161573,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 260.79,
+        "pose_before": {
+          "x": 19.46,
+          "y": 90.0,
+          "z": -2.3
+        },
+        "pose_after": {
+          "x": 19.58,
+          "y": 90.0,
+          "z": -2.7
+        },
+        "camera": {
+          "feet_position": {
+            "x": 19.58,
+            "y": 90.0,
+            "z": -2.7
+          },
+          "eye_position": {
+            "x": 19.58,
+            "y": 91.62,
+            "z": -2.7
+          },
+          "block_position": {
+            "x": 19,
+            "y": 90,
+            "z": -3
+          },
+          "yaw": 348.76,
+          "pitch": -87.75,
+          "cardinal": "south",
+          "look_vector": {
+            "x": 0.01,
+            "y": -1.0,
+            "z": 0.04
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "7f2c5a01d3783740a1f9bde423a55983",
+          "captured_at": "2026-10-08T21:26:38.442156Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00054-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 57,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791494809.2609935,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 250.71,
+        "pose_before": {
+          "x": 19.58,
+          "y": 90.0,
+          "z": -2.7
+        },
+        "pose_after": {
+          "x": 19.79,
+          "y": 90.0,
+          "z": -2.7
+        },
+        "camera": {
+          "feet_position": {
+            "x": 19.79,
+            "y": 90.0,
+            "z": -2.7
+          },
+          "eye_position": {
+            "x": 19.79,
+            "y": 91.62,
+            "z": -2.7
+          },
+          "block_position": {
+            "x": 19,
+            "y": 90,
+            "z": -3
+          },
+          "yaw": 348.76,
+          "pitch": -87.75,
+          "cardinal": "south",
+          "look_vector": {
+            "x": 0.01,
+            "y": -1.0,
+            "z": 0.04
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "4bed464bb27b40ff22d05fc8702d2da5",
+          "captured_at": "2026-10-08T21:26:49.045977Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00057-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 62,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791494942.6711879,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 249.86,
+        "pose_before": {
+          "x": 19.79,
+          "y": 89.0,
+          "z": -2.7
+        },
+        "pose_after": {
+          "x": 19.3,
+          "y": 88.0,
+          "z": -2.31
+        },
+        "camera": {
+          "feet_position": {
+            "x": 19.3,
+            "y": 88.0,
+            "z": -2.31
+          },
+          "eye_position": {
+            "x": 19.3,
+            "y": 89.62,
+            "z": -2.31
+          },
+          "block_position": {
+            "x": 19,
+            "y": 88,
+            "z": -3
+          },
+          "yaw": 124.96,
+          "pitch": -80.7,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -0.13,
+            "y": -0.99,
+            "z": -0.09
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "6d4ea4862746b1ab4b82d00487be4e52",
+          "captured_at": "2026-10-08T21:29:02.512688Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00062-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 64,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791494948.9524124,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 262.5,
+        "pose_before": {
+          "x": 19.3,
+          "y": 86.0,
+          "z": -2.31
+        },
+        "pose_after": {
+          "x": 19.7,
+          "y": 86.0,
+          "z": -2.7
+        },
+        "camera": {
+          "feet_position": {
+            "x": 19.7,
+            "y": 86.0,
+            "z": -2.7
+          },
+          "eye_position": {
+            "x": 19.7,
+            "y": 87.62,
+            "z": -2.7
+          },
+          "block_position": {
+            "x": 19,
+            "y": 86,
+            "z": -3
+          },
+          "yaw": 313.06,
+          "pitch": -82.65,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.09,
+            "y": -0.99,
+            "z": 0.09
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "ab1b8cb1ff38f72acf85f54d43d86d57",
+          "captured_at": "2026-10-08T21:29:08.775910Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00064-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 67,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791494955.97155,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 251.05,
+        "pose_before": {
+          "x": 19.7,
+          "y": 86.0,
+          "z": -2.7
+        },
+        "pose_after": {
+          "x": 19.7,
+          "y": 86.0,
+          "z": -2.7
+        },
+        "camera": {
+          "feet_position": {
+            "x": 19.7,
+            "y": 86.0,
+            "z": -2.7
+          },
+          "eye_position": {
+            "x": 19.7,
+            "y": 87.62,
+            "z": -2.7
+          },
+          "block_position": {
+            "x": 19,
+            "y": 86,
+            "z": -3
+          },
+          "yaw": 313.06,
+          "pitch": -82.65,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.09,
+            "y": -0.99,
+            "z": 0.09
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "bd22db9634b835f5d6cbaf7630b8b3ec",
+          "captured_at": "2026-10-08T21:29:15.797047Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00067-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 68,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "left": true
+      },
+      "revision": 0,
+      "time": 1791494958.4941308,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": true,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 264.49,
+        "pose_before": {
+          "x": 19.7,
+          "y": 86.0,
+          "z": -2.7
+        },
+        "pose_after": {
+          "x": 19.3,
+          "y": 86.0,
+          "z": -2.7
+        },
+        "camera": {
+          "feet_position": {
+            "x": 19.3,
+            "y": 86.0,
+            "z": -2.7
+          },
+          "eye_position": {
+            "x": 19.3,
+            "y": 87.62,
+            "z": -2.7
+          },
+          "block_position": {
+            "x": 19,
+            "y": 86,
+            "z": -3
+          },
+          "yaw": 313.06,
+          "pitch": -82.65,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.09,
+            "y": -0.99,
+            "z": 0.09
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "0cc32a82762ba626d406e769fcafcd24",
+          "captured_at": "2026-10-08T21:29:18.328132Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00068-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 73,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791494969.5520256,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 254.21,
+        "pose_before": {
+          "x": 19.3,
+          "y": 86.0,
+          "z": -2.7
+        },
+        "pose_after": {
+          "x": 19.7,
+          "y": 86.0,
+          "z": -2.7
+        },
+        "camera": {
+          "feet_position": {
+            "x": 19.7,
+            "y": 86.0,
+            "z": -2.7
+          },
+          "eye_position": {
+            "x": 19.7,
+            "y": 87.62,
+            "z": -2.7
+          },
+          "block_position": {
+            "x": 19,
+            "y": 86,
+            "z": -3
+          },
+          "yaw": 313.06,
+          "pitch": -82.65,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.09,
+            "y": -0.99,
+            "z": 0.09
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "f1fdbdc4b08bee5c3cc5b801411b7897",
+          "captured_at": "2026-10-08T21:29:29.384499Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00073-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 86,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791495004.5318265,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 256.2,
+        "pose_before": {
+          "x": 19.7,
+          "y": 86.0,
+          "z": -2.7
+        },
+        "pose_after": {
+          "x": 19.3,
+          "y": 86.0,
+          "z": -2.26
+        },
+        "camera": {
+          "feet_position": {
+            "x": 19.3,
+            "y": 86.0,
+            "z": -2.26
+          },
+          "eye_position": {
+            "x": 19.3,
+            "y": 87.62,
+            "z": -2.26
+          },
+          "block_position": {
+            "x": 19,
+            "y": 86,
+            "z": -3
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "0ab8d76bc5817ad74f5cd988780b340b",
+          "captured_at": "2026-10-08T21:30:04.346330Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00086-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 90,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791495025.666545,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 249.86,
+        "pose_before": {
+          "x": 19.3,
+          "y": 86.0,
+          "z": -2.26
+        },
+        "pose_after": {
+          "x": 19.3,
+          "y": 85.23,
+          "z": -1.67
+        },
+        "camera": {
+          "feet_position": {
+            "x": 19.3,
+            "y": 85.23,
+            "z": -1.67
+          },
+          "eye_position": {
+            "x": 19.3,
+            "y": 86.85,
+            "z": -1.67
+          },
+          "block_position": {
+            "x": 19,
+            "y": 85,
+            "z": -2
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "255b7268f7de3d8c5b59a73b8500e92f",
+          "captured_at": "2026-10-08T21:30:25.514045Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00090-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 101,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791495084.7005732,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 251.12,
+        "pose_before": {
+          "x": 19.3,
+          "y": 84.0,
+          "z": -1.67
+        },
+        "pose_after": {
+          "x": 18.56,
+          "y": 84.0,
+          "z": -1.23
+        },
+        "camera": {
+          "feet_position": {
+            "x": 18.56,
+            "y": 84.0,
+            "z": -1.23
+          },
+          "eye_position": {
+            "x": 18.56,
+            "y": 85.62,
+            "z": -1.23
+          },
+          "block_position": {
+            "x": 18,
+            "y": 84,
+            "z": -2
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "6422afb24c5ac279c2c9bfd54c9173eb",
+          "captured_at": "2026-10-08T21:31:24.543575Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00101-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 102,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791495088.476186,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 254.74,
+        "pose_before": {
+          "x": 18.56,
+          "y": 84.0,
+          "z": -1.23
+        },
+        "pose_after": {
+          "x": 18.3,
+          "y": 84.0,
+          "z": -0.64
+        },
+        "camera": {
+          "feet_position": {
+            "x": 18.3,
+            "y": 84.0,
+            "z": -0.64
+          },
+          "eye_position": {
+            "x": 18.3,
+            "y": 85.62,
+            "z": -0.64
+          },
+          "block_position": {
+            "x": 18,
+            "y": 84,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "c82b4a102ca1cda8e110ce3b43893dad",
+          "captured_at": "2026-10-08T21:31:28.294184Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00102-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 103,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791495092.099301,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 251.68,
+        "pose_before": {
+          "x": 18.3,
+          "y": 84.0,
+          "z": -0.64
+        },
+        "pose_after": {
+          "x": 18.3,
+          "y": 84.0,
+          "z": -0.3
+        },
+        "camera": {
+          "feet_position": {
+            "x": 18.3,
+            "y": 84.0,
+            "z": -0.3
+          },
+          "eye_position": {
+            "x": 18.3,
+            "y": 85.62,
+            "z": -0.3
+          },
+          "block_position": {
+            "x": 18,
+            "y": 84,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "d0f313e2369afc5c2e79344a0bd50d8f",
+          "captured_at": "2026-10-08T21:31:31.916800Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00103-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 104,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791495095.5724113,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 249.94,
+        "pose_before": {
+          "x": 18.3,
+          "y": 84.0,
+          "z": -0.3
+        },
+        "pose_after": {
+          "x": 18.3,
+          "y": 84.0,
+          "z": -0.3
+        },
+        "camera": {
+          "feet_position": {
+            "x": 18.3,
+            "y": 84.0,
+            "z": -0.3
+          },
+          "eye_position": {
+            "x": 18.3,
+            "y": 85.62,
+            "z": -0.3
+          },
+          "block_position": {
+            "x": 18,
+            "y": 84,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "ce403738c44d4e6177fb23db31df28c3",
+          "captured_at": "2026-10-08T21:31:35.427910Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00104-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 105,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "jump": true
+      },
+      "revision": 0,
+      "time": 1791495211.3656557,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": true,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 249.5,
+        "pose_before": {
+          "x": 18.3,
+          "y": 84.0,
+          "z": -0.3
+        },
+        "pose_after": {
+          "x": 18.22,
+          "y": 85.25,
+          "z": -0.3
+        },
+        "camera": {
+          "feet_position": {
+            "x": 18.22,
+            "y": 85.25,
+            "z": -0.3
+          },
+          "eye_position": {
+            "x": 18.22,
+            "y": 86.87,
+            "z": -0.3
+          },
+          "block_position": {
+            "x": 18,
+            "y": 85,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "885f2774c7bbf13f8e2313ac0b5912ca",
+          "captured_at": "2026-10-08T21:33:31.182656Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00105-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 106,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "jump": true
+      },
+      "revision": 0,
+      "time": 1791495213.382721,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": true,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 250.06,
+        "pose_before": {
+          "x": 18.22,
+          "y": 85.0,
+          "z": -0.3
+        },
+        "pose_after": {
+          "x": 17.97,
+          "y": 86.17,
+          "z": -0.3
+        },
+        "camera": {
+          "feet_position": {
+            "x": 17.97,
+            "y": 86.17,
+            "z": -0.3
+          },
+          "eye_position": {
+            "x": 17.97,
+            "y": 87.79,
+            "z": -0.3
+          },
+          "block_position": {
+            "x": 17,
+            "y": 86,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "9da99e31915f6419adc53a22a2fc4f09",
+          "captured_at": "2026-10-08T21:33:33.218218Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00106-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 107,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "jump": true
+      },
+      "revision": 0,
+      "time": 1791495215.4602149,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": true,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 253.82,
+        "pose_before": {
+          "x": 17.97,
+          "y": 85.0,
+          "z": -0.3
+        },
+        "pose_after": {
+          "x": 17.64,
+          "y": 86.25,
+          "z": -0.3
+        },
+        "camera": {
+          "feet_position": {
+            "x": 17.64,
+            "y": 86.25,
+            "z": -0.3
+          },
+          "eye_position": {
+            "x": 17.64,
+            "y": 87.87,
+            "z": -0.3
+          },
+          "block_position": {
+            "x": 17,
+            "y": 86,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "5d6e9f8fd5946a420ac7172e0312fd0e",
+          "captured_at": "2026-10-08T21:33:35.285197Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00107-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 108,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "jump": true
+      },
+      "revision": 0,
+      "time": 1791495217.5382872,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": true,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 252.1,
+        "pose_before": {
+          "x": 17.64,
+          "y": 85.0,
+          "z": -0.3
+        },
+        "pose_after": {
+          "x": 17.31,
+          "y": 86.25,
+          "z": -0.3
+        },
+        "camera": {
+          "feet_position": {
+            "x": 17.31,
+            "y": 86.25,
+            "z": -0.3
+          },
+          "eye_position": {
+            "x": 17.31,
+            "y": 87.87,
+            "z": -0.3
+          },
+          "block_position": {
+            "x": 17,
+            "y": 86,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "88834c5576a542d858dd20e22ca0f246",
+          "captured_at": "2026-10-08T21:33:37.340765Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00108-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 109,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "jump": true
+      },
+      "revision": 0,
+      "time": 1791495219.6523468,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": true,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 251.67,
+        "pose_before": {
+          "x": 17.31,
+          "y": 85.0,
+          "z": -0.3
+        },
+        "pose_after": {
+          "x": 17.3,
+          "y": 86.25,
+          "z": -0.3
+        },
+        "camera": {
+          "feet_position": {
+            "x": 17.3,
+            "y": 86.25,
+            "z": -0.3
+          },
+          "eye_position": {
+            "x": 17.3,
+            "y": 87.87,
+            "z": -0.3
+          },
+          "block_position": {
+            "x": 17,
+            "y": 86,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "f7ebb1ae4d0e52dc6825cba89506e0d8",
+          "captured_at": "2026-10-08T21:33:39.464827Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00109-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 110,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "jump": true
+      },
+      "revision": 0,
+      "time": 1791495221.7789161,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": true,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 264.51,
+        "pose_before": {
+          "x": 17.3,
+          "y": 85.0,
+          "z": -0.3
+        },
+        "pose_after": {
+          "x": 17.3,
+          "y": 86.25,
+          "z": -0.3
+        },
+        "camera": {
+          "feet_position": {
+            "x": 17.3,
+            "y": 86.25,
+            "z": -0.3
+          },
+          "eye_position": {
+            "x": 17.3,
+            "y": 87.87,
+            "z": -0.3
+          },
+          "block_position": {
+            "x": 17,
+            "y": 86,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "9bb6c4e74b4123d178ce2dd07c2748bf",
+          "captured_at": "2026-10-08T21:33:41.618913Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00110-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 111,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "jump": true
+      },
+      "revision": 0,
+      "time": 1791495224.3180013,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": true,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 264.0,
+        "pose_before": {
+          "x": 17.3,
+          "y": 85.0,
+          "z": -0.3
+        },
+        "pose_after": {
+          "x": 17.3,
+          "y": 86.25,
+          "z": -0.3
+        },
+        "camera": {
+          "feet_position": {
+            "x": 17.3,
+            "y": 86.25,
+            "z": -0.3
+          },
+          "eye_position": {
+            "x": 17.3,
+            "y": 87.87,
+            "z": -0.3
+          },
+          "block_position": {
+            "x": 17,
+            "y": 86,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "35ad725cb28f1de9f06a6b5188029aa6",
+          "captured_at": "2026-10-08T21:33:44.151502Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00111-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 114,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "right": true
+      },
+      "revision": 0,
+      "time": 1791495234.1773245,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": false,
+          "right": true,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 264.09,
+        "pose_before": {
+          "x": 17.3,
+          "y": 85.0,
+          "z": -0.3
+        },
+        "pose_after": {
+          "x": 17.3,
+          "y": 85.0,
+          "z": -0.89
+        },
+        "camera": {
+          "feet_position": {
+            "x": 17.3,
+            "y": 85.0,
+            "z": -0.89
+          },
+          "eye_position": {
+            "x": 17.3,
+            "y": 86.62,
+            "z": -0.89
+          },
+          "block_position": {
+            "x": 17,
+            "y": 85,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "533edd4cf70a009cbf7bb6e368027777",
+          "captured_at": "2026-10-08T21:33:54.010302Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00114-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 115,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "right": true
+      },
+      "revision": 0,
+      "time": 1791495237.8109534,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": true,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 260.78,
+        "pose_before": {
+          "x": 17.3,
+          "y": 85.0,
+          "z": -0.89
+        },
+        "pose_after": {
+          "x": 17.3,
+          "y": 85.0,
+          "z": -0.89
+        },
+        "camera": {
+          "feet_position": {
+            "x": 17.3,
+            "y": 85.0,
+            "z": -0.89
+          },
+          "eye_position": {
+            "x": 17.3,
+            "y": 86.62,
+            "z": -0.89
+          },
+          "block_position": {
+            "x": 17,
+            "y": 85,
+            "z": -1
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "e37dba6db79f001908f5f856f708ea90",
+          "captured_at": "2026-10-08T21:33:57.632452Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00115-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 116,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "right": true
+      },
+      "revision": 0,
+      "time": 1791495240.5675392,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": false,
+          "right": true,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 251.9,
+        "pose_before": {
+          "x": 17.3,
+          "y": 85.0,
+          "z": -0.89
+        },
+        "pose_after": {
+          "x": 17.23,
+          "y": 83.41,
+          "z": -1.48
+        },
+        "camera": {
+          "feet_position": {
+            "x": 17.23,
+            "y": 83.41,
+            "z": -1.48
+          },
+          "eye_position": {
+            "x": 17.23,
+            "y": 85.03,
+            "z": -1.48
+          },
+          "block_position": {
+            "x": 17,
+            "y": 83,
+            "z": -2
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "1bc6abeb5c19825a04906885fd0e0716",
+          "captured_at": "2026-10-08T21:34:00.299038Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00116-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 117,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "right": true
+      },
+      "revision": 0,
+      "time": 1791495243.1251268,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": false,
+          "right": true,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 249.36,
+        "pose_before": {
+          "x": 17.23,
+          "y": 82.0,
+          "z": -1.48
+        },
+        "pose_after": {
+          "x": 16.79,
+          "y": 82.0,
+          "z": -1.92
+        },
+        "camera": {
+          "feet_position": {
+            "x": 16.79,
+            "y": 82.0,
+            "z": -1.92
+          },
+          "eye_position": {
+            "x": 16.79,
+            "y": 83.62,
+            "z": -1.92
+          },
+          "block_position": {
+            "x": 16,
+            "y": 82,
+            "z": -2
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "820dcaebc4bcce832abc6e288af9dd24",
+          "captured_at": "2026-10-08T21:34:02.938125Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00117-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 118,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "right": true
+      },
+      "revision": 0,
+      "time": 1791495245.747225,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": false,
+          "right": true,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 252.67,
+        "pose_before": {
+          "x": 16.79,
+          "y": 82.0,
+          "z": -1.92
+        },
+        "pose_after": {
+          "x": 16.2,
+          "y": 80.85,
+          "z": -2.51
+        },
+        "camera": {
+          "feet_position": {
+            "x": 16.2,
+            "y": 80.85,
+            "z": -2.51
+          },
+          "eye_position": {
+            "x": 16.2,
+            "y": 82.47,
+            "z": -2.51
+          },
+          "block_position": {
+            "x": 16,
+            "y": 80,
+            "z": -3
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "1be185669c5fe867de931287d377634f",
+          "captured_at": "2026-10-08T21:34:05.586709Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00118-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 119,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "right": true
+      },
+      "revision": 0,
+      "time": 1791495248.38732,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": false,
+          "right": true,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 251.5,
+        "pose_before": {
+          "x": 16.2,
+          "y": 80.0,
+          "z": -2.51
+        },
+        "pose_after": {
+          "x": 15.76,
+          "y": 80.0,
+          "z": -2.95
+        },
+        "camera": {
+          "feet_position": {
+            "x": 15.76,
+            "y": 80.0,
+            "z": -2.95
+          },
+          "eye_position": {
+            "x": 15.76,
+            "y": 81.62,
+            "z": -2.95
+          },
+          "block_position": {
+            "x": 15,
+            "y": 80,
+            "z": -3
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "684e87f0260d5ecb6f62ef1d68c5703c",
+          "captured_at": "2026-10-08T21:34:08.200303Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00119-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 120,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "right": true
+      },
+      "revision": 0,
+      "time": 1791495251.3459191,
+      "epoch": 160,
+      "session": "f4a79fac585b425e9f7eae60bcbe9839",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": false,
+          "right": true,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 255.0,
+        "pose_before": {
+          "x": 15.76,
+          "y": 80.0,
+          "z": -2.95
+        },
+        "pose_after": {
+          "x": 15.31,
+          "y": 79.23,
+          "z": -3.39
+        },
+        "camera": {
+          "feet_position": {
+            "x": 15.31,
+            "y": 79.23,
+            "z": -3.39
+          },
+          "eye_position": {
+            "x": 15.31,
+            "y": 80.85,
+            "z": -3.39
+          },
+          "block_position": {
+            "x": 15,
+            "y": 79,
+            "z": -4
+          },
+          "yaw": 135.01,
+          "pitch": -13.95,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.69,
+            "y": -0.24,
+            "z": -0.69
+          }
+        },
+        "on_ground": false,
+        "image": {
+          "frame_id": "5f7cf48e3924dcfe1fdd0568309a9bf3",
+          "captured_at": "2026-10-08T21:34:11.177402Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00120-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    }
+  ]
+}
