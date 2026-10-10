@@ -36,6 +36,7 @@ markdown_extensions:
 nav:
   - Overview: index.md
   - Workflows:
+      - Jesse quickstart: workflows/jesse-quickstart.md
       - Operator console: workflows/console.md
       - Development loop: workflows/development.md
       - One exchange: workflows/exchange.md

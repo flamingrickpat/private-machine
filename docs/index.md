@@ -11,6 +11,7 @@ This manual explains current behavior, test procedures, and the earlier implemen
 
 | Task | Guide |
 | --- | --- |
+| Run your own test Spamuel with a local LLM and Minecraft | [Jesse quickstart](workflows/jesse-quickstart.md) |
 | Start an instance and send a message | [Operator console](workflows/console.md) |
 | Change code and compare results | [Development loop](workflows/development.md) |
 | Follow a message through cognition | [One exchange](workflows/exchange.md) |

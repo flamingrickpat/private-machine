@@ -16,6 +16,7 @@ Internal thought generation remains disabled in real mode.
 ## Setup and run
 
 The [engineering manual](docs/index.md) explains operation, architecture, memory experiments, and the development loop.
+For a personal Minecraft test, read [Your own test Spamuel: local LLM and Jesse chat](docs/workflows/jesse-quickstart.md).
 Start the local operator console with `uv run --locked python -m console.server`.
 Open `http://127.0.0.1:8090` to deploy and control instances, chat, and inspect execution evidence.
 Each console instance has a separate checkpoint. Sessions within one instance share memory.
