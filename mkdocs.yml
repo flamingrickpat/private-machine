@@ -27,6 +27,8 @@ plugins:
   - Concepts:
       - System map: concepts/architecture.md
       - Evidence and quality: concepts/evidence.md
+      - Glossary: concepts/glossary.md
+      - Naming rules: concepts/naming.md
   - Subsystems:
       - Cognition: subsystems/cognition.md
       - Accepted cognition state: subsystems/cognition-state.md
@@ -67,6 +69,9 @@ plugins:
       - Managed work: subsystems/managed-work.md
   - Work items:
       - Development process: work_items/process.md
+      - Structural refactor:
+          - Plan: work_items/refactor/index.md
+          - Relocation map: work_items/refactor/relocation-map.md
       - Plan and implementation: work_items/plan.md
       - Companion alpha plan:
           - Overview and order: work_items/alpha-plan/index.md

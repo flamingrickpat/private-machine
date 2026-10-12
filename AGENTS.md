@@ -6,6 +6,8 @@ This repository holds the private-machine (pm) companion runtime and its workflo
 Spamuel is the synthetic test persona. Its history is test data, not product data.
 Read this file before any change.
 For work-item development, also read the [work-item process](docs/work_items/process.md).
+Use the terms of the [glossary](docs/concepts/glossary.md) and follow the [naming rules](docs/concepts/naming.md).
+The [structural refactor](docs/work_items/refactor/index.md) is in progress. Follow its relocation map for new files.
 
 ## Repository layout
 

@@ -41,6 +41,8 @@ Chat sessions within one instance share that Ghost.
 - [Workflow runtime](runtime.md) explains direct debugger calls and journals.
 - [Managed work](subsystems/managed-work.md) explains updates, questions, cancellation, and consolidation.
 - [Evidence and quality](concepts/evidence.md) explains what the tests establish.
+- [Glossary](concepts/glossary.md) defines the canonical terms. [Naming rules](concepts/naming.md) apply them.
+- [Structural refactor](work_items/refactor/index.md) describes the target layout and its phases.
 
 ## Documentation system
 
