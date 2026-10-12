@@ -19,7 +19,8 @@ from workflows.minecraft.specialist_session import ActorOutcome
 from workflows.minecraft_project.schemas import Condition, Node, PlanProposal, TaskTree
 from workflows.minecraft_project.tree_store import TreeStore, acceptance_requirements, digest, validate_tree
 from workflows.minecraft_project.acceptance import evaluate
-from workflows.minecraft_project.steps import progress_facts, scoped_reads, survey_conditions
+from workflows.minecraft_project.planning.run_context import progress_facts, scoped_reads
+from workflows.minecraft_project.planning.proposals import survey_conditions
 from pm.host.cancellation import LinkedStopEvent
 
 ROOT = Path(__file__).resolve().parents[1]

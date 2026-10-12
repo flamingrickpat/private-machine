@@ -24,7 +24,7 @@ The A13 gate still owns its exact geometry, iron provenance audit, saved home, a
 
 ## Historical proof and current requirements
 
-[`workflows.minecraft_project.steps.retain`][] makes a separate native inference request from archived specifications and certificates.
+[`workflows.minecraft_project.planning.retention.retain`][] makes a separate native inference request from archived specifications and certificates.
 The request includes original dependency hashes, current specifications, current body observation, and prior rejection feedback.
 The model returns explicit restoration IDs through `RetentionChoice`.
 [`workflows.minecraft_project.evidence_selection.retention_operation`][] derives renewals for superseded valid prerequisites from actual accepted state.
@@ -54,12 +54,12 @@ Completed prerequisites retain their original certificates and accessible journa
 Global recovery, transport waiting, body life, and failed recovery evidence remain explicit.
 The full accumulated gameplay history stays in a separate original evidence file.
 
-[`workflows.minecraft_project.steps.review`][] makes separate decisions for leaves, stories, and the root.
+[`workflows.minecraft_project.planning.review.review`][] makes separate decisions for leaves, stories, and the root.
 [`workflows.minecraft_project.evidence_selection.review_nodes`][] selects unfinished nodes and the full root contract.
 Valid completed nodes retain their original independent review and exact certificate.
 Their old execution instructions do not describe current work or current stock.
 Each decision receives its full criteria, dependency specifications, valid historical certificates, and independent current reads.
-[`workflows.minecraft_project.steps.caller_plan_constraints`][] supplies the same complete caller contract to planning and review.
+[`workflows.minecraft_project.planning.constraints.caller_plan_constraints`][] supplies the same complete caller contract to planning and review.
 It retains the original receipt path and digest. These requirements are not acceptance evidence.
 Named publication audits can require ordered travel or durable notes that static world conditions cannot establish.
 The actor procedure must retain those effects, and the independent publication audit must still verify them.
@@ -77,7 +77,7 @@ The separate retention phase validates its own exact restoration and current ren
 
 ## Original evidence retrieval
 
-[`workflows.minecraft_project.steps.reason`][] supplies an evidence catalog with each decision.
+[`workflows.minecraft_project.planning.decisions.reason`][] supplies an evidence catalog with each decision.
 The catalog names task specifications, journals, actor reports, surveys, and verification files.
 A compact input lists source groups and named external sources.
 The complete catalog stays in the readable `evidence_index` source.
@@ -101,7 +101,7 @@ Evidence selection does not replace real inference or the real companion history
 
 ## Final integration and cancellation
 
-[`workflows.minecraft_project.steps.finish`][] requires all original leaf, story, and root certificates.
+[`workflows.minecraft_project.planning.integration.finish`][] requires all original leaf, story, and root certificates.
 It then collects fresh independent root reads and evaluates the complete root criteria again.
 The body life must match the accepted root observation.
 The scenario completion callback still audits its separate requirements before publication.
@@ -119,5 +119,5 @@ The hosted configuration remains under ignored runtime evidence and contains cre
 
 The [provider protocol](gameplay-provider-protocol.md) explains output allocation, reasoning replay, and hosted generation controls.
 The [acceptance evidence](../work_items/verification/a13/scoped-acceptance-evidence.md) records native continuations, known failures, and current limits.
-The selected-leaf observation source uses [`workflows.minecraft_project.steps.execution_observations`][].
+The selected-leaf observation source uses [`workflows.minecraft_project.planning.dispatch.execution_observations`][].
 It supplies current read-only facts without replacing required effects or independent verification.

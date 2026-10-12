@@ -73,7 +73,7 @@ This position evidence does not establish arrival, dry support, or goal acceptan
 Routine tool replies supply no current outcome when their journal sequence has no meaningful result.
 Direct decisions use a percentage of the actual serving context, measured in tokens.
 There is no character limit. See [direct project budgets](llm-context.md#direct-project-decisions-use-token-percentages).
-[`workflows.minecraft_project.steps.compact_plan_context`][] references identical review text and tool contracts once per decision.
+[`workflows.minecraft_project.planning.decisions.compact_plan_context`][] references identical review text and tool contracts once per decision.
 Different feedback and historical contracts retain their original wording.
 Native actor execution retains pm-coder context discovery and automatic compaction.
 
@@ -148,7 +148,7 @@ The guidance cannot grant supplies, change server rules, or accept an uncomplete
 
 ## Bounded decision history
 
-[`workflows.minecraft_project.steps.scoped_decision_context`][] selects evidence when a direct decision exceeds 110,000 characters.
+[`workflows.minecraft_project.planning.decisions.scoped_decision_context`][] selects evidence when a direct decision exceeds 110,000 characters.
 The final input limit remains 120,000 characters.
 The decision stores the full original payload in `unscoped-context.json`, with its digest and path in `context_archive`.
 Actor requests receive the same selected history.

@@ -56,7 +56,7 @@ Those materials are the starting state; the new task must establish its own iron
 
 The first native proposal duplicated wall-corner cells and failed its schema before gameplay.
 Its repair then attempted to open nonexistent specification revision zero.
-[`workflows.minecraft_project.steps.rejected_context`][] now reads initial rejection context without an earlier specification.
+[`workflows.minecraft_project.planning.proposals.rejected_context`][] now reads initial rejection context without an earlier specification.
 The original proposal and failure remain preserved in `a13-initial-plan-rejection.json` and the ignored runtime directory.
 The source-33 resume, `a13-m3-21`, retained repeated invalid proposals before gameplay.
 Its short rejection excerpt omitted most initial geometry, which had no accepted tree to supply it.

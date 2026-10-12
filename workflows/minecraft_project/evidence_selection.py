@@ -116,7 +116,7 @@ def protect_accepted_specifications(store: TreeStore, proposed: TaskTree) -> Non
 
 def scoped_history(store: TreeStore, selected: set[str], full: dict, targets: set[str] | None = None) -> dict:
     """Keep relevant methods and all global safety and transport boundaries."""
-    from workflows.minecraft_project.steps import scoped_gameplay
+    from workflows.minecraft_project.history_encoding import scoped_gameplay
     evidence = GameplayEvidence()
     journals = []
     methods = {key for key in selected if not store.valid(key)} | (targets or set())

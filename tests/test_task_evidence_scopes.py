@@ -15,7 +15,7 @@ from workflows.minecraft_project.tree_store import node_digest
 class EvidenceScopeTests(unittest.TestCase):
     def test_captured_publication_requirements_reach_shared_plan_context(self):
         import json
-        from workflows.minecraft_project.steps import caller_plan_constraints
+        from workflows.minecraft_project.planning.constraints import caller_plan_constraints
         from workflows.minecraft_project.tree_store import TreeStore, digest
         capture = json.loads((Path(__file__).resolve().parents[1] / 'test_data/captures/alpha/a13-caller-plan-context.json').read_text(encoding='utf-8'))
         original_input = json.loads(capture['review_input']['messages'][1]['content'])
@@ -68,7 +68,7 @@ class EvidenceScopeTests(unittest.TestCase):
             # M3-48 actually tried to rewrite already certified mining.
             # Replay that native patch through the ordinary repair boundary.
             from workflows.minecraft_project.schemas import RevisionProposal
-            from workflows.minecraft_project.steps import apply_node_updates
+            from workflows.minecraft_project.planning.proposals import apply_node_updates
             conflict = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-historical-review-conflict.json").read_text(encoding="utf-8"))
             patch = RevisionProposal.model_validate(conflict["native_patch"])
             self.assertTrue(store.valid(conflict["native_review"]["target_id"]))

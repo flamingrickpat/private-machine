@@ -14,7 +14,7 @@ The parent page records current acceptance.
 ## Initial planning without a retained specification
 
 An initial contract rejection can occur before specification revision one exists.
-[`workflows.minecraft_project.steps.rejected_context`][] reads that original rejected output without loading nonexistent revision zero.
+[`workflows.minecraft_project.planning.proposals.rejected_context`][] reads that original rejected output without loading nonexistent revision zero.
 Valid JSON rejected by the initial contract retains its complete candidate and exact validation errors.
 No previous accepted tree can reconstruct omitted positions, block names, or other physical operands.
 The repair context also retains the first initial contract rejection when later proposals lose those operands.
@@ -29,18 +29,18 @@ The captured regressions use actual M3-20 through M3-22 proposals, including dup
 
 ## Explicit repair of an unaccepted candidate
 
-[`workflows.minecraft_project.steps.initial_candidate`][] reads the latest rejected initial tree that declares every referenced identity.
+[`workflows.minecraft_project.planning.proposals.initial_candidate`][] reads the latest rejected initial tree that declares every referenced identity.
 A later root-only fragment cannot erase that candidate's actual geometry.
 `initial_repair_base` carries its complete tree, original receipt, digest, `accepted=false`, and current tree-validation error.
 `previous_tree` stays null; no accepted specification exists yet.
 
 For `planning_mode=initial_candidate_repair`, the normal model returns explicit node updates through the revision schema.
-[`workflows.minecraft_project.steps.apply_node_updates`][] preserves every omitted candidate node and merges those explicit replacements.
+[`workflows.minecraft_project.planning.proposals.apply_node_updates`][] preserves every omitted candidate node and merges those explicit replacements.
 The complete merged proposal still needs tree validation, fresh survey, and independent plan review.
 Once a specification exists, normal retained revision rules apply instead.
 Each decision retains its exact comparison source; rejected raw output remains unchanged.
 
-[`workflows.minecraft_project.steps.decision_schema`][] requires explicit replacement-node operands during generation.
+[`workflows.minecraft_project.planning.decisions.decision_schema`][] requires explicit replacement-node operands during generation.
 The persisted reader still accepts older omitted defaults.
 An actual model probe omitted parent and prerequisites, which made its replacement a second root.
 The repaired generation schema requires those fields and sends the contract through `response_format=json_schema`.
@@ -65,7 +65,7 @@ Retain each failed receipt unchanged and stop the owned services before source e
 Position conditions use integer schema operands; their distance uses floating player coordinates and the requested radius.
 
 Run `a13-m3-04` retained a 145,176-character planner input with 82 methods and 15 distinct precondition snapshots.
-[`workflows.minecraft_project.steps.scoped_gameplay`][] now stores each distinct precondition snapshot once.
+[`workflows.minecraft_project.history_encoding.scoped_gameplay`][] now stores each distinct precondition snapshot once.
 Each method retains its exact operands, paused count, latest outcome, and a reference to the shared preconditions.
 Search coverage, recovery, partial quantities, inventory deltas, and original journal references remain complete.
 `a13-planning-budget.json` retains the original failed input.
@@ -73,32 +73,32 @@ Its regression reduces that input to 114,002 characters without discarding those
 This foundation check does not establish a fresh native resume or M3.
 
 Run `a13-m3-05` retained a second oversized input after an invalid refinement.
-[`workflows.minecraft_project.steps.scoped_rejected_tree`][] supplies changed nodes and removed IDs for repair.
+[`workflows.minecraft_project.planning.proposals.scoped_rejected_tree`][] supplies changed nodes and removed IDs for repair.
 Unchanged conditions reference their exact definitions in the supplied previous tree.
 Changed conditions retain their complete operands; the original rejected tree stays on disk.
 The stable-node error now names each removed ID and explains refinement under the same ID.
 The capture regression reconstructs every proposed node and retains the original rejection.
 
 Run `a13-m3-06` captured a separate syntax failure and repair-path error.
-[`workflows.minecraft_project.steps.scoped_rejection`][] distinguishes raw model output from typed rejected trees.
+[`workflows.minecraft_project.planning.proposals.scoped_rejection`][] distinguishes raw model output from typed rejected trees.
 Invalid JSON supplies its actual parse error and at most 2,000 characters around that location.
 The full raw output stays in its original decision directory.
 Unrelated-node refinement errors identify the node and changed fields.
 `focused-resumed-10.log` records 92 passing selected tests after these repairs.
 
 Later proposals can supply explicit `updates` through [`workflows.minecraft_project.schemas.PlanProposal`][].
-[`workflows.minecraft_project.steps.apply_node_updates`][] merges those complete nodes into the retained tree.
+[`workflows.minecraft_project.planning.proposals.apply_node_updates`][] merges those complete nodes into the retained tree.
 Omitted nodes remain exact copies; the same stable-ID, parent, scope, condition, and prerequisite rules still apply.
 The merged tree still needs independent review before dispatch.
 Initial planning requires a full tree.
 Historical inventory retains canonical names, counts, and available durability or slot evidence without repeated display labels or empty fields.
-[`workflows.minecraft_project.steps.refinement_scope`][] lets active recovery supersede a pending optional refinement restriction.
+[`workflows.minecraft_project.planning.proposals.refinement_scope`][] lets active recovery supersede a pending optional refinement restriction.
 The reviewer receives that recovery state and still checks observable safety acceptance.
 `focused-resumed-11.log` records 95 passing selected tests for these changes.
 
 Run `a13-m3-08` confirms native node updates and a concrete recovery addition with retained partial work.
 Its revision remains unreviewed; the unsafe recovery leaf established no completed recovery or M3.
-[`workflows.minecraft_project.steps.record_review`][] now retains blocked and waiting review feedback for an explicit resume.
+[`workflows.minecraft_project.planning.review.record_review`][] now retains blocked and waiting review feedback for an explicit resume.
 Planning also receives the latest original review output.
 Ordinary obstruction clearance or another surveyed landing requires revised predicates, rather than an external-blocker claim.
 The actor's recovery safety guard still requires fresh geometry and stable observations before completion.
@@ -116,7 +116,7 @@ The repair input decreases from 121,425 to 116,315 characters; its tree, method 
 
 Named refinement now uses [`workflows.minecraft_project.schemas.RefinementProposal`][].
 It requires the complete target replacement and permits only new descendant additions.
-[`workflows.minecraft_project.steps.refinement_plan`][] binds that replacement to the actual named target.
+[`workflows.minecraft_project.planning.proposals.refinement_plan`][] binds that replacement to the actual named target.
 The existing validator still preserves its physical acceptance conditions and unrelated nodes.
 The captured split regression still rejects replacement of fresh house predicates with weaker certificate references.
 `focused-resumed-15.log` records 100 passing selected tests after this change.

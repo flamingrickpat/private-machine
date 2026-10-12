@@ -166,7 +166,7 @@ The current implementation does not infer every threat from screenshots or nearb
 
 ## Replanning and deferral
 
-[`workflows.minecraft_project.steps.gameplay_history`][] supplies cumulative methods, search coverage, recent outcomes, and active recovery to planning.
+[`workflows.minecraft_project.history_encoding.gameplay_history`][] supplies cumulative methods, search coverage, recent outcomes, and active recovery to planning.
 Replanning after a requested method change must add, revise, or defer a concrete leaf.
 An unchanged tree with a different explanation returns `invalid` before dispatch.
 Unchanged accepted nodes keep their identities and certificates.

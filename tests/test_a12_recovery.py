@@ -59,7 +59,7 @@ class RecoveryTests(unittest.TestCase):
         self.assertFalse(receipt["ok"])
         self.assertTrue(observed_target(receipt, receipt["arguments"]["position"]))
         self.assertFalse(observed_target(receipt, {"x": 0, "y": 0, "z": 0}))
-        from workflows.minecraft_project.steps import scoped_reads
+        from workflows.minecraft_project.planning.run_context import scoped_reads
         evidence = scoped_reads([receipt])[0]
         self.assertTrue(evidence["observation_available"])
         self.assertFalse(evidence["ok"])
