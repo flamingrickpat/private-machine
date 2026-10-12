@@ -102,7 +102,7 @@ def protocol_worker(args):
 
 def native_worker(args):
     """Run the production supervisor, seed, model session, and body workflow."""
-    from main import build_app
+    from workflows.companion import build_app
     from pm.host.durable_files import atomic_json
     out = args.out.resolve()
     scenario = read(out / "scenario.json")

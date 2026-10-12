@@ -9,7 +9,7 @@ import yaml
 
 from pm.memory.store import MemoryStore
 from pm.memory.store_tools import build_mcp, build_tools
-from main import build_app
+from workflows.companion import build_app
 from pm.records.cycle_state import PersonaConfig
 from pm.host.application import Application, BusModule
 from pm.bus.bus import BusSystem

@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from pm.bus.envelopes import Envelope
-from main import build_app
+from workflows.companion import build_app
 from pm_workflows.classification import replay_classification
 from pm_workflows.dryrun import check_workflow
 from pm_workflows.inputs import digest

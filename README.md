@@ -171,7 +171,7 @@ Memory and quality checks cover different contracts. Passing foundation tests do
 - [Ghost, bus, and checkpoints](docs/ghost.md)
 - [Models and embeddings](docs/models.md)
 - [Workflow runtime and debugger examples](docs/runtime.md)
-- [Application wiring](main.py)
+- [Application wiring](workflows/companion.py)
 - [Cognitive modules](modules.py)
 - [Managed-run supervisor](pm/runs/supervisor.py)
 - [Consolidation](workflows/memory_consolidation/artifact_consolidation.py)

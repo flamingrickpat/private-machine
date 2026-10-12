@@ -89,9 +89,8 @@ Its allowlist holds the known violations below. Phase 4 empties it.
 | `managed_runs` imports `workflows.public_context`. | The assembly passes the context builder. |
 | `reply_recovery` imports Minecraft verifiers per report schema. | Each managed workflow registers its report verifier. |
 | `operator_services` and `capabilities` hold Minecraft endpoint defaults. | The Minecraft workflows declare their endpoint. |
-| `operator_services` imports `main`. | `pm.paths` provides the default configuration path. |
-| `pm/console/worker.py` imports `main.build_app`. | The worker receives the assembly name and loads it. |
-| `main.py` holds workflow descriptions. | Manifests or the assembly hold them. |
+| `pm/console/worker.py` imports `workflows.companion.build_app`. | The worker receives the assembly name and loads it. |
+| `workflows/companion.py` holds workflow descriptions as strings. | The manifests hold them. |
 
 ## Three walkthroughs
 

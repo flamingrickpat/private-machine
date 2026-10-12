@@ -29,8 +29,7 @@ ALLOWED_IN_PM: dict[str, set[str]] = {
 #: Known violations that later refactor phases remove. Do not add entries.
 #: Each entry is (file, imported module).
 KNOWN_VIOLATIONS = {
-    ("pm/app/operator_config.py", "main"),
-    ("pm/console/worker.py", "main"),
+    ("pm/console/worker.py", "workflows.companion"),
     ("pm/runs/supervisor.py", "workflows.public_speech.public_context"),
 }
 

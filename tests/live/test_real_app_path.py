@@ -20,7 +20,7 @@ from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from tests.support import ManualClock, Recorder
 
-from main import build_app
+from workflows.companion import build_app
 
 SEED = Path(__file__).resolve().parent.parent.parent / "test_data" / "personas" / "spamuel" / "canon.yaml"
 EVIDENCE_ROOT = (

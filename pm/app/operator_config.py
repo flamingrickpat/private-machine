@@ -34,7 +34,6 @@ def environment_values() -> tuple[dict, str]:
 
 def operator_config(config_path: str | None = None):
     """Use project model configuration and explicit embedding .env overrides."""
-    from main import default_config_path
     values, source = environment_values()
     config = load_config(config_path or default_config_path())
     embedding = config.embedding.model_dump()
@@ -90,3 +89,11 @@ async def connection_status(config_path: str | None = None) -> dict:
             return "unreachable"
     rows.append({"name": "Minecraft server", "endpoint": f"{host}:{port}", "state": await asyncio.to_thread(tcp_probe)})
     return {"source": source, "checked_at": time.time(), "connections": rows}
+
+
+def default_config_path() -> str:
+    if os.environ.get("PM_MODEL_CONFIG"):
+        return os.environ["PM_MODEL_CONFIG"]
+    if Path("config.local.yaml").is_file():
+        return "config.local.yaml"
+    return "config.example.yaml"

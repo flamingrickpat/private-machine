@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from dev.work_items.shared.evidence import save_json
 
-from main import build_app
+from workflows.companion import build_app
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.records.mental_state import FullMentalState

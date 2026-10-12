@@ -107,7 +107,7 @@ An abrupt exit never reaches that hook.
 The next startup then reports an uncertain end interval.
 A repeated boot identity or shutdown identity reuses the accepted event.
 
-At construction, [`main.build_app`][] records the boot event.
+At construction, [`workflows.companion.build_app`][] records the boot event.
 For real cognition it also puts a `system.lifecycle` envelope on the bus.
 [`workflows.main_cognition.host.MainCogLoop`][] accepts that topic in `_stimulus_from`.
 The first cycle then appraises the offline interval.

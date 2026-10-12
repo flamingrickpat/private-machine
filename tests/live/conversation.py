@@ -22,7 +22,7 @@ from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType, InterlocusType
 
 from pm.bus.envelopes import Envelope, new_id
-from main import build_app
+from workflows.companion import build_app
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.http_client import ModelError

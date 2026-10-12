@@ -67,7 +67,7 @@ def run(args) -> None:
     An optional reset uses the authorized real-server procedure after port and
     removal-target checks. Character evidence always stays below .runtime.
     """
-    from main import build_app
+    from workflows.companion import build_app
     from workflows.public_speech.reply_recovery import task_evidence
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file

@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 def run(args) -> None:
     """Own the real stack, retain failures, and inspect actual actor effects."""
-    from main import build_app, _cognition_workflow_options
+    from workflows.companion import build_app, _cognition_workflow_options
     from pm.bus.envelopes import Envelope, new_id
     from pm.records.memory_records import ActionSchemaRecord
     from pm.records.enums import ActionType

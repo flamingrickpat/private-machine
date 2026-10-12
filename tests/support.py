@@ -12,7 +12,7 @@ from pm.records.enums import ActionType, FeatureType, InterlocusType
 from pm.memory.yaml_codec import ghost_state_from_dict, ghost_state_to_dict, load_ghost_state_from_yaml
 
 from pm.memory.store import MemoryStore
-from main import build_app
+from workflows.companion import build_app
 from pm.bus.envelopes import Envelope, new_id
 
 SEED_PATH = Path(__file__).resolve().parent.parent / "test_data" / "personas" / "spamuel" / "canon.yaml"

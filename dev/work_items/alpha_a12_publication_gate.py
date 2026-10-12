@@ -24,7 +24,7 @@ def run(args):
     The note request is an explicit operator boundary test.
     """
     from pm.bus.bus import BusSystem
-    from main import build_app
+    from workflows.companion import build_app
     from pm.memory.store import MemoryStore
     from pm.records.memory_records import ActionSchemaRecord
     from pm.host.durable_files import atomic_json

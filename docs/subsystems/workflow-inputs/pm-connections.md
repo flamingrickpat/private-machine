@@ -15,7 +15,7 @@ Evidence: [A05 verification](../../work_items/verification/a05-pm-classification
 ## Owners and injection
 
 PM owns [`pm.llm.workflow_sessions.WorkflowModels`][].
-[`main.build_app`][] constructs it beside the normal lazy stage model.
+[`workflows.companion.build_app`][] constructs it beside the normal lazy stage model.
 Both objects share one [`pm.llm.activation.ModelActivation`][] owner.
 Construction resolves credentials once and performs no network request.
 The lazy cognitive model reuses that owner's ready alias, including during an active classification lease.

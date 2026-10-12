@@ -5,7 +5,7 @@ import threading
 import time
 import unittest
 
-from main import build_app
+from workflows.companion import build_app
 from pm.host.application import Application
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope

@@ -35,7 +35,7 @@ The sustained actor also writes `scratch/actor-journal.jsonl`, `scratch/task-car
 Its report keeps independent completion checks beside the model's candidate.
 Read [sustained actor evidence](../subsystems/minecraft-actor.md#completion-evidence).
 
-`main.build_app` connects the supervisor terminal callback to [`workflows.memory_consolidation.artifact_consolidation.Consolidator`][].
+`workflows.companion.build_app` connects the supervisor terminal callback to [`workflows.memory_consolidation.artifact_consolidation.Consolidator`][].
 This callback also handles failed and cancelled runs when evidence exists.
 It inventories recognized top-level text artifacts and image directories.
 It computes a run-and-evidence key, then proposes memories through a Ghost batch.

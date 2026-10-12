@@ -262,7 +262,7 @@ def run(args) -> None:
     It grants no items. Original reads and every setup command remain retained.
     The native actor must end recovery before the operator removes fixtures.
     """
-    from main import build_app
+    from workflows.companion import build_app
     from pm_workflows.runtime import WorkflowRuntime
     from workflows.minecraft_body.lease import BODY_LEASES
     from pm.host.durable_files import atomic_json

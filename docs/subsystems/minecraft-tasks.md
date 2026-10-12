@@ -14,7 +14,7 @@ Gameplay failures use [retained method history and recovery priority](gameplay-r
 
 ## Place in the system
 
-[`main._managed_workflows`][] registers the project beside the existing single-leaf `minecraft` workflow.
+[`workflows.companion._managed_workflows`][] registers the project beside the existing single-leaf `minecraft` workflow.
 The cognitive action catalog recommends the project for goals with several dependent outcomes.
 User appraisal can select its ordinary managed-start path.
 Any future private-loop caller can use that same path.

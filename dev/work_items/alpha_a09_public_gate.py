@@ -28,7 +28,7 @@ CASE_NAMES = (
 def run(args):
     """Compare both real generators and inspect stale and failed publication."""
     from pm.bus.envelopes import Envelope, new_id
-    from main import build_app
+    from workflows.companion import build_app
     from pm.memory.retrieval import candidate
     from pm.memory.store import MemoryStore
     from pm.records.memory_records import ActionSchemaRecord

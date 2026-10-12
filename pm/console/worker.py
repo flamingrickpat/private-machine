@@ -11,7 +11,7 @@ import yaml
 from pathlib import Path
 from uuid import uuid4
 
-from main import build_app
+from workflows.companion import build_app
 from pm.memory.yaml_codec import _deserialize_knoxel
 from pm.runs.workflow_runner import WorkflowRunner
 from pm.llm.activation import ChatClient

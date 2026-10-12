@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from main import build_app
+from workflows.companion import build_app
 from pm.memory.store import MemoryStore
 from pm.memory.snapshot import GhostCancelled
 from tests.support import ManualClock, Recorder

@@ -22,7 +22,7 @@ from pm_workflows.working_target import CommandResult
 
 import pm.memory.store_tools as ghost_mcp
 from pm.memory.store import MemoryStore
-from main import BANNER, build_app
+from workflows.companion import BANNER, build_app
 from pm.bus.envelopes import Envelope, new_id
 from pm.host.folder_target import FolderTarget
 from pm.memory.bash_view import MemoryBashTarget
