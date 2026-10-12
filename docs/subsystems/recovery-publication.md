@@ -18,14 +18,14 @@ The payload retains the selected action ID, content, arguments, stimuli, memory 
 Publication follows the durable commit.
 The original action schema ID remains the publication identity.
 
-[`runtime.intents.replay_intents`][] reads pending actions after restart.
+[`workflows.main_cognition.dispatch_recovery.replay_intents`][] reads pending actions after restart.
 An existing managed receipt with the same action ID proves admission.
 Recovery acknowledges that intent without launching its worker.
 A resolved exchange also proves that its public reply already committed.
 Otherwise, recovery publishes the frozen payload with the original action and exchange IDs.
 It does not run cognition again to invent a replacement intent.
 
-[`runtime.intents.acknowledge_intent`][] marks durable admission after SelfManagement returns its control receipt.
+[`workflows.main_cognition.dispatch_recovery.acknowledge_intent`][] marks durable admission after SelfManagement returns its control receipt.
 A normal public commit acknowledges its selected intent in the same batch as speech and exchange resolution.
 Updates, cancellation, and resumes use stable request IDs for idempotency.
 An acknowledged old cancellation cannot cancel a later resumed epoch when its intent replays.
@@ -42,7 +42,7 @@ An event-sink failure leaves the pending message in the checkpoint and `control.
 If the task outcome already committed, a later publication error preserves that outcome.
 Its separate `publication_interrupted` event identifies the delivery failure.
 
-[`runtime.reply_recovery.ReplyRecovery`][] consumes `workflow.event` and `workflow.question` messages.
+[`workflows.public_speech.reply_recovery.ReplyRecovery`][] consumes `workflow.event` and `workflow.question` messages.
 It acknowledges their original event IDs through the supervisor.
 Startup replays pending progress through `replay_events`.
 This replay creates no worker and changes no world state.

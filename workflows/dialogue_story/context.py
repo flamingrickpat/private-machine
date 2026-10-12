@@ -30,7 +30,7 @@ async def plan_story_request(
     prior = [DialogueTurn.model_validate(turn) for turn in situation.get("prior_dialogue", [])]
     current = str(situation["current_user_message"])
 
-    from workflows.public_context import build_public_context
+    from workflows.public_speech.public_context import build_public_context
     from workflows.minecraft_body.capabilities import capability_snapshot
     from pm.records.memory_records import Feature
     from pm.records.base import Provenance

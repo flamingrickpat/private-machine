@@ -20,7 +20,7 @@ from uuid import uuid4
 from pm.memory.store import MemoryStore
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import load_config, resolve_connection
-from workflows.main_cognition import engine
+from workflows.main_cognition import stage_runner as engine
 from workflows.main_cognition.schemas import AttentionResult
 
 SEED = engine.PROJECT_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"

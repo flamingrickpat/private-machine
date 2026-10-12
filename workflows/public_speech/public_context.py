@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.cognitive_records import OntologyBindingRecord, OntologyTermRecord
-from workflows.main_cognition.state_changes import active_goal_texts
+from workflows.main_cognition.stage_commits import active_goal_texts
 
 
 class Presentation(BaseModel):
@@ -102,7 +102,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
     affect = metadata.get("affect_summary") or payload.get("affect", "")
     regulation = str(metadata.get("regulation") or payload.get("regulation", ""))
     if state is not None:
-        from pm_core.model.affect_dynamics import summarize_affect
+        from workflows.main_cognition.affect_dynamics import summarize_affect
         from pm.records.mental_state import FullMentalState
         affect = summarize_affect(FullMentalState.init_from_list(state.mental_state_latent_vec))
         current_state = next((raw["data"] for raw in reversed(list(records.values()))

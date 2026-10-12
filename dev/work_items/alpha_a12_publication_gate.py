@@ -28,9 +28,9 @@ def run(args):
     from pm.memory.store import MemoryStore
     from pm.records.memory_records import ActionSchemaRecord
     from pm.host.durable_files import atomic_json
-    from runtime.intents import replay_intents
+    from workflows.main_cognition.dispatch_recovery import replay_intents
     from pm.runs.supervisor import ManagedRunSupervisor
-    from runtime.publication import exchange_record
+    from workflows.public_speech.publication import exchange_record
     from dev.work_items.alpha_a12_recovery_gate import wait_for
 
     out = args.out.resolve()

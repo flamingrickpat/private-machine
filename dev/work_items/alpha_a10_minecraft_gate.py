@@ -26,7 +26,7 @@ def run(args) -> None:
     from pm.records.enums import ActionType
     from workflows.minecraft_body.lease import BODY_LEASES
     from workflows.minecraft_body.gateway import READ_TOOLS
-    from runtime.publication import exchange_record
+    from workflows.public_speech.publication import exchange_record
     from pm.runs.workflow_runner import WorkflowRunner, WorkflowRequest
     from pm_workflows.runtime import WorkflowRuntime
     from dev.work_items.alpha_minecraft_gate import RealServerStack

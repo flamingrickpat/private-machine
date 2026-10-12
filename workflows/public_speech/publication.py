@@ -12,7 +12,7 @@ from pm.memory.snapshot import GhostConflict
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
-from runtime.experience import utterance_metadata
+from workflows.main_cognition.experience import utterance_metadata
 
 
 def exchange_record(ghost, correlation: str):

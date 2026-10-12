@@ -9,7 +9,7 @@ import yaml
 from pm.bus.envelopes import Envelope, new_id
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.enums import ActionType
-from runtime.publication import commit_public_reply, exchange_record, publish_reply
+from workflows.public_speech.publication import commit_public_reply, exchange_record, publish_reply
 from pm.host.application import BusModule
 
 TERMINAL = frozenset({"completed", "failed", "cancelled", "interrupted"})
@@ -149,7 +149,7 @@ class ReplyRecovery(BusModule):
 
     def resume(self):
         """Replay pending publication and task replies after a checkpoint restart."""
-        from runtime.intents import replay_intents
+        from workflows.main_cognition.dispatch_recovery import replay_intents
         handled = replay_intents(self.ghost, self.bus, self.supervisor)
         self.supervisor.replay_events()
         for item in self.ghost.all_features:

@@ -11,8 +11,8 @@ import httpx
 
 from pm.llm.http_client import rejected_message_protocol
 from workflows.dialogue_assistant.steps import validate_public_speech
-from workflows.public_claims import ClaimReview, validate_claim_review
-from workflows.public_context import PublicContext
+from workflows.public_speech.claim_review import ClaimReview, validate_claim_review
+from workflows.public_speech.public_context import PublicContext
 
 
 class MessageProtocolTests(unittest.TestCase):

@@ -26,7 +26,7 @@ from pm.runs.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.dispatch import resolve_prerequisites
 from workflows.main_cognition.pipeline import run_cycle
 from workflows.main_cognition.schemas import ActionDispatch
-from workflows.main_cognition.state_changes import find_intention, normalize_goal_key
+from workflows.main_cognition.stage_commits import find_intention, normalize_goal_key
 from pm.memory.bash_view import MemoryBashTarget
 
 REAL_MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
@@ -186,7 +186,7 @@ class GoalLifecycleTests(unittest.TestCase):
 
     def test_refuse_and_defer_are_distinct_durable_lifecycle_states(self):
         from workflows.main_cognition.schemas import GoalChange
-        from workflows.main_cognition.state_changes import apply_goal_changes
+        from workflows.main_cognition.stage_commits import apply_goal_changes
 
         ghost = _small_ghost()
         batch = ghost.begin_batch("lifecycle")
@@ -216,7 +216,7 @@ class GoalLifecycleTests(unittest.TestCase):
 
     def test_unknown_change_kind_does_not_mutate_state(self):
         from workflows.main_cognition.schemas import GoalChange
-        from workflows.main_cognition.state_changes import apply_goal_changes
+        from workflows.main_cognition.stage_commits import apply_goal_changes
         ghost = _small_ghost()
         batch = ghost.begin_batch("bad-goal")
         records = apply_goal_changes(batch, batch.view(), [GoalChange(change="delete", goal="anything")])
@@ -228,7 +228,7 @@ class GoalLifecycleTests(unittest.TestCase):
         from pm.records.enums import IntentionType
         from pm.records.cognitive_records import Intention
         from workflows.main_cognition.schemas import AppraisalResult, GoalChange
-        from workflows.main_cognition.state_changes import apply_appraisal, apply_goal_changes
+        from workflows.main_cognition.stage_commits import apply_appraisal, apply_goal_changes
 
         ghost = _small_ghost()
         goal = ghost.store_knoxel(Intention(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from runtime.consolidation import build_consolidation_tools
+from workflows.memory_consolidation.artifact_consolidation import build_consolidation_tools
 
 
 def build_consolidation_module_tools(consolidator) -> Callable[[object, object], dict]:

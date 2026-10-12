@@ -16,11 +16,11 @@ from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.enums import ActionType
-from runtime.publication import acknowledge_reply, commit_public_reply, exchange_record
-from runtime.reply_recovery import ReplyRecovery, task_evidence
+from workflows.public_speech.publication import acknowledge_reply, commit_public_reply, exchange_record
+from workflows.public_speech.reply_recovery import ReplyRecovery, task_evidence
 from pm.runs.supervisor import ManagedRunSupervisor
-from workflows.public_context import build_public_context
-from workflows.public_claims import ClaimReview, validate_claim_review
+from workflows.public_speech.public_context import build_public_context
+from workflows.public_speech.claim_review import ClaimReview, validate_claim_review
 
 
 class PublicationTests(unittest.TestCase):
@@ -57,7 +57,7 @@ class PublicationTests(unittest.TestCase):
     def test_source_conflict_prevents_semantic_and_protocol_recovery(self):
         from modules import StoryDialogue
         from pm.memory.bash_view import MemoryBashTarget
-        from workflows.dialogue_story.engine import MANIFEST
+        from workflows.dialogue_story.standalone import MANIFEST
 
         for status in ("rejected", "failed"):
             with self.subTest(status=status), TemporaryDirectory() as tmp:
@@ -84,7 +84,7 @@ class PublicationTests(unittest.TestCase):
     def test_protocol_failure_cannot_become_an_invented_user_report(self):
         from modules import StoryDialogue
         from pm.memory.bash_view import MemoryBashTarget
-        from workflows.dialogue_story.engine import MANIFEST
+        from workflows.dialogue_story.standalone import MANIFEST
 
         with TemporaryDirectory() as tmp:
             correlation = self.proxy.submit("Reply after a transport error.")

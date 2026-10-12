@@ -33,10 +33,10 @@ from modules import (
 )
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
-from runtime.consolidation import Consolidator
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
 from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from pm.host.application import Application
-from runtime.steward import Steward
+from workflows.steward.gate import Steward
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.memory.bash_view import MemoryBashTarget
 from pm.runs.workflow_module import PROJECT_ROOT, WorkflowModule
@@ -309,7 +309,7 @@ def build_app(
     ]
     if cognition == "real":
         from workflows.minecraft_body.capabilities import capability_snapshot
-        from runtime.reply_recovery import ReplyRecovery
+        from workflows.public_speech.reply_recovery import ReplyRecovery
         provider = lambda: capability_snapshot(ghost, supervisor.workflows)
         main_cog.capability_provider = provider
         def retrieval_query(text):
@@ -340,7 +340,7 @@ def build_app(
         main_cog.retrieval_query_provider = retrieval_query
         dialogue.capability_provider = provider
         assistant.capability_provider = provider
-        from workflows.public_recovery import recover_grounding
+        from workflows.public_speech.grounding_recovery import recover_grounding
         def grounding_recovery(context):
             return asyncio.run(recover_grounding(stage_model.build_async_tool(), context))
         dialogue.grounding_recovery = grounding_recovery

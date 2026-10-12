@@ -15,7 +15,7 @@ from pm_workflows.runtime import WorkflowRuntime
 
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
-from runtime.consolidation import Consolidator
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.minecraft import steps
 from workflows.minecraft.schemas import MinecraftReport

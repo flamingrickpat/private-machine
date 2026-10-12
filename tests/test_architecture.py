@@ -31,7 +31,7 @@ ALLOWED_IN_PM: dict[str, set[str]] = {
 KNOWN_VIOLATIONS = {
     ("pm/app/operator_config.py", "main"),
     ("pm/console/worker.py", "main"),
-    ("pm/runs/supervisor.py", "workflows.public_context"),
+    ("pm/runs/supervisor.py", "workflows.public_speech.public_context"),
 }
 
 

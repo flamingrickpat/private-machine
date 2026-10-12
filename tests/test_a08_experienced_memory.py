@@ -21,10 +21,10 @@ from pm.records.base import RecordScope
 from pm.records.world_records import WorldObjectRecord
 from pm.records.enums import ActionType, ClusterType, FeatureType, FrameEnum
 from pm.records.cognitive_records import BeliefRecord
-from runtime.consolidation import Consolidator
-from runtime.experience import update_beliefs, utterance_metadata
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
+from workflows.main_cognition.experience import update_beliefs, utterance_metadata
 from workflows.main_cognition.schemas import AppraisalResult, BeliefUpdate
-from workflows.main_cognition.state_changes import apply_appraisal
+from workflows.main_cognition.stage_commits import apply_appraisal
 from workflows.dialogue_story.schemas import StoryRequest
 from workflows.dialogue_story.steps import build_story_messages, load_prompts
 

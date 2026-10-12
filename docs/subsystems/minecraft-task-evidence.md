@@ -145,7 +145,7 @@ Fresh final project reads still establish current structure and inventory.
 
 [`workflows.minecraft_project.acceptance.verified_project`][] checks the complete retained chain again.
 It recomputes numeric conditions, interpretation coverage, actor identity, and original call pairing.
-[`runtime.reply_recovery.task_evidence`][] invokes that function before public task dispatch.
+[`workflows.public_speech.reply_recovery.task_evidence`][] invokes that function before public task dispatch.
 A managed run's `completed` state alone cannot support a Minecraft success claim.
 
 The public result describes verified attainment from retained observations.

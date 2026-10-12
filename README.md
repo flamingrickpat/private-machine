@@ -174,7 +174,7 @@ Memory and quality checks cover different contracts. Passing foundation tests do
 - [Application wiring](main.py)
 - [Cognitive modules](modules.py)
 - [Managed-run supervisor](pm/runs/supervisor.py)
-- [Consolidation](runtime/consolidation.py)
+- [Consolidation](workflows/memory_consolidation/artifact_consolidation.py)
 
 Workflow manifests are executable Markdown under `workflows/`.
 Historical plans, handoffs, audits, and delivery notes remain in Git history.

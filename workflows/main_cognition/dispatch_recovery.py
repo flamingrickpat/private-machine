@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pm.bus.envelopes import Envelope, new_id
 from pm.records.memory_records import ActionSchemaRecord
-from runtime.publication import exchange_record
+from workflows.public_speech.publication import exchange_record
 
 
 def acknowledge_intent(ghost, action_id: int) -> None:

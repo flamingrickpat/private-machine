@@ -34,8 +34,8 @@ def run(args):
     from pm.records.memory_records import ActionSchemaRecord
     from pm.records.enums import ActionType
     from workflows.minecraft_body.capabilities import capability_snapshot
-    from runtime.publication import exchange_record
-    from workflows.public_context import build_public_context
+    from workflows.public_speech.publication import exchange_record
+    from workflows.public_speech.public_context import build_public_context
     from workflows.minecraft_body.mcp_client import build_minecraft_tools
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file

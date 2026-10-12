@@ -12,7 +12,7 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
-from runtime.steward import Steward
+from workflows.steward.gate import Steward
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.steward.schemas import StewardReport
 from pm.memory.bash_view import MemoryBashEnvironment

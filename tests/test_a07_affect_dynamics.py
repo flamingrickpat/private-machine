@@ -11,13 +11,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from pm.memory.store import MemoryStore
-from pm_core.model.affect_dynamics import (
-    REGULATION_REACTIVE,
-    REGULATION_REFLECTIVE,
-    decay_toward_baseline,
-    personality_gains,
-    project_affect,
-)
+from workflows.main_cognition.affect_dynamics import REGULATION_REACTIVE, REGULATION_REFLECTIVE, decay_toward_baseline, personality_gains, project_affect
 from pm.records.cycle_state import PersonaConfig
 from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.records.enums import FeatureSubtype, FeatureType

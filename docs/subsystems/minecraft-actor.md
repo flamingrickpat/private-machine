@@ -101,7 +101,7 @@ The final report uses `pm.minecraft-actor-report.v1`.
 It includes the goal, body label, outcome, verification, session reference, revision, call count, and both observations.
 It also includes the journal path, screenshot paths, and rejection reason.
 The report retains its acceptance specification and independent `verified` flag.
-Before public task dispatch, [`runtime.reply_recovery.task_evidence`][] recomputes wood-return checks from the retained journal.
+Before public task dispatch, [`workflows.public_speech.reply_recovery.task_evidence`][] recomputes wood-return checks from the retained journal.
 This check establishes recorded task effects, not a later unchanged world.
 The role writes `outbox/handoff.md` and `outbox/world.yaml` beside the report.
 If the native session already wrote its handoff, the host preserves that document.

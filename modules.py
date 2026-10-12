@@ -12,7 +12,7 @@ from datetime import datetime
 from threading import RLock
 import yaml
 
-from pm_core.model.affect_dynamics import AffectProjection
+from workflows.main_cognition.affect_dynamics import AffectProjection
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import ActionSchemaRecord, Feature
@@ -20,7 +20,7 @@ from pm.records.base import Provenance
 from pm.records.enums import ActionType, FeatureType, InterlocusType, SourceKind
 from pm.records.cognitive_records import AttentionFrameRecord
 from pm.records.mental_state import FullMentalState, create_empty_state
-from runtime.experience import consolidate_cycle, update_beliefs, utterance_metadata
+from workflows.main_cognition.experience import consolidate_cycle, update_beliefs, utterance_metadata
 
 from pm.bus.envelopes import Envelope, new_id
 from pm.host.application import BusModule
@@ -35,19 +35,14 @@ from workflows.main_cognition.schemas import (
     Stimulus,
     WorkflowOption,
 )
-from workflows.main_cognition.state_changes import (
-    active_goal_texts,
-    active_intentions,
-    apply_appraisal,
-    apply_goal_changes,
-)
+from workflows.main_cognition.stage_commits import active_goal_texts, active_intentions, apply_appraisal, apply_goal_changes
 from workflows.self_management.schemas import SelfManagementRequest
 from workflows.steward.schemas import StewardRequest
 from workflows.dialogue_assistant.schemas import AssistantMessage, AssistantReport, AssistantRequest
 from workflows.dialogue_assistant.steps import unsupported_management_claims
 from workflows.dialogue_assistant.tools import TOOL_DESCRIPTORS, TOOL_NAMES
-from workflows.public_context import build_public_context
-from runtime.publication import acknowledge_reply, commit_public_reply, exchange_record, publish_reply
+from workflows.public_speech.public_context import build_public_context
+from workflows.public_speech.publication import acknowledge_reply, commit_public_reply, exchange_record, publish_reply
 
 ACTION_BY_NAME = {member.value: member for member in ActionType}
 
@@ -567,7 +562,7 @@ class MainCogLoop(CognitiveWorkflow):
             detail = str(payload.get("detail", "") or payload.get("message", "")).strip()
             artifact = str(payload.get("artifact_path", "")).strip()
             if artifact:
-                from runtime.consolidation import Consolidator
+                from workflows.memory_consolidation.artifact_consolidation import Consolidator
                 Consolidator(self.ghost, clock=self.clock).consolidate(run_id, artifact)
             text = f"Managed run {run_id} {state}"
             if detail:
@@ -685,7 +680,7 @@ class MainCogLoop(CognitiveWorkflow):
             if existing is not None:
                 duplicates.append((dispatch, existing))
                 continue
-            from workflows.public_context import Presentation
+            from workflows.public_speech.public_context import Presentation
             presentation = Presentation.model_validate(dispatch.presentation)
             if presentation.mode == "deceive" and (
                 not presentation.purpose or not presentation.known_fact_ids
@@ -893,7 +888,7 @@ class PublicDialogue(CognitiveWorkflow):
         context = getattr(self, "_public_context", None)
         if status in {"rejected", "failed"} and context is not None:
             from pm.memory.snapshot import GhostConflict
-            from runtime.publication import validate_public_context
+            from workflows.public_speech.publication import validate_public_context
             try:
                 with self.ghost.lock:
                     validate_public_context(self.ghost, context)
@@ -923,7 +918,7 @@ class PublicDialogue(CognitiveWorkflow):
                     artifact.parent.mkdir(parents=True, exist_ok=True)
                     artifact.write_text(yaml.safe_dump(recovery, allow_unicode=True), encoding="utf-8")
                     if recovery["accepted"]:
-                        from workflows.public_context import PublicContext
+                        from workflows.public_speech.public_context import PublicContext
                         self._public_context = PublicContext.model_validate(recovery["context"])
                         self.bus.put(_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
                             {"status": status, "workflow_name": self.WORKFLOW_NAME, "rejection_reason": reason,
@@ -962,7 +957,7 @@ class PublicDialogue(CognitiveWorkflow):
                 if (current.get("status"), current.get("tools")) != (prior.get("status"), prior.get("tools")):
                     raise GhostConflict("Minecraft capability changed during public generation.")
             if self._public_context.task_receipt.get("task_verified"):
-                from runtime.reply_recovery import task_evidence
+                from workflows.public_speech.reply_recovery import task_evidence
                 try:
                     current_task = task_evidence(self._public_context.task_receipt)
                 except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError) as error:
@@ -1089,7 +1084,7 @@ class SelfManagement(CognitiveWorkflow):
         cause = batch[0].id if batch else None
         source = self.ghost.get_knoxel_by_id(batch[0].payload.get("knoxel_id"))
         if source is not None:
-            from runtime.intents import acknowledge_intent
+            from workflows.main_cognition.dispatch_recovery import acknowledge_intent
             acknowledge_intent(self.ghost, source.id)
         self.bus.put(_envelope(
             self.module_id, "telemetry", "action.receipt", correlation,

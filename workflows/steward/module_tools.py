@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from runtime.steward import build_steward_tools
+from workflows.steward.gate import build_steward_tools
 
 
 def build_steward_module_tools(steward) -> Callable[[object, object], dict]:

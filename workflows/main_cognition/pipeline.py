@@ -18,10 +18,7 @@ from workflows.main_cognition.schemas import (
     CognitiveReport,
     StageReceipt,
 )
-from pm_core.model.affect_dynamics import (
-    REGULATION_REACTIVE,
-    project_affect,
-)
+from workflows.main_cognition.affect_dynamics import REGULATION_REACTIVE, project_affect
 
 STAGE_ORDER = (
     "triage",

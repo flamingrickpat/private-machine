@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 
-from pm_core.model.affect_dynamics import AffectProjection, project_affect
+from workflows.main_cognition.affect_dynamics import AffectProjection, project_affect
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance
 from pm.records.enums import FeatureSubtype, FeatureType, InterlocusType, IntentionType, SourceKind

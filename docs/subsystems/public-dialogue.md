@@ -13,8 +13,8 @@ Design: [private ontology](../work_items/alpha-plan/ontology.md).
 
 ## Context and entry points
 
-[`workflows.public_context.PublicContext`][] defines the common contract in the root repository.
-[`workflows.public_context.build_public_context`][] freezes accepted state before generation.
+[`workflows.public_speech.public_context.PublicContext`][] defines the common contract in the root repository.
+[`workflows.public_speech.public_context.build_public_context`][] freezes accepted state before generation.
 [`modules.StoryDialogue`][] and [`modules.AssistantDialogue`][] use this same builder.
 The standalone Story planner also uses this contract.
 
@@ -118,7 +118,7 @@ Legacy direct requests retain their compatibility guard until callers supply the
 
 ## Disclosure and deception
 
-[`workflows.public_context.Presentation`][] accepts `candid`, `withhold`, and `deceive`.
+[`workflows.public_speech.public_context.Presentation`][] accepts `candid`, `withhold`, and `deceive`.
 The cognitive action commits this choice before dialogue starts.
 Each choice applies to its selected public action.
 An older request for one teasing answer does not become an ongoing preference to falsify later recall.
@@ -128,14 +128,14 @@ It differs from failed generation or rejected publication.
 
 `deceive` requires a prior purpose and retained `known_fact_ids`.
 The runtime rejects an incomplete deception intent before generation.
-[`runtime.experience.utterance_metadata`][] links the resulting utterance to that prior action.
+[`workflows.main_cognition.experience.utterance_metadata`][] links the resulting utterance to that prior action.
 Adding an intent after generation cannot justify the earlier prose.
 Deception cannot waive capability, task verification, or private-disclosure checks.
 Public speech remains an attributed communicative event and cannot automatically establish a factual belief.
 
 ## Time interpretation and claim review
 
-[`workflows.public_claims.review_public_claims`][] uses the normal LLM at temperature 0.1.
+[`workflows.public_speech.claim_review.review_public_claims`][] uses the normal LLM at temperature 0.1.
 All three review phases enable reasoning for attribution, exact spans, paraphrases, and chronology.
 Each phase runs once.
 The first phase receives only the candidate and extracts literal plant, room, or game conditions with their time scope.

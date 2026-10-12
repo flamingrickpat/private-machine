@@ -5,8 +5,8 @@ reports instead of repeating unsupported prose or older voice examples.
 """
 from __future__ import annotations
 
-from workflows.public_claims import review_public_claims
-from workflows.public_context import Presentation, PublicContext, render_public_context
+from workflows.public_speech.claim_review import review_public_claims
+from workflows.public_speech.public_context import Presentation, PublicContext, render_public_context
 
 
 async def recover_grounding(complete, context: PublicContext) -> dict:

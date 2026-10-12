@@ -35,10 +35,10 @@ The module applies those proposals inside one Ghost write batch.
 
 [`workflows.main_cognition.pipeline.run_cycle`][] computes one affect
 projection after the appraisal stage.
-[`pm_core.model.affect_dynamics.project_affect`][] applies elapsed-time decay,
+[`workflows.main_cognition.affect_dynamics.project_affect`][] applies elapsed-time decay,
 personality gains, canonical appraisal axes, explicit emotion and need deltas,
 and an expectation error.
-[`workflows.main_cognition.state_changes.apply_appraisal`][] stages the result
+[`workflows.main_cognition.stage_commits.apply_appraisal`][] stages the result
 as one `Feature` with `feature_subtype=Appraisal`.
 The Feature carries the new total state in `mental_state_appraisal_vec`.
 It carries the difference in `mental_state_delta_vec`.
@@ -56,7 +56,7 @@ The math uses bounded values, so state stays in range.
 
 ## Goal lifecycle
 
-[`workflows.main_cognition.state_changes.apply_goal_changes`][] accepts these
+[`workflows.main_cognition.stage_commits.apply_goal_changes`][] accepts these
 change kinds:
 
 - `add` starts an active goal.
@@ -146,4 +146,4 @@ Read [A06 verification](../work_items/verification/a06-cognition-state.md) for t
 the receipts.
 Read [Cognition](cognition.md) for the stage order.
 Read [Ghost and bus](../ghost.md) for the commit boundary.
-Read [`workflows.main_cognition.state_changes`][] for the exact helpers.
+Read [`workflows.main_cognition.stage_commits`][] for the exact helpers.

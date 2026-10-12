@@ -12,7 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 import yaml
 
-from workflows.public_context import PublicContext, render_public_context
+from workflows.public_speech.public_context import PublicContext, render_public_context
 from workflows.main_cognition.stage_support import extract_json
 
 
@@ -77,7 +77,7 @@ async def review_public_claims(complete, candidate: str, context: PublicContext,
     Unknown evidence IDs and unsupported claims reject the whole utterance.
     Deception never waives capability, task, or private disclosure checks.
     """
-    prompts = yaml.safe_load((Path(__file__).parent / "public_claims.yaml").read_text(encoding="utf-8"))
+    prompts = yaml.safe_load((Path(__file__).parent / "claim_review.yaml").read_text(encoding="utf-8"))
     # Evidence dates must not change the meaning of an unqualified assertion.
     # Interpret literal environment conditions before exposing old reports.
     if len(candidate) > 12000:

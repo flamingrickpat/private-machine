@@ -68,7 +68,7 @@ def run(args) -> None:
     removal-target checks. Character evidence always stays below .runtime.
     """
     from main import build_app
-    from runtime.reply_recovery import task_evidence
+    from workflows.public_speech.reply_recovery import task_evidence
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
     from workflows.minecraft_project.tree_store import TreeStore, acceptance_requirements, validate_tree

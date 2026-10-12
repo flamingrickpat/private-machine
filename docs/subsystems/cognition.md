@@ -28,7 +28,7 @@ The application module commits accepted state and publishes action envelopes.
 
 ## Asynchronous boundary
 
-[`workflows.main_cognition.engine.build_stage_runner`][] invokes each child through the shared kernel runner.
+[`workflows.main_cognition.stage_runner.build_stage_runner`][] invokes each child through the shared kernel runner.
 The child does not need its own module thread or bus subscription.
 [`modules.MainCogLoop`][] connects this pipeline to the bus and Ghost.
 

@@ -22,7 +22,7 @@ from uuid import uuid4
 from pm.memory.store import MemoryStore
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import LlmPreset, load_config, resolve_connection
-from workflows.dialogue_story import engine
+from workflows.dialogue_story import standalone as engine
 from workflows.dialogue_story.context import plan_story_request
 from workflows.dialogue_story.schemas import StoryReport
 from workflows.dialogue_story.steps import build_story_messages, load_prompts, render_prior_dialogue

@@ -53,7 +53,7 @@ app.supervisor.terminate(run_id, request_id="operator-cancel-1")
 ```
 
 [`pm.runs.management_api.build_management_tools`][] exposes `managed_resume` through the management MCP.
-[`runtime.steward.Steward.resume`][] uses the same domain after explicit steward activation.
+[`workflows.steward.gate.Steward.resume`][] uses the same domain after explicit steward activation.
 SelfManagement accepts `operation: resume` through normal selected actions.
 It uses the selected action ID as the default idempotency key.
 Checkpoint restoration marks active receipts `interrupted`.

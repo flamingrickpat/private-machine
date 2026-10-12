@@ -18,7 +18,7 @@ The Feature retains `exchange_correlation`, `exchange_status=pending`, and the c
 These fields live in the existing Ghost checkpoint.
 There is no separate state authority or broker.
 
-[`runtime.publication.commit_public_reply`][] creates the companion utterance and resolves the corresponding user record in one Ghost batch.
+[`workflows.public_speech.publication.commit_public_reply`][] creates the companion utterance and resolves the corresponding user record in one Ghost batch.
 The user record retains `public_reply_id` and any recovery outcome.
 The companion record retains `reply_correlation`, `publication_status=pending`, and `factual_promotion=false`.
 Canonical records are copied through a snapshot before replacement.
@@ -28,7 +28,7 @@ A failed commit cannot alter their live metadata.
 
 The public context retains source revisions, the latest user ID, and the accepted internal-state tick.
 Publication rejects a changed source, a newer user stimulus, or a newer accepted internal state.
-[`runtime.publication.validate_public_context`][] checks these guards before semantic or protocol recovery.
+[`workflows.public_speech.publication.validate_public_context`][] checks these guards before semantic or protocol recovery.
 A fresh recovery snapshot cannot erase a conflict with the original frozen sources.
 Before commit, the module probes current Minecraft availability and compares tool names with the frozen context.
 A changed connection or tool list makes the reply stale.
@@ -47,8 +47,8 @@ Cancellation before commit prevents acceptance.
 Cancellation after an external task effect cannot undo that effect.
 A durable pending publication remains available after restart.
 
-[`runtime.publication.publish_reply`][] publishes only an already committed record.
-[`runtime.publication.acknowledge_reply`][] marks delivery after the user-input consumer receives that record.
+[`workflows.public_speech.publication.publish_reply`][] publishes only an already committed record.
+[`workflows.public_speech.publication.acknowledge_reply`][] marks delivery after the user-input consumer receives that record.
 The console emits the correlated `chat.reply` before this acknowledgement.
 The event includes `knoxel_id` for consumer deduplication and `recovery_outcome` for failure inspection.
 If a crash occurs between delivery and acknowledgement, replay can repeat delivery.
@@ -57,7 +57,7 @@ The design does not claim exactly-once bus delivery.
 
 ## Bounded grounding recovery
 
-[`workflows.public_recovery.recover_grounding`][] handles semantic rejection for the current original user exchange.
+[`workflows.public_speech.grounding_recovery.recover_grounding`][] handles semantic rejection for the current original user exchange.
 The receipt preserves the original rejection and its reason.
 The original rejected candidate remains in its workflow report.
 The handler receives the current original user report and the accepted retrieval scope.
@@ -108,7 +108,7 @@ No exchange depends on an unlimited model retry.
 
 ## Terminal task replies
 
-[`runtime.reply_recovery.ReplyRecovery`][] consumes terminal managed-run events.
+[`workflows.public_speech.reply_recovery.ReplyRecovery`][] consumes terminal managed-run events.
 It also consumes self-management receipts for rejected requests that never started a worker.
 `completed`, `failed`, `cancelled`, and `interrupted` are terminal states.
 The original accepted action must select `ToolCallAndReply`.
@@ -138,7 +138,7 @@ An apology, affection, frustration, or completion event cannot become note conte
 A rejected extraction stops before the agent starts or writes a file.
 The report retains expected and actual hexadecimal bytes, SHA-256, session reference, and verification status.
 
-[`runtime.reply_recovery.task_evidence`][] reads the report and verifies note bytes again before public dispatch.
+[`workflows.public_speech.reply_recovery.task_evidence`][] reads the report and verifies note bytes again before public dispatch.
 A changed file or extra newline invalidates task verification.
 The control worker always lacks that independent note verification.
 Expected input, model protocol, timeout, and file errors produce rejected note reports.

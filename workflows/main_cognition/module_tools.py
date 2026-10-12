@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-from workflows.main_cognition.engine import build_stage_runner
+from workflows.main_cognition.stage_runner import build_stage_runner
 
 
 def build_main_cognition_tools(

@@ -483,7 +483,7 @@ class ManagedRunSupervisor:
             "answer": "",
         }
         if receipt.workflow_name in {"minecraft", "minecraft_project"}:
-            from workflows.public_context import build_public_context
+            from workflows.public_speech.public_context import build_public_context
             with self.ghost.lock:
                 public = build_public_context(self.ghost, {}).model_dump(mode="json")
                 payload["persona_context"] = {

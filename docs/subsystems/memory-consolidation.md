@@ -13,7 +13,7 @@ Evidence: [A08 verification](../work_items/verification/a08-experienced-memory.m
 
 ## Cognitive experiences
 
-[`runtime.experience.consolidate_cycle`][] groups source events by reality/frame scope.
+[`workflows.main_cognition.experience.consolidate_cycle`][] groups source events by reality/frame scope.
 It creates a topical `MemoryClusterRecord` with the original event IDs and their timestamps.
 The summary quotes the source records with attribution.
 It adds the accepted affect summary and links the appraisal Feature.
@@ -51,7 +51,7 @@ Screenshot bytes remain evidence metadata and never enter text embeddings.
 
 The Context LLM can propose [`workflows.main_cognition.schemas.BeliefUpdate`][] objects.
 A proposal contains an original `source_id`, verbatim `quote`, stable `belief_key`, and explicit `correction` flag.
-[`runtime.experience.update_beliefs`][] accepts only live user dialogue with matching provenance and an exact source quote.
+[`workflows.main_cognition.experience.update_beliefs`][] accepts only live user dialogue with matching provenance and an exact source quote.
 It rejects companion speech, background, speculation, missing sources, and unsupported paraphrases.
 Main cognition also restricts belief sources to the current stimulus ID grant.
 Rejections remain inspectable in the action's belief-update receipt.
@@ -74,7 +74,7 @@ Human interpretation remains necessary for ambiguous claims.
 
 ## Utterances and intentional deception
 
-[`runtime.experience.utterance_metadata`][] records a prior action schema when Story accepts public speech.
+[`workflows.main_cognition.experience.utterance_metadata`][] records a prior action schema when Story accepts public speech.
 An explicit deception intent requires `presentation.mode=deceive`, a purpose, and visible `known_fact_ids`.
 Its action schema must exist before the utterance commit.
 The utterance retains the intent ID, purpose, and known evidence.
@@ -87,7 +87,7 @@ A09 owns consistent public generation and capability grounding.
 
 ## Task progress and artifact identity
 
-[`runtime.consolidation.Consolidator.consolidate`][] reads a text and image inventory before proposing memory.
+[`workflows.memory_consolidation.artifact_consolidation.Consolidator.consolidate`][] reads a text and image inventory before proposing memory.
 Receipts retain relative artifact paths and content hashes.
 Text hashes use decoded UTF-8 content with normalized newlines.
 Image hashes use the original bytes.

@@ -24,8 +24,8 @@ import re
 from pathlib import Path
 
 import yaml
-from workflows.public_context import render_public_context, render_factual_focus
-from workflows.public_claims import review_public_claims
+from workflows.public_speech.public_context import render_public_context, render_factual_focus
+from workflows.public_speech.claim_review import review_public_claims
 
 from workflows.dialogue_story.schemas import (
     DialogueTurn,

@@ -35,7 +35,7 @@ Updates after the final instruction boundary fail.
 
 Checkpoint restoration changes active receipts to `interrupted`.
 It does not resume an external task automatically.
-[`runtime.consolidation.Consolidator`][] stores evidence from terminal artifacts.
+[`workflows.memory_consolidation.artifact_consolidation.Consolidator`][] stores evidence from terminal artifacts.
 Repeated consolidation keys do not duplicate accepted memory.
 Changed inventories also reuse unchanged artifact memories through their proposal keys.
 Read [experience consolidation](memory-consolidation.md) for evidence attribution and concurrency guards.
@@ -53,7 +53,7 @@ MCP transport success alone does not establish tool success.
 
 ## Go deeper
 
-Read [workflow runtime](../runtime.md), [one exchange](../workflows/exchange.md), and [`runtime.steward.Steward`][].
+Read [workflow runtime](../runtime.md), [one exchange](../workflows/exchange.md), and [`workflows.steward.gate.Steward`][].
 
 
 For service ownership, task isolation, and cleanup, read the [Minecraft run guide](../workflows/minecraft.md) and [evidence guide](../workflows/minecraft-evidence.md).
