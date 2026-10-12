@@ -25,9 +25,9 @@ No file is deleted. Reserved code moves with its owner.
 | --- | --- | --- | --- | --- |
 | — | `pm/paths.py` | new | 2 | One `REPO_ROOT`. Four files compute it with `parent.parent` today. |
 | `bus/bus.py` | `pm/bus/bus.py` | move | 2 | Runtime API. |
-| `bus/envelopes.py` | `pm/bus/envelopes.py` | move | 2 | `_new_id` becomes the public `new_id`; the old name stays as an alias until Phase 6. |
+| `bus/envelopes.py` | `pm/bus/envelopes.py` | move | 2 | `_new_id` becomes the public `new_id`. Every caller changed, so no alias remains. |
 | `runtime/shell.py` | `pm/host/application.py` | rename | 2 | `ShellModule` → `BusModule`. "shell" clashes with bash environments. |
-| `workflow_adapter.py` | `pm/host/workflow_module.py` | rename | 2 | `ShellModuleWorkflow` → `WorkflowModule`. Runtime infrastructure at the repo root. |
+| `workflow_adapter.py` | `pm/runs/workflow_module.py` | rename | 2 | `ShellModuleWorkflow` → `WorkflowModule`. It runs workflows, so it belongs to `pm.runs`; in `pm.host` it created a host ↔ runs cycle. |
 | `working_target.py` (folder part) | `pm/host/folder_target.py` | split | 2 | `FolderEnvironment`, `FolderTarget`: host directories for workflows. |
 | `working_target.py` (memory part) | `pm/memory/bash_view.py` | split | 2 | `GhostBashEnvironment` → `MemoryBashEnvironment`, `GhostBashWrapper` → `MemoryBashTarget`. Removes the store → root import. |
 | `runtime/mcp_services.py` | `pm/host/mcp_listeners.py` | move | 2 | Loopback MCP listeners per run. |
@@ -39,7 +39,7 @@ No file is deleted. Reserved code moves with its owner.
 | `runtime/model_context.py` | `pm/llm/context_window.py` | move | 2 | Token counting against the serving context. |
 | `runtime/cognitive_model.py` | `pm/llm/stage_model.py` | move | 2 | Lazy LLM for cognition stages. |
 | `runtime/workflow_models.py` | `pm/llm/workflow_sessions.py` | move | 2 | LLM sessions leased to workflows. |
-| `pm_core/model/knoxel_core.py` | `pm/records/base.py` | rename | 2 | `KnoxelBase` → `RecordBase` and the other `Knoxel*` names. |
+| `pm_core/model/knoxel_core.py` | `pm/records/base.py` | rename | 2 | `KnoxelBase` → `RecordBase`, `KnoxelType` → `RecordKind`, `KnoxelScope` → `RecordScope`, `KnoxelHaver` → `RecordOwner`. `PERSISTED_TYPE_NAMES` keeps the saved names. |
 | `pm_core/utils/datetime_utils.py` | `pm/records/base.py` | merge | 2 | One function, used only by records. |
 | `pm_core/model/knoxel_enums.py` | `pm/records/enums.py` | move | 2 | |
 | `pm_core/model/knoxel_taxonomy.py` | `pm/records/taxonomy.py` | move | 2 | |
@@ -56,7 +56,7 @@ No file is deleted. Reserved code moves with its owner.
 | `pm_core/model/gwt.py` | `pm/records/global_workspace.py` | move | 2 | Persisted global workspace turns. |
 | `pm_core/ghost/service.py` | `pm/memory/store.py` | rename | 2 | `Ghost` → `MemoryStore`. |
 | `pm_core/ghost/ghost_base.py` | `pm/memory/record_index.py` | rename | 2 | `BaseGhost` → `RecordIndex`. Phase 5 changes inheritance to composition. |
-| `pm_core/ghost/batch.py` | `pm/memory/snapshot.py`, `pm/memory/write_batch.py` | split | 2 | `GhostView` → `Snapshot`, `GhostWriteBatch` → `WriteBatch`, `GhostConflict` → `CommitConflict`, `GhostCancelled` → `CommitCancelled`. |
+| `pm_core/ghost/batch.py` | `pm/memory/snapshot.py`, `pm/memory/write_batch.py` | split | 2 | `GhostView` → `Snapshot`, `GhostWriteBatch` → `WriteBatch`, `GhostConflict` and `GhostCancelled` keep their names: they are written into stored rejection reasons. |
 | `pm_core/ghost/memory.py` | `pm/memory/retrieval.py` | move | 2 | Ranking over a snapshot. `distinctive_terms` moves in from `dialogue_story/context.py`. |
 | `pm_core/ghost/references.py` | `pm/memory/references.py` | move | 2 | |
 | `pm_core/embeddings.py` | `pm/memory/embeddings.py` | move | 2 | Depends on `pm.llm`, which is now allowed. |

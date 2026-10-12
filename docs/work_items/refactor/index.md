@@ -34,14 +34,14 @@ pm_next_v2/
     app/                     CLI, operator configuration, lifecycle records, terminal input
     console/                 operator HTTP server, worker process, static UI
     bus/                     envelopes and BusSystem
-    host/                    BusModule, Application, WorkflowModule, folder target,
+    host/                    BusModule, Application, folder target,
                              MCP listeners, durable files, cancellation
     llm/                     config, HTTP client, activation, context window,
                              stage model, workflow sessions
     records/                 record schema, mental state, cycle state, global workspace
     memory/                  MemoryStore, snapshot, write batch, retrieval, references,
                              embeddings, checkpoint, YAML codec, bash view, store tools
-    runs/                    workflow runner, managed-run supervisor, management API
+    runs/                    WorkflowModule, workflow runner, managed-run supervisor, management API
   workflows/                 BEHAVIOR: manifests, scripts, skills, host bindings
     companion.py             the assembly
     main_cognition/          cognition cycle, stages/, host.py, affect dynamics, dispatch recovery
@@ -80,8 +80,8 @@ Imports may only point in these directions:
 | `tests` | `pm`, `workflows`, `test_data` |
 | `dev` | `pm`, `workflows`, `tests/support`, `test_data` |
 
-A test checks these rules from Phase 2.
-It starts with an allowlist of the known violations below. Phase 4 empties it.
+`tests/test_architecture.py` checks these rules. It parses source only, so it runs without dependencies.
+Its allowlist holds the known violations below. Phase 4 empties it.
 
 | Violation today | Removal in Phase 4 |
 | --- | --- |
@@ -90,6 +90,7 @@ It starts with an allowlist of the known violations below. Phase 4 empties it.
 | `reply_recovery` imports Minecraft verifiers per report schema. | Each managed workflow registers its report verifier. |
 | `operator_services` and `capabilities` hold Minecraft endpoint defaults. | The Minecraft workflows declare their endpoint. |
 | `operator_services` imports `main`. | `pm.paths` provides the default configuration path. |
+| `pm/console/worker.py` imports `main.build_app`. | The worker receives the assembly name and loads it. |
 | `main.py` holds workflow descriptions. | Manifests or the assembly hold them. |
 
 ## Three walkthroughs
@@ -128,7 +129,7 @@ Each phase is one branch. Each commit is a move, a rename, or an extraction, nev
 | --- | --- | --- |
 | 0 | Baseline and repository hygiene: `dev/`, `test_data/`, `docs/work_items/`, `AGENTS.md`. | Done, branch `refactor/phase-0`. Test baseline not yet run. |
 | 1 | This page, the glossary, the naming rules, and the relocation map. | Done, branch `refactor/phase-1`. Awaits owner review. |
-| 2 | Build `pm/`: move the runtime packages. One commit per package. Then renames. | Pending. |
+| 2 | Build `pm/`: move the runtime packages. One commit per package. Then renames. | Done, branch `refactor/phase-2`. Static checks only. |
 | 3 | Move behavior into `workflows/`: Minecraft first, then `modules.py`, then the assembly. | Pending. |
 | 4 | Remove domain knowledge from the runtime. Empty the allowlist. | Pending. |
 | 5 | Split large files: `minecraft_project/steps.py`, `supervisor.py`, `main_cognition/host.py`. | Pending. |

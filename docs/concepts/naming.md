@@ -71,7 +71,7 @@ Not acceptable: `pm_core/utils/datetime_utils.py` (one function, generic folder 
 - Name a record class `<Concept>Record`: `ActionSchemaRecord`, `BeliefRecord`. The old `__type__` stays.
 - Use `Protocol` for a boundary that has more than one implementation. Name it after the capability: `WorkingTarget`, not `IWorkingTarget`.
 - Do not prefix a class with its package name. `pm.memory.Snapshot`, not `MemorySnapshot`.
-- Name exceptions `<Condition>Error`, or keep an existing precise name such as `GhostConflict` → `CommitConflict`.
+- Name exceptions `<Condition>Error`. Keep an exception's existing name when the name is written into saved data. `GhostConflict` and `GhostCancelled` keep their names for this reason: `type(error).__name__` goes into stored rejection reasons.
 
 ## Functions and methods
 
