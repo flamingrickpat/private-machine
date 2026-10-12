@@ -11,7 +11,7 @@ import yaml
 from pathlib import Path
 from uuid import uuid4
 
-from workflows.companion import build_app
+from pm.console.assembly import DEFAULT_ASSEMBLY, DEFAULT_OPERATOR_HOOKS, load
 from pm.memory.yaml_codec import _deserialize_knoxel
 from pm.runs.workflow_runner import WorkflowRunner
 from pm.llm.activation import ChatClient
@@ -81,9 +81,8 @@ def run(settings: dict, root: Path) -> None:
     ChatClient.complete = complete
     from pm.app.operator_config import operator_config
     model_config, environment, _ = operator_config(settings.get("config") or None)
-    import os
-    os.environ.setdefault("MINECRAFT_MCP_URL", environment.get("MINECRAFT_MCP_URL") or
-                          f"http://127.0.0.1:{environment.get('PM_MC_MCP_PORT', '6767')}/mcp")
+    load(settings.get("operator_hooks") or DEFAULT_OPERATOR_HOOKS).prepare_environment(environment)
+    build_app = load(settings.get("assembly") or DEFAULT_ASSEMBLY).build_app
     app = build_app(settings["seed"], root, checkpoint_path=root / "ghost.json",
                     cognition=settings["cognition"], config_path=settings.get("config") or None,
                     emit_reply=lambda text: None)

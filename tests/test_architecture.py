@@ -28,9 +28,7 @@ ALLOWED_IN_PM: dict[str, set[str]] = {
 
 #: Known violations that later refactor phases remove. Do not add entries.
 #: Each entry is (file, imported module).
-KNOWN_VIOLATIONS = {
-    ("pm/console/worker.py", "workflows.companion"),
-}
+KNOWN_VIOLATIONS: set[tuple[str, str]] = set()
 
 
 def imports(path: Path):

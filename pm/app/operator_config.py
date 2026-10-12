@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import os
 from pathlib import Path
-import socket
 import time
 
 import httpx
@@ -53,8 +52,12 @@ def operator_config(config_path: str | None = None):
     return config, values, source
 
 
-async def connection_status(config_path: str | None = None) -> dict:
-    """Probe model HTTP endpoints, MCP tool discovery, and Minecraft TCP only."""
+async def connection_status(config_path: str | None = None, probes=None) -> dict:
+    """Probe model HTTP endpoints, then the assembly's own probes.
+
+    ``probes`` is an async callable that receives the operator values and
+    returns status rows. The runtime knows no domain endpoint itself.
+    """
     config, values, source = operator_config(config_path)
     rows = []
     async def http_probe(name, connection):
@@ -70,24 +73,8 @@ async def connection_status(config_path: str | None = None) -> dict:
         return {"name": name, "endpoint": connection.base_url, "model": connection.model,
                 "state": status, "seconds": round(time.perf_counter() - started, 3)}
     rows.extend(await asyncio.gather(http_probe("Chat model", config.chat["Default"]), http_probe("Embeddings", config.embedding)))
-    mcp = values.get("MINECRAFT_MCP_URL") or f"http://127.0.0.1:{values.get('PM_MC_MCP_PORT', '6767')}/mcp"
-    try:
-        from fastmcp import Client
-        async def discover():
-            async with Client(mcp) as client:
-                return [t.name for t in await client.list_tools()]
-        tools = await asyncio.wait_for(discover(), timeout=5)
-        rows.append({"name": "Minecraft MCP", "endpoint": mcp, "state": "ready", "tools": tools})
-    except Exception as exc:
-        rows.append({"name": "Minecraft MCP", "endpoint": mcp, "state": "not ready", "error_type": type(exc).__name__})
-    host, port = values.get("PM_MINECRAFT_HOST", "127.0.0.1"), int(values.get("PM_MINECRAFT_PORT", "12345"))
-    def tcp_probe():
-        try:
-            with socket.create_connection((host, port), timeout=3):
-                return "TCP reachable"
-        except OSError:
-            return "unreachable"
-    rows.append({"name": "Minecraft server", "endpoint": f"{host}:{port}", "state": await asyncio.to_thread(tcp_probe)})
+    if probes is not None:
+        rows.extend(await probes(values))
     return {"source": source, "checked_at": time.time(), "connections": rows}
 
 

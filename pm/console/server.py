@@ -250,8 +250,11 @@ def serve(root: Path, port: int = 8090):
                     return self.respond({"opened": str(path)})
                 if self.path == "/api/connections":
                     from pm.app.operator_config import connection_status
+                    from pm.console.assembly import DEFAULT_OPERATOR_HOOKS, load
                     instance = console.instances[command["instance"]]
-                    return self.respond(asyncio.run(connection_status(instance.settings.get("config") or None)))
+                    hooks = load(instance.settings.get("operator_hooks") or DEFAULT_OPERATOR_HOOKS)
+                    return self.respond(asyncio.run(connection_status(instance.settings.get("config") or None,
+                                                                      probes=hooks.probes)))
                 if self.path == "/api/deploy":
                     return self.respond(console.deploy(command))
                 instance = console.instances[command.pop("instance")]
