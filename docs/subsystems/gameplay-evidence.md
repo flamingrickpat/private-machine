@@ -73,7 +73,7 @@ This position evidence does not establish arrival, dry support, or goal acceptan
 Routine tool replies supply no current outcome when their journal sequence has no meaningful result.
 Direct decisions use a percentage of the actual serving context, measured in tokens.
 There is no character limit. See [direct project budgets](llm-context.md#direct-project-decisions-use-token-percentages).
-[`workflows.minecraft_tasks.steps.compact_plan_context`][] references identical review text and tool contracts once per decision.
+[`workflows.minecraft_project.steps.compact_plan_context`][] references identical review text and tool contracts once per decision.
 Different feedback and historical contracts retain their original wording.
 Native actor execution retains pm-coder context discovery and automatic compaction.
 
@@ -148,7 +148,7 @@ The guidance cannot grant supplies, change server rules, or accept an uncomplete
 
 ## Bounded decision history
 
-[`workflows.minecraft_tasks.steps.scoped_decision_context`][] selects evidence when a direct decision exceeds 110,000 characters.
+[`workflows.minecraft_project.steps.scoped_decision_context`][] selects evidence when a direct decision exceeds 110,000 characters.
 The final input limit remains 120,000 characters.
 The decision stores the full original payload in `unscoped-context.json`, with its digest and path in `context_archive`.
 Actor requests receive the same selected history.
@@ -204,14 +204,14 @@ The native actor returned `replan`; respawn did not establish healing or success
 Its original text incorrectly described all 252 missing items as blocks consumed.
 
 Death records now list `inventory_missing_after_death` and explain this evidence limit.
-[`runtime.minecraft_outcomes.missing_inventory`][] compares observed item counts without assigning a consumption cause.
+[`workflows.minecraft_body.call_outcomes.missing_inventory`][] compares observed item counts without assigning a consumption cause.
 Missing quantities do not prove consumption, placement, destruction, a drop location, or successful retrieval.
 Older method totals use `removed` for negative inventory deltas.
 The original action delta and rejected native interpretation remain intact.
 
 The staircase result now includes the body session and death counters before and after the action.
 An observed action death immediately creates failed recovery and blocks further mutations before the next observation.
-[`runtime.minecraft_outcomes.action_death`][] requires a body identity and an increasing integer death counter.
+[`workflows.minecraft_body.call_outcomes.action_death`][] requires a body identity and an increasing integer death counter.
 Fresh respawn observations still cannot authorize another mutation in that actor epoch.
 The next native plan must reconcile current tools, supplies, lost items, and preserved world work.
 The [tool repair history](../work_items/verification/a13/history/tool-repairs.md) describes the new descent checks.
@@ -323,7 +323,7 @@ The support guard rejected direct digging beneath the player, and ordinary movem
 The same actor then repeated successful equipment calls that held the same two dirt items.
 The operator stopped the run with those gains, full health, and no recorded death retained.
 
-[`runtime.minecraft_outcomes.classify`][] now identifies unchanged equipment through item identity and durability.
+[`workflows.minecraft_body.call_outcomes.classify`][] now identifies unchanged equipment through item identity and durability.
 An unchanged successful acknowledgement records `equipment_unchanged`, with no useful progress.
 Two such calls pause the exact equipment method.
 A fresh diagnosis cannot make an unchanged item into a missing pickaxe.

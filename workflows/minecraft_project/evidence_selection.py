@@ -5,10 +5,10 @@ import hashlib
 import json
 from pathlib import Path
 
-from runtime.minecraft_actor import read_actor_journal
-from runtime.minecraft_outcomes import GameplayEvidence
-from workflows.minecraft_tasks.schemas import Condition, Node, Renewal, RetentionChoice, RetentionProposal, TaskTree
-from workflows.minecraft_tasks.tree import TreeStore, acceptance_requirements, digest, node_digest
+from workflows.minecraft_body.journal import read_actor_journal
+from workflows.minecraft_body.call_outcomes import GameplayEvidence
+from workflows.minecraft_project.schemas import Condition, Node, Renewal, RetentionChoice, RetentionProposal, TaskTree
+from workflows.minecraft_project.tree_store import TreeStore, acceptance_requirements, digest, node_digest
 
 
 def dependency_scope(tree: TaskTree, targets: list[str]) -> set[str]:
@@ -116,7 +116,7 @@ def protect_accepted_specifications(store: TreeStore, proposed: TaskTree) -> Non
 
 def scoped_history(store: TreeStore, selected: set[str], full: dict, targets: set[str] | None = None) -> dict:
     """Keep relevant methods and all global safety and transport boundaries."""
-    from workflows.minecraft_tasks.steps import scoped_gameplay
+    from workflows.minecraft_project.steps import scoped_gameplay
     evidence = GameplayEvidence()
     journals = []
     methods = {key for key in selected if not store.valid(key)} | (targets or set())

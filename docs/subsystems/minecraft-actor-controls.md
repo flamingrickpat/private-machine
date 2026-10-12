@@ -13,7 +13,7 @@ Interaction semantics: [block activation evidence](../work_items/verification/a1
 
 ## Lease boundary
 
-[`runtime.body_lease.BodyLeases`][] owns operating-system leases keyed by the configured MCP endpoint.
+[`workflows.minecraft_body.lease.BodyLeases`][] owns operating-system leases keyed by the configured MCP endpoint.
 Application instances and local processes use the shared durable registry.
 A request's `body_id` is a descriptive label and cannot obtain another lease.
 The registry normalizes a trailing slash.
@@ -62,7 +62,7 @@ The pm-coder driver cancels supported asynchronous inference and awaits session 
 The gateway rejects later calls before dispatch.
 
 Synchronous external work can continue after an MCP client disconnects.
-[`runtime.minecraft_actor.ActorTool.run`][] waits for that call's thread before completing cancellation.
+[`workflows.minecraft_body.gateway.ActorTool.run`][] waits for that call's thread before completing cancellation.
 The gateway's final cleanup also waits for the dispatch lock.
 Only then can the body lease become available.
 Blocks, inventory, position, and time do not roll back.

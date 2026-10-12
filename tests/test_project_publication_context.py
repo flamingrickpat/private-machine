@@ -8,9 +8,9 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from dev.work_items.alpha_a13_minecraft_gate import route_trial
-from workflows.minecraft_tasks.schemas import PlanProposal, RevisionProposal, TaskTree
-from workflows.minecraft_tasks.steps import compact_plan_context, leaf_project_context, project_check_context, revision_candidate
-from workflows.minecraft_tasks.tree import TreeStore, digest
+from workflows.minecraft_project.schemas import PlanProposal, RevisionProposal, TaskTree
+from workflows.minecraft_project.steps import compact_plan_context, leaf_project_context, project_check_context, revision_candidate
+from workflows.minecraft_project.tree_store import TreeStore, digest
 
 CAPTURE = Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-publication-repair.json"
 

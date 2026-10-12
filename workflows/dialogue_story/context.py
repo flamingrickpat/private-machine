@@ -31,7 +31,7 @@ async def plan_story_request(
     current = str(situation["current_user_message"])
 
     from workflows.public_context import build_public_context
-    from runtime.capabilities import capability_snapshot
+    from workflows.minecraft_body.capabilities import capability_snapshot
     from pm.records.memory_records import Feature
     from pm.records.base import Provenance
     from pm.records.enums import FeatureType, InterlocusType, SourceKind

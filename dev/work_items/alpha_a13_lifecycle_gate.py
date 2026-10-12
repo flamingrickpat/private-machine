@@ -22,8 +22,8 @@ def run(args) -> None:
     Use a fresh ignored output directory. Any failed check retains its receipt.
     """
     from pm.host.durable_files import atomic_json
-    from runtime.minecraft_outcomes import GameplayEvidence
-    from runtime.minecraft_tools import build_minecraft_tools
+    from workflows.minecraft_body.call_outcomes import GameplayEvidence
+    from workflows.minecraft_body.mcp_client import build_minecraft_tools
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
 

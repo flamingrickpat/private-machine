@@ -61,17 +61,17 @@ Restoration does not automatically resume world work.
 
 ## Observation and reconciliation
 
-[`runtime.minecraft_actor.ActorGateway`][] pins the body token at its first leased call.
+[`workflows.minecraft_body.gateway.ActorGateway`][] pins the body token at its first leased call.
 Its first successful `minecraft_observe` establishes observation for that epoch.
 A mutation before this observation raises `StaleEpoch`.
-[`runtime.minecraft_actor.ActorGateway.reconcile`][] reads earlier dispatches and their original results.
+[`workflows.minecraft_body.gateway.ActorGateway.reconcile`][] reads earlier dispatches and their original results.
 A dispatch without a result remains `uncertain`, even when current world state appears correct.
 
 The reconciliation receipt records the body epoch, instruction revision, observation sequence, retained actions, and exact target reads.
 Position, target, and base operands produce fresh `minecraft_inspect_block` calls.
 An unavailable target read prevents mutation.
 An explicit air result is usable even though the live tool returns `ok: false` and `reason: not_found`.
-[`runtime.minecraft_actor.observed_target`][] checks that this result names the exact requested cell.
+[`workflows.minecraft_body.gateway.observed_target`][] checks that this result names the exact requested cell.
 Project evidence retains the original tool outcome and adds `observation_available` for model review.
 This lets the reviewer distinguish observed air from an unavailable cell.
 Other changes require the body observation and the actor's normal task-specific reads.

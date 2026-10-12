@@ -15,11 +15,11 @@ import unittest
 from pm_workflows.manifest import parse_workflow
 from pydantic import ValidationError
 
-from workflows.minecraft.actor import ActorOutcome
-from workflows.minecraft_tasks.schemas import Condition, Node, PlanProposal, TaskTree
-from workflows.minecraft_tasks.tree import TreeStore, acceptance_requirements, digest, validate_tree
-from workflows.minecraft_tasks.verification import evaluate
-from workflows.minecraft_tasks.steps import progress_facts, scoped_reads, survey_conditions
+from workflows.minecraft.specialist_session import ActorOutcome
+from workflows.minecraft_project.schemas import Condition, Node, PlanProposal, TaskTree
+from workflows.minecraft_project.tree_store import TreeStore, acceptance_requirements, digest, validate_tree
+from workflows.minecraft_project.acceptance import evaluate
+from workflows.minecraft_project.steps import progress_facts, scoped_reads, survey_conditions
 from pm.host.cancellation import LinkedStopEvent
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -337,7 +337,7 @@ class TaskGraphTests(unittest.TestCase):
                 self.assertEqual(store.eligible(), ["gather"])
 
     def test_manifest_routes_every_declared_outcome(self):
-        manifest = parse_workflow(ROOT / "workflows/minecraft_tasks/minecraft_tasks.workflow.md")
+        manifest = parse_workflow(ROOT / "workflows/minecraft_project/minecraft_project.workflow.md")
         self.assertEqual(manifest.name, "minecraft_project")
 
     def test_evidence_path_cannot_escape_its_owner(self):

@@ -11,9 +11,10 @@ import unittest
 
 from pm_workflows.runtime import WorkflowRuntime
 from pm.host.durable_files import BodyBusy, ProcessLock, atomic_json
-from runtime.body_lease import BodyLeases, StaleEpoch
+from workflows.minecraft_body.lease import BodyLeases, StaleEpoch
 from pm.runs.supervisor import ManagedRunError, ManagedRunReceipt, ManagedRunSupervisor, WorkflowSpec
-from runtime.minecraft_actor import observed_target, read_actor_journal, target_block_cell
+from workflows.minecraft_body.gateway import observed_target, target_block_cell
+from workflows.minecraft_body.journal import read_actor_journal
 from pm.memory.store import MemoryStore
 from tests.test_design_contracts import small_ghost
 from pm.runs.workflow_module import PROJECT_ROOT
@@ -46,7 +47,7 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(target_block_cell(camera["feet_position"]), camera["block_position"])
 
     def test_captured_partial_harvests_count_as_one_physical_tree(self):
-        from workflows.minecraft.actor import verify_wood_return
+        from workflows.minecraft.specialist_session import verify_wood_return
         capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/a12-partial-tree.json").read_text())
         verification = verify_wood_return(capture["receipts"], capture["initial"], capture["final"], {"trees": 2})
         self.assertEqual(verification["trees"], 1)
@@ -58,7 +59,7 @@ class RecoveryTests(unittest.TestCase):
         self.assertFalse(receipt["ok"])
         self.assertTrue(observed_target(receipt, receipt["arguments"]["position"]))
         self.assertFalse(observed_target(receipt, {"x": 0, "y": 0, "z": 0}))
-        from workflows.minecraft_tasks.steps import scoped_reads
+        from workflows.minecraft_project.steps import scoped_reads
         evidence = scoped_reads([receipt])[0]
         self.assertTrue(evidence["observation_available"])
         self.assertFalse(evidence["ok"])
@@ -70,7 +71,7 @@ class RecoveryTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
 
     def test_a_different_process_cannot_take_the_same_endpoint_alias(self):
-        script = "from pathlib import Path; import sys; from runtime.body_lease import BodyLeases; " \
+        script = "from pathlib import Path; import sys; from workflows.minecraft_body.lease import BodyLeases; " \
                  "lease=BodyLeases(Path(sys.argv[1])); " \
                  "scope=lease.acquire('http://localhost:6767/mcp/','child'); " \
                  "token=scope.__enter__(); print(token['epoch'],flush=True); sys.stdin.readline(); scope.__exit__(None,None,None)"

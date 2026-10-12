@@ -5,7 +5,7 @@ import threading
 import unittest
 
 from pm.host.durable_files import BodyBusy
-from runtime.body_lease import BodyLeases
+from workflows.minecraft_body.lease import BodyLeases
 
 
 class BodyLeaseTests(unittest.TestCase):

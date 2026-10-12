@@ -13,7 +13,7 @@ The test demonstrates observation, one real action, status, an instruction
 update, termination, and memory recovery from a reopened checkpoint.
 """
 from __future__ import annotations
-from runtime.body_lease import BODY_LEASES
+from workflows.minecraft_body.lease import BODY_LEASES
 
 import json
 import os
@@ -30,7 +30,7 @@ from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from runtime.consolidation import Consolidator
 from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
-from runtime.minecraft_tools import DEFAULT_MCP_URL, build_minecraft_tools
+from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, build_minecraft_tools
 from tests.live.minecraft_stack import MinecraftStack, autostart_enabled
 from pm.runs.workflow_module import PROJECT_ROOT
 

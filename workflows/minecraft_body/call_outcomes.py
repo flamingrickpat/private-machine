@@ -185,7 +185,7 @@ class GameplayEvidence:
         Sequence numbers belong to one journal. Source paths prevent a new
         actor's sequence from colliding with retained calls from another actor.
         """
-        from runtime.minecraft_actor import READ_TOOLS, observed_target
+        from workflows.minecraft_body.gateway import READ_TOOLS, observed_target
         self._source = source
         if row.get("event") == "epoch_acquired":
             self.permit = None
@@ -413,7 +413,7 @@ class GameplayEvidence:
         a fresh true harvestability read for that exact target. A diagnosis
         cannot override false or missing harvesting metadata.
         """
-        from runtime.minecraft_actor import READ_TOOLS
+        from workflows.minecraft_body.gateway import READ_TOOLS
         failure = self.current_failed_recovery()
         if failure and tool not in READ_TOOLS and tool != "minecraft_stop":
             return {"ok": False, "reason": "death_requires_replan", "failed_recovery": failure,

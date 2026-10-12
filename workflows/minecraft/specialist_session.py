@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Literal
 from pm_workflows.drivers import PmCoderDriver
 
-from runtime.minecraft_actor import ActorGateway, READ_TOOLS
+from workflows.minecraft_body.gateway import ActorGateway, READ_TOOLS
 from pm.host.mcp_listeners import serve_services
 from workflows.minecraft.schemas import MinecraftRequest
 from workflows.minecraft.steps import build_world

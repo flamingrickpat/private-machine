@@ -113,7 +113,7 @@ Scenario-specific rules remain in the workflow and its acceptance gate.
 Delivery still requires passing engineering checks, regenerated documentation, source review, and scoped commits and pushes after real acceptance.
 A14 remains pending until A13 delivery.
 
-Existing mechanisms: [`workflows.minecraft_tasks.tree.TreeStore.restore_specifications`][],
-[`workflows.minecraft_tasks.tree.TreeStore.valid`][],
-[`workflows.minecraft_tasks.verification.accepted_actor_matches`][],
-and [`workflows.minecraft_tasks.verification.verified_project`][].
+Existing mechanisms: [`workflows.minecraft_project.tree_store.TreeStore.restore_specifications`][],
+[`workflows.minecraft_project.tree_store.TreeStore.valid`][],
+[`workflows.minecraft_project.acceptance.accepted_actor_matches`][],
+and [`workflows.minecraft_project.acceptance.verified_project`][].

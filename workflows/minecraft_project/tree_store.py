@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import time
 
-from workflows.minecraft_tasks.schemas import Node, TaskTree
+from workflows.minecraft_project.schemas import Node, TaskTree
 
 
 def digest(value) -> str:
@@ -400,7 +400,7 @@ class TreeStore:
         identity = report["identity"]
         if not report["verified"] or identity["leaf_id"] != key or identity["tree_revision"] != tree.revision or identity["spec_revision"] != node.revision:
             raise ValueError("The verifier did not accept the current specification.")
-        from workflows.minecraft_tasks.verification import evaluate
+        from workflows.minecraft_project.acceptance import evaluate
         if (not all(evaluate(node.criteria, report.get("reads", []), certificates=self.state["acceptances"]).values())
             or report.get("review", {}).get("status") != "accepted"
             or set(report["review"].get("criterion_ids", [])) != {row.id for row in node.criteria}):

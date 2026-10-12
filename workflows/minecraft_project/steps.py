@@ -12,19 +12,17 @@ import yaml
 from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel, ValidationError
 
-from runtime.body_lease import BODY_LEASES
+from workflows.minecraft_body.lease import BODY_LEASES
 from pm.host.cancellation import LinkedStopEvent
-from runtime.minecraft_actor import read_actor_journal
-from runtime.minecraft_outcomes import GameplayEvidence, signature
+from workflows.minecraft_body.journal import read_actor_journal
+from workflows.minecraft_body.call_outcomes import GameplayEvidence, signature
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
 from workflows.minecraft.schemas import MinecraftRequest
-from workflows.minecraft_tasks.schemas import (
-    Condition, Node, PlanProposal, PlanReview, ProjectRequest, RefinementProposal, RetentionChoice, RevisionProposal, TaskTree, VerificationReview,
-)
-from workflows.minecraft_tasks.tree import TreeStore, digest, validate_tree
-from workflows.minecraft_tasks.verification import evaluate, observe_conditions, verified_project
-from workflows.minecraft_tasks.evidence import accepted_inputs, catalog, dependency_scope, protect_accepted_specifications, read_source, retention_operation, retention_tree, review_nodes, scoped_history
+from workflows.minecraft_project.schemas import Condition, Node, PlanProposal, PlanReview, ProjectRequest, RefinementProposal, RetentionChoice, RevisionProposal, TaskTree, VerificationReview
+from workflows.minecraft_project.tree_store import TreeStore, digest, validate_tree
+from workflows.minecraft_project.acceptance import evaluate, observe_conditions, verified_project
+from workflows.minecraft_project.evidence_selection import accepted_inputs, catalog, dependency_scope, protect_accepted_specifications, read_source, retention_operation, retention_tree, review_nodes, scoped_history
 
 ROOT = Path(__file__).resolve().parents[2]
 RESOURCES = Path(__file__).with_name("resources")
@@ -193,7 +191,7 @@ def progress_facts(observation: dict) -> dict:
 
 def scoped_reads(reads: list[dict]) -> list[dict]:
     """Retain exact evidence and distinguish known air from an unavailable read."""
-    from runtime.minecraft_actor import observed_target
+    from workflows.minecraft_body.gateway import observed_target
     scoped = []
     for row in reads:
         data = row["result"]
@@ -350,7 +348,7 @@ def scoped_rejected_tree(previous: TaskTree | None, rejected: TaskTree, source: 
     remain on disk, including nodes omitted from this repair-only projection.
     Without an accepted tree, every candidate node stays explicit.
     """
-    from workflows.minecraft_tasks.tree import node_digest
+    from workflows.minecraft_project.tree_store import node_digest
     prior_nodes = previous.nodes if previous is not None else []
     old = {node.id: node for node in prior_nodes}
     conditions = {digest(row.model_dump(mode="json")): {"from_node": node.id, "condition_id": row.id}
@@ -853,7 +851,7 @@ def plan(context: RoleContext, store: TreeStore) -> dict:
     payload["gameplay_history"] = gameplay_history(store)
     candidates = store.acceptance_candidates()
     if candidates:
-        from workflows.minecraft_tasks.tree import node_digest
+        from workflows.minecraft_project.tree_store import node_digest
         current_nodes = {node.id: node for node in store.load().nodes}
         payload["retained_acceptance_candidates"] = [
             {"specification": ({"from_node": row["specification"]["id"], "in": "previous_tree"}
@@ -993,7 +991,7 @@ def plan(context: RoleContext, store: TreeStore) -> dict:
         restore_nodes = proposal.restore_nodes
         if selected_scope is not None:
             original_nodes = {node.id: node for node in store.load().nodes}
-            from workflows.minecraft_tasks.tree import node_digest
+            from workflows.minecraft_project.tree_store import node_digest
             protected = set(original_nodes) - selected_scope - ancestors
             if any(node.id in protected and node_digest(node) != node_digest(original_nodes[node.id])
                    for node in proposal.updates):
@@ -1007,7 +1005,7 @@ def plan(context: RoleContext, store: TreeStore) -> dict:
             protect_accepted_specifications(store, proposed)
         if context.phase == "replan" and previous and store.state.get("require_leaf_change"):
             old_nodes = {node.id: node for node in store.load().nodes}
-            from workflows.minecraft_tasks.tree import node_digest
+            from workflows.minecraft_project.tree_store import node_digest
             changed = [node for node in proposed.nodes if node.kind == "leaf"
                        and (node.id not in old_nodes or node_digest(node) != node_digest(old_nodes[node.id]))]
             if not changed:

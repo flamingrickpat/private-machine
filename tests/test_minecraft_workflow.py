@@ -20,7 +20,7 @@ from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunne
 from workflows.minecraft import steps
 from workflows.minecraft.schemas import MinecraftReport
 from pm.host.folder_target import FolderEnvironment
-from runtime.body_lease import BODY_LEASES
+from workflows.minecraft_body.lease import BODY_LEASES
 from pm.records.base import persisted_type_name
 
 MANIFEST = PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md"

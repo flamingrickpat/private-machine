@@ -91,7 +91,7 @@ The prompts do not require a repeated disclaimer about the companion's nature.
 
 ## Domain capabilities and private ontology
 
-[`runtime.capabilities.capability_snapshot`][] reads configured workflows and current Minecraft transport availability.
+[`workflows.minecraft_body.capabilities.capability_snapshot`][] reads configured workflows and current Minecraft transport availability.
 It discovers MCP tools with a five-second deadline and probes the game socket with a two-second deadline.
 This operation does not move the character or reset the world.
 

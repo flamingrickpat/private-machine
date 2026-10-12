@@ -13,7 +13,7 @@ Related: [public publication](public-publication.md) and [A11 verification](../w
 
 ## Observation primitives
 
-[`workflows.minecraft_tasks.schemas.Condition`][] supplies seven generic primitives.
+[`workflows.minecraft_project.schemas.Condition`][] supplies seven generic primitives.
 They do not encode house, mining, or farm goal categories.
 
 | Kind | Independent tool | Required fact |
@@ -70,13 +70,13 @@ Final structure criteria still use fresh block reads.
 
 ### Retained certificates after an accidental revision
 
-[`workflows.minecraft_tasks.tree.TreeStore.archive_acceptances`][] retains valid certificate records before a specification changes.
+[`workflows.minecraft_project.tree_store.TreeStore.archive_acceptances`][] retains valid certificate records before a specification changes.
 Each archive includes the exact specification, original certificate, and source receipt.
 The files live under `planning/acceptance-archive/` in the owning task.
 The planner receives candidates for invalid work and its changed certificate dependencies.
 The native planner must explicitly restore the exact earlier specification.
 
-[`workflows.minecraft_tasks.tree.TreeStore.restore_acceptances`][] then applies the normal specification, original-file, and dependency-hash guards.
+[`workflows.minecraft_project.tree_store.TreeStore.restore_acceptances`][] then applies the normal specification, original-file, and dependency-hash guards.
 It restores prerequisites before their dependents.
 Changed files, changed operands, and different dependency certificates prevent reuse.
 Fresh assumption failures revoke the original certificate digest permanently.
@@ -118,32 +118,32 @@ It writes those reads before inference so cancellation preserves them.
 Interpretation receives relevant structured fields and hashes of the complete original results.
 The actor cannot supply those observations through its summary.
 
-[`workflows.minecraft_tasks.verification.observe_conditions`][] can issue only the declared observation primitives.
+[`workflows.minecraft_project.acceptance.observe_conditions`][] can issue only the declared observation primitives.
 It holds the shared command boundary for each read.
 It has no movement, construction, mining, or item-grant tools.
-[`workflows.minecraft_tasks.verification.evaluate`][] recomputes every criterion from its matching read.
+[`workflows.minecraft_project.acceptance.evaluate`][] recomputes every criterion from its matching read.
 Missing or duplicate criterion reads fail closed.
 
 ## Acceptance and public claims
 
-[`workflows.minecraft_tasks.tree.TreeStore.accept`][] requires a current specification, independently sufficient reads, and accepted interpretation.
+[`workflows.minecraft_project.tree_store.TreeStore.accept`][] requires a current specification, independently sufficient reads, and accepted interpretation.
 It also requires valid prerequisite acceptance.
 The record hashes the verifier receipt and original actor report and journal.
 Dependent records retain hashes of their prerequisite acceptance records.
 Changed evidence invalidates the affected acceptance chain.
 
-[`workflows.minecraft_tasks.tree.TreeStore.restore_specifications`][] applies explicit `restore_nodes` requests from the native planner.
+[`workflows.minecraft_project.tree_store.TreeStore.restore_specifications`][] applies explicit `restore_nodes` requests from the native planner.
 Every restored node requires its original files and recursive dependency certificate hashes.
 The planner must list changed historical dependencies too.
 The operation validates the proposed tree before it changes durable state.
 
 Restoration can increase the current specification revision counter while recovering exactly the original specification content.
-[`workflows.minecraft_tasks.verification.accepted_actor_matches`][] therefore compares actor counters with the original certificate identity.
+[`workflows.minecraft_project.acceptance.accepted_actor_matches`][] therefore compares actor counters with the original certificate identity.
 It also requires exact current specification content, unchanged evidence files, matching task identity, and complete dispatch-result pairing.
 The original actor, verifier, and certificate counters remain unchanged.
 Fresh final project reads still establish current structure and inventory.
 
-[`workflows.minecraft_tasks.verification.verified_project`][] checks the complete retained chain again.
+[`workflows.minecraft_project.acceptance.verified_project`][] checks the complete retained chain again.
 It recomputes numeric conditions, interpretation coverage, actor identity, and original call pairing.
 [`runtime.reply_recovery.task_evidence`][] invokes that function before public task dispatch.
 A managed run's `completed` state alone cannot support a Minecraft success claim.

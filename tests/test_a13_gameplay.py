@@ -10,9 +10,9 @@ import unittest
 import threading
 import zlib
 
-from runtime.minecraft_outcomes import GameplayEvidence, classify
-from workflows.minecraft_tasks.schemas import Node, TaskTree
-from workflows.minecraft_tasks.tree import TreeStore
+from workflows.minecraft_body.call_outcomes import GameplayEvidence, classify
+from workflows.minecraft_project.schemas import Node, TaskTree
+from workflows.minecraft_project.tree_store import TreeStore
 
 CAPTURE = Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-gameplay-results.json"
 
@@ -89,7 +89,7 @@ class GameplayTests(unittest.TestCase):
             self.assertFalse(any(store.valid(key) for key in ("recovery_exit", "iron_mine", "iron_smelt", "iron_pickaxe")))
 
     def test_native_restore_operation_requires_exact_historical_dependencies(self):
-        from workflows.minecraft_tasks.schemas import RevisionProposal
+        from workflows.minecraft_project.schemas import RevisionProposal
         with TemporaryDirectory() as folder:
             store, capture = self.retained_certificate_case(Path(folder))
             store.archive_acceptances(capture["before"], "retained-before-receipt.json")
@@ -104,7 +104,7 @@ class GameplayTests(unittest.TestCase):
             self.assertEqual(store.state["acceptances"], capture["before"]["acceptances"])
 
     def test_native_restoration_rejects_unknown_and_revoked_candidates(self):
-        from workflows.minecraft_tasks.schemas import RevisionProposal
+        from workflows.minecraft_project.schemas import RevisionProposal
         with TemporaryDirectory() as folder:
             store, capture = self.retained_certificate_case(Path(folder))
             store.archive_acceptances(capture["before"], "retained-before-receipt.json")
@@ -132,7 +132,7 @@ class GameplayTests(unittest.TestCase):
             self.assertTrue(all(store.valid(key) for key in store.state["acceptances"]))
 
     def test_restored_real_actor_proof_uses_original_certificate_revision(self):
-        from workflows.minecraft_tasks.verification import accepted_actor_matches
+        from workflows.minecraft_project.acceptance import accepted_actor_matches
         captured = json.loads((CAPTURE.parent / "a13-restored-publication-identity.json").read_text(encoding="utf-8"))
         with TemporaryDirectory() as folder:
             store, capture = self.retained_certificate_case(Path(folder))
@@ -189,7 +189,7 @@ class GameplayTests(unittest.TestCase):
         self.assertIsNotNone(history.service_wait)
 
     def test_uncertain_furnace_context_survives_a_later_actor_with_only_recorded_calls(self):
-        from runtime.minecraft_actor import uncertain_world_effects
+        from workflows.minecraft_body.gateway import uncertain_world_effects
         capture = json.loads((CAPTURE.parent / "a13-uncertain-furnace-context.json").read_text(encoding="utf-8"))
         history = [{"source": capture["sources"]["previous_journal"]["path"], "calls": capture["previous_rows"]},
                    {"source": capture["sources"]["journal"]["path"], "calls": capture["current_rows"]}]
@@ -288,7 +288,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(classify(improved)["quantities"]["equipment_changed"], 1)
 
     def test_captured_repeated_equipment_context_keeps_every_original_sequence(self):
-        from workflows.minecraft_tasks.steps import scoped_gameplay, scoped_decision_context
+        from workflows.minecraft_project.steps import scoped_gameplay, scoped_decision_context
         capture = json.loads((CAPTURE.parent / "a13-equipment-no-progress.json").read_text(encoding="utf-8"))
         history = GameplayEvidence()
         source = capture["sources"]["journal"]["path"]
@@ -306,8 +306,8 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(classify(capture["rows"][1])["reason"], "unsafe_support")
 
     def test_captured_latest_overflow_references_old_survey_and_preserves_search_coverage(self):
-        from workflows.minecraft_tasks.steps import scoped_decision_context, decision_schema
-        from workflows.minecraft_tasks.schemas import RevisionProposal
+        from workflows.minecraft_project.steps import scoped_decision_context, decision_schema
+        from workflows.minecraft_project.schemas import RevisionProposal
         capture = json.loads((CAPTURE.parent / "a13-historical-survey-budget.json").read_text(encoding="utf-8"))
         payload = capture["unscoped_context"]
         before = copy.deepcopy(payload)
@@ -321,7 +321,7 @@ class GameplayTests(unittest.TestCase):
         self.assertNotIn("recipes", current)
         self.assertEqual(self.unpack_planning_history(scoped["gameplay_history"])["searches"],
                          self.unpack_planning_history(payload["gameplay_history"])["searches"])
-        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_tasks/resources/planner.md").read_text(encoding="utf-8")
+        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_project/resources/planner.md").read_text(encoding="utf-8")
         system = guide + "\nJSON schema:\n" + json.dumps(decision_schema(RevisionProposal), separators=(",", ":"))
         self.assertEqual(capture["input"]["input_characters"], 124188)
         self.assertLess(len(system) + len(json.dumps(scoped, ensure_ascii=False, separators=(",", ":"))), capture["input"]["input_characters"])
@@ -331,8 +331,8 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(scoped_decision_context(fresh)["requested_world_survey"], fresh["requested_world_survey"])
 
     def test_captured_house_progress_context_retains_every_search_and_current_fact(self):
-        from workflows.minecraft_tasks.steps import scoped_decision_context, decision_schema
-        from workflows.minecraft_tasks.schemas import RevisionProposal
+        from workflows.minecraft_project.steps import scoped_decision_context, decision_schema
+        from workflows.minecraft_project.schemas import RevisionProposal
         capture = json.loads((CAPTURE.parent / "a13-planner-growth.json").read_text(encoding="utf-8"))
         payload = capture["unscoped_context"]
         before = copy.deepcopy(payload)
@@ -355,14 +355,14 @@ class GameplayTests(unittest.TestCase):
             self.assertNotIn("result", row)
             for key in ("tool", "arguments", "time", "ok", "original_digest", "observation_available"):
                 self.assertEqual(row[key], prior[key])
-        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_tasks/resources/planner.md").read_text(encoding="utf-8")
+        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_project/resources/planner.md").read_text(encoding="utf-8")
         system = guide + "\nJSON schema:\n" + json.dumps(decision_schema(RevisionProposal), separators=(",", ":"))
         self.assertEqual(capture["original_input_characters"], 130147)
         self.assertLess(len(system) + len(json.dumps(selected, ensure_ascii=False, separators=(",", ":"))), capture["original_input_characters"])
         self.assertEqual(payload, before)
 
     def test_current_recipes_and_unusual_search_shapes_stay_explicit(self):
-        from workflows.minecraft_tasks.steps import scoped_decision_context
+        from workflows.minecraft_project.steps import scoped_decision_context
         capture = json.loads((CAPTURE.parent / "a13-planner-growth.json").read_text(encoding="utf-8"))
         payload = copy.deepcopy(capture["unscoped_context"])
         for row in payload["previous_site_survey"]["recipes"]:
@@ -518,8 +518,8 @@ class GameplayTests(unittest.TestCase):
                               **{**call["arguments"], "recovery_action": False})
 
     def test_captured_alive_claim_cannot_establish_required_health(self):
-        from workflows.minecraft_tasks.schemas import Condition
-        from workflows.minecraft_tasks.verification import evaluate
+        from workflows.minecraft_project.schemas import Condition
+        from workflows.minecraft_project.acceptance import evaluate
         capture = json.loads((CAPTURE.parent / "a13-health-predicate.json").read_text(encoding="utf-8"))
         rejected = next(c for n in capture["proposal"]["updates"] for c in n["criteria"] if c["id"] == "rec_health")
         alive = Condition.model_validate(rejected)
@@ -545,8 +545,8 @@ class GameplayTests(unittest.TestCase):
                 Condition.model_validate({**health.model_dump(), **operands})
 
     def test_captured_long_mining_context_retains_decision_facts_within_budget(self):
-        from workflows.minecraft_tasks.steps import scoped_decision_context, decision_schema
-        from workflows.minecraft_tasks.schemas import RevisionProposal
+        from workflows.minecraft_project.steps import scoped_decision_context, decision_schema
+        from workflows.minecraft_project.schemas import RevisionProposal
         capture = json.loads((CAPTURE.parent / "a13-decision-scope.json").read_text(encoding="utf-8"))
         original = capture["input"]
         payload = json.loads(original["messages"][1]["content"])
@@ -573,13 +573,13 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(scoped["previous_tree"], payload["previous_tree"])
         self.assertEqual(scoped["latest_verification"]["specification"]["from_node"], "site_survey")
         self.assertNotIn("reads", scoped["latest_verification"])
-        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_tasks/resources/planner.md").read_text(encoding="utf-8")
+        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_project/resources/planner.md").read_text(encoding="utf-8")
         system = guide + "\nJSON schema:\n" + json.dumps(decision_schema(RevisionProposal), separators=(",", ":"))
         self.assertEqual(original["input_characters"], 274405)
         self.assertLess(len(system) + len(json.dumps(scoped, ensure_ascii=False, separators=(",", ":"))), 118000)
 
     def test_captured_failed_verification_keeps_all_original_reads_when_scoped(self):
-        from workflows.minecraft_tasks.steps import scoped_decision_context
+        from workflows.minecraft_project.steps import scoped_decision_context
         capture = json.loads((CAPTURE.parent / "a13-resumed-context.json").read_text(encoding="utf-8"))
         payload = json.loads(capture["documents"]["planner_input"]["messages"][1]["content"])
         payload["latest_verification"]["verified"] = False
@@ -630,7 +630,7 @@ class GameplayTests(unittest.TestCase):
 
     def test_actual_approved_m3_plan_still_lacks_required_house_and_root_checks(self):
         from dev.work_items.alpha_a13_minecraft_gate import m3_plan_constraints
-        from workflows.minecraft_tasks.schemas import TaskTree
+        from workflows.minecraft_project.schemas import TaskTree
         capture = json.loads((CAPTURE.parent / "a13-m3-contract-gap.json").read_text(encoding="utf-8"))
         self.assertEqual(capture["documents"]["review"]["status"], "accepted")
         tree = TaskTree.model_validate(capture["documents"]["tree"])
@@ -657,10 +657,10 @@ class GameplayTests(unittest.TestCase):
         from dev.work_items.alpha_a11_minecraft_gate import project_contract_manifest
         from dev.work_items.alpha_a13_minecraft_gate import m3_plan_constraints, m3_project_check
         from workflows.minecraft.module_tools import build_minecraft_module_tools
-        from workflows.minecraft_tasks.schemas import TaskTree
+        from workflows.minecraft_project.schemas import TaskTree
         from pm.host.folder_target import FolderEnvironment
         project = Path(__file__).resolve().parents[1]
-        original = project / "workflows/minecraft_tasks/minecraft_tasks.workflow.md"
+        original = project / "workflows/minecraft_project/minecraft_project.workflow.md"
         before = original.read_bytes()
         capture = json.loads((CAPTURE.parent / "a13-m3-contract-gap.json").read_text(encoding="utf-8"))
         with TemporaryDirectory() as folder:
@@ -688,7 +688,7 @@ class GameplayTests(unittest.TestCase):
 
     def test_captured_native_m3_repair_covers_goal_without_replacing_accepted_work(self):
         from dev.work_items.alpha_a13_minecraft_gate import m3_plan_constraints
-        from workflows.minecraft_tasks.schemas import TaskTree
+        from workflows.minecraft_project.schemas import TaskTree
         before = json.loads((CAPTURE.parent / "a13-m3-contract-gap.json").read_text(encoding="utf-8"))["documents"]["tree"]
         capture = json.loads((CAPTURE.parent / "a13-native-m3-contract-repair.json").read_text(encoding="utf-8"))
         after = capture["documents"]["tree"]
@@ -702,8 +702,8 @@ class GameplayTests(unittest.TestCase):
             self.assertEqual(old[key], new[key])
 
     def test_captured_region_air_count_requires_all_variants_and_complete_coverage(self):
-        from workflows.minecraft_tasks.schemas import Condition
-        from workflows.minecraft_tasks.verification import evaluate
+        from workflows.minecraft_project.schemas import Condition
+        from workflows.minecraft_project.acceptance import evaluate
         capture = json.loads((CAPTURE.parent / "a13-region-air-count.json").read_text(encoding="utf-8"))["documents"]
         conditions = [Condition.model_validate(c) for c in capture["node"]["criteria"]]
         air = next(c for c in conditions if c.id == "ss_air_clear")
@@ -724,8 +724,8 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(reads, before)
 
     def test_captured_region_air_counter_rejects_invalid_counter_projections(self):
-        from workflows.minecraft_tasks.schemas import Condition
-        from workflows.minecraft_tasks.verification import evaluate
+        from workflows.minecraft_project.schemas import Condition
+        from workflows.minecraft_project.acceptance import evaluate
         capture = json.loads((CAPTURE.parent / "a13-region-air-count.json").read_text(encoding="utf-8"))["documents"]
         air = next(Condition.model_validate(c) for c in capture["node"]["criteria"] if c["id"] == "ss_air_clear")
         all_variants = air.model_copy(update={"names": ["air", "cave_air", "void_air"]})
@@ -750,9 +750,9 @@ class GameplayTests(unittest.TestCase):
         return result
 
     def test_initial_invalid_plan_repair_does_not_load_revision_zero(self):
-        from workflows.minecraft_tasks.schemas import PlanProposal
-        from workflows.minecraft_tasks.steps import rejected_context
-        from workflows.minecraft_tasks.tree import digest
+        from workflows.minecraft_project.schemas import PlanProposal
+        from workflows.minecraft_project.steps import rejected_context
+        from workflows.minecraft_project.tree_store import digest
         capture = json.loads((CAPTURE.parent / "a13-initial-plan-rejection.json").read_text(encoding="utf-8"))
         raw, state = capture["documents"]["raw"], capture["documents"]["state"]
         self.assertEqual(state["revision"], 0)
@@ -773,8 +773,8 @@ class GameplayTests(unittest.TestCase):
             self.assertEqual(store.path_for(source).read_bytes(), before)
 
     def test_initial_repair_retains_first_actual_geometry_after_later_rejection(self):
-        from workflows.minecraft_tasks.steps import rejected_context
-        from workflows.minecraft_tasks.tree import digest
+        from workflows.minecraft_project.steps import rejected_context
+        from workflows.minecraft_project.tree_store import digest
         capture = json.loads((CAPTURE.parent / "a13-initial-repair-context.json").read_text(encoding="utf-8"))
         documents = capture["documents"]
         state = documents["state"]
@@ -802,9 +802,9 @@ class GameplayTests(unittest.TestCase):
 
     def test_initial_semantic_rejection_supplies_complete_tree_and_exact_errors(self):
         from collections import Counter
-        from workflows.minecraft_tasks.schemas import PlanProposal, TaskTree
-        from workflows.minecraft_tasks.steps import scoped_rejection
-        from workflows.minecraft_tasks.tree import validate_tree
+        from workflows.minecraft_project.schemas import PlanProposal, TaskTree
+        from workflows.minecraft_project.steps import scoped_rejection
+        from workflows.minecraft_project.tree_store import validate_tree
         capture = json.loads((CAPTURE.parent / "a13-initial-tree-repair.json").read_text(encoding="utf-8"))
         original = capture["documents"]["rejected_tree"]
         tree = TaskTree.model_validate(original)
@@ -828,8 +828,8 @@ class GameplayTests(unittest.TestCase):
         self.assertIn(str(duplicate_cells), str(failure.exception))
 
     def test_initial_candidate_keeps_actual_complete_tree_before_root_fragment(self):
-        from workflows.minecraft_tasks.steps import initial_candidate
-        from workflows.minecraft_tasks.tree import validate_tree
+        from workflows.minecraft_project.steps import initial_candidate
+        from workflows.minecraft_project.tree_store import validate_tree
         capture = json.loads((CAPTURE.parent / "a13-initial-tree-repair.json").read_text(encoding="utf-8"))
         with TemporaryDirectory() as folder:
             store = TreeStore(Path(folder))
@@ -853,9 +853,9 @@ class GameplayTests(unittest.TestCase):
 
     def test_actual_incomplete_node_update_is_rejected_by_generation_schema(self):
         from jsonschema.validators import validator_for
-        from workflows.minecraft_tasks.schemas import RevisionProposal, TaskTree
-        from workflows.minecraft_tasks.steps import apply_node_updates, decision_schema
-        from workflows.minecraft_tasks.tree import validate_tree
+        from workflows.minecraft_project.schemas import RevisionProposal, TaskTree
+        from workflows.minecraft_project.steps import apply_node_updates, decision_schema
+        from workflows.minecraft_project.tree_store import validate_tree
         capture = json.loads((CAPTURE.parent / "a13-incomplete-node-update.json").read_text(encoding="utf-8"))
         raw = json.loads(capture["documents"]["response"]["choices"][0]["message"]["content"])
         self.assertNotIn("parent", raw["updates"][0])
@@ -873,9 +873,9 @@ class GameplayTests(unittest.TestCase):
 
     def test_actual_model_candidate_repair_keeps_all_other_node_operands(self):
         from jsonschema.validators import validator_for
-        from workflows.minecraft_tasks.schemas import RevisionProposal, TaskTree
-        from workflows.minecraft_tasks.steps import apply_node_updates, decision_schema
-        from workflows.minecraft_tasks.tree import node_digest, validate_tree
+        from workflows.minecraft_project.schemas import RevisionProposal, TaskTree
+        from workflows.minecraft_project.steps import apply_node_updates, decision_schema
+        from workflows.minecraft_project.tree_store import node_digest, validate_tree
         capture = json.loads((CAPTURE.parent / "a13-incomplete-node-update.json").read_text(encoding="utf-8"))
         raw = json.loads(capture["documents"]["repair_response"]["choices"][0]["message"]["content"])
         schema = decision_schema(RevisionProposal)
@@ -897,7 +897,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(len(merged.nodes), 16)
 
     def test_actual_invalid_memory_operands_and_valid_calls_use_public_schema(self):
-        from runtime.minecraft_actor import argument_errors
+        from workflows.minecraft_body.gateway import argument_errors
         capture = json.loads((CAPTURE.parent / "a13-invalid-arguments.json").read_text(encoding="utf-8"))
         invalid = next(row for entry in capture["journals"] for row in entry["rows"]
                        if row.get("event") == "uncertain")
@@ -961,7 +961,7 @@ class GameplayTests(unittest.TestCase):
         self.assertIn("updateSlot:0", capture["body_error"])
 
     def test_actual_respawn_cannot_prove_survival_or_unlock_mutation(self):
-        from runtime.minecraft_outcomes import safe_landing
+        from workflows.minecraft_body.call_outcomes import safe_landing
         capture = json.loads((CAPTURE.parent / "a13-respawn-boundary.json").read_text(encoding="utf-8"))["probe"]
         evidence = GameplayEvidence()
         source = capture["gameplay"]["failed_recoveries"][0]["source"]
@@ -1004,8 +1004,8 @@ class GameplayTests(unittest.TestCase):
             evidence.consume(invalid, source)
 
     def test_captured_alive_body_does_not_prove_food_recovery(self):
-        from workflows.minecraft_tasks.schemas import Condition
-        from workflows.minecraft_tasks.verification import evaluate
+        from workflows.minecraft_project.schemas import Condition
+        from workflows.minecraft_project.acceptance import evaluate
         capture = json.loads((CAPTURE.parent / "a13-review-context.json").read_text(encoding="utf-8"))
         food = Condition(id="food", description="Food has recovered above the low-supplies threshold.", kind="food", minimum=7)
         alive = Condition(id="alive", description="The body is alive.", kind="alive")
@@ -1024,7 +1024,7 @@ class GameplayTests(unittest.TestCase):
             self.assertEqual(evaluate([food], [invalid]), {"food": False})
 
     def test_food_condition_rejects_item_geometry_and_out_of_range_thresholds(self):
-        from workflows.minecraft_tasks.schemas import Condition
+        from workflows.minecraft_project.schemas import Condition
         base = {"id": "food", "description": "Enough food for normal work.", "kind": "food", "minimum": 7}
         self.assertEqual(Condition.model_validate(base).minimum, 7)
         for operands in ({"minimum": 21}, {"minimum": -1}, {"names": ["bread"]},
@@ -1033,7 +1033,7 @@ class GameplayTests(unittest.TestCase):
                 Condition.model_validate({**base, **operands})
 
     def test_original_waiting_review_already_received_recipe_operands(self):
-        from workflows.minecraft_tasks.steps import scoped_reads
+        from workflows.minecraft_project.steps import scoped_reads
         capture = json.loads((CAPTURE.parent / "a13-review-context.json").read_text(encoding="utf-8"))
         payload = json.loads(capture["original_input"]["messages"][1]["content"])
         recipes = scoped_reads(capture["original_survey"]["recipes"])
@@ -1046,9 +1046,9 @@ class GameplayTests(unittest.TestCase):
                          {"minecraft_recipe_search", "minecraft_smelt_item", "minecraft_eat_best"})
 
     def test_recipe_only_survey_retains_explicit_refinement_queries(self):
-        from workflows.minecraft_tasks.schemas import PlanProposal, RefinementProposal
-        from workflows.minecraft_tasks.steps import refinement_plan
-        from workflows.minecraft_tasks.schemas import TaskTree
+        from workflows.minecraft_project.schemas import PlanProposal, RefinementProposal
+        from workflows.minecraft_project.steps import refinement_plan
+        from workflows.minecraft_project.schemas import TaskTree
         capture = json.loads((CAPTURE.parent / "a13-review-context.json").read_text(encoding="utf-8"))
         original = json.loads(capture["original_input"]["messages"][1]["content"])
         patterns = [row["arguments"]["pattern"] for row in original["current_site_survey"]["recipes"]]
@@ -1064,7 +1064,7 @@ class GameplayTests(unittest.TestCase):
                 PlanProposal.model_validate({"summary": "Invalid lookup scope.", **invalid})
 
     def test_captured_waiting_plan_gets_fresh_review_without_erasing_partial_work(self):
-        from workflows.minecraft_tasks.steps import restart_review
+        from workflows.minecraft_project.steps import restart_review
         capture = json.loads((CAPTURE.parent / "a13-review-context.json").read_text(encoding="utf-8"))
         original = capture["waiting_planner"]["planning_state"]
         with TemporaryDirectory() as folder:
@@ -1084,8 +1084,8 @@ class GameplayTests(unittest.TestCase):
             self.assertEqual(store.state["attempts"][-1]["state"], "interrupted")
 
     def test_captured_removed_nodes_repair_uses_authoritative_tree_and_explicit_updates(self):
-        from workflows.minecraft_tasks.schemas import RevisionProposal, TaskTree
-        from workflows.minecraft_tasks.steps import scoped_rejection, compact_plan_context, scoped_decision_context, decision_schema
+        from workflows.minecraft_project.schemas import RevisionProposal, TaskTree
+        from workflows.minecraft_project.steps import scoped_rejection, compact_plan_context, scoped_decision_context, decision_schema
         capture = json.loads((CAPTURE.parent / "a13-review-context.json").read_text(encoding="utf-8"))["removed_nodes_repair"]
         original = capture["original_input"]
         payload = json.loads(original["messages"][1]["content"])
@@ -1103,7 +1103,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(update.updates[0].id, "recover")
         payload["rejected_proposal"] = scoped
         compact = scoped_decision_context(compact_plan_context(payload))
-        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_tasks/resources/planner.md").read_text(encoding="utf-8")
+        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_project/resources/planner.md").read_text(encoding="utf-8")
         system = guide + "\nJSON schema:\n" + json.dumps(decision_schema(RevisionProposal), separators=(",", ":"))
         characters = len(system) + len(json.dumps(compact, ensure_ascii=False, separators=(",", ":")))
         self.assertGreater(original["input_characters"], 123000)
@@ -1170,8 +1170,8 @@ class GameplayTests(unittest.TestCase):
         return result
 
     def test_captured_resumed_planning_input_preserves_all_recent_outcomes_within_budget(self):
-        from workflows.minecraft_tasks.steps import scoped_gameplay, decision_schema
-        from workflows.minecraft_tasks.schemas import RevisionProposal
+        from workflows.minecraft_project.steps import scoped_gameplay, decision_schema
+        from workflows.minecraft_project.schemas import RevisionProposal
         capture = json.loads((CAPTURE.parent / "a13-resumed-context.json").read_text(encoding="utf-8"))
         original = capture["documents"]["planner_input"]
         payload = json.loads(original["messages"][1]["content"])
@@ -1190,7 +1190,7 @@ class GameplayTests(unittest.TestCase):
             self.assertEqual(restored[key], expanded[key])
         self.assertTrue(any(row.get("changes", {}).get("seq") for row in scoped["recent_outcomes"]))
         payload["gameplay_history"] = scoped
-        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_tasks/resources/planner.md").read_text(encoding="utf-8")
+        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_project/resources/planner.md").read_text(encoding="utf-8")
         system = guide + "\nJSON schema:\n" + json.dumps(decision_schema(RevisionProposal), separators=(",", ":"))
         characters = len(system) + len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
         self.assertEqual(original["input_characters"], 123694)
@@ -1198,7 +1198,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(json.loads(original["messages"][1]["content"]), before)
 
     def test_captured_current_leaf_operands_override_historical_success_claim(self):
-        from workflows.minecraft.actor import leaf_execution_context
+        from workflows.minecraft.specialist_session import leaf_execution_context
         from workflows.minecraft.schemas import MinecraftRequest
         capture = json.loads((CAPTURE.parent / "a13-resumed-context.json").read_text(encoding="utf-8"))
         request = MinecraftRequest.model_validate(capture["documents"]["leaf_request"])
@@ -1213,7 +1213,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(context["identity"]["actor_attempt"], "actor-0011")
 
     def test_captured_observation_loop_keeps_current_reads_beside_leaf_operands(self):
-        from workflows.minecraft.actor import leaf_execution_context
+        from workflows.minecraft.specialist_session import leaf_execution_context
         from workflows.minecraft.schemas import MinecraftRequest
         capture = json.loads((CAPTURE.parent / "a13-native-observation-loop.json").read_text(encoding="utf-8"))
         request = MinecraftRequest.model_validate(capture["leaf_request"])
@@ -1227,9 +1227,9 @@ class GameplayTests(unittest.TestCase):
         self.assertNotIn("prerequisites", context)
 
     def test_captured_caller_requirements_reach_private_leaf_context(self):
-        from workflows.minecraft.actor import leaf_execution_context
+        from workflows.minecraft.specialist_session import leaf_execution_context
         from workflows.minecraft.schemas import MinecraftRequest
-        from workflows.minecraft_tasks.steps import leaf_project_context
+        from workflows.minecraft_project.steps import leaf_project_context
         capture = json.loads((CAPTURE.parent / "a13-caller-actor-context.json").read_text(encoding="utf-8"))
         original = capture["actor_request"]
         self.assertNotIn("caller_constraints", original["acceptance"]["project"])
@@ -1252,7 +1252,7 @@ class GameplayTests(unittest.TestCase):
         self.assertNotIn("prerequisites", context)
 
     def test_captured_geometry_remains_in_scoped_observations(self):
-        from workflows.minecraft_tasks.steps import scoped_reads
+        from workflows.minecraft_project.steps import scoped_reads
         capture = json.loads((CAPTURE.parent / "a13-block-geometry.json").read_text(encoding="utf-8"))
         original = [row for row in capture["confirmed_probe"]["calls"] if row["tool"] == "minecraft_inspect_block"]
         scoped = scoped_reads(original)
@@ -1267,8 +1267,8 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(capture["failed_initial_assumption"]["status"], "failed")
 
     def test_captured_food_repair_budget_shares_only_identical_context(self):
-        from workflows.minecraft_tasks.steps import compact_plan_context, scoped_gameplay, decision_schema
-        from workflows.minecraft_tasks.schemas import RevisionProposal
+        from workflows.minecraft_project.steps import compact_plan_context, scoped_gameplay, decision_schema
+        from workflows.minecraft_project.schemas import RevisionProposal
         capture = json.loads((CAPTURE.parent / "a13-review-context.json").read_text(encoding="utf-8"))
         original = capture["repair_budget"]["original_input"]
         payload = json.loads(original["messages"][1]["content"])
@@ -1292,7 +1292,7 @@ class GameplayTests(unittest.TestCase):
                           for row in expanded["methods"]]
         compact["gameplay_history"] = scoped_gameplay(raw)
         self.assertEqual(self.unpack_planning_history(compact["gameplay_history"])["methods"], expanded["methods"])
-        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_tasks/resources/planner.md").read_text(encoding="utf-8")
+        guide = (Path(__file__).resolve().parents[1] / "workflows/minecraft_project/resources/planner.md").read_text(encoding="utf-8")
         # This captured repair has an accepted tree and no refinement target.
         # Current production therefore sends the explicit revision contract.
         system = guide + "\nJSON schema:\n" + json.dumps(decision_schema(RevisionProposal), separators=(",", ":"))
@@ -1359,7 +1359,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(history.navigation["ineffective"], 2)
 
     def test_original_m3_planning_history_fits_without_losing_methods_or_partial_work(self):
-        from workflows.minecraft_tasks.steps import scoped_gameplay
+        from workflows.minecraft_project.steps import scoped_gameplay
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         original = capture["original_input"]
         payload = json.loads(original["messages"][1]["content"])
@@ -1388,7 +1388,7 @@ class GameplayTests(unittest.TestCase):
         self.assertLess(characters, original["input_characters"])
 
     def test_accumulated_captured_m3_history_fits_with_every_method_and_quantity(self):
-        from workflows.minecraft_tasks.steps import scoped_gameplay
+        from workflows.minecraft_project.steps import scoped_gameplay
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         original = capture["accumulated_input"]["original_input"]
         payload = json.loads(original["messages"][1]["content"])
@@ -1415,9 +1415,9 @@ class GameplayTests(unittest.TestCase):
         self.assertLess(characters, original["input_characters"])
 
     def test_original_rejected_m3_revision_keeps_exact_changed_conditions_within_budget(self):
-        from workflows.minecraft_tasks.schemas import TaskTree
-        from workflows.minecraft_tasks.steps import scoped_rejected_tree
-        from workflows.minecraft_tasks.tree import node_digest
+        from workflows.minecraft_project.schemas import TaskTree
+        from workflows.minecraft_project.steps import scoped_rejected_tree
+        from workflows.minecraft_project.tree_store import node_digest
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         original = capture["repair_input"]["original_input"]
         payload = json.loads(original["messages"][1]["content"])
@@ -1450,8 +1450,8 @@ class GameplayTests(unittest.TestCase):
                 store.revise(rejected)
 
     def test_original_invalid_m3_json_stays_raw_and_supplies_the_actual_error_location(self):
-        from workflows.minecraft_tasks.schemas import TaskTree
-        from workflows.minecraft_tasks.steps import scoped_rejection
+        from workflows.minecraft_project.schemas import TaskTree
+        from workflows.minecraft_project.steps import scoped_rejection
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         payload = json.loads(capture["repair_input"]["original_input"]["messages"][1]["content"])
         raw = capture["invalid_raw"]
@@ -1468,7 +1468,7 @@ class GameplayTests(unittest.TestCase):
         self.assertNotIn("changed_nodes", scoped)
 
     def test_original_unrelated_m3_refinement_names_the_affected_node_and_retains_the_tree(self):
-        from workflows.minecraft_tasks.schemas import TaskTree
+        from workflows.minecraft_project.schemas import TaskTree
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         payload = json.loads(capture["repair_input"]["original_input"]["messages"][1]["content"])
         with TemporaryDirectory() as directory:
@@ -1480,9 +1480,9 @@ class GameplayTests(unittest.TestCase):
             self.assertEqual(store.load().model_dump(mode="json"), before)
 
     def test_original_recovery_proposal_can_update_explicit_nodes_without_copying_accepted_work(self):
-        from workflows.minecraft_tasks.schemas import PlanProposal, TaskTree
-        from workflows.minecraft_tasks.steps import apply_node_updates
-        from workflows.minecraft_tasks.tree import node_digest
+        from workflows.minecraft_project.schemas import PlanProposal, TaskTree
+        from workflows.minecraft_project.steps import apply_node_updates
+        from workflows.minecraft_project.tree_store import node_digest
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         payload = json.loads(capture["repair_input"]["original_input"]["messages"][1]["content"])
         previous = TaskTree.model_validate(payload["previous_tree"])
@@ -1501,8 +1501,8 @@ class GameplayTests(unittest.TestCase):
             self.assertIn("recovery", {node.id for node in store.load().nodes})
 
     def test_original_active_recovery_supersedes_optional_refinement_restrictions(self):
-        from workflows.minecraft_tasks.schemas import TaskTree
-        from workflows.minecraft_tasks.steps import refinement_scope
+        from workflows.minecraft_project.schemas import TaskTree
+        from workflows.minecraft_project.steps import refinement_scope
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         payload = json.loads(capture["latest_copy_failure"]["input"]["messages"][1]["content"])
         self.assertTrue(payload["gameplay_history"]["recovery"])
@@ -1516,7 +1516,7 @@ class GameplayTests(unittest.TestCase):
 
     def test_node_update_contract_cannot_combine_full_tree_duplicate_ids_or_a_survey(self):
         from pydantic import ValidationError
-        from workflows.minecraft_tasks.schemas import PlanProposal, TaskTree
+        from workflows.minecraft_project.schemas import PlanProposal, TaskTree
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         tree = TaskTree.model_validate(capture["latest_copy_failure"]["tree"])
         node = next(node for node in tree.nodes if node.id == "recovery")
@@ -1527,8 +1527,8 @@ class GameplayTests(unittest.TestCase):
                     PlanProposal.model_validate({"status": "planned", "summary": "Reject ambiguous updates.", **arguments})
 
     def test_original_blocked_recovery_review_survives_without_accepting_the_unsafe_leaf(self):
-        from workflows.minecraft_tasks.schemas import PlanReview, TaskTree
-        from workflows.minecraft_tasks.steps import record_review
+        from workflows.minecraft_project.schemas import PlanReview, TaskTree
+        from workflows.minecraft_project.steps import record_review
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))["blocked_review"]
         result = PlanReview.model_validate(capture["result"])
         self.assertEqual(result.status, "blocked")
@@ -1545,8 +1545,8 @@ class GameplayTests(unittest.TestCase):
             self.assertFalse(restored.state["acceptances"])
 
     def test_original_ready_recovery_preserves_the_optional_refinement_boundary(self):
-        from workflows.minecraft_tasks.schemas import TaskTree
-        from workflows.minecraft_tasks.steps import refinement_scope
+        from workflows.minecraft_project.schemas import TaskTree
+        from workflows.minecraft_project.steps import refinement_scope
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))["ready_recovery_refinement"]
         history = json.loads(capture["input"]["messages"][1]["content"])["gameplay_history"]
         self.assertTrue(history["recovery"])
@@ -1560,15 +1560,15 @@ class GameplayTests(unittest.TestCase):
 
     def test_original_missing_target_update_cannot_satisfy_the_explicit_refinement_contract(self):
         from pydantic import ValidationError
-        from workflows.minecraft_tasks.schemas import RefinementProposal
+        from workflows.minecraft_project.schemas import RefinementProposal
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))["missing_target_update"]
         self.assertNotIn("h_build", {node["id"] for node in capture["proposal"]["updates"]})
         with self.assertRaisesRegex(ValidationError, "replacement"):
             RefinementProposal.model_validate(capture["proposal"])
 
     def test_explicit_refinement_cannot_replace_the_wrong_existing_node(self):
-        from workflows.minecraft_tasks.schemas import RefinementProposal, TaskTree
-        from workflows.minecraft_tasks.steps import refinement_plan
+        from workflows.minecraft_project.schemas import RefinementProposal, TaskTree
+        from workflows.minecraft_project.steps import refinement_plan
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         previous = TaskTree.model_validate(capture["ready_recovery_refinement"]["tree"])
         full = TaskTree.model_validate(capture["missing_target_update"]["full_split"]["tree"])
@@ -1580,8 +1580,8 @@ class GameplayTests(unittest.TestCase):
             refinement_plan(previous, "h_build", RefinementProposal(status="planned", summary="Unrelated replacement.", replacement=target, additions=[home]))
 
     def test_original_explicit_split_still_cannot_weaken_house_world_predicates(self):
-        from workflows.minecraft_tasks.schemas import RefinementProposal, TaskTree
-        from workflows.minecraft_tasks.steps import apply_node_updates, refinement_plan
+        from workflows.minecraft_project.schemas import RefinementProposal, TaskTree
+        from workflows.minecraft_project.steps import apply_node_updates, refinement_plan
         capture = json.loads((CAPTURE.parent / "a13-planning-budget.json").read_text(encoding="utf-8"))
         previous = TaskTree.model_validate(capture["ready_recovery_refinement"]["tree"])
         full = TaskTree.model_validate(capture["missing_target_update"]["full_split"]["tree"])
@@ -1802,7 +1802,7 @@ class GameplayTests(unittest.TestCase):
         self.assertIsNone(evidence.guard("minecraft_observe", {"include_image": False}))
 
     def test_original_prefixed_diagnosis_binds_the_actual_paused_dispatch(self):
-        from runtime.minecraft_actor import canonical_actor_tool
+        from workflows.minecraft_body.gateway import canonical_actor_tool
         capture = json.loads((CAPTURE.parent / "a13-prefixed-diagnosis.json").read_text(encoding="utf-8"))
         evidence = GameplayEvidence()
         for row in capture["rows"]:
@@ -1817,7 +1817,7 @@ class GameplayTests(unittest.TestCase):
         self.assertIsNone(evidence.guard(name, original["next_arguments"]))
 
     def test_diagnosis_cannot_bind_unknown_or_excluded_actor_tools(self):
-        from runtime.minecraft_actor import canonical_actor_tool
+        from workflows.minecraft_body.gateway import canonical_actor_tool
         capture = json.loads((CAPTURE.parent / "a13-prefixed-diagnosis.json").read_text(encoding="utf-8"))
         for name in ("other_actor_minecraft_craft_item", "minecraft_actor_actor_diagnose",
                      "minecraft_actor_minecraft_execute_typescript", "minecraft_suicide"):
@@ -1863,7 +1863,7 @@ class GameplayTests(unittest.TestCase):
         self.assertIsNone(evidence.recovery)
 
     def test_missing_geometry_and_liquid_cannot_establish_safe_landing(self):
-        from runtime.minecraft_outcomes import safe_landing
+        from workflows.minecraft_body.call_outcomes import safe_landing
         self.assertFalse(safe_landing({"is_solid": True, "block_name": "stone"}, {}, {}))
         self.assertFalse(safe_landing({"is_solid": True, "block_name": "stone"},
                                       {"is_solid": False, "block_name": "water"},
@@ -1884,7 +1884,7 @@ class GameplayTests(unittest.TestCase):
         self.assertIsNone(evidence.service_wait)
 
     def test_exact_block_contract_rejects_inventory_globs(self):
-        from workflows.minecraft_tasks.schemas import Condition
+        from workflows.minecraft_project.schemas import Condition
         with self.assertRaisesRegex(ValueError, "exact block names"):
             Condition(id="floor", description="A known floor cell.", kind="block", names=["*_planks"],
                       position={"x": 0, "y": 0, "z": 0})

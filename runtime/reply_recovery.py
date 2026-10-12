@@ -28,7 +28,7 @@ def task_evidence(receipt: dict) -> dict:
         if isinstance(report, dict):
             result["report"] = report
             if report.get("schema") == "pm.minecraft-project-report.v1" and report.get("verified") is True:
-                from workflows.minecraft_tasks.verification import verified_project
+                from workflows.minecraft_project.acceptance import verified_project
                 verification = verified_project(root)
                 result["minecraft_verification"] = verification
                 result["task_verified"] = receipt.get("state") == "completed" and verification["verified"]
@@ -42,7 +42,7 @@ def task_evidence(receipt: dict) -> dict:
                 result["actual_hex"] = actual.hex() if actual is not None else None
             elif (report.get("schema") == "pm.minecraft-actor-report.v1" and report.get("verified") is True
                   and report.get("acceptance", {}).get("kind") == "wood_return"):
-                from workflows.minecraft.actor import verify_wood_return
+                from workflows.minecraft.specialist_session import verify_wood_return
                 journal = (root / report["journal"]).resolve()
                 if not journal.is_relative_to(root / "scratch"):
                     raise ValueError("The Minecraft journal escaped its task scratch directory.")

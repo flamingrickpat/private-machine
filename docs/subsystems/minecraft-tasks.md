@@ -27,13 +27,13 @@ An inventory question retains its direct Assistant observation path.
 
 ## Input and result
 
-[`workflows.minecraft_tasks.schemas.ProjectRequest`][] accepts a goal or instruction, body identity, persona context, and optional proposed specification.
+[`workflows.minecraft_project.schemas.ProjectRequest`][] accepts a goal or instruction, body identity, persona context, and optional proposed specification.
 `plan_only=true` retains an independently reviewed plan without world mutation.
 It does not establish an executed project.
 Ordinary execution writes `outbox/report.yaml` with schema `pm.minecraft-project-report.v1`.
 Its `verified` flag requires retained independent evidence for every leaf, story, and goal.
 
-[`workflows.minecraft_tasks.schemas.TaskTree`][] contains stable IDs, hierarchy, dependencies, acceptance criteria, and relevant assumptions.
+[`workflows.minecraft_project.schemas.TaskTree`][] contains stable IDs, hierarchy, dependencies, acceptance criteria, and relevant assumptions.
 Goals and stories have children.
 Leaves have no children and describe meaningful outcomes.
 The model can choose any feasible goal content within the configured Minecraft action space.
@@ -59,7 +59,7 @@ flowchart LR
 ```
 
 The executable manifest declares every progress, completion, replanning, waiting, and blocked route.
-[`workflows.minecraft_tasks.steps.run`][] performs one declared Python role.
+[`workflows.minecraft_project.steps.run`][] performs one declared Python role.
 The planner and reviewer use separate scoped normal-LLM calls.
 The planner can return `survey` with explicit world-query operands.
 The survey phase reads those operands without an actor or world mutation.
@@ -88,7 +88,7 @@ The leaf retains native pm-coder history handling and automatic compaction.
 
 ## State ownership and revisions
 
-[`workflows.minecraft_tasks.tree.TreeStore`][] owns one managed task folder.
+[`workflows.minecraft_project.tree_store.TreeStore`][] owns one managed task folder.
 `planning/state.json` indexes immutable specification snapshots, attempts, decisions, and active acceptance receipts.
 It keeps the original project observation separately from the latest observation.
 Replanning receives both. An unchanged relative inventory request keeps its original baseline after partial work.

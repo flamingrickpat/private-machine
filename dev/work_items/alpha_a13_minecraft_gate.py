@@ -156,8 +156,8 @@ def m3_plan_constraints(tree) -> dict:
 
 def m3_project_check(root: Path, tree, initial: dict, character: Path) -> dict:
     """Check actual iron provenance and durable home and return-route effects."""
-    from runtime.minecraft_actor import read_actor_journal
-    from workflows.minecraft_tasks.tree import TreeStore
+    from workflows.minecraft_body.journal import read_actor_journal
+    from workflows.minecraft_project.tree_store import TreeStore
     store, geometry = TreeStore(root), m3_geometry(tree)
     chain = iron_chain(root, initial)
     errors = list(geometry["errors"])
@@ -237,8 +237,8 @@ def iron_chain(root: Path, initial: dict) -> dict:
     Fresh world and inventory evidence exclude supplied iron. Container
     withdrawals remain separate effects and cannot establish ore provenance.
     """
-    from runtime.minecraft_actor import read_actor_journal
-    from workflows.minecraft_tasks.tree import TreeStore
+    from workflows.minecraft_body.journal import read_actor_journal
+    from workflows.minecraft_project.tree_store import TreeStore
     store = TreeStore(root)
     rows = [row for attempt in store.state["attempts"]
             for row in read_actor_journal(store.path_for(attempt["path"] + "/scratch/actor-journal.jsonl"))
@@ -326,7 +326,7 @@ def run(args) -> None:
             receipt = json.loads(path.read_text(encoding="utf-8"))
             task_root = receipt.get("task_root")
             if task_root and (Path(task_root) / "planning/state.json").is_file():
-                from workflows.minecraft_tasks.tree import TreeStore
+                from workflows.minecraft_project.tree_store import TreeStore
                 store = TreeStore(Path(task_root))
                 chain = iron_chain(Path(task_root), receipt.get("initial_observation", {}))
                 (args.out / "iron-chain.json").write_text(json.dumps(chain, indent=2), encoding="utf-8")

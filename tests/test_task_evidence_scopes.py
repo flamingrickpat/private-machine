@@ -7,16 +7,16 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from tests import test_a13_gameplay as captured
-from workflows.minecraft_tasks.evidence import dependency_scope, protect_accepted_specifications, retention_operation, retention_tree, read_source, review_nodes
-from workflows.minecraft_tasks.schemas import EvidenceRead, Renewal, RetentionChoice, RetentionProposal
-from workflows.minecraft_tasks.tree import node_digest
+from workflows.minecraft_project.evidence_selection import dependency_scope, protect_accepted_specifications, retention_operation, retention_tree, read_source, review_nodes
+from workflows.minecraft_project.schemas import EvidenceRead, Renewal, RetentionChoice, RetentionProposal
+from workflows.minecraft_project.tree_store import node_digest
 
 
 class EvidenceScopeTests(unittest.TestCase):
     def test_captured_publication_requirements_reach_shared_plan_context(self):
         import json
-        from workflows.minecraft_tasks.steps import caller_plan_constraints
-        from workflows.minecraft_tasks.tree import TreeStore, digest
+        from workflows.minecraft_project.steps import caller_plan_constraints
+        from workflows.minecraft_project.tree_store import TreeStore, digest
         capture = json.loads((Path(__file__).resolve().parents[1] / 'test_data/captures/alpha/a13-caller-plan-context.json').read_text(encoding='utf-8'))
         original_input = json.loads(capture['review_input']['messages'][1]['content'])
         self.assertNotIn('plan_constraints', original_input)
@@ -42,7 +42,7 @@ class EvidenceScopeTests(unittest.TestCase):
         import base64
         import json
         import zlib
-        from workflows.minecraft_tasks.tree import TreeStore
+        from workflows.minecraft_project.tree_store import TreeStore
         capture = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-scoped-retention.json").read_text())
         files = json.loads(zlib.decompress(base64.b64decode(capture["files_zlib_base64"])))
         with TemporaryDirectory() as folder:
@@ -67,8 +67,8 @@ class EvidenceScopeTests(unittest.TestCase):
                     self.assertEqual(store.state["acceptances"][key], original)
             # M3-48 actually tried to rewrite already certified mining.
             # Replay that native patch through the ordinary repair boundary.
-            from workflows.minecraft_tasks.schemas import RevisionProposal
-            from workflows.minecraft_tasks.steps import apply_node_updates
+            from workflows.minecraft_project.schemas import RevisionProposal
+            from workflows.minecraft_project.steps import apply_node_updates
             conflict = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-historical-review-conflict.json").read_text(encoding="utf-8"))
             patch = RevisionProposal.model_validate(conflict["native_patch"])
             self.assertTrue(store.valid(conflict["native_review"]["target_id"]))

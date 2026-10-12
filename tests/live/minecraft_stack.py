@@ -162,7 +162,7 @@ class MinecraftStack:
         response.raise_for_status()
 
     def _wait_body(self, timeout: float) -> None:
-        from runtime.minecraft_tools import build_minecraft_tools
+        from workflows.minecraft_body.mcp_client import build_minecraft_tools
         tools = build_minecraft_tools(self.mcp_url)
         deadline = time.monotonic() + timeout
         last: Exception | None = None
@@ -188,7 +188,7 @@ class MinecraftStack:
 
 def autostart_enabled(mcp_url: str) -> bool:
     """Autostart only for the default local endpoint and when it is offline."""
-    from runtime.minecraft_tools import DEFAULT_MCP_URL
+    from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL
     override = os.environ.get("PM_MINECRAFT_AUTOSTART", "1") != "0"
     if not override or mcp_url != DEFAULT_MCP_URL:
         return False

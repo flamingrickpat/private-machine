@@ -78,7 +78,7 @@ def _managed_workflows(stage_model=None) -> dict:
             ),
         ),
         "minecraft_project": WorkflowSpec(
-            PROJECT_ROOT / "workflows" / "minecraft_tasks" / "minecraft_tasks.workflow.md",
+            PROJECT_ROOT / "workflows" / "minecraft_project" / "minecraft_project.workflow.md",
             namespace="minecraft_project",
             tools_factory=build_minecraft_module_tools(stage_model.complete if stage_model is not None else None,
                 stage_model.measure_context if stage_model is not None else None),
@@ -308,7 +308,7 @@ def build_app(
         scheduler, status, tool_dialogue,
     ]
     if cognition == "real":
-        from runtime.capabilities import capability_snapshot
+        from workflows.minecraft_body.capabilities import capability_snapshot
         from runtime.reply_recovery import ReplyRecovery
         provider = lambda: capability_snapshot(ghost, supervisor.workflows)
         main_cog.capability_provider = provider

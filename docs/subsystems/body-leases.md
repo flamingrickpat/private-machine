@@ -12,7 +12,7 @@ Related: [Minecraft actor controls](minecraft-actor-controls.md) and [durable pr
 
 ## Local ownership
 
-[`runtime.body_lease.BodyLeases`][] keys ownership by the normalized MCP URL.
+[`workflows.minecraft_body.lease.BodyLeases`][] keys ownership by the normalized MCP URL.
 It removes a trailing slash and normalizes `localhost` and `::1` to `127.0.0.1`.
 The request's `body_id` remains a label.
 Use one configured endpoint per avatar.
@@ -79,7 +79,7 @@ It cannot silently reuse an earlier token.
 The live transport remains `http://127.0.0.1:6767/mcp`.
 The body HTTP service remains on port 6768 and the viewer remains on port 6769.
 Deploy the tested pm-minecraft checkout before enabling A12 clients.
-[`runtime.minecraft_tools.build_minecraft_tools`][] carries the fenced capabilities on the granted transport closure.
+[`workflows.minecraft_body.mcp_client.build_minecraft_tools`][] carries the fenced capabilities on the granted transport closure.
 The root dependency lock does not install pm-minecraft; its separate process uses that repository's own interpreter and checkout.
 
 The root client and native actor use a 660-second request timeout.

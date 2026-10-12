@@ -147,7 +147,7 @@ The support guard rejected direct digging beneath the player, and ordinary movem
 The same actor then repeated successful equipment calls that held the same two dirt items.
 The operator stopped the run with those gains, full health, and no recorded death retained.
 
-[`runtime.minecraft_outcomes.classify`][] now identifies unchanged equipment through item identity and durability.
+[`workflows.minecraft_body.call_outcomes.classify`][] now identifies unchanged equipment through item identity and durability.
 An unchanged successful acknowledgement records `equipment_unchanged`, with no useful progress.
 Two such calls pause the exact equipment method.
 A fresh diagnosis cannot make an unchanged item into a missing pickaxe.
@@ -206,7 +206,7 @@ It never inspected the retained furnace window before several unsuccessful minin
 The operator stopped the run with full health and food, no recorded death, and no new iron.
 The failed receipt and the retained furnace contents remain separate evidence.
 
-[`runtime.minecraft_actor.uncertain_world_effects`][] selects unresolved mutations across all retained actor journals.
+[`workflows.minecraft_body.gateway.uncertain_world_effects`][] selects unresolved mutations across all retained actor journals.
 The opening reconciliation section and initial native prompt now publish their exact source, sequence, tool, operands, and time.
 Successful earlier furnace placements supply historical candidate positions for fresh inspection.
 Those positions do not establish current contents or authorize automatic replay.

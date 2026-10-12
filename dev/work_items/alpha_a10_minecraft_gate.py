@@ -24,8 +24,8 @@ def run(args) -> None:
     from pm.bus.envelopes import Envelope, new_id
     from pm.records.memory_records import ActionSchemaRecord
     from pm.records.enums import ActionType
-    from runtime.body_lease import BODY_LEASES
-    from runtime.minecraft_actor import READ_TOOLS
+    from workflows.minecraft_body.lease import BODY_LEASES
+    from workflows.minecraft_body.gateway import READ_TOOLS
     from runtime.publication import exchange_record
     from pm.runs.workflow_runner import WorkflowRunner, WorkflowRequest
     from pm_workflows.runtime import WorkflowRuntime

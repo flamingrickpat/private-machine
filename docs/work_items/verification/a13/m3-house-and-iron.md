@@ -56,7 +56,7 @@ Those materials are the starting state; the new task must establish its own iron
 
 The first native proposal duplicated wall-corner cells and failed its schema before gameplay.
 Its repair then attempted to open nonexistent specification revision zero.
-[`workflows.minecraft_tasks.steps.rejected_context`][] now reads initial rejection context without an earlier specification.
+[`workflows.minecraft_project.steps.rejected_context`][] now reads initial rejection context without an earlier specification.
 The original proposal and failure remain preserved in `a13-initial-plan-rejection.json` and the ignored runtime directory.
 The source-33 resume, `a13-m3-21`, retained repeated invalid proposals before gameplay.
 Its short rejection excerpt omitted most initial geometry, which had no accepted tree to supply it.
@@ -126,7 +126,7 @@ Its original failed receipt and input remain unchanged.
 
 Source 42 shares identical recent outcomes through method references while retaining every cumulative fact.
 Captured-input checks reconstruct all original outcomes and keep the repaired input below 115,000 characters.
-The actor now receives [`workflows.minecraft.actor.leaf_execution_context`][] in its initial prompt and `inbox/leaf-specification.json`.
+The actor now receives [`workflows.minecraft.specialist_session.leaf_execution_context`][] in its initial prompt and `inbox/leaf-specification.json`.
 That context contains the current attempt identity, instruction, and exact criteria.
 The actor must re-read it before completion; historical notes cannot change current thresholds.
 Independent verification remains mandatory.

@@ -21,8 +21,8 @@ def build_assistant_tools(model, supervisor) -> Callable[[object, object], dict]
         tools["public_complete"] = model.build_async_tool()
         tools.update(build_management_tools(supervisor))
         tools.update(build_tools(environment, batch))
-        from runtime.minecraft_tools import build_minecraft_tools, DEFAULT_MCP_URL
-        from runtime.body_lease import BODY_LEASES
+        from workflows.minecraft_body.mcp_client import build_minecraft_tools, DEFAULT_MCP_URL
+        from workflows.minecraft_body.lease import BODY_LEASES
         import os
         endpoint = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
         minecraft = build_minecraft_tools(endpoint)

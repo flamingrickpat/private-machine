@@ -37,7 +37,7 @@ Explicit `action_tool` requests and the old instruction-wait fixtures select the
 `mode: boundary_check` also selects that path.
 The request has no `max_actions` field or workflow tool-call ceiling.
 
-[`workflows.minecraft.actor.run_actor`][] acquires the lease, observes the body, and discovers upstream tool schemas.
+[`workflows.minecraft.specialist_session.run_actor`][] acquires the lease, observes the body, and discovers upstream tool schemas.
 It starts a temporary loopback MCP gateway and passes its descriptor to `PmCoderDriver.run_session`.
 The model comes from the supplied `agent_model` or the lazy `Default` model session.
 The driver uses pm-coder's native session, serving context, history, and automatic compaction.
@@ -77,7 +77,7 @@ Scripts can hide multiple actions from the current instruction boundary.
 Operator test routes remain outside the actor grant.
 The `actor_instructions` tool reports the latest instructions and lease owner without a world call.
 
-[`runtime.minecraft_actor.ActorGateway`][] stores original results and screenshot paths in its journal.
+[`workflows.minecraft_body.gateway.ActorGateway`][] stores original results and screenshot paths in its journal.
 Image bytes never enter text observations or embeddings.
 The active actor sets visual interpretation to false.
 The gateway can return MCP image blocks through its explicit `visual` capability.
@@ -86,14 +86,14 @@ Changing a request cannot establish that its model supports images.
 
 ## Completion evidence
 
-[`workflows.minecraft.actor.ActorOutcome`][] contains `status`, `summary`, and `handoff`.
+[`workflows.minecraft.specialist_session.ActorOutcome`][] contains `status`, `summary`, and `handoff`.
 Its status is `complete`, `yield`, `blocked`, or `replan`.
 This model output is a candidate, not independent proof of task completion.
 
 The A10 `acceptance.kind: wood_return` verifier uses original tool receipts and a fresh final observation.
 It requires distinct positive tree harvests, retained logs, meaningful travel, return, dimension continuity, and a living grounded body.
 The default values require five trees, travel of at least 16 blocks, and return within three blocks.
-[`workflows.minecraft.actor.verify_wood_return`][] supplies these measured checks.
+[`workflows.minecraft.specialist_session.verify_wood_return`][] supplies these measured checks.
 General task-tree verification belongs to A11.
 Other leaves retain their candidate and artifacts without an accepted completion claim.
 

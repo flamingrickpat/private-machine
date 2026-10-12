@@ -71,8 +71,8 @@ def run(args) -> None:
     from runtime.reply_recovery import task_evidence
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
-    from workflows.minecraft_tasks.tree import TreeStore, acceptance_requirements, validate_tree
-    from workflows.minecraft_tasks.verification import verified_project
+    from workflows.minecraft_project.tree_store import TreeStore, acceptance_requirements, validate_tree
+    from workflows.minecraft_project.acceptance import verified_project
 
     out, server = args.out.resolve(), args.server.resolve()
     if not out.is_relative_to(ROOT / ".runtime"):
@@ -132,7 +132,7 @@ def run(args) -> None:
         "runtime_root": str(runtime_root), "checkpoint_path": str(checkpoint), "character_root": str(character),
         "source_seed_sha256": hashlib.sha256((ROOT / "test_data/personas/spamuel/canon.yaml").read_bytes()).hexdigest(),
         "source_files_sha256": {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-            for folder in ("runtime", "workflows/minecraft", "workflows/minecraft_tasks")
+            for folder in ("runtime", "workflows/minecraft", "workflows/minecraft_project")
             for path in (ROOT / folder).rglob("*") if path.is_file() and path.suffix in {".py", ".md"}}}
     receipt["source_files_sha256"].update({name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
         for name in ("main.py", "dev/work_items/alpha_a11_minecraft_gate.py", "workflows/main_cognition/stages/action_selection/prompts.yaml")})
@@ -226,7 +226,7 @@ def run(args) -> None:
                     receipt["project_contracts"][name] = {"module": callback.__module__, "function": callback.__name__,
                         "source": str(source), "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
         app.supervisor.on_error = lambda error: print(f"Worker error: {type(error).__name__}: {error}", flush=True)
-        from runtime.minecraft_tools import build_minecraft_tools
+        from workflows.minecraft_body.mcp_client import build_minecraft_tools
         initial = build_minecraft_tools(stack.mcp_url)["minecraft_call"]("minecraft_observe", {"include_image": False})
         receipt["initial_observation"] = previous["initial_observation"] if previous else initial["result"]
         if previous is not None:
@@ -297,7 +297,7 @@ def run(args) -> None:
                 public_evidence_recomputed=receipt["public_evidence"]["task_verified"],
                 dependency_order=True)
             for attempt in store.state["attempts"]:
-                from workflows.minecraft_tasks.schemas import TaskTree
+                from workflows.minecraft_project.schemas import TaskTree
                 attempt_tree = TaskTree.model_validate(json.loads(store.path_for(f"planning/specs/{attempt['tree_revision']:04d}.json").read_text(encoding="utf-8")))
                 for dependency in acceptance_requirements(attempt_tree)[attempt["leaf_id"]]:
                     certificate = attempt.get("prerequisites", {}).get(dependency)

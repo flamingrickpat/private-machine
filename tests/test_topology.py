@@ -144,7 +144,7 @@ class TopologyTests(unittest.TestCase):
                         path.stem == workflow + ".workflow" and f"phase '{phase}'" in warning
                         for workflow, phase in KNOWN_WAITING_WARNINGS
                     )
-                    accepted = accepted or (path.name == "minecraft_tasks.workflow.md" and any(
+                    accepted = accepted or (path.name == "minecraft_project.workflow.md" and any(
                         warning.startswith(f"phase '{phase}' can be dispatched up to 999 times (per task)")
                         for phase in KNOWN_PROJECT_REPEAT_PHASES))
                     self.assertTrue(accepted, f"{path}: unexpected warning: {warning}")

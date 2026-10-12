@@ -15,10 +15,11 @@ from fastmcp.tools import Tool, ToolResult
 from jsonschema.validators import validator_for
 from pydantic import Field
 
-from runtime.body_lease import BODY_LEASES, StaleEpoch
-from runtime.minecraft_outcomes import GameplayEvidence
+from workflows.minecraft_body.lease import BODY_LEASES, StaleEpoch
+from workflows.minecraft_body.call_outcomes import GameplayEvidence
+from workflows.minecraft_body.journal import read_actor_journal
 
-# These tools do not move or rotate the body. Horizon scans do rotate it.
+
 READ_TOOLS = frozenset({
     "minecraft_observe", "minecraft_count_inventory", "minecraft_inspect_block",
     "minecraft_find_block", "minecraft_find_interactables", "minecraft_raytrace",
@@ -402,25 +403,6 @@ def observed_target(receipt: dict, point: dict) -> bool:
         and result.get("position") == point))
 
 
-def read_actor_journal(path) -> list[dict]:
-    """Read complete receipts. Retain a torn final append as an uncertain tail."""
-    if not path.is_file():
-        return []
-    lines = path.read_text(encoding="utf-8").splitlines()
-    rows = []
-    for index, line in enumerate(lines):
-        if not line.strip():
-            continue
-        try:
-            rows.append(json.loads(line))
-        except json.JSONDecodeError:
-            if index != len(lines) - 1:
-                marker = json.loads(lines[index + 1])
-                if marker != {"event": "torn_tail", "text": line}:
-                    raise
-            rows.append({"event": "torn_tail", "text": line})
-    return rows
-
 class ActorTool(Tool):
     """Forward one upstream schema through its owning actor gateway."""
 
@@ -444,3 +426,4 @@ class ActorTool(Tool):
                 blocks.append(ImageContent(type="image", mimeType=frame["media_type"],
                                            data=base64.b64encode(data).decode("ascii")))
         return ToolResult(content=blocks)
+

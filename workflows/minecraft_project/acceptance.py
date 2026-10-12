@@ -8,9 +8,9 @@ import time
 from pathlib import Path
 from pm_workflows.python_role import RoleContext
 
-from runtime.body_lease import BODY_LEASES
-from workflows.minecraft_tasks.schemas import Condition, Node
-from workflows.minecraft_tasks.tree import TreeStore
+from workflows.minecraft_body.lease import BODY_LEASES
+from workflows.minecraft_project.schemas import Condition, Node
+from workflows.minecraft_project.tree_store import TreeStore
 
 
 def observe_conditions(context: RoleContext, conditions: list[Condition]) -> list[dict]:
@@ -29,7 +29,7 @@ def observe_conditions(context: RoleContext, conditions: list[Condition]) -> lis
     for condition in conditions:
         runtime.check_cancelled()
         if condition.kind == "accepted":
-            from workflows.minecraft_tasks.tree import TreeStore, digest
+            from workflows.minecraft_project.tree_store import TreeStore, digest
             store = TreeStore(runtime.environment._path("."))
             record = store.state["acceptances"].get(condition.node_id)
             valid = store.valid(condition.node_id)
@@ -93,7 +93,7 @@ def evaluate(conditions: list[Condition], reads: list[dict], *, certificates: di
         row, passed = candidates[0], False
         data = row["result"]
         if condition.kind == "accepted" and row["tool"] == "accepted_task" and row["ok"]:
-            from workflows.minecraft_tasks.tree import digest
+            from workflows.minecraft_project.tree_store import digest
             record = (certificates or {}).get(condition.node_id)
             passed = (record is not None and row["arguments"] == {"node_id": condition.node_id}
                       and data.get("node_id") == condition.node_id and data.get("verified") is True

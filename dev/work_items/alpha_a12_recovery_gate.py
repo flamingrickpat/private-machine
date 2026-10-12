@@ -63,10 +63,10 @@ def kill_worker(process):
 def protocol_worker(args):
     """Pause at a real call boundary until the parent kills this process."""
     from pm_workflows.runtime import WorkflowRuntime
-    from runtime.body_lease import BODY_LEASES
+    from workflows.minecraft_body.lease import BODY_LEASES
     from pm.host.durable_files import atomic_json
-    from runtime.minecraft_actor import ActorGateway
-    from runtime.minecraft_tools import build_minecraft_tools
+    from workflows.minecraft_body.gateway import ActorGateway
+    from workflows.minecraft_body.mcp_client import build_minecraft_tools
     from pm.host.folder_target import FolderEnvironment
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -153,10 +153,11 @@ def run(args):
     import yaml
     from urllib.request import urlopen
     from pm_workflows.runtime import WorkflowRuntime
-    from runtime.body_lease import BODY_LEASES, StaleEpoch
+    from workflows.minecraft_body.lease import BODY_LEASES, StaleEpoch
     from pm.host.durable_files import BodyBusy, atomic_json
-    from runtime.minecraft_actor import ActorGateway, read_actor_journal
-    from runtime.minecraft_tools import build_minecraft_tools
+    from workflows.minecraft_body.gateway import ActorGateway
+    from workflows.minecraft_body.journal import read_actor_journal
+    from workflows.minecraft_body.mcp_client import build_minecraft_tools
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
     from pm.host.folder_target import FolderEnvironment
@@ -261,9 +262,10 @@ def run(args):
 def protocol_controls(out, stack, tools, receipt, save):
     """Stop a real active navigation call, then fence an actual MCP restart."""
     from pm_workflows.runtime import WorkflowRuntime
-    from runtime.body_lease import BODY_LEASES
+    from workflows.minecraft_body.lease import BODY_LEASES
     from pm.host.durable_files import atomic_json
-    from runtime.minecraft_actor import ActorGateway, read_actor_journal
+    from workflows.minecraft_body.gateway import ActorGateway
+    from workflows.minecraft_body.journal import read_actor_journal
     from tests.live.minecraft_stack import _wait_port
     from pm.host.folder_target import FolderEnvironment
     target = out / "cancel-active"
@@ -343,7 +345,7 @@ def protocol_controls(out, stack, tools, receipt, save):
 def native_scenarios(args, out, stack, tools, workers, receipt, save):
     """Cancel, reconnect, and resume wood; kill and restart a real house leaf."""
     from pm.host.durable_files import atomic_json
-    from runtime.minecraft_actor import read_actor_journal
+    from workflows.minecraft_body.journal import read_actor_journal
     if args.house_only:
         return house_scenario(args, out, stack, tools, workers, receipt, save)
     target = out / "wood"
@@ -371,7 +373,7 @@ def native_scenarios(args, out, stack, tools, workers, receipt, save):
         raise AssertionError("The wood task did not accept cancellation.")
     # Kill only after the worker closes the body lease. The cancellation keeps
     # every result from the call that was in flight at the accepted boundary.
-    from runtime.body_lease import BODY_LEASES
+    from workflows.minecraft_body.lease import BODY_LEASES
     wait_for(lambda: BODY_LEASES.owner(stack.mcp_url) is None)
     kill_worker(process)
     stack._control("/test/body/stop")
@@ -399,7 +401,7 @@ def native_scenarios(args, out, stack, tools, workers, receipt, save):
 def house_scenario(args, out, stack, tools, workers, receipt, save):
     """Retain exact A11 cells across a real inspection-leaf process restart."""
     from pm.host.durable_files import atomic_json
-    from runtime.minecraft_actor import read_actor_journal
+    from workflows.minecraft_body.journal import read_actor_journal
     target = out / "house"
     target.mkdir()
     source = ROOT / ".runtime/alpha/a11h16/reviewed-tree.json"
@@ -444,7 +446,7 @@ def house_scenario(args, out, stack, tools, workers, receipt, save):
     final = wait_for(lambda: (status if (status := read(target / "status.json")) and
         status.get("execution_epoch", 1) > 1 and status["state"] in {"completed", "failed"} else None), args.timeout)
     resumed.wait(30)
-    from workflows.minecraft_tasks.verification import verified_project
+    from workflows.minecraft_project.acceptance import verified_project
     evidence = verified_project(task_root)
     receipt["house"] = {"source_tree": str(source), "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
                         "interrupted_attempt": interrupted, "final": final, "verification": evidence,

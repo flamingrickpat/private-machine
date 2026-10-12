@@ -13,7 +13,7 @@ State: [task evidence](minecraft-task-evidence.md).
 
 ## Workflow ownership
 
-The implementation belongs to `workflows/minecraft_tasks`.
+The implementation belongs to `workflows/minecraft_project`.
 Its manifest declares an initial retention phase before planning.
 The planner also checks retention during a resumed repair.
 Existing task-store validation, certificate guards, body leases, and model activation remain unchanged.
@@ -24,15 +24,15 @@ The A13 gate still owns its exact geometry, iron provenance audit, saved home, a
 
 ## Historical proof and current requirements
 
-[`workflows.minecraft_tasks.steps.retain`][] makes a separate native inference request from archived specifications and certificates.
+[`workflows.minecraft_project.steps.retain`][] makes a separate native inference request from archived specifications and certificates.
 The request includes original dependency hashes, current specifications, current body observation, and prior rejection feedback.
 The model returns explicit restoration IDs through `RetentionChoice`.
-[`workflows.minecraft_tasks.evidence.retention_operation`][] derives renewals for superseded valid prerequisites from actual accepted state.
+[`workflows.minecraft_project.evidence_selection.retention_operation`][] derives renewals for superseded valid prerequisites from actual accepted state.
 It copies every current specification field exactly into a fresh identity.
 The model does not copy node fields or decide validity arithmetic.
 The derived operation stays beside the original native response.
 
-[`workflows.minecraft_tasks.evidence.retention_tree`][] prepares the proposed tree without a durable state change.
+[`workflows.minecraft_project.evidence_selection.retention_tree`][] prepares the proposed tree without a durable state change.
 Every renewal needs a fresh leaf identity and the complete current specification.
 Its original parent gains a required acceptance reference.
 The existing restoration operation rejects missing recursive dependencies or changed original files.
@@ -44,22 +44,22 @@ Historical recovery therefore cannot establish present safety.
 
 ## Repair and review inputs
 
-[`workflows.minecraft_tasks.evidence.dependency_scope`][] follows task subtrees and recursive acceptance prerequisites.
+[`workflows.minecraft_project.evidence_selection.dependency_scope`][] follows task subtrees and recursive acceptance prerequisites.
 The selected repair receives complete node criteria, ancestor contracts, and full task topology.
 Omitted specifications stay exact in the durable tree.
 A scoped patch cannot change an unrelated existing node.
 
-[`workflows.minecraft_tasks.evidence.scoped_history`][] selects methods from the target and unfinished dependencies.
+[`workflows.minecraft_project.evidence_selection.scoped_history`][] selects methods from the target and unfinished dependencies.
 Completed prerequisites retain their original certificates and accessible journals.
 Global recovery, transport waiting, body life, and failed recovery evidence remain explicit.
 The full accumulated gameplay history stays in a separate original evidence file.
 
-[`workflows.minecraft_tasks.steps.review`][] makes separate decisions for leaves, stories, and the root.
-[`workflows.minecraft_tasks.evidence.review_nodes`][] selects unfinished nodes and the full root contract.
+[`workflows.minecraft_project.steps.review`][] makes separate decisions for leaves, stories, and the root.
+[`workflows.minecraft_project.evidence_selection.review_nodes`][] selects unfinished nodes and the full root contract.
 Valid completed nodes retain their original independent review and exact certificate.
 Their old execution instructions do not describe current work or current stock.
 Each decision receives its full criteria, dependency specifications, valid historical certificates, and independent current reads.
-[`workflows.minecraft_tasks.steps.caller_plan_constraints`][] supplies the same complete caller contract to planning and review.
+[`workflows.minecraft_project.steps.caller_plan_constraints`][] supplies the same complete caller contract to planning and review.
 It retains the original receipt path and digest. These requirements are not acceptance evidence.
 Named publication audits can require ordered travel or durable notes that static world conditions cannot establish.
 The actor procedure must retain those effects, and the independent publication audit must still verify them.
@@ -69,7 +69,7 @@ Story reviews receive preceding child results.
 Root review checks the complete request and integration criteria after the preceding decisions.
 Only a complete accepted review sequence marks the tree revision as reviewed.
 
-[`workflows.minecraft_tasks.evidence.protect_accepted_specifications`][] rejects ordinary repairs that remove or rewrite valid attained contracts.
+[`workflows.minecraft_project.evidence_selection.protect_accepted_specifications`][] rejects ordinary repairs that remove or rewrite valid attained contracts.
 Root integration can gain new required work under independent review.
 A new current requirement needs a fresh node identity.
 Fresh assumption failures can revoke old proof before repair.
@@ -77,7 +77,7 @@ The separate retention phase validates its own exact restoration and current ren
 
 ## Original evidence retrieval
 
-[`workflows.minecraft_tasks.steps.reason`][] supplies an evidence catalog with each decision.
+[`workflows.minecraft_project.steps.reason`][] supplies an evidence catalog with each decision.
 The catalog names task specifications, journals, actor reports, surveys, and verification files.
 A compact input lists source groups and named external sources.
 The complete catalog stays in the readable `evidence_index` source.
@@ -87,7 +87,7 @@ The A13 gate supplies the real companion seed and checkpoint.
 
 The decision can return `evidence_requests` before its final result.
 Each request names a catalog source, a numbered line window, and an optional text query.
-[`workflows.minecraft_tasks.evidence.read_source`][] rejects undeclared sources and changed file hashes.
+[`workflows.minecraft_project.evidence_selection.read_source`][] rejects undeclared sources and changed file hashes.
 Retrieved lines remain in the next request and in the original inference receipt.
 Repeated identical retrieval requests fail explicitly.
 
@@ -101,7 +101,7 @@ Evidence selection does not replace real inference or the real companion history
 
 ## Final integration and cancellation
 
-[`workflows.minecraft_tasks.steps.finish`][] requires all original leaf, story, and root certificates.
+[`workflows.minecraft_project.steps.finish`][] requires all original leaf, story, and root certificates.
 It then collects fresh independent root reads and evaluates the complete root criteria again.
 The body life must match the accepted root observation.
 The scenario completion callback still audits its separate requirements before publication.
@@ -119,5 +119,5 @@ The hosted configuration remains under ignored runtime evidence and contains cre
 
 The [provider protocol](gameplay-provider-protocol.md) explains output allocation, reasoning replay, and hosted generation controls.
 The [acceptance evidence](../work_items/verification/a13/scoped-acceptance-evidence.md) records native continuations, known failures, and current limits.
-The selected-leaf observation source uses [`workflows.minecraft_tasks.steps.execution_observations`][].
+The selected-leaf observation source uses [`workflows.minecraft_project.steps.execution_observations`][].
 It supplies current read-only facts without replacing required effects or independent verification.

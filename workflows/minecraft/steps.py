@@ -151,8 +151,8 @@ def _run_boundary_check(context) -> dict:
     request = MinecraftRequest.model_validate({key: value for key, value in payload.items()
                                              if not key.startswith("_public_")})
     prompts = load_prompts()
-    from runtime.body_lease import BODY_LEASES
-    from runtime.minecraft_actor import ActorGateway
+    from workflows.minecraft_body.lease import BODY_LEASES
+    from workflows.minecraft_body.gateway import ActorGateway
     endpoint = context.runtime.tools["minecraft_endpoint"]()
     gateway = ActorGateway(endpoint, context.task_id, environment, context.runtime, dict(context.runtime.tools))
     def call(name, arguments=None):
@@ -243,7 +243,7 @@ def run(context) -> dict:
     # Existing explicit actions and wait fixtures retain their narrow contract.
     narrow = payload.get("mode") == "boundary_check" or payload.get("action_tool") or payload.get("wait_for_cancel") or payload.get("wait_for_update")
     if narrow:
-        from runtime.body_lease import BODY_LEASES
+        from workflows.minecraft_body.lease import BODY_LEASES
         lease = context.runtime.tools.get("minecraft_lease")
         if lease is not None:
             with lease():
@@ -255,7 +255,7 @@ def run(context) -> dict:
                     if release is not None:
                         release(token)
         return _run_boundary_check(context)
-    from workflows.minecraft.actor import run_actor
+    from workflows.minecraft.specialist_session import run_actor
     return run_actor(context)
 
 

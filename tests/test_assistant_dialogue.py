@@ -14,7 +14,7 @@ import unittest
 from pm_workflows.runtime import WorkflowRuntime
 
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
-from runtime.minecraft_tools import build_minecraft_tools
+from workflows.minecraft_body.mcp_client import build_minecraft_tools
 from workflows.dialogue_assistant import steps
 from workflows.dialogue_assistant.schemas import (
     AssistantMessage,

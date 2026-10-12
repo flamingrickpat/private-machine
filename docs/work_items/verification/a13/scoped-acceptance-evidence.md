@@ -13,7 +13,7 @@ Requirements: [A13](../../alpha-plan/work-items/a13.md).
 
 Caller requirements can define publication effects beyond static world predicates.
 The private actor needs these operands to interpret the selected leaf correctly.
-[`workflows.minecraft_tasks.steps.leaf_project_context`][] supplies the recorded caller constraints beside the project goal and ancestor specifications.
+[`workflows.minecraft_project.steps.leaf_project_context`][] supplies the recorded caller constraints beside the project goal and ancestor specifications.
 The actor's opening leaf context keeps those constraints with their original receipt and digest.
 These operands explain requirements; they do not establish world truth or accept work.
 The actor still performs only the selected leaf and necessary safety actions.
@@ -46,15 +46,15 @@ The final native proposal claimed completion and requested root proof restoratio
 The workflow incorrectly sent that restoration-only proposal to the node-update merger and stopped with a worker error.
 Original checks, observations, planner input, and proposal remain in `test_data/captures/alpha/a13-publication-repair.json`.
 
-[`workflows.minecraft_tasks.steps.project_check_context`][] now keeps publication errors and checks separate from replaceable schema feedback.
+[`workflows.minecraft_project.steps.project_check_context`][] now keeps publication errors and checks separate from replaceable schema feedback.
 Planners, reviewers, and private actors receive this context with the original identity, receipt, and digest.
 Successful static verification cannot erase the missing effect.
 Detailed effects remain accessible in the original publication receipt.
-[`workflows.minecraft_tasks.steps.revision_candidate`][] preserves the exact tree for a restoration-only proposal.
+[`workflows.minecraft_project.steps.revision_candidate`][] preserves the exact tree for a restoration-only proposal.
 Proof restoration and the required concrete leaf repair still use their existing validation boundaries.
 Invalid node updates return planning feedback before dispatch instead of stopping the worker.
 
-[`workflows.minecraft_tasks.steps.record_plan_constraints`][] refreshes the caller contract before retained planning and independent review.
+[`workflows.minecraft_project.steps.record_plan_constraints`][] refreshes the caller contract before retained planning and independent review.
 Each refresh writes a new receipt and preserves prior operands.
 This allows a resumed caller to change a test without editing accepted historical specifications.
 The caller wrapper grants this read-only callback to both trusted planner and reviewer roles.
@@ -94,7 +94,7 @@ Its roof actor then made unrelated trips despite reads of the complete roof and 
 The stopped run retained revision 38, twelve valid certificates, and 39 actor attempts.
 No roof acceptance was published.
 
-[`workflows.minecraft.actor.run_actor`][] now explains the existing air-inspection protocol beside the supplied tool schema.
+[`workflows.minecraft.specialist_session.run_actor`][] now explains the existing air-inspection protocol beside the supplied tool schema.
 An air result with matching position, `block_name=air`, and `reason=not_found` proves that exact cell is empty.
 Missing metadata, transport failures, and unseen cells still cannot prove air.
 Area bounds use absolute world coordinates; their aggregate air count cannot prove one specific air variant.
@@ -113,7 +113,7 @@ Both also retain the iron pickaxe, three cobblestone, three dandelions, and two 
 The retained movement and inventory reads remain in `workflow-split/actor40-recovered-state-with-movements.json`.
 The independent read in `workflow-split/server-oracle55.json` matches M3-55 startup; review caused no unexplained movement.
 
-[`workflows.minecraft_tasks.steps.execution_observations`][] now supplies original current predicate reads for the selected actor leaf.
+[`workflows.minecraft_project.steps.execution_observations`][] now supplies original current predicate reads for the selected actor leaf.
 It stores their full source in the actor's readable `inbox/criterion-observations.json`.
 The actor receives a compact view and the original digest.
 These reads change no world state and cannot establish ordered effects, durable notes, or task acceptance.
@@ -141,7 +141,7 @@ Later inspection found no owned services or worker; the operator cancelled the s
 The original incomplete receipt remains unchanged.
 
 The captured boundary is `test_data/captures/alpha/a13-native-observation-loop.json`.
-[`workflows.minecraft.actor.leaf_execution_context`][] now puts current predicate observations beside the exact leaf operands.
+[`workflows.minecraft.specialist_session.leaf_execution_context`][] now puts current predicate observations beside the exact leaf operands.
 The opening prompt and `inbox/leaf-specification.json` retain the same compact reads, checks, identity, and original digest.
 Historical summaries remain separate.
 This context cannot accept a leaf or prove required travel and durable notes.
@@ -160,7 +160,7 @@ Block inspection requires integer cell coordinates.
 M3-55 passed retained look-at targets directly to inspection and received argument rejections.
 This failure is a runtime conversion error, not an LLM completion failure.
 
-[`runtime.minecraft_actor.target_block_cell`][] now floors each axis before reconciliation inspects its containing block.
+[`workflows.minecraft_body.gateway.target_block_cell`][] now floors each axis before reconciliation inspects its containing block.
 Negative coordinates use the same conversion; truncation toward zero selects the wrong cell.
 Original action coordinates and journals remain unchanged.
 This repair contains no task, model, material, or house-coordinate branch.

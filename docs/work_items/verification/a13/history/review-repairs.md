@@ -18,7 +18,7 @@ The requested food and dependency repair returned a full tree that omitted eight
 The validator rejected it before any actor dispatch.
 The subsequent rejection context exceeded the input budget at 123,815 characters.
 
-[`workflows.minecraft_tasks.schemas.RevisionProposal`][] now requires explicit node updates for a retained tree.
+[`workflows.minecraft_project.schemas.RevisionProposal`][] now requires explicit node updates for a retained tree.
 Initial planning still uses a complete tree; named refinement still uses its bound replacement contract.
 Omitted nodes retain their original specifications and certificates through the existing update merge.
 When replacing a parent, the planner must retain its existing child references.
@@ -35,7 +35,7 @@ The subsequent planner input exceeded its 120,000-character budget at 122,935 ch
 No new actor ran.
 The original input remains in the captured review fixture.
 
-[`workflows.minecraft_tasks.steps.compact_plan_context`][] shares identical review text and tool contracts within one decision.
+[`workflows.minecraft_project.steps.compact_plan_context`][] shares identical review text and tool contracts within one decision.
 Differing historical wording remains explicit.
 Compact gameplay method rows also share actual tool names through `tool_index` and `tool_names`.
 Named columns retain all original methods, operands, counters, states, quantities, and source references.
@@ -48,7 +48,7 @@ Decision `0078-planner` requested a door name and ordinary mining confirmation f
 No new actor ran.
 The original waiting result and planning state remain in the captured review fixture.
 
-[`workflows.minecraft_tasks.steps.restart_review`][] now routes an unchanged retained tree through a fresh independent review on resume.
+[`workflows.minecraft_project.steps.restart_review`][] now routes an unchanged retained tree through a fresh independent review on resume.
 It preserves partial work, journals, certificates, and old interpretation records.
 The reviewer uses current observations and actual tool contracts before selecting work or requesting revision.
 New instructions, a supplied human answer, or an outstanding concrete-leaf-change requirement still enter planning.
@@ -65,7 +65,7 @@ It also checks retained review claims against original evidence.
 
 The survey contract now permits up to ten read-only `recipe_queries` patterns.
 Both full-plan and scoped-refinement surveys retain those patterns.
-[`workflows.minecraft_tasks.steps.recipe_reads`][] saves the actual results under the original survey identity.
+[`workflows.minecraft_project.steps.recipe_reads`][] saves the actual results under the original survey identity.
 These reads supply planning facts; they cannot accept a leaf.
 The planner and reviewer explicitly declare their tool-schema capability in the workflow.
 The latest selected check records 110 passes in 4.898 seconds in `focused-resumed-21.log`.

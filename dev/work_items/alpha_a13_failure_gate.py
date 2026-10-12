@@ -24,7 +24,7 @@ def contained_water_pit(gateway, current: dict) -> dict:
     water source uses operator setup. Solid sides and bottom contain its flow;
     the actor must choose a dry landing instead of drifting there at startup.
     """
-    from runtime.minecraft_outcomes import safe_landing
+    from workflows.minecraft_body.call_outcomes import safe_landing
     body = current["camera"]["block_position"]
     offsets = ((0, 0), (2, 0), (-2, 0), (0, 2), (0, -2),
                (2, 2), (-2, 2), (2, -2), (-2, -2),
@@ -107,8 +107,8 @@ def native_adaptation(app, environment, tools, target: dict, unreachable: dict, 
     The model chooses every action. The audit reads original calls and exact
     inventory deltas. A handoff alone cannot establish material adaptation.
     """
-    from runtime.minecraft_actor import read_actor_journal
-    from runtime.minecraft_outcomes import GameplayEvidence, safe_landing
+    from workflows.minecraft_body.journal import read_actor_journal
+    from workflows.minecraft_body.call_outcomes import GameplayEvidence, safe_landing
     from pm.host.durable_files import atomic_json
     cases = [
         ("prerequisites", "gatherer", f"Correct the retained wrong-tool failure at stone {target}. "
@@ -264,11 +264,11 @@ def run(args) -> None:
     """
     from main import build_app
     from pm_workflows.runtime import WorkflowRuntime
-    from runtime.body_lease import BODY_LEASES
+    from workflows.minecraft_body.lease import BODY_LEASES
     from pm.host.durable_files import atomic_json
-    from runtime.minecraft_actor import ActorGateway
-    from runtime.minecraft_outcomes import safe_landing
-    from runtime.minecraft_tools import build_minecraft_tools
+    from workflows.minecraft_body.gateway import ActorGateway
+    from workflows.minecraft_body.call_outcomes import safe_landing
+    from workflows.minecraft_body.mcp_client import build_minecraft_tools
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
     from pm.host.folder_target import FolderEnvironment
@@ -299,7 +299,7 @@ def run(args) -> None:
     save = lambda: atomic_json(out / "receipt.json", receipt)
     import hashlib
     receipt["sources"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for directory in ("runtime", "workflows/minecraft", "workflows/minecraft_tasks")
+        for directory in ("runtime", "workflows/minecraft", "workflows/minecraft_project")
         for path in (ROOT / directory).rglob("*.py")}
     receipt["sources"][str(Path(__file__).relative_to(ROOT))] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     receipt["seed_sha256"] = hashlib.sha256((ROOT / "test_data/personas/spamuel/canon.yaml").read_bytes()).hexdigest()
@@ -352,7 +352,7 @@ def run(args) -> None:
                             str(server / "wipe-world.ps1")], check=True)
         stack.start()
         if args.restore_fixture:
-            from runtime.minecraft_actor import read_actor_journal
+            from workflows.minecraft_body.journal import read_actor_journal
             previous = json.loads((args.restore_fixture / "receipt.json").read_text(encoding="utf-8"))
             rows = read_actor_journal(args.restore_fixture / "protocol/scratch/actor-journal.jsonl")
             for recorded in previous["fixture_commands"]:
@@ -554,7 +554,7 @@ def run(args) -> None:
         receipt["checks"]["native_life_unchanged"] = (final["result"]["body_session"] == receipt["initial_observation"]["body_session"]
             and final["result"]["death_count"] == receipt["initial_observation"]["death_count"])
         if args.hazard == "water" and args.water_placement == "pit":
-            from runtime.minecraft_actor import read_actor_journal
+            from workflows.minecraft_body.journal import read_actor_journal
             rows = read_actor_journal(Path(task["artifact_path"]) / "scratch/actor-journal.jsonl")
             first = next(row for row in rows if row.get("event") == "result" and row["tool"] == "minecraft_observe")
             receipt["checks"]["native_started_in_water"] = first["result"]["player"]["in_water"]
