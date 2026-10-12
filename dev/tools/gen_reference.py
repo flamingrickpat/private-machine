@@ -4,7 +4,7 @@ from pathlib import Path
 import mkdocs_gen_files
 
 nav = mkdocs_gen_files.Nav()
-roots = [Path(name) for name in ("bus", "console", "pm_core", "runtime", "workflows")]
+roots = [Path(name) for name in ("pm", "bus", "console", "pm_core", "runtime", "workflows") if Path(name).is_dir()]
 paths = [p for root in roots for p in root.rglob("*.py")]
 paths += [Path(name) for name in ("main.py", "modules.py", "workflow_adapter.py", "working_target.py", "ghost_mcp.py")]
 paths += [Path("dev/work_items/alpha_input_gate.py"), Path("dev/work_items/alpha_classification_gate.py"), Path("dev/work_items/alpha_pm_classification_gate.py")]

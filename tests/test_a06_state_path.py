@@ -14,8 +14,8 @@ from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_enums import FeatureSubtype, FeatureType, SourceKind
 from pm_core.model.mental_state_vectors import FullMentalState
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope, _new_id
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope, _new_id
 from modules import InnerThoughtLoop, MainCogLoop, _feature
 from pm_core.ghost.batch import GhostConflict
 from pm_core.ghost.service import Ghost

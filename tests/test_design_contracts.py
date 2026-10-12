@@ -12,8 +12,8 @@ from ghost_mcp import build_mcp, build_tools
 from main import build_app
 from pm_core.model.ghost_state import GhostConfig
 from runtime.shell import Application, ShellModule
-from bus.bus import BusSystem
-from bus.envelopes import Envelope
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope
 from tests.support import ManualClock, Recorder, store_action
 from working_target import GhostBashEnvironment, GhostBashWrapper, FolderTarget
 from workflow_adapter import ShellModuleWorkflow

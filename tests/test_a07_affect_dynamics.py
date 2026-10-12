@@ -27,8 +27,8 @@ from pm_core.model.mental_state_vectors import (
     make_personality_profile,
 )
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope, _new_id
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope, _new_id
 from modules import MainCogLoop
 from runtime.lifecycle import record_shutdown, record_startup
 from tests.support import ManualClock, Recorder

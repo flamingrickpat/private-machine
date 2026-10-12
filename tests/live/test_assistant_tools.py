@@ -15,8 +15,8 @@ from uuid import uuid4
 
 import yaml
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope
 from modules import AssistantDialogue
 from pm_core.ghost.service import Ghost
 from pm_core.model.ghost_state import GhostConfig

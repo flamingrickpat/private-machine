@@ -204,8 +204,8 @@ class KernelTests(unittest.TestCase):
 
 class AssistantModuleTests(unittest.TestCase):
     def _module(self, root, responses, *, text_override=None):
-        from bus.bus import BusSystem
-        from bus.envelopes import Envelope
+        from pm.bus.bus import BusSystem
+        from pm.bus.envelopes import Envelope
         from modules import AssistantDialogue
         from pm_core.ghost.service import Ghost
         from pm_core.model.ghost_state import GhostConfig
@@ -252,7 +252,7 @@ class AssistantModuleTests(unittest.TestCase):
         return module, bus, ghost, supervisor
 
     def test_accepted_reply_is_committed_and_published(self):
-        from bus.envelopes import Envelope
+        from pm.bus.envelopes import Envelope
         from tests.support import Recorder
 
         with TemporaryDirectory() as tmp:
@@ -274,7 +274,7 @@ class AssistantModuleTests(unittest.TestCase):
             supervisor.join_all(timeout=10)
 
     def test_unsupported_management_claim_is_rejected(self):
-        from bus.envelopes import Envelope
+        from pm.bus.envelopes import Envelope
         from tests.support import Recorder
 
         with TemporaryDirectory() as tmp:

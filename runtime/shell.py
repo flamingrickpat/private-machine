@@ -9,8 +9,8 @@ import threading
 from abc import ABC, abstractmethod
 from typing import Callable
 
-from bus.bus import BusSystem, Mailbox
-from bus.envelopes import Envelope, _new_id
+from pm.bus.bus import BusSystem, Mailbox
+from pm.bus.envelopes import Envelope, _new_id
 
 
 class ShellModule(ABC):

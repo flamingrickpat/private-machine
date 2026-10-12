@@ -7,8 +7,8 @@ import unittest
 
 from main import build_app
 from runtime.shell import Application
-from bus.bus import BusSystem
-from bus.envelopes import Envelope
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope
 from tests.support import Recorder
 from tests.test_design_contracts import small_ghost
 from tests.test_shell import _MANIFEST

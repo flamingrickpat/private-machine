@@ -21,7 +21,7 @@ from typing import Any
 from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_enums import FeatureType, InterlocusType
 
-from bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, _new_id
 from main import build_app
 from runtime.cognitive_model import LazyStageModel
 from runtime.model_activation import ChatClient, ModelActivation

@@ -23,7 +23,7 @@ def run(args):
     Each restart loads the same checkpoint and retains accepted identities.
     The note request is an explicit operator boundary test.
     """
-    from bus.bus import BusSystem
+    from pm.bus.bus import BusSystem
     from main import build_app
     from pm_core.ghost.service import Ghost
     from pm_core.model.knoxel_common import ActionSchemaKnoxel

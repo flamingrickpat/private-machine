@@ -6,7 +6,7 @@ import json
 
 import yaml
 
-from bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, _new_id
 from pm_core.model.knoxel_common import ActionSchemaKnoxel
 from pm_core.model.knoxel_enums import ActionType
 from runtime.publication import commit_public_reply, exchange_record, publish_reply

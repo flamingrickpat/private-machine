@@ -7,8 +7,8 @@ import unittest
 import yaml
 from pm_workflows.runtime import WorkflowRuntime
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from working_target import FolderTarget, GhostBashEnvironment
 from workflow_adapter import ShellModuleWorkflow

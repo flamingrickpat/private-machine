@@ -172,8 +172,8 @@ class TopologyTests(unittest.TestCase):
             "steward", "memory_consolidation", "local_task",
         ]
         generic = [
-            PROJECT_ROOT / "bus" / "bus.py",
-            PROJECT_ROOT / "bus" / "envelopes.py",
+            PROJECT_ROOT / "pm" / "bus" / "bus.py",
+            PROJECT_ROOT / "pm" / "bus" / "envelopes.py",
             PROJECT_ROOT / "runtime" / "shell.py",
             PROJECT_ROOT / "runtime" / "workflow_runner.py",
         ]

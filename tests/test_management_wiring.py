@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from bus.envelopes import Envelope
+from pm.bus.envelopes import Envelope
 from main import build_app
 from tests.support import Recorder, fresh_ghost, load_seed_state
 

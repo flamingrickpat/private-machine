@@ -8,8 +8,8 @@ import unittest
 
 import yaml
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope
 from modules import UserInputProxy
 from pm_core.ghost.batch import GhostConflict
 from pm_core.ghost.service import Ghost

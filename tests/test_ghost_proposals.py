@@ -4,8 +4,8 @@ from tempfile import TemporaryDirectory
 import time
 import unittest
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope
 from pm_core.ghost.service import Ghost
 from ghost_mcp import build_tools
 from pm_core.model.ghost_state import GhostConfig

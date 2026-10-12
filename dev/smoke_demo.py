@@ -23,7 +23,7 @@ from pm_workflows.working_target import CommandResult
 import ghost_mcp
 from pm_core.ghost.service import Ghost
 from main import BANNER, build_app
-from bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, _new_id
 from working_target import FolderTarget, GhostBashWrapper
 
 SEED = ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"

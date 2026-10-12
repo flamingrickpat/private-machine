@@ -45,7 +45,7 @@ Managed tasks can overlap dialogue.
 | HTTP service | Instance definitions, process handles, event cursor | [`console.server.Console`][] |
 | Worker | Application, trace hooks, pending exchange | [`console.worker.run`][] |
 | Application | Module lifecycle and first error | [`runtime.shell.Application`][] |
-| Bus | Subscriptions and serialized fan-out | [`bus.bus.BusSystem`][] |
+| Bus | Subscriptions and serialized fan-out | [`pm.bus.bus.BusSystem`][] |
 | Module | Private inbox and active invocation | [`runtime.shell.ShellModule`][] |
 | Ghost | Memory, revisions, GWT, receipts | [`pm_core.ghost.service.Ghost`][] |
 | Kernel runner | One workflow invocation and artifacts | [`runtime.workflow_runner.WorkflowRunner`][] |

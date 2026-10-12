@@ -22,7 +22,7 @@ from pm_core.model.knoxel_state_change import AttentionFrameKnoxel
 from pm_core.model.mental_state_vectors import FullMentalState, create_empty_state
 from runtime.experience import consolidate_cycle, update_beliefs, utterance_metadata
 
-from bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, _new_id
 from runtime.shell import ShellModule
 from workflow_adapter import PROJECT_ROOT, ShellModuleWorkflow
 from ghost_mcp import build_tools

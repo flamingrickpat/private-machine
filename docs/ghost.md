@@ -103,7 +103,7 @@ The managed-run supervisor uses these receipts for real workflow execution.
 
 ## Bus behavior
 
-[`bus.bus.BusSystem`][] serializes each envelope before delivery.
+[`pm.bus.bus.BusSystem`][] serializes each envelope before delivery.
 Each subscriber receives a separate deserialized envelope, including its nested payload.
 Predicates and delivery callbacks run outside the subscription lock.
 The callbacks select or enqueue data. They do not run a workflow.

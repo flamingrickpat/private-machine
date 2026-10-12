@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, _new_id
 from pm_core.ghost.batch import GhostConflict
 from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_core import Provenance

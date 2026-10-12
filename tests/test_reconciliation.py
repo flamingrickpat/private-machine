@@ -13,7 +13,7 @@ from tempfile import TemporaryDirectory
 import yaml
 from fastmcp import FastMCP
 
-from bus.envelopes import Envelope
+from pm.bus.envelopes import Envelope
 from main import build_app
 from runtime.managed_runs import ManagedRunError, ManagedRunSupervisor, WorkflowSpec
 from runtime.minecraft_tools import build_minecraft_tools

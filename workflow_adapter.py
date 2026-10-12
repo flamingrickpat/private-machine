@@ -21,7 +21,7 @@ from typing import Any, Callable, Mapping
 from fastmcp import FastMCP
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
-from bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, _new_id
 from runtime.mcp_services import serve_services
 from runtime.shell import ShellModule
 from runtime.workflow_models import WorkflowModels

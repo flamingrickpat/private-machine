@@ -31,8 +31,8 @@ from modules import (
     ToolPlusDialogue,
     UserInputProxy,
 )
-from bus.bus import BusSystem
-from bus.envelopes import Envelope, _new_id
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope, _new_id
 from runtime.consolidation import Consolidator
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.shell import Application

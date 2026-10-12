@@ -5,8 +5,8 @@ import threading
 import time
 import unittest
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope
 from runtime.workflow_runner import WorkflowStatus
 from tests.support import Recorder
 from working_target import FolderTarget

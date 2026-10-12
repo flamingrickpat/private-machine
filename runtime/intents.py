@@ -1,7 +1,7 @@
 """Replay the exact accepted dispatch after a commit/publication interruption."""
 from __future__ import annotations
 
-from bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, _new_id
 from pm_core.model.knoxel_common import ActionSchemaKnoxel
 from runtime.publication import exchange_record
 

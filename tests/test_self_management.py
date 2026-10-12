@@ -13,8 +13,8 @@ import unittest
 
 from pm_workflows.runtime import WorkflowRuntime
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope
 from ghost_mcp import build_tools
 from main import build_app
 from modules import SelfManagement

@@ -9,8 +9,8 @@ import unittest
 from pathlib import Path
 
 import ghost_mcp
-from bus.bus import BusSystem
-from bus.envelopes import Envelope, _new_id
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope, _new_id
 from runtime.shell import ShellModule
 from working_target import GhostBashWrapper
 

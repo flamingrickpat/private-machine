@@ -9,7 +9,7 @@ import threading
 from collections import deque
 from typing import Callable
 
-from bus.envelopes import Envelope
+from pm.bus.envelopes import Envelope
 
 
 class Mailbox:

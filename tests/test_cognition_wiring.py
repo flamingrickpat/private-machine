@@ -15,8 +15,8 @@ from tempfile import TemporaryDirectory
 from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_enums import FeatureType
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope, _new_id
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope, _new_id
 from modules import MainCogLoop, StoryDialogue
 from tests.support import ManualClock, Recorder
 from workflow_adapter import PROJECT_ROOT
