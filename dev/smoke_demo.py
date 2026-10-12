@@ -11,6 +11,9 @@ import tempfile
 import threading
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
 from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_enums import FeatureType, InterlocusType
 from pm_workflows.kernel import Kernel
@@ -18,12 +21,12 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm_workflows.working_target import CommandResult
 
 import ghost_mcp
-from ghost import Ghost
+from pm_core.ghost.service import Ghost
 from main import BANNER, build_app
-from shell import Envelope, _new_id
+from bus.envelopes import Envelope, _new_id
 from working_target import FolderTarget, GhostBashWrapper
 
-SEED = Path(__file__).resolve().parent / "data" / "spamuel_agentic_canon.yaml"
+SEED = ROOT / "data" / "spamuel_agentic_canon.yaml"
 
 CHECKS: list[tuple[str, bool]] = []
 

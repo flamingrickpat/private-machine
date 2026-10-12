@@ -7,7 +7,7 @@ from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature
 from pm_core.model.knoxel_core import KnoxelType
 from pm_core.model.knoxel_enums import ActionType, FeatureType
 
-from shell import Envelope, _new_id
+from bus.envelopes import Envelope, _new_id
 
 from tests.support import (
     Recorder,

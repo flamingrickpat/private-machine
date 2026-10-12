@@ -7,11 +7,13 @@ import unittest
 from fastmcp import Client
 import yaml
 
-from ghost import Ghost
+from pm_core.ghost.service import Ghost
 from ghost_mcp import build_mcp, build_tools
 from main import build_app
 from pm_core.model.ghost_state import GhostConfig
-from shell import Application, BusSystem, Envelope, ShellModule
+from runtime.shell import Application, ShellModule
+from bus.bus import BusSystem
+from bus.envelopes import Envelope
 from tests.support import ManualClock, Recorder, store_action
 from working_target import GhostBashEnvironment, GhostBashWrapper, FolderTarget
 from workflow_adapter import ShellModuleWorkflow

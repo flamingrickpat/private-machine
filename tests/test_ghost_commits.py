@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from threading import Event
 
-from ghost import Ghost
+from pm_core.ghost.service import Ghost
 from pm_core.ghost.service import GhostConflict, GhostCancelled
 from pm_core.model.ghost_state import GhostConfig, CycleState
 from pm_core.model.gwt import GwtTurnRecord

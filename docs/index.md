@@ -45,7 +45,7 @@ Chat sessions within one instance share that Ghost.
 ## Documentation system
 
 The build generates API pages from public Python modules.
-The reference excludes tests, private modules, compatibility wrappers, and command-only demonstration scripts.
+The reference excludes tests, private modules, and command-only demonstration scripts.
 Concept pages link to exact objects in that reference.
 
 The site uses direct HTML links for local file access.

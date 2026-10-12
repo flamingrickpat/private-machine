@@ -49,7 +49,7 @@ $env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
 ```
 
 `--cognition dummy` selects the fixed-output demonstration.
-`uv run --locked python demo.py` runs its finite checks without inference.
+`uv run --locked python dev/smoke_demo.py` runs its finite checks without inference.
 Dummy behavior does not establish real companion quality.
 
 ## Managed workflows

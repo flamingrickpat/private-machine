@@ -1,7 +1,8 @@
 """Message isolation through the real bus, without module threads."""
 import unittest
 
-from shell import BusSystem, Envelope
+from bus.bus import BusSystem
+from bus.envelopes import Envelope
 from tests.test_shell import _EchoModule
 
 

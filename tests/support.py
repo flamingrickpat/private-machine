@@ -15,9 +15,9 @@ from pm_core.persist.dataprovider_yaml import (
     load_ghost_state_from_yaml,
 )
 
-from ghost import Ghost
+from pm_core.ghost.service import Ghost
 from main import build_app
-from shell import Envelope, _new_id
+from bus.envelopes import Envelope, _new_id
 
 SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "spamuel_agentic_canon.yaml"
 

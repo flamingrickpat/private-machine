@@ -6,7 +6,7 @@ import unittest
 
 from bus.bus import BusSystem
 from bus.envelopes import Envelope
-from ghost import Ghost
+from pm_core.ghost.service import Ghost
 from ghost_mcp import build_tools
 from pm_core.model.ghost_state import GhostConfig
 from pm_core.model.knoxel_common import Feature

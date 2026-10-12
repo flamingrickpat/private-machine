@@ -1,6 +1,6 @@
 """Construction (``build_app``) and the interactive terminal session.
 
-``python main.py`` starts the terminal session. ``python demo.py`` runs the
+``python main.py`` starts the terminal session. ``python dev/smoke_demo.py`` runs the
 finite scenario checks through the same ``build_app`` construction.
 """
 from __future__ import annotations
