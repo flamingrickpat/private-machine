@@ -266,7 +266,7 @@ def run(args) -> None:
     from pm_workflows.runtime import WorkflowRuntime
     from workflows.minecraft_body.lease import BODY_LEASES
     from pm.host.durable_files import atomic_json
-    from workflows.minecraft_body.gateway import ActorGateway
+    from workflows.minecraft_body.gateway import BodyGateway
     from workflows.minecraft_body.call_outcomes import safe_landing
     from workflows.minecraft_body.mcp_client import build_minecraft_tools
     from dev.work_items.alpha_minecraft_gate import RealServerStack
@@ -376,7 +376,7 @@ def run(args) -> None:
         tools["managed_instructions"] = lambda **kwargs: {"instruction": "Observe actual fixture failures.", "revision": 0}
         environment = FolderEnvironment(out / "protocol", "bash")
         runtime = WorkflowRuntime(environment, threading.Event(), tools)
-        gateway = ActorGateway(stack.mcp_url, "a13-fixture", environment, runtime, tools)
+        gateway = BodyGateway(stack.mcp_url, "a13-fixture", environment, runtime, tools)
         with BODY_LEASES.acquire(stack.mcp_url, gateway.owner):
             initial = gateway.call("minecraft_observe", {"include_image": False})
             receipt["initial_observation"] = initial["result"]
@@ -474,7 +474,7 @@ def run(args) -> None:
         with BODY_LEASES.acquire(stack.mcp_url, gateway.owner):
             # The earlier protocol boundary released its epoch. Rebuild the
             # gateway from its journal before claiming the hazard epoch.
-            gateway = ActorGateway(stack.mcp_url, "a13-fixture", environment, runtime, tools)
+            gateway = BodyGateway(stack.mcp_url, "a13-fixture", environment, runtime, tools)
             gateway.call("minecraft_observe", {"include_image": False})
             # Prepare liquid fixtures from the current observed body.
             current = gateway.call("minecraft_observe", {"include_image": False})["result"]

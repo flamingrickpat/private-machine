@@ -93,7 +93,7 @@ def argument_errors(schema: dict, arguments: dict) -> list[dict]:
             for error in validator.iter_errors(arguments)]
 
 
-class ActorGateway:
+class BodyGateway:
     """Serialize actions, retain receipts, and apply instructions before dispatch.
 
     Cleanup waits for a dispatched synchronous call. Cancellation cannot undo
@@ -375,7 +375,7 @@ class ActorGateway:
         self._tool_names = frozenset(row["name"] for row in schemas)
         server = FastMCP("minecraft_actor")
         for schema in schemas:
-            server.add_tool(ActorTool(name=schema["name"], description=schema["description"],
+            server.add_tool(GatewayTool(name=schema["name"], description=schema["description"],
                                       parameters=schema["parameters"], gateway=self))
         server.add_tool(Tool.from_function(self.boundary, name="actor_instructions"))
         server.add_tool(Tool.from_function(self.diagnose, name="actor_diagnose"))
@@ -403,7 +403,7 @@ def observed_target(receipt: dict, point: dict) -> bool:
         and result.get("position") == point))
 
 
-class ActorTool(Tool):
+class GatewayTool(Tool):
     """Forward one upstream schema through its owning actor gateway."""
 
     gateway: Any = Field(exclude=True)

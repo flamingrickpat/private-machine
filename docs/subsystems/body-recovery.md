@@ -61,10 +61,10 @@ Restoration does not automatically resume world work.
 
 ## Observation and reconciliation
 
-[`workflows.minecraft_body.gateway.ActorGateway`][] pins the body token at its first leased call.
+[`workflows.minecraft_body.gateway.BodyGateway`][] pins the body token at its first leased call.
 Its first successful `minecraft_observe` establishes observation for that epoch.
 A mutation before this observation raises `StaleEpoch`.
-[`workflows.minecraft_body.gateway.ActorGateway.reconcile`][] reads earlier dispatches and their original results.
+[`workflows.minecraft_body.gateway.BodyGateway.reconcile`][] reads earlier dispatches and their original results.
 A dispatch without a result remains `uncertain`, even when current world state appears correct.
 
 The reconciliation receipt records the body epoch, instruction revision, observation sequence, retained actions, and exact target reads.

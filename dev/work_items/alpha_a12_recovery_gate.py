@@ -65,7 +65,7 @@ def protocol_worker(args):
     from pm_workflows.runtime import WorkflowRuntime
     from workflows.minecraft_body.lease import BODY_LEASES
     from pm.host.durable_files import atomic_json
-    from workflows.minecraft_body.gateway import ActorGateway
+    from workflows.minecraft_body.gateway import BodyGateway
     from workflows.minecraft_body.mcp_client import build_minecraft_tools
     from pm.host.folder_target import FolderEnvironment
     out = args.out.resolve()
@@ -74,7 +74,7 @@ def protocol_worker(args):
     tools = build_minecraft_tools()
     tools["managed_instructions"] = lambda **kwargs: {"instruction": "Observe and turn once.", "revision": 0}
     runtime = WorkflowRuntime(environment, threading.Event(), tools)
-    gateway = ActorGateway("http://127.0.0.1:6767/mcp", "a12-protocol", environment, runtime, tools)
+    gateway = BodyGateway("http://127.0.0.1:6767/mcp", "a12-protocol", environment, runtime, tools)
     original = tools["minecraft_fenced_call"]
     def transport(name, arguments, token):
         result = original(name, arguments, token)
@@ -155,7 +155,7 @@ def run(args):
     from pm_workflows.runtime import WorkflowRuntime
     from workflows.minecraft_body.lease import BODY_LEASES, StaleEpoch
     from pm.host.durable_files import BodyBusy, atomic_json
-    from workflows.minecraft_body.gateway import ActorGateway
+    from workflows.minecraft_body.gateway import BodyGateway
     from workflows.minecraft_body.journal import read_actor_journal
     from workflows.minecraft_body.mcp_client import build_minecraft_tools
     from dev.work_items.alpha_minecraft_gate import RealServerStack
@@ -219,7 +219,7 @@ def run(args):
                 environment = FolderEnvironment(target, "bash")
                 runtime = WorkflowRuntime(environment, threading.Event(),
                     {"managed_instructions": lambda **kwargs: {"instruction": "Reconcile without mutation.", "revision": 0}})
-                gateway = ActorGateway(stack.mcp_url, "a12-resume", environment, runtime, tools)
+                gateway = BodyGateway(stack.mcp_url, "a12-resume", environment, runtime, tools)
                 with BODY_LEASES.acquire(stack.mcp_url, gateway.owner):
                     observation = gateway.call("minecraft_observe", {"include_image": False})
                     if not observation["ok"]:
@@ -264,7 +264,7 @@ def protocol_controls(out, stack, tools, receipt, save):
     from pm_workflows.runtime import WorkflowRuntime
     from workflows.minecraft_body.lease import BODY_LEASES
     from pm.host.durable_files import atomic_json
-    from workflows.minecraft_body.gateway import ActorGateway
+    from workflows.minecraft_body.gateway import BodyGateway
     from workflows.minecraft_body.journal import read_actor_journal
     from tests.live.minecraft_stack import _wait_port
     from pm.host.folder_target import FolderEnvironment
@@ -273,7 +273,7 @@ def protocol_controls(out, stack, tools, receipt, save):
     stop = threading.Event()
     instructions = lambda **kwargs: {"instruction": "Observe, walk, and accept cancellation.", "revision": 0}
     runtime = WorkflowRuntime(FolderEnvironment(target, "bash"), stop, {"managed_instructions": instructions})
-    gateway = ActorGateway(stack.mcp_url, "a12-cancel-active", runtime.environment, runtime, tools)
+    gateway = BodyGateway(stack.mcp_url, "a12-cancel-active", runtime.environment, runtime, tools)
     with BODY_LEASES.acquire(stack.mcp_url, gateway.owner):
         initial = gateway.call("minecraft_observe", {"include_image": False})
         results, errors = [], []
@@ -310,7 +310,7 @@ def protocol_controls(out, stack, tools, receipt, save):
     target = out / "mcp-restart"
     target.mkdir()
     runtime = WorkflowRuntime(FolderEnvironment(target, "bash"), threading.Event(), {"managed_instructions": instructions})
-    gateway = ActorGateway(stack.mcp_url, "a12-before-mcp-restart", runtime.environment, runtime, tools)
+    gateway = BodyGateway(stack.mcp_url, "a12-before-mcp-restart", runtime.environment, runtime, tools)
     with BODY_LEASES.acquire(stack.mcp_url, gateway.owner) as token:
         before = gateway.call("minecraft_observe", {"include_image": False})
         atomic_json(target / "old-token.json", token)
@@ -330,7 +330,7 @@ def protocol_controls(out, stack, tools, receipt, save):
                 raise
         else:
             raise AssertionError("The restarted MCP accepted its previous active token.")
-    gateway = ActorGateway(stack.mcp_url, "a12-after-mcp-restart", runtime.environment, runtime, tools)
+    gateway = BodyGateway(stack.mcp_url, "a12-after-mcp-restart", runtime.environment, runtime, tools)
     with BODY_LEASES.acquire(stack.mcp_url, gateway.owner) as replacement:
         after = gateway.call("minecraft_observe", {"include_image": False})
         reconciliation = gateway.reconcile([])

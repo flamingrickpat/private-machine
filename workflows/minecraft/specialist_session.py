@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Literal
 from pm_workflows.drivers import PmCoderDriver
 
-from workflows.minecraft_body.gateway import ActorGateway, READ_TOOLS
+from workflows.minecraft_body.gateway import BodyGateway, READ_TOOLS
 from pm.host.mcp_listeners import serve_services
 from workflows.minecraft.schemas import MinecraftRequest
 from workflows.minecraft.steps import build_world
@@ -84,7 +84,7 @@ def leaf_execution_context(request: MinecraftRequest) -> dict:
     return current
 
 
-def run_actor(context) -> dict:
+def run_specialist_session(context) -> dict:
     """Hold one body lease through the native session and external cleanup.
 
     The configured model session preserves pm-coder context discovery and
@@ -95,7 +95,7 @@ def run_actor(context) -> dict:
     request = MinecraftRequest.model_validate({key: value for key, value in payload.items()
                                              if not key.startswith("_public_")})
     endpoint = runtime.tools["minecraft_endpoint"]()
-    gateway = ActorGateway(endpoint, context.task_id, environment, runtime, dict(runtime.tools))
+    gateway = BodyGateway(endpoint, context.task_id, environment, runtime, dict(runtime.tools))
     request.goal = runtime.tools["managed_instructions"]()["instruction"] or request.goal or request.instruction
     current_leaf = leaf_execution_context(request)
     environment.write_text("inbox/leaf-specification.json", json.dumps(current_leaf, ensure_ascii=False, indent=2))

@@ -152,9 +152,9 @@ def _run_boundary_check(context) -> dict:
                                              if not key.startswith("_public_")})
     prompts = load_prompts()
     from workflows.minecraft_body.lease import BODY_LEASES
-    from workflows.minecraft_body.gateway import ActorGateway
+    from workflows.minecraft_body.gateway import BodyGateway
     endpoint = context.runtime.tools["minecraft_endpoint"]()
-    gateway = ActorGateway(endpoint, context.task_id, environment, context.runtime, dict(context.runtime.tools))
+    gateway = BodyGateway(endpoint, context.task_id, environment, context.runtime, dict(context.runtime.tools))
     def call(name, arguments=None):
         return gateway.call(name, arguments or {})
     boundary = context.runtime.tools["managed_instructions"]
@@ -255,8 +255,8 @@ def run(context) -> dict:
                     if release is not None:
                         release(token)
         return _run_boundary_check(context)
-    from workflows.minecraft.specialist_session import run_actor
-    return run_actor(context)
+    from workflows.minecraft.specialist_session import run_specialist_session
+    return run_specialist_session(context)
 
 
 __all__ = [

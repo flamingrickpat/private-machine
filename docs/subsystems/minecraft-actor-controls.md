@@ -62,7 +62,7 @@ The pm-coder driver cancels supported asynchronous inference and awaits session 
 The gateway rejects later calls before dispatch.
 
 Synchronous external work can continue after an MCP client disconnects.
-[`workflows.minecraft_body.gateway.ActorTool.run`][] waits for that call's thread before completing cancellation.
+[`workflows.minecraft_body.gateway.GatewayTool.run`][] waits for that call's thread before completing cancellation.
 The gateway's final cleanup also waits for the dispatch lock.
 Only then can the body lease become available.
 Blocks, inventory, position, and time do not roll back.

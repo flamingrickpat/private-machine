@@ -17,7 +17,7 @@ Its public `minecraft_use_block` tool accepts one integer block-cell position.
 The runtime checks the current block type and the five-block interaction range before activation.
 `mcmcp.runtime.MinecraftRuntime.minecraft_use_block` returns the typed `mcmcp.models.UseBlockResult`.
 
-[`workflows.minecraft_body.gateway.ActorGateway.call`][] retains the original MCP result in the actor journal.
+[`workflows.minecraft_body.gateway.BodyGateway.call`][] retains the original MCP result in the actor journal.
 The companion does not convert an interaction label into a task certificate.
 The selected leaf still needs its completion candidate and fresh independent verification.
 

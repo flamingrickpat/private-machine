@@ -94,7 +94,7 @@ Its roof actor then made unrelated trips despite reads of the complete roof and 
 The stopped run retained revision 38, twelve valid certificates, and 39 actor attempts.
 No roof acceptance was published.
 
-[`workflows.minecraft.specialist_session.run_actor`][] now explains the existing air-inspection protocol beside the supplied tool schema.
+[`workflows.minecraft.specialist_session.run_specialist_session`][] now explains the existing air-inspection protocol beside the supplied tool schema.
 An air result with matching position, `block_name=air`, and `reason=not_found` proves that exact cell is empty.
 Missing metadata, transport failures, and unseen cells still cannot prove air.
 Area bounds use absolute world coordinates; their aggregate air count cannot prove one specific air variant.

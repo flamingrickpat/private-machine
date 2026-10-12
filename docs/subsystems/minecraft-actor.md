@@ -37,7 +37,7 @@ Explicit `action_tool` requests and the old instruction-wait fixtures select the
 `mode: boundary_check` also selects that path.
 The request has no `max_actions` field or workflow tool-call ceiling.
 
-[`workflows.minecraft.specialist_session.run_actor`][] acquires the lease, observes the body, and discovers upstream tool schemas.
+[`workflows.minecraft.specialist_session.run_specialist_session`][] acquires the lease, observes the body, and discovers upstream tool schemas.
 It starts a temporary loopback MCP gateway and passes its descriptor to `PmCoderDriver.run_session`.
 The model comes from the supplied `agent_model` or the lazy `Default` model session.
 The driver uses pm-coder's native session, serving context, history, and automatic compaction.
@@ -77,7 +77,7 @@ Scripts can hide multiple actions from the current instruction boundary.
 Operator test routes remain outside the actor grant.
 The `actor_instructions` tool reports the latest instructions and lease owner without a world call.
 
-[`workflows.minecraft_body.gateway.ActorGateway`][] stores original results and screenshot paths in its journal.
+[`workflows.minecraft_body.gateway.BodyGateway`][] stores original results and screenshot paths in its journal.
 Image bytes never enter text observations or embeddings.
 The active actor sets visual interpretation to false.
 The gateway can return MCP image blocks through its explicit `visual` capability.

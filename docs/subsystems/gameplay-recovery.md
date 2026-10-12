@@ -15,7 +15,7 @@ Related: [body interruption](body-recovery.md) and [survival design](../work_ite
 ## Owning code and execution path
 
 The implementation lives in `pm_next_v2`.
-[`workflows.minecraft_body.gateway.ActorGateway`][] runs its checks inside the existing serialized command boundary.
+[`workflows.minecraft_body.gateway.BodyGateway`][] runs its checks inside the existing serialized command boundary.
 The journal retains the original dispatch and result before the actor receives gameplay guidance.
 [`workflows.minecraft_body.call_outcomes.GameplayEvidence`][] derives method history, search coverage, service waiting, and recovery from that journal.
 
