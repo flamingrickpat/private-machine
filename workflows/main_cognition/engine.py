@@ -20,7 +20,7 @@ from runtime.model_activation import ChatClient
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.main_cognition.pipeline import STAGE_ORDER
 from workflows.main_cognition.schemas import CognitiveReport, CognitiveRequest
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 PARENT_MANIFEST = PACKAGE_DIR / "main_cognition.workflow.md"

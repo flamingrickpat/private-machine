@@ -22,12 +22,12 @@ from pm_core.ghost.service import Ghost
 from pm_core.model.ghost_state import GhostConfig
 from runtime.lifecycle import CLEAN_END, UNCERTAIN_END, record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
-from workflow_adapter import PROJECT_ROOT
+from pm.host.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.dispatch import resolve_prerequisites
 from workflows.main_cognition.pipeline import run_cycle
 from workflows.main_cognition.schemas import ActionDispatch
 from workflows.main_cognition.state_changes import find_intention, normalize_goal_key
-from working_target import GhostBashWrapper
+from pm.memory.bash_view import GhostBashWrapper
 
 REAL_MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
 INNER_MANIFEST = PROJECT_ROOT / "workflows" / "inner_thought.workflow.md"

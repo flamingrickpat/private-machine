@@ -22,8 +22,8 @@ from fastmcp import FastMCP
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
 from pm.bus.envelopes import Envelope, _new_id
-from runtime.mcp_services import serve_services
-from runtime.shell import ShellModule
+from pm.host.mcp_listeners import serve_services
+from pm.host.application import ShellModule
 from runtime.workflow_models import WorkflowModels
 from runtime.workflow_runner import (
     PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus,

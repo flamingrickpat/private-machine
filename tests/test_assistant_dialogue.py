@@ -23,7 +23,7 @@ from workflows.dialogue_assistant.schemas import (
     ToolDescriptor,
     ToolReceipt,
 )
-from working_target import GhostBashEnvironment, GhostBashWrapper
+from pm.memory.bash_view import GhostBashEnvironment, GhostBashWrapper
 
 MANIFEST = PROJECT_ROOT / "workflows" / "dialogue_assistant" / "dialogue_assistant.workflow.md"
 

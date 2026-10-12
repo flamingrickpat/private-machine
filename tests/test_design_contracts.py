@@ -11,12 +11,13 @@ from pm_core.ghost.service import Ghost
 from ghost_mcp import build_mcp, build_tools
 from main import build_app
 from pm_core.model.ghost_state import GhostConfig
-from runtime.shell import Application, ShellModule
+from pm.host.application import Application, ShellModule
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from tests.support import ManualClock, Recorder, store_action
-from working_target import GhostBashEnvironment, GhostBashWrapper, FolderTarget
-from workflow_adapter import ShellModuleWorkflow
+from pm.memory.bash_view import GhostBashEnvironment, GhostBashWrapper
+from pm.host.folder_target import FolderTarget
+from pm.host.workflow_module import ShellModuleWorkflow
 
 
 def small_ghost():

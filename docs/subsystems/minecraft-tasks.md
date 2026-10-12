@@ -162,7 +162,7 @@ Waiting suspends through the existing managed question-and-answer mechanism.
 The answer resumes planning from the retained folder.
 There is no automatic polling of an unavailable external service.
 
-[`runtime.cancellation.LinkedStopEvent`][] links each actor's local stop to the parent cancellation signal.
+[`pm.host.cancellation.LinkedStopEvent`][] links each actor's local stop to the parent cancellation signal.
 Parent cancellation stops all current and later child work.
 A gateway uncertainty stops only that actor.
 After cleanup, the parent retains its original unpaired call and asks the planner to obtain fresh world state.

@@ -32,9 +32,9 @@ from pm.bus.envelopes import Envelope, _new_id
 from modules import MainCogLoop
 from runtime.lifecycle import record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
-from workflow_adapter import PROJECT_ROOT
+from pm.host.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.schemas import AppraisalResult
-from working_target import GhostBashWrapper
+from pm.memory.bash_view import GhostBashWrapper
 
 REAL_MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
 

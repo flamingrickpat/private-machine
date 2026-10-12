@@ -27,7 +27,7 @@ def run(args):
     from main import build_app
     from pm_core.ghost.service import Ghost
     from pm_core.model.knoxel_common import ActionSchemaKnoxel
-    from runtime.body_lease import atomic_json
+    from pm.host.durable_files import atomic_json
     from runtime.intents import replay_intents
     from runtime.managed_runs import ManagedRunSupervisor
     from runtime.publication import exchange_record
@@ -43,7 +43,7 @@ def run(args):
                "canon_sha256": hashlib.sha256(seed.read_bytes()).hexdigest(),
                "scope": "real companion selection and speech; operator-selected real note task"}
     if args.resume and (out / "receipt.json").is_file():
-        from runtime.body_lease import read_json
+        from pm.host.durable_files import read_json
         atomic_json(out / f"receipt-prior-{time.time_ns()}.json", read_json(out / "receipt.json"))
 
     def save():

@@ -24,7 +24,7 @@ from workflows.dialogue_story.steps import (
     load_prompts,
     render_prior_dialogue,
 )
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 
 def example_request(**overrides) -> StoryRequest:

@@ -49,7 +49,7 @@ from uuid import uuid4
 
 from pm_workflows.runtime import WorkflowRuntime
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 environment = GhostBashEnvironment({}, {}, "read")
 runtime = WorkflowRuntime(
@@ -108,7 +108,7 @@ An undeclared name is a `ManifestError`.
 `WorkflowRuntime.mcp_servers` supplies named scoped service descriptors.
 This field replaces shared `.mcp.json` discovery when present.
 The kernel writes a private configuration for each attempt.
-[`runtime.mcp_services.ScopedMcpRegistry`][] starts each named FastMCP service on an OS-assigned loopback port.
+[`pm.host.mcp_listeners.ScopedMcpRegistry`][] starts each named FastMCP service on an OS-assigned loopback port.
 It holds the bound socket for its lifetime.
 It closes the socket after success, error, or cancellation.
 `WorkflowRuntime.child_factory(scope)` opens the runtime for one child invocation.
@@ -139,7 +139,7 @@ The cognitive parent invokes seven child workflows through scoped runtimes.
 ## Code and evidence
 
 - [`runtime.workflow_runner.WorkflowRunner`][]
-- [`workflow_adapter.ShellModuleWorkflow`][]
+- [`pm.host.workflow_module.ShellModuleWorkflow`][]
 - Direct runner tests: `tests/test_workflow_runner.py`
 - Direct file-permission tests: `tests/test_agent_file_scope.py`
 - Run control tests: `tests/test_run_control.py`

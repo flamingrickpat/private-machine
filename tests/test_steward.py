@@ -15,7 +15,7 @@ from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.steward import Steward
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.steward.schemas import StewardReport
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
 STEWARD_MANIFEST = PROJECT_ROOT / "workflows" / "steward" / "steward.workflow.md"

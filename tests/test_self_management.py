@@ -25,7 +25,7 @@ from runtime.management_tools import build_management_tools
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from tests.support import Recorder
 from workflows.self_management.schemas import SelfManagementReport
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 MANIFEST = PROJECT_ROOT / "workflows" / "self_management" / "self_management.workflow.md"
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
@@ -184,7 +184,7 @@ class ManagementMcpTests(unittest.TestCase):
     def test_management_operations_are_reachable_over_real_mcp(self):
         from fastmcp import Client
         from runtime.management_tools import management_mcp
-        from runtime.mcp_services import serve_services
+        from pm.host.mcp_listeners import serve_services
 
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

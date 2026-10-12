@@ -109,7 +109,7 @@ def native_adaptation(app, environment, tools, target: dict, unreachable: dict, 
     """
     from runtime.minecraft_actor import read_actor_journal
     from runtime.minecraft_outcomes import GameplayEvidence, safe_landing
-    from runtime.body_lease import atomic_json
+    from pm.host.durable_files import atomic_json
     cases = [
         ("prerequisites", "gatherer", f"Correct the retained wrong-tool failure at stone {target}. "
          "Gather counted wood and craft only the missing prerequisites. One stick recipe repetition produces four sticks: "
@@ -264,13 +264,14 @@ def run(args) -> None:
     """
     from main import build_app
     from pm_workflows.runtime import WorkflowRuntime
-    from runtime.body_lease import BODY_LEASES, atomic_json
+    from runtime.body_lease import BODY_LEASES
+    from pm.host.durable_files import atomic_json
     from runtime.minecraft_actor import ActorGateway
     from runtime.minecraft_outcomes import safe_landing
     from runtime.minecraft_tools import build_minecraft_tools
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
-    from working_target import FolderEnvironment
+    from pm.host.folder_target import FolderEnvironment
 
     out = args.out.resolve()
     if not out.is_relative_to(ROOT / ".runtime"):

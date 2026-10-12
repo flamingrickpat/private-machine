@@ -19,7 +19,7 @@ from runtime.consolidation import Consolidator
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.minecraft import steps
 from workflows.minecraft.schemas import MinecraftReport
-from working_target import FolderEnvironment
+from pm.host.folder_target import FolderEnvironment
 from runtime.body_lease import BODY_LEASES
 
 MANIFEST = PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md"

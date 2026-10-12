@@ -30,9 +30,9 @@ from runtime.workflow_runner import (
     WorkflowRunner,
     WorkflowStatus,
 )
-from working_target import FolderEnvironment
+from pm.host.folder_target import FolderEnvironment
 from runtime.workflow_models import WorkflowModels
-from runtime.body_lease import ProcessLock, BodyBusy, atomic_json, read_json
+from pm.host.durable_files import ProcessLock, BodyBusy, atomic_json, read_json
 
 STATES = frozenset({
     "accepted", "running", "waiting_for_input", "completed", "failed",

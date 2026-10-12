@@ -5,7 +5,7 @@ import unittest
 
 from fastmcp import Client, FastMCP
 
-from runtime.mcp_services import ScopedMcpRegistry, serve_services
+from pm.host.mcp_listeners import ScopedMcpRegistry, serve_services
 
 
 def _echo_server(name: str, value: str) -> FastMCP:

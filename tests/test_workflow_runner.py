@@ -10,8 +10,9 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
-from working_target import FolderTarget, GhostBashEnvironment
-from workflow_adapter import ShellModuleWorkflow
+from pm.host.folder_target import FolderTarget
+from pm.memory.bash_view import GhostBashEnvironment
+from pm.host.workflow_module import ShellModuleWorkflow
 
 
 class WorkflowRunnerTests(unittest.TestCase):

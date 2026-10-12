@@ -55,8 +55,8 @@ It cannot infer the latest virtual file from a fabricated timestamp.
 ## State and external effects
 
 Capture reads through [`pm_workflows.working_target.WorkingEnvironment`][].
-[`working_target.FolderEnvironment`][] supplies host stat metadata.
-[`working_target.GhostBashEnvironment`][] supplies content versions and leaves unavailable times unknown.
+[`pm.host.folder_target.FolderEnvironment`][] supplies host stat metadata.
+[`pm.memory.bash_view.GhostBashEnvironment`][] supplies content versions and leaves unavailable times unknown.
 Virtual paths never become host `Path` objects.
 Child factories continue to supply the granted environment for each invocation.
 

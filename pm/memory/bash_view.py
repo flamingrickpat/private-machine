@@ -1,31 +1,20 @@
-"""Working-target adapters: a virtual Ghost Bash environment and a real folder.
+"""Read-only memory view as a virtual Bash environment.
 
-The virtual environment exposes a read-only projection of the Ghost as
-``/work/ghost/knoxels/<id>.yaml`` files inside a fresh in-memory BashMachine,
-plus writable ``/work/inbox``, ``/work/outbox``, and ``/work/scratch``. The
-Ghost stays in RAM; the machine's content map resolves ``cat`` lazily from the
-snapshot instead of copying every knoxel. The real-folder target runs trusted
-host Bash in one temp directory per invocation.
+The view exposes the memory store as ``/work/ghost/knoxels/<id>.yaml`` files
+inside a fresh in-memory BashMachine, plus writable ``/work/inbox``,
+``/work/outbox``, and ``/work/scratch``. The store stays in RAM; ``cat``
+resolves each record lazily from the snapshot instead of copying it.
 """
 from __future__ import annotations
 
 import posixpath
 import shlex
-import shutil
-import subprocess
 from pathlib import Path
 
 import yaml
 
 from pm_bash_machine import Access, BashMachine
-from pm_workflows.working_target import (
-    AgentTarget,
-    CommandResult,
-    WorkingEnvironment,
-    WorkingTarget,
-    HostInputEnvironment,
-)
-from pm_workflows.inputs import FileMetadata
+from pm_workflows.working_target import AgentTarget, CommandResult, WorkingEnvironment, WorkingTarget
 
 
 class _LazyGhostFile:
@@ -41,6 +30,7 @@ class _LazyGhostFile:
                 self._data, sort_keys=False, allow_unicode=True,
             )
         return self._rendered
+
 
 def _index_entry(knoxel_id: int, record: dict) -> dict:
     data = record["data"]
@@ -168,88 +158,4 @@ class GhostBashWrapper(WorkingTarget):
         return environment
 
 
-class FolderEnvironment(WorkingEnvironment):
-    """A real directory used as one invocation-scoped working target."""
-
-    def agent_target(self, artifact_workspace: Path) -> AgentTarget:
-        return AgentTarget(self.root.resolve())
-
-    def __init__(self, root: Path, bash_executable: str):
-        self.root = root
-        self.root.mkdir(parents=True, exist_ok=True)
-        self.bash_executable = bash_executable
-
-    def _path(self, path: str) -> Path:
-        return HostInputEnvironment(self.root)._path(path, folder=True)
-
-    def read_text(self, path: str) -> str:
-        return HostInputEnvironment(self.root).read_text(path)
-
-    def file_metadata(self, path: str) -> FileMetadata:
-        """Return actual host stat identity and an exact-byte digest."""
-        return HostInputEnvironment(self.root).file_metadata(path)
-
-    def check_file_boundary(self, path: str, folder: str) -> None:
-        """Apply the declared folder boundary to the resolved host file."""
-        HostInputEnvironment(self.root).check_file_boundary(path, folder)
-
-    def canonical_relative_path(self, path: str) -> str:
-        """Expose host symlink targets for the kernel's path grant checks."""
-        return HostInputEnvironment(self.root).canonical_relative_path(path)
-
-    def write_text(self, path: str, text: str) -> None:
-        target = self._path(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8", newline="")
-
-    def move(self, source: str, destination: str) -> None:
-        source_path = self._path(source)
-        destination_path = self._path(destination)
-        destination_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(source_path), str(destination_path))
-
-    def write_binary(self, path: str, data: bytes) -> None:
-        target = self._path(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
-
-    def list_files(self, directory: str) -> list[str]:
-        root = self._path(directory)
-        if not root.is_dir():
-            return []
-        prefix = directory.rstrip("/")
-        if prefix:
-            prefix += "/"
-        return sorted(prefix + p.name for p in root.iterdir() if p.is_file())
-
-    def exec(self, command: str) -> CommandResult:
-        result = subprocess.run(
-            [self.bash_executable, "--noprofile", "--norc", "-c", command],
-            cwd=self.root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        return CommandResult(
-            stdout=result.stdout, stderr=result.stderr, exit_code=result.returncode,
-        )
-
-
-class FolderTarget(WorkingTarget):
-    """Opens one real folder under ``root`` for each invocation."""
-
-    def __init__(self, root: Path, bash_executable: str):
-        self.root = Path(root)
-        self.bash_executable = bash_executable
-
-    def open(self, invocation_id: str) -> FolderEnvironment:
-        return FolderEnvironment(self.root / invocation_id, self.bash_executable)
-
-
-__all__ = [
-    "GhostBashWrapper",
-    "GhostBashEnvironment",
-    "FolderTarget",
-    "FolderEnvironment",
-]
+__all__ = ["GhostBashEnvironment", "GhostBashWrapper"]

@@ -31,7 +31,7 @@ def run(args) -> None:
     from pm_workflows.runtime import WorkflowRuntime
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
-    from working_target import FolderEnvironment
+    from pm.host.folder_target import FolderEnvironment
 
     out = args.out.resolve()
     if not out.is_relative_to(ROOT / ".runtime"):

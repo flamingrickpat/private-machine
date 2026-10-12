@@ -30,7 +30,8 @@ from runtime.workflow_models import WorkflowModels
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from dev.work_items.alpha_classification_gate import inspect_overflow, long_log, make_logs, response_recorder
 from dev.work_items.shared.evidence import save_json, sha256_file
-from working_target import FolderEnvironment, GhostBashWrapper
+from pm.host.folder_target import FolderEnvironment
+from pm.memory.bash_view import GhostBashWrapper
 
 DEMO = ROOT / "workflows/classification_demo/classification_demo.workflow.md"
 LONG_DEMO = DEMO.with_name("long_inspection.workflow.md")

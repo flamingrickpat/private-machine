@@ -10,12 +10,13 @@ from uuid import uuid4
 import yaml
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
-from runtime.mcp_services import ScopedMcpRegistry
+from pm.host.mcp_listeners import ScopedMcpRegistry
 from runtime.model_activation import ModelActivation
 from runtime.models import load_config, resolve_connection
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from ghost_mcp import build_mcp
-from working_target import FolderTarget, GhostBashEnvironment
+from pm.host.folder_target import FolderTarget
+from pm.memory.bash_view import GhostBashEnvironment
 
 
 class LiveAgentWorkflowTests(unittest.TestCase):

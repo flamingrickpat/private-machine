@@ -31,12 +31,12 @@ Each endpoint has a hashed filename and these durable files:
 | `.command.lock` | Local reads and commands serialize at the dispatch boundary |
 | `.json` | Endpoint, owner, epoch, session UUID, PID, active status, and timestamps |
 
-[`runtime.body_lease.ProcessLock`][] uses `msvcrt` on Windows and `flock` elsewhere.
+[`pm.host.durable_files.ProcessLock`][] uses `msvcrt` on Windows and `flock` elsewhere.
 A second owner receives `BodyBusy` immediately.
 A queued command checks cancellation while it waits.
 The operating system releases a dead process's lock.
 There is no elapsed-time takeover and no PID-only ownership test.
-[`runtime.body_lease.atomic_json`][] synchronizes the new epoch before atomic publication.
+[`pm.host.durable_files.atomic_json`][] synchronizes the new epoch before atomic publication.
 
 ## Server ownership
 

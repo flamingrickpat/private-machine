@@ -13,11 +13,11 @@ from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel, ValidationError
 
 from runtime.body_lease import BODY_LEASES
-from runtime.cancellation import LinkedStopEvent
+from pm.host.cancellation import LinkedStopEvent
 from runtime.minecraft_actor import read_actor_journal
 from runtime.minecraft_outcomes import GameplayEvidence, signature
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
-from working_target import FolderEnvironment
+from pm.host.folder_target import FolderEnvironment
 from workflows.minecraft.schemas import MinecraftRequest
 from workflows.minecraft_tasks.schemas import (
     Condition, Node, PlanProposal, PlanReview, ProjectRequest, RefinementProposal, RetentionChoice, RevisionProposal, TaskTree, VerificationReview,

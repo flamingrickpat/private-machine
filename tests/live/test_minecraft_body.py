@@ -32,7 +32,7 @@ from runtime.consolidation import Consolidator
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.minecraft_tools import DEFAULT_MCP_URL, build_minecraft_tools
 from tests.live.minecraft_stack import MinecraftStack, autostart_enabled
-from workflow_adapter import PROJECT_ROOT
+from pm.host.workflow_module import PROJECT_ROOT
 
 EVIDENCE_ROOT = (
     Path(".runtime/w8/live-minecraft")

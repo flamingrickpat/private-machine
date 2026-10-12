@@ -57,7 +57,7 @@ from runtime.model_activation import ModelActivation
 from runtime.models import load_config
 from runtime.workflow_models import WorkflowModels
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner
-from working_target import FolderEnvironment
+from pm.host.folder_target import FolderEnvironment
 
 models = WorkflowModels(load_config("config.alpha.example.yaml"), ModelActivation())
 runtime = WorkflowRuntime(FolderEnvironment(Path("your-test-workspace"), "bash"), Event(), {})

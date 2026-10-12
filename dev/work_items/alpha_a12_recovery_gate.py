@@ -30,7 +30,7 @@ def wait_for(predicate, timeout=120):
 
 def read(path):
     """Read an atomically published receipt, or return no receipt yet."""
-    from runtime.body_lease import read_json
+    from pm.host.durable_files import read_json
     try:
         return read_json(path)
     except FileNotFoundError:
@@ -63,10 +63,11 @@ def kill_worker(process):
 def protocol_worker(args):
     """Pause at a real call boundary until the parent kills this process."""
     from pm_workflows.runtime import WorkflowRuntime
-    from runtime.body_lease import BODY_LEASES, atomic_json
+    from runtime.body_lease import BODY_LEASES
+    from pm.host.durable_files import atomic_json
     from runtime.minecraft_actor import ActorGateway
     from runtime.minecraft_tools import build_minecraft_tools
-    from working_target import FolderEnvironment
+    from pm.host.folder_target import FolderEnvironment
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     environment = FolderEnvironment(out, "bash")
@@ -102,7 +103,7 @@ def protocol_worker(args):
 def native_worker(args):
     """Run the production supervisor, seed, model session, and body workflow."""
     from main import build_app
-    from runtime.body_lease import atomic_json
+    from pm.host.durable_files import atomic_json
     out = args.out.resolve()
     scenario = read(out / "scenario.json")
     app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", cognition="real",
@@ -152,12 +153,13 @@ def run(args):
     import yaml
     from urllib.request import urlopen
     from pm_workflows.runtime import WorkflowRuntime
-    from runtime.body_lease import BODY_LEASES, BodyBusy, StaleEpoch, atomic_json
+    from runtime.body_lease import BODY_LEASES, StaleEpoch
+    from pm.host.durable_files import BodyBusy, atomic_json
     from runtime.minecraft_actor import ActorGateway, read_actor_journal
     from runtime.minecraft_tools import build_minecraft_tools
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
-    from working_target import FolderEnvironment
+    from pm.host.folder_target import FolderEnvironment
     out, server = args.out.resolve(), args.server.resolve()
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Keep evidence below the workspace .runtime directory.")
@@ -259,10 +261,11 @@ def run(args):
 def protocol_controls(out, stack, tools, receipt, save):
     """Stop a real active navigation call, then fence an actual MCP restart."""
     from pm_workflows.runtime import WorkflowRuntime
-    from runtime.body_lease import BODY_LEASES, atomic_json
+    from runtime.body_lease import BODY_LEASES
+    from pm.host.durable_files import atomic_json
     from runtime.minecraft_actor import ActorGateway, read_actor_journal
     from tests.live.minecraft_stack import _wait_port
-    from working_target import FolderEnvironment
+    from pm.host.folder_target import FolderEnvironment
     target = out / "cancel-active"
     target.mkdir()
     stop = threading.Event()
@@ -339,7 +342,7 @@ def protocol_controls(out, stack, tools, receipt, save):
 
 def native_scenarios(args, out, stack, tools, workers, receipt, save):
     """Cancel, reconnect, and resume wood; kill and restart a real house leaf."""
-    from runtime.body_lease import atomic_json
+    from pm.host.durable_files import atomic_json
     from runtime.minecraft_actor import read_actor_journal
     if args.house_only:
         return house_scenario(args, out, stack, tools, workers, receipt, save)
@@ -395,7 +398,7 @@ def native_scenarios(args, out, stack, tools, workers, receipt, save):
 
 def house_scenario(args, out, stack, tools, workers, receipt, save):
     """Retain exact A11 cells across a real inspection-leaf process restart."""
-    from runtime.body_lease import atomic_json
+    from pm.host.durable_files import atomic_json
     from runtime.minecraft_actor import read_actor_journal
     target = out / "house"
     target.mkdir()

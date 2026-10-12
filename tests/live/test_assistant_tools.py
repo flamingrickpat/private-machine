@@ -28,8 +28,8 @@ from tests.support import Recorder
 from workflows.dialogue_assistant.module_tools import (
     build_assistant_tools,
 )
-from workflow_adapter import PROJECT_ROOT
-from working_target import GhostBashWrapper
+from pm.host.workflow_module import PROJECT_ROOT
+from pm.memory.bash_view import GhostBashWrapper
 
 EVIDENCE_ROOT = Path(".runtime/w6/live-assistant") / (
     datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]

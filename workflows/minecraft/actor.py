@@ -12,7 +12,7 @@ from typing import Literal
 from pm_workflows.drivers import PmCoderDriver
 
 from runtime.minecraft_actor import ActorGateway, READ_TOOLS
-from runtime.mcp_services import serve_services
+from pm.host.mcp_listeners import serve_services
 from workflows.minecraft.schemas import MinecraftRequest
 from workflows.minecraft.steps import build_world
 

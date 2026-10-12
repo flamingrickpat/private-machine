@@ -22,7 +22,7 @@ from tests.live.conversation import SCENARIOS, evaluation_context, generation_co
 from tests.support import ManualClock
 from tests.test_design_contracts import small_ghost
 from tests.test_minecraft_workflow import observation
-from workflow_adapter import PROJECT_ROOT
+from pm.host.workflow_module import PROJECT_ROOT
 
 
 def wait_for(predicate):

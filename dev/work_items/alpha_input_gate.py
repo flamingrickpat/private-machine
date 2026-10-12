@@ -27,7 +27,8 @@ from pm_core.persist.dataprovider_yaml import load_ghost_state_from_yaml
 from runtime.model_activation import ModelActivation
 from runtime.models import load_config, resolve_connection
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
-from working_target import FolderEnvironment, GhostBashWrapper
+from pm.host.folder_target import FolderEnvironment
+from pm.memory.bash_view import GhostBashWrapper
 
 REPORT = ROOT / ".runtime/alpha/a01/console-spamuel/instances/fd71e4655da44430b9779eb6739d45f5/managed_tasks/dd8a80caec16462b97e0e85cbdf87346/outbox/report.yaml"
 

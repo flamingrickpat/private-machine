@@ -304,5 +304,5 @@ class Ghost(BaseGhost):
         raise NotImplementedError("Use GhostWriteBatch.replace to update memory.")
 
     def create_bash_environment(self, mode: str = "read", visible_ids=None):
-        from working_target import GhostBashWrapper
+        from pm.memory.bash_view import GhostBashWrapper
         return GhostBashWrapper(self, mode=mode, visible_ids=visible_ids)

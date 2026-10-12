@@ -25,7 +25,7 @@ from pm_core.model.knoxel_enums import FeatureType, InterlocusType
 from runtime.model_activation import ChatClient
 from runtime.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
 MANIFEST = WORKFLOW_DIR / "dialogue_story.workflow.md"

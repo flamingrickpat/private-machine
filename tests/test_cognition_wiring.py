@@ -19,10 +19,10 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
 from modules import MainCogLoop, StoryDialogue
 from tests.support import ManualClock, Recorder
-from workflow_adapter import PROJECT_ROOT
+from pm.host.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.module_tools import build_main_cognition_tools
 from workflows.main_cognition.pipeline import stable_action_id
-from working_target import GhostBashWrapper
+from pm.memory.bash_view import GhostBashWrapper
 
 REAL_MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
 STORY_MANIFEST = PROJECT_ROOT / "workflows" / "dialogue_story" / "dialogue_story.workflow.md"

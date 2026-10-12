@@ -7,7 +7,7 @@ import unittest
 import yaml
 from pm_coder import build_settings, make_file_tools, prompt_text
 
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 
 class AgentFileScopeTests(unittest.TestCase):

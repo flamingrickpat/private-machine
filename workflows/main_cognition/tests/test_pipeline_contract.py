@@ -14,7 +14,7 @@ from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunne
 from workflows.main_cognition.dispatch import resolve_dispatches, resolve_same_cycle
 from workflows.main_cognition.pipeline import STAGE_ORDER, run_cycle, stable_action_id
 from workflows.main_cognition.schemas import ActionDispatch, CognitiveReport
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 MANIFEST = Path(__file__).resolve().parent.parent / "main_cognition.workflow.md"
 

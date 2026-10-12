@@ -24,7 +24,8 @@ import ghost_mcp
 from pm_core.ghost.service import Ghost
 from main import BANNER, build_app
 from pm.bus.envelopes import Envelope, _new_id
-from working_target import FolderTarget, GhostBashWrapper
+from pm.host.folder_target import FolderTarget
+from pm.memory.bash_view import GhostBashWrapper
 
 SEED = ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 

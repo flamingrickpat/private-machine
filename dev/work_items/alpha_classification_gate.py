@@ -30,7 +30,8 @@ from pm_workflows.runtime import AgentModel, WorkflowRuntime
 from pm_core.ghost.service import Ghost
 from pm_core.persist.dataprovider_yaml import load_ghost_state_from_yaml
 from runtime.models import load_config, resolve_connection
-from working_target import FolderEnvironment, GhostBashWrapper
+from pm.host.folder_target import FolderEnvironment
+from pm.memory.bash_view import GhostBashWrapper
 
 CLASSES = {"all_good": "The current completed test run ran at least one test and all tests passed.",
            "some_failed": "The current completed test run reports at least one passed test and at least one failed test.",

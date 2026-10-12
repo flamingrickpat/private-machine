@@ -17,7 +17,7 @@ from runtime.managed_runs import (
     ManagedRunSupervisor,
     WorkflowSpec,
 )
-from workflow_adapter import PROJECT_ROOT
+from pm.host.workflow_module import PROJECT_ROOT
 
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
 
@@ -155,7 +155,7 @@ class ManagedRunTests(unittest.TestCase):
         from threading import Event
         from pm_workflows.runtime import WorkflowRuntime
         from runtime.managed_runs import scoped_children
-        from working_target import FolderEnvironment
+        from pm.host.folder_target import FolderEnvironment
 
         runtime = scoped_children(WorkflowRuntime(FolderEnvironment(self.root / "scope", "bash"),
             Event(), {}, mcp_servers={"minecraft": {"url": "http://127.0.0.1:6767/mcp"}}), self.root / "scope")

@@ -13,7 +13,7 @@ from runtime.model_activation import ModelActivation
 from runtime.models import ConnectionConfig, load_config
 from runtime.workflow_models import WorkflowModels
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
-from working_target import FolderEnvironment
+from pm.host.folder_target import FolderEnvironment
 
 
 class WorkflowModelTests(unittest.TestCase):

@@ -3,7 +3,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from working_target import FolderTarget, GhostBashEnvironment
+from pm.host.folder_target import FolderTarget
+from pm.memory.bash_view import GhostBashEnvironment
 
 
 class AgentTargetTests(unittest.TestCase):

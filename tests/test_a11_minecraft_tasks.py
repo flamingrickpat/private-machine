@@ -20,7 +20,7 @@ from workflows.minecraft_tasks.schemas import Condition, Node, PlanProposal, Tas
 from workflows.minecraft_tasks.tree import TreeStore, acceptance_requirements, digest, validate_tree
 from workflows.minecraft_tasks.verification import evaluate
 from workflows.minecraft_tasks.steps import progress_facts, scoped_reads, survey_conditions
-from runtime.cancellation import LinkedStopEvent
+from pm.host.cancellation import LinkedStopEvent
 
 ROOT = Path(__file__).resolve().parents[1]
 CAPTURED = json.loads((ROOT / "test_data/captures/alpha/a11-original-world-reads.json").read_text(encoding="utf-8"))

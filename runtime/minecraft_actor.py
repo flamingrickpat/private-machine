@@ -268,7 +268,7 @@ class ActorGateway:
         with self._journal_lock:
             self._write_receipt(receipt)
             self.gameplay.consume(receipt, self.journal_source)
-            from runtime.body_lease import atomic_json
+            from pm.host.durable_files import atomic_json
             atomic_json(self.environment._path("scratch/gameplay-evidence.json"), self.gameplay.snapshot())
             atomic_json(self.environment._path("scratch/decision-evidence.json"), self.gameplay.decision_snapshot())
 
@@ -312,7 +312,7 @@ class ActorGateway:
         Original dispatches and results remain separate evidence. A current
         cell can establish its state, but cannot establish who changed it.
         """
-        from runtime.body_lease import atomic_json
+        from pm.host.durable_files import atomic_json
         retained = [{"source": "scratch/actor-journal.jsonl", "calls": self.previous}]
         for path in sources:
             retained.append({"source": str(path), "calls": read_actor_journal(path)})

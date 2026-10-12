@@ -21,7 +21,7 @@ def run(args) -> None:
     inventory. It preserves the world and stops the services that it owns.
     Use a fresh ignored output directory. Any failed check retains its receipt.
     """
-    from runtime.body_lease import atomic_json
+    from pm.host.durable_files import atomic_json
     from runtime.minecraft_outcomes import GameplayEvidence
     from runtime.minecraft_tools import build_minecraft_tools
     from dev.work_items.alpha_minecraft_gate import RealServerStack

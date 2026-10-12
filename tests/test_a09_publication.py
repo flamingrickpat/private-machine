@@ -56,7 +56,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_source_conflict_prevents_semantic_and_protocol_recovery(self):
         from modules import StoryDialogue
-        from working_target import GhostBashWrapper
+        from pm.memory.bash_view import GhostBashWrapper
         from workflows.dialogue_story.engine import MANIFEST
 
         for status in ("rejected", "failed"):
@@ -83,7 +83,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_protocol_failure_cannot_become_an_invented_user_report(self):
         from modules import StoryDialogue
-        from working_target import GhostBashWrapper
+        from pm.memory.bash_view import GhostBashWrapper
         from workflows.dialogue_story.engine import MANIFEST
 
         with TemporaryDirectory() as tmp:

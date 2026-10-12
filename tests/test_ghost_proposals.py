@@ -12,8 +12,8 @@ from pm_core.model.ghost_state import GhostConfig
 from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_enums import FeatureType
 from pm_core.persist.dataprovider_yaml import _serialize_knoxel
-from working_target import GhostBashEnvironment, GhostBashWrapper
-from workflow_adapter import ShellModuleWorkflow
+from pm.memory.bash_view import GhostBashEnvironment, GhostBashWrapper
+from pm.host.workflow_module import ShellModuleWorkflow
 
 
 def _ghost() -> Ghost:

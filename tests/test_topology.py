@@ -19,7 +19,7 @@ from pm_workflows.dryrun import (
     TERMINAL_SUCCESS,
     check_workflow,
 )
-from workflow_adapter import PROJECT_ROOT
+from pm.host.workflow_module import PROJECT_ROOT
 
 WORKFLOW_ROOT = PROJECT_ROOT / "workflows"
 TERMINALS = {TERMINAL_SUCCESS, TERMINAL_STOP}
@@ -174,7 +174,7 @@ class TopologyTests(unittest.TestCase):
         generic = [
             PROJECT_ROOT / "pm" / "bus" / "bus.py",
             PROJECT_ROOT / "pm" / "bus" / "envelopes.py",
-            PROJECT_ROOT / "runtime" / "shell.py",
+            PROJECT_ROOT / "pm" / "host" / "application.py",
             PROJECT_ROOT / "runtime" / "workflow_runner.py",
         ]
         for path in generic:

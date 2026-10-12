@@ -4,7 +4,8 @@ from tempfile import TemporaryDirectory
 import threading
 import unittest
 
-from runtime.body_lease import BodyBusy, BodyLeases
+from pm.host.durable_files import BodyBusy
+from runtime.body_lease import BodyLeases
 
 
 class BodyLeaseTests(unittest.TestCase):

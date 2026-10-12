@@ -6,14 +6,14 @@ import time
 import unittest
 
 from main import build_app
-from runtime.shell import Application
+from pm.host.application import Application
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from tests.support import Recorder
 from tests.test_design_contracts import small_ghost
 from tests.test_shell import _MANIFEST
-from working_target import GhostBashWrapper
-from workflow_adapter import ShellModuleWorkflow
+from pm.memory.bash_view import GhostBashWrapper
+from pm.host.workflow_module import ShellModuleWorkflow
 
 
 class ThreadedRuntimeTests(unittest.TestCase):

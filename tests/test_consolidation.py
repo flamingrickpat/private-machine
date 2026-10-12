@@ -19,7 +19,7 @@ from runtime.consolidation import Consolidator
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.memory_consolidation.schemas import ConsolidationReport
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
 CONSOLIDATION_MANIFEST = (

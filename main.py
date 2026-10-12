@@ -35,11 +35,11 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
 from runtime.consolidation import Consolidator
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
-from runtime.shell import Application
+from pm.host.application import Application
 from runtime.steward import Steward
 from runtime.workflow_models import WorkflowModels
-from working_target import GhostBashWrapper
-from workflow_adapter import PROJECT_ROOT, ShellModuleWorkflow
+from pm.memory.bash_view import GhostBashWrapper
+from pm.host.workflow_module import PROJECT_ROOT, ShellModuleWorkflow
 
 BANNER = "DUMMY COGNITION \u2014 no LLM calls\n"
 REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"

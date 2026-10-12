@@ -14,7 +14,7 @@ from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunne
 from workflows.main_cognition.schemas import GoalsResult
 from workflows.main_cognition.stage_support import StageOutputError
 from workflows.main_cognition.stages.goals import steps
-from working_target import GhostBashEnvironment
+from pm.memory.bash_view import GhostBashEnvironment
 
 MANIFEST = Path(steps.__file__).resolve().parent / "goals.workflow.md"
 

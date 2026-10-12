@@ -11,8 +11,8 @@ from pathlib import Path
 import ghost_mcp
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
-from runtime.shell import ShellModule
-from working_target import GhostBashWrapper
+from pm.host.application import ShellModule
+from pm.memory.bash_view import GhostBashWrapper
 
 from tests.support import (
     ManualClock,

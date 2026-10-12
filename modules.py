@@ -23,8 +23,8 @@ from pm_core.model.mental_state_vectors import FullMentalState, create_empty_sta
 from runtime.experience import consolidate_cycle, update_beliefs, utterance_metadata
 
 from pm.bus.envelopes import Envelope, _new_id
-from runtime.shell import ShellModule
-from workflow_adapter import PROJECT_ROOT, ShellModuleWorkflow
+from pm.host.application import ShellModule
+from pm.host.workflow_module import PROJECT_ROOT, ShellModuleWorkflow
 from ghost_mcp import build_tools
 from workflows.dialogue_story.schemas import DialogueTurn, StoryReport, StoryRequest
 from workflows.main_cognition.pipeline import DEFAULT_WORKFLOWS
