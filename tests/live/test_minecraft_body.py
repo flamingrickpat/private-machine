@@ -25,9 +25,9 @@ from uuid import uuid4
 
 from pm_core.ghost.service import Ghost
 from pm_core.model.ghost_state import GhostConfig
-from runtime.cognitive_model import LazyStageModel
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config, resolve_connection
+from pm.llm.stage_model import LazyStageModel
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config, resolve_connection
 from runtime.consolidation import Consolidator
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.minecraft_tools import DEFAULT_MCP_URL, build_minecraft_tools

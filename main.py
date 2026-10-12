@@ -37,7 +37,7 @@ from runtime.consolidation import Consolidator
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from pm.host.application import Application
 from runtime.steward import Steward
-from runtime.workflow_models import WorkflowModels
+from pm.llm.workflow_sessions import WorkflowModels
 from pm.memory.bash_view import GhostBashWrapper
 from pm.host.workflow_module import PROJECT_ROOT, ShellModuleWorkflow
 
@@ -120,9 +120,9 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
         from workflows.self_management.module_tools import build_self_management_tools
 
         if stage_model is None:
-            from runtime.cognitive_model import LazyStageModel
-            from runtime.model_activation import ModelActivation
-            from runtime.models import load_config, resolve_connection
+            from pm.llm.stage_model import LazyStageModel
+            from pm.llm.activation import ModelActivation
+            from pm.llm.config import load_config, resolve_connection
 
             config = load_config(config_path)
             stage_model = LazyStageModel(resolve_connection(config), ModelActivation())
@@ -201,9 +201,9 @@ def build_app(
         raise ValueError("Supply a Ghost or a checkpoint path, not both.")
     resolved_config = config_path or default_config_path()
     if cognition == "real" and stage_model is None:
-        from runtime.cognitive_model import LazyStageModel
-        from runtime.model_activation import ModelActivation
-        from runtime.models import load_config, resolve_connection
+        from pm.llm.stage_model import LazyStageModel
+        from pm.llm.activation import ModelActivation
+        from pm.llm.config import load_config, resolve_connection
 
         model_config = load_config(resolved_config)
         model_owner = ModelActivation()

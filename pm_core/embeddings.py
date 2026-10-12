@@ -18,8 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
 
-from runtime.model_io import JsonClient, ModelError
-from runtime.models import EmbeddingConfig
+from pm.llm.http_client import JsonClient, ModelError
+from pm.llm.config import EmbeddingConfig
 
 
 def valid_vector(vector: list[float], dimensions: int) -> list[float]:

@@ -16,9 +16,9 @@ def run(args):
     """Retain each unchanged candidate, source context, and semantic decision."""
     from pm_core.ghost.memory import candidate
     from pm_core.ghost.service import Ghost
-    from runtime.cognitive_model import LazyStageModel
-    from runtime.model_activation import ModelActivation
-    from runtime.models import load_config, resolve_connection
+    from pm.llm.stage_model import LazyStageModel
+    from pm.llm.activation import ModelActivation
+    from pm.llm.config import load_config, resolve_connection
     from workflows.public_claims import review_public_claims
     from workflows.public_context import build_public_context
     out = Path(args.out).resolve()

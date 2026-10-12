@@ -15,8 +15,8 @@ from uuid import uuid4
 
 from pm_workflows.runtime import WorkflowRuntime
 
-from runtime.cognitive_model import complete_with_retry
-from runtime.model_activation import ChatClient
+from pm.llm.stage_model import complete_with_retry
+from pm.llm.activation import ChatClient
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.main_cognition.pipeline import STAGE_ORDER
 from workflows.main_cognition.schemas import CognitiveReport, CognitiveRequest

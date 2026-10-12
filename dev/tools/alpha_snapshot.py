@@ -69,7 +69,7 @@ def main() -> None:
     receipt["installed_pm_packages"] = {name: {"version": metadata.version(name),
         "direct_url": json.loads(metadata.distribution(name).read_text("direct_url.json"))}
         for name in ("pm-coder", "pm-workflows")}
-    from runtime.models import load_config
+    from pm.llm.config import load_config
     config = load_config(args.config)
     receipt["configuration"] = {**digest(args.config), "chat": {
         key: {"base_url": value.base_url, "model": value.model, "startup_script": str(value.startup_script),

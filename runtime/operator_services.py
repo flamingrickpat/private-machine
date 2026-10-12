@@ -10,7 +10,7 @@ import time
 import httpx
 from pydantic import SecretStr
 
-from runtime.models import load_config
+from pm.llm.config import load_config
 
 ROOT = Path(__file__).resolve().parent.parent
 

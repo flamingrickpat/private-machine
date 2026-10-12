@@ -17,9 +17,9 @@ from __future__ import annotations
 import asyncio
 from threading import Lock
 
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.model_io import ModelError
-from runtime.models import Connection
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.http_client import ModelError
+from pm.llm.config import Connection
 
 
 async def complete_with_retry(
@@ -91,7 +91,7 @@ class LazyStageModel:
     def measure_context(self, messages: list[dict], *, cancel=None, **generation) -> dict:
         """Measure tokens using the same activated connection as inference."""
         from threading import Event
-        from runtime.model_context import measure_context
+        from pm.llm.context_window import measure_context
         self.ensure_client()
         with self.owner.use(self.connection):
             return asyncio.run(measure_context(self.connection, messages, cancel if cancel is not None else Event(), **generation))

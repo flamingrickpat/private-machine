@@ -98,7 +98,7 @@ An observation error becomes explicit tool evidence and cannot establish an inve
 The inventory is a snapshot and can change while the actor continues.
 The synthesized assistant tool call includes `type: function` and serialized JSON arguments.
 A10 captured an actual HTTP 500 when the type field was absent.
-[`runtime.model_io.rejected_message_protocol`][] treats that deterministic parser rejection as a permanent protocol error.
+[`pm.llm.http_client.rejected_message_protocol`][] treats that deterministic parser rejection as a permanent protocol error.
 Other transient server failures retain cancellation-aware retries.
 The failure classifier does not expose response bodies in public error text.
 The role manifest grants the direct observation tool explicitly.

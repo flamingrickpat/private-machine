@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 import time
 from typing import Any
-from runtime.workflow_models import WorkflowModels
+from pm.llm.workflow_sessions import WorkflowModels
 
 import yaml
 from pm_workflows.kernel import Kernel

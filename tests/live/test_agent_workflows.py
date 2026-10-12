@@ -11,8 +11,8 @@ import yaml
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
 from pm.host.mcp_listeners import ScopedMcpRegistry
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config, resolve_connection
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config, resolve_connection
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from ghost_mcp import build_mcp
 from pm.host.folder_target import FolderTarget

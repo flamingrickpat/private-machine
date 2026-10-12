@@ -53,9 +53,9 @@ Use the locked package and local configuration:
 from pathlib import Path
 from threading import Event
 from pm_workflows.runtime import WorkflowRuntime
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config
-from runtime.workflow_models import WorkflowModels
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config
+from pm.llm.workflow_sessions import WorkflowModels
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner
 from pm.host.folder_target import FolderEnvironment
 

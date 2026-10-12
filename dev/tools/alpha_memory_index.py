@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 from pm_core.embeddings import EmbeddingService
 from pm_core.ghost.memory import scoped_records, index_chunks
 from pm_core.ghost.service import Ghost
-from runtime.models import load_config
+from pm.llm.config import load_config
 
 
 async def run(args) -> None:

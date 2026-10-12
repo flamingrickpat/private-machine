@@ -18,9 +18,9 @@ Laya on 8082 advertises 8192 state-context tokens and a separate 192-token decis
 Laya's head can truncate questions and options.
 That mechanism does not truncate the chat service's questions or disable pm-coder compaction.
 
-[`runtime.model_activation.ChatClient.complete`][] sends one supplied message list and returns the full completion.
+[`pm.llm.activation.ChatClient.complete`][] sends one supplied message list and returns the full completion.
 It does not own conversation history or run automatic agent compaction.
-[`runtime.cognitive_model.LazyStageModel`][] exposes that path to synchronous and asynchronous Python roles.
+[`pm.llm.stage_model.LazyStageModel`][] exposes that path to synchronous and asynchronous Python roles.
 The caller constructs context from relevant memories, selected workspace evidence, and the current request.
 Structured stages use their actual parser and schema rather than treating every raw completion as an accepted result.
 The cognitive parser accepts a JSON object inside a Markdown code block.
@@ -34,7 +34,7 @@ Long-file classification uses scoped agent reads and preserves required conclusi
 
 ## Direct project decisions use token percentages
 
-[`runtime.model_context.measure_context`][] measures the selected connection before each Minecraft project decision.
+[`pm.llm.context_window.measure_context`][] measures the selected connection before each Minecraft project decision.
 The serving window comes from configured `context_window` or the endpoint's current `/props` response.
 Training-context metadata cannot establish the serving window.
 `context_input_fraction` defaults to `0.8` and accepts a number strictly between zero and one.

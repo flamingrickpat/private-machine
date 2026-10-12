@@ -13,7 +13,7 @@ from threading import Event
 
 import httpx
 
-from runtime.models import Connection
+from pm.llm.config import Connection
 
 
 class ModelError(RuntimeError):

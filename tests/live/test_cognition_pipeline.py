@@ -15,8 +15,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from pm_core.ghost.service import Ghost
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.models import load_config, resolve_connection
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.config import load_config, resolve_connection
 from workflows.main_cognition import engine
 from workflows.main_cognition.schemas import (
     CognitiveRequest, CognitiveReport, MemoryCandidate, WorkflowOption,

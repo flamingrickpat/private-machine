@@ -14,9 +14,9 @@ Evidence: [A05 verification](../../work_items/verification/a05-pm-classification
 
 ## Owners and injection
 
-PM owns [`runtime.workflow_models.WorkflowModels`][].
+PM owns [`pm.llm.workflow_sessions.WorkflowModels`][].
 [`main.build_app`][] constructs it beside the normal lazy stage model.
-Both objects share one [`runtime.model_activation.ModelActivation`][] owner.
+Both objects share one [`pm.llm.activation.ModelActivation`][] owner.
 Construction resolves credentials once and performs no network request.
 The lazy cognitive model reuses that owner's ready alias, including during an active classification lease.
 It rechecks ownership before each client use after an application-owned model switch.
@@ -45,13 +45,13 @@ Unknown names produce `missing_connection`; PM does not substitute another class
 Recovery uses `Default` unless the provider receives another `recovery_preset`.
 The normal LLM therefore remains available independently of optional decisions.
 
-The resolved [`runtime.models.Connection`][] retains URL, alias, credentials, startup script, and optional `context_window`.
+The resolved [`pm.llm.config.Connection`][] retains URL, alias, credentials, startup script, and optional `context_window`.
 A nonempty script follows the existing finite-script activation contract.
 The owner checks the advertised alias before admitting a model group.
 An active lease prevents an application-owned model switch.
 It does not control unrelated external server processes.
 
-[`runtime.workflow_models.serving_context`][] uses an explicit positive integer `context_window` when supplied.
+[`pm.llm.workflow_sessions.serving_context`][] uses an explicit positive integer `context_window` when supplied.
 Otherwise, it reads llama.cpp's `/props` and uses `default_generation_settings.n_ctx`.
 Training context does not supply a serving bound.
 Remote services without this route require an explicit bound in each affected chat preset:
@@ -95,7 +95,7 @@ It sends no Ghost proposal and dispatches no action.
 `live_test` on the provider makes readiness errors immediate in acceptance runs.
 The supplied agent model keeps `live_test=False`, so pm-coder retains automatic context recovery.
 Neither pm-coder's implementation nor its context mechanism changes.
-Direct [`runtime.model_activation.ChatClient.complete`][] still sends one supplied message list.
+Direct [`pm.llm.activation.ChatClient.complete`][] still sends one supplied message list.
 
 ## Service evidence
 

@@ -298,8 +298,8 @@ class LazyModelTests(unittest.TestCase):
     def test_activation_is_lazy_and_idempotent(self):
         from contextlib import contextmanager
 
-        from runtime.cognitive_model import LazyStageModel
-        from runtime.models import Connection
+        from pm.llm.stage_model import LazyStageModel
+        from pm.llm.config import Connection
 
         class StubOwner:
             def __init__(self):

@@ -189,7 +189,7 @@ def run(args):
     """Retain each real exchange and its source snapshot without grading immersion."""
     gate = ConsoleGate(Path(args.out), args.port, args.timeout)
     try:
-        from runtime.models import load_config, resolve_connection
+        from pm.llm.config import load_config, resolve_connection
         deployment = load_config(args.config)
         for label, connection in [("chat", resolve_connection(deployment)), ("embeddings", deployment.embedding)]:
             route = "embeddings/models" if label == "embeddings" and "openrouter.ai" in connection.base_url else "models"

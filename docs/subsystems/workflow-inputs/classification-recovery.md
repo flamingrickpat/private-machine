@@ -40,7 +40,7 @@ Only `finish_reason: stop` permits answer validation.
 The direct HTTP timeout applies to each network I/O operation.
 The recovery deadline bounds the complete agent session.
 
-PM's direct [`runtime.model_activation.ChatClient.complete`][] remains a single-request API.
+PM's direct [`pm.llm.activation.ChatClient.complete`][] remains a single-request API.
 It does not inherit this caller's context construction or pm-coder's history loop.
 The [chat context guide](../llm-context.md) explains that distinction.
 

@@ -9,7 +9,7 @@ from pm_core.embeddings import EmbeddingService
 from pm_core.model.ghost_state import GhostConfig
 from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_enums import FeatureType, InterlocusType
-from runtime.models import EmbeddingConfig
+from pm.llm.config import EmbeddingConfig
 
 
 class GhostInspectionTests(unittest.TestCase):

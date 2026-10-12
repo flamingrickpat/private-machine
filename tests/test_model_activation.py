@@ -7,9 +7,9 @@ import unittest
 from pathlib import Path
 from threading import Event
 
-from runtime.model_activation import ModelActivation, run_startup
-from runtime.model_io import JsonClient, ModelError
-from runtime.models import resolve_connection
+from pm.llm.activation import ModelActivation, run_startup
+from pm.llm.http_client import JsonClient, ModelError
+from pm.llm.config import resolve_connection
 
 
 class ActivationTests(unittest.IsolatedAsyncioTestCase):

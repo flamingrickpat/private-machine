@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 import math
 
 from pm_core.ghost.references import referenced_ids
-from runtime.model_io import ModelError
+from pm.llm.http_client import ModelError
 from workflows.dialogue_story.context import distinctive_terms
 
 MEMORY_TYPES = frozenset({

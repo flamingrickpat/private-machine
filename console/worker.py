@@ -14,7 +14,7 @@ from uuid import uuid4
 from main import build_app
 from pm_core.persist.dataprovider_yaml import _deserialize_knoxel
 from runtime.workflow_runner import WorkflowRunner
-from runtime.model_activation import ChatClient
+from pm.llm.activation import ChatClient
 
 
 def run(settings: dict, root: Path) -> None:

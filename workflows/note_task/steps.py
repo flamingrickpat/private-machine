@@ -80,7 +80,7 @@ def run(context) -> dict:
     Cancellation still propagates to the worker. Unexpected logic errors keep
     their traceback. A rejected report cannot establish successful note work.
     """
-    from runtime.model_io import ModelError
+    from pm.llm.http_client import ModelError
     from workflows.main_cognition.stage_support import StageOutputError
     try:
         return _write_note(context)

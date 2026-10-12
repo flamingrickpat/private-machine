@@ -6,9 +6,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from runtime.models import (
-    ConnectionConfig, LlmPreset, ModelConfig, load_config, resolve_connection,
-)
+from pm.llm.config import ConnectionConfig, LlmPreset, ModelConfig, load_config, resolve_connection
 
 
 class ModelConfigTests(unittest.TestCase):

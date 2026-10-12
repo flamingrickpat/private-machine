@@ -23,8 +23,8 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=False)
     fixture = ROOT / "test_data/captures/alpha/routing-development.json"
     cases = json.loads(fixture.read_text(encoding="utf-8"))
-    from runtime.models import load_config, resolve_connection
-    from runtime.model_activation import ChatClient, ModelActivation
+    from pm.llm.config import load_config, resolve_connection
+    from pm.llm.activation import ChatClient, ModelActivation
     import asyncio
     connection = resolve_connection(load_config(args.config))
     owner = ModelActivation()

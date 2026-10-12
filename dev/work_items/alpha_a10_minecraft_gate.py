@@ -90,9 +90,9 @@ def run(args) -> None:
                     "stimuli": [{"text": prompt}], "managed_runs": list(app.supervisor.receipts().values())}
                 environment = FolderEnvironment(out / "selection", "bash")
                 runtime = WorkflowRuntime(environment, threading.Event(), {})
-                from runtime.cognitive_model import LazyStageModel
-                from runtime.model_activation import ModelActivation
-                from runtime.models import load_config, resolve_connection
+                from pm.llm.stage_model import LazyStageModel
+                from pm.llm.activation import ModelActivation
+                from pm.llm.config import load_config, resolve_connection
                 model = LazyStageModel(resolve_connection(load_config(args.config)), ModelActivation())
                 runtime.tools = {"llm_complete": model.complete}
                 selected = WorkflowRunner(ROOT / "workflows/main_cognition/stages/action_selection/action_selection.workflow.md",

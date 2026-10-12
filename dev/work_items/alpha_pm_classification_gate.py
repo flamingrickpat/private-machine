@@ -24,9 +24,9 @@ from pm_workflows.classification import replay_classification
 from pm_workflows.dryrun import check_workflow
 from pm_workflows.inputs import digest
 from pm_workflows.runtime import WorkflowRuntime
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config
-from runtime.workflow_models import WorkflowModels
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config
+from pm.llm.workflow_sessions import WorkflowModels
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from dev.work_items.alpha_classification_gate import inspect_overflow, long_log, make_logs, response_recorder
 from dev.work_items.shared.evidence import save_json, sha256_file

@@ -22,8 +22,8 @@ from uuid import uuid4
 
 from pm_core.embeddings import EmbeddingService
 from pm_core.ghost.service import Ghost
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.models import LlmPreset, load_config, resolve_connection
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.config import LlmPreset, load_config, resolve_connection
 from workflows.dialogue_story import engine
 from workflows.dialogue_story.context import plan_story_request
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport

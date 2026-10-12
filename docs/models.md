@@ -49,10 +49,10 @@ Config parsing and connection resolution make no network requests.
 
 | File | Responsibility |
 | --- | --- |
-| `runtime/models.py` | Config, presets, credential resolution, redaction |
-| `runtime/model_io.py` | Shared HTTP requests, retries, cancellation |
-| `runtime/model_activation.py` | Finite scripts, readiness, active calls, chat responses |
-| `runtime/workflow_models.py` | Lazy classification sessions, serving context, and redacted service receipts |
+| `pm/llm/config.py` | Config, presets, credential resolution, redaction |
+| `pm/llm/http_client.py` | Shared HTTP requests, retries, cancellation |
+| `pm/llm/activation.py` | Finite scripts, readiness, active calls, chat responses |
+| `pm/llm/workflow_sessions.py` | Lazy classification sessions, serving context, and redacted service receipts |
 | `pm_core/embeddings.py` | Legacy reads, new cache writes, scoped preparation, cosine search |
 
 These files contain no character policy or cognitive routing.
@@ -64,8 +64,8 @@ Breakpoints inside `activate()` and `complete()` use the production path.
 
 ```python
 import asyncio
-from runtime.models import load_config, resolve_connection
-from runtime.model_activation import ChatClient, ModelActivation
+from pm.llm.config import load_config, resolve_connection
+from pm.llm.activation import ChatClient, ModelActivation
 
 async def run_once():
     config = load_config("config.alpha.example.yaml")

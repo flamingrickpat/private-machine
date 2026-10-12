@@ -410,7 +410,7 @@ class MainCogLoop(CognitiveWorkflow):
         Logic errors still reach application shutdown. Invalid model output
         retains its workflow artifacts and receives an explicit public receipt.
         """
-        from runtime.model_io import ModelError
+        from pm.llm.http_client import ModelError
         from pm_core.ghost.batch import GhostConflict
         from workflows.main_cognition.stage_support import StageOutputError
         try:
@@ -483,7 +483,7 @@ class MainCogLoop(CognitiveWorkflow):
         scopes = {(item.scope.reality_id, item.scope.frame.value) for item in sources} or None
         if self.embedding_config_path and self._embeddings is None:
             from pm_core.embeddings import EmbeddingService
-            from runtime.models import load_config
+            from pm.llm.config import load_config
             self._embeddings = EmbeddingService(load_config(self.embedding_config_path).embedding)
         original_query = "\n".join(item.text for item in stimuli)
         rewrite = getattr(self, "retrieval_query_provider", None)
@@ -906,7 +906,7 @@ class PublicDialogue(CognitiveWorkflow):
         if status == "rejected" and context is not None and not context.task_receipt and self.grounding_recovery is not None:
             original = exchange_record(self.ghost, envelope.correlation_id)
             if original is not None and original.id == context.user_frontier:
-                from runtime.model_io import ModelError
+                from pm.llm.http_client import ModelError
                 from workflows.main_cognition.stage_support import StageOutputError
                 try:
                     sources = [item for item in context.evidence if item.get("evidence_role") in

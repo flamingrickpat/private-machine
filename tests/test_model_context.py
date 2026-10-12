@@ -8,9 +8,9 @@ import unittest
 
 from pydantic import ValidationError
 
-from runtime.model_context import measure_context
-from runtime.model_io import ModelError
-from runtime.models import ConnectionConfig
+from pm.llm.context_window import measure_context
+from pm.llm.http_client import ModelError
+from pm.llm.config import ConnectionConfig
 
 
 class ModelContextTests(unittest.TestCase):

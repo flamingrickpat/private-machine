@@ -15,9 +15,9 @@ from tempfile import TemporaryDirectory
 from uuid import uuid4
 
 from pm_core.ghost.service import Ghost
-from runtime.cognitive_model import LazyStageModel
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config, resolve_connection
+from pm.llm.stage_model import LazyStageModel
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config, resolve_connection
 from tests.support import ManualClock, Recorder
 
 from main import build_app

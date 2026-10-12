@@ -105,7 +105,7 @@ def run(args):
             receipt["failures"].append(f"{label}: original evidence {original_id} was absent from the dispatched reply")
 
     try:
-        from runtime.models import load_config, resolve_connection
+        from pm.llm.config import load_config, resolve_connection
         deployment = load_config(args.config)
         for label, connection in [("chat", resolve_connection(deployment)), ("embeddings", deployment.embedding)]:
             alias = connection.model
@@ -171,7 +171,7 @@ def run(args):
                 import asyncio
                 from pm_core.embeddings import EmbeddingService
                 from pm_core.ghost.service import Ghost
-                from runtime.models import load_config
+                from pm.llm.config import load_config
                 from pm_core.ghost.references import referenced_ids
                 ghost = Ghost.from_checkpoint(out / "instances" / instance / "ghost.json")
                 service = EmbeddingService(load_config(args.config).embedding, live_test=True)

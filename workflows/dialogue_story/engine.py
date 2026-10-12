@@ -22,7 +22,7 @@ from pm_workflows.runtime import WorkflowRuntime
 
 from pm_core.model.knoxel_common import Feature
 from pm_core.model.knoxel_enums import FeatureType, InterlocusType
-from runtime.model_activation import ChatClient
+from pm.llm.activation import ChatClient
 from runtime.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
 from pm.memory.bash_view import GhostBashEnvironment

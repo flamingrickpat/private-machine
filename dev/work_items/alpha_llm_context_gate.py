@@ -16,9 +16,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from dev.work_items.shared.evidence import save_json, sha256_file
 
-from runtime.cognitive_model import LazyStageModel
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.models import load_config, resolve_connection
+from pm.llm.stage_model import LazyStageModel
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.config import load_config, resolve_connection
 from workflows.main_cognition.stage_support import extract_json
 
 REPORT = ROOT / ".runtime/alpha/a01/console-spamuel/instances/fd71e4655da44430b9779eb6739d45f5/managed_tasks/dd8a80caec16462b97e0e85cbdf87346/outbox/report.yaml"

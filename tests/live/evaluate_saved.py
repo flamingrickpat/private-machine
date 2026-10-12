@@ -13,8 +13,8 @@ import json
 import sys
 from pathlib import Path
 
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config
 from tests.live import conversation as conv
 
 

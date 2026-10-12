@@ -20,10 +20,10 @@ from pm.bus.envelopes import Envelope
 from modules import AssistantDialogue
 from pm_core.ghost.service import Ghost
 from pm_core.model.ghost_state import GhostConfig
-from runtime.cognitive_model import LazyStageModel
+from pm.llm.stage_model import LazyStageModel
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
-from runtime.model_activation import ModelActivation
-from runtime.models import LlmPreset, load_config, resolve_connection
+from pm.llm.activation import ModelActivation
+from pm.llm.config import LlmPreset, load_config, resolve_connection
 from tests.support import Recorder
 from workflows.dialogue_assistant.module_tools import (
     build_assistant_tools,

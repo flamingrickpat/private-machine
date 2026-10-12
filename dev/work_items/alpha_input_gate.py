@@ -24,8 +24,8 @@ from pm_workflows.inputs import InputError, InputResolver, InputScope
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 from pm_core.ghost.service import Ghost
 from pm_core.persist.dataprovider_yaml import load_ghost_state_from_yaml
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config, resolve_connection
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config, resolve_connection
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
 from pm.memory.bash_view import GhostBashWrapper

@@ -20,9 +20,9 @@ import httpx
 from pm_workflows.inputs import InputError
 from pm_workflows.runtime import AgentModel, WorkflowRuntime, WorkflowTerminated
 
-from runtime.model_activation import ModelActivation
-from runtime.model_io import ModelError, cancellable
-from runtime.models import Connection, LlmPreset, ModelConfig, resolve_connection
+from pm.llm.activation import ModelActivation
+from pm.llm.http_client import ModelError, cancellable
+from pm.llm.config import Connection, LlmPreset, ModelConfig, resolve_connection
 
 
 async def serving_context(connection: Connection, cancel: Event) -> tuple[int, str]:

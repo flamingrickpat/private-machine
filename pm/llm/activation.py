@@ -18,8 +18,8 @@ from threading import Event, Lock
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from runtime.model_io import JsonClient, ModelError, cancellable
-from runtime.models import Connection
+from pm.llm.http_client import JsonClient, ModelError, cancellable
+from pm.llm.config import Connection
 
 
 def script_command(script: Path) -> list[str]:

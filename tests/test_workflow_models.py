@@ -9,9 +9,9 @@ from pydantic import ValidationError
 from pm_workflows.inputs import InputError
 from pm_workflows.runtime import WorkflowRuntime, WorkflowTerminated
 
-from runtime.model_activation import ModelActivation
-from runtime.models import ConnectionConfig, load_config
-from runtime.workflow_models import WorkflowModels
+from pm.llm.activation import ModelActivation
+from pm.llm.config import ConnectionConfig, load_config
+from pm.llm.workflow_sessions import WorkflowModels
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
 

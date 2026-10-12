@@ -23,10 +23,10 @@ from pm_core.model.knoxel_enums import FeatureType, InterlocusType
 
 from pm.bus.envelopes import Envelope, _new_id
 from main import build_app
-from runtime.cognitive_model import LazyStageModel
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.model_io import ModelError
-from runtime.models import LlmPreset, load_config, resolve_connection
+from pm.llm.stage_model import LazyStageModel
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.http_client import ModelError
+from pm.llm.config import LlmPreset, load_config, resolve_connection
 from tests.support import Recorder, fresh_ghost, load_seed_state
 
 HERE = Path(__file__).resolve().parent

@@ -24,7 +24,7 @@ from pm_workflows.runtime import AgentModel, WorkflowRuntime
 from pm.bus.envelopes import Envelope, _new_id
 from pm.host.mcp_listeners import serve_services
 from pm.host.application import ShellModule
-from runtime.workflow_models import WorkflowModels
+from pm.llm.workflow_sessions import WorkflowModels
 from runtime.workflow_runner import (
     PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus,
 )
