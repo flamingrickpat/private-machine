@@ -136,7 +136,7 @@ These tests establish state and delivery behavior, not dialogue quality.
 For direct memory and application tests, run:
 
 ```powershell
-uv run --locked python -m unittest tests.test_bus_isolation tests.test_ghost_commits tests.test_durable_application -v -b
+uv run --locked python -m unittest tests.unit.pm.bus.test_bus_isolation tests.unit.pm.memory.test_store_commits tests.unit.pm.host.test_durable_application -v -b
 ```
 
 These tests start no module threads. The full-seed test uses the real Spamuel seed.
@@ -145,7 +145,7 @@ The direct application tests run the real Python workflow kernel and virtual Bas
 For actual concurrent commits, run:
 
 ```powershell
-uv run --locked python -m unittest tests.test_ghost_concurrency -v -b
+uv run --locked python -m unittest tests.unit.pm.memory.test_store_concurrency -v -b
 ```
 
 The concurrent tests use two real threads, barriers, and actual checkpoint files.

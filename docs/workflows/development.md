@@ -60,14 +60,14 @@ Use the [memory editor](memory.md) for changes to an existing instance.
 Run only the root foundation modules to exclude live endpoints.
 
 ```powershell
-$testModules = Get-ChildItem tests/test_*.py | ForEach-Object { 'tests.' + $_.BaseName }
-uv run --locked python -m unittest $testModules -b
+uv run --locked python -m unittest discover -s tests/unit -t . -b
+uv run --locked python -m unittest discover -s tests/contract -t . -b
 ```
 
 Run the owning stage's direct contracts after a stage change.
 
 ```powershell
-uv run --locked python -m unittest workflows.main_cognition.stages.attention.tests.test_attention_contract -v -b
+uv run --locked python -m unittest tests.contract.main_cognition.stages.test_attention_contract -v -b
 ```
 
 `unittest discover -s tests` includes live suites.

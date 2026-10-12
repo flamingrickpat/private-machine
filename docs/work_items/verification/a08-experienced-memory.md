@@ -16,7 +16,7 @@ Related: [consolidation](../../subsystems/memory-consolidation.md), [baseline C0
 Run:
 
 ```powershell
-uv run --locked python -m unittest tests.test_a08_experienced_memory -b
+uv run --locked python -m unittest tests.unit.pm.memory.test_experienced_memory -b
 ```
 
 The current A08 subset contains 19 passing tests.

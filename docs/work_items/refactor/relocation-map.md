@@ -156,9 +156,9 @@ The manifest keeps one skill path per role, now pointing at the role file.
 
 | Current | Target | Action | Phase |
 | --- | --- | --- | --- |
-| `tests/test_*.py` | `tests/unit/<package>/test_<file>.py` | split and rename | 6 |
+| `tests/test_*.py` | `tests/unit/pm/<package>/` or `tests/unit/workflows/<workflow>/`, named by subject (for example `test_a13_gameplay.py` → `tests/unit/workflows/minecraft_project/test_gameplay.py`) | move and rename | 6 |
 | `workflows/**/tests/` | `tests/contract/<workflow>/` | move | 6 |
 | `tests/live/*` | `tests/live/*` | stays | — |
-| `tests/support.py`, shared helpers in test files | `tests/support/` | split | 6 |
+| `tests/support.py` | same | stays | 6 |
 | Gate functions that tests import | `tests/support/` or the owning workflow | move | 6 |
 | `dev/`, `test_data/`, `docs/work_items/` | same | stays | — |

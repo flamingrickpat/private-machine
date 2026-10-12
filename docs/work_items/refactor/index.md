@@ -134,8 +134,8 @@ Each phase is one branch. Each commit is a move, a rename, or an extraction, nev
 | 2 | Build `pm/`: move the runtime packages. One commit per package. Then renames. | Done, branch `refactor/phase-2`. Static checks only. |
 | 3 | Move behavior into `workflows/`: Minecraft first, then `modules.py`, then the assembly. | Done, branch `refactor/phase-3`. Static checks only. |
 | 4 | Remove domain knowledge from the runtime. Empty the allowlist. | Done, branch `refactor/phase-4`. One library coupling stays open. |
-| 5 | Split large files: `minecraft_project/steps.py`, `supervisor.py`, `main_cognition/host.py`. | Pending. |
-| 6 | Reorganize tests into `unit/`, `contract/`, `live/`. | Pending. |
+| 5 | Split large files: `minecraft_project/steps.py`, `supervisor.py`, `main_cognition/host.py`. | Partly done, branch `refactor/phase-5`: the planner split by role, the supervisor's receipt and spec split out. The `ManagedRunSupervisor` and `MainCogLoop` method extraction waits for a test run. |
+| 6 | Reorganize tests into `unit/`, `contract/`, `live/`. | Done, branch `refactor/phase-6`. Work-item test files are renamed by subject. |
 | 7 | Walkthrough review. Then the A13 investigation. | Pending. |
 
 ## Verification

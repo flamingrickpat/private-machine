@@ -122,7 +122,7 @@ The latest source and manual edits still require final regeneration and inspecti
 
 ```powershell
 uv sync --locked
-uv run --locked python -m unittest tests.test_a13_gameplay tests.test_a11_minecraft_tasks tests.test_a12_recovery tests.test_minecraft_workflow -b
+uv run --locked python -m unittest tests.unit.workflows.minecraft_project.test_gameplay tests.unit.workflows.minecraft_project.test_task_tree tests.unit.workflows.minecraft_body.test_body_recovery tests.unit.workflows.minecraft.test_minecraft_workflow -b
 $testModules = Get-ChildItem tests/test_*.py | ForEach-Object { 'tests.' + $_.BaseName }
 uv run --locked python -m unittest $testModules -b
 uv run --locked --with-requirements requirements-docs.txt mkdocs build --strict

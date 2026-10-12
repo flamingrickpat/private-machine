@@ -1,1 +1,0 @@
-"""Main-cognition package tests."""

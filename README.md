@@ -102,14 +102,14 @@ Artifacts stay under `.runtime/w4/`.
 Run all foundation tests without model or Minecraft endpoints:
 
 ```powershell
-$testModules = Get-ChildItem tests/test_*.py | ForEach-Object { 'tests.' + $_.BaseName }
-uv run --locked python -m unittest $testModules -b
+uv run --locked python -m unittest discover -s tests/unit -t . -b
+uv run --locked python -m unittest discover -s tests/contract -t . -b
 ```
 
 The regression suite checks failure reporting, instruction consumption, action routing, and conversation evidence:
 
 ```powershell
-uv run --locked python -m unittest tests.test_reconciliation -v -b
+uv run --locked python -m unittest tests.unit.workflows.minecraft_body.test_reconciliation -v -b
 ```
 
 Run the real application path and model checks:

@@ -12,7 +12,7 @@ Gate: `dev/work_items/alpha_a06_state_gate.py`.
 
 ## Deterministic contract tests
 
-`tests/test_a06_state_path.py` covers the state path without a model.
+`tests/unit/workflows/main_cognition/test_cognition_state.py` covers the state path without a model.
 
 | Check | What it proves |
 | --- | --- |
@@ -33,7 +33,7 @@ Gate: `dev/work_items/alpha_a06_state_gate.py`.
 Run:
 
 ```powershell
-.venv/Scripts/python.exe -m unittest tests.test_a06_state_path -v
+.venv/Scripts/python.exe -m unittest tests.unit.workflows.main_cognition.test_cognition_state -v
 ```
 
 Result: 17 passed.

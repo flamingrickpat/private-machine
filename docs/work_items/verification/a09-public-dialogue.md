@@ -85,7 +85,7 @@ It does not regenerate candidates until they pass.
 
 ## Contract evidence
 
-`tests.test_a09_publication` verifies failed source guards, newer user input, checkpoint replay, prior deception attribution, and changed note bytes.
+`tests.unit.workflows.public_speech.test_publication` verifies failed source guards, newer user input, checkpoint replay, prior deception attribution, and changed note bytes.
 These checks use actual Ghost commits and filesystem bytes.
 They do not establish prose quality or model inference.
 The existing dialogue contracts still verify message roles, tool execution, denial, and correlation.

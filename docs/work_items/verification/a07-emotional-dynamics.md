@@ -13,7 +13,7 @@ Gate: `dev/work_items/alpha_a07_affect_gate.py`.
 
 ## Deterministic contract tests
 
-`tests/test_a07_affect_dynamics.py` covers the affect path without a model.
+`tests/unit/workflows/main_cognition/test_affect_dynamics.py` covers the affect path without a model.
 
 | Check | What it proves |
 | --- | --- |
@@ -33,7 +33,7 @@ Gate: `dev/work_items/alpha_a07_affect_gate.py`.
 Run:
 
 ```powershell
-.venv/Scripts/python.exe -m unittest tests.test_a07_affect_dynamics -v
+.venv/Scripts/python.exe -m unittest tests.unit.workflows.main_cognition.test_affect_dynamics -v
 ```
 
 Result: 12 passed.

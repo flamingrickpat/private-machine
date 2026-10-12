@@ -24,7 +24,7 @@ Run these commands in `C:/source/pm/pm_next_v2`:
 
 ```powershell
 uv sync --locked
-uv run --locked python -m unittest tests.test_workflow_inputs tests.test_workflow_runner tests.test_agent_target -v -b
+uv run --locked python -m unittest tests.unit.pm.runs.test_workflow_inputs tests.unit.pm.runs.test_workflow_runner tests.unit.pm.host.test_agent_target -v -b
 $testModules = Get-ChildItem tests/test_*.py | ForEach-Object { 'tests.' + $_.BaseName }
 uv run --locked python -m unittest $testModules -b
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'

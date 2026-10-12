@@ -172,7 +172,7 @@ The API uses OpenRouter's [embedding endpoint](https://openrouter.ai/docs/api/ap
 Run these direct tests without a model endpoint:
 
 ```powershell
-uv run --locked python -m unittest tests.test_models tests.test_embeddings tests.test_model_activation -v -b
+uv run --locked python -m unittest tests.unit.pm.llm.test_config tests.unit.pm.memory.test_embeddings tests.unit.pm.llm.test_activation -v -b
 ```
 
 These tests use real cache files and real finite subprocesses.

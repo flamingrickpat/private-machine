@@ -16,7 +16,7 @@ The partial construction result reports three placed cells while the action rema
 The search retains its original bounds and observation time.
 These foundation inputs do not establish new autonomous gameplay acceptance.
 
-`tests/test_a13_gameplay.py` checks outcome distinctions, retained quantities, paused methods, diagnostic freshness, and concrete deferral.
+`tests/unit/workflows/minecraft_project/test_gameplay.py` checks outcome distinctions, retained quantities, paused methods, diagnostic freshness, and concrete deferral.
 It also rejects an older planning observation after a current body observation.
 The original failed A11 and A12 receipts remain preserved.
 

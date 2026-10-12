@@ -1,1 +1,0 @@
-"""Goals stage package tests."""

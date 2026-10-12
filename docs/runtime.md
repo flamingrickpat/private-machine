@@ -33,7 +33,7 @@ Use `.venv/Scripts/python.exe` as the debugger interpreter.
 Run these direct tests without module threads:
 
 ```powershell
-uv run --locked python -m unittest tests.test_workflow_runner tests.test_agent_file_scope -v -b
+uv run --locked python -m unittest tests.unit.pm.runs.test_workflow_runner tests.unit.pm.memory.test_bash_view_scope -v -b
 ```
 
 Place a breakpoint in `WorkflowRunner.invoke()` or the Python role's `run(context)` function.
@@ -140,10 +140,10 @@ The cognitive parent invokes seven child workflows through scoped runtimes.
 
 - [`pm.runs.workflow_runner.WorkflowRunner`][]
 - [`pm.runs.workflow_module.WorkflowModule`][]
-- Direct runner tests: `tests/test_workflow_runner.py`
-- Direct file-permission tests: `tests/test_agent_file_scope.py`
-- Run control tests: `tests/test_run_control.py`
-- MCP lifetime tests: `tests/test_mcp_lifetime.py`
+- Direct runner tests: `tests/unit/pm/runs/test_workflow_runner.py`
+- Direct file-permission tests: `tests/unit/pm/memory/test_bash_view_scope.py`
+- Run control tests: `tests/unit/pm/runs/test_run_control.py`
+- MCP lifetime tests: `tests/unit/pm/host/test_mcp_listeners.py`
 
 ## Related guides
 

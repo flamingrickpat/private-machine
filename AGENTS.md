@@ -16,14 +16,14 @@ The [structural refactor](docs/work_items/refactor/index.md) is in progress. Fol
 | `pm/` | The runtime: bus, bus modules, LLM access, records, memory store, managed runs, CLI, console. No companion behavior. |
 | `workflows/` | All behavior. Each folder holds a manifest, its scripts and prompts, and `host.py`. `public_speech/` and `minecraft_body/` are shared libraries. `companion.py` is the assembly. |
 | `main.py` | Launcher for the terminal session. |
-| `tests/` | Unit, contract, and live tests. |
+| `tests/` | `unit/pm/<package>/` and `unit/workflows/<workflow>/` mirror the code. `contract/` runs workflows through the real kernel. `live/` needs real services. |
 | `test_data/` | Synthetic personas (`personas/`) and captured receipts (`captures/`). |
 | `dev/work_items/` | Work-item acceptance gates. They are development tools, not product code. |
 | `dev/tools/` | Maintenance tools: skill compiler, reference generator, snapshots. |
 | `docs/` | The engineering manual. `docs/work_items/` holds plans, decisions, and verification records. |
 
 Product code must not import `dev/` or `tests/`. `pm/` must not import `workflows/`.
-`tests/test_architecture.py` checks these import directions.
+`tests/unit/test_architecture.py` checks these import directions.
 
 ## Evidence and dependency discipline
 
@@ -66,14 +66,14 @@ Keep live evidence under a fresh `.runtime` directory.
 Record failures and unavailable endpoints without converting them into passes.
 
 ```powershell
-$testModules = Get-ChildItem tests/test_*.py | ForEach-Object { 'tests.' + $_.BaseName }
-uv run --locked python -m unittest $testModules -b
+uv run --locked python -m unittest discover -s tests/unit -t . -b
+uv run --locked python -m unittest discover -s tests/contract -t . -b
 ```
 
 If the native-exit anomaly recurs, retain its evidence and repeat with the locked interpreter's diagnostics:
 
 ```powershell
-.venv/Scripts/python.exe -X faulthandler -m unittest $testModules -v
+.venv/Scripts/python.exe -X faulthandler -m unittest discover -s tests/unit -t . -v
 ```
 
 After updating code comments, docstrings, or manual pages, rebuild the complete HTML site:

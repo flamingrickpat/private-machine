@@ -15,7 +15,7 @@ Evidence contract: [independent observations](../../subsystems/minecraft-task-ev
 Run:
 
 ```powershell
-uv run --locked python -m unittest tests.test_a11_minecraft_tasks -b
+uv run --locked python -m unittest tests.unit.workflows.minecraft_project.test_task_tree -b
 ```
 
 The checks cover dependency order, missing dependencies, cycles, stable revisions, and controlled refinement.
