@@ -107,7 +107,7 @@ class RecoveryTests(unittest.TestCase):
     def test_two_resume_attempts_cannot_pass_the_live_worker_lock(self):
         ghost = small_ghost()
         supervisor = ManagedRunSupervisor(ghost, runtime_root=self.root / "runtime", clock=lambda: 1,
-            workflows={"minecraft": WorkflowSpec(PROJECT_ROOT / "workflows/minecraft/minecraft.workflow.md")})
+            workflows={"minecraft": WorkflowSpec(PROJECT_ROOT / "workflows/minecraft/minecraft.workflow.md", resumable=True)})
         receipt = ManagedRunReceipt("body-run", "accepted-action", "minecraft", "exchange", "interrupted",
                                     "process exited", str(self.root / "task"))
         supervisor._persist(receipt)

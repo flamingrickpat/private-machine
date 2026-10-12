@@ -33,6 +33,7 @@ from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, build_minecraft_tools
 from tests.live.minecraft_stack import MinecraftStack, autostart_enabled
 from pm.runs.workflow_module import PROJECT_ROOT
+from workflows.minecraft.host import persona_context
 
 EVIDENCE_ROOT = (
     Path(".runtime/w8/live-minecraft")
@@ -115,6 +116,8 @@ class LiveMinecraftBodyTests(unittest.TestCase):
                 "minecraft": WorkflowSpec(
                     MANIFEST,
                     namespace="minecraft",
+                    resumable=True,
+                    request_context=persona_context,
                     tools_factory=lambda run_id, environment: {
                         **build_minecraft_tools(self.mcp_url, plan_model=self.model.complete),
                         "minecraft_endpoint": lambda: self.mcp_url,

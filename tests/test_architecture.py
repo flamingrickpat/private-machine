@@ -30,7 +30,6 @@ ALLOWED_IN_PM: dict[str, set[str]] = {
 #: Each entry is (file, imported module).
 KNOWN_VIOLATIONS = {
     ("pm/console/worker.py", "workflows.companion"),
-    ("pm/runs/supervisor.py", "workflows.public_speech.public_context"),
 }
 
 

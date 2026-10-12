@@ -42,7 +42,7 @@ DEFAULT_SEED = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
 def _managed_workflows(stage_model=None) -> dict:
-    from workflows.minecraft.host import build_minecraft_module_tools
+    from workflows.minecraft.host import build_minecraft_module_tools, persona_context
     from workflows.note_task.steps import build_note_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
@@ -62,12 +62,16 @@ def _managed_workflows(stage_model=None) -> dict:
                 stage_model.complete if stage_model is not None else None,
                 stage_model.measure_context if stage_model is not None else None,
             ),
+            resumable=True,
+            request_context=persona_context,
         ),
         "minecraft_project": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "minecraft_project" / "minecraft_project.workflow.md",
             namespace="minecraft_project",
             tools_factory=build_minecraft_module_tools(stage_model.complete if stage_model is not None else None,
                 stage_model.measure_context if stage_model is not None else None),
+            resumable=True,
+            request_context=persona_context,
         ),
     }
 

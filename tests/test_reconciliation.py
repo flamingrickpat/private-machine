@@ -23,6 +23,7 @@ from tests.support import ManualClock
 from tests.test_design_contracts import small_ghost
 from tests.test_minecraft_workflow import observation
 from pm.runs.workflow_module import PROJECT_ROOT
+from workflows.minecraft.host import persona_context
 
 
 def wait_for(predicate):
@@ -93,7 +94,7 @@ class ReconciliationTests(unittest.TestCase):
                     "minecraft_lease": lambda: BODY_LEASES.acquire("fixture://reconciliation", run_id)}
         return self.supervisor(minecraft=WorkflowSpec(
             PROJECT_ROOT / "workflows/minecraft/minecraft.workflow.md",
-            tools_factory=factory,
+            tools_factory=factory, resumable=True, request_context=persona_context,
         ))
 
     def test_real_mode_has_no_periodic_dummy_thought(self):

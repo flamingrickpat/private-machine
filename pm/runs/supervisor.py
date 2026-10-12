@@ -73,6 +73,10 @@ class WorkflowSpec:
     tools_factory: Callable[[str, Any], Mapping[str, Callable]] | None = None
     agent_model: Any = None
     mcp_servers: Mapping[str, Mapping[str, Any]] | None = None
+    #: An interrupted, cancelled, or failed run may resume with a new epoch.
+    resumable: bool = False
+    #: Extra request fields, read from the memory store under its lock at each launch.
+    request_context: Callable[[Any], Mapping[str, Any]] | None = None
 
 
 @dataclass
@@ -482,16 +486,10 @@ class ManagedRunSupervisor:
             "artifact_path": receipt.artifact_path,
             "answer": "",
         }
-        if receipt.workflow_name in {"minecraft", "minecraft_project"}:
-            from workflows.public_speech.public_context import build_public_context
+        spec = self.workflows.get(receipt.workflow_name)
+        if spec is not None and spec.request_context is not None:
             with self.ghost.lock:
-                public = build_public_context(self.ghost, {}).model_dump(mode="json")
-                payload["persona_context"] = {
-                    "companion_name": self.ghost.get_companion_name(),
-                    "user_name": self.ghost.get_user_name(),
-                    "character_card": self.ghost.get_simple_character_story_block(),
-                    "accepted_context": public,
-                }
+                payload.update(spec.request_context(self.ghost))
         return payload
 
     def _finish(self, run_id: str, result: WorkflowResult, environment: Any) -> None:
@@ -709,7 +707,8 @@ class ManagedRunSupervisor:
             current = ManagedRunReceipt.from_dict(self.get(run_id))
             if request_id and request_id in current.resume_requests:
                 return current.to_dict()
-            if current.workflow_name not in {"minecraft", "minecraft_project"}:
+            spec = self.workflows.get(current.workflow_name)
+            if spec is None or not spec.resumable:
                 raise ManagedRunError("Explicit recovery is available only for body workflows.")
             if current.state not in {"interrupted", "cancelled", "failed"}:
                 raise ManagedRunError(f"Run {run_id!r} is {current.state} and cannot resume.")

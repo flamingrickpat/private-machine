@@ -27,3 +27,18 @@ def build_minecraft_module_tools(plan_model=None, context_measure=None) -> Calla
 
 
 __all__ = ["build_minecraft_module_tools"]
+
+
+def persona_context(store) -> dict:
+    """Return the companion identity that body workflows receive in their request.
+
+    The supervisor calls this under the memory-store lock at each launch.
+    """
+    from workflows.public_speech.public_context import build_public_context
+    public = build_public_context(store, {}).model_dump(mode="json")
+    return {"persona_context": {
+        "companion_name": store.get_companion_name(),
+        "user_name": store.get_user_name(),
+        "character_card": store.get_simple_character_story_block(),
+        "accepted_context": public,
+    }}
