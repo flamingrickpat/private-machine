@@ -21,6 +21,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from dev.work_items.shared.evidence import save_json, sha256_file
 
 from pm_workflows.classification import replay_classification
 from pm_workflows.dryrun import check_workflow
@@ -42,16 +43,6 @@ SKILL = (
     "If no usable current test summary exists, return INVALID, a concrete reason, empty evidence, and null identifiers. "
     "Do not call subagents. Do not change source files."
 )
-
-
-def save(path: Path, value: object) -> None:
-    """Retain complete local receipts without exposing source data on stdout."""
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
-
-
-def sha(path: Path) -> str:
-    """Return a source digest without changing the source."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def workflow(path: Path, skill: Path, binding: dict, *, limits=None, connection="Default") -> None:
@@ -90,9 +81,9 @@ def make_logs(out: Path, host, virtual) -> tuple[str, list[dict]]:
         destination.write_text(text, encoding="utf-8", newline="")
         shutil.copystat(source, destination)
         virtual.write_text(relative, text)
-        receipts.append({"source": str(source), "source_sha256": sha(source), "encoding": encoding,
-                         "path": relative, "utf8_sha256": sha(destination), "source_mtime_ns": source.stat().st_mtime_ns})
-    save(out / "sources.json", receipts)
+        receipts.append({"source": str(source), "source_sha256": sha256_file(source), "encoding": encoding,
+                         "path": relative, "utf8_sha256": sha256_file(destination), "source_mtime_ns": source.stat().st_mtime_ns})
+    save_json(out / "sources.json", receipts)
     expected = next(entry["path"] for entry in receipts if "foundation-delivery" in entry["path"])
     assert "Ran 261 tests" in host.read_text(expected) and "OK" in host.read_text(expected)
     return expected, receipts
@@ -103,7 +94,7 @@ def run_case(out, name, environment, model, binding, *, limits=None, connection=
     path = out / f"{name}.workflow.md"
     workflow(path, skill or out / "inspect.md", binding, limits=limits, connection=connection)
     report = check_workflow(path, out, seed=4, monte_carlo_runs=100)
-    save(out / f"{name}-dryrun.json", report.to_dict())
+    save_json(out / f"{name}-dryrun.json", report.to_dict())
     assert report.errors == []
     runtime = WorkflowRuntime(environment, Event(), {}, agent_model=model, classification_models={"Default": model})
     if connection == "Unavailable":
@@ -112,12 +103,12 @@ def run_case(out, name, environment, model, binding, *, limits=None, connection=
     kernel = Kernel(path, out / "artifacts" / name, name, base_dir=out, run_id=name,
                     kernel_data_root=out / "kernel", runtime=runtime)
     step = kernel.step()
-    save(out / f"{name}-primary.json", step.to_dict())
+    save_json(out / f"{name}-primary.json", step.to_dict())
     replay_classification(step.data["receipt"])
     if recovery:
         assert step.status == "INVALID" and step.next_phase == "inspect"
         step = kernel.step()
-        save(out / f"{name}-recovery.json", step.to_dict())
+        save_json(out / f"{name}-recovery.json", step.to_dict())
         replay_classification(step.data["receipt"])
     print(f"{name}: {step.status}", flush=True)
     return step, kernel
@@ -184,7 +175,7 @@ def response_recorder(model: AgentModel, out: Path):
                 current = sequence
             with httpx.Client(timeout=900) as client:
                 response = client.post(model.base_url.rstrip("/") + "/chat/completions", content=raw, headers=headers)
-            save(out / f"http-{current:04d}.json", {"upstream": model.base_url, "model": request["model"],
+            save_json(out / f"http-{current:04d}.json", {"upstream": model.base_url, "model": request["model"],
                  "request_sha256": hashlib.sha256(raw).hexdigest(), "http_status": response.status_code,
                  "response": response.json()})
             self.send_response(response.status_code)
@@ -197,7 +188,7 @@ def response_recorder(model: AgentModel, out: Path):
     server.daemon_threads = True
     worker = Thread(target=server.serve_forever, daemon=True)
     worker.start()
-    save(out / "identity.json", {"upstream": model.base_url, "listen_port": server.server_port,
+    save_json(out / "identity.json", {"upstream": model.base_url, "listen_port": server.server_port,
                                 "mode": "unchanged forwarding with actual response capture"})
     try:
         yield replace(model, base_url=f"http://127.0.0.1:{server.server_port}/v1")
@@ -264,7 +255,7 @@ def main() -> None:
         raise ValueError("Store original history and complete receipts under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
     seed_path = ROOT / "test_data/personas/spamuel/canon.yaml"
-    seed_digest = sha(seed_path)
+    seed_digest = sha256_file(seed_path)
     ghost = Ghost.from_state(load_ghost_state_from_yaml(seed_path))
     virtual = GhostBashWrapper(ghost).open("a04")
     host = FolderEnvironment(out / "host", "bash")
@@ -280,7 +271,7 @@ def main() -> None:
         props_response.raise_for_status()
         props = props_response.json()
     model = AgentModel(connection.base_url, connection.model, connection.api_key.get_secret_value(), model_info["meta"]["n_ctx"], enable_thinking=False, live_test=True)
-    save(out / "identity.json", {"models": models, "build": props["build_info"], "context_window": model.context_window,
+    save_json(out / "identity.json", {"models": models, "build": props["build_info"], "context_window": model.context_window,
          "source_module": inspect.getfile(Kernel), "seed_sha256": seed_digest, "records": len(ghost.snapshot().serialize_knoxels()),
          "origins": {name: metadata.distribution(name).read_text("direct_url.json") for name in ("pm-workflows", "pm-coder")}})
     (out / "inspect.md").write_text(SKILL, encoding="utf-8")
@@ -308,7 +299,7 @@ def main() -> None:
         cases.append({"name": name, "status": step.status, "reason": step.data["reason"]})
         if name in {"missing", "oversized", "ambiguous"}:
             recovered = kernel.step()
-            save(out / f"{name}-recovery.json", recovered.to_dict())
+            save_json(out / f"{name}-recovery.json", recovered.to_dict())
             replay_classification(recovered.data["receipt"])
             assert recovered.status == ("all_good" if name == "oversized" else "INVALID")
             assert recovered.data["receipt"].get("session_ref"), "The required coding agent did not run."
@@ -331,7 +322,7 @@ def main() -> None:
         with httpx.Client(timeout=120) as client:
             text, tokens = long_log(client, origin, history, host.read_text(expected_path), model.context_window)
         virtual.write_text("logs/overflow.log", text)
-        save(out / "overflow-input.json", {"tokens": tokens, "bytes": len(text.encode("utf-8")), "context_window": model.context_window,
+        save_json(out / "overflow-input.json", {"tokens": tokens, "bytes": len(text.encode("utf-8")), "context_window": model.context_window,
                                            "seed_sha256": seed_digest, "footer_path": expected_path})
         overflow_skill = out / "overflow-inspect.md"
         overflow_skill.write_text(
@@ -344,9 +335,9 @@ def main() -> None:
                                    {"input_file": "logs/overflow.log"}, limits={"max_input_tokens": 512, "timeout_seconds": 900}, recovery=True, skill=overflow_skill)
         assert step.status == "all_good", step.to_dict()
         overflow = inspect_overflow(kernel, step.data["input_sha256"], out / "overflow-http")
-        save(out / "overflow-receipt.json", overflow)
-    assert sha(seed_path) == seed_digest
-    save(out / "receipt.json", {"passed": not args.skip_overflow, "cases": cases, "overflow": overflow,
+        save_json(out / "overflow-receipt.json", overflow)
+    assert sha256_file(seed_path) == seed_digest
+    save_json(out / "receipt.json", {"passed": not args.skip_overflow, "cases": cases, "overflow": overflow,
                                 "seed_unchanged": True, "laya_enabled": False, "deployment_changed": False,
                                 "scope": "Engine selection and classification. C01/C02 and companion PM connection wiring remain open."})
     print(json.dumps({"passed": not args.skip_overflow, "cases": len(cases), "overflow_verified": bool(overflow), "evidence": str(out)}), flush=True)

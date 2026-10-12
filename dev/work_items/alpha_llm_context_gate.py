@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 from importlib import metadata
 import json
 from pathlib import Path
@@ -15,6 +14,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from dev.work_items.shared.evidence import save_json, sha256_file
 
 from runtime.cognitive_model import LazyStageModel
 from runtime.model_activation import ChatClient, ModelActivation
@@ -30,16 +30,6 @@ QUESTION = (
     "An empty answer does not change the separately recorded run state."
 )
 GENERATION = {"temperature": 0, "chat_template_kwargs": {"enable_thinking": False}}
-
-
-def save(path: Path, value: object) -> None:
-    """Retain local evidence, including a failed assertion's model response."""
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
-
-
-def sha(path: Path) -> str:
-    """Return a source digest without changing its bytes."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def assert_answer(text: str) -> None:
@@ -108,22 +98,22 @@ def main() -> None:
     if state != EXPECTED["run_state"] or yaml.safe_load(report)["answer"] != "":
         raise ValueError("The captured source no longer matches this gate's acceptance facts.")
     captured = json.dumps({"captured_run_state": state, "report_yaml": report}, ensure_ascii=False)
-    save(out / "identity.json", {
+    save_json(out / "identity.json", {
         "base_url": connection.base_url, "model": connection.model, "models": models,
         "build": props["build_info"], "context_tokens": context,
         "pm_coder_version": metadata.version("pm-coder"),
         "pm_coder_origin": metadata.distribution("pm-coder").read_text("direct_url.json"),
-        "seed": str(args.seed), "seed_sha256": sha(args.seed), "records": len(seed["knoxels"]),
-        "report": str(args.report), "report_sha256": sha(args.report),
-        "checkpoint": str(checkpoint_path), "checkpoint_sha256": sha(checkpoint_path),
+        "seed": str(args.seed), "seed_sha256": sha256_file(args.seed), "records": len(seed["knoxels"]),
+        "report": str(args.report), "report_sha256": sha256_file(args.report),
+        "checkpoint": str(checkpoint_path), "checkpoint_sha256": sha256_file(checkpoint_path),
         "history_tokens": history_tokens, "expected": EXPECTED,
     })
     short_messages = [{"role": "system", "content": QUESTION}, {"role": "user", "content": captured}]
-    save(out / "sync-request.json", {"messages": short_messages, "generation": GENERATION})
+    save_json(out / "sync-request.json", {"messages": short_messages, "generation": GENERATION})
     stage = LazyStageModel(connection, ModelActivation(), live_test=True)
     start = time.monotonic()
     short = stage.complete(short_messages, **GENERATION)
-    save(out / "sync-response.json", {"text": short, "seconds": time.monotonic() - start})
+    save_json(out / "sync-response.json", {"text": short, "seconds": time.monotonic() - start})
     assert_answer(short)
     print("Synchronous Python stage: passed", flush=True)
 
@@ -137,10 +127,10 @@ def main() -> None:
                 "Historical context:\n" + prefix + "\nFinal captured report:\n" + captured
             )
             messages = [{"role": "system", "content": QUESTION}, {"role": "user", "content": content}]
-            save(out / f"async-{placement}-request.json", {"messages": messages, "generation": GENERATION})
+            save_json(out / f"async-{placement}-request.json", {"messages": messages, "generation": GENERATION})
             start = time.monotonic()
             answer = await client.complete(messages, **GENERATION)
-            save(out / f"async-{placement}-response.json", {
+            save_json(out / f"async-{placement}-response.json", {
                 "response": answer.model_dump(mode="json"), "seconds": time.monotonic() - start,
             })
             if answer.choices[0].finish_reason != "stop":
@@ -154,7 +144,7 @@ def main() -> None:
         return results
 
     results = asyncio.run(long_calls())
-    save(out / "receipt.json", {
+    save_json(out / "receipt.json", {
         "passed": True, "sync_passed": True, "async_cases": results,
         "scope": "Direct Python calls on captured fields and real inherited history. No context overflow or agent recovery claim.",
     })

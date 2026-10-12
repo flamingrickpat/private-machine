@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 from importlib import metadata
 import json
 import os
@@ -25,19 +24,12 @@ from pm_decision import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+from dev.work_items.shared.evidence import save_json, sha256_bytes  # noqa: E402
 REPORT = ROOT / ".runtime/alpha/a01/console-spamuel/instances/fd71e4655da44430b9779eb6739d45f5/managed_tasks/dd8a80caec16462b97e0e85cbdf87346/outbox/report.yaml"
 CHECKPOINT = REPORT.parents[3] / "ghost.json"
 CRITERIA = {"COMPLETE": "The task completed.", "FAILED": "The task failed.", "INVALID": "The report cannot establish completion or failure."}
 QUESTION = ChoiceQuestion(instructions="What is the task status in the final task report?", criteria=CRITERIA)
-
-
-def sha(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def save(path: Path, value: object) -> None:
-    """Store evidence immediately so later failures do not erase earlier results."""
-    path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def record(out: Path, name: str, call: Callable[[], DecisionResult]) -> dict:
@@ -48,7 +40,7 @@ def record(out: Path, name: str, call: Callable[[], DecisionResult]) -> dict:
     except (DecisionError, DecisionCancelled) as error:
         value = error.receipt.to_dict() if error.receipt else {"outcome": type(error).__name__}
         value["exception"] = type(error).__name__
-    save(out / f"{name}.json", value)
+    save_json(out / f"{name}.json", value)
     print(json.dumps({"case": name, "outcome": value["outcome"], "seconds": value.get("seconds")}), flush=True)
     return value
 
@@ -75,7 +67,7 @@ async def contention(out: Path, state: str, identity: dict, report: str) -> dict
             concurrent.append({"chat": reply, "decisions": decisions})
     value = {"chat_alone": alone, "chat_with_decisions": concurrent,
              "scope": "Three warm samples per condition. Shared workstation timing, not a latency guarantee."}
-    save(out / "contention.json", value)
+    save_json(out / "contention.json", value)
     return value
 
 
@@ -91,7 +83,7 @@ async def owned_failures(out: Path, binary: Path, model: Path, port: int, state:
     command = [str(binary), "--model", str(model), "--alias", "laya", "--host", "127.0.0.1",
                "--port", str(port), "--device", "none", "--n-gpu-layers", "0", "--parallel", "1",
                "--ctx-size", "8192", "--batch-size", "8192", "--ubatch-size", "8192", "--threads", "4", "--jinja", "--slots"]
-    value = {"command": command, "binary_sha256": sha(binary.read_bytes()), "model_sha256": sha(model.read_bytes())}
+    value = {"command": command, "binary_sha256": sha256_bytes(binary.read_bytes()), "model_sha256": sha256_bytes(model.read_bytes())}
     log = (out / "owned-service.log").open("wb")
     process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT,
                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
@@ -156,7 +148,7 @@ async def owned_failures(out: Path, binary: Path, model: Path, port: int, state:
             process.terminate()
             await asyncio.to_thread(process.wait, 10)
         log.close()
-        save(out / "owned-failures.json", value)
+        save_json(out / "owned-failures.json", value)
     return value
 
 
@@ -182,8 +174,8 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=False)
     props = httpx.get("http://127.0.0.1:8082/props").json()
     identity = {"build": props["build_info"], "model_path": props["model_path"],
-                "binary_sha256": sha(args.binary.read_bytes()), "model_sha256": sha(args.model_file.read_bytes())}
-    save(out / "identity.json", {"props": props, "identity": identity,
+                "binary_sha256": sha256_bytes(args.binary.read_bytes()), "model_sha256": sha256_bytes(args.model_file.read_bytes())}
+    save_json(out / "identity.json", {"props": props, "identity": identity,
          "packages": {name: {"version": metadata.version(name), "origin": metadata.distribution(name).read_text("direct_url.json")} for name in ("pm-coder", "pm-workflows")}})
     seed = yaml.load(args.seed.read_text(encoding="utf-8"), Loader=yaml.CSafeLoader)
     report = args.report.read_text(encoding="utf-8")
@@ -196,9 +188,9 @@ def main() -> None:
     task_report = json.dumps({"captured_run_state": run["state"], "report_yaml": report}, ensure_ascii=False)
     records = [{"id": k["data"]["id"], "content": k["data"].get("content", "")} for k in seed["knoxels"] if k["data"].get("content")]
     history = "\n".join(r["content"] for r in records)
-    save(out / "provenance.json", {"seed": str(args.seed), "seed_sha256": sha(args.seed.read_bytes()), "records": len(seed["knoxels"]),
-         "report": str(args.report), "report_sha256": sha(args.report.read_bytes()), "checkpoint": str(args.checkpoint),
-         "checkpoint_sha256": sha(args.checkpoint.read_bytes()), "run_id": run["run_id"],
+    save_json(out / "provenance.json", {"seed": str(args.seed), "seed_sha256": sha256_bytes(args.seed.read_bytes()), "records": len(seed["knoxels"]),
+         "report": str(args.report), "report_sha256": sha256_bytes(args.report.read_bytes()), "checkpoint": str(args.checkpoint),
+         "checkpoint_sha256": sha256_bytes(args.checkpoint.read_bytes()), "run_id": run["run_id"],
          "scope": "Captured application report plus real inherited history. Added layout labels are generated. No reviewed quality labels or holdout inputs."})
     client = DecisionClient(provider_identity=identity)
     results = {}
@@ -221,7 +213,7 @@ def main() -> None:
         for placement in ("start", "end"):
             state = ("Task report:\n" + task_report + "\nHistorical context:\n" + prefix) if placement == "start" else ("Historical context:\n" + prefix + "\nFinal task report:\n" + task_report)
             name = f"history-{budget}-{placement}"
-            save(out / f"{name}-input.json", {"state": state, "questions": {"status": QUESTION.model_dump()}})
+            save_json(out / f"{name}-input.json", {"state": state, "questions": {"status": QUESTION.model_dump()}})
             results[name] = record(out, name, lambda: client.decide(state, {"status": QUESTION}))
             if budget == 4096 and placement == "end": long_state = state
     results["wrong-endpoint"] = record(out, "wrong-endpoint", lambda: DecisionClient("http://127.0.0.1:8080/v1/systemone").decide(task_report, {"status": QUESTION}))
@@ -229,7 +221,7 @@ def main() -> None:
     results["timeout"] = record(out, "timeout", lambda: DecisionClient(timeout=0.001).decide(long_state, {"status": QUESTION}))
     results["malformed"] = record(out, "malformed", lambda: client.decide({"bad": float("nan")}, {"status": QUESTION}))
     raw = httpx.post(client.endpoint, json={"state": task_report, "questions": {}}, timeout=30)
-    save(out / "server-malformed.json", {"http_status": raw.status_code, "response": raw.json()})
+    save_json(out / "server-malformed.json", {"http_status": raw.status_code, "response": raw.json()})
     assert raw.status_code == 400
     assert all(results[k]["outcome"] == "success" for k in ("choice", "score", "probability", "multi"))
     assert results["wrong-model"]["exception"] == "DecisionSchemaError"
@@ -238,7 +230,7 @@ def main() -> None:
     assert results["malformed"]["exception"] == "DecisionInputError"
     asyncio.run(contention(out, long_state, identity, task_report))
     asyncio.run(owned_failures(out, args.binary, args.model_file, args.fault_port, long_state))
-    save(out / "receipt.json", {"status": "passed", "results": results,
+    save_json(out / "receipt.json", {"status": "passed", "results": results,
          "holdout_evaluated": False, "human_review": "pending", "scope": "API and real failure gates. Model quality remains a measured observation."})
 
 

@@ -20,11 +20,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-
-
-def save(root, name, payload):
-    """Retain exact evidence under the isolated runtime directory."""
-    (root / name).write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
+from dev.work_items.shared.evidence import save_json
 
 
 def run(args):
@@ -76,7 +72,7 @@ def run(args):
         command("snapshot")
         wait_for(lambda saved, info: sum(item["kind"] == "snapshot" for item in saved) > count)
         result = request(f"/api/instances/{instance}")["snapshot"]
-        save(out, name, result)
+        save_json(out / name, result, default=str)
         return result
 
     def exchange(name, text, persona):
@@ -97,7 +93,7 @@ def run(args):
                    and item.get("correlation_id") == correlation]
         row = {"name": name, "input": text, "reply": reply, "actions": actions, "reports": reports}
         persona["exchanges"].append(row)
-        save(out, f"{persona['name']}-sequence.json", persona)
+        save_json(out / f"{persona['name']}-sequence.json", persona, default=str)
         print(json.dumps({"persona": persona["name"], "turn": name, "reply": reply.get("text"),
                           "memory_ids": [e["knoxel_id"] for action in actions for e in action.get("memory_evidence", [])]}, ensure_ascii=False), flush=True)
         return row
@@ -118,7 +114,7 @@ def run(args):
                 identity = json.load(response)
             if alias not in {item["id"] for item in identity["data"]}:
                 raise ValueError("The model endpoint identity changed.")
-            save(out, f"models-{label}.json", identity)
+            save_json(out / f"models-{label}.json", identity, default=str)
         deadline = time.monotonic() + 30
         while True:
             try:
@@ -183,7 +179,7 @@ def run(args):
                     *referenced_ids(ghost.get_knoxel_by_id(preference_id)),
                     *referenced_ids(ghost.get_knoxel_by_id(codeword_id))})
                 probe = asyncio.run(ghost.retrieve_experiences("bedtime beverage", service, visible_ids=visible, limit=2))
-                save(out, "semantic-paraphrase.json", probe)
+                save_json(out / "semantic-paraphrase.json", probe, default=str)
                 if (probe["trace"]["semantic"]["status"] != "ready" or not probe["matches"]
                         or probe["matches"][0]["knoxel_id"] != preference_id
                         or "semantic" not in probe["matches"][0]["reasons"]):
@@ -214,7 +210,7 @@ def run(args):
                 exchange("failed-method", "Recall a past failed method from our recorded history. What was tried, and which original conversation supports that memory?", persona)
                 exchange("shared-achievement", "Recall a shared achievement from our recorded history. Keep the original evidence separate from our hypothetical diamond plan.", persona)
             snapshot(f"{label}-final.json")
-            save(out, f"{label}-observed-events.json", events)
+            save_json(out / f"{label}-observed-events.json", events, default=str)
             command("stop")
             wait_for(lambda saved, info: info["state"] == "stopped")
             instance = None
@@ -226,7 +222,7 @@ def run(args):
         raise
     finally:
         if instance is not None:
-            save(out, "interrupted-observed-events.json", events)
+            save_json(out / "interrupted-observed-events.json", events, default=str)
             try:
                 command("stop")
                 wait_for(lambda saved, info: info["state"] == "stopped")
@@ -235,7 +231,7 @@ def run(args):
         process.terminate()
         process.wait(timeout=15)
         log.close()
-        save(out, "session-receipt.json", receipt)
+        save_json(out / "session-receipt.json", receipt, default=str)
         print(json.dumps({"out": str(out), "ok": receipt["ok"], "failures": receipt["failures"]}), flush=True)
 
 

@@ -28,7 +28,8 @@ from runtime.model_activation import ModelActivation
 from runtime.models import load_config
 from runtime.workflow_models import WorkflowModels
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
-from dev.work_items.alpha_classification_gate import inspect_overflow, long_log, make_logs, response_recorder, save, sha
+from dev.work_items.alpha_classification_gate import inspect_overflow, long_log, make_logs, response_recorder
+from dev.work_items.shared.evidence import save_json, sha256_file
 from working_target import FolderEnvironment, GhostBashWrapper
 
 DEMO = ROOT / "workflows/classification_demo/classification_demo.workflow.md"
@@ -56,13 +57,13 @@ def variant(out: Path, name: str, *, binding: dict, limits: dict | None = None) 
 def run_case(out: Path, name: str, environment, models, manifest=DEMO, payload=None):
     """Use PM's synchronous runner and retain report, service, and replay data."""
     dryrun = check_workflow(manifest, ROOT, seed=5, monte_carlo_runs=100)
-    save(out / f"{name}-dryrun.json", dryrun.to_dict())
+    save_json(out / f"{name}-dryrun.json", dryrun.to_dict())
     assert not dryrun.errors, dryrun.errors
     runtime = WorkflowRuntime(environment, Event(), {}, propagate_python_errors=True)
     result = WorkflowRunner(manifest, out / "runtime", models=models).invoke(
         WorkflowRequest(name, payload or {"artifact_folder": "logs"}), runtime,
     )
-    save(out / f"{name}-result.json", asdict(result) | {"artifact_dir": str(result.artifact_dir)})
+    save_json(out / f"{name}-result.json", asdict(result) | {"artifact_dir": str(result.artifact_dir)})
     assert result.status is WorkflowStatus.Completed, result.kernel_summary
     classified = [entry for entry in entries(result.artifact_dir / "journal.jsonl") if entry.get("kind") == "classify"]
     for entry in classified:
@@ -117,7 +118,7 @@ def main() -> None:
         raise ValueError("Keep complete original-history evidence under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
     seed = ROOT / "test_data/personas/spamuel/canon.yaml"
-    seed_before = sha(seed)
+    seed_before = sha256_file(seed)
     receipt = {"passed": False, "seed_sha256": seed_before, "cases": [], "laya_wiring": "deferred",
                "laya_requests": 0, "human_review": "not rated", "C01_C02": "remain open"}
     try:
@@ -145,9 +146,9 @@ def main() -> None:
             props_response.raise_for_status()
             served, props = model_response.json(), props_response.json()
         context = props["default_generation_settings"]["n_ctx"]
-        save(out / "identity.json", {"models": served, "build": props["build_info"], "context_window": context,
+        save_json(out / "identity.json", {"models": served, "build": props["build_info"], "context_window": context,
             "seed_sha256": seed_before, "records": len(app.ghost.snapshot().serialize_knoxels()),
-            "demo_sources": {str(path.relative_to(ROOT)): sha(path) for path in (DEMO, LONG_DEMO, DEMO.with_name("inspect.md"), DEMO.with_name("inspect_long.md"), DEMO.with_name("steps.py"))},
+            "demo_sources": {str(path.relative_to(ROOT)): sha256_file(path) for path in (DEMO, LONG_DEMO, DEMO.with_name("inspect.md"), DEMO.with_name("inspect_long.md"), DEMO.with_name("steps.py"))},
             "origins": {name: metadata.distribution(name).read_text("direct_url.json") for name in ("pm-workflows", "pm-coder")}})
         original_state = app.ghost.snapshot().serialize_knoxels()
         for name, environment in (("host", host), ("ghost", virtual)):
@@ -161,8 +162,8 @@ def main() -> None:
         changed_bytes = changed_path.read_bytes()
         changed_encoding = "utf-16" if changed_bytes.startswith((b"\xff\xfe", b"\xfe\xff")) else "utf-8-sig"
         raw = changed_bytes.decode(changed_encoding)
-        changed_source = {"source": str(changed_path), "source_sha256": sha(changed_path), "encoding": changed_encoding}
-        save(out / "changed-source.json", changed_source)
+        changed_source = {"source": str(changed_path), "source_sha256": sha256_file(changed_path), "encoding": changed_encoding}
+        save_json(out / "changed-source.json", changed_source)
         before = digest(virtual.read_text(expected_path))
         virtual.write_text(expected_path, raw)
         result, _ = run_case(out, "changed-ghost", virtual, models)
@@ -210,7 +211,7 @@ def main() -> None:
             with httpx.Client(timeout=120) as client:
                 text, tokens = long_log(client, origin, history, host.read_text(expected_path), context)
             virtual.write_text("logs/overflow.log", text)
-            save(out / "overflow-input.json", {"tokens": tokens, "bytes": len(text.encode("utf-8")), "context_window": context, "seed_sha256": seed_before})
+            save_json(out / "overflow-input.json", {"tokens": tokens, "bytes": len(text.encode("utf-8")), "context_window": context, "seed_sha256": seed_before})
             # The relay captures real provider failures without changing requests.
             # The explicit context belongs to the verified upstream service.
             with models.session("Default", False, Event(), receipt_path=out / "relay-activation.jsonl") as model:
@@ -224,7 +225,7 @@ def main() -> None:
                 def entries_for_phase(self, name):
                     return [entry for entry in classified if entry["phase"] == name]
             overflow = inspect_overflow(SimpleNamespace(kernel_data=result.artifact_dir, journal=RetainedJournal()), digest(text), out / "overflow-http")
-            save(out / "overflow-receipt.json", overflow)
+            save_json(out / "overflow-receipt.json", overflow)
             receipt["overflow"] = {key: value for key, value in overflow.items() if key != "checkpoints"}
         assert app.ghost.snapshot().serialize_knoxels() == original_state, "Classification mutated Ghost."
         # Run the current Story module with its original tools and model path.
@@ -240,18 +241,18 @@ def main() -> None:
         result = app.dialogue.last_result
         assert result.status is WorkflowStatus.Completed and result.report["accepted"] and result.report["candidate"].strip()
         assert not (result.artifact_dir / "model-sessions.jsonl").exists(), "Story used classification activation."
-        save(out / "compatibility-story.json", {"status": result.status, "report": result.report, "artifact_dir": str(result.artifact_dir),
+        save_json(out / "compatibility-story.json", {"status": result.status, "report": result.report, "artifact_dir": str(result.artifact_dir),
              "connection": connection.model, "driver": "python", "classification_sessions": 0,
              "human_immersion": "not rated", "laya_absent": decision_absent(), "shared_active_lease_reused": True})
         receipt["compatibility"] = {"status": "completed", "model": connection.model, "path": "Story Python roles and existing lazy chat tool", "laya_absent": decision_absent()}
         assert decision_absent() or args.allow_laya_present
         assert models.owner._active_calls == 0 and not models.owner._switching
-        assert sha(seed) == seed_before
+        assert sha256_file(seed) == seed_before
         receipt["seed_unchanged"] = True
         receipt["passed"] = not args.skip_overflow and not args.allow_laya_present
         print(f"A05 acceptance passed={receipt['passed']}", flush=True)
     finally:
-        save(out / "receipt.json", receipt)
+        save_json(out / "receipt.json", receipt)
 
 
 if __name__ == "__main__":

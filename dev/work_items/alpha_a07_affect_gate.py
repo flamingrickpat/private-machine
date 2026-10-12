@@ -30,6 +30,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from dev.work_items.shared.evidence import save_json
 
 from main import build_app
 from pm_core.ghost.service import Ghost
@@ -53,12 +54,6 @@ TURNS = [
     ("repair",
      "Jesse: I am sorry I snapped at you. I know you were trying. Let us start over."),
 ]
-
-
-def save(root: Path, name: str, payload) -> None:
-    path = root / name
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def pump(app, rounds: int = 60) -> int:
@@ -206,7 +201,7 @@ def main(argv=None) -> int:
             Path(args.seed), root / "primary", label="spamuel", turns=TURNS,
             replies=replies, config=args.config,
         )
-        save(root, "primary-sequence.json", primary)
+        save_json(root / "primary-sequence.json", primary)
 
     comparison = None
     comparison_path = root / "cheerful-sequence.json"
@@ -220,7 +215,7 @@ def main(argv=None) -> int:
             Path(args.cheerful_seed), control_root, label="cheerful",
             turns=[TURNS[0]], replies=replies, config=args.config, ghost=control_ghost,
         )
-        save(root, "cheerful-sequence.json", comparison)
+        save_json(root / "cheerful-sequence.json", comparison)
 
     # A recovery is recorded, never required to be positive.
     if primary["snapshots"]:
@@ -232,7 +227,7 @@ def main(argv=None) -> int:
         }
     else:
         recovery = {"sadness_recovery": 0.0, "valence_recovery": 0.0}
-    save(root, "recovery.json", recovery)
+    save_json(root / "recovery.json", recovery)
 
     failures: list[str] = []
     traced = [
@@ -265,7 +260,7 @@ def main(argv=None) -> int:
         "failures": failures,
         "ok": not failures,
     }
-    save(root, "session-receipt.json", receipt)
+    save_json(root / "session-receipt.json", receipt)
     if failures:
         raise RuntimeError("A07 live gate failed: " + "; ".join(failures))
     print(json.dumps({"out": str(root), "ok": True, "recovery": recovery}, indent=2))

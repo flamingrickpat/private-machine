@@ -18,6 +18,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from dev.work_items.shared.evidence import save_json
 
 from pm_workflows.inputs import InputError, InputResolver, InputScope
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
@@ -29,11 +30,6 @@ from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowSta
 from working_target import FolderEnvironment, GhostBashWrapper
 
 REPORT = ROOT / ".runtime/alpha/a01/console-spamuel/instances/fd71e4655da44430b9779eb6739d45f5/managed_tasks/dd8a80caec16462b97e0e85cbdf87346/outbox/report.yaml"
-
-
-def save(path: Path, value: object) -> None:
-    """Store local evidence with the exact captured values."""
-    path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def main() -> None:
@@ -78,21 +74,21 @@ def main() -> None:
             "source_sha256": hashlib.sha256(raw).hexdigest(), "captured_path": f"logs/{destination.name}",
             "utf8_sha256": hashlib.sha256(destination.read_bytes()).hexdigest(), "source_mtime_ns": source.stat().st_mtime_ns})
         virtual.write_text(f"logs/{destination.name}", host.read_text(f"logs/{destination.name}"))
-    save(out / "sources.json", source_receipts)
+    save_json(out / "sources.json", source_receipts)
     for name, environment in [("host", host), ("ghost", virtual)]:
         resolver = InputResolver(environment, InputScope("a03", name))
         listing = resolver.list_folder("logs", "Select the most recent unit-test log.")
-        save(out / f"{name}-listing.json", listing.to_dict())
+        save_json(out / f"{name}-listing.json", listing.to_dict())
         chosen = next(item for item in listing.candidates if "foundation-final" in item.path)
         capture = resolver.capture_selected(listing, chosen.candidate_id)
-        save(out / f"{name}-capture.json", capture.evidence)
+        save_json(out / f"{name}-capture.json", capture.evidence)
         assert all((item.modified_time is not None) == (name == "host") for item in listing.candidates)
         environment.write_text(chosen.path, capture.value + "\nA03 changed the test copy.\n")
         try:
             resolver.capture_selected(listing, chosen.candidate_id)
         except InputError as exc:
             assert exc.code == "stale_input"
-            save(out / f"{name}-stale.json", {"code": exc.code, "detail": str(exc)})
+            save_json(out / f"{name}-stale.json", {"code": exc.code, "detail": str(exc)})
         else:
             raise AssertionError("A changed listed file remained usable.")
 
@@ -115,7 +111,7 @@ def main() -> None:
         models = response.json()
         model = next(entry for entry in models["data"] if entry["id"] == connection.model)
         context_window = model["meta"]["n_ctx"]
-    save(out / "identity.json", {"seed": str(seed), "seed_sha256": seed_sha, "records": len(records),
+    save_json(out / "identity.json", {"seed": str(seed), "seed_sha256": seed_sha, "records": len(records),
         "selected_memory_id": memory_id, "report": str(REPORT), "report_sha256": hashlib.sha256(REPORT.read_bytes()).hexdigest(),
         "base_url": connection.base_url, "model": connection.model, "models": models, "context_window": context_window,
         "pm_workflows_origin": metadata.distribution("pm-workflows").read_text("direct_url.json"),
@@ -147,13 +143,13 @@ def main() -> None:
     with owner.use(connection):
         result = runner.invoke(WorkflowRequest("a03", {"memory_path": memory_path, "run_state": run_state}), runtime)
     expected = {"memory_text": record["data"]["content"], "run_state": run_state, "answer_empty": True}
-    save(out / "agent-result.json", {"status": result.status, "report": result.report, "expected": expected, "kernel": result.kernel_summary})
+    save_json(out / "agent-result.json", {"status": result.status, "report": result.report, "expected": expected, "kernel": result.kernel_summary})
     assert result.status is WorkflowStatus.Completed
     assert result.report == expected
     assert virtual.read_text(memory_path) == original_memory
     assert hashlib.sha256(seed.read_bytes()).hexdigest() == seed_sha
     assert not (out / "runtime/standalone/a03/workspace/outbox/report.yaml").exists()
-    save(out / "receipt.json", {"passed": True, "host_listing": 3, "ghost_listing": 3, "stale_rejected": 2,
+    save_json(out / "receipt.json", {"passed": True, "host_listing": 3, "ghost_listing": 3, "stale_rejected": 2,
         "records": len(records), "memory_unchanged": True, "seed_unchanged": True, "actual_agent_report": result.report,
         "scope": "A03 input binding and actual agent evidence copy. A04 owns selection and classification inference."})
     print(json.dumps({"passed": True, "evidence": str(out), "records": len(records)}))

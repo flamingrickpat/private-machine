@@ -21,6 +21,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+from dev.work_items.shared.evidence import save_json
 
 from main import build_app
 from pm_core.ghost.service import Ghost
@@ -28,12 +29,6 @@ from runtime.lifecycle import record_shutdown
 from workflows.main_cognition.state_changes import active_goal_texts, find_intention, normalize_goal_key
 
 SEED = ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
-
-
-def save(root: Path, name: str, payload) -> None:
-    path = root / name
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def pump(app, rounds: int = 40) -> int:
@@ -78,7 +73,7 @@ def main(argv=None) -> int:
         config_path=args.config,
     )
     boot_a = dict(app.lifecycle_boot)
-    save(root, "boot-a.json", boot_a)
+    save_json(root / "boot-a.json", boot_a)
 
     lifecycle_work = pump(app)
     stimulus = (
@@ -89,8 +84,8 @@ def main(argv=None) -> int:
     app.user_input.submit(stimulus)
     turn_work = pump(app)
     first_report = app.main_cog.last_result.report if app.main_cog.last_result else {}
-    save(root, "first-report.json", first_report)
-    save(root, "first-replies.json", list(replies))
+    save_json(root / "first-report.json", first_report)
+    save_json(root / "first-replies.json", list(replies))
 
     state = {
         "stimulus": stimulus,
@@ -113,7 +108,7 @@ def main(argv=None) -> int:
         ],
         "cycles": len(app.ghost.states),
     }
-    save(root, "accepted-state.json", state)
+    save_json(root / "accepted-state.json", state)
 
     # A normal module stop records the clean shutdown event.
     app.main_cog.stop()
@@ -124,7 +119,7 @@ def main(argv=None) -> int:
         for knoxel in app.ghost.all_knoxels.values()
         if hasattr(knoxel, "metadata")
     )
-    save(root, "shutdown.json", {"clean_shutdown_recorded": shutdown_seen})
+    save_json(root / "shutdown.json", {"clean_shutdown_recorded": shutdown_seen})
 
     # Restart from the same checkpoint. build_app records the boot and puts the
     # lifecycle stimulus on the bus for the first cycle of the new session.
@@ -137,12 +132,12 @@ def main(argv=None) -> int:
         config_path=args.config,
     )
     boot_b = dict(restarted.lifecycle_boot)
-    save(root, "boot-b.json", boot_b)
+    save_json(root / "boot-b.json", boot_b)
     pump(restarted)
     restarted.user_input.submit("Jesse: What was our plan for the river?")
     restart_work = pump(restarted)
     restart_report = restarted.main_cog.last_result.report if restarted.main_cog.last_result else {}
-    save(root, "restart-report.json", restart_report)
+    save_json(root / "restart-report.json", restart_report)
 
     reopened = Ghost.from_checkpoint(checkpoint)
     live_goals = active_goal_texts(reopened)
@@ -161,7 +156,7 @@ def main(argv=None) -> int:
             "features": len(reopened.all_features),
         },
     }
-    save(root, "restart-receipt.json", receipt)
+    save_json(root / "restart-receipt.json", receipt)
 
     failures: list[str] = []
     if not shutdown_seen:
@@ -172,7 +167,7 @@ def main(argv=None) -> int:
         failures.append("the active river goal did not survive the restart")
     if failures:
         receipt["failures"] = failures
-        save(root, "restart-receipt.json", receipt)
+        save_json(root / "restart-receipt.json", receipt)
         raise RuntimeError("A06 live gate failed: " + "; ".join(failures))
     print(json.dumps({"out": str(root), "ok": True}, indent=2))
     return 0
