@@ -1,11 +1,11 @@
 ---
-name: tool_dialogue
+name: main_cognition
 driver: {kind: python}
 human_resolver: {mode: forbid}
 state_policy: {mutation_model: append_only}
 roles:
   work:
-    skill: workflows/roles/tool_dialogue.py
+    skill: workflows/demo/role_skills/main_cognition.py
     result_contract:
       type: json
       schema:

@@ -1,11 +1,11 @@
 ---
-name: schedule
+name: tool_dialogue
 driver: {kind: python}
 human_resolver: {mode: forbid}
 state_policy: {mutation_model: append_only}
 roles:
   work:
-    skill: workflows/roles/schedule.py
+    skill: workflows/demo/role_skills/tool_dialogue.py
     result_contract:
       type: json
       schema:

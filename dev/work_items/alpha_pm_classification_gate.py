@@ -33,7 +33,7 @@ from dev.work_items.shared.evidence import save_json, sha256_file
 from pm.host.folder_target import FolderEnvironment
 from pm.memory.bash_view import MemoryBashTarget
 
-DEMO = ROOT / "workflows/classification_demo/classification_demo.workflow.md"
+DEMO = ROOT / "workflows/demo/classification/classification_demo.workflow.md"
 LONG_DEMO = DEMO.with_name("long_inspection.workflow.md")
 
 

@@ -1,11 +1,11 @@
 ---
-name: inner_thought
+name: status
 driver: {kind: python}
 human_resolver: {mode: forbid}
 state_policy: {mutation_model: append_only}
 roles:
   work:
-    skill: workflows/roles/inner_thought.py
+    skill: workflows/demo/role_skills/status.py
     result_contract:
       type: json
       schema:

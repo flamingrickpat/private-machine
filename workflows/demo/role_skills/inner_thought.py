@@ -1,4 +1,4 @@
-from workflows.roles import inner_thought
+from workflows.demo.roles import inner_thought
 
 
 def run(context):

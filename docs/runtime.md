@@ -56,7 +56,7 @@ runtime = WorkflowRuntime(
     environment, Event(), {}, propagate_python_errors=True,
 )
 runner = WorkflowRunner(
-    Path("workflows/inner_thought.workflow.md"), Path(".runtime/debug"),
+    Path("workflows/demo/inner_thought.workflow.md"), Path(".runtime/debug"),
 )
 result = runner.invoke(WorkflowRequest(uuid4().hex, {"messages": []}), runtime)
 print(result.status)

@@ -263,7 +263,7 @@ def build_app(
     def workflow_paths(name: str):
         return {
             "working_target": target,
-            "workflow": PROJECT_ROOT / "workflows" / f"{name}.workflow.md",
+            "workflow": PROJECT_ROOT / "workflows" / "demo" / f"{name}.workflow.md",
             "tools_factory": build_tools,
             "runtime_root": runtime_root,
             "ghost": ghost,

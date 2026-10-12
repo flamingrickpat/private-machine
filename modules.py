@@ -1,7 +1,7 @@
 """Cognitive module subclasses and the shared task table.
 
 Every module is a ``BusModule`` or ``WorkflowModule``. Fixed routing and
-fixed output are explicit prototype behavior here and in ``workflows/roles.py``,
+fixed output are explicit prototype behavior here and in ``workflows/demo/roles.py``,
 never LLM output.
 """
 from __future__ import annotations

@@ -1,11 +1,11 @@
 ---
-name: status
+name: schedule
 driver: {kind: python}
 human_resolver: {mode: forbid}
 state_policy: {mutation_model: append_only}
 roles:
   work:
-    skill: workflows/roles/status.py
+    skill: workflows/demo/role_skills/schedule.py
     result_contract:
       type: json
       schema:

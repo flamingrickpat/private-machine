@@ -5,10 +5,10 @@ human_resolver: {mode: forbid}
 failure_policy: {max_attempts_per_phase: 2}
 roles:
   inspector:
-    skill: workflows/classification_demo/inspect_long.md
+    skill: workflows/demo/classification/inspect_long.md
     readable_paths: ["logs/**"]
   publish:
-    skill: workflows/classification_demo/steps.py
+    skill: workflows/demo/classification/steps.py
     result_contract:
       type: json
       schema:

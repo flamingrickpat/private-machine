@@ -1,4 +1,4 @@
-from workflows.roles import tool_dialogue
+from workflows.demo.roles import tool_dialogue
 
 
 def run(context):

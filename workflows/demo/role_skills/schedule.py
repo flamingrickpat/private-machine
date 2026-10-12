@@ -1,4 +1,4 @@
-from workflows.roles import schedule
+from workflows.demo.roles import schedule
 
 
 def run(context):

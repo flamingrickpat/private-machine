@@ -98,7 +98,7 @@ No file is deleted. Reserved code moves with its owner.
 | `workflows/main_cognition/state_changes.py` | `workflows/main_cognition/stage_commits.py` | move | 3 | Applies accepted appraisal and goal proposals. |
 | `workflows/main_cognition/{steps, pipeline, dispatch, schemas, stage_support}.py`, `stages/**` | same | stays | — | Already well-bounded. |
 | `workflows/main_cognition.workflow.md`, `dialogue`, `inner_thought`, `schedule`, `status`, `tool_dialogue` manifests | `workflows/demo/` | move | 3 | Dummy manifests. Their names stay. |
-| `workflows/roles.py`, `workflows/roles/*.py` | `workflows/demo/roles.py`, `workflows/demo/roles/*.py` | move | 3 | Dummy role behavior. |
+| `workflows/roles.py`, `workflows/roles/*.py` | `workflows/demo/roles.py`, `workflows/demo/role_skills/*.py` | move | 3 | Dummy role behavior. |
 | `workflows/classification_demo/` | `workflows/demo/classification/` | move | 3 | Demonstration workflow. |
 | `workflows/public_context.py` | `workflows/public_speech/public_context.py` | move | 3 | |
 | `workflows/public_claims.py`, `public_claims.yaml` | `workflows/public_speech/claim_review.py`, `claim_review.yaml` | move | 3 | |
