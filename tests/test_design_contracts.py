@@ -17,7 +17,7 @@ from pm.bus.envelopes import Envelope
 from tests.support import ManualClock, Recorder, store_action
 from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
 from pm.host.folder_target import FolderTarget
-from pm.host.workflow_module import WorkflowModule
+from pm.runs.workflow_module import WorkflowModule
 
 
 def small_ghost():

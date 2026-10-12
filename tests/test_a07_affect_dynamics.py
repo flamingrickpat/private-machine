@@ -28,7 +28,7 @@ from pm.bus.envelopes import Envelope, new_id
 from modules import MainCogLoop
 from pm.app.lifecycle_records import record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
-from pm.host.workflow_module import PROJECT_ROOT
+from pm.runs.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.schemas import AppraisalResult
 from pm.memory.bash_view import MemoryBashTarget
 

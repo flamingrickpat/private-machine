@@ -139,7 +139,7 @@ The cognitive parent invokes seven child workflows through scoped runtimes.
 ## Code and evidence
 
 - [`pm.runs.workflow_runner.WorkflowRunner`][]
-- [`pm.host.workflow_module.WorkflowModule`][]
+- [`pm.runs.workflow_module.WorkflowModule`][]
 - Direct runner tests: `tests/test_workflow_runner.py`
 - Direct file-permission tests: `tests/test_agent_file_scope.py`
 - Run control tests: `tests/test_run_control.py`

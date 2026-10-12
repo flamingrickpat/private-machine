@@ -10,7 +10,7 @@ from pm.bus.envelopes import Envelope
 from pm.runs.workflow_runner import WorkflowStatus
 from tests.support import Recorder
 from pm.host.folder_target import FolderTarget
-from pm.host.workflow_module import WorkflowModule
+from pm.runs.workflow_module import WorkflowModule
 
 
 def _wait_until(predicate, timeout=10.0):

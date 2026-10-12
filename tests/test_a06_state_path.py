@@ -22,7 +22,7 @@ from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.app.lifecycle_records import CLEAN_END, UNCERTAIN_END, record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
-from pm.host.workflow_module import PROJECT_ROOT
+from pm.runs.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.dispatch import resolve_prerequisites
 from workflows.main_cognition.pipeline import run_cycle
 from workflows.main_cognition.schemas import ActionDispatch

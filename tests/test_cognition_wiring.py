@@ -19,7 +19,7 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
 from modules import MainCogLoop, StoryDialogue
 from tests.support import ManualClock, Recorder
-from pm.host.workflow_module import PROJECT_ROOT
+from pm.runs.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.module_tools import build_main_cognition_tools
 from workflows.main_cognition.pipeline import stable_action_id
 from pm.memory.bash_view import MemoryBashTarget

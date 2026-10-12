@@ -39,7 +39,7 @@ from pm.host.application import Application
 from runtime.steward import Steward
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.memory.bash_view import MemoryBashTarget
-from pm.host.workflow_module import PROJECT_ROOT, WorkflowModule
+from pm.runs.workflow_module import PROJECT_ROOT, WorkflowModule
 
 BANNER = "DUMMY COGNITION \u2014 no LLM calls\n"
 REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"

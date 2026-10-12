@@ -12,7 +12,7 @@ from pm.bus.envelopes import Envelope
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderTarget
 from pm.memory.bash_view import MemoryBashEnvironment
-from pm.host.workflow_module import WorkflowModule
+from pm.runs.workflow_module import WorkflowModule
 
 
 class WorkflowRunnerTests(unittest.TestCase):

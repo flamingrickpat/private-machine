@@ -13,7 +13,7 @@ from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
 from pm.memory.yaml_codec import _serialize_knoxel
 from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
-from pm.host.workflow_module import WorkflowModule
+from pm.runs.workflow_module import WorkflowModule
 
 
 def _ghost() -> MemoryStore:

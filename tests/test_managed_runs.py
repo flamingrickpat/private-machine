@@ -13,7 +13,7 @@ import unittest
 from pm.records.cycle_state import PersonaConfig
 from pm.memory.store import MemoryStore
 from pm.runs.supervisor import ManagedRunError, ManagedRunSupervisor, WorkflowSpec
-from pm.host.workflow_module import PROJECT_ROOT
+from pm.runs.workflow_module import PROJECT_ROOT
 
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
 

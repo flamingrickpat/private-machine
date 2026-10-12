@@ -16,7 +16,7 @@ from pm.runs.supervisor import ManagedRunError, ManagedRunReceipt, ManagedRunSup
 from runtime.minecraft_actor import observed_target, read_actor_journal, target_block_cell
 from pm.memory.store import MemoryStore
 from tests.test_design_contracts import small_ghost
-from pm.host.workflow_module import PROJECT_ROOT
+from pm.runs.workflow_module import PROJECT_ROOT
 from pm.host.folder_target import FolderEnvironment
 
 

@@ -19,7 +19,7 @@ from pm_workflows.dryrun import (
     TERMINAL_SUCCESS,
     check_workflow,
 )
-from pm.host.workflow_module import PROJECT_ROOT
+from pm.runs.workflow_module import PROJECT_ROOT
 
 WORKFLOW_ROOT = PROJECT_ROOT / "workflows"
 TERMINALS = {TERMINAL_SUCCESS, TERMINAL_STOP}

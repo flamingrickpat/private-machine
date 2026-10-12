@@ -28,7 +28,7 @@ from tests.support import Recorder
 from workflows.dialogue_assistant.module_tools import (
     build_assistant_tools,
 )
-from pm.host.workflow_module import PROJECT_ROOT
+from pm.runs.workflow_module import PROJECT_ROOT
 from pm.memory.bash_view import MemoryBashTarget
 
 EVIDENCE_ROOT = Path(".runtime/w6/live-assistant") / (

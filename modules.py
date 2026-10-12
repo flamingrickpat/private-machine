@@ -24,7 +24,7 @@ from runtime.experience import consolidate_cycle, update_beliefs, utterance_meta
 
 from pm.bus.envelopes import Envelope, new_id
 from pm.host.application import BusModule
-from pm.host.workflow_module import PROJECT_ROOT, WorkflowModule
+from pm.runs.workflow_module import PROJECT_ROOT, WorkflowModule
 from pm.memory.store_tools import build_tools
 from workflows.dialogue_story.schemas import DialogueTurn, StoryReport, StoryRequest
 from workflows.main_cognition.pipeline import DEFAULT_WORKFLOWS
