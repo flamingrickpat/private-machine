@@ -6,7 +6,7 @@ from typing import Any, Dict, Type
 import yaml
 
 from pm.records.cycle_state import CycleStateModel
-from pm.records.base import KnoxelBase
+from pm.records.base import persisted_type_name, KnoxelBase
 from pm.records.memory_records import Action, ActionSchemaKnoxel, CauseEffectKnoxel, CoversTicksEventsKnoxel, DeclarativeFactKnoxel, Entity, Feature, MemoryClusterKnoxel, Narrative, RealityKnoxel, SemanticRecordKnoxel, Stimulus
 from pm.records.codelet_records import CodeletPercept, Structure
 from pm.records.codelet_records import ModuleOutput
@@ -16,7 +16,7 @@ from pm.records.qualia_records import QualeKnoxel
 from pm.records.cognitive_records import AttentionFrameKnoxel, AttentionKnoxel, BeliefKnoxel, BeliefShiftKnoxel, Intention, OntologyBindingKnoxel, OntologyTermKnoxel
 
 KNOXEL_TYPE_REGISTRY: Dict[str, Type[KnoxelBase]] = {
-    cls.__name__: cls
+    persisted_type_name(cls): cls
     for cls in [
         Action,
         ActionSchemaKnoxel,
@@ -70,7 +70,7 @@ _GhostStateYamlDumper.add_representer(list, _represent_list)
 
 def _serialize_knoxel(knoxel: KnoxelBase) -> Dict[str, Any]:
     return {
-        "__type__": knoxel.__class__.__name__,
+        "__type__": persisted_type_name(type(knoxel)),
         "data": knoxel.model_dump(mode="json", serialize_as_any=True),
     }
 

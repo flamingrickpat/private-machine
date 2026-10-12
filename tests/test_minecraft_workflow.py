@@ -21,6 +21,7 @@ from workflows.minecraft import steps
 from workflows.minecraft.schemas import MinecraftReport
 from pm.host.folder_target import FolderEnvironment
 from runtime.body_lease import BODY_LEASES
+from pm.records.base import persisted_type_name
 
 MANIFEST = PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md"
 PNG = b"\x89PNG\r\n\x1a\n" + b"deterministic-minecraft-frame"
@@ -146,11 +147,11 @@ class MinecraftConsolidationTests(MinecraftTestBase):
             receipt = consolidator.consolidate("minecraft-1", root / "task")
             self.assertTrue(receipt["memory_ids"])
             knoxels = [ghost.get_knoxel_by_id(mid) for mid in receipt["memory_ids"]]
-            kinds = {type(k).__name__ for k in knoxels}
+            kinds = {persisted_type_name(type(k)) for k in knoxels}
             self.assertIn("WorldPlaceKnoxel", kinds)
             self.assertIn("WorldObjectKnoxel", kinds)
             self.assertIn("BodyEpisodeKnoxel", kinds)
-            episode = next(k for k in knoxels if type(k).__name__ == "BodyEpisodeKnoxel")
+            episode = next(k for k in knoxels if persisted_type_name(type(k)) == "BodyEpisodeKnoxel")
             self.assertEqual(episode.evidence["images"][0]["media_type"], "image/png")
             self.assertEqual(
                 base64.b64decode(episode.evidence["images"][0]["base64"]), PNG,

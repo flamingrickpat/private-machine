@@ -24,6 +24,37 @@ from pm.records.enums import FrameEnum, KnoxelSubtypeBase, NoSubtype, SourceKind
 
 logger = logging.getLogger(__name__)
 
+#: Persisted record type names, keyed by the current class name.
+#: Seeds, checkpoints, and model-visible files store the historical names.
+#: A class rename must never change saved data, so new names map back here.
+PERSISTED_TYPE_NAMES: dict[str, str] = {
+    "ActionSchemaRecord": "ActionSchemaKnoxel",
+    "AttentionFrameRecord": "AttentionFrameKnoxel",
+    "AttentionRecord": "AttentionKnoxel",
+    "BeliefRecord": "BeliefKnoxel",
+    "BeliefShiftRecord": "BeliefShiftKnoxel",
+    "BodyEpisodeRecord": "BodyEpisodeKnoxel",
+    "CauseEffectRecord": "CauseEffectKnoxel",
+    "CoversTicksEventsRecord": "CoversTicksEventsKnoxel",
+    "DeclarativeFactRecord": "DeclarativeFactKnoxel",
+    "ExecutableSkillRecord": "ExecutableSkillKnoxel",
+    "MemoryClusterRecord": "MemoryClusterKnoxel",
+    "OntologyBindingRecord": "OntologyBindingKnoxel",
+    "OntologyTermRecord": "OntologyTermKnoxel",
+    "QualeRecord": "QualeKnoxel",
+    "RealityRecord": "RealityKnoxel",
+    "RecordBase": "KnoxelBase",
+    "SemanticRecord": "SemanticRecordKnoxel",
+    "SemanticallyClassifiedRecord": "SemanticallyClassifiedKnoxel",
+    "WorldObjectRecord": "WorldObjectKnoxel",
+    "WorldPlaceRecord": "WorldPlaceKnoxel",
+}
+
+
+def persisted_type_name(cls: type) -> str:
+    """Return the name that seeds, checkpoints, and prompts use for ``cls``."""
+    return PERSISTED_TYPE_NAMES.get(cls.__name__, cls.__name__)
+
 
 def get_causal_datetime() -> datetime:
     """
@@ -146,10 +177,10 @@ class KnoxelBase(BaseModel):
         return NoSubtype.NoSubtype
 
     def get_story_element(self) -> str:
-        return f"{self.__class__.__name__}: {self.content}"
+        return f"{persisted_type_name(type(self))}: {self.content}"
 
     def __str__(self):
-        return f"{self.__class__.__name__}: {self.content}"
+        return f"{persisted_type_name(type(self))}: {self.content}"
 
     def to_json(self):
         return self.id

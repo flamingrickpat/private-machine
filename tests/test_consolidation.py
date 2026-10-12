@@ -20,6 +20,7 @@ from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.memory_consolidation.schemas import ConsolidationReport
 from pm.memory.bash_view import GhostBashEnvironment
+from pm.records.base import persisted_type_name
 
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
 CONSOLIDATION_MANIFEST = (
@@ -157,11 +158,11 @@ class ConsolidatorTests(unittest.TestCase):
             __import__("hashlib").sha256(png).hexdigest(),
         )
         knoxels = [self.ghost.get_knoxel_by_id(mid) for mid in receipt["memory_ids"]]
-        kinds = {type(k).__name__ for k in knoxels}
+        kinds = {persisted_type_name(type(k)) for k in knoxels}
         self.assertIn("WorldPlaceKnoxel", kinds)
         self.assertIn("WorldObjectKnoxel", kinds)
         self.assertIn("BodyEpisodeKnoxel", kinds)
-        episode = next(k for k in knoxels if type(k).__name__ == "BodyEpisodeKnoxel")
+        episode = next(k for k in knoxels if persisted_type_name(type(k)) == "BodyEpisodeKnoxel")
         image = episode.evidence["images"][0]
         self.assertEqual(image["media_type"], "image/png")
         self.assertEqual(image["source_artifact"], "screenshots/step-01.png")
