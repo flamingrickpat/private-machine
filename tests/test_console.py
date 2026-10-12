@@ -6,7 +6,7 @@ import time
 import unittest
 import yaml
 
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType

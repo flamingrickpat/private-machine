@@ -5,14 +5,14 @@ import unittest
 from pathlib import Path
 from threading import Event
 
-from pm_core.ghost.service import Ghost
-from pm_core.ghost.service import GhostConflict, GhostCancelled
+from pm.memory.store import Ghost
+from pm.memory.store import GhostConflict, GhostCancelled
 from pm.records.cycle_state import GhostConfig, CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
 from pm.records.cognitive_records import AttentionFrameKnoxel
-from pm_core.persist.dataprovider_yaml import ghost_state_from_dict
+from pm.memory.yaml_codec import ghost_state_from_dict
 from tests.support import load_seed_state
 
 

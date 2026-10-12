@@ -10,7 +10,7 @@ import threading
 import unittest
 from pathlib import Path
 
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm_workflows.runtime import WorkflowRuntime
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story import engine

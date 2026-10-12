@@ -11,8 +11,8 @@ import yaml
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from modules import UserInputProxy
-from pm_core.ghost.batch import GhostConflict
-from pm_core.ghost.service import Ghost
+from pm.memory.snapshot import GhostConflict
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from pm.records.memory_records import ActionSchemaKnoxel
 from pm.records.enums import ActionType

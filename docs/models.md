@@ -53,7 +53,7 @@ Config parsing and connection resolution make no network requests.
 | `pm/llm/http_client.py` | Shared HTTP requests, retries, cancellation |
 | `pm/llm/activation.py` | Finite scripts, readiness, active calls, chat responses |
 | `pm/llm/workflow_sessions.py` | Lazy classification sessions, serving context, and redacted service receipts |
-| `pm_core/embeddings.py` | Legacy reads, new cache writes, scoped preparation, cosine search |
+| `pm/memory/embeddings.py` | Legacy reads, new cache writes, scoped preparation, cosine search |
 
 These files contain no character policy or cognitive routing.
 
@@ -148,7 +148,7 @@ It rejects zero and nonfinite vectors.
 Cosine comparison divides by both vector norms.
 
 ```python
-from pm_core.embeddings import EmbeddingService
+from pm.memory.embeddings import EmbeddingService
 
 service = EmbeddingService(config.embedding, live_test=True)
 visible_text = {record.id: record.content for record in scoped_records}

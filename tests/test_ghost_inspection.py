@@ -4,8 +4,8 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from pm_core.ghost.service import Ghost
-from pm_core.embeddings import EmbeddingService
+from pm.memory.store import Ghost
+from pm.memory.embeddings import EmbeddingService
 from pm.records.cycle_state import GhostConfig
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType, InterlocusType

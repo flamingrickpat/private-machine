@@ -8,49 +8,13 @@ from __future__ import annotations
 
 from copy import deepcopy
 from threading import Event
-from types import MappingProxyType
 
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.records.base import KnoxelBase
-from pm_core.persist.dataprovider_yaml import _deserialize_knoxel, _serialize_knoxel
-
-
-class GhostConflict(RuntimeError):
-    pass
-
-
-class GhostCancelled(RuntimeError):
-    pass
-
-
-class GhostView:
-    def __init__(self, records: dict[int, dict], gwt: dict[int, dict], revisions: dict[int, int]):
-        self._records = records
-        self._gwt = gwt
-        self.revisions = MappingProxyType(revisions)
-
-    @property
-    def all_knoxels(self) -> dict[int, KnoxelBase]:
-        return {record_id: self.get(record_id) for record_id in self._records}
-
-    def get(self, record_id: int) -> KnoxelBase:
-        record = _deserialize_knoxel(deepcopy(self._records[record_id]))
-        record._owner = self
-        return record
-
-    def get_knoxel_by_id(self, record_id: int) -> KnoxelBase | None:
-        return self.get(record_id) if record_id in self._records else None
-
-    def get_entity_name(self, entity_id: int) -> str:
-        return self.get(entity_id).content
-
-    def serialize_knoxels(self) -> dict[int, dict]:
-        return deepcopy(self._records)
-
-    def serialize_gwt(self) -> dict[int, dict]:
-        return deepcopy(self._gwt)
+from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel
+from pm.memory.snapshot import GhostCancelled, GhostView
 
 
 class GhostWriteBatch:
@@ -156,3 +120,4 @@ class GhostWriteBatch:
         self._consolidations.clear()
         self._gwt = None
         self._cycle = None
+

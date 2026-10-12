@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from pm.records.cycle_state import GhostConfig
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from runtime.managed_runs import (
     ManagedRunError,
     ManagedRunSupervisor,

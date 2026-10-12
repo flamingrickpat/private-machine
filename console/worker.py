@@ -12,7 +12,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from main import build_app
-from pm_core.persist.dataprovider_yaml import _deserialize_knoxel
+from pm.memory.yaml_codec import _deserialize_knoxel
 from runtime.workflow_runner import WorkflowRunner
 from pm.llm.activation import ChatClient
 
@@ -156,7 +156,7 @@ def run(settings: dict, root: Path) -> None:
 
     def search(command):
         try:
-            from pm_core.embeddings import EmbeddingService
+            from pm.memory.embeddings import EmbeddingService
             result = asyncio.run(app.ghost.search_memory(
                 command["query"], EmbeddingService(model_config.embedding, live_test=True),
                 prepare=bool(command.get("prepare")), cancel=search_cancel,

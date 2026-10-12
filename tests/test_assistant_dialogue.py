@@ -207,7 +207,7 @@ class AssistantModuleTests(unittest.TestCase):
         from pm.bus.bus import BusSystem
         from pm.bus.envelopes import Envelope
         from modules import AssistantDialogue
-        from pm_core.ghost.service import Ghost
+        from pm.memory.store import Ghost
         from pm.records.cycle_state import GhostConfig
         from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
         from workflows.dialogue_assistant.module_tools import build_assistant_tools

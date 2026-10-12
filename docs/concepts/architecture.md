@@ -47,7 +47,7 @@ Managed tasks can overlap dialogue.
 | Application | Module lifecycle and first error | [`pm.host.application.Application`][] |
 | Bus | Subscriptions and serialized fan-out | [`pm.bus.bus.BusSystem`][] |
 | Module | Private inbox and active invocation | [`pm.host.application.ShellModule`][] |
-| Ghost | Memory, revisions, GWT, receipts | [`pm_core.ghost.service.Ghost`][] |
+| Ghost | Memory, revisions, GWT, receipts | [`pm.memory.store.Ghost`][] |
 | Kernel runner | One workflow invocation and artifacts | [`runtime.workflow_runner.WorkflowRunner`][] |
 | Supervisor | Managed-run lifecycle | [`runtime.managed_runs.ManagedRunSupervisor`][] |
 

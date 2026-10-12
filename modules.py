@@ -25,7 +25,7 @@ from runtime.experience import consolidate_cycle, update_beliefs, utterance_meta
 from pm.bus.envelopes import Envelope, _new_id
 from pm.host.application import ShellModule
 from pm.host.workflow_module import PROJECT_ROOT, ShellModuleWorkflow
-from ghost_mcp import build_tools
+from pm.memory.store_tools import build_tools
 from workflows.dialogue_story.schemas import DialogueTurn, StoryReport, StoryRequest
 from workflows.main_cognition.pipeline import DEFAULT_WORKFLOWS
 from workflows.main_cognition.schemas import (
@@ -411,7 +411,7 @@ class MainCogLoop(CognitiveWorkflow):
         retains its workflow artifacts and receives an explicit public receipt.
         """
         from pm.llm.http_client import ModelError
-        from pm_core.ghost.batch import GhostConflict
+        from pm.memory.snapshot import GhostConflict
         from workflows.main_cognition.stage_support import StageOutputError
         try:
             super().handle_batch(batch)
@@ -482,7 +482,7 @@ class MainCogLoop(CognitiveWorkflow):
         frontier = max(((item.tick_id, item.sub_tick_id) for item in sources), default=None)
         scopes = {(item.scope.reality_id, item.scope.frame.value) for item in sources} or None
         if self.embedding_config_path and self._embeddings is None:
-            from pm_core.embeddings import EmbeddingService
+            from pm.memory.embeddings import EmbeddingService
             from pm.llm.config import load_config
             self._embeddings = EmbeddingService(load_config(self.embedding_config_path).embedding)
         original_query = "\n".join(item.text for item in stimuli)
@@ -497,7 +497,7 @@ class MainCogLoop(CognitiveWorkflow):
         retrieval["trace"]["original_query"] = original_query
         retrieval["trace"]["query_rewrite"] = rewrite_result
         if rewrite_result["evidence_use"] == "event":
-            from pm_core.ghost.memory import evidence_role
+            from pm.memory.retrieval import evidence_role
             records = memory_view.serialize_knoxels()
             selected_sources = {key for item in retrieval["matches"] for key in item["source_ids"] if key in records}
             original_sources = {key for key in selected_sources
@@ -892,7 +892,7 @@ class PublicDialogue(CognitiveWorkflow):
                 if status == "failed" else "I could not ground that reply in the available evidence. Please ask again.")
         context = getattr(self, "_public_context", None)
         if status in {"rejected", "failed"} and context is not None:
-            from pm_core.ghost.batch import GhostConflict
+            from pm.memory.snapshot import GhostConflict
             from runtime.publication import validate_public_context
             try:
                 with self.ghost.lock:
@@ -953,7 +953,7 @@ class PublicDialogue(CognitiveWorkflow):
 
     def accept_reply(self, text: str, batch, *, tool_receipts=None, recovery_outcome="") -> None:
         """Commit an evidence-guarded reply, or expose its stale recovery result."""
-        from pm_core.ghost.batch import GhostConflict
+        from pm.memory.snapshot import GhostConflict
         envelope = batch[0]
         try:
             if self.capability_provider is not None:

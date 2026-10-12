@@ -9,13 +9,9 @@ from pathlib import Path
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import ActionSchemaKnoxel, Feature
 from pm.records.enums import ActionType, FeatureType, InterlocusType
-from pm_core.persist.dataprovider_yaml import (
-    ghost_state_from_dict,
-    ghost_state_to_dict,
-    load_ghost_state_from_yaml,
-)
+from pm.memory.yaml_codec import ghost_state_from_dict, ghost_state_to_dict, load_ghost_state_from_yaml
 
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from main import build_app
 from pm.bus.envelopes import Envelope, _new_id
 

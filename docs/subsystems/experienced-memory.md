@@ -18,13 +18,13 @@ Children: [consolidation and beliefs](memory-consolidation.md) and [A08 verifica
 New host workflow events remain explicit stimuli.
 They cannot expose memory appended after the invocation began.
 
-[`pm_core.ghost.service.Ghost.retrieve_experiences`][] calls [`pm_core.ghost.memory.retrieve`][].
+[`pm.memory.store.Ghost.retrieve_experiences`][] calls [`pm.memory.retrieval.retrieve`][].
 The newest stimulus supplies the `(tick_id, sub_tick_id)` frontier.
 The stimulus scopes supply the allowed `(reality_id, frame)` pairs.
 An empty permitted ID set exposes no memory.
 The default trusted host view contains all accepted IDs.
 
-[`pm_core.ghost.memory.scoped_records`][] applies these boundaries before any embedding request.
+[`pm.memory.retrieval.scoped_records`][] applies these boundaries before any embedding request.
 Each record requires its typed references within the same boundaries.
 This includes speaker Entity IDs in a restricted source grant.
 A summary requires every linked source inside the same boundaries.
@@ -44,7 +44,7 @@ Already cached vectors participate across the full eligible snapshot.
 Missing coverage remains explicit in `memory_trace.coverage`.
 Incomplete coverage limits purely semantic recall of an unindexed record without matching terms.
 Full preparation removes that index limitation.
-[`pm_core.ghost.memory.index_chunks`][] splits long records into 2,000-character chunks with 200 characters of overlap.
+[`pm.memory.retrieval.index_chunks`][] splits long records into 2,000-character chunks with 200 characters of overlap.
 Each chunk retains its original record ID.
 The record's semantic score uses its strongest matching chunk.
 Coverage counts distinguish complete records from indexed chunks.
@@ -88,7 +88,7 @@ It retains up to 16 competing records and 40 boundary rejection examples.
 
 ## Commit and concurrency
 
-[`pm_core.ghost.batch.GhostWriteBatch.expect_revision`][] guards the input records, selected memories, and their linked sources.
+[`pm.memory.write_batch.GhostWriteBatch.expect_revision`][] guards the input records, selected memories, and their linked sources.
 A changed revision rejects the complete cognition batch with `GhostConflict`.
 An unrelated concurrent append does not alter the frozen selection.
 Appraisal, beliefs, experience summaries, goals, frame, and actions commit together.
@@ -130,7 +130,7 @@ The [memory experiment procedure](../workflows/memory.md) describes the console 
 
 ## Seed and restart
 
-[`pm_core.ghost.service.Ghost.from_yaml`][] marks imported records as `background` with `SourceKind.Migration` provenance.
+[`pm.memory.store.Ghost.from_yaml`][] marks imported records as `background` with `SourceKind.Migration` provenance.
 Metadata preserves the source path, file SHA-256, and original provenance.
 An imported utterance proves what the source says, rather than an action by this runtime.
 It cannot establish past physical senses or an unsupported emotion.

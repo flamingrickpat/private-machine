@@ -15,10 +15,10 @@ from pm_workflows.runtime import WorkflowRuntime
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
-from ghost_mcp import build_tools
+from pm.memory.store_tools import build_tools
 from main import build_app
 from modules import SelfManagement
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.management_tools import build_management_tools

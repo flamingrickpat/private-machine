@@ -17,8 +17,8 @@ from pm.records.mental_state import FullMentalState
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
 from modules import InnerThoughtLoop, MainCogLoop, _feature
-from pm_core.ghost.batch import GhostConflict
-from pm_core.ghost.service import Ghost
+from pm.memory.snapshot import GhostConflict
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from runtime.lifecycle import CLEAN_END, UNCERTAIN_END, record_shutdown, record_startup
 from tests.support import ManualClock, Recorder

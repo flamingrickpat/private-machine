@@ -25,7 +25,7 @@ def run(args):
     """
     from pm.bus.bus import BusSystem
     from main import build_app
-    from pm_core.ghost.service import Ghost
+    from pm.memory.store import Ghost
     from pm.records.memory_records import ActionSchemaKnoxel
     from pm.host.durable_files import atomic_json
     from runtime.intents import replay_intents

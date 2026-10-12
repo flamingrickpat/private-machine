@@ -4,8 +4,8 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from main import build_app
-from pm_core.ghost.service import Ghost
-from pm_core.ghost.batch import GhostCancelled
+from pm.memory.store import Ghost
+from pm.memory.snapshot import GhostCancelled
 from tests.support import ManualClock, Recorder
 from tests.test_ghost_commits import small_ghost
 

@@ -61,7 +61,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
     metadata = action.metadata if isinstance(action, ActionSchemaKnoxel) else {}
     records = view.serialize_knoxels()
     presentation = Presentation.model_validate(metadata.get("presentation", {}))
-    from pm_core.ghost.memory import candidate, evidence_role
+    from pm.memory.retrieval import candidate, evidence_role
     if presentation.mode == "deceive" and (
         not presentation.purpose or not presentation.known_fact_ids
         or any(key not in view.revisions for key in presentation.known_fact_ids)

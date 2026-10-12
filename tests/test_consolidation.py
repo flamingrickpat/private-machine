@@ -12,7 +12,7 @@ import unittest
 
 from pm_workflows.runtime import WorkflowRuntime
 
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from pm.records.enums import FeatureType
 from runtime.consolidation import Consolidator

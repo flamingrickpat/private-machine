@@ -35,7 +35,7 @@ def main() -> None:
     seed = ROOT / "test_data/personas/spamuel/canon.yaml"
     if args.persona == "cheerful":
         import yaml
-        from pm_core.ghost.service import Ghost
+        from pm.memory.store import Ghost
         from pm.records.cycle_state import GhostConfig
         seed = out / "cheerful-seed.yaml"
         ghost = Ghost(GhostConfig.model_validate(yaml.safe_load(

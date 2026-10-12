@@ -10,11 +10,11 @@ Parent: [project README](index.md).
 
 ## Accepted state
 
-The [`pm_core.ghost.service.Ghost`][] owns accepted records, indexes, GWT records, revisions, counters, and commit receipts.
+The [`pm.memory.store.Ghost`][] owns accepted records, indexes, GWT records, revisions, counters, and commit receipts.
 The existing knoxel classes remain unchanged.
 The service copies the seed instead of retaining its mutable objects.
 
-A [`pm_core.ghost.batch.GhostWriteBatch`][] captures a stable read view and collects private proposals.
+A [`pm.memory.write_batch.GhostWriteBatch`][] captures a stable read view and collects private proposals.
 New records reserve integer IDs under the Ghost lock.
 A discarded batch can leave ID gaps.
 Other batches cannot read its proposals.
@@ -51,7 +51,7 @@ Cancellation after replacement does not undo an accepted commit.
 
 ```python
 from pathlib import Path
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType

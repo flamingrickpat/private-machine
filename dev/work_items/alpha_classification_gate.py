@@ -27,8 +27,8 @@ from pm_workflows.classification import replay_classification
 from pm_workflows.dryrun import check_workflow
 from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
-from pm_core.ghost.service import Ghost
-from pm_core.persist.dataprovider_yaml import load_ghost_state_from_yaml
+from pm.memory.store import Ghost
+from pm.memory.yaml_codec import load_ghost_state_from_yaml
 from pm.llm.config import load_config, resolve_connection
 from pm.host.folder_target import FolderEnvironment
 from pm.memory.bash_view import GhostBashWrapper

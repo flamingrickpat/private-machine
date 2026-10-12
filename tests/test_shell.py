@@ -8,7 +8,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-import ghost_mcp
+import pm.memory.store_tools as ghost_mcp
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
 from pm.host.application import ShellModule

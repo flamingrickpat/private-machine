@@ -13,16 +13,15 @@ from pathlib import Path
 from threading import Event, RLock
 from uuid import uuid4
 
-from pm_core.ghost.batch import GhostCancelled, GhostConflict, GhostView, GhostWriteBatch
-from pm_core.ghost.ghost_base import BaseGhost
-from pm_core.ghost.references import check_references
+from pm.memory.snapshot import GhostCancelled, GhostConflict, GhostView
+from pm.memory.write_batch import GhostWriteBatch
+from pm.memory.record_index import BaseGhost
+from pm.memory.references import check_references
 from pm.records.cycle_state import CycleStateModel, GhostConfig
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.base import KnoxelBase
-from pm_core.persist.dataprovider_yaml import (
-    _deserialize_knoxel, _serialize_knoxel, ghost_state_from_dict, load_ghost_state_from_yaml,
-)
-from pm_core.persist.snapshot import CommitReceipt, GhostCheckpoint, read_checkpoint, write_checkpoint
+from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel, ghost_state_from_dict, load_ghost_state_from_yaml
+from pm.memory.checkpoint import CommitReceipt, GhostCheckpoint, read_checkpoint, write_checkpoint
 
 
 serialize_knoxel = _serialize_knoxel
@@ -155,13 +154,13 @@ class Ghost(BaseGhost):
         Scope and frontier filters run before embedding calls. The returned
         revisions let the caller reject evidence that changed before commit.
         """
-        from pm_core.ghost.memory import retrieve
+        from pm.memory.retrieval import retrieve
         return await retrieve(view if view is not None else self.snapshot(visible_ids), query,
                               embeddings, frontier=frontier, scopes=scopes, limit=limit, cancel=cancel)
 
     def activity_summary(self, start, end, *, visible_ids=None) -> dict:
         """Read actual activity and original evidence IDs in one UTC interval."""
-        from pm_core.ghost.memory import activity
+        from pm.memory.retrieval import activity
         return activity(self.snapshot(visible_ids), start, end)
 
     async def search_memory(self, query: str, embeddings, *, visible_ids=None, limit: int = 50,

@@ -13,7 +13,7 @@ from copy import deepcopy
 
 from fastmcp import FastMCP
 
-from pm_core.persist.dataprovider_yaml import _deserialize_knoxel, _serialize_knoxel
+from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel
 
 
 def _read_knoxels(environment, batch) -> dict[int, dict]:

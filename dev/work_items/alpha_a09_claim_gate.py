@@ -14,8 +14,8 @@ sys.path.insert(0, str(ROOT))
 
 def run(args):
     """Retain each unchanged candidate, source context, and semantic decision."""
-    from pm_core.ghost.memory import candidate
-    from pm_core.ghost.service import Ghost
+    from pm.memory.retrieval import candidate
+    from pm.memory.store import Ghost
     from pm.llm.stage_model import LazyStageModel
     from pm.llm.activation import ModelActivation
     from pm.llm.config import load_config, resolve_connection

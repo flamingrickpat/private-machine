@@ -22,8 +22,8 @@ from dev.work_items.shared.evidence import save_json
 
 from pm_workflows.inputs import InputError, InputResolver, InputScope
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
-from pm_core.ghost.service import Ghost
-from pm_core.persist.dataprovider_yaml import load_ghost_state_from_yaml
+from pm.memory.store import Ghost
+from pm.memory.yaml_codec import load_ghost_state_from_yaml
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus

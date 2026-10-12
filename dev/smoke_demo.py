@@ -20,8 +20,8 @@ from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import WorkflowRuntime
 from pm_workflows.working_target import CommandResult
 
-import ghost_mcp
-from pm_core.ghost.service import Ghost
+import pm.memory.store_tools as ghost_mcp
+from pm.memory.store import Ghost
 from main import BANNER, build_app
 from pm.bus.envelopes import Envelope, _new_id
 from pm.host.folder_target import FolderTarget

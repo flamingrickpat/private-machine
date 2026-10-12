@@ -14,7 +14,7 @@ from pm.host.durable_files import BodyBusy, ProcessLock, atomic_json
 from runtime.body_lease import BodyLeases, StaleEpoch
 from runtime.managed_runs import ManagedRunError, ManagedRunReceipt, ManagedRunSupervisor, WorkflowSpec
 from runtime.minecraft_actor import observed_target, read_actor_journal, target_block_cell
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from tests.test_design_contracts import small_ghost
 from pm.host.workflow_module import PROJECT_ROOT
 from pm.host.folder_target import FolderEnvironment

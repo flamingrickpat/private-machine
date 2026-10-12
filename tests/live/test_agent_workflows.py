@@ -14,7 +14,7 @@ from pm.host.mcp_listeners import ScopedMcpRegistry
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
-from ghost_mcp import build_mcp
+from pm.memory.store_tools import build_mcp
 from pm.host.folder_target import FolderTarget
 from pm.memory.bash_view import GhostBashEnvironment
 

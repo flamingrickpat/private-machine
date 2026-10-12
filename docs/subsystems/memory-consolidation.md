@@ -22,7 +22,7 @@ The source event remains separate from the internal emotional consequence.
 A sad imagined possibility therefore remains imagined.
 The accepted sadness remains an actual state change.
 Unsupported descriptive emotion terms do not create another state mechanism.
-[`pm_core.ghost.memory.record_text`][] indexes and recalls the accepted affect summary for internal-state records.
+[`pm.memory.retrieval.record_text`][] indexes and recalls the accepted affect summary for internal-state records.
 Generated appraisal descriptions remain in the original record for inspection.
 They cannot supply factual sensory experience through memory retrieval.
 Repeated cognition commit IDs reuse accepted receipts instead of adding another episode.
@@ -42,7 +42,7 @@ No separate memory authority or database exists.
 | `experience_summary` | An evidence-linked abstraction. Its source categories remain explicit. |
 | `interpretation` / `attributed_record` | Other supported records with limited epistemic authority. |
 
-[`pm_core.ghost.memory.memory_kind`][] supplies the retrieval interpretation.
+[`pm.memory.retrieval.memory_kind`][] supplies the retrieval interpretation.
 Explicit metadata retains existing speculation and prediction attribution.
 Body observations remain historical during recall, regardless of their confidence.
 Screenshot bytes remain evidence metadata and never enter text embeddings.
@@ -101,7 +101,7 @@ A changed screenshot produces new image evidence.
 The existing terminal hook still consolidates completed, failed, or cancelled runs.
 Main cognition also consolidates artifact snapshots when it accepts workflow progress events.
 
-[`pm_core.ghost.batch.GhostWriteBatch.guard_consolidation_run`][] protects concurrent inventory decisions.
+[`pm.memory.write_batch.GhostWriteBatch.guard_consolidation_run`][] protects concurrent inventory decisions.
 A changed run ledger rejects the stale consolidation batch.
 The caller can repeat the operation against the new ledger.
 Failed reads or commits retain the artifact folder and accept no partial memory.
@@ -109,7 +109,7 @@ Malformed report text remains attributed report text, without promotion to a ver
 
 ## Temporal activity
 
-[`pm_core.ghost.service.Ghost.activity_summary`][] returns atomic activity within a half-open UTC interval: `[start, end)`.
+[`pm.memory.store.Ghost.activity_summary`][] returns atomic activity within a half-open UTC interval: `[start, end)`.
 Naive legacy timestamps mean UTC.
 The result contains original IDs, timestamps, categories, provenance, and an evidence-linked textual summary.
 It excludes background, predictions, simulations, and artifact summaries from executed activity.

@@ -9,10 +9,39 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime, timezone
 import math
+import re
 
-from pm_core.ghost.references import referenced_ids
+from pm.memory.references import referenced_ids
 from pm.llm.http_client import ModelError
-from workflows.dialogue_story.context import distinctive_terms
+
+
+_WORD = re.compile(r"[a-zA-Z][a-zA-Z'-]+")
+
+_STOPWORDS = frozenset({
+    "about", "again", "also", "and", "any", "are", "because", "been", "but",
+    "can", "could", "did", "does", "doing", "dont", "for", "from", "get",
+    "going", "got", "had", "has", "have", "her", "here", "him", "his", "how",
+    "into", "its", "just", "like", "made", "make", "more", "much", "not",
+    "now", "off", "one", "only", "other", "our", "out", "over", "really",
+    "right", "said", "same", "she", "should", "some", "still", "such", "than",
+    "that", "the", "their", "them", "then", "there", "these", "they", "this",
+    "those", "through", "too", "under", "very", "want", "was", "were", "what",
+    "when", "where", "which", "while", "who", "will", "with", "would", "your",
+    "youre", "youve", "well", "yeah", "okay", "even", "ever", "much", "back",
+    "thing", "things", "know", "think", "thought", "tell", "said",
+})
+
+
+def distinctive_terms(text: str) -> list[str]:
+    """Stable, lowercase, long-enough words used only as a pre-filter."""
+    seen: dict[str, None] = {}
+    for match in _WORD.finditer(text.casefold()):
+        word = match.group(0)
+        if len(word) < 4 or word in _STOPWORDS:
+            continue
+        seen.setdefault(word, None)
+    return list(seen)
+
 
 MEMORY_TYPES = frozenset({
     "Feature", "DeclarativeFactKnoxel", "SemanticRecordKnoxel", "Narrative",

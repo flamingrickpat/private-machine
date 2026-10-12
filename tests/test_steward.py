@@ -9,7 +9,7 @@ import unittest
 
 from pm_workflows.runtime import WorkflowRuntime
 
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.steward import Steward

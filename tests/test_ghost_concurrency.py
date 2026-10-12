@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 from threading import Barrier
 import unittest
 
-from pm_core.ghost.service import Ghost, GhostConflict
+from pm.memory.store import Ghost, GhostConflict
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
 from tests.test_ghost_commits import small_ghost

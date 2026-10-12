@@ -12,9 +12,9 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from modules import _feature, StoryDialogue, _envelope
-from pm_core.ghost.batch import GhostConflict, GhostView
-from pm_core.ghost.memory import index_chunks, excerpt
-from pm_core.ghost.service import Ghost
+from pm.memory.snapshot import GhostConflict, GhostView
+from pm.memory.retrieval import index_chunks, excerpt
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from pm.records.memory_records import ActionSchemaKnoxel, Feature, MemoryClusterKnoxel
 from pm.records.base import KnoxelScope

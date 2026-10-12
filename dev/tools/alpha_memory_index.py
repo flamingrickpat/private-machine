@@ -14,9 +14,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from pm_core.embeddings import EmbeddingService
-from pm_core.ghost.memory import scoped_records, index_chunks
-from pm_core.ghost.service import Ghost
+from pm.memory.embeddings import EmbeddingService
+from pm.memory.retrieval import scoped_records, index_chunks
+from pm.memory.store import Ghost
 from pm.llm.config import load_config
 
 

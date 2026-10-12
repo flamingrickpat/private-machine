@@ -14,8 +14,8 @@ import threading
 import time
 from pathlib import Path
 
-from pm_core.ghost.service import Ghost
-from ghost_mcp import build_tools
+from pm.memory.store import Ghost
+from pm.memory.store_tools import build_tools
 from modules import (
     AssistantDialogue,
     CheckSubprocess,

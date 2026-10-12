@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pm_core.embeddings import EmbeddingCache, EmbeddingService, cosine_similarity, parse_embedding_response
+from pm.memory.embeddings import EmbeddingCache, EmbeddingService, cosine_similarity, parse_embedding_response
 from pm.llm.http_client import ModelError
 from pm.llm.config import EmbeddingConfig
 

@@ -118,7 +118,7 @@ A run's cancellation is separate from module shutdown.
 `ShellModuleWorkflow.cancel_run()` cancels one run.
 `stop()` and a terminate control also cancel the active run.
 A run that suspends for user input publishes `workflow.question` and exposes its question ID and resume phase. A `workflow.answer` data message resumes it through a durable `pm.answer-receipt.v1`.
-`ghost_mcp.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `GhostWriteBatch`.
+`pm.memory.store_tools.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `GhostWriteBatch`.
 Proposals stay private until the batch commits.
 
 ## Current limits

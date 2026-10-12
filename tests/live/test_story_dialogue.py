@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import LlmPreset, load_config, resolve_connection
 from workflows.dialogue_story import engine
@@ -54,7 +54,7 @@ class LiveStoryDialogueTests(unittest.TestCase):
         self.prompts = load_prompts()
 
     def _plan(self, ghost):
-        from pm_core.embeddings import EmbeddingService
+        from pm.memory.embeddings import EmbeddingService
         embedding = EmbeddingService(self.config.embedding, live_test=True)
         return asyncio.run(plan_story_request(ghost, embedding, self.situation))
 

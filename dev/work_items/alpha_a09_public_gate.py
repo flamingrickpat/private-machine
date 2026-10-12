@@ -29,8 +29,8 @@ def run(args):
     """Compare both real generators and inspect stale and failed publication."""
     from pm.bus.envelopes import Envelope, _new_id
     from main import build_app
-    from pm_core.ghost.memory import candidate
-    from pm_core.ghost.service import Ghost
+    from pm.memory.retrieval import candidate
+    from pm.memory.store import Ghost
     from pm.records.memory_records import ActionSchemaKnoxel
     from pm.records.enums import ActionType
     from runtime.capabilities import capability_snapshot

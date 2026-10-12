@@ -29,7 +29,7 @@ They do not describe current delivery status.
 | Item | Planned result | Current implementation |
 | --- | --- | --- |
 | W0 | Establish a known baseline | Historical delivery evidence and foundation suite |
-| W1 | Model connections and embedding cache | `pm/llm/config.py`, activation, `pm_core/embeddings.py` |
+| W1 | Model connections and embedding cache | `pm/llm/config.py`, activation, `pm/memory/embeddings.py` |
 | W2 | Ghost, bus, durable accepted state | Ghost batches, revisions, checkpoints, detached envelopes |
 | W3 | Workflow-to-agent boundary | Shared runner, scoped targets, per-run services and controls |
 | W4 | Standalone Story dialogue | Story workflow, direct CLI, ontology contracts |

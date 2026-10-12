@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from pm.bus.envelopes import Envelope, _new_id
-from pm_core.ghost.batch import GhostConflict
+from pm.memory.snapshot import GhostConflict
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance
 from pm.records.enums import FeatureType, InterlocusType, SourceKind

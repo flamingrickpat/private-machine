@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm_core.model.affect_dynamics import (
     REGULATION_REACTIVE,
     REGULATION_REFLECTIVE,

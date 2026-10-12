@@ -220,7 +220,7 @@ class ToolDialogueTests(ModuleTests):
         replies = Recorder(app.bus, topic="dialogue.reply")
         self.assertTrue(app.tool_dialogue.step(block=False))
         environment = app.tool_dialogue.last_environment
-        from ghost_mcp import build_tools
+        from pm.memory.store_tools import build_tools
         expected = len(build_tools(environment)["ghost_search"]("Jesse"))
         feature = app.ghost.get_knoxel_by_id(replies.events[0].payload["knoxel_id"])
         self.assertEqual(feature.content, f"I found {expected} memories about Jesse.")

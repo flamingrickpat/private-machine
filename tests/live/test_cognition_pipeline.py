@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from workflows.main_cognition import engine

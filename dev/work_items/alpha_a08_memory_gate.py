@@ -129,7 +129,7 @@ def run(args):
             seed = ROOT / "test_data/personas/spamuel/canon.yaml"
             if label == "cheerful":
                 import yaml
-                from pm_core.ghost.service import Ghost
+                from pm.memory.store import Ghost
                 from pm.records.cycle_state import GhostConfig
                 config = yaml.safe_load((ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))
                 seed = out / "cheerful-seed.yaml"
@@ -169,10 +169,10 @@ def run(args):
                 # Use the same real record and real embedding service for a
                 # paraphrase that shares no distinctive terms with the source.
                 import asyncio
-                from pm_core.embeddings import EmbeddingService
-                from pm_core.ghost.service import Ghost
+                from pm.memory.embeddings import EmbeddingService
+                from pm.memory.store import Ghost
                 from pm.llm.config import load_config
-                from pm_core.ghost.references import referenced_ids
+                from pm.memory.references import referenced_ids
                 ghost = Ghost.from_checkpoint(out / "instances" / instance / "ghost.json")
                 service = EmbeddingService(load_config(args.config).embedding, live_test=True)
                 visible = sorted({preference_id, codeword_id,

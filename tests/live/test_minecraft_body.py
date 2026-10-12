@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.activation import ModelActivation

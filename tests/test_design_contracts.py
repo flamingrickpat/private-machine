@@ -7,8 +7,8 @@ import unittest
 from fastmcp import Client
 import yaml
 
-from pm_core.ghost.service import Ghost
-from ghost_mcp import build_mcp, build_tools
+from pm.memory.store import Ghost
+from pm.memory.store_tools import build_mcp, build_tools
 from main import build_app
 from pm.records.cycle_state import GhostConfig
 from pm.host.application import Application, ShellModule

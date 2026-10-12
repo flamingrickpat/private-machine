@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 from dev.work_items.shared.evidence import save_json
 
 from main import build_app
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from runtime.lifecycle import record_shutdown
 from workflows.main_cognition.state_changes import active_goal_texts, find_intention, normalize_goal_key
 

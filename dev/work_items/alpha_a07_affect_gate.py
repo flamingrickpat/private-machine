@@ -33,7 +33,7 @@ sys.path.insert(0, str(ROOT))
 from dev.work_items.shared.evidence import save_json
 
 from main import build_app
-from pm_core.ghost.service import Ghost
+from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from pm.records.mental_state import FullMentalState
 from runtime.lifecycle import record_shutdown

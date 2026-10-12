@@ -6,38 +6,11 @@ the async loop. No raw private thought transcript enters the public request.
 """
 from __future__ import annotations
 
-import re
-
-from pm_core.embeddings import EmbeddingService
+from pm.memory.embeddings import EmbeddingService
+from pm.memory.retrieval import distinctive_terms
 from pm.records.enums import FeatureType
 
 from workflows.dialogue_story.schemas import DialogueTurn, StoryRequest
-
-_WORD = re.compile(r"[a-zA-Z][a-zA-Z'-]+")
-
-_STOPWORDS = frozenset({
-    "about", "again", "also", "and", "any", "are", "because", "been", "but",
-    "can", "could", "did", "does", "doing", "dont", "for", "from", "get",
-    "going", "got", "had", "has", "have", "her", "here", "him", "his", "how",
-    "into", "its", "just", "like", "made", "make", "more", "much", "not",
-    "now", "off", "one", "only", "other", "our", "out", "over", "really",
-    "right", "said", "same", "she", "should", "some", "still", "such", "than",
-    "that", "the", "their", "them", "then", "there", "these", "they", "this",
-    "those", "through", "too", "under", "very", "want", "was", "were", "what",
-    "when", "where", "which", "while", "who", "will", "with", "would", "your",
-    "youre", "youve", "well", "yeah", "okay", "even", "ever", "much", "back",
-    "thing", "things", "know", "think", "thought", "tell", "said",
-})
-
-def distinctive_terms(text: str) -> list[str]:
-    """Stable, lowercase, long-enough words used only as a pre-filter."""
-    seen: dict[str, None] = {}
-    for match in _WORD.finditer(text.casefold()):
-        word = match.group(0)
-        if len(word) < 4 or word in _STOPWORDS:
-            continue
-        seen.setdefault(word, None)
-    return list(seen)
 
 
 async def plan_story_request(
