@@ -13,7 +13,7 @@ import sys
 import threading
 import time
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
@@ -155,7 +155,7 @@ def run(args):
     from runtime.body_lease import BODY_LEASES, BodyBusy, StaleEpoch, atomic_json
     from runtime.minecraft_actor import ActorGateway, read_actor_journal
     from runtime.minecraft_tools import build_minecraft_tools
-    from scripts.alpha_minecraft_gate import RealServerStack
+    from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
     from working_target import FolderEnvironment
     out, server = args.out.resolve(), args.server.resolve()

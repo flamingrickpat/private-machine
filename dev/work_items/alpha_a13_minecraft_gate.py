@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 import sys
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 GOAL = (
@@ -312,7 +312,7 @@ def iron_chain(root: Path, initial: dict) -> dict:
 
 def run(args) -> None:
     """Retain the generic project receipt even when M3 or provenance fails."""
-    from scripts.alpha_a11_minecraft_gate import run as run_project
+    from dev.work_items.alpha_a11_minecraft_gate import run as run_project
     args.item, args.goal, args.plan_only, args.source_tree = "A13", GOAL, False, None
     args.plan_constraints, args.project_check = m3_plan_constraints, m3_project_check
     args.out = args.out.resolve()

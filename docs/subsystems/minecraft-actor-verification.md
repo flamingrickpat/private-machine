@@ -16,10 +16,10 @@ Keep the existing chat service available at `http://127.0.0.1:8080/v1`.
 Use an unused output directory.
 
 ```powershell
-uv run --locked python scripts/alpha_a10_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a10-wood-repeat
+uv run --locked python dev/work_items/alpha_a10_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a10-wood-repeat
 ```
 
-[`scripts.alpha_a10_minecraft_gate.run`][] starts `C:/source/minecraft-server-real` and the real MCP checkout.
+[`dev.work_items.alpha_a10_minecraft_gate.run`][] starts `C:/source/minecraft-server-real` and the real MCP checkout.
 It copies `.env_real` into ignored evidence and selects an isolated character directory.
 It starts the ordinary survival player `tdd_player` in the actual world.
 It does not reset the world or supply items.

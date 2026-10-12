@@ -16,7 +16,7 @@ from urllib.request import urlopen
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
@@ -69,7 +69,7 @@ def run(args) -> None:
     """
     from main import build_app
     from runtime.reply_recovery import task_evidence
-    from scripts.alpha_minecraft_gate import RealServerStack
+    from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
     from workflows.minecraft_tasks.tree import TreeStore, acceptance_requirements, validate_tree
     from workflows.minecraft_tasks.verification import verified_project
@@ -135,7 +135,7 @@ def run(args) -> None:
             for folder in ("runtime", "workflows/minecraft", "workflows/minecraft_tasks")
             for path in (ROOT / folder).rglob("*") if path.is_file() and path.suffix in {".py", ".md"}}}
     receipt["source_files_sha256"].update({name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
-        for name in ("main.py", "scripts/alpha_a11_minecraft_gate.py", "workflows/main_cognition/stages/action_selection/prompts.yaml")})
+        for name in ("main.py", "dev/work_items/alpha_a11_minecraft_gate.py", "workflows/main_cognition/stages/action_selection/prompts.yaml")})
     import inspect
     from importlib.metadata import distribution
     import pm_coder

@@ -58,7 +58,7 @@ The existing supervisor starts a new execution epoch at observation; it does not
 The command rejects a world reset, a different goal, or changed model connections during resume.
 
 ```powershell
-uv run --locked python scripts/alpha_a13_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-m3-04 --resume-from .runtime/alpha/a13-m3-03
+uv run --locked python dev/work_items/alpha_a13_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-m3-04 --resume-from .runtime/alpha/a13-m3-03
 ```
 
 Retain each failed receipt unchanged and stop the owned services before source edits.

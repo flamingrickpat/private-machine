@@ -37,10 +37,10 @@ They verify local retry and explicit failure without replaying a world role.
 Run with a fresh output directory:
 
 ```powershell
-uv run --locked python scripts/alpha_a11_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/NEW-a11-plan --plan-only
+uv run --locked python dev/work_items/alpha_a11_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/NEW-a11-plan --plan-only
 ```
 
-[`scripts.alpha_a11_minecraft_gate.run`][] owns the real stack.
+[`dev.work_items.alpha_a11_minecraft_gate.run`][] owns the real stack.
 It records fresh vitals before starting project work.
 `reviewed-tree.json` contains the plan that passed independent scope review.
 Inspect the gathering, crafting, construction, and entry/exit prerequisites before execution.
@@ -49,7 +49,7 @@ The plan-only run does not mutate the world.
 ## Execute the real project
 
 ```powershell
-uv run --locked python scripts/alpha_a11_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/NEW-a11-house --source-tree .runtime/alpha/NEW-a11-plan/reviewed-tree.json
+uv run --locked python dev/work_items/alpha_a11_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/NEW-a11-house --source-tree .runtime/alpha/NEW-a11-plan/reviewed-tree.json
 ```
 
 The optional reset uses the authorized real-server wipe procedure.
@@ -140,7 +140,7 @@ Mineflayer's installed digging implementation supports these plants.
 The related body repair in `pm-minecraft` removes the collision-box restriction and keeps an explicit changed-to-air result.
 Normal digging and its resulting block observation establish vegetation clearance.
 Local builder guidance now describes this repaired behavior.
-`scripts/compile_minecraft_skill.py` appends local specialist guidance after the unchanged upstream resources.
+`dev/tools/compile_minecraft_skill.py` appends local specialist guidance after the unchanged upstream resources.
 The resource manifest hashes upstream content and local guidance separately.
 The eighth process retained a cached actor module during source edits.
 The operator stopped it before the next fresh-source trial.

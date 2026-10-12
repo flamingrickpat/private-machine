@@ -8,7 +8,7 @@ suite. The live gate changed real affect and created real active goals. Both
 survived a clean restart.
 
 Parent: [Accepted cognition state](cognition-state.md).
-Gate: `scripts/alpha_a06_state_gate.py`.
+Gate: `dev/work_items/alpha_a06_state_gate.py`.
 
 ## Deterministic contract tests
 
@@ -65,7 +65,7 @@ It uses no fixed model response.
 Run:
 
 ```powershell
-uv run --locked python scripts/alpha_a06_state_gate.py `
+uv run --locked python dev/work_items/alpha_a06_state_gate.py `
   --config config.alpha.example.yaml --out .runtime/alpha/<stamp>-a06
 ```
 

@@ -18,7 +18,7 @@ than forcing it, because coping may fail. It prints ``ok: true`` only when the
 real acceptance conditions hold.
 
 Run:
-    uv run --locked python scripts/alpha_a07_affect_gate.py \
+    uv run --locked python dev/work_items/alpha_a07_affect_gate.py \
         --config config.alpha.example.yaml --out .runtime/alpha/<stamp>-a07
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ import json
 from pathlib import Path
 import sys
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from main import build_app

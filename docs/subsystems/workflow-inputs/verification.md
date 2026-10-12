@@ -28,7 +28,7 @@ uv run --locked python -m unittest tests.test_workflow_inputs tests.test_workflo
 $testModules = Get-ChildItem tests/test_*.py | ForEach-Object { 'tests.' + $_.BaseName }
 uv run --locked python -m unittest $testModules -b
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-uv run --locked python scripts/alpha_input_gate.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-inputs"
+uv run --locked python dev/work_items/alpha_input_gate.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-inputs"
 uv run --locked --with-requirements requirements-docs.txt mkdocs build --strict
 ```
 
@@ -36,7 +36,7 @@ The live gate requires chat on `http://127.0.0.1:8080/v1`, alias `qwen`.
 It discovers the active model and serving context before inference.
 Embeddings, Laya, and Minecraft are unnecessary for this input gate.
 The run directory must be fresh and remain under `.runtime`.
-[`scripts.alpha_input_gate.main`][] retains manifests, source identities, listings, captures, agent journals, and actual result files.
+[`dev.work_items.alpha_input_gate.main`][] retains manifests, source identities, listings, captures, agent journals, and actual result files.
 
 ## Observed checks
 

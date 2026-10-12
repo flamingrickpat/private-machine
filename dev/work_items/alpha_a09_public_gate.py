@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 CASE_NAMES = (
     "failed-method", "correction", "offline-capability", "private-withhold",
@@ -37,7 +37,7 @@ def run(args):
     from runtime.publication import exchange_record
     from workflows.public_context import build_public_context
     from runtime.minecraft_tools import build_minecraft_tools
-    from scripts.alpha_minecraft_gate import RealServerStack
+    from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
 
     out = Path(args.out).resolve()

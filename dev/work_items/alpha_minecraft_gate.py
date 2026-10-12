@@ -10,7 +10,7 @@ import socket
 import subprocess
 import sys
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from tests.live.minecraft_stack import MinecraftStack, _wait_log, load_env_file

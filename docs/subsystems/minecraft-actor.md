@@ -46,7 +46,7 @@ This deadline is independent of the number of tools or actions.
 
 ## Specialist resources
 
-[`scripts.compile_minecraft_skill.compile_skill`][] copies selected upstream sections into project resources.
+[`dev.tools.compile_minecraft_skill.compile_skill`][] copies selected upstream sections into project resources.
 It leaves `C:/Users/rick/.agents/skills/minecraft-survival-coach/SKILL.md` intact.
 `workflows/minecraft/resources/source.json` records its digest and each compiled resource digest.
 Local builder guidance lives in `workflows/minecraft/guidance/builder.md`.

@@ -45,7 +45,7 @@ Chat and embeddings use the earlier build 11351 from `C:/workspace/llama13/`.
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-uv run --locked python scripts/alpha_snapshot.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-snapshot"
+uv run --locked python dev/tools/alpha_snapshot.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-snapshot"
 ```
 
 The snapshot records all four PM generations and five supporting PM repositories.
@@ -72,8 +72,8 @@ Documentation dependencies remain in `requirements-docs.txt`.
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-uv run --locked python scripts/alpha_console_smoke.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-spamuel"
-uv run --locked python scripts/alpha_console_smoke.py --config config.alpha.example.yaml --persona cheerful --out ".runtime/alpha/$stamp-cheerful"
+uv run --locked python dev/work_items/alpha_console_smoke.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-spamuel"
+uv run --locked python dev/work_items/alpha_console_smoke.py --config config.alpha.example.yaml --persona cheerful --out ".runtime/alpha/$stamp-cheerful"
 ```
 
 The script starts the current console HTTP service and real worker.
@@ -104,7 +104,7 @@ Its failed receipt remains part of the baseline.
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-uv run --locked python scripts/alpha_routing_comparison.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-routing"
+uv run --locked python dev/tools/alpha_routing_comparison.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-routing"
 ```
 
 The script sends only development-case input and class descriptions to the current chat model.
@@ -143,7 +143,7 @@ The wipe script prints an older seed.
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-uv run --locked python scripts/alpha_minecraft_gate.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-minecraft" --reset-world
+uv run --locked python dev/work_items/alpha_minecraft_gate.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-minecraft" --reset-world
 ```
 
 The runner starts the actual server directory and a separate test character.

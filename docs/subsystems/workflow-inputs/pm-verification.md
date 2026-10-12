@@ -20,10 +20,10 @@ Use a fresh ignored output directory:
 
 ```powershell
 uv sync --locked
-uv run --locked python scripts/alpha_pm_classification_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a05-live-new
+uv run --locked python dev/work_items/alpha_pm_classification_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a05-live-new
 ```
 
-[`scripts.alpha_pm_classification_gate.main`][] loads all 11,202 seed records through `build_app`.
+[`dev.work_items.alpha_pm_classification_gate.main`][] loads all 11,202 seed records through `build_app`.
 It uses a separate checkpoint path and checks that construction performs no activation.
 It checks provider injection into shell modules and the managed supervisor.
 It copies the actual A01 and A03 logs and records original hashes, encoding, and copy hashes.

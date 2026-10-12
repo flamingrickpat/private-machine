@@ -16,10 +16,10 @@ Prior failures: [A08 verification](memory-verification.md) and [A01 baseline](..
 ## Repeat the console gate
 
 ```powershell
-uv run --locked python scripts/alpha_a09_dialogue_gate.py --config config.alpha.example.yaml --out .runtime/alpha/NEW-a09 --scenario full
+uv run --locked python dev/work_items/alpha_a09_dialogue_gate.py --config config.alpha.example.yaml --out .runtime/alpha/NEW-a09 --scenario full
 ```
 
-[`scripts.alpha_a09_dialogue_gate.ConsoleGate`][] owns a separate console on port `8095`.
+[`dev.work_items.alpha_a09_dialogue_gate.ConsoleGate`][] owns a separate console on port `8095`.
 It verifies active chat and embedding model identities.
 The primary scenario uses the unchanged full Spamuel canon.
 The cheerful control uses `--persona cheerful` with a separate seed and checkpoint.
@@ -52,12 +52,12 @@ Concurrent model requests can increase elapsed time; `--timeout` controls the co
 
 ## Compare public generators and faults
 
-[`scripts.alpha_a09_public_gate.run`][] exercises both production public workflows against the same frozen accepted context.
+[`dev.work_items.alpha_a09_public_gate.run`][] exercises both production public workflows against the same frozen accepted context.
 The operator selects its action intents.
 This gate verifies generation and publication boundaries; console gates verify cognitive action selection.
 
 ```powershell
-uv run --locked python scripts/alpha_a09_public_gate.py --checkpoint PATH --out .runtime/alpha/NEW-a09-public
+uv run --locked python dev/work_items/alpha_a09_public_gate.py --checkpoint PATH --out .runtime/alpha/NEW-a09-public
 ```
 
 The gate uses captured full Spamuel history.
@@ -79,7 +79,7 @@ Use repeatable `--case NAME` arguments to rerun specific unchanged cases after d
 The receipt lists the selected cases and rejects an incomplete selection.
 The server starts only when the selection includes `connected-capability`.
 
-[`scripts.alpha_a09_claim_gate.run`][] evaluates independently specified claims against original A08 source records.
+[`dev.work_items.alpha_a09_claim_gate.run`][] evaluates independently specified claims against original A08 source records.
 It interprets time and reviews evidence once per unchanged candidate.
 It does not regenerate candidates until they pass.
 

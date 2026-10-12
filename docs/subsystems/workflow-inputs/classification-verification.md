@@ -30,14 +30,14 @@ The gate records actual `/models`, `/props`, installed origins, and seed hashes.
 
 ## Reproduce the engine demonstration
 
-[`scripts.alpha_classification_gate.main`][] creates fresh host and Ghost environments, manifests, journals, and receipts.
+[`dev.work_items.alpha_classification_gate.main`][] creates fresh host and Ghost environments, manifests, journals, and receipts.
 It loads all 11,202 original Spamuel records.
 It reads the original seed without changing it.
 Run from the root repository with the locked installed package:
 
 ```powershell
 uv sync --locked
-uv run --locked python scripts/alpha_classification_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a04-live-new
+uv run --locked python dev/work_items/alpha_classification_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a04-live-new
 ```
 
 Use a new output directory for each run.

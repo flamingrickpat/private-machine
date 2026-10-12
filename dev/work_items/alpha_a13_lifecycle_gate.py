@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
@@ -24,7 +24,7 @@ def run(args) -> None:
     from runtime.body_lease import atomic_json
     from runtime.minecraft_outcomes import GameplayEvidence
     from runtime.minecraft_tools import build_minecraft_tools
-    from scripts.alpha_minecraft_gate import RealServerStack
+    from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
 
     out, server = args.out.resolve(), args.server.resolve()

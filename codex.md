@@ -117,7 +117,7 @@ Use the provided wrapper for an automated, owned server and MCP lifecycle:
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-uv run --locked python scripts/alpha_minecraft_gate.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-minecraft" --reset-world
+uv run --locked python dev/work_items/alpha_minecraft_gate.py --config config.alpha.example.yaml --out ".runtime/alpha/$stamp-minecraft" --reset-world
 ```
 
 The wrapper uses the actual server directory and a separate test character.

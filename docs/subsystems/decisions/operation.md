@@ -66,7 +66,7 @@ No holdout labels enter this demonstration.
 
 ```powershell
 uv sync --locked
-uv run --locked python scripts/alpha_decision_gate.py --out .runtime/alpha/a02-repeat/decisions
+uv run --locked python dev/work_items/alpha_decision_gate.py --out .runtime/alpha/a02-repeat/decisions
 ```
 
 The output directory must be new.

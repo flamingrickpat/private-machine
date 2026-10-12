@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from scripts.alpha_a13_minecraft_gate import route_trial
+from dev.work_items.alpha_a13_minecraft_gate import route_trial
 from workflows.minecraft_tasks.schemas import PlanProposal, RevisionProposal, TaskTree
 from workflows.minecraft_tasks.steps import compact_plan_context, leaf_project_context, project_check_context, revision_candidate
 from workflows.minecraft_tasks.tree import TreeStore, digest

@@ -23,13 +23,13 @@ The gate provides no world reset, item grant, creative mode, or operator gamepla
 
 ```powershell
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-uv run --locked python scripts/alpha_a12_recovery_gate.py --out ".runtime/alpha/$stamp-a12-protocol" --protocol
-uv run --locked python scripts/alpha_a12_recovery_gate.py --out ".runtime/alpha/$stamp-a12-native" --native
-uv run --locked python scripts/alpha_a12_recovery_gate.py --out ".runtime/alpha/$stamp-a12-house" --native --house-only
-uv run --locked python scripts/alpha_a12_publication_gate.py --out ".runtime/alpha/$stamp-a12-publication"
+uv run --locked python dev/work_items/alpha_a12_recovery_gate.py --out ".runtime/alpha/$stamp-a12-protocol" --protocol
+uv run --locked python dev/work_items/alpha_a12_recovery_gate.py --out ".runtime/alpha/$stamp-a12-native" --native
+uv run --locked python dev/work_items/alpha_a12_recovery_gate.py --out ".runtime/alpha/$stamp-a12-house" --native --house-only
+uv run --locked python dev/work_items/alpha_a12_publication_gate.py --out ".runtime/alpha/$stamp-a12-publication"
 ```
 
-[`scripts.alpha_a12_recovery_gate.run`][] owns the real stack and stops only its processes.
+[`dev.work_items.alpha_a12_recovery_gate.run`][] owns the real stack and stops only its processes.
 The failure-injection workers call the real MCP and retain their full logs.
 The native workers use `build_app`, the production supervisor, and pm-coder inference.
 

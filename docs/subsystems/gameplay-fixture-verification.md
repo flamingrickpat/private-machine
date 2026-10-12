@@ -34,7 +34,7 @@ The original failed native receipt remains failed.
 
 ## Failure fixture procedure
 
-[`scripts.alpha_a13_failure_gate.run`][] creates observed temporary obstructions and a liquid source through recorded operator commands.
+[`dev.work_items.alpha_a13_failure_gate.run`][] creates observed temporary obstructions and a liquid source through recorded operator commands.
 It grants no items.
 The default water placement is a contained one-block pit at the observed body.
 The `--water-placement head` variant retains the earlier flowing head-space setup.
@@ -64,9 +64,9 @@ Crafted sticks establish a concrete changed prerequisite method for the failed i
 Iron remains unfinished when only its stick prerequisite succeeds.
 
 ```powershell
-uv run --locked python scripts/alpha_a13_failure_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-water-new --hazard water --water-placement pit --timeout 900
-uv run --locked python scripts/alpha_a13_failure_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-lava-new --hazard lava --lava-placement edge --reset-world --timeout 900
-uv run --locked python scripts/alpha_a13_failure_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-adaptation-new --hazard none --reset-world --timeout 1800
+uv run --locked python dev/work_items/alpha_a13_failure_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-water-new --hazard water --water-placement pit --timeout 900
+uv run --locked python dev/work_items/alpha_a13_failure_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-lava-new --hazard lava --lava-placement edge --reset-world --timeout 900
+uv run --locked python dev/work_items/alpha_a13_failure_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-adaptation-new --hazard none --reset-world --timeout 1800
 ```
 
 Use fresh output directories.

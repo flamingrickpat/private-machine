@@ -89,7 +89,7 @@ class RecoveryTests(unittest.TestCase):
                 self.assertGreater(token["epoch"], first_epoch)
         finally:
             if process.poll() is None:
-                from scripts.alpha_a12_recovery_gate import kill_worker
+                from dev.work_items.alpha_a12_recovery_gate import kill_worker
                 kill_worker(process)
             for stream in (process.stdin, process.stdout, process.stderr):
                 stream.close()

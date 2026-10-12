@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 import time
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
@@ -31,7 +31,7 @@ def run(args):
     from runtime.intents import replay_intents
     from runtime.managed_runs import ManagedRunSupervisor
     from runtime.publication import exchange_record
-    from scripts.alpha_a12_recovery_gate import wait_for
+    from dev.work_items.alpha_a12_recovery_gate import wait_for
 
     out = args.out.resolve()
     if not out.is_relative_to(ROOT / ".runtime"):

@@ -73,7 +73,7 @@ Strata reports actual prompt tokens through `/status`; those observations can di
 Run the retained gate against the actual chat service:
 
 ```powershell
-uv run --locked python scripts/alpha_llm_context_gate.py --config config.alpha.example.yaml --out .runtime/alpha/llm-context-repeat
+uv run --locked python dev/work_items/alpha_llm_context_gate.py --config config.alpha.example.yaml --out .runtime/alpha/llm-context-repeat
 ```
 
 The gate reads the unchanged real Spamuel seed and captured A01 completed-task report.

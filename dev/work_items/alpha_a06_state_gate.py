@@ -9,7 +9,7 @@ Every model response is real. The gate asserts consistency between the
 accepted report and accepted memory. It never substitutes a fixed answer.
 
 Run:
-    uv run --locked python scripts/alpha_a06_state_gate.py \
+    uv run --locked python dev/work_items/alpha_a06_state_gate.py \
         --config config.alpha.example.yaml --out .runtime/alpha/<stamp>-a06
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ import json
 from pathlib import Path
 import sys
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from main import build_app

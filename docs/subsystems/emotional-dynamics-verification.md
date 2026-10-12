@@ -9,7 +9,7 @@ return, and a repair offer. It recorded the internal cause beside the public
 behavior.
 
 Parent: [Emotional dynamics](emotional-dynamics.md).
-Gate: `scripts/alpha_a07_affect_gate.py`.
+Gate: `dev/work_items/alpha_a07_affect_gate.py`.
 
 ## Deterministic contract tests
 

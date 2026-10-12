@@ -19,7 +19,7 @@ from threading import Event, Lock, Thread
 import httpx
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from pm_workflows.classification import replay_classification

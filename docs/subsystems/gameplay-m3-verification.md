@@ -10,7 +10,7 @@ Parent: [A13 verification](gameplay-verification.md).
 
 ## Real M3 procedure
 
-[`scripts.alpha_a13_minecraft_gate.run`][] uses the generic project runner and actual deployment.
+[`dev.work_items.alpha_a13_minecraft_gate.run`][] uses the generic project runner and actual deployment.
 It loads `data/spamuel_agentic_canon.yaml` without changing the seed.
 It selects actual `qwen` at `http://127.0.0.1:8080/v1` through `config.alpha.example.yaml`.
 Minecraft uses `C:/source/minecraft-server-real`, Fabric 1.19.4, Babymode 0.5.0, and seed `23452352345`.
@@ -19,18 +19,18 @@ Local credentials remain in ignored runtime files.
 
 The fixture requests a surveyed 5 by 5 house, exact structure cells, separate entry and exit evidence, and an iron pickaxe.
 It requires separate mining, smelting, and crafting leaves.
-[`scripts.alpha_a13_minecraft_gate.iron_chain`][] audits their original ordered inventory deltas.
+[`dev.work_items.alpha_a13_minecraft_gate.iron_chain`][] audits their original ordered inventory deltas.
 No supplied iron, pickaxe, or village-container withdrawal can satisfy that chain.
 Independent project verification still establishes the house and final inventory.
 
-[`scripts.alpha_a13_minecraft_gate.m3_plan_constraints`][] checks the caller's explicit M3 requirements before normal plan review.
+[`dev.work_items.alpha_a13_minecraft_gate.m3_plan_constraints`][] checks the caller's explicit M3 requirements before normal plan review.
 It derives the proposed footprint from the complete roof and two-cell door.
 It checks exact floor, wall, roof, door, interior, and approach operands in construction leaves and fresh root criteria.
 It also requires separate entry and exit targets, direct mining and smelting references, and a current inventory pickaxe check.
 Missing operands return recorded repair feedback to the native planner.
 The callback never changes a specification, accepts a certificate, or proves a world effect.
 
-Before publication, [`scripts.alpha_a13_minecraft_gate.m3_project_check`][] audits the original iron chain and saved home and route effects.
+Before publication, [`dev.work_items.alpha_a13_minecraft_gate.m3_project_check`][] audits the original iron chain and saved home and route effects.
 It requires the waypoint receipt to match the durable waypoint at the house or entrance.
 The route requires fresh observations at home, outside the footprint, and back home in one actor attempt and body life.
 Those positions must be healthy, grounded, and dry.
@@ -43,7 +43,7 @@ The runner checks stopped ports and resolved removal targets first.
 The script's printed seed is outdated; the receipt records `server.properties`.
 
 ```powershell
-uv run --locked python scripts/alpha_a13_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-m3-new
+uv run --locked python dev/work_items/alpha_a13_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-m3-new
 ```
 
 ## Current retained task
@@ -148,7 +148,7 @@ The next live resume uses the same task, checkpoint, character, world, and empty
 If a stopped failed project needs continuation, use a fresh output directory and `--resume-from`.
 
 ```powershell
-uv run --locked python scripts/alpha_a13_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-m3-38 --resume-from .runtime/alpha/a13-m3-37 --timeout 10800
+uv run --locked python dev/work_items/alpha_a13_minecraft_gate.py --config config.alpha.example.yaml --out .runtime/alpha/a13-m3-38 --resume-from .runtime/alpha/a13-m3-37 --timeout 10800
 ```
 
 The runner rejects a reset, changed intent, or changed model connections during explicit resume.
@@ -168,7 +168,7 @@ This confirms retained effects but does not establish smelting acceptance or M3 
 The repaired tool records actual retained slots and returns partial output and unused input.
 The audit distinguishes matched furnace recovery from mining and rejects arbitrary supplied iron.
 See the [smelting repair](gameplay-tool-repair-history.md#interrupted-smelting-after-m3-37) and
-[`scripts.alpha_a13_minecraft_gate.recovered_smelt_matches`][].
+[`dev.work_items.alpha_a13_minecraft_gate.recovered_smelt_matches`][].
 
 ## Original death and retained replanning
 

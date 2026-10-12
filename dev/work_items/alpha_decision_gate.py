@@ -24,7 +24,7 @@ from pm_decision import (
     ProbabilityQuestion, ScoreQuestion,
 )
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 REPORT = ROOT / ".runtime/alpha/a01/console-spamuel/instances/fd71e4655da44430b9779eb6739d45f5/managed_tasks/dd8a80caec16462b97e0e85cbdf87346/outbox/report.yaml"
 CHECKPOINT = REPORT.parents[3] / "ghost.json"
 CRITERIA = {"COMPLETE": "The task completed.", "FAILED": "The task failed.", "INVALID": "The report cannot establish completion or failure."}

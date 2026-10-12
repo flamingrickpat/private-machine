@@ -110,7 +110,7 @@ Explicit live-test clients fail immediately for service diagnosis.
 Run an inspection before preparation:
 
 ```powershell
-uv run --locked python scripts/alpha_memory_index.py --config config.alpha.example.yaml --out .runtime/alpha/a08/index-inspection.json
+uv run --locked python dev/tools/alpha_memory_index.py --config config.alpha.example.yaml --out .runtime/alpha/a08/index-inspection.json
 ```
 
 For a specific accepted checkpoint, supply `--checkpoint PATH`.

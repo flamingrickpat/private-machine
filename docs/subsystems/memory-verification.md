@@ -52,10 +52,10 @@ The separate live console sequence supplies behavioral evidence.
 ## Console gate
 
 ```powershell
-uv run --locked python scripts/alpha_a08_memory_gate.py --config config.alpha.example.yaml --out .runtime/alpha/NEW-a08
+uv run --locked python dev/work_items/alpha_a08_memory_gate.py --config config.alpha.example.yaml --out .runtime/alpha/NEW-a08
 ```
 
-[`scripts.alpha_a08_memory_gate.run`][] owns the console service and its workers.
+[`dev.work_items.alpha_a08_memory_gate.run`][] owns the console service and its workers.
 The default diagnostic console port is `8094`.
 It verifies the selected chat and embedding identities before execution.
 It waits for the startup cognitive cycle and matches replies to the submitted correlation ID.

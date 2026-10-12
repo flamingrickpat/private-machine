@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import re
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 SECTIONS = {"shared": [*range(1, 10), 36, 37, 39, 40, 41, 42, 49, 50],
             "navigator": [10, 11, 12, 13, 26], "recovery": [14, 15, 16, 17, 18, 33, 34, 35],
             "gatherer": [19, 20, 21, 22, 23, 27, 28, 29], "builder": [24, 25],

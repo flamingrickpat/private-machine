@@ -216,7 +216,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(uncertain_world_effects(history + [{"source": "projected-next", "calls": [later]}]), pending)
 
     def test_partial_reconciled_smelt_returns_raw_without_counting_it_as_mined(self):
-        from scripts.alpha_a13_minecraft_gate import iron_chain
+        from dev.work_items.alpha_a13_minecraft_gate import iron_chain
         capture = json.loads((CAPTURE.parent / "a13-smelt-timeout.json").read_text(encoding="utf-8"))
         saved = capture["saved_furnaces"]["furnaces"][0]
         self.assertEqual(saved["BurnTime"], 0)
@@ -253,7 +253,7 @@ class GameplayTests(unittest.TestCase):
             self.assertFalse(iron_chain(store.root, {"inventory": []})["verified"])
 
     def test_uncertain_native_smelt_requires_matching_retained_furnace_contents(self):
-        from scripts.alpha_a13_minecraft_gate import recovered_smelt_matches
+        from dev.work_items.alpha_a13_minecraft_gate import recovered_smelt_matches
         capture = json.loads((CAPTURE.parent / "a13-smelt-timeout.json").read_text(encoding="utf-8"))
         pending = next(row for row in capture["rows"] if row["event"] == "uncertain")
         placements = [cell["position"] for row in capture["rows"] if row["event"] == "result"
@@ -629,7 +629,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(history.navigation["ineffective"], 0)
 
     def test_actual_approved_m3_plan_still_lacks_required_house_and_root_checks(self):
-        from scripts.alpha_a13_minecraft_gate import m3_plan_constraints
+        from dev.work_items.alpha_a13_minecraft_gate import m3_plan_constraints
         from workflows.minecraft_tasks.schemas import TaskTree
         capture = json.loads((CAPTURE.parent / "a13-m3-contract-gap.json").read_text(encoding="utf-8"))
         self.assertEqual(capture["documents"]["review"]["status"], "accepted")
@@ -654,8 +654,8 @@ class GameplayTests(unittest.TestCase):
         self.assertIn("minecraft_plan_constraints", missing["reviewer_tools"])
         self.assertNotIn("route_test", missing["plan_constraints"]["requirements"])
         from pm_workflows.runtime import WorkflowRuntime
-        from scripts.alpha_a11_minecraft_gate import project_contract_manifest
-        from scripts.alpha_a13_minecraft_gate import m3_plan_constraints, m3_project_check
+        from dev.work_items.alpha_a11_minecraft_gate import project_contract_manifest
+        from dev.work_items.alpha_a13_minecraft_gate import m3_plan_constraints, m3_project_check
         from workflows.minecraft.module_tools import build_minecraft_module_tools
         from workflows.minecraft_tasks.schemas import TaskTree
         from working_target import FolderEnvironment
@@ -687,7 +687,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(original.read_bytes(), before)
 
     def test_captured_native_m3_repair_covers_goal_without_replacing_accepted_work(self):
-        from scripts.alpha_a13_minecraft_gate import m3_plan_constraints
+        from dev.work_items.alpha_a13_minecraft_gate import m3_plan_constraints
         from workflows.minecraft_tasks.schemas import TaskTree
         before = json.loads((CAPTURE.parent / "a13-m3-contract-gap.json").read_text(encoding="utf-8"))["documents"]["tree"]
         capture = json.loads((CAPTURE.parent / "a13-native-m3-contract-repair.json").read_text(encoding="utf-8"))

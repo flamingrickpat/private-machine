@@ -16,7 +16,7 @@ from threading import Event
 import httpx
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from pm_workflows.inputs import InputError, InputResolver, InputScope

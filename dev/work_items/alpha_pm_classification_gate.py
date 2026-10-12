@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import httpx
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from bus.envelopes import Envelope
@@ -28,7 +28,7 @@ from runtime.model_activation import ModelActivation
 from runtime.models import load_config
 from runtime.workflow_models import WorkflowModels
 from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
-from scripts.alpha_classification_gate import inspect_overflow, long_log, make_logs, response_recorder, save, sha
+from dev.work_items.alpha_classification_gate import inspect_overflow, long_log, make_logs, response_recorder, save, sha
 from working_target import FolderEnvironment, GhostBashWrapper
 
 DEMO = ROOT / "workflows/classification_demo/classification_demo.workflow.md"

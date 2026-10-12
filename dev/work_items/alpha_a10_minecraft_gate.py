@@ -14,7 +14,7 @@ import time
 
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 
@@ -29,7 +29,7 @@ def run(args) -> None:
     from runtime.publication import exchange_record
     from runtime.workflow_runner import WorkflowRunner, WorkflowRequest
     from pm_workflows.runtime import WorkflowRuntime
-    from scripts.alpha_minecraft_gate import RealServerStack
+    from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
     from working_target import FolderEnvironment
 
