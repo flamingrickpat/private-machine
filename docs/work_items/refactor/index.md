@@ -74,23 +74,26 @@ Imports may only point in these directions:
 | `pm.host` | `pm.bus`, `pm.memory`, `pm.records` |
 | `pm.runs` | `pm.host`, `pm.memory`, `pm.llm`, `pm.records`, `pm.bus` |
 | `pm.app`, `pm.console` | all of `pm` |
-| workflow libraries | `pm` |
+| workflow libraries | `pm`, other libraries, `main_cognition` |
 | workflows | `pm`, workflow libraries |
 | `workflows/companion.py` | everything in `pm` and `workflows` |
 | `tests` | `pm`, `workflows`, `test_data` |
 | `dev` | `pm`, `workflows`, `tests/support`, `test_data` |
 
 `tests/test_architecture.py` checks these rules. It parses source only, so it runs without dependencies.
-Its allowlist holds the known violations below. Phase 4 empties it.
+`public_speech` builds on accepted cognition state, so libraries may import `main_cognition`.
+Only `main.py`, tests, and gates import `workflows.companion`. The console loads it by name through `pm/console/assembly.py`.
+
+Phase 4 removed every runtime violation:
 
 | Violation today | Removal in Phase 4 |
 | --- | --- |
-| `managed_runs` names `minecraft` and `minecraft_project` and injects a persona for them. | Each `WorkflowSpec` declares `uses_body` and its request context. |
-| `managed_runs` imports `workflows.public_context`. | The assembly passes the context builder. |
-| `reply_recovery` imports Minecraft verifiers per report schema. | Each managed workflow registers its report verifier. |
-| `operator_services` and `capabilities` hold Minecraft endpoint defaults. | The Minecraft workflows declare their endpoint. |
-| `pm/console/worker.py` imports `workflows.companion.build_app`. | The worker receives the assembly name and loads it. |
-| `workflows/companion.py` holds workflow descriptions as strings. | The manifests hold them. |
+| `managed_runs` names `minecraft` and `minecraft_project` and injects a persona for them. | Done: `WorkflowSpec.resumable` and `WorkflowSpec.request_context`. |
+| `managed_runs` imports `workflows.public_context`. | Done: `workflows.minecraft.host.persona_context`. |
+| `reply_recovery` imports Minecraft verifiers per report schema. | Open. The test allowlist holds these two imports. |
+| `operator_services` and the console worker hold Minecraft endpoint defaults. | Done: `workflows/minecraft_body/operator_hooks.py`. |
+| `pm/console/worker.py` imports `workflows.companion.build_app`. | Done: `pm/console/assembly.py` loads it by name. |
+| `workflows/companion.py` holds workflow descriptions as strings. | Kept: the assembly is workflow-side code. |
 
 ## Three walkthroughs
 
@@ -130,7 +133,7 @@ Each phase is one branch. Each commit is a move, a rename, or an extraction, nev
 | 1 | This page, the glossary, the naming rules, and the relocation map. | Done, branch `refactor/phase-1`. Awaits owner review. |
 | 2 | Build `pm/`: move the runtime packages. One commit per package. Then renames. | Done, branch `refactor/phase-2`. Static checks only. |
 | 3 | Move behavior into `workflows/`: Minecraft first, then `modules.py`, then the assembly. | Done, branch `refactor/phase-3`. Static checks only. |
-| 4 | Remove domain knowledge from the runtime. Empty the allowlist. | Pending. |
+| 4 | Remove domain knowledge from the runtime. Empty the allowlist. | Done, branch `refactor/phase-4`. One library coupling stays open. |
 | 5 | Split large files: `minecraft_project/steps.py`, `supervisor.py`, `main_cognition/host.py`. | Pending. |
 | 6 | Reorganize tests into `unit/`, `contract/`, `live/`. | Pending. |
 | 7 | Walkthrough review. Then the A13 investigation. | Pending. |

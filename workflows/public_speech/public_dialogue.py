@@ -10,7 +10,7 @@ import yaml
 from pm.records.enums import FeatureType, InterlocusType
 
 from pm.bus.envelopes import Envelope, new_id
-from workflows.dialogue_story.schemas import DialogueTurn
+from workflows.public_speech.public_context import DialogueTurn
 from workflows.public_speech.public_context import build_public_context
 from workflows.public_speech.publication import commit_public_reply, exchange_record, publish_reply
 from pm.bus.envelopes import new_envelope

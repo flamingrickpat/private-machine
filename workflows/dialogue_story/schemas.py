@@ -9,15 +9,8 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-from workflows.public_speech.public_context import PublicContext
+from workflows.public_speech.public_context import DialogueTurn, PublicContext
 from workflows.public_speech.claim_review import ClaimReview
-
-
-class DialogueTurn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    speaker: str = Field(min_length=1)
-    text: str = Field(min_length=1)
 
 
 class StoryRequest(BaseModel):

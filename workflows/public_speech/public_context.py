@@ -14,6 +14,15 @@ from pm.records.cognitive_records import OntologyBindingRecord, OntologyTermReco
 from workflows.main_cognition.stage_commits import active_goal_texts
 
 
+class DialogueTurn(BaseModel):
+    """One spoken line of public dialogue history."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    speaker: str = Field(min_length=1)
+    text: str = Field(min_length=1)
+
+
 class Presentation(BaseModel):
     """A prior public choice. Deception retains its purpose and known evidence."""
 
@@ -190,4 +199,4 @@ def render_factual_focus(context: PublicContext) -> str:
             "Fulfil that intent with uncertainty instead of invented verification.")
 
 
-__all__ = ["Presentation", "PublicContext", "build_public_context", "render_public_context", "render_factual_focus"]
+__all__ = ["DialogueTurn", "Presentation", "PublicContext", "build_public_context", "render_public_context", "render_factual_focus"]

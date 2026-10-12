@@ -77,7 +77,41 @@ class RuntimeDependencyTests(unittest.TestCase):
         self.assertEqual(KNOWN_VIOLATIONS - found, set())
 
 
+#: Workflow libraries have no manifest; several workflows share them.
+LIBRARIES = {"public_speech", "minecraft_body"}
+#: Libraries may build on accepted cognition state.
+LIBRARY_MAY_IMPORT = LIBRARIES | {"main_cognition"}
+#: Known library -> task-workflow imports. Do not add entries.
+KNOWN_LIBRARY_COUPLINGS = {
+    ("workflows/public_speech/reply_recovery.py", "workflows.minecraft_project.acceptance"),
+    ("workflows/public_speech/reply_recovery.py", "workflows.minecraft.specialist_session"),
+}
+
+
 class WorkflowDependencyTests(unittest.TestCase):
+    def test_libraries_import_no_task_workflow(self):
+        problems, found = [], set()
+        for library in sorted(LIBRARIES):
+            for path in python_files(f"workflows/{library}"):
+                relative = path.relative_to(ROOT).as_posix()
+                for line, module in imports(path):
+                    head = module.split(".")
+                    if head[0] != "workflows" or len(head) < 2 or head[1] in LIBRARY_MAY_IMPORT:
+                        continue
+                    found.add((relative, module))
+                    if (relative, module) not in KNOWN_LIBRARY_COUPLINGS:
+                        problems.append(f"{relative}:{line} imports {module}")
+        self.assertEqual(problems, [])
+        self.assertEqual(KNOWN_LIBRARY_COUPLINGS - found, set())
+
+    def test_only_entry_points_import_the_assembly(self):
+        problems = []
+        for path in python_files("workflows") + python_files("pm"):
+            for line, module in imports(path):
+                if module == "workflows.companion":
+                    problems.append(f"{path.relative_to(ROOT).as_posix()}:{line}")
+        self.assertEqual(problems, [])
+
     def test_workflows_never_import_tests_or_development_code(self):
         problems = []
         for path in python_files("workflows"):
