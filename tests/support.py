@@ -19,7 +19,7 @@ from pm_core.ghost.service import Ghost
 from main import build_app
 from bus.envelopes import Envelope, _new_id
 
-SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "spamuel_agentic_canon.yaml"
+SEED_PATH = Path(__file__).resolve().parent.parent / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 _ACTION_TYPE = {
     "dialogue": ActionType.Reply,

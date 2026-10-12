@@ -44,7 +44,7 @@ from workflow_adapter import PROJECT_ROOT, ShellModuleWorkflow
 BANNER = "DUMMY COGNITION \u2014 no LLM calls\n"
 REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
 
-DEFAULT_SEED = Path(__file__).resolve().parent / "data" / "spamuel_agentic_canon.yaml"
+DEFAULT_SEED = Path(__file__).resolve().parent / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
 def default_config_path() -> str:

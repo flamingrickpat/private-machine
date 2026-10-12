@@ -29,7 +29,7 @@ from workflows.dialogue_story.context import plan_story_request
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
 from workflows.dialogue_story.steps import build_story_messages, load_prompts, render_prior_dialogue
 
-DEFAULT_SEED = engine.PROJECT_ROOT / "data" / "spamuel_agentic_canon.yaml"
+DEFAULT_SEED = engine.PROJECT_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 DEFAULT_SITUATION = engine.WORKFLOW_DIR / "situation.yaml"
 REQUIRED_GOOD = 7
 

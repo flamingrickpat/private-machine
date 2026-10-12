@@ -91,7 +91,7 @@ Low-supplies recovery needs at least 7 food before ordinary work resumes.
 Missing, nonnumeric, or out-of-range observed food fails the condition.
 The planner can retain an already dry supported body and combine food acquisition and eating in one recovery leaf.
 
-`tests/fixtures/alpha/a13-review-context.json` retains the original review input, output, survey, tool contracts, and food observations.
+`test_data/captures/alpha/a13-review-context.json` retains the original review input, output, survey, tool contracts, and food observations.
 It records each original source digest.
 The captured body with 18 health and 5 food passes `alive` but fails the food threshold.
 The earlier 9-food body passes that threshold in a boundary check.

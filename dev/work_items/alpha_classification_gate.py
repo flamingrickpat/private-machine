@@ -263,7 +263,7 @@ def main() -> None:
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Store original history and complete receipts under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
-    seed_path = ROOT / "data/spamuel_agentic_canon.yaml"
+    seed_path = ROOT / "test_data/personas/spamuel/canon.yaml"
     seed_digest = sha(seed_path)
     ghost = Ghost.from_state(load_ghost_state_from_yaml(seed_path))
     virtual = GhostBashWrapper(ghost).open("a04")

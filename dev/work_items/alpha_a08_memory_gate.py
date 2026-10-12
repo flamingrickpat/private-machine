@@ -130,12 +130,12 @@ def run(args):
                 time.sleep(.2)
         for label in ([args.persona] if args.persona != "both" else ["spamuel", "cheerful"]):
             events, after = [], 0
-            seed = ROOT / "data/spamuel_agentic_canon.yaml"
+            seed = ROOT / "test_data/personas/spamuel/canon.yaml"
             if label == "cheerful":
                 import yaml
                 from pm_core.ghost.service import Ghost
                 from pm_core.model.ghost_state import GhostConfig
-                config = yaml.safe_load((ROOT / "tests/fixtures/alpha/cheerful.yaml").read_text(encoding="utf-8"))
+                config = yaml.safe_load((ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))
                 seed = out / "cheerful-seed.yaml"
                 seed.write_text(yaml.safe_dump(Ghost(GhostConfig.model_validate(config)).state_dict(), allow_unicode=True), encoding="utf-8")
             persona = {"name": label, "seed": str(seed), "seed_sha256": hashlib.sha256(seed.read_bytes()).hexdigest(), "exchanges": []}

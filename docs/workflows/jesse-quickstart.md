@@ -73,7 +73,7 @@ The `.runtime` directory is ignored by Git, so these private files stay local.
 The existing `.env_real` supplies your RCON password and installed browser path.
 
 The original Spamuel seed already names **Jesse** as the user.
-Keep `data\spamuel_agentic_canon.yaml` unchanged.
+Keep `test_data\personas\spamuel\canon.yaml` unchanged.
 The new console instance loads that history into a separate checkpoint.
 It does not inherit the retained A13 task or its player inventory.
 
@@ -236,7 +236,7 @@ Deploy an instance with these values:
 | Console field | Value |
 | --- | --- |
 | Instance name | `spamuel-local-test` |
-| Persona YAML | `C:/source/pm/pm_next_v2/data/spamuel_agentic_canon.yaml` |
+| Persona YAML | `C:/source/pm/pm_next_v2/test_data/personas/spamuel/canon.yaml` |
 | Model configuration | `C:/source/pm/pm_next_v2/.runtime/jesse-test/model.yaml` |
 | Cognition | `real` |
 

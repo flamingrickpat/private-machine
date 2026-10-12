@@ -17,7 +17,7 @@ from workflows.public_context import PublicContext
 
 class MessageProtocolTests(unittest.TestCase):
     def test_captured_parser_rejection_is_permanent(self):
-        captured = json.loads((Path(__file__).parent / "fixtures/alpha/a10-message-protocol-error.json").read_text())
+        captured = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a10-message-protocol-error.json").read_text())
         response = httpx.Response(captured["status"], json=captured["body"])
         self.assertTrue(rejected_message_protocol(response))
 
@@ -27,7 +27,7 @@ class MessageProtocolTests(unittest.TestCase):
         self.assertFalse(rejected_message_protocol(httpx.Response(200, json={"choices": []})))
 
     def test_captured_tool_markup_cannot_be_published_as_speech(self):
-        captured = (Path(__file__).parent / "fixtures/alpha/a10-assistant-tool-markup.txt").read_text()
+        captured = (Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a10-assistant-tool-markup.txt").read_text()
         with self.assertRaisesRegex(ValueError, "tool protocol"):
             validate_public_speech(captured)
 
@@ -37,7 +37,7 @@ class MessageProtocolTests(unittest.TestCase):
         The original model invented numeric source IDs. These checks isolate
         citation validation from the separately required live interpretation.
         """
-        captured = json.loads((Path(__file__).parent / "fixtures/alpha/a10-inventory-citation.json").read_text(encoding="utf-8"))
+        captured = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a10-inventory-citation.json").read_text(encoding="utf-8"))
         review = ClaimReview.model_validate(captured["claim_review"])
         review.accepted = True
         for claim in review.claims[:2]:

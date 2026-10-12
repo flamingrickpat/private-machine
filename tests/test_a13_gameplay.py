@@ -14,7 +14,7 @@ from runtime.minecraft_outcomes import GameplayEvidence, classify
 from workflows.minecraft_tasks.schemas import Node, TaskTree
 from workflows.minecraft_tasks.tree import TreeStore
 
-CAPTURE = Path(__file__).parent / "fixtures/alpha/a13-gameplay-results.json"
+CAPTURE = Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-gameplay-results.json"
 
 
 class GameplayTests(unittest.TestCase):

@@ -62,7 +62,7 @@ async def run(args) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="config.alpha.example.yaml")
-    parser.add_argument("--seed", default=str(ROOT / "data/spamuel_agentic_canon.yaml"))
+    parser.add_argument("--seed", default=str(ROOT / "test_data/personas/spamuel/canon.yaml"))
     parser.add_argument("--checkpoint")
     parser.add_argument("--ids", help="JSON array of permitted knoxel IDs")
     parser.add_argument("--reality", type=int)

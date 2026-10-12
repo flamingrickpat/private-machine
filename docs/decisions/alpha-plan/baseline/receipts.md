@@ -55,7 +55,7 @@ A01 does not upgrade a dependency or execute an older PM runtime.
 | Strict documentation after A01 | Passed. Final build duration appears in the machine receipt | `docs-final.log` |
 | Existing narrow Minecraft gate | Passed: one test in 9.837 seconds | `minecraft-real/receipt.json` and W8 artifacts |
 | Current LLM development comparison | 12 responses agreed with 12 proposed labels. Human label review remains pending | `routing-comparison/receipt.json` |
-| Holdout comparison | Not run. Six cases reserved | `tests/fixtures/alpha/routing-holdout.json` |
+| Holdout comparison | Not run. Six cases reserved | `test_data/captures/alpha/routing-holdout.json` |
 | Laya inference quality | Not run in A01. Model discovery succeeded | Snapshot service identity |
 | Human immersion and regeneration ratings | Not recorded by automation | Operator record remains pending |
 

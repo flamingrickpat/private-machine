@@ -169,7 +169,7 @@ def main() -> None:
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--seed", type=Path, default=ROOT / "data/spamuel_agentic_canon.yaml")
+    parser.add_argument("--seed", type=Path, default=ROOT / "test_data/personas/spamuel/canon.yaml")
     parser.add_argument("--report", type=Path, default=REPORT)
     parser.add_argument("--checkpoint", type=Path, default=CHECKPOINT)
     parser.add_argument("--binary", type=Path, default=Path("C:/workspace/llama-systemone-b11374/llama-server.exe"))

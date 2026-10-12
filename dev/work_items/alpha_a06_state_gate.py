@@ -27,7 +27,7 @@ from pm_core.ghost.service import Ghost
 from runtime.lifecycle import record_shutdown
 from workflows.main_cognition.state_changes import active_goal_texts, find_intention, normalize_goal_key
 
-SEED = ROOT / "data" / "spamuel_agentic_canon.yaml"
+SEED = ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
 def save(root: Path, name: str, payload) -> None:

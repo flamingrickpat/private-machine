@@ -75,7 +75,7 @@ Result: `ok: true`.
 
 - Root foundation suite: 285 tests passed in 488.286 seconds.
 - pm-workflows package: 199 passed in 58.13 seconds.
-- The seed `data/spamuel_agentic_canon.yaml` is unchanged.
+- The seed `test_data/personas/spamuel/canon.yaml` is unchanged.
 - The gate uses a separate checkpoint.
 
 ## Failure and recovery checks

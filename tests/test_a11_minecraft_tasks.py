@@ -23,7 +23,7 @@ from workflows.minecraft_tasks.steps import progress_facts, scoped_reads, survey
 from runtime.cancellation import LinkedStopEvent
 
 ROOT = Path(__file__).resolve().parents[1]
-CAPTURED = json.loads((ROOT / "tests/fixtures/alpha/a11-original-world-reads.json").read_text(encoding="utf-8"))
+CAPTURED = json.loads((ROOT / "test_data/captures/alpha/a11-original-world-reads.json").read_text(encoding="utf-8"))
 
 
 def tree() -> TaskTree:
@@ -69,7 +69,7 @@ def retain_contract_node(store: TreeStore, node: Node) -> None:
 
 class TaskGraphTests(unittest.TestCase):
     def test_original_door_reads_require_both_halves(self):
-        fixture = json.loads((ROOT / "tests/fixtures/alpha/a11-original-door-reads.json").read_text(encoding="utf-8"))
+        fixture = json.loads((ROOT / "test_data/captures/alpha/a11-original-door-reads.json").read_text(encoding="utf-8"))
         built = fixture["native_build"]["result"]
         self.assertEqual((built["planned_cells"], built["placed_count"]), (1, 2))
         for key, expected in (("successful_reads", True), ("failed_reads", False)):
@@ -360,7 +360,7 @@ class TaskGraphTests(unittest.TestCase):
 
 class CapturedEvidenceTests(unittest.TestCase):
     def test_recipe_scope_preserves_real_output_counts_and_costs(self):
-        captured = json.loads((ROOT / "tests/fixtures/alpha/a11-original-recipe-reads.json").read_text(encoding="utf-8"))
+        captured = json.loads((ROOT / "test_data/captures/alpha/a11-original-recipe-reads.json").read_text(encoding="utf-8"))
         planks, door = scoped_reads(captured["reads"])
         self.assertEqual(planks["result"]["matches"][0]["output_count"], 4)
         self.assertEqual(planks["result"]["matches"][0]["ingredients"][0]["required"], 1)
@@ -369,13 +369,13 @@ class CapturedEvidenceTests(unittest.TestCase):
         self.assertEqual(planks["original_digest"], digest(captured["reads"][0]["result"]))
 
     def test_native_candidate_missing_handoff_is_rejected(self):
-        captured = json.loads((ROOT / "tests/fixtures/alpha/a11-invalid-native-completion.json").read_text(encoding="utf-8"))
+        captured = json.loads((ROOT / "test_data/captures/alpha/a11-invalid-native-completion.json").read_text(encoding="utf-8"))
         with self.assertRaises(ValidationError) as rejected:
             ActorOutcome.model_validate_json(captured["text"])
         self.assertEqual(rejected.exception.errors()[0]["loc"], ("handoff",))
 
     def test_scoped_read_keeps_the_captured_non_solid_plant_flag(self):
-        captured = json.loads((ROOT / "tests/fixtures/alpha/a11-non-solid-plant-read.json").read_text(encoding="utf-8"))
+        captured = json.loads((ROOT / "test_data/captures/alpha/a11-non-solid-plant-read.json").read_text(encoding="utf-8"))
         read = captured["read"]
         scoped = scoped_reads([read])[0]
         self.assertEqual(scoped["result"]["block_name"], "tall_grass")
@@ -383,14 +383,14 @@ class CapturedEvidenceTests(unittest.TestCase):
         self.assertEqual(scoped["original_digest"], digest(read["result"]))
 
     def test_captured_region_after_gathering_cannot_prove_the_actor_route(self):
-        captured = json.loads((ROOT / "tests/fixtures/alpha/a11-region-after-gathering.json").read_text(encoding="utf-8"))
+        captured = json.loads((ROOT / "test_data/captures/alpha/a11-region-after-gathering.json").read_text(encoding="utf-8"))
         condition = Condition.model_validate(captured["condition"])
         reads = captured["reads"]
         self.assertGreater(reads[0]["result"]["unseen_cells"], 0)
         self.assertFalse(evaluate([condition], reads)[condition.id])
 
     def test_compact_planning_tree_retains_every_schema_default(self):
-        captured = json.loads((ROOT / "tests/fixtures/alpha/a11-rejected-tree.json").read_text(encoding="utf-8"))
+        captured = json.loads((ROOT / "test_data/captures/alpha/a11-rejected-tree.json").read_text(encoding="utf-8"))
         original = TaskTree.model_validate(captured["tree"])
         compact = original.model_dump(mode="json", exclude_defaults=True)
         self.assertEqual(TaskTree.model_validate(compact).model_dump(mode="json"), original.model_dump(mode="json"))
@@ -425,12 +425,12 @@ class CapturedEvidenceTests(unittest.TestCase):
         self.assertEqual(progress_facts(original), progress_facts(changed))
 
     def test_rejected_live_proposal_has_no_matching_parents(self):
-        captured = json.loads((ROOT / "tests/fixtures/alpha/a11-rejected-tree.json").read_text(encoding="utf-8"))
+        captured = json.loads((ROOT / "test_data/captures/alpha/a11-rejected-tree.json").read_text(encoding="utf-8"))
         with self.assertRaisesRegex(ValueError, "exactly one root"):
             validate_tree(TaskTree.model_validate(captured["tree"]))
 
     def test_captured_block_count_mismatch_fails_explicitly(self):
-        captured = json.loads((ROOT / "tests/fixtures/alpha/a11-rejected-block-condition.json").read_text(encoding="utf-8"))
+        captured = json.loads((ROOT / "test_data/captures/alpha/a11-rejected-block-condition.json").read_text(encoding="utf-8"))
         with self.assertRaisesRegex(ValueError, "exact cells"):
             Condition.model_validate(captured["condition"])
 

@@ -11,7 +11,7 @@ Parent: [A13 verification](gameplay-verification.md).
 ## Real M3 procedure
 
 [`dev.work_items.alpha_a13_minecraft_gate.run`][] uses the generic project runner and actual deployment.
-It loads `data/spamuel_agentic_canon.yaml` without changing the seed.
+It loads `test_data/personas/spamuel/canon.yaml` without changing the seed.
 It selects actual `qwen` at `http://127.0.0.1:8080/v1` through `config.alpha.example.yaml`.
 Minecraft uses `C:/source/minecraft-server-real`, Fabric 1.19.4, Babymode 0.5.0, and seed `23452352345`.
 The MCP uses its actual `.venv/Scripts/python.exe` and copied `.env_real` connection values.

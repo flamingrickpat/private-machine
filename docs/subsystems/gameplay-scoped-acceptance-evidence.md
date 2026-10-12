@@ -28,7 +28,7 @@ The cancelled attempt, partial movement, and seventeen certificates remain prese
 
 The workflow now passes the existing caller data through normal leaf dispatch.
 It adds no task-specific runtime rule and changes no acceptance threshold.
-The captured original request, journal, constraint receipt, and audit remain in `tests/fixtures/alpha/a13-caller-actor-context.json`.
+The captured original request, journal, constraint receipt, and audit remain in `test_data/captures/alpha/a13-caller-actor-context.json`.
 The regression checks the original omission and preserves instruction, criteria, caller operands, and source digest during rendering.
 
 Walk targets identify block cells.
@@ -44,7 +44,7 @@ Two subsequent repair actors remained at `(27.5,104,0.85)` throughout their obse
 Neither performed another trip.
 The final native proposal claimed completion and requested root proof restoration with no node updates.
 The workflow incorrectly sent that restoration-only proposal to the node-update merger and stopped with a worker error.
-Original checks, observations, planner input, and proposal remain in `tests/fixtures/alpha/a13-publication-repair.json`.
+Original checks, observations, planner input, and proposal remain in `test_data/captures/alpha/a13-publication-repair.json`.
 
 [`workflows.minecraft_tasks.steps.project_check_context`][] now keeps publication errors and checks separate from replaceable schema feedback.
 Planners, reviewers, and private actors receive this context with the original identity, receipt, and digest.
@@ -61,7 +61,7 @@ The caller wrapper grants this read-only callback to both trusted planner and re
 M3-62 exposed a missing planner grant in the generated manifest.
 Its native request retained the publication failure but still used the old distance operands.
 The operator stopped before another actor; the failed receipt and captured manifest remain preserved.
-The role-grant regression uses `tests/fixtures/alpha/a13-plan-contract-capability.json` and the actual kernel capability boundary.
+The role-grant regression uses `test_data/captures/alpha/a13-plan-contract-capability.json` and the actual kernel capability boundary.
 
 The operator replaced the brittle one-block excursion with a nominal ten-block trip.
 The M3 gate accepts an excursion observation eight to twelve horizontal blocks from the starting home feet position.
@@ -140,7 +140,7 @@ The final recorded call occurred at 00:01:41 UTC on 10 October.
 Later inspection found no owned services or worker; the operator cancelled the stale running control.
 The original incomplete receipt remains unchanged.
 
-The captured boundary is `tests/fixtures/alpha/a13-native-observation-loop.json`.
+The captured boundary is `test_data/captures/alpha/a13-native-observation-loop.json`.
 [`workflows.minecraft.actor.leaf_execution_context`][] now puts current predicate observations beside the exact leaf operands.
 The opening prompt and `inbox/leaf-specification.json` retain the same compact reads, checks, identity, and original digest.
 Historical summaries remain separate.

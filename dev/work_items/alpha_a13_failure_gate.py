@@ -301,7 +301,7 @@ def run(args) -> None:
         for directory in ("runtime", "workflows/minecraft", "workflows/minecraft_tasks")
         for path in (ROOT / directory).rglob("*.py")}
     receipt["sources"][str(Path(__file__).relative_to(ROOT))] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-    receipt["seed_sha256"] = hashlib.sha256((ROOT / "data/spamuel_agentic_canon.yaml").read_bytes()).hexdigest()
+    receipt["seed_sha256"] = hashlib.sha256((ROOT / "test_data/personas/spamuel/canon.yaml").read_bytes()).hexdigest()
     component = ROOT.parent / "pm-minecraft"
     receipt["minecraft_component"] = {
         "repository": str(component),
@@ -368,7 +368,7 @@ def run(args) -> None:
             receipt["restored_fixture"] = str(args.restore_fixture)
             save()
         os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
-        app = build_app(ROOT / "data/spamuel_agentic_canon.yaml", out / "app", cognition="real",
+        app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", cognition="real",
             config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.json", record_lifecycle=False)
         app.supervisor.on_error = lambda error: print(type(error).__name__, str(error), flush=True)
         tools = build_minecraft_tools(stack.mcp_url)
@@ -381,7 +381,7 @@ def run(args) -> None:
             receipt["initial_observation"] = initial["result"]
             schemas = tools["minecraft_tool_schemas"]()
             atomic_json(out / "live-tool-schemas.json", schemas)
-            captured = json.loads((ROOT / "tests/fixtures/alpha/a13-invalid-arguments.json").read_text(encoding="utf-8"))
+            captured = json.loads((ROOT / "test_data/captures/alpha/a13-invalid-arguments.json").read_text(encoding="utf-8"))
             invalid = next(row for entry in captured["journals"] for row in entry["rows"]
                            if row.get("event") == "uncertain")
             before_sequence = gateway.sequence

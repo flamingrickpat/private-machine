@@ -15,7 +15,7 @@ from runtime.models import ConnectionConfig
 
 class ModelContextTests(unittest.TestCase):
     def test_token_fraction_survives_connection_resolution(self):
-        fixture = json.loads((Path(__file__).parent / "fixtures/alpha/a13-context-token-budget.json").read_text(encoding="utf-8"))
+        fixture = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-context-token-budget.json").read_text(encoding="utf-8"))
         self.assertGreater(fixture["original_input_characters"], 120000)
         self.assertEqual(fixture["measurement"]["input_tokens"], 50160)
         self.assertEqual(fixture["measurement"]["context_window"], 131072)

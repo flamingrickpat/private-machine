@@ -75,7 +75,7 @@ reply and does not require it, because public voice is A09's concern.
 ## Foundation and package checks
 
 - Root foundation suite: recorded in `foundation-final.log`.
-- The seed `data/spamuel_agentic_canon.yaml` is unchanged.
+- The seed `test_data/personas/spamuel/canon.yaml` is unchanged.
 - The gate uses a separate checkpoint.
 
 ## Failure and recovery checks

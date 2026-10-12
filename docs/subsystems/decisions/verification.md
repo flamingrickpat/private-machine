@@ -32,7 +32,7 @@ The root and supporting package origins matched their original locks before impl
 
 ## Real inputs and service identity
 
-The primary seed remains `data/spamuel_agentic_canon.yaml`.
+The primary seed remains `test_data/personas/spamuel/canon.yaml`.
 The runner reads its 11,202 records without modifying that source.
 Its SHA-256 remains `0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd`.
 The A01 note report hash is `66d5064a6fce3d5535939ef7853ad3dc176ec016470055692d7fcd5c08a29f77`.

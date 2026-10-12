@@ -39,8 +39,8 @@ from runtime.lifecycle import record_shutdown
 
 import yaml
 
-SEED = ROOT / "data" / "spamuel_agentic_canon.yaml"
-CHEERFUL = ROOT / "tests" / "fixtures" / "alpha" / "cheerful.yaml"
+SEED = ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
+CHEERFUL = ROOT / "test_data" / "personas" / "cheerful" / "config.yaml"
 
 TURNS = [
     ("disappointment",

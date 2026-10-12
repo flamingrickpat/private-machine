@@ -37,7 +37,7 @@ def run(args):
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Keep live publication evidence below .runtime.")
     out.mkdir(parents=True, exist_ok=args.resume)
-    seed = ROOT / "data/spamuel_agentic_canon.yaml"
+    seed = ROOT / "test_data/personas/spamuel/canon.yaml"
     checkpoint = out / "ghost.json"
     receipt = {"item": "A12", "status": "running", "checks": {},
                "canon_sha256": hashlib.sha256(seed.read_bytes()).hexdigest(),

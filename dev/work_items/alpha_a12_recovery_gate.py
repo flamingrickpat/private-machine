@@ -105,7 +105,7 @@ def native_worker(args):
     from runtime.body_lease import atomic_json
     out = args.out.resolve()
     scenario = read(out / "scenario.json")
-    app = build_app(ROOT / "data/spamuel_agentic_canon.yaml", out / "app", cognition="real",
+    app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", cognition="real",
         config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.json", record_lifecycle=False)
     app.supervisor.on_error = lambda error: print(f"Worker error: {type(error).__name__}: {error}", flush=True)
     previous = read(out / "task.json")
@@ -184,7 +184,7 @@ def run(args):
     receipt = {"item": "A12", "status": "running", "started": datetime.now(timezone.utc).isoformat(),
         "server": str(server), "seed": properties["level-seed"], "reset_world": False, "item_grants": False,
         "model": {"url": chat["base_url"], "model": chat["model"], "catalog": catalog},
-        "canon_sha256": hashlib.sha256((ROOT / "data/spamuel_agentic_canon.yaml").read_bytes()).hexdigest(),
+        "canon_sha256": hashlib.sha256((ROOT / "test_data/personas/spamuel/canon.yaml").read_bytes()).hexdigest(),
         "checks": {}, "scenarios": []}
     def save():
         atomic_json(out / "receipt.json", receipt)

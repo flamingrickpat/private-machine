@@ -53,7 +53,7 @@ def run(args) -> None:
     env_path.write_text("\n".join(f"{key}={value}" for key, value in values.items()) + "\n", encoding="utf-8")
     receipt = {"item": "A10", "started": datetime.now(timezone.utc).isoformat(), "server": str(server),
                "reset_world": False, "seed": properties["level-seed"],
-               "source_seed_sha256": hashlib.sha256((ROOT / "data/spamuel_agentic_canon.yaml").read_bytes()).hexdigest(),
+               "source_seed_sha256": hashlib.sha256((ROOT / "test_data/personas/spamuel/canon.yaml").read_bytes()).hexdigest(),
                "status": "running", "checks": {}}
     receipt["source_files_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
         for folder in ("runtime", "workflows/minecraft", "workflows/dialogue_assistant")
@@ -66,7 +66,7 @@ def run(args) -> None:
     try:
         stack.start()
         os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
-        app = build_app(ROOT / "data/spamuel_agentic_canon.yaml", out / "app", cognition="real",
+        app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", cognition="real",
                         config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.json", record_lifecycle=False)
         app.supervisor.on_error = lambda error: print(f"Worker error: {type(error).__name__}: {error}", flush=True)
         task = app.supervisor.start(action_id="a10-five-trees", workflow_name="minecraft",

@@ -83,7 +83,7 @@ Remove-Item Env:PM_MODEL_CONFIG
 ```
 
 The full conversation gate uses `tests.live.test_conversations`.
-The primary companion seed is `data/spamuel_agentic_canon.yaml`, including the real Spamuel/Jesse history.
+The primary companion seed is `test_data/personas/spamuel/canon.yaml`, including the real Spamuel/Jesse history.
 Tiny invented seeds and fixed model responses cannot establish companion acceptance.
 Existing deterministic foundation tests remain useful for their stated contracts.
 

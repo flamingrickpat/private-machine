@@ -148,7 +148,7 @@ class Console:
         self.lock = threading.RLock()
 
     def deploy(self, settings):
-        seed = Path(settings.get("seed") or ROOT / "data/spamuel_agentic_canon.yaml").resolve()
+        seed = Path(settings.get("seed") or ROOT / "test_data/personas/spamuel/canon.yaml").resolve()
         if not seed.is_file():
             raise ValueError("The persona YAML file does not exist.")
         cognition = settings.get("cognition", "real")

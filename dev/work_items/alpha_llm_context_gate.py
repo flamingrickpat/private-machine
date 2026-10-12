@@ -59,7 +59,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=ROOT / "config.alpha.example.yaml")
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--seed", type=Path, default=ROOT / "data/spamuel_agentic_canon.yaml")
+    parser.add_argument("--seed", type=Path, default=ROOT / "test_data/personas/spamuel/canon.yaml")
     parser.add_argument("--report", type=Path, default=REPORT)
     parser.add_argument("--history-tokens", type=int, default=16_000)
     args = parser.parse_args()

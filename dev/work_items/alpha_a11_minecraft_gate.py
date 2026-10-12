@@ -130,7 +130,7 @@ def run(args) -> None:
         "plan_only": args.plan_only, "item_grants": False, "checks": {},
         "decision_generation": decision_generation,
         "runtime_root": str(runtime_root), "checkpoint_path": str(checkpoint), "character_root": str(character),
-        "source_seed_sha256": hashlib.sha256((ROOT / "data/spamuel_agentic_canon.yaml").read_bytes()).hexdigest(),
+        "source_seed_sha256": hashlib.sha256((ROOT / "test_data/personas/spamuel/canon.yaml").read_bytes()).hexdigest(),
         "source_files_sha256": {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
             for folder in ("runtime", "workflows/minecraft", "workflows/minecraft_tasks")
             for path in (ROOT / folder).rglob("*") if path.is_file() and path.suffix in {".py", ".md"}}}
@@ -192,7 +192,7 @@ def run(args) -> None:
             subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(server / "wipe-world.ps1")], check=True)
         stack.start(reset_character=previous is None)
         os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
-        app = build_app(ROOT / "data/spamuel_agentic_canon.yaml", runtime_root, cognition="real",
+        app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", runtime_root, cognition="real",
             config_path=str(args.config.resolve()), checkpoint_path=checkpoint, record_lifecycle=False)
         plan_constraints = getattr(args, "plan_constraints", None)
         project_check = getattr(args, "project_check", None)
@@ -204,7 +204,7 @@ def run(args) -> None:
             def constrained_tools(run_id, environment):
                 tools = dict(factory(run_id, environment))
                 tools["minecraft_evidence_sources"] = lambda: {
-                    "companion_seed": str(ROOT / "data/spamuel_agentic_canon.yaml"),
+                    "companion_seed": str(ROOT / "test_data/personas/spamuel/canon.yaml"),
                     "companion_checkpoint": str(checkpoint)}
                 if decision_generation:
                     tools["minecraft_decision_generation"] = lambda: dict(decision_generation)

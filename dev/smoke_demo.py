@@ -26,7 +26,7 @@ from main import BANNER, build_app
 from bus.envelopes import Envelope, _new_id
 from working_target import FolderTarget, GhostBashWrapper
 
-SEED = ROOT / "data" / "spamuel_agentic_canon.yaml"
+SEED = ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 CHECKS: list[tuple[str, bool]] = []
 

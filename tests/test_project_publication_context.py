@@ -12,7 +12,7 @@ from workflows.minecraft_tasks.schemas import PlanProposal, RevisionProposal, Ta
 from workflows.minecraft_tasks.steps import compact_plan_context, leaf_project_context, project_check_context, revision_candidate
 from workflows.minecraft_tasks.tree import TreeStore, digest
 
-CAPTURE = Path(__file__).parent / "fixtures/alpha/a13-publication-repair.json"
+CAPTURE = Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-publication-repair.json"
 
 
 class PublicationContextTests(unittest.TestCase):

@@ -51,7 +51,7 @@ def main() -> None:
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Store full memory evidence under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
-    seed = ROOT / "data/spamuel_agentic_canon.yaml"
+    seed = ROOT / "test_data/personas/spamuel/canon.yaml"
     seed_sha = hashlib.sha256(seed.read_bytes()).hexdigest()
     ghost = Ghost.from_state(load_ghost_state_from_yaml(seed))
     virtual = GhostBashWrapper(ghost).open("a03")

@@ -55,7 +55,7 @@ def run(args):
     def save():
         (out / "receipt.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
 
-    app = build_app(ROOT / "data/spamuel_agentic_canon.yaml", out / "app", ghost=ghost,
+    app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", ghost=ghost,
                     cognition="real", config_path=args.config, record_lifecycle=False, emit_reply=lambda text: None)
     saved_events = []
     app.bus.subscribe("a09-capture", lambda envelope: True,

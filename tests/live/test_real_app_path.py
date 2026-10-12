@@ -22,7 +22,7 @@ from tests.support import ManualClock, Recorder
 
 from main import build_app
 
-SEED = Path(__file__).resolve().parent.parent.parent / "data" / "spamuel_agentic_canon.yaml"
+SEED = Path(__file__).resolve().parent.parent.parent / "test_data" / "personas" / "spamuel" / "canon.yaml"
 EVIDENCE_ROOT = (
     Path(".runtime/w5/live-app")
     / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8])

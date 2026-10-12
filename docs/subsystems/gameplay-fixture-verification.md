@@ -10,7 +10,7 @@ Parent: [A13 verification](gameplay-verification.md).
 
 ## Captured boundary evidence
 
-`tests/fixtures/alpha/a13-gameplay-results.json` retains original receipts and their source paths.
+`test_data/captures/alpha/a13-gameplay-results.json` retains original receipts and their source paths.
 It includes blocked navigation, an unreachable mining target, missing crafting ingredients, partial construction, and a negative local search.
 The partial construction result reports three placed cells while the action remains unsuccessful.
 The search retains its original bounds and observation time.

@@ -34,7 +34,7 @@ Use the production path, actual services, and real input data to establish behav
 Do not replace a difficult live gate with a fake world, fixed model response, or dummy conversation.
 Do not introduce dummy tests as a substitute for a required live test.
 
-Use `data/spamuel_agentic_canon.yaml` as the primary companion seed.
+Use `test_data/personas/spamuel/canon.yaml` as the primary companion seed.
 It contains the real Spamuel/Jesse history and approximately 11,200 records.
 Do not replace this history with a tiny invented seed to obtain passing companion results.
 Keep the source seed unchanged and use separate runtime checkpoints for experiments.
@@ -45,7 +45,7 @@ Use the same checkpoint for a continuity or restart scenario.
 Preserve transcripts, state changes, task receipts, and observed world effects.
 
 The alpha plan also requires a cheerful comparison persona.
-Its existing fixture is `tests/fixtures/alpha/cheerful.yaml`.
+Its existing fixture is `test_data/personas/cheerful/config.yaml`.
 Keep that control separate from the primary Spamuel acceptance evidence.
 Its small, empty-history seed cannot establish behavior with the real Spamuel history.
 

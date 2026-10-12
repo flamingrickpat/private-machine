@@ -32,14 +32,14 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=False)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", args.port))
-    seed = ROOT / "data/spamuel_agentic_canon.yaml"
+    seed = ROOT / "test_data/personas/spamuel/canon.yaml"
     if args.persona == "cheerful":
         import yaml
         from pm_core.ghost.service import Ghost
         from pm_core.model.ghost_state import GhostConfig
         seed = out / "cheerful-seed.yaml"
         ghost = Ghost(GhostConfig.model_validate(yaml.safe_load(
-            (ROOT / "tests/fixtures/alpha/cheerful.yaml").read_text(encoding="utf-8"))))
+            (ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))))
         seed.write_text(yaml.safe_dump(ghost.state_dict()), encoding="utf-8")
     base = f"http://127.0.0.1:{args.port}"
     log = (out / "server.log").open("w", encoding="utf-8")

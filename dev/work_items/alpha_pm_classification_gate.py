@@ -116,7 +116,7 @@ def main() -> None:
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Keep complete original-history evidence under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
-    seed = ROOT / "data/spamuel_agentic_canon.yaml"
+    seed = ROOT / "test_data/personas/spamuel/canon.yaml"
     seed_before = sha(seed)
     receipt = {"passed": False, "seed_sha256": seed_before, "cases": [], "laya_wiring": "deferred",
                "laya_requests": 0, "human_review": "not rated", "C01_C02": "remain open"}

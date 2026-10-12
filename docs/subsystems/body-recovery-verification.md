@@ -56,7 +56,7 @@ After hard process restart, MCP rejected the earlier active token at epoch 48.
 The replacement used epoch 49 and obtained a fresh body observation.
 The character directory and actual world survived that restart.
 
-`tests/fixtures/alpha/a12-interruptions.json` contains the captured original scenarios.
+`test_data/captures/alpha/a12-interruptions.json` contains the captured original scenarios.
 These records came from real calls, rather than generated routing examples.
 Foundation checks use them to preserve uncertainty and journal parsing behavior.
 The protocol gate does not establish native planner quality or a finished gameplay task.

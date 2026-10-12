@@ -99,5 +99,5 @@ The next probe checked the observed air, floor, and existing furnace.
 Furnace state properties matched an independent server predicate, including its false `lit` value and north orientation.
 Air had no collision boxes, and the solid floor and furnace had full boxes.
 All six read-only checks passed with unchanged position, inventory, and vitals.
-Both original receipts and source digests remain in `tests/fixtures/alpha/a13-block-geometry.json`.
+Both original receipts and source digests remain in `test_data/captures/alpha/a13-block-geometry.json`.
 These results verify observation transport; they do not establish the former door's collision geometry or native entry acceptance.

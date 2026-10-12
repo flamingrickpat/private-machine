@@ -22,7 +22,7 @@ from working_target import FolderEnvironment
 class RecoveryTests(unittest.TestCase):
     def test_captured_continuous_targets_use_observed_integer_cells(self):
         from jsonschema.validators import validator_for
-        capture = json.loads((PROJECT_ROOT / "tests/fixtures/alpha/a13-reconciliation-world-cells.json").read_text(encoding="utf-8"))
+        capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/a13-reconciliation-world-cells.json").read_text(encoding="utf-8"))
         parameters = capture["tool_schema"]["parameters"]
         validator = validator_for(parameters)(parameters)
         self.assertTrue(capture["rejected"])
@@ -38,7 +38,7 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(json.dumps(point, sort_keys=True), original)
 
     def test_captured_negative_positions_use_body_block_coordinates(self):
-        capture = json.loads((PROJECT_ROOT / "tests/fixtures/alpha/a13-reconciliation-world-cells.json").read_text(encoding="utf-8"))
+        capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/a13-reconciliation-world-cells.json").read_text(encoding="utf-8"))
         self.assertTrue(capture["body_cases"])
         for case in capture["body_cases"]:
             camera = case["receipt"]["result"]["camera"]
@@ -46,13 +46,13 @@ class RecoveryTests(unittest.TestCase):
 
     def test_captured_partial_harvests_count_as_one_physical_tree(self):
         from workflows.minecraft.actor import verify_wood_return
-        capture = json.loads((PROJECT_ROOT / "tests/fixtures/alpha/a12-partial-tree.json").read_text())
+        capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/a12-partial-tree.json").read_text())
         verification = verify_wood_return(capture["receipts"], capture["initial"], capture["final"], {"trees": 2})
         self.assertEqual(verification["trees"], 1)
         self.assertFalse(verification["checks"]["five_distinct_trees"])
 
     def test_captured_air_is_a_known_target_after_harvest(self):
-        capture = json.loads((PROJECT_ROOT / "tests/fixtures/alpha/a12-air-inspection.json").read_text())
+        capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/a12-air-inspection.json").read_text())
         receipt = capture["receipt"]
         self.assertFalse(receipt["ok"])
         self.assertTrue(observed_target(receipt, receipt["arguments"]["position"]))
@@ -202,7 +202,7 @@ class RecoveryTests(unittest.TestCase):
             supervisor.update("run", "late")
 
     def test_captured_uncertain_effects_remain_uncertain(self):
-        capture = json.loads((PROJECT_ROOT / "tests/fixtures/alpha/a12-interruptions.json").read_text(encoding="utf-8"))
+        capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/a12-interruptions.json").read_text(encoding="utf-8"))
         for phase in ("in_flight", "after_effect"):
             scenario = next(row for row in capture if row["phase"] == phase)
             self.assertEqual(scenario["reconciliation"]["retained_actions"][0]["outcome"], "uncertain")
@@ -210,7 +210,7 @@ class RecoveryTests(unittest.TestCase):
             self.assertIn("Stale Minecraft body epoch", scenario["rejection"])
 
     def test_a_torn_final_append_does_not_hide_earlier_original_results(self):
-        capture = json.loads((PROJECT_ROOT / "tests/fixtures/alpha/a12-interruptions.json").read_text(encoding="utf-8"))
+        capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/a12-interruptions.json").read_text(encoding="utf-8"))
         original = capture[1]["reconciliation"]["retained_actions"][0]["dispatch"]
         path = self.root / "journal.jsonl"
         path.write_text(json.dumps(original) + '\n{"event":', encoding="utf-8")

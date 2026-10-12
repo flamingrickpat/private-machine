@@ -77,7 +77,7 @@ def main() -> None:
         for key, value in config.chat.items()}, "embedding": {
         key: str(getattr(config.embedding, key)) for key in
         ("base_url", "model", "response_model", "dimensions", "cache_dir", "legacy_cache_dir")}}
-    receipt["personas"] = [digest(ROOT / "data/spamuel_agentic_canon.yaml"), digest(ROOT / "data/config_spamuel.yaml")]
+    receipt["personas"] = [digest(ROOT / "test_data/personas/spamuel/canon.yaml"), digest(ROOT / "test_data/personas/spamuel/config.yaml")]
     receipt["original_brief"] = digest(args.brief)
     (out / "original-brief.md").write_bytes(args.brief.read_bytes())
     receipt["historical_evidence"] = [digest(path) for pattern in

@@ -79,13 +79,13 @@ class ConsoleGate:
         raise TimeoutError("The real console did not reach the required boundary.")
 
     def deploy(self, config, persona, source=None):
-        seed = ROOT / "data/spamuel_agentic_canon.yaml"
+        seed = ROOT / "test_data/personas/spamuel/canon.yaml"
         if persona == "cheerful":
             import yaml
             from pm_core.ghost.service import Ghost
             from pm_core.model.ghost_state import GhostConfig
             seed = self.out / "cheerful-seed.yaml"
-            ghost = Ghost(GhostConfig.model_validate(yaml.safe_load((ROOT / "tests/fixtures/alpha/cheerful.yaml").read_text(encoding="utf-8"))))
+            ghost = Ghost(GhostConfig.model_validate(yaml.safe_load((ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))))
             seed.write_text(yaml.safe_dump(ghost.state_dict(), allow_unicode=True), encoding="utf-8")
         self.instance = self.request("/api/deploy", {"name": f"A09 {persona}", "seed": str(seed),
             "config": str(Path(config).resolve()), "cognition": "real"})["id"]

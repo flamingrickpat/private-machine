@@ -17,7 +17,7 @@ class EvidenceScopeTests(unittest.TestCase):
         import json
         from workflows.minecraft_tasks.steps import caller_plan_constraints
         from workflows.minecraft_tasks.tree import TreeStore, digest
-        capture = json.loads((Path(__file__).parent/'fixtures/alpha/a13-caller-plan-context.json').read_text(encoding='utf-8'))
+        capture = json.loads((Path(__file__).resolve().parents[1] / 'test_data/captures/alpha/a13-caller-plan-context.json').read_text(encoding='utf-8'))
         original_input = json.loads(capture['review_input']['messages'][1]['content'])
         self.assertNotIn('plan_constraints', original_input)
         self.assertEqual(capture['native_review']['status'], 'revise')
@@ -43,7 +43,7 @@ class EvidenceScopeTests(unittest.TestCase):
         import json
         import zlib
         from workflows.minecraft_tasks.tree import TreeStore
-        capture = json.loads((Path(__file__).parent / "fixtures/alpha/a13-scoped-retention.json").read_text())
+        capture = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-scoped-retention.json").read_text())
         files = json.loads(zlib.decompress(base64.b64decode(capture["files_zlib_base64"])))
         with TemporaryDirectory() as folder:
             store = TreeStore(Path(folder))
@@ -69,7 +69,7 @@ class EvidenceScopeTests(unittest.TestCase):
             # Replay that native patch through the ordinary repair boundary.
             from workflows.minecraft_tasks.schemas import RevisionProposal
             from workflows.minecraft_tasks.steps import apply_node_updates
-            conflict = json.loads((Path(__file__).parent / "fixtures/alpha/a13-historical-review-conflict.json").read_text(encoding="utf-8"))
+            conflict = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a13-historical-review-conflict.json").read_text(encoding="utf-8"))
             patch = RevisionProposal.model_validate(conflict["native_patch"])
             self.assertTrue(store.valid(conflict["native_review"]["target_id"]))
             self.assertNotIn(conflict["native_review"]["target_id"], {node.id for node in review_nodes(store)})

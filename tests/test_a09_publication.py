@@ -176,7 +176,7 @@ class PublicationTests(unittest.TestCase):
         self.assertIn("unavailable", self.ghost.get_knoxel_by_id(source.metadata["public_reply_id"]).content)
 
     def test_captured_review_cannot_promote_companion_speech_to_an_event(self):
-        capture = json.loads((Path(__file__).parent / "fixtures/alpha/a09-companion-claim.json").read_text(encoding="utf-8"))
+        capture = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a09-companion-claim.json").read_text(encoding="utf-8"))
         context = build_public_context(self.ghost, {})
         context.evidence = [capture["evidence"]]
         review = ClaimReview.model_validate({"accepted": capture["accepted"], "claims": [capture["claim"]]})
@@ -185,7 +185,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(result.claims[0].status, "unsupported")
 
     def test_captured_review_cannot_verify_unsourced_technical_advice(self):
-        capture = json.loads((Path(__file__).parent / "fixtures/alpha/a09-unsourced-claim.json").read_text(encoding="utf-8"))
+        capture = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a09-unsourced-claim.json").read_text(encoding="utf-8"))
         context = build_public_context(self.ghost, {})
         review = ClaimReview.model_validate({"accepted": capture["accepted"], "claims": [capture["claim"]]})
         result = validate_claim_review(review, capture["claim"]["text"], context)
@@ -193,7 +193,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(result.claims[0].status, "unsupported")
 
     def test_captured_review_cannot_invent_a_missing_report_as_knowledge_state(self):
-        capture = json.loads((Path(__file__).parent / "fixtures/alpha/a09-missing-report.json").read_text(encoding="utf-8"))
+        capture = json.loads((Path(__file__).resolve().parents[1] / "test_data/captures/alpha/a09-missing-report.json").read_text(encoding="utf-8"))
         context = build_public_context(self.ghost, {})
         review = ClaimReview.model_validate(capture["review"])
         result = validate_claim_review(review, capture["candidate"], context)

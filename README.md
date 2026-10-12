@@ -38,7 +38,7 @@ Read the [model guide](docs/models.md) for endpoints, credentials, activation, a
 Keep credentials in the environment or ignored local config files.
 
 The terminal restores `.runtime/ghost.json` when that file exists.
-Otherwise, it loads `data/spamuel_agentic_canon.yaml`.
+Otherwise, it loads `test_data/personas/spamuel/canon.yaml`.
 Accepted changes reach the checkpoint before public output.
 `--checkpoint PATH` selects another checkpoint. `--ephemeral` disables checkpoint storage.
 

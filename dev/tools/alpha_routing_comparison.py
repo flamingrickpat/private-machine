@@ -21,7 +21,7 @@ def main() -> None:
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Store comparison evidence under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
-    fixture = ROOT / "tests/fixtures/alpha/routing-development.json"
+    fixture = ROOT / "test_data/captures/alpha/routing-development.json"
     cases = json.loads(fixture.read_text(encoding="utf-8"))
     from runtime.models import load_config, resolve_connection
     from runtime.model_activation import ChatClient, ModelActivation

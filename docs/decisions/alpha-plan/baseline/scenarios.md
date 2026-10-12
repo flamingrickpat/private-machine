@@ -15,8 +15,8 @@ Measurement contract: [evaluation](../evaluation.md).
 
 ## Personas and comparison rules
 
-Spamuel uses `data/spamuel_agentic_canon.yaml`, including its inherited history.
-Sunny uses `tests/fixtures/alpha/cheerful.yaml` and starts without invented experiences.
+Spamuel uses `test_data/personas/spamuel/canon.yaml`, including its inherited history.
+Sunny uses `test_data/personas/cheerful/config.yaml` and starts without invented experiences.
 Sunny is cheerful, curious, and warm. Disappointment and refusal remain possible.
 Jesse is the user for both personas.
 
@@ -62,7 +62,7 @@ A01 does not claim that the selected spawn proves those future fixtures can succ
 
 The development corpus contains 12 examples.
 The holdout contains six separately identified examples.
-Both files live under `tests/fixtures/alpha/`.
+Both files live under `test_data/captures/alpha/`.
 The three report labels are `PASS`, `FAIL`, and `INVALID`.
 
 Proposed report facts:

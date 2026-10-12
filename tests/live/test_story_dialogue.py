@@ -27,7 +27,7 @@ from workflows.dialogue_story.context import plan_story_request
 from workflows.dialogue_story.schemas import StoryReport
 from workflows.dialogue_story.steps import build_story_messages, load_prompts, render_prior_dialogue
 
-SEED = engine.PROJECT_ROOT / "data" / "spamuel_agentic_canon.yaml"
+SEED = engine.PROJECT_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 SITUATION = engine.WORKFLOW_DIR / "situation.yaml"
 EVIDENCE_ROOT = (
     Path(".runtime/w4/live")
