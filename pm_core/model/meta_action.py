@@ -1,4 +1,4 @@
-from pm_core.model.knoxel_enums import ActionType
+from pm.records.enums import ActionType
 
 ACTION_DESCRIPTIONS = {
     ActionType.Reply: (

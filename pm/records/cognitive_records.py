@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pm_core.model.knoxel_enums import IntentionType
+from pm.records.enums import IntentionType
 
 """
 Additional knoxel types and narrative feature subtype seeds for the companion architecture.
@@ -40,7 +40,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from pm_core.model.knoxel_core import KnoxelBase
+from pm.records.base import KnoxelBase
 
 
 class Intention(KnoxelBase):

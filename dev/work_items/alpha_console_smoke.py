@@ -36,7 +36,7 @@ def main() -> None:
     if args.persona == "cheerful":
         import yaml
         from pm_core.ghost.service import Ghost
-        from pm_core.model.ghost_state import GhostConfig
+        from pm.records.cycle_state import GhostConfig
         seed = out / "cheerful-seed.yaml"
         ghost = Ghost(GhostConfig.model_validate(yaml.safe_load(
             (ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))))

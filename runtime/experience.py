@@ -5,10 +5,10 @@ separately, infers external facts from companion prose, or invents activity.
 """
 from __future__ import annotations
 
-from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature, MemoryClusterKnoxel
-from pm_core.model.knoxel_core import Provenance
-from pm_core.model.knoxel_enums import ClusterType, FeatureType, SourceKind
-from pm_core.model.knoxel_state_change import BeliefKnoxel, BeliefShiftKnoxel
+from pm.records.memory_records import ActionSchemaKnoxel, Feature, MemoryClusterKnoxel
+from pm.records.base import Provenance
+from pm.records.enums import ClusterType, FeatureType, SourceKind
+from pm.records.cognitive_records import BeliefKnoxel, BeliefShiftKnoxel
 
 
 def consolidate_cycle(batch, source_ids: list[int], appraisal: Feature, affect_summary: str) -> list[int]:

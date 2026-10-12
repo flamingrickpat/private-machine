@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import unittest
 
-from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature
-from pm_core.model.knoxel_core import KnoxelType
-from pm_core.model.knoxel_enums import ActionType, FeatureType
+from pm.records.memory_records import ActionSchemaKnoxel, Feature
+from pm.records.base import KnoxelType
+from pm.records.enums import ActionType, FeatureType
 
 from pm.bus.envelopes import Envelope, _new_id
 

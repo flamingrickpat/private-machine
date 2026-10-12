@@ -15,12 +15,12 @@ from modules import _feature, StoryDialogue, _envelope
 from pm_core.ghost.batch import GhostConflict, GhostView
 from pm_core.ghost.memory import index_chunks, excerpt
 from pm_core.ghost.service import Ghost
-from pm_core.model.ghost_state import GhostConfig
-from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature, MemoryClusterKnoxel
-from pm_core.model.knoxel_core import KnoxelScope
-from pm_core.model.knoxel_embodiment import WorldObjectKnoxel
-from pm_core.model.knoxel_enums import ActionType, ClusterType, FeatureType, FrameEnum
-from pm_core.model.knoxel_state_change import BeliefKnoxel
+from pm.records.cycle_state import GhostConfig
+from pm.records.memory_records import ActionSchemaKnoxel, Feature, MemoryClusterKnoxel
+from pm.records.base import KnoxelScope
+from pm.records.world_records import WorldObjectKnoxel
+from pm.records.enums import ActionType, ClusterType, FeatureType, FrameEnum
+from pm.records.cognitive_records import BeliefKnoxel
 from runtime.consolidation import Consolidator
 from runtime.experience import update_beliefs, utterance_metadata
 from workflows.main_cognition.schemas import AppraisalResult, BeliefUpdate

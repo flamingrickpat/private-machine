@@ -10,7 +10,7 @@ import yaml
 from pm_core.ghost.service import Ghost
 from ghost_mcp import build_mcp, build_tools
 from main import build_app
-from pm_core.model.ghost_state import GhostConfig
+from pm.records.cycle_state import GhostConfig
 from pm.host.application import Application, ShellModule
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope

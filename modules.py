@@ -13,13 +13,13 @@ from threading import RLock
 import yaml
 
 from pm_core.model.affect_dynamics import AffectProjection
-from pm_core.model.ghost_state import CycleState
-from pm_core.model.gwt import GwtTurnRecord
-from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature
-from pm_core.model.knoxel_core import Provenance
-from pm_core.model.knoxel_enums import ActionType, FeatureType, InterlocusType, SourceKind
-from pm_core.model.knoxel_state_change import AttentionFrameKnoxel
-from pm_core.model.mental_state_vectors import FullMentalState, create_empty_state
+from pm.records.cycle_state import CycleState
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.memory_records import ActionSchemaKnoxel, Feature
+from pm.records.base import Provenance
+from pm.records.enums import ActionType, FeatureType, InterlocusType, SourceKind
+from pm.records.cognitive_records import AttentionFrameKnoxel
+from pm.records.mental_state import FullMentalState, create_empty_state
 from runtime.experience import consolidate_cycle, update_beliefs, utterance_metadata
 
 from pm.bus.envelopes import Envelope, _new_id

@@ -5,18 +5,14 @@ from typing import (
 
 from pydantic import AliasChoices, Field, PrivateAttr
 
-from pm_core.consts import TIMESTAMP_FORMAT, QUOTE_START, QUOTE_END
-from pm_core.model.knoxel_core import KnoxelBase
-from pm_core.model.knoxel_enums import *
-from pm_core.model.knoxel_taxonomy import (
-    EpistemicStatus,
-    MemoryTaxonomy,
-    MemoryVolatility,
-    RecordStatus,
-    RecordType,
-    TruthStatus,
-)
-from pm_core.model.mental_state_vectors import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
+from pm.records.base import KnoxelBase
+from pm.records.enums import *
+from pm.records.taxonomy import EpistemicStatus, MemoryTaxonomy, MemoryVolatility, RecordStatus, RecordType, TruthStatus
+from pm.records.mental_state import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
+
+QUOTE_START = '"'
+QUOTE_END = '"'
+TIMESTAMP_FORMAT = "%A, %d.%m.%y %H:%M"
 
 
 def _get_owner_entity_id(owner: Any, name: str) -> int | None:

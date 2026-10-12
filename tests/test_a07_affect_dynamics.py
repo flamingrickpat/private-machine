@@ -18,14 +18,10 @@ from pm_core.model.affect_dynamics import (
     personality_gains,
     project_affect,
 )
-from pm_core.model.ghost_state import GhostConfig
-from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature
-from pm_core.model.knoxel_enums import FeatureSubtype, FeatureType
-from pm_core.model.mental_state_vectors import (
-    FullMentalState,
-    create_empty_state,
-    make_personality_profile,
-)
+from pm.records.cycle_state import GhostConfig
+from pm.records.memory_records import ActionSchemaKnoxel, Feature
+from pm.records.enums import FeatureSubtype, FeatureType
+from pm.records.mental_state import FullMentalState, create_empty_state, make_personality_profile
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pm.bus.envelopes import Envelope, _new_id
-from pm_core.model.knoxel_common import ActionSchemaKnoxel
+from pm.records.memory_records import ActionSchemaKnoxel
 from runtime.publication import exchange_record
 
 

@@ -8,8 +8,8 @@ from typing import (
 
 from pydantic import Field
 
-from pm_core.model.knoxel_core import KnoxelBase
-from pm_core.model.knoxel_common import SemanticallyClassifiedKnoxel
+from pm.records.base import KnoxelBase
+from pm.records.memory_records import SemanticallyClassifiedKnoxel
 
 logger = logging.getLogger(__name__)
 

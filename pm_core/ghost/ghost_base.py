@@ -3,40 +3,14 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Type, Any
 
-from pm_core.model.ghost_state import CycleState, GhostConfig
-from pm_core.model.knoxel_codelets import CodeletPercept, Structure
-from pm_core.model.knoxel_common import (
-    Action,
-    CauseEffectKnoxel,
-    DeclarativeFactKnoxel,
-    Entity,
-    Feature,
-    MemoryClusterKnoxel,
-    Narrative,
-    Stimulus,
-)
-from pm_core.model.knoxel_core import KnoxelBase, KnoxelHaver, KnoxelType
-from pm_core.model.knoxel_enums import (
-    ActionType,
-    ClusterType,
-    EntityClass,
-    FeatureSubtype,
-    FeatureType,
-    KnoxelSubtypeBase,
-    NarrativeTypes,
-    StimulusType,
-)
-from pm_core.model.knoxel_graph import ConceptNode, GraphEdge, GraphNode
-from pm_core.model.knoxel_state_change import (
-    AttentionFrameKnoxel,
-    AttentionKnoxel,
-    BeliefKnoxel,
-    BeliefShiftKnoxel,
-    Intention,
-    OntologyBindingKnoxel,
-    OntologyTermKnoxel,
-)
-from pm_core.utils.datetime_utils import get_causal_datetime
+from pm.records.cycle_state import CycleState, GhostConfig
+from pm.records.codelet_records import CodeletPercept, Structure
+from pm.records.memory_records import Action, CauseEffectKnoxel, DeclarativeFactKnoxel, Entity, Feature, MemoryClusterKnoxel, Narrative, Stimulus
+from pm.records.base import KnoxelBase, KnoxelHaver, KnoxelType
+from pm.records.enums import ActionType, ClusterType, EntityClass, FeatureSubtype, FeatureType, KnoxelSubtypeBase, NarrativeTypes, StimulusType
+from pm.records.graph_records import ConceptNode, GraphEdge, GraphNode
+from pm.records.cognitive_records import AttentionFrameKnoxel, AttentionKnoxel, BeliefKnoxel, BeliefShiftKnoxel, Intention, OntologyBindingKnoxel, OntologyTermKnoxel
+from pm.records.base import get_causal_datetime
 
 
 class BaseGhost(KnoxelHaver):

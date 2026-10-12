@@ -20,8 +20,8 @@ from typing import Any
 import yaml
 from pm_workflows.runtime import WorkflowRuntime
 
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType, InterlocusType
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType, InterlocusType
 from pm.llm.activation import ChatClient
 from runtime.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport

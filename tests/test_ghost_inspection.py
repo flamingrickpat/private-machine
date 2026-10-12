@@ -6,9 +6,9 @@ import unittest
 
 from pm_core.ghost.service import Ghost
 from pm_core.embeddings import EmbeddingService
-from pm_core.model.ghost_state import GhostConfig
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType, InterlocusType
+from pm.records.cycle_state import GhostConfig
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType, InterlocusType
 from pm.llm.config import EmbeddingConfig
 
 

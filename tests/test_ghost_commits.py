@@ -7,11 +7,11 @@ from threading import Event
 
 from pm_core.ghost.service import Ghost
 from pm_core.ghost.service import GhostConflict, GhostCancelled
-from pm_core.model.ghost_state import GhostConfig, CycleState
-from pm_core.model.gwt import GwtTurnRecord
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType
-from pm_core.model.knoxel_state_change import AttentionFrameKnoxel
+from pm.records.cycle_state import GhostConfig, CycleState
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType
+from pm.records.cognitive_records import AttentionFrameKnoxel
 from pm_core.persist.dataprovider_yaml import ghost_state_from_dict
 from tests.support import load_seed_state
 

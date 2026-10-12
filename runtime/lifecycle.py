@@ -17,9 +17,9 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_core import Provenance
-from pm_core.model.knoxel_enums import FeatureType, InterlocusType, SourceKind
+from pm.records.memory_records import Feature
+from pm.records.base import Provenance
+from pm.records.enums import FeatureType, InterlocusType, SourceKind
 
 UNCERTAIN_END = "uncertain"
 CLEAN_END = "clean"

@@ -29,17 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-from pm_core.model.mental_state_vectors import (
-    FullMentalState,
-    PersonalityProfile,
-    StateCore,
-    StateEmotions,
-    StateNeeds,
-    compute_attention_bias,
-    compute_state_delta,
-    create_empty_state,
-    parse_personality_profile,
-)
+from pm.records.mental_state import FullMentalState, PersonalityProfile, StateCore, StateEmotions, StateNeeds, compute_attention_bias, compute_state_delta, create_empty_state, parse_personality_profile
 
 # Elapsed-time half-lives in seconds. Fast emotions fade within an hour; core
 # mood and needs hold longer so a short conversation does not erase a mood.

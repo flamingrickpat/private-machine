@@ -208,7 +208,7 @@ class AssistantModuleTests(unittest.TestCase):
         from pm.bus.envelopes import Envelope
         from modules import AssistantDialogue
         from pm_core.ghost.service import Ghost
-        from pm_core.model.ghost_state import GhostConfig
+        from pm.records.cycle_state import GhostConfig
         from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
         from workflows.dialogue_assistant.module_tools import build_assistant_tools
 
@@ -293,7 +293,7 @@ class AssistantModuleTests(unittest.TestCase):
             self.assertEqual(receipts.events[0].payload["status"], "rejected")
             self.assertIn("unsupported management claim", receipts.events[0].payload["rejection_reason"])
             # The rejected candidate stays out of memory. Recovery is public.
-            import pm_core.model.knoxel_enums as enums
+            import pm.records.enums as enums
             dialogue = [k for k in ghost.all_features if k.feature_type == enums.FeatureType.Dialogue]
             self.assertEqual(len(dialogue), 1)
             self.assertEqual(dialogue[0].metadata["recovery_outcome"], "rejected")

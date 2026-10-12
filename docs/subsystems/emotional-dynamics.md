@@ -39,7 +39,7 @@ order:
    core affect next, and needs slowest. Neuroticism slows the decay of negative
    emotions. Self-control steadies the mood.
 3. Apply the canonical appraisal axes. The existing
-   [`pm_core.model.mental_state_vectors.compute_state_delta`][] maps the axes
+   [`pm.records.mental_state.compute_state_delta`][] maps the axes
    to core affect and discrete emotions. The step blends the derived value into
    the current state with one EMA gain.
 4. Apply explicit emotion and need deltas at full weight. An explicit delta is

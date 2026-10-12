@@ -17,7 +17,7 @@ invariant: every taxonomy string round-trips through its enum unchanged; normali
 from enum import StrEnum
 from typing import List, Optional
 
-from pm_core.model.knoxel_enums import KnoxelSubtypeBase
+from pm.records.enums import KnoxelSubtypeBase
 
 
 class RecordType(KnoxelSubtypeBase):

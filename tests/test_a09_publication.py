@@ -13,9 +13,9 @@ from pm.bus.envelopes import Envelope
 from modules import UserInputProxy
 from pm_core.ghost.batch import GhostConflict
 from pm_core.ghost.service import Ghost
-from pm_core.model.ghost_state import GhostConfig
-from pm_core.model.knoxel_common import ActionSchemaKnoxel
-from pm_core.model.knoxel_enums import ActionType
+from pm.records.cycle_state import GhostConfig
+from pm.records.memory_records import ActionSchemaKnoxel
+from pm.records.enums import ActionType
 from runtime.publication import acknowledge_reply, commit_public_reply, exchange_record
 from runtime.reply_recovery import ReplyRecovery, task_evidence
 from runtime.managed_runs import ManagedRunSupervisor

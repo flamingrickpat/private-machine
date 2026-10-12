@@ -1,6 +1,6 @@
 from typing import List, Dict
 
-from pm_core.model.knoxel_enums import NarrativeTypes, FeatureType
+from pm.records.enums import NarrativeTypes, FeatureType
 
 narrative_definitions: List[Dict[str, str]] = []
 base_narrative_prompts = {

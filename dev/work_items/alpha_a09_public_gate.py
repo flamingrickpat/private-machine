@@ -31,8 +31,8 @@ def run(args):
     from main import build_app
     from pm_core.ghost.memory import candidate
     from pm_core.ghost.service import Ghost
-    from pm_core.model.knoxel_common import ActionSchemaKnoxel
-    from pm_core.model.knoxel_enums import ActionType
+    from pm.records.memory_records import ActionSchemaKnoxel
+    from pm.records.enums import ActionType
     from runtime.capabilities import capability_snapshot
     from runtime.publication import exchange_record
     from workflows.public_context import build_public_context

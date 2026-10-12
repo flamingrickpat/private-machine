@@ -24,7 +24,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from pm_core.ghost.service import Ghost
-from pm_core.model.ghost_state import GhostConfig
+from pm.records.cycle_state import GhostConfig
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection

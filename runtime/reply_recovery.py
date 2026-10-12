@@ -7,8 +7,8 @@ import json
 import yaml
 
 from pm.bus.envelopes import Envelope, _new_id
-from pm_core.model.knoxel_common import ActionSchemaKnoxel
-from pm_core.model.knoxel_enums import ActionType
+from pm.records.memory_records import ActionSchemaKnoxel
+from pm.records.enums import ActionType
 from runtime.publication import commit_public_reply, exchange_record, publish_reply
 from pm.host.application import ShellModule
 

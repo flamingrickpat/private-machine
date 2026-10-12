@@ -10,10 +10,10 @@ from copy import deepcopy
 from threading import Event
 from types import MappingProxyType
 
-from pm_core.model.ghost_state import CycleState
-from pm_core.model.gwt import GwtTurnRecord
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_core import KnoxelBase
+from pm.records.cycle_state import CycleState
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.memory_records import Feature
+from pm.records.base import KnoxelBase
 from pm_core.persist.dataprovider_yaml import _deserialize_knoxel, _serialize_knoxel
 
 

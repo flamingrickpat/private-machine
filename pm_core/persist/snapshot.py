@@ -13,7 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm_core.model.gwt import GwtTurnRecord
+from pm.records.global_workspace import GwtTurnRecord
 
 
 class CommitReceipt(BaseModel):

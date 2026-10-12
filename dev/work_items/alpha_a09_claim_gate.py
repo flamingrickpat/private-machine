@@ -33,8 +33,8 @@ def run(args):
     if not all(key in records for key in ids):
         raise ValueError("The captured A08 source records are absent.")
     context = build_public_context(ghost, {"memory_evidence": [candidate(view, key, records[key]) for key in ids]})
-    from pm_core.model.knoxel_common import ActionSchemaKnoxel
-    from pm_core.model.knoxel_enums import ActionType
+    from pm.records.memory_records import ActionSchemaKnoxel
+    from pm.records.enums import ActionType
     changes = ghost.begin_batch("operator-deception-intent")
     action = changes.create(ActionSchemaKnoxel(content="Give a deliberately false codeword as a playful joke.",
         action_type=ActionType.Reply, metadata={"presentation": {"mode": "deceive",

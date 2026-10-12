@@ -19,7 +19,7 @@ from ghost_mcp import build_tools
 from main import build_app
 from modules import SelfManagement
 from pm_core.ghost.service import Ghost
-from pm_core.model.ghost_state import GhostConfig
+from pm.records.cycle_state import GhostConfig
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from runtime.management_tools import build_management_tools
 from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus

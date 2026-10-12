@@ -26,7 +26,7 @@ def run(args):
     from pm.bus.bus import BusSystem
     from main import build_app
     from pm_core.ghost.service import Ghost
-    from pm_core.model.knoxel_common import ActionSchemaKnoxel
+    from pm.records.memory_records import ActionSchemaKnoxel
     from pm.host.durable_files import atomic_json
     from runtime.intents import replay_intents
     from runtime.managed_runs import ManagedRunSupervisor

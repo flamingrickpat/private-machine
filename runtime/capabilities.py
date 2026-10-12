@@ -14,7 +14,7 @@ def capability_snapshot(ghost, workflow_names) -> dict:
     not perception, successful gameplay, or visual interpretation.
     """
     from runtime.operator_services import environment_values
-    from pm_core.model.mental_state_vectors import StateEmotions
+    from pm.records.mental_state import StateEmotions
     values, _ = environment_values()
     url = os.environ.get("MINECRAFT_MCP_URL") or values.get("MINECRAFT_MCP_URL") or "http://127.0.0.1:6767/mcp"
     result = {"status": "disconnected", "endpoint": url, "tools": [],

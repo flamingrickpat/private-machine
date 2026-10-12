@@ -14,8 +14,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType, InterlocusType
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType, InterlocusType
 from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import WorkflowRuntime
 from pm_workflows.working_target import CommandResult

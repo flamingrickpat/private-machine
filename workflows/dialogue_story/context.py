@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 
 from pm_core.embeddings import EmbeddingService
-from pm_core.model.knoxel_enums import FeatureType
+from pm.records.enums import FeatureType
 
 from workflows.dialogue_story.schemas import DialogueTurn, StoryRequest
 
@@ -59,9 +59,9 @@ async def plan_story_request(
 
     from workflows.public_context import build_public_context
     from runtime.capabilities import capability_snapshot
-    from pm_core.model.knoxel_common import Feature
-    from pm_core.model.knoxel_core import Provenance
-    from pm_core.model.knoxel_enums import FeatureType, InterlocusType, SourceKind
+    from pm.records.memory_records import Feature
+    from pm.records.base import Provenance
+    from pm.records.enums import FeatureType, InterlocusType, SourceKind
     from uuid import uuid4
     import asyncio
     # The fixed situation supplies a new user input. Keep that exact input as

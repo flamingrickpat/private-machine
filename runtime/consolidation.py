@@ -22,10 +22,10 @@ from typing import Any, Callable
 
 import yaml
 
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_core import Provenance
-from pm_core.model.knoxel_embodiment import BodyEpisodeKnoxel, WorldObjectKnoxel, WorldPlaceKnoxel
-from pm_core.model.knoxel_enums import FeatureType, InterlocusType, SourceKind
+from pm.records.memory_records import Feature
+from pm.records.base import Provenance
+from pm.records.world_records import BodyEpisodeKnoxel, WorldObjectKnoxel, WorldPlaceKnoxel
+from pm.records.enums import FeatureType, InterlocusType, SourceKind
 
 TEXT_SUFFIXES = frozenset({".md", ".txt", ".yaml", ".yml", ".json"})
 IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})

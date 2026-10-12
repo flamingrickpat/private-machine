@@ -12,8 +12,8 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id

@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import Field
 
-from pm_core.model.knoxel_core import KnoxelBase
+from pm.records.base import KnoxelBase
 
 
 class ExecutableSkillKnoxel(KnoxelBase):

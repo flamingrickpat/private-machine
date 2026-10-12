@@ -13,7 +13,7 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
-from pm_core.model.knoxel_core import KnoxelBase
+from pm.records.base import KnoxelBase
 
 
 class QualeChannelState(BaseModel):

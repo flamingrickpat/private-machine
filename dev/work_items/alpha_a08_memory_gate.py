@@ -130,7 +130,7 @@ def run(args):
             if label == "cheerful":
                 import yaml
                 from pm_core.ghost.service import Ghost
-                from pm_core.model.ghost_state import GhostConfig
+                from pm.records.cycle_state import GhostConfig
                 config = yaml.safe_load((ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))
                 seed = out / "cheerful-seed.yaml"
                 seed.write_text(yaml.safe_dump(Ghost(GhostConfig.model_validate(config)).state_dict(), allow_unicode=True), encoding="utf-8")

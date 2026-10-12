@@ -15,21 +15,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal, Sequence, Optional
 
-from pm_core.model.mental_state_vectors import (
-    AppraisalGeneral,
-    AppraisalSocial,
-    FullMentalState,
-    MentalState,
-    PersonalityProfile,
-    StateCognition,
-    StateCore,
-    StateEmotions,
-    StateExpression,
-    StateExpressionExt,
-    StateNeeds,
-    StateNeurochemical,
-    StateRelationship,
-)
+from pm.records.mental_state import AppraisalGeneral, AppraisalSocial, FullMentalState, MentalState, PersonalityProfile, StateCognition, StateCore, StateEmotions, StateExpression, StateExpressionExt, StateNeeds, StateNeurochemical, StateRelationship
 
 
 Mode = Literal["absolute", "delta"]

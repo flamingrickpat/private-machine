@@ -9,8 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm_core.model.knoxel_common import ActionSchemaKnoxel
-from pm_core.model.knoxel_state_change import OntologyBindingKnoxel, OntologyTermKnoxel
+from pm.records.memory_records import ActionSchemaKnoxel
+from pm.records.cognitive_records import OntologyBindingKnoxel, OntologyTermKnoxel
 from workflows.main_cognition.state_changes import active_goal_texts
 
 
@@ -103,7 +103,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
     regulation = str(metadata.get("regulation") or payload.get("regulation", ""))
     if state is not None:
         from pm_core.model.affect_dynamics import summarize_affect
-        from pm_core.model.mental_state_vectors import FullMentalState
+        from pm.records.mental_state import FullMentalState
         affect = summarize_affect(FullMentalState.init_from_list(state.mental_state_latent_vec))
         current_state = next((raw["data"] for raw in reversed(list(records.values()))
                               if raw["data"].get("tick_id") == state.tick_id
@@ -133,7 +133,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
         "minecraft": {"status": "unknown", "visual_interpretation": False},
     }
     if state is not None:
-        from pm_core.model.mental_state_vectors import FullMentalState
+        from pm.records.mental_state import FullMentalState
         domain_capabilities["emotion_state"] = FullMentalState.init_from_list(state.mental_state_latent_vec).state_emotions.model_dump()
     rendered_ids = {item["knoxel_id"] for item in originals}
     domain_capabilities["evidence_limit"] = {"records": 48, "record_characters": 1200,

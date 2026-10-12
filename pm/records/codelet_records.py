@@ -13,8 +13,8 @@ from typing import List, Union
 
 from pydantic import BaseModel, Field, JsonValue
 
-from pm_core.model.knoxel_core import KnoxelBase
-from pm_core.model.mental_state_vectors import FullMentalState, MentalState, VectorModelReservedSize, create_empty_ms_vector
+from pm.records.base import KnoxelBase
+from pm.records.mental_state import FullMentalState, MentalState, VectorModelReservedSize, create_empty_ms_vector
 
 def _coerce_full_mental_state(value) -> FullMentalState:
     if isinstance(value, FullMentalState):

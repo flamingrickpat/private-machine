@@ -16,9 +16,9 @@ from uuid import uuid4
 from pm_core.ghost.batch import GhostCancelled, GhostConflict, GhostView, GhostWriteBatch
 from pm_core.ghost.ghost_base import BaseGhost
 from pm_core.ghost.references import check_references
-from pm_core.model.ghost_state import CycleStateModel, GhostConfig
-from pm_core.model.gwt import GwtTurnRecord
-from pm_core.model.knoxel_core import KnoxelBase
+from pm.records.cycle_state import CycleStateModel, GhostConfig
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.base import KnoxelBase
 from pm_core.persist.dataprovider_yaml import (
     _deserialize_knoxel, _serialize_knoxel, ghost_state_from_dict, load_ghost_state_from_yaml,
 )
@@ -67,8 +67,8 @@ class Ghost(BaseGhost):
         path = Path(path)
         ghost = cls.from_state(load_ghost_state_from_yaml(path), checkpoint=checkpoint)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        from pm_core.model.knoxel_core import Provenance
-        from pm_core.model.knoxel_enums import SourceKind
+        from pm.records.base import Provenance
+        from pm.records.enums import SourceKind
         for record in ghost._all_knoxels.values():
             record.metadata = {**record.metadata, "memory_kind": "background",
                                "seed_sha256": digest, "seed_source": str(path.resolve()),

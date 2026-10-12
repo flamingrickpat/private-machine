@@ -18,8 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType, InterlocusType
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType, InterlocusType
 
 from pm.bus.envelopes import Envelope, _new_id
 from main import build_app

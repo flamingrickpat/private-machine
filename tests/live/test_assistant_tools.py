@@ -19,7 +19,7 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from modules import AssistantDialogue
 from pm_core.ghost.service import Ghost
-from pm_core.model.ghost_state import GhostConfig
+from pm.records.cycle_state import GhostConfig
 from pm.llm.stage_model import LazyStageModel
 from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
 from pm.llm.activation import ModelActivation

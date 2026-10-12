@@ -6,9 +6,9 @@ from functools import cache
 import tempfile
 from pathlib import Path
 
-from pm_core.model.gwt import GwtTurnRecord
-from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature
-from pm_core.model.knoxel_enums import ActionType, FeatureType, InterlocusType
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.memory_records import ActionSchemaKnoxel, Feature
+from pm.records.enums import ActionType, FeatureType, InterlocusType
 from pm_core.persist.dataprovider_yaml import (
     ghost_state_from_dict,
     ghost_state_to_dict,

@@ -6,8 +6,8 @@ from threading import Barrier
 import unittest
 
 from pm_core.ghost.service import Ghost, GhostConflict
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType
 from tests.test_ghost_commits import small_ghost
 
 

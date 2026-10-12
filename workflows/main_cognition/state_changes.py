@@ -17,17 +17,11 @@ from __future__ import annotations
 import re
 
 from pm_core.model.affect_dynamics import AffectProjection, project_affect
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_core import Provenance
-from pm_core.model.knoxel_enums import (
-    FeatureSubtype,
-    FeatureType,
-    InterlocusType,
-    IntentionType,
-    SourceKind,
-)
-from pm_core.model.knoxel_state_change import Intention
-from pm_core.model.mental_state_vectors import FullMentalState
+from pm.records.memory_records import Feature
+from pm.records.base import Provenance
+from pm.records.enums import FeatureSubtype, FeatureType, InterlocusType, IntentionType, SourceKind
+from pm.records.cognitive_records import Intention
+from pm.records.mental_state import FullMentalState
 
 
 def _clamp01(value: float) -> float:

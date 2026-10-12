@@ -3,9 +3,9 @@ from typing import Dict, Any, List, Optional
 
 from pydantic import AliasChoices, BaseModel, Field, PrivateAttr, SerializeAsAny
 
-from pm_core.model.knoxel_core import KnoxelBase
-from pm_core.model.mental_state_vectors import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
-from pm_core.model.needs_state_vectors import NeedsAxesModel, CognitionAxesModel
+from pm.records.base import KnoxelBase
+from pm.records.mental_state import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
+from pm.records.needs_axes import NeedsAxesModel, CognitionAxesModel
 
 
 def _coerce_full_mental_state(value: FullMentalState | List[float] | dict) -> FullMentalState:

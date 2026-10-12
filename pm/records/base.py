@@ -20,10 +20,24 @@ from typing import (
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-from pm_core.model.knoxel_enums import FrameEnum, KnoxelSubtypeBase, NoSubtype, SourceKind
-from pm_core.utils.datetime_utils import get_causal_datetime
+from pm.records.enums import FrameEnum, KnoxelSubtypeBase, NoSubtype, SourceKind
 
 logger = logging.getLogger(__name__)
+
+
+def get_causal_datetime() -> datetime:
+    """
+    Return real datetime now in UTC, or get from test infrastructure for dry runs.
+    For when simulating past (not implemented yet)
+    """
+    return datetime.utcnow()
+
+
+def get_real_datetime() -> datetime:
+    """
+    Real world time, for system.
+    """
+    return datetime.utcnow()
 
 # Sentinel reality id meaning "the real world" until a bootstrap/converter
 # materializes the actual RealityKnoxel and rewrites default scopes.

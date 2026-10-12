@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from pm_core.model.ghost_state import GhostConfig
+from pm.records.cycle_state import GhostConfig
 from pm_core.ghost.service import Ghost
 from runtime.managed_runs import (
     ManagedRunError,

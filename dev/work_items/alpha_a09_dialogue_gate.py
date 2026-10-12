@@ -83,7 +83,7 @@ class ConsoleGate:
         if persona == "cheerful":
             import yaml
             from pm_core.ghost.service import Ghost
-            from pm_core.model.ghost_state import GhostConfig
+            from pm.records.cycle_state import GhostConfig
             seed = self.out / "cheerful-seed.yaml"
             ghost = Ghost(GhostConfig.model_validate(yaml.safe_load((ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))))
             seed.write_text(yaml.safe_dump(ghost.state_dict(), allow_unicode=True), encoding="utf-8")

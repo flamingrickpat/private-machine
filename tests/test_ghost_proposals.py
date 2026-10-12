@@ -8,9 +8,9 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from pm_core.ghost.service import Ghost
 from ghost_mcp import build_tools
-from pm_core.model.ghost_state import GhostConfig
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType
+from pm.records.cycle_state import GhostConfig
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType
 from pm_core.persist.dataprovider_yaml import _serialize_knoxel
 from pm.memory.bash_view import GhostBashEnvironment, GhostBashWrapper
 from pm.host.workflow_module import ShellModuleWorkflow

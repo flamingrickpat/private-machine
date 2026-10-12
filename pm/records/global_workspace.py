@@ -22,9 +22,9 @@ from typing import Any, Dict, List, Optional
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm_core.model.knoxel_core import KnoxelScope, Provenance
-from pm_core.model.knoxel_enums import SourceKind
-from pm_core.model.knoxel_state_change import AttentionFrameKnoxel
+from pm.records.base import KnoxelScope, Provenance
+from pm.records.enums import SourceKind
+from pm.records.cognitive_records import AttentionFrameKnoxel
 
 GWT_TURN_SCHEMA = "pm.gwt-turn.v1"
 

@@ -10,16 +10,16 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureSubtype, FeatureType, SourceKind
-from pm_core.model.mental_state_vectors import FullMentalState
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureSubtype, FeatureType, SourceKind
+from pm.records.mental_state import FullMentalState
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
 from modules import InnerThoughtLoop, MainCogLoop, _feature
 from pm_core.ghost.batch import GhostConflict
 from pm_core.ghost.service import Ghost
-from pm_core.model.ghost_state import GhostConfig
+from pm.records.cycle_state import GhostConfig
 from runtime.lifecycle import CLEAN_END, UNCERTAIN_END, record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
 from pm.host.workflow_module import PROJECT_ROOT
@@ -204,8 +204,8 @@ class GoalLifecycleTests(unittest.TestCase):
 
     def test_old_intention_without_key_resolves_by_text(self):
         ghost = _small_ghost()
-        from pm_core.model.knoxel_enums import IntentionType
-        from pm_core.model.knoxel_state_change import Intention
+        from pm.records.enums import IntentionType
+        from pm.records.cognitive_records import Intention
         stored = ghost.store_knoxel(Intention(
             content="build a house", entity_id=0, affective_valence=0.0,
             intention_type=IntentionType.WorldState,
@@ -225,8 +225,8 @@ class GoalLifecycleTests(unittest.TestCase):
         self.assertEqual(ghost.all_intentions, [])
 
     def test_stale_batch_does_not_partly_apply_affect_or_goals(self):
-        from pm_core.model.knoxel_enums import IntentionType
-        from pm_core.model.knoxel_state_change import Intention
+        from pm.records.enums import IntentionType
+        from pm.records.cognitive_records import Intention
         from workflows.main_cognition.schemas import AppraisalResult, GoalChange
         from workflows.main_cognition.state_changes import apply_appraisal, apply_goal_changes
 

@@ -5,41 +5,15 @@ from typing import Any, Dict, Type
 
 import yaml
 
-from pm_core.model.ghost_state import CycleStateModel
-from pm_core.model.knoxel_core import KnoxelBase
-from pm_core.model.knoxel_common import (
-    Action,
-    ActionSchemaKnoxel,
-    CauseEffectKnoxel,
-    CoversTicksEventsKnoxel,
-    DeclarativeFactKnoxel,
-    Entity,
-    Feature,
-    MemoryClusterKnoxel,
-    Narrative,
-    RealityKnoxel,
-    SemanticRecordKnoxel,
-    Stimulus,
-)
-from pm_core.model.knoxel_codelets import CodeletPercept, Structure
-from pm_core.model.knoxel_codelets import ModuleOutput
-from pm_core.model.knoxel_embodiment import (
-    BodyEpisodeKnoxel,
-    ExecutableSkillKnoxel,
-    WorldObjectKnoxel,
-    WorldPlaceKnoxel,
-)
-from pm_core.model.knoxel_graph import ConceptNode, GraphEdge, GraphNode
-from pm_core.model.knoxel_qualia import QualeKnoxel
-from pm_core.model.knoxel_state_change import (
-    AttentionFrameKnoxel,
-    AttentionKnoxel,
-    BeliefKnoxel,
-    BeliefShiftKnoxel,
-    Intention,
-    OntologyBindingKnoxel,
-    OntologyTermKnoxel,
-)
+from pm.records.cycle_state import CycleStateModel
+from pm.records.base import KnoxelBase
+from pm.records.memory_records import Action, ActionSchemaKnoxel, CauseEffectKnoxel, CoversTicksEventsKnoxel, DeclarativeFactKnoxel, Entity, Feature, MemoryClusterKnoxel, Narrative, RealityKnoxel, SemanticRecordKnoxel, Stimulus
+from pm.records.codelet_records import CodeletPercept, Structure
+from pm.records.codelet_records import ModuleOutput
+from pm.records.world_records import BodyEpisodeKnoxel, ExecutableSkillKnoxel, WorldObjectKnoxel, WorldPlaceKnoxel
+from pm.records.graph_records import ConceptNode, GraphEdge, GraphNode
+from pm.records.qualia_records import QualeKnoxel
+from pm.records.cognitive_records import AttentionFrameKnoxel, AttentionKnoxel, BeliefKnoxel, BeliefShiftKnoxel, Intention, OntologyBindingKnoxel, OntologyTermKnoxel
 
 KNOXEL_TYPE_REGISTRY: Dict[str, Type[KnoxelBase]] = {
     cls.__name__: cls

@@ -22,8 +22,8 @@ def run(args) -> None:
     """Own the real stack, retain failures, and inspect actual actor effects."""
     from main import build_app, _cognition_workflow_options
     from pm.bus.envelopes import Envelope, _new_id
-    from pm_core.model.knoxel_common import ActionSchemaKnoxel
-    from pm_core.model.knoxel_enums import ActionType
+    from pm.records.memory_records import ActionSchemaKnoxel
+    from pm.records.enums import ActionType
     from runtime.body_lease import BODY_LEASES
     from runtime.minecraft_actor import READ_TOOLS
     from runtime.publication import exchange_record
