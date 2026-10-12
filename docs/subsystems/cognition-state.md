@@ -97,11 +97,11 @@ durable identity.
 
 ## Lifecycle evidence
 
-[`runtime.lifecycle.record_startup`][] writes one `SystemMessage` Feature.
+[`pm.app.lifecycle_records.record_startup`][] writes one `SystemMessage` Feature.
 The Feature records the boot identity, the last known activity, and the gap.
 When a clean shutdown exists, the gap text says so.
 When no clean shutdown exists, the gap is uncertain.
-[`runtime.lifecycle.record_shutdown`][] writes the clean shutdown event.
+[`pm.app.lifecycle_records.record_shutdown`][] writes the clean shutdown event.
 [`modules.MainCogLoop.on_terminate`][] calls it on a normal stop.
 An abrupt exit never reaches that hook.
 The next startup then reports an uncertain end interval.

@@ -27,7 +27,7 @@ def run(args) -> None:
     from runtime.body_lease import BODY_LEASES
     from runtime.minecraft_actor import READ_TOOLS
     from runtime.publication import exchange_record
-    from runtime.workflow_runner import WorkflowRunner, WorkflowRequest
+    from pm.runs.workflow_runner import WorkflowRunner, WorkflowRequest
     from pm_workflows.runtime import WorkflowRuntime
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file

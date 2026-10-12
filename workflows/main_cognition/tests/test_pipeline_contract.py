@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from pm_workflows.runtime import WorkflowRuntime
-from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.main_cognition.dispatch import resolve_dispatches, resolve_same_cycle
 from workflows.main_cognition.pipeline import STAGE_ORDER, run_cycle, stable_action_id
 from workflows.main_cognition.schemas import ActionDispatch, CognitiveReport

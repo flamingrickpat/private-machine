@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Callable
 
 from pm.memory.store_tools import build_mcp, build_tools
-from runtime.management_tools import build_management_tools, management_mcp
+from pm.runs.management_api import build_management_tools, management_mcp
 
 
 def build_assistant_tools(model, supervisor) -> Callable[[object, object], dict]:

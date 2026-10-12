@@ -26,7 +26,7 @@ from pm.records.mental_state import FullMentalState, create_empty_state, make_pe
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
 from modules import MainCogLoop
-from runtime.lifecycle import record_shutdown, record_startup
+from pm.app.lifecycle_records import record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
 from pm.host.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.schemas import AppraisalResult

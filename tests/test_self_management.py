@@ -20,9 +20,9 @@ from main import build_app
 from modules import SelfManagement
 from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
-from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
-from runtime.management_tools import build_management_tools
-from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
+from pm.runs.management_api import build_management_tools
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from tests.support import Recorder
 from workflows.self_management.schemas import SelfManagementReport
 from pm.memory.bash_view import GhostBashEnvironment
@@ -183,7 +183,7 @@ class SelfManagementModuleTests(unittest.TestCase):
 class ManagementMcpTests(unittest.TestCase):
     def test_management_operations_are_reachable_over_real_mcp(self):
         from fastmcp import Client
-        from runtime.management_tools import management_mcp
+        from pm.runs.management_api import management_mcp
         from pm.host.mcp_listeners import serve_services
 
         with TemporaryDirectory() as tmp:

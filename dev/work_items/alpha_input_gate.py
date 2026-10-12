@@ -26,7 +26,7 @@ from pm.memory.store import Ghost
 from pm.memory.yaml_codec import load_ghost_state_from_yaml
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
 from pm.memory.bash_view import GhostBashWrapper
 

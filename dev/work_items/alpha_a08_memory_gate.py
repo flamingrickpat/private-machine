@@ -33,7 +33,7 @@ def run(args):
         probe.bind(("127.0.0.1", args.port))
     base = f"http://127.0.0.1:{args.port}"
     log = (out / "server.log").open("w", encoding="utf-8")
-    process = subprocess.Popen([sys.executable, "-u", "-m", "console.server", "--port", str(args.port),
+    process = subprocess.Popen([sys.executable, "-u", "-m", "pm.console.server", "--port", str(args.port),
         "--root", str(out / "instances")], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
     receipt = {"ok": False, "personas": [], "failures": [], "human_review": "pending"}

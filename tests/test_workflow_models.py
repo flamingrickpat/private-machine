@@ -12,7 +12,7 @@ from pm_workflows.runtime import WorkflowRuntime, WorkflowTerminated
 from pm.llm.activation import ModelActivation
 from pm.llm.config import ConnectionConfig, load_config
 from pm.llm.workflow_sessions import WorkflowModels
-from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
 
 

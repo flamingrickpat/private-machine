@@ -62,4 +62,4 @@ Startup, snapshots, and durable commits can take substantial time with this seed
 
 ## Go deeper
 
-Read [next experiments](../experiments.md), [plan status](../plan.md), and [`console.server.Instance`][].
+Read [next experiments](../experiments.md), [plan status](../plan.md), and [`pm.console.server.Instance`][].

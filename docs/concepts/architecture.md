@@ -42,14 +42,14 @@ Managed tasks can overlap dialogue.
 
 | Owner | State | Boundary |
 | --- | --- | --- |
-| HTTP service | Instance definitions, process handles, event cursor | [`console.server.Console`][] |
-| Worker | Application, trace hooks, pending exchange | [`console.worker.run`][] |
+| HTTP service | Instance definitions, process handles, event cursor | [`pm.console.server.Console`][] |
+| Worker | Application, trace hooks, pending exchange | [`pm.console.worker.run`][] |
 | Application | Module lifecycle and first error | [`pm.host.application.Application`][] |
 | Bus | Subscriptions and serialized fan-out | [`pm.bus.bus.BusSystem`][] |
 | Module | Private inbox and active invocation | [`pm.host.application.ShellModule`][] |
 | Ghost | Memory, revisions, GWT, receipts | [`pm.memory.store.Ghost`][] |
-| Kernel runner | One workflow invocation and artifacts | [`runtime.workflow_runner.WorkflowRunner`][] |
-| Supervisor | Managed-run lifecycle | [`runtime.managed_runs.ManagedRunSupervisor`][] |
+| Kernel runner | One workflow invocation and artifacts | [`pm.runs.workflow_runner.WorkflowRunner`][] |
+| Supervisor | Managed-run lifecycle | [`pm.runs.supervisor.ManagedRunSupervisor`][] |
 
 ## Traps
 

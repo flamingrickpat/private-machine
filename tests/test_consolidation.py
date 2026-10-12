@@ -16,8 +16,8 @@ from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from pm.records.enums import FeatureType
 from runtime.consolidation import Consolidator
-from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
-from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.memory_consolidation.schemas import ConsolidationReport
 from pm.memory.bash_view import GhostBashEnvironment
 

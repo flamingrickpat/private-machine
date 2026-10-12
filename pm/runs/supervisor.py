@@ -23,13 +23,7 @@ from typing import Any, Callable, Mapping
 
 from pm_workflows.runtime import WorkflowRuntime
 
-from runtime.workflow_runner import (
-    PROJECT_ROOT,
-    WorkflowRequest,
-    WorkflowResult,
-    WorkflowRunner,
-    WorkflowStatus,
-)
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.host.durable_files import ProcessLock, BodyBusy, atomic_json, read_json

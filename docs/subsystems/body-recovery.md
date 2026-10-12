@@ -12,7 +12,7 @@ Details: [body leases](body-leases.md), [publication recovery](recovery-publicat
 
 ## Control path
 
-[`runtime.managed_runs.ManagedRunSupervisor.resume`][] accepts `interrupted`, `cancelled`, and `failed` body runs.
+[`pm.runs.supervisor.ManagedRunSupervisor.resume`][] accepts `interrupted`, `cancelled`, and `failed` body runs.
 It supports `minecraft` and `minecraft_project`.
 It rejects a running worker, incomplete cleanup, or an unavailable worker lock.
 It preserves `run_id`, `action_id`, arguments, instruction revision, and artifact paths.
@@ -52,7 +52,7 @@ app.supervisor.update(run_id, instructions, request_id="instruction-2")
 app.supervisor.terminate(run_id, request_id="operator-cancel-1")
 ```
 
-[`runtime.management_tools.build_management_tools`][] exposes `managed_resume` through the management MCP.
+[`pm.runs.management_api.build_management_tools`][] exposes `managed_resume` through the management MCP.
 [`runtime.steward.Steward.resume`][] uses the same domain after explicit steward activation.
 SelfManagement accepts `operation: resume` through normal selected actions.
 It uses the selected action ID as the default idempotency key.

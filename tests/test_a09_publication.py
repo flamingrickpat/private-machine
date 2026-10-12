@@ -18,7 +18,7 @@ from pm.records.memory_records import ActionSchemaKnoxel
 from pm.records.enums import ActionType
 from runtime.publication import acknowledge_reply, commit_public_reply, exchange_record
 from runtime.reply_recovery import ReplyRecovery, task_evidence
-from runtime.managed_runs import ManagedRunSupervisor
+from pm.runs.supervisor import ManagedRunSupervisor
 from workflows.public_context import build_public_context
 from workflows.public_claims import ClaimReview, validate_claim_review
 

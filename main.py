@@ -34,7 +34,7 @@ from modules import (
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
 from runtime.consolidation import Consolidator
-from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
+from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from pm.host.application import Application
 from runtime.steward import Steward
 from pm.llm.workflow_sessions import WorkflowModels
@@ -381,7 +381,7 @@ def build_app(
     # Durable lifecycle evidence. The boot event feeds the first main cycle so
     # the companion can appraise a real offline gap. Only real cognition runs
     # that cycle, so the dummy fixture records the event without a stimulus.
-    from runtime.lifecycle import record_startup
+    from pm.app.lifecycle_records import record_startup
     boot = record_startup(ghost) if record_lifecycle else None
     app.lifecycle_boot = boot
     if cognition == "real":

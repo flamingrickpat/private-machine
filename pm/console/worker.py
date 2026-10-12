@@ -13,7 +13,7 @@ from uuid import uuid4
 
 from main import build_app
 from pm.memory.yaml_codec import _deserialize_knoxel
-from runtime.workflow_runner import WorkflowRunner
+from pm.runs.workflow_runner import WorkflowRunner
 from pm.llm.activation import ChatClient
 
 
@@ -79,7 +79,7 @@ def run(settings: dict, root: Path) -> None:
             raise
 
     ChatClient.complete = complete
-    from runtime.operator_services import operator_config
+    from pm.app.operator_config import operator_config
     model_config, environment, _ = operator_config(settings.get("config") or None)
     import os
     os.environ.setdefault("MINECRAFT_MCP_URL", environment.get("MINECRAFT_MCP_URL") or

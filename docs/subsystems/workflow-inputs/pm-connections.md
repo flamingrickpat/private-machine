@@ -21,8 +21,8 @@ Construction resolves credentials once and performs no network request.
 The lazy cognitive model reuses that owner's ready alias, including during an active classification lease.
 It rechecks ownership before each client use after an application-owned model switch.
 
-Shell modules pass this provider to [`runtime.workflow_runner.WorkflowRunner`][].
-[`runtime.managed_runs.ManagedRunSupervisor`][] supplies it to managed workers.
+Shell modules pass this provider to [`pm.runs.workflow_runner.WorkflowRunner`][].
+[`pm.runs.supervisor.ManagedRunSupervisor`][] supplies it to managed workers.
 The synchronous runner also accepts `models` directly for debugger use.
 An injected custom stage model needs an explicit `workflow_models` provider when its workflows use classification.
 Other custom stage models need no additional configuration.

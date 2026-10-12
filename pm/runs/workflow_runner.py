@@ -16,9 +16,10 @@ from pm.llm.workflow_sessions import WorkflowModels
 import yaml
 from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import WorkflowRuntime
+from pm.paths import REPO_ROOT
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = REPO_ROOT
 
 
 class WorkflowStatus(StrEnum):

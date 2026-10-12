@@ -826,7 +826,7 @@ class MainCogLoop(CognitiveWorkflow):
         An abrupt process exit never reaches this hook, so its next startup
         records an uncertain end interval instead of a clean timestamp.
         """
-        from runtime.lifecycle import record_shutdown
+        from pm.app.lifecycle_records import record_shutdown
         record_shutdown(self.ghost)
 
 

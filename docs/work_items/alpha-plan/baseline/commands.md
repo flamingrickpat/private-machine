@@ -87,7 +87,7 @@ Task dispatch and reply quality remain observed outcomes in those receipts.
 For direct operator inspection:
 
 ```powershell
-uv run --locked python -m console.server --root .runtime/alpha/a01/console-spamuel-dialogue/instances
+uv run --locked python -m pm.console.server --root .runtime/alpha/a01/console-spamuel-dialogue/instances
 ```
 
 Open `http://127.0.0.1:8090` and start the recorded instance.

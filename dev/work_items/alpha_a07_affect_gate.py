@@ -36,7 +36,7 @@ from main import build_app
 from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from pm.records.mental_state import FullMentalState
-from runtime.lifecycle import record_shutdown
+from pm.app.lifecycle_records import record_shutdown
 
 import yaml
 

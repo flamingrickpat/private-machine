@@ -15,8 +15,9 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 from uuid import uuid4
+from pm.paths import REPO_ROOT
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = REPO_ROOT
 
 
 class Instance:
@@ -82,7 +83,7 @@ class Instance:
             error_log = (self.root / "worker.log").open("a", encoding="utf-8")
             try:
                 self.process = subprocess.Popen(
-                    [sys.executable, "-u", "-m", "console.worker", str(self.root / "instance.json")],
+                    [sys.executable, "-u", "-m", "pm.console.worker", str(self.root / "instance.json")],
                     cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=error_log,
                     text=True, encoding="utf-8", bufsize=1,
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
@@ -211,7 +212,7 @@ def serve(root: Path, port: int = 8090):
                 filename = assets.get(path.path)
                 if filename is None:
                     return self.respond({"error": "Unknown path."}, 404)
-                data = (ROOT / "console/static" / filename).read_bytes()
+                data = (ROOT / "pm/console/static" / filename).read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", {"html": "text/html", "js": "text/javascript", "css": "text/css"}[filename.split(".")[-1]] + "; charset=utf-8")
                 self.send_header("Content-Length", str(len(data)))
@@ -248,7 +249,7 @@ def serve(root: Path, port: int = 8090):
                         subprocess.Popen([editor, str(path)], creationflags=subprocess.CREATE_NO_WINDOW)
                     return self.respond({"opened": str(path)})
                 if self.path == "/api/connections":
-                    from runtime.operator_services import connection_status
+                    from pm.app.operator_config import connection_status
                     instance = console.instances[command["instance"]]
                     return self.respond(asyncio.run(connection_status(instance.settings.get("config") or None)))
                 if self.path == "/api/deploy":

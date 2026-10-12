@@ -30,7 +30,7 @@ class ConsoleGate:
             probe.bind(("127.0.0.1", port))
         self.base = f"http://127.0.0.1:{port}"
         self.log = (self.out / "server.log").open("w", encoding="utf-8")
-        self.process = subprocess.Popen([sys.executable, "-u", "-m", "console.server", "--port", str(port),
+        self.process = subprocess.Popen([sys.executable, "-u", "-m", "pm.console.server", "--port", str(port),
             "--root", str(self.out / "instances")], cwd=ROOT, stdout=self.log, stderr=subprocess.STDOUT,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
         self.instance = None

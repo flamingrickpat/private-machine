@@ -75,7 +75,7 @@ Nonfinite numbers, foreign objects, and nonstring mapping keys fail JSON validat
 
 `request` uses the existing dotted expansion convention.
 For example, `task.items.0.id` selects a field from the first item.
-[`runtime.workflow_runner.WorkflowRunner.invoke`][] supplies its original payload through `Kernel.request_data`.
+[`pm.runs.workflow_runner.WorkflowRunner.invoke`][] supplies its original payload through `Kernel.request_data`.
 A child receives only the explicitly resolved child input mapping as its request data.
 The kernel snapshots that mapping at construction.
 

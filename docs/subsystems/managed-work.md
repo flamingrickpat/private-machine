@@ -8,7 +8,7 @@ Progress and terminal artifacts enter accepted memory through consolidation.
 The steward stays dormant until explicit activation.
 
 Parent: [system map](../concepts/architecture.md).
-API: [`runtime.managed_runs.ManagedRunSupervisor`][].
+API: [`pm.runs.supervisor.ManagedRunSupervisor`][].
 
 ## Input, change, and output
 

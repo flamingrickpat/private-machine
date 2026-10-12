@@ -27,7 +27,7 @@ The coding workflow demonstrates reviewed task trees.
 These boundaries should remain.
 
 Current construction lives in [`main.build_app`][].
-Managed-run configuration uses [`runtime.managed_runs.WorkflowSpec`][].
+Managed-run configuration uses [`pm.runs.supervisor.WorkflowSpec`][].
 The cognitive parent contract is [`workflows.main_cognition.schemas.CognitiveReport`][].
 
 ## Observed gaps

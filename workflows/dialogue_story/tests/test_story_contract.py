@@ -12,7 +12,7 @@ from pathlib import Path
 
 from pm.memory.store import Ghost
 from pm_workflows.runtime import WorkflowRuntime
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story import engine
 from workflows.dialogue_story.context import distinctive_terms
 from workflows.dialogue_story.schemas import DialogueTurn, StoryRequest

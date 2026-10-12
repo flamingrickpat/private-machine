@@ -12,7 +12,7 @@ import unittest
 from pm_workflows.runtime import WorkflowRuntime
 from pm.host.durable_files import BodyBusy, ProcessLock, atomic_json
 from runtime.body_lease import BodyLeases, StaleEpoch
-from runtime.managed_runs import ManagedRunError, ManagedRunReceipt, ManagedRunSupervisor, WorkflowSpec
+from pm.runs.supervisor import ManagedRunError, ManagedRunReceipt, ManagedRunSupervisor, WorkflowSpec
 from runtime.minecraft_actor import observed_target, read_actor_journal, target_block_cell
 from pm.memory.store import Ghost
 from tests.test_design_contracts import small_ghost

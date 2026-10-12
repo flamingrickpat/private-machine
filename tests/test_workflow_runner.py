@@ -9,7 +9,7 @@ from pm_workflows.runtime import WorkflowRuntime
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderTarget
 from pm.memory.bash_view import GhostBashEnvironment
 from pm.host.workflow_module import ShellModuleWorkflow

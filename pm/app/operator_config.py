@@ -11,8 +11,9 @@ import httpx
 from pydantic import SecretStr
 
 from pm.llm.config import load_config
+from pm.paths import REPO_ROOT
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = REPO_ROOT
 
 
 def environment_values() -> tuple[dict, str]:

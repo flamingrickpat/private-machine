@@ -222,7 +222,7 @@ $env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
 $env:MINECRAFT_MCP_URL = 'http://127.0.0.1:6777/mcp'
 $env:PM_MINECRAFT_HOST = '127.0.0.1'
 $env:PM_MINECRAFT_PORT = '12345'
-uv run --locked python -m console.server --port 8091 --root .runtime/jesse-test/console
+uv run --locked python -m pm.console.server --port 8091 --root .runtime/jesse-test/console
 ```
 
 The PATH entry supplies Git Bash for workflow scripts.
@@ -310,7 +310,7 @@ Keep one active instance per Minecraft body.
 - [Model connections](../models.md) explains context discovery and embedding configuration.
 - [Console procedure](console.md) explains traces, memory, and worker controls.
 - [Minecraft procedure](minecraft.md) explains MCP discovery and real action evidence.
-- [`main.build_app`][], [`pm.llm.config.load_config`][], and [`console.server.serve`][] are the application and configuration entry points.
+- [`main.build_app`][], [`pm.llm.config.load_config`][], and [`pm.console.server.serve`][] are the application and configuration entry points.
 - [pm-minecraft configuration](https://github.com/flamingrickpat/pm-minecraft/blob/main/mcmcp/config.py) defines the supported environment entries.
 - [Current body authentication](https://github.com/flamingrickpat/pm-minecraft/blob/main/body/src/bot.ts) explicitly selects offline mode.
 - [Mineflayer API](https://github.com/PrismarineJS/mineflayer/blob/master/docs/api.md#mineflayercreatebotoptions) describes its account connection options.

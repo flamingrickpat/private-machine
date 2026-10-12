@@ -17,7 +17,7 @@ from pm_workflows.runtime import WorkflowRuntime
 
 from pm.llm.stage_model import complete_with_retry
 from pm.llm.activation import ChatClient
-from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.main_cognition.pipeline import STAGE_ORDER
 from workflows.main_cognition.schemas import CognitiveReport, CognitiveRequest
 from pm.memory.bash_view import GhostBashEnvironment

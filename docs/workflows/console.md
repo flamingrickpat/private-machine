@@ -15,7 +15,7 @@ Design: [operator service](../subsystems/console.md).
 2. Run the console command.
 
 ```powershell
-uv run --locked python -m console.server
+uv run --locked python -m pm.console.server
 ```
 
 3. Open `http://127.0.0.1:8090`.
@@ -91,5 +91,5 @@ The dummy fixture verifies wiring without establishing companion quality.
 
 ## Code links
 
-[`console.server.serve`][], [`console.server.Instance.command`][], and [`console.worker.run`][] implement this procedure.
+[`pm.console.server.serve`][], [`pm.console.server.Instance.command`][], and [`pm.console.worker.run`][] implement this procedure.
 Read the [development loop](development.md) for code changes and verification.

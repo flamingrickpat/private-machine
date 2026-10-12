@@ -17,7 +17,7 @@ Internal thought generation remains disabled in real mode.
 
 The [engineering manual](docs/index.md) explains operation, architecture, memory experiments, and the development loop.
 For a personal Minecraft test, read [Your own test Spamuel: local LLM and Jesse chat](docs/workflows/jesse-quickstart.md).
-Start the local operator console with `uv run --locked python -m console.server`.
+Start the local operator console with `uv run --locked python -m pm.console.server`.
 Open `http://127.0.0.1:8090` to deploy and control instances, chat, and inspect execution evidence.
 Each console instance has a separate checkpoint. Sessions within one instance share memory.
 Read the [console procedure](docs/workflows/console.md) for details.
@@ -173,7 +173,7 @@ Memory and quality checks cover different contracts. Passing foundation tests do
 - [Workflow runtime and debugger examples](docs/runtime.md)
 - [Application wiring](main.py)
 - [Cognitive modules](modules.py)
-- [Managed-run supervisor](runtime/managed_runs.py)
+- [Managed-run supervisor](pm/runs/supervisor.py)
 - [Consolidation](runtime/consolidation.py)
 
 Workflow manifests are executable Markdown under `workflows/`.

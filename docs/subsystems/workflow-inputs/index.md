@@ -17,7 +17,7 @@ Details: [binding syntax and producer scope](bindings.md), [capture and stale-da
 
 `pm-workflows` owns manifest parsing, capture, output projection, and journal receipts.
 PM supplies the actual folder or Ghost environment.
-[`runtime.workflow_runner.WorkflowRunner.invoke`][] passes the request payload to [`pm_workflows.kernel.Kernel`][].
+[`pm.runs.workflow_runner.WorkflowRunner.invoke`][] passes the request payload to [`pm_workflows.kernel.Kernel`][].
 Python roles receive bound values through [`pm_workflows.python_role.RoleContext`][].
 Agent roles receive the same capture receipts in their request prompt.
 Child phases merge bound values into their explicit request.

@@ -36,9 +36,9 @@ Use one configured endpoint per avatar and one shared local lease directory.
 
 ## Updates between actions
 
-[`runtime.managed_runs.ManagedRunSupervisor.update`][] durably stores the new instruction and increments `revision`.
+[`pm.runs.supervisor.ManagedRunSupervisor.update`][] durably stores the new instruction and increments `revision`.
 Duplicate request IDs retain the original update.
-[`runtime.managed_runs.ManagedRunSupervisor.instructions_at_boundary`][] advances `applied_revision` on the worker boundary.
+[`pm.runs.supervisor.ManagedRunSupervisor.instructions_at_boundary`][] advances `applied_revision` on the worker boundary.
 
 Before each call, the gateway reads the current boundary and checks cancellation.
 If the revision changed, the gateway returns `instruction_changed` without sending the planned call.
@@ -56,7 +56,7 @@ A later update receives an explicit final-boundary rejection.
 
 ## Cancellation and uncertain calls
 
-[`runtime.managed_runs.ManagedRunSupervisor.terminate`][] sets the code-owned cancellation event.
+[`pm.runs.supervisor.ManagedRunSupervisor.terminate`][] sets the code-owned cancellation event.
 It records cancellation and preserves task files.
 The pm-coder driver cancels supported asynchronous inference and awaits session cleanup.
 The gateway rejects later calls before dispatch.

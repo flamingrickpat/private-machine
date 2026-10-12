@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from runtime.managed_runs import ManagedRunError, ManagedRunSupervisor
+from pm.runs.supervisor import ManagedRunError, ManagedRunSupervisor
 
 DORMANT = "dormant"
 

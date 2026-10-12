@@ -56,7 +56,7 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config
 from pm.llm.workflow_sessions import WorkflowModels
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner
 from pm.host.folder_target import FolderEnvironment
 
 models = WorkflowModels(load_config("config.alpha.example.yaml"), ModelActivation())

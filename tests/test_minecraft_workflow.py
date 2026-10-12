@@ -16,7 +16,7 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
 from runtime.consolidation import Consolidator
-from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.minecraft import steps
 from workflows.minecraft.schemas import MinecraftReport
 from pm.host.folder_target import FolderEnvironment

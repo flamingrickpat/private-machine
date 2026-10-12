@@ -7,7 +7,7 @@ import unittest
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
-from runtime.workflow_runner import WorkflowStatus
+from pm.runs.workflow_runner import WorkflowStatus
 from tests.support import Recorder
 from pm.host.folder_target import FolderTarget
 from pm.host.workflow_module import ShellModuleWorkflow

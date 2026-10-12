@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from runtime.management_tools import build_management_tools
+from pm.runs.management_api import build_management_tools
 
 
 def build_self_management_tools(supervisor) -> Callable[[object, object], dict]:

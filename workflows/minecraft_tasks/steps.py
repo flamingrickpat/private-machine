@@ -16,7 +16,7 @@ from runtime.body_lease import BODY_LEASES
 from pm.host.cancellation import LinkedStopEvent
 from runtime.minecraft_actor import read_actor_journal
 from runtime.minecraft_outcomes import GameplayEvidence, signature
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
 from workflows.minecraft.schemas import MinecraftRequest
 from workflows.minecraft_tasks.schemas import (

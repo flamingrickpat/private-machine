@@ -48,7 +48,7 @@ from threading import Event
 from uuid import uuid4
 
 from pm_workflows.runtime import WorkflowRuntime
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner
 from pm.memory.bash_view import GhostBashEnvironment
 
 environment = GhostBashEnvironment({}, {}, "read")
@@ -138,7 +138,7 @@ The cognitive parent invokes seven child workflows through scoped runtimes.
 
 ## Code and evidence
 
-- [`runtime.workflow_runner.WorkflowRunner`][]
+- [`pm.runs.workflow_runner.WorkflowRunner`][]
 - [`pm.host.workflow_module.ShellModuleWorkflow`][]
 - Direct runner tests: `tests/test_workflow_runner.py`
 - Direct file-permission tests: `tests/test_agent_file_scope.py`

@@ -11,7 +11,7 @@ from pm.records.cycle_state import GhostConfig
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
 
-from console.server import Console, ROOT
+from pm.console.server import Console, ROOT
 
 
 class ConsoleTests(unittest.TestCase):

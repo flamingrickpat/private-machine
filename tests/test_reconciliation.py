@@ -15,7 +15,7 @@ from fastmcp import FastMCP
 
 from pm.bus.envelopes import Envelope
 from main import build_app
-from runtime.managed_runs import ManagedRunError, ManagedRunSupervisor, WorkflowSpec
+from pm.runs.supervisor import ManagedRunError, ManagedRunSupervisor, WorkflowSpec
 from runtime.minecraft_tools import build_minecraft_tools
 from runtime.body_lease import BODY_LEASES
 from tests.live.conversation import SCENARIOS, evaluation_context, generation_complete

@@ -175,7 +175,7 @@ class TopologyTests(unittest.TestCase):
             PROJECT_ROOT / "pm" / "bus" / "bus.py",
             PROJECT_ROOT / "pm" / "bus" / "envelopes.py",
             PROJECT_ROOT / "pm" / "host" / "application.py",
-            PROJECT_ROOT / "runtime" / "workflow_runner.py",
+            PROJECT_ROOT / "pm" / "runs" / "workflow_runner.py",
         ]
         for path in generic:
             text = path.read_text(encoding="utf-8")

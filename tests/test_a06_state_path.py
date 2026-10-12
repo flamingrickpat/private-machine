@@ -20,7 +20,7 @@ from modules import InnerThoughtLoop, MainCogLoop, _feature
 from pm.memory.snapshot import GhostConflict
 from pm.memory.store import Ghost
 from pm.records.cycle_state import GhostConfig
-from runtime.lifecycle import CLEAN_END, UNCERTAIN_END, record_shutdown, record_startup
+from pm.app.lifecycle_records import CLEAN_END, UNCERTAIN_END, record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
 from pm.host.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.dispatch import resolve_prerequisites

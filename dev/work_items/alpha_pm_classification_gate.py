@@ -27,7 +27,7 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config
 from pm.llm.workflow_sessions import WorkflowModels
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from dev.work_items.alpha_classification_gate import inspect_overflow, long_log, make_logs, response_recorder
 from dev.work_items.shared.evidence import save_json, sha256_file
 from pm.host.folder_target import FolderEnvironment

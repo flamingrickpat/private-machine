@@ -219,7 +219,7 @@ The [tool repair history](../work_items/verification/a13/history/tool-repairs.md
 ## Meaningful progress publication
 
 After a completed actor attempt, the project writes its world episode before it calls the private `managed_milestone` operation.
-[`runtime.managed_runs.ManagedRunSupervisor.milestone`][] accepts a worker epoch, attempt key, summary, and original journal reference.
+[`pm.runs.supervisor.ManagedRunSupervisor.milestone`][] accepts a worker epoch, attempt key, summary, and original journal reference.
 It rejects a stale worker and reuses an existing milestone key.
 The durable managed receipt owns the event before publication.
 The callback runs outside the supervisor lock.

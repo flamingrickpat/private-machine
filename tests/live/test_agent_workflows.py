@@ -13,7 +13,7 @@ from pm_workflows.runtime import AgentModel, WorkflowRuntime
 from pm.host.mcp_listeners import ScopedMcpRegistry
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.memory.store_tools import build_mcp
 from pm.host.folder_target import FolderTarget
 from pm.memory.bash_view import GhostBashEnvironment

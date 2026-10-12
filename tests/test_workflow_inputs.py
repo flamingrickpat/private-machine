@@ -7,7 +7,7 @@ import unittest
 import yaml
 from pm_workflows.inputs import InputError, InputResolver, InputScope
 from pm_workflows.runtime import WorkflowRuntime
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
 from pm.memory.bash_view import GhostBashEnvironment
 

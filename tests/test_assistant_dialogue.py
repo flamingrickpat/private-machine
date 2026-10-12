@@ -13,7 +13,7 @@ import unittest
 
 from pm_workflows.runtime import WorkflowRuntime
 
-from runtime.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from runtime.minecraft_tools import build_minecraft_tools
 from workflows.dialogue_assistant import steps
 from workflows.dialogue_assistant.schemas import (
@@ -209,7 +209,7 @@ class AssistantModuleTests(unittest.TestCase):
         from modules import AssistantDialogue
         from pm.memory.store import Ghost
         from pm.records.cycle_state import GhostConfig
-        from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
+        from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
         from workflows.dialogue_assistant.module_tools import build_assistant_tools
 
         ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
