@@ -6,11 +6,11 @@ Real typed inference can return incorrect interpretations.
 A02 records these observations without adopting Laya in a workflow.
 Long-input acceptance does not establish reliable classification.
 The caller must evaluate each possible use against its LLM alternative.
-The [current model policy](../../decisions/alpha-plan/model-policy.md) limits Laya to simple classifications that pass realistic live-endpoint unit tests.
+The [current model policy](../../work_items/alpha-plan/model-policy.md) limits Laya to simple classifications that pass realistic live-endpoint unit tests.
 If making a candidate work requires expensive effort, keep the normal LLM.
 
 Parent: [optional typed decisions](index.md).
-Receipts and provenance: [A02 verification](verification.md).
+Receipts and provenance: [A02 verification](../../work_items/verification/a02-decisions.md).
 Repeat: [operation](operation.md).
 
 All evidence paths are relative to `.runtime/alpha/a02/`.

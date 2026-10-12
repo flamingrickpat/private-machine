@@ -9,7 +9,7 @@ The configured text model uses numeric observations and retains screenshots as s
 
 Parent: [managed work](managed-work.md).
 Operation: [actor controls](minecraft-actor-controls.md).
-Evidence: [A10 verification](minecraft-actor-verification.md).
+Evidence: [A10 verification](../work_items/verification/a10-minecraft-actor.md).
 Projects: [durable subtasks](minecraft-tasks.md).
 
 ## Request and execution

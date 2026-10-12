@@ -53,7 +53,7 @@ The editor does not delete records or repair references automatically.
 3. Record which memory IDs enter the accepted frame.
 4. Compare the reply and timing evidence.
 
-Read [next experiments](../decisions/experiments.md) for broader evaluation criteria.
+Read [next experiments](../work_items/experiments.md) for broader evaluation criteria.
 
 ## Vector search
 

@@ -8,7 +8,7 @@ Real-endpoint checks verify direct calls beyond Laya's input limit.
 A04 also verifies actual server-context overflow and live agent recovery with decisive classification evidence intact.
 
 Parent: [model connections](../models.md).
-Policy: [alpha model selection](../decisions/alpha-plan/model-policy.md).
+Policy: [alpha model selection](../work_items/alpha-plan/model-policy.md).
 
 ## Separate service limits
 
@@ -102,5 +102,5 @@ The live pm-coder checks also passed:
 Both tests passed in 15.27 seconds.
 They exercise real file edits and live compaction for two isolated agent sessions.
 That compaction check does not force a server-context overflow.
-The [A04 gate](workflow-inputs/classification-verification.md) also forces actual overflow with a real-history tool result.
+The [A04 gate](../work_items/verification/a04-classification.md) also forces actual overflow with a real-history tool result.
 It retains the provider rejection, live summaries, original instruction, class contract, checkpoint, and final source quotes.

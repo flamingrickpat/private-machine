@@ -9,7 +9,7 @@ Its separate long-inspection workflow checks actual agent compaction.
 
 Parent: [workflow runtime](../runtime.md).
 Connections: [PM model sessions](../subsystems/workflow-inputs/pm-connections.md).
-Evidence: [A05 verification](../subsystems/workflow-inputs/pm-verification.md).
+Evidence: [A05 verification](../work_items/verification/a05-pm-classification.md).
 
 ## Trigger and results
 
@@ -102,4 +102,4 @@ Journals and unique run IDs retain the previous results.
 Missing journal evidence raises a Python error; the publisher does not invent a result.
 Cancellation prevents report loading and public success delivery at the runner boundary.
 
-Run the complete [M1 gate](../subsystems/workflow-inputs/pm-verification.md#reproduce-m1) for independently checked real evidence.
+Run the complete [M1 gate](../work_items/verification/a05-pm-classification.md#reproduce-m1) for independently checked real evidence.

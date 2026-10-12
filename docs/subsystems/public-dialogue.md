@@ -8,8 +8,8 @@ The Ghost commits public speech and exchange resolution together.
 Rejected, stale, or failed work produces an observable recovery outcome.
 
 Parent: [cognition](cognition.md).
-Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), and [A09 verification](public-verification.md).
-Design: [private ontology](../decisions/alpha-plan/ontology.md).
+Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
+Design: [private ontology](../work_items/alpha-plan/ontology.md).
 
 ## Context and entry points
 
@@ -229,7 +229,7 @@ That new response has its own review and a distinct recovery outcome.
 
 ## Inspect a real exchange
 
-Run the [A09 console gate](public-verification.md).
+Run the [A09 console gate](../work_items/verification/a09-public-dialogue.md).
 Read the correlated public request, workflow report, and `claim_review`.
 Compare every historical claim with the supplied original evidence IDs.
 Inspect the public Feature's `factual_promotion`, `action_schema_id`, and presentation attribution.

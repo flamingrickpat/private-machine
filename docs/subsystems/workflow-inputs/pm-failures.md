@@ -8,7 +8,7 @@ A05 preserves its failed development runs and records each repair.
 The final gate restores the optional service after acceptance.
 
 Parent: [PM connections](pm-connections.md).
-Evidence: [A05 verification](pm-verification.md).
+Evidence: [A05 verification](../../work_items/verification/a05-pm-classification.md).
 Boundaries: [classification recovery](classification-recovery.md).
 
 ## Diagnose a run

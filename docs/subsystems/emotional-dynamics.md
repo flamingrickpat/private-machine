@@ -130,7 +130,7 @@ appraisal.
 
 ## Go deeper
 
-Read [A07 verification](emotional-dynamics-verification.md) for the checks and
+Read [A07 verification](../work_items/verification/a07-emotional-dynamics.md) for the checks and
 the live receipts.
 Read [accepted cognition state](cognition-state.md) for the commit boundary.
 Read [`pm_core.model.affect_dynamics`][] for the exact functions.

@@ -77,4 +77,4 @@ The bus provides at-least-once recovery.
 A crash after delivery and before acknowledgment can repeat an envelope.
 Consumers must deduplicate by action ID, event ID, or public utterance ID.
 Neither a published event nor a completed workflow establishes an unverified external effect.
-Read [A12 verification](body-recovery-verification.md) for the actual failure-injection receipts.
+Read [A12 verification](../work_items/verification/a12-body-recovery.md) for the actual failure-injection receipts.

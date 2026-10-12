@@ -9,8 +9,8 @@ Hazards keep recovery active until observations prove safety.
 The project planner retains partial work and changes actual leaves.
 
 Parent: [durable projects](minecraft-tasks.md).
-Details: [evidence and memory](gameplay-evidence.md) and [verification](gameplay-verification.md).
-Related: [body interruption](body-recovery.md) and [survival design](../decisions/alpha-plan/minecraft-operations.md).
+Details: [evidence and memory](gameplay-evidence.md) and [verification](../work_items/verification/a13/index.md).
+Related: [body interruption](body-recovery.md) and [survival design](../work_items/alpha-plan/minecraft-operations.md).
 
 ## Owning code and execution path
 
@@ -207,4 +207,4 @@ No outcome category grants permission to replay an uncertain action.
 ## Go deeper
 
 Read [gameplay evidence](gameplay-evidence.md) for durable records and meaningful cognition events.
-Read [verification](gameplay-verification.md) for real receipts, commands, and outstanding acceptance.
+Read [verification](../work_items/verification/a13/index.md) for real receipts, commands, and outstanding acceptance.

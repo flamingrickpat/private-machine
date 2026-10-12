@@ -1,7 +1,7 @@
 # Minecraft evidence, memory, and cleanup
 
 Parent: [Minecraft run guide](minecraft.md).
-Related: [Ghost](../ghost.md) and [earlier plan](../decisions/plan.md).
+Related: [Ghost](../ghost.md) and [earlier plan](../work_items/plan.md).
 
 ## Three different storage areas
 

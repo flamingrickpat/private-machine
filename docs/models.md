@@ -9,7 +9,7 @@ The [PM classification provider](subsystems/workflow-inputs/pm-connections.md) r
 The separate [typed decision client](subsystems/decisions/index.md) is available through pm-coder.
 A02 verifies its API without changing existing workflow model choices.
 Its [deployment guide](subsystems/decisions/operation.md) describes the independent Laya endpoint.
-The alpha's [model policy](decisions/alpha-plan/model-policy.md) uses the normal LLM by default.
+The alpha's [model policy](work_items/alpha-plan/model-policy.md) uses the normal LLM by default.
 
 Parent: [README](index.md).
 
@@ -28,7 +28,7 @@ The request model remains the cache identity, so existing vectors stay compatibl
 `config.alpha.example.yaml` also uses OpenRouter embeddings with local Qwen chat on port 8080.
 The credential comes from `OPENROUTER_API_KEY`.
 The unused local embedding service on port 8081 has a recorded invalid-vector defect.
-Read [A08 verification](subsystems/memory-verification.md) for the real failure and recovery evidence.
+Read [A08 verification](work_items/verification/a08-experienced-memory.md) for the real failure and recovery evidence.
 
 ### Local setup
 

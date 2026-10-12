@@ -55,7 +55,7 @@ The worker rejects another exchange until the current reply arrives.
 
 The timing table sorts work by total elapsed time.
 It does not assign a usefulness score.
-The [experiment guide](../decisions/experiments.md) explains how to compare usefulness.
+The [experiment guide](../work_items/experiments.md) explains how to compare usefulness.
 
 ## Notifications and lifecycle
 

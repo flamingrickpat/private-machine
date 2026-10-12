@@ -8,13 +8,13 @@ Run its contracts, inspect a real exchange, and record the result.
 Update the documentation with the changed behavior.
 
 Parent: [manual](../index.md).
-Planning: [next experiments](../decisions/experiments.md).
-Alpha delivery: [baseline commands](../decisions/alpha-plan/baseline/commands.md) and [session handoff](../decisions/alpha-plan/baseline/handoff.md).
-Optional decisions: [client boundary](../subsystems/decisions/index.md), [live procedure](../subsystems/decisions/operation.md), and [A02 results](../subsystems/decisions/verification.md).
+Planning: [next experiments](../work_items/experiments.md).
+Alpha delivery: [baseline commands](../work_items/alpha-plan/baseline/commands.md) and [session handoff](../work_items/alpha-plan/baseline/handoff.md).
+Optional decisions: [client boundary](../subsystems/decisions/index.md), [live procedure](../subsystems/decisions/operation.md), and [A02 results](../work_items/verification/a02-decisions.md).
 
 ## Read the session instructions
 
-1. Read `codex.md` in the repository root.
+1. Read `AGENTS.md` in the repository root and the [work-item process](../work_items/process.md).
 2. Read the selected alpha work item and its linked design.
 3. Open the simple-english and project-documentation skills before writing explanatory prose.
 
@@ -89,7 +89,7 @@ Existing deterministic foundation tests remain useful for their stated contracts
 
 The real Minecraft server is `C:/source/minecraft-server-real`.
 The historical generic W8 autostart path uses a superflat TDD template.
-Use the [A01 real-server wrapper](../decisions/alpha-plan/baseline/commands.md#real-minecraft-world-and-reset) for acceptance on the user's actual world.
+Use the [A01 real-server wrapper](../work_items/alpha-plan/baseline/commands.md#real-minecraft-world-and-reset) for acceptance on the user's actual world.
 If the actual server cannot be identified, ask the user for its location.
 Do not substitute dummy tests or the superflat template for a required real-world gate.
 

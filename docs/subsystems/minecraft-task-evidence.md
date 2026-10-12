@@ -9,7 +9,7 @@ Acceptance retains specification guards, prerequisite guards, and hashes of the 
 Public task claims recompute those retained facts.
 
 Parent: [durable projects](minecraft-tasks.md).
-Related: [public publication](public-publication.md) and [A11 verification](minecraft-task-verification.md).
+Related: [public publication](public-publication.md) and [A11 verification](../work_items/verification/a11-minecraft-projects.md).
 
 ## Observation primitives
 
@@ -176,4 +176,4 @@ Saved attempt state cannot establish safe replay after a crash.
 ## Go deeper
 
 Read [project routing](minecraft-tasks.md) for lifecycle and instruction boundaries.
-Read [verification](minecraft-task-verification.md) for recorded real examples.
+Read [verification](../work_items/verification/a11-minecraft-projects.md) for recorded real examples.

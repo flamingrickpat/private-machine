@@ -91,4 +91,4 @@ The repaired loader retains transport headers, environment expansion, discovery,
 The protocol assumes trusted local clients and one active MCP service per avatar.
 Epoch tokens provide stale-command fencing, rather than an authentication boundary.
 The gate serializes effects; it does not roll them back.
-Read [A12 verification](body-recovery-verification.md) for captured real-server evidence.
+Read [A12 verification](../work_items/verification/a12-body-recovery.md) for captured real-server evidence.

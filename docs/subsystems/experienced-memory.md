@@ -9,7 +9,7 @@ Imported canon remains attributed background.
 
 Parent: [cognitive pipeline](cognition.md).
 Related: [accepted state](cognition-state.md), [emotional dynamics](emotional-dynamics.md), and [memory experiments](../workflows/memory.md).
-Children: [consolidation and beliefs](memory-consolidation.md) and [A08 verification](memory-verification.md).
+Children: [consolidation and beliefs](memory-consolidation.md) and [A08 verification](../work_items/verification/a08-experienced-memory.md).
 
 ## Entry and execution path
 
@@ -151,4 +151,4 @@ A fresh instance establishes the explicit canon baseline.
 
 Record-count equality establishes persistence only.
 A correct public claim also needs relevant original evidence and appropriate attribution.
-[A08 verification](memory-verification.md) separates these results from A09's public-voice work.
+[A08 verification](../work_items/verification/a08-experienced-memory.md) separates these results from A09's public-voice work.

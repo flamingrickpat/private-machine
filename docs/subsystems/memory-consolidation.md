@@ -8,8 +8,8 @@ Task consolidation retains artifact hashes and deduplicates unchanged material a
 Generated companion claims cannot establish factual memory.
 
 Parent: [experienced memory](experienced-memory.md).
-Related: [managed work](managed-work.md), [private ontology](../decisions/alpha-plan/ontology.md), and [Ghost commits](../ghost.md).
-Evidence: [A08 verification](memory-verification.md).
+Related: [managed work](managed-work.md), [private ontology](../work_items/alpha-plan/ontology.md), and [Ghost commits](../ghost.md).
+Evidence: [A08 verification](../work_items/verification/a08-experienced-memory.md).
 
 ## Cognitive experiences
 

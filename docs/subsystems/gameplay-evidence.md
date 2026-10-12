@@ -214,7 +214,7 @@ An observed action death immediately creates failed recovery and blocks further 
 [`runtime.minecraft_outcomes.action_death`][] requires a body identity and an increasing integer death counter.
 Fresh respawn observations still cannot authorize another mutation in that actor epoch.
 The next native plan must reconcile current tools, supplies, lost items, and preserved world work.
-The [tool repair history](gameplay-tool-repair-history.md) describes the new descent checks.
+The [tool repair history](../work_items/verification/a13/history/tool-repairs.md) describes the new descent checks.
 
 ## Meaningful progress publication
 
@@ -259,7 +259,7 @@ An uncertain external mutation remains uncertain after a service restart.
 
 ## Go deeper
 
-Read [verification](gameplay-verification.md) for captured failures and live acceptance status.
+Read [verification](../work_items/verification/a13/index.md) for captured failures and live acceptance status.
 
 ## Harvesting prerequisites and occupied body space
 

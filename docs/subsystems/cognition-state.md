@@ -142,7 +142,7 @@ A hard process kill leaves the interval uncertain by design.
 ## Go deeper
 
 Read [emotional dynamics](emotional-dynamics.md) for the bounded affect step.
-Read [A06 verification](cognition-state-verification.md) for the checks and
+Read [A06 verification](../work_items/verification/a06-cognition-state.md) for the checks and
 the receipts.
 Read [Cognition](cognition.md) for the stage order.
 Read [Ghost and bus](../ghost.md) for the commit boundary.

@@ -7,8 +7,8 @@ It selects evidence from task dependencies and current failures.
 Scenario geometry and material provenance remain in the acceptance gate.
 Real retained-task acceptance is still pending.
 
-Parent: [task and gate review](gameplay-task-gate-review.md).
-Contract: [separate M3 checks](gameplay-gate-contract-proposal.md).
+Parent: [task and gate review](../work_items/verification/a13/task-gate-review.md).
+Contract: [separate M3 checks](../work_items/verification/a13/gate-contract-proposal.md).
 State: [task evidence](minecraft-task-evidence.md).
 
 ## Workflow ownership
@@ -118,6 +118,6 @@ The hosted configuration remains under ignored runtime evidence and contains cre
 ## Provider protocol and live evidence
 
 The [provider protocol](gameplay-provider-protocol.md) explains output allocation, reasoning replay, and hosted generation controls.
-The [acceptance evidence](gameplay-scoped-acceptance-evidence.md) records native continuations, known failures, and current limits.
+The [acceptance evidence](../work_items/verification/a13/scoped-acceptance-evidence.md) records native continuations, known failures, and current limits.
 The selected-leaf observation source uses [`workflows.minecraft_tasks.steps.execution_observations`][].
 It supplies current read-only facts without replacing required effects or independent verification.

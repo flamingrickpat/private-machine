@@ -9,7 +9,7 @@ Receipts support replay while keeping unknown producer metadata explicit.
 Stale data rejects the attempt without an automatic retry.
 
 Parent: [scoped workflow inputs](index.md).
-Related: [bindings](bindings.md) and [verification](verification.md).
+Related: [bindings](bindings.md) and [verification](../../work_items/verification/a03-workflow-inputs.md).
 
 ## Candidate and listing evidence
 
@@ -108,4 +108,4 @@ Digest-only environments cannot detect replacement with identical bytes.
 Multiple metadata reads do not form a filesystem transaction.
 A later consumer must classify the captured value, rather than reopen the source and assume equality.
 Absent producer metadata cannot establish the original task or attempt by itself.
-These limits remain explicit in receipts and the [verification results](verification.md).
+These limits remain explicit in receipts and the [verification results](../../work_items/verification/a03-workflow-inputs.md).

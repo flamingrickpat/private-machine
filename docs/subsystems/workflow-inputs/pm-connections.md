@@ -10,7 +10,7 @@ Optional Laya wiring remains deferred.
 
 Parent: [classification](classification.md).
 Operation: [PM demonstration](../../workflows/classification-demo.md).
-Evidence: [A05 verification](pm-verification.md).
+Evidence: [A05 verification](../../work_items/verification/a05-pm-classification.md).
 
 ## Owners and injection
 

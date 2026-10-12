@@ -9,7 +9,7 @@ Independent observations establish acceptance and release prerequisites.
 Specifications, attempts, and verification receipts remain separate.
 
 Parent: [managed work](managed-work.md).
-Related: [sustained actor](minecraft-actor.md), [task evidence](minecraft-task-evidence.md), and [A11 verification](minecraft-task-verification.md).
+Related: [sustained actor](minecraft-actor.md), [task evidence](minecraft-task-evidence.md), and [A11 verification](../work_items/verification/a11-minecraft-projects.md).
 Gameplay failures use [retained method history and recovery priority](gameplay-recovery.md).
 
 ## Place in the system
@@ -176,7 +176,7 @@ A11 persists plans and evidence but does not automatically resume interrupted wo
 The supervisor records an interrupted run after restart.
 The delivered [A12 recovery](body-recovery.md) provides explicit resume, shared ownership, epochs, and fresh observation.
 The [A13 implementation](gameplay-recovery.md) retains unsuccessful methods, local searches, and recovery across actor attempts.
-Its real acceptance remains [pending](gameplay-verification.md).
+Its real acceptance remains [pending](../work_items/verification/a13/index.md).
 
 Callers can configure optional `minecraft_plan_constraints` and `minecraft_project_check` callbacks through the workflow tool factory and explicit role grants.
 The plan callback receives the proposed tree before the ordinary world survey and independent model review.
@@ -186,9 +186,9 @@ Its recorded errors require a concrete leaf change; existing certificates and wo
 Both callbacks return an `errors` list and cannot grant acceptance.
 The M3 runner saves a fresh manifest copy with each additional grant and records both manifest digests.
 Projects without these callbacks retain their existing generic behavior.
-The [M3 procedure](gameplay-m3-verification.md) describes the scenario contracts and original evidence checks.
+The [M3 procedure](../work_items/verification/a13/m3-house-and-iron.md) describes the scenario contracts and original evidence checks.
 
 ## Go deeper
 
 Read [independent evidence](minecraft-task-evidence.md) for observation primitives and public claims.
-Read [verification](minecraft-task-verification.md) for real commands, inspected results, and remaining limits.
+Read [verification](../work_items/verification/a11-minecraft-projects.md) for real commands, inspected results, and remaining limits.

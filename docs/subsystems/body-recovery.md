@@ -8,7 +8,7 @@ Fresh observation precedes mutation.
 Durable journals retain effects that cancellation cannot undo.
 
 Parent: [Minecraft actor controls](minecraft-actor-controls.md).
-Details: [body leases](body-leases.md), [publication recovery](recovery-publication.md), and [A12 verification](body-recovery-verification.md).
+Details: [body leases](body-leases.md), [publication recovery](recovery-publication.md), and [A12 verification](../work_items/verification/a12-body-recovery.md).
 
 ## Control path
 
@@ -111,4 +111,4 @@ Blocks, inventory, entities, player state, and time remain external state.
 Fresh observation establishes current facts, but cannot identify who caused a change during downtime.
 
 Read [body leases](body-leases.md) for server fencing and restart requirements.
-Read [A12 verification](body-recovery-verification.md) for the measured live boundaries and remaining limits.
+Read [A12 verification](../work_items/verification/a12-body-recovery.md) for the measured live boundaries and remaining limits.

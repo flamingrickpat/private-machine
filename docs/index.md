@@ -17,9 +17,9 @@ This manual explains current behavior, test procedures, and the earlier implemen
 | Follow a message through cognition | [One exchange](workflows/exchange.md) |
 | Inject or change a memory | [Memory experiment](workflows/memory.md) |
 | Understand runtime ownership | [System map](concepts/architecture.md) |
-| Compare the plan with current code | [Plan and implementation](decisions/plan.md) |
-| Develop the companion alpha in ordered sessions | [Companion alpha plan](decisions/alpha-plan/index.md) |
-| Plan faster cognition experiments | [Next experiments](decisions/experiments.md) |
+| Compare the plan with current code | [Plan and implementation](work_items/plan.md) |
+| Develop the companion alpha in ordered sessions | [Companion alpha plan](work_items/alpha-plan/index.md) |
+| Plan faster cognition experiments | [Next experiments](work_items/experiments.md) |
 
 ## Main boundaries
 

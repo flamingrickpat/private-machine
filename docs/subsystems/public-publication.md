@@ -8,7 +8,7 @@ Publication follows that commit.
 Checkpoint restart can replay an unacknowledged utterance or dispatch a selected terminal task reply.
 
 Parent: [public dialogue](public-dialogue.md).
-Related: [operator service](console.md), [managed work](managed-work.md), and [A09 verification](public-verification.md).
+Related: [operator service](console.md), [managed work](managed-work.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
 Accepted companion actions and managed progress also use [durable publication recovery](recovery-publication.md).
 
 ## Input and durable ownership
@@ -193,4 +193,4 @@ Checkpoint markers provide recovery for the documented public boundary.
 Other queued prerequisites remain A12 work.
 The second private conscious loop remains A17 work.
 
-Go deeper: [A09 verification](public-verification.md) and [Ghost state](../ghost.md).
+Go deeper: [A09 verification](../work_items/verification/a09-public-dialogue.md) and [Ghost state](../ghost.md).

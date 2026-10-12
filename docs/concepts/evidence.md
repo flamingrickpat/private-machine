@@ -39,5 +39,5 @@ The persistent event file can contain older exchanges outside that view.
 
 ## Go deeper
 
-Read [next experiments](../decisions/experiments.md), [one exchange](../workflows/exchange.md), and [plan status](../decisions/plan.md).
-The [console verification record](../decisions/console-verification.md) lists the checks for this delivery.
+Read [next experiments](../work_items/experiments.md), [one exchange](../workflows/exchange.md), and [plan status](../work_items/plan.md).
+The [console verification record](../work_items/verification/console.md) lists the checks for this delivery.

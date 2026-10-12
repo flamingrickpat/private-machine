@@ -8,8 +8,8 @@ Cancellation prevents later dispatches but cannot undo an action already sent.
 Original calls and uncertain outcomes remain in the actor journal.
 
 Parent: [sustained actor](minecraft-actor.md).
-Evidence: [A10 verification](minecraft-actor-verification.md).
-Interaction semantics: [block activation evidence](gameplay-block-interaction.md).
+Evidence: [A10 verification](../work_items/verification/a10-minecraft-actor.md).
+Interaction semantics: [block activation evidence](../work_items/verification/a13/block-interaction.md).
 
 ## Lease boundary
 
