@@ -8,14 +8,14 @@ Two trait profiles can react differently to the same facts.
 
 Parent: [Cognition](cognition.md).
 Entry: [`workflows.main_cognition.affect_dynamics.project_affect`][].
-Committer: [`modules.MainCogLoop.publish_output`][].
+Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 
 ## Place in the system
 
 [`workflows.main_cognition.pipeline.run_cycle`][] runs the seven stages.
 After the appraisal stage, the parent computes one affect projection.
 The projection feeds the later stages and the parent report.
-[`modules.MainCogLoop.publish_output`][] commits the same projected vector.
+[`workflows.main_cognition.host.MainCogLoop.publish_output`][] commits the same projected vector.
 [`workflows.main_cognition.stage_commits.apply_appraisal`][] writes the
 appraisal Feature with the state, the delta, and the causal trace.
 
@@ -104,7 +104,7 @@ to the action content.
 ## State and side effects
 
 The step is pure. It reads no Ghost and writes no file.
-[`modules.MainCogLoop.publish_output`][] stages the appraisal Feature and the
+[`workflows.main_cognition.host.MainCogLoop.publish_output`][] stages the appraisal Feature and the
 cycle state in one Ghost batch. A failure before the commit leaves accepted
 state unchanged. A stale revision raises `GhostConflict`.
 

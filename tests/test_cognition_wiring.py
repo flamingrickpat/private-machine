@@ -17,10 +17,11 @@ from pm.records.enums import FeatureType
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
-from modules import MainCogLoop, StoryDialogue
+from workflows.main_cognition.host import MainCogLoop
+from workflows.dialogue_story.host import StoryDialogue
 from tests.support import ManualClock, Recorder
 from pm.runs.workflow_module import PROJECT_ROOT
-from workflows.main_cognition.module_tools import build_main_cognition_tools
+from workflows.main_cognition.host import build_main_cognition_tools
 from workflows.main_cognition.pipeline import stable_action_id
 from pm.memory.bash_view import MemoryBashTarget
 
@@ -330,7 +331,7 @@ class MultiExchangeTests(unittest.TestCase):
     """Several real bus exchanges with deterministic cognition and Story."""
 
     def test_each_input_produces_a_correlated_reply(self):
-        from modules import UserInputProxy
+        from workflows.public_speech.user_input import UserInputProxy
 
         ghost = _small_ghost()
         bus = BusSystem()

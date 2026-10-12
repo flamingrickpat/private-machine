@@ -12,7 +12,7 @@ Related: [body recovery](body-recovery.md) and [managed work](managed-work.md).
 
 ## Accepted companion intent
 
-[`modules.MainCogLoop`][] accepts the action schema, GWT state, and frozen dispatch payload in one Ghost batch.
+[`workflows.main_cognition.host.MainCogLoop`][] accepts the action schema, GWT state, and frozen dispatch payload in one Ghost batch.
 The action metadata stores `dispatch_status: pending`, `dispatch_target`, `dispatch_correlation`, and `dispatch_payload`.
 The payload retains the selected action ID, content, arguments, stimuli, memory evidence, workspace, affect, and regulation.
 Publication follows the durable commit.

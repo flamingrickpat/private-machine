@@ -13,7 +13,7 @@ Accepted companion actions and managed progress also use [durable publication re
 
 ## Input and durable ownership
 
-[`modules.UserInputProxy.submit`][] assigns the correlation ID before it stores the user's utterance.
+[`workflows.public_speech.user_input.UserInputProxy.submit`][] assigns the correlation ID before it stores the user's utterance.
 The Feature retains `exchange_correlation`, `exchange_status=pending`, and the console session name.
 These fields live in the existing Ghost checkpoint.
 There is no separate state authority or broker.
@@ -35,7 +35,7 @@ A changed connection or tool list makes the reply stale.
 It also verifies successful task bytes again.
 Changed bytes or unreadable evidence invalidate the earlier verification before recovery chooses its public text.
 The whole candidate remains outside memory after rejection.
-[`modules.PublicDialogue`][] records the stale receipt and publishes a separate recovery utterance.
+[`workflows.public_speech.public_dialogue.PublicDialogue`][] records the stale receipt and publishes a separate recovery utterance.
 
 Rejected semantic claims and protocol failures retain separate recovery outcomes.
 The normal public candidate remains in workflow artifacts.
@@ -152,7 +152,7 @@ One scoped model call receives the actual granted IDs and repairs that protocol 
 The host validates the repaired result again.
 This procedure does not rewrite public prose or optimize a quality score.
 
-[`modules.MainCogLoop`][] closes the original user exchange after a model or stage protocol failure.
+[`workflows.main_cognition.host.MainCogLoop`][] closes the original user exchange after a model or stage protocol failure.
 Its receipt retains the error, and its public recovery states that no task result was verified.
 Logic errors still reach application shutdown.
 Action selection uses the existing appraisal and workspace with hidden reasoning disabled.

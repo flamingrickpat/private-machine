@@ -82,7 +82,7 @@ The external Minecraft and MCP services remain owned by their operator or live h
 Action selection uses the normal LLM.
 A clear inventory question selects `dialogue_assistant` with `arguments.minecraft_read: inventory`.
 It does not select the managed `minecraft` workflow or require Laya.
-[`modules.AssistantDialogue.prepare_input`][] retains that argument in the typed request.
+[`workflows.dialogue_assistant.host.AssistantDialogue.prepare_input`][] retains that argument in the typed request.
 
 [`workflows.dialogue_assistant.steps.run`][] performs exactly one `minecraft_observe` call for this route.
 It uses `include_image: false`, appends the actual receipt, and generates a public answer with no further tools.

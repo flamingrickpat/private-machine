@@ -13,7 +13,7 @@ Children: [consolidation and beliefs](memory-consolidation.md) and [A08 verifica
 
 ## Entry and execution path
 
-[`modules.MainCogLoop.prepare_input`][] resolves stimuli through the invocation's permitted view.
+[`workflows.main_cognition.host.MainCogLoop.prepare_input`][] resolves stimuli through the invocation's permitted view.
 [`pm.memory.bash_view.MemoryBashTarget.open`][] retains that detached view and its record revisions.
 New host workflow events remain explicit stimuli.
 They cannot expose memory appended after the invocation began.

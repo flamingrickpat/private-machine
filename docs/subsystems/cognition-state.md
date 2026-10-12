@@ -10,11 +10,11 @@ Actions keep a stable identity and a separate success prerequisite.
 
 Parent: [Cognition](cognition.md).
 Entry: [`workflows.main_cognition.pipeline.run_cycle`][].
-Committer: [`modules.MainCogLoop.publish_output`][].
+Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 
 ## Place in the system
 
-[`modules.MainCogLoop`][] builds one request from a bus batch.
+[`workflows.main_cognition.host.MainCogLoop`][] builds one request from a bus batch.
 The seven child stages return typed reports.
 [`workflows.main_cognition.pipeline.run_cycle`][] collects them into one
 [`workflows.main_cognition.schemas.CognitiveReport`][].
@@ -92,7 +92,7 @@ dependencies.
 A missing prerequisite leaves the action `queued`.
 A failed prerequisite rejects it.
 A queued action never starts dependent work.
-[`modules.MainCogLoop`][] suppresses a repeated non-reply start with the same
+[`workflows.main_cognition.host.MainCogLoop`][] suppresses a repeated non-reply start with the same
 durable identity.
 
 ## Lifecycle evidence
@@ -102,14 +102,14 @@ The Feature records the boot identity, the last known activity, and the gap.
 When a clean shutdown exists, the gap text says so.
 When no clean shutdown exists, the gap is uncertain.
 [`pm.app.lifecycle_records.record_shutdown`][] writes the clean shutdown event.
-[`modules.MainCogLoop.on_terminate`][] calls it on a normal stop.
+[`workflows.main_cognition.host.MainCogLoop.on_terminate`][] calls it on a normal stop.
 An abrupt exit never reaches that hook.
 The next startup then reports an uncertain end interval.
 A repeated boot identity or shutdown identity reuses the accepted event.
 
 At construction, [`main.build_app`][] records the boot event.
 For real cognition it also puts a `system.lifecycle` envelope on the bus.
-[`modules.MainCogLoop`][] accepts that topic in `_stimulus_from`.
+[`workflows.main_cognition.host.MainCogLoop`][] accepts that topic in `_stimulus_from`.
 The first cycle then appraises the offline interval.
 The system never attributes an unknown stop cause to the user.
 
@@ -123,7 +123,7 @@ A failure before the commit leaves accepted state unchanged.
 A stale revision raises `GhostConflict`, so no partial update lands.
 The checkpoint write precedes action publication.
 
-[`modules.MainCogLoop`][] reads active goals from accepted memory.
+[`workflows.main_cognition.host.MainCogLoop`][] reads active goals from accepted memory.
 It writes intentions and Features through the Ghost batch.
 It sends `action.request`, `action.receipt`, and `gwt.updated` messages.
 It sends no model call in the commit path.

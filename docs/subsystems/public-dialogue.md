@@ -15,7 +15,7 @@ Design: [private ontology](../work_items/alpha-plan/ontology.md).
 
 [`workflows.public_speech.public_context.PublicContext`][] defines the common contract in the root repository.
 [`workflows.public_speech.public_context.build_public_context`][] freezes accepted state before generation.
-[`modules.StoryDialogue`][] and [`modules.AssistantDialogue`][] use this same builder.
+[`workflows.dialogue_story.host.StoryDialogue`][] and [`workflows.dialogue_assistant.host.AssistantDialogue`][] use this same builder.
 The standalone Story planner also uses this contract.
 
 The context contains character identity, accepted affect, regulation, active goals, attributed memories, and the selected workspace.

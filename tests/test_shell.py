@@ -41,7 +41,7 @@ class _EchoModule(BusModule):
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         self.batch_sizes.append(len(batch))
-        for _envelope in batch:
+        for new_envelope in batch:
             self.bus.put(Envelope(
                 id=new_id(), source=self.module_id, kind="data",
                 topic="ping", correlation_id="", payload={},

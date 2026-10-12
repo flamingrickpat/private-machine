@@ -51,3 +51,10 @@ class Envelope:
     @classmethod
     def from_json(cls, text: str) -> "Envelope":
         return cls(**json.loads(text))
+
+
+def new_envelope(source, kind, topic, correlation_id, payload, target=None, causation_id=None):
+    return Envelope(
+        id=new_id(), source=source, kind=kind, topic=topic,
+        correlation_id=correlation_id, payload=payload, target=target, causation_id=causation_id,
+    )

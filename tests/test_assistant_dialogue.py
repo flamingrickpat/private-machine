@@ -206,11 +206,11 @@ class AssistantModuleTests(unittest.TestCase):
     def _module(self, root, responses, *, text_override=None):
         from pm.bus.bus import BusSystem
         from pm.bus.envelopes import Envelope
-        from modules import AssistantDialogue
+        from workflows.dialogue_assistant.host import AssistantDialogue
         from pm.memory.store import MemoryStore
         from pm.records.cycle_state import PersonaConfig
         from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
-        from workflows.dialogue_assistant.module_tools import build_assistant_tools
+        from workflows.dialogue_assistant.host import build_assistant_tools
 
         ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
         supervisor = ManagedRunSupervisor(

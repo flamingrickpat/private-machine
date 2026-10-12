@@ -17,7 +17,7 @@ import yaml
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
-from modules import AssistantDialogue
+from workflows.dialogue_assistant.host import AssistantDialogue
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.llm.stage_model import LazyStageModel
@@ -25,9 +25,7 @@ from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from pm.llm.activation import ModelActivation
 from pm.llm.config import LlmPreset, load_config, resolve_connection
 from tests.support import Recorder
-from workflows.dialogue_assistant.module_tools import (
-    build_assistant_tools,
-)
+from workflows.dialogue_assistant.host import build_assistant_tools
 from pm.runs.workflow_module import PROJECT_ROOT
 from pm.memory.bash_view import MemoryBashTarget
 

@@ -26,6 +26,8 @@ from pm.host.mcp_listeners import serve_services
 from pm.host.application import BusModule
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
+from pm.bus.envelopes import Envelope
+from pm.memory.store_tools import build_tools
 
 
 class WorkflowModule(BusModule):
@@ -236,3 +238,39 @@ class WorkflowModule(BusModule):
 
 
 __all__ = ["WorkflowModule", "PROJECT_ROOT"]
+
+
+class CognitiveWorkflow(WorkflowModule):
+    """Knoxel routing shared by cognitive workflows, outside the generic runner."""
+
+    def __init__(self, *args, ghost, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ghost = ghost
+
+    def prepare_input(self, batch: list[Envelope]) -> dict:
+        # Resolve input through the invocation scope, never the unrestricted Ghost.
+        tools = build_tools(self.last_environment)
+        messages = []
+        for envelope in batch:
+            message = {
+                "id": envelope.id,
+                "source": envelope.source,
+                "kind": envelope.kind,
+                "topic": envelope.topic,
+                "correlation_id": envelope.correlation_id,
+                "causation_id": envelope.causation_id,
+                "target": envelope.target,
+                "payload": envelope.payload,
+                "knoxel": tools["ghost_get"](envelope.payload["knoxel_id"]),
+            }
+            if "gwt_tick" in envelope.payload:
+                message["gwt"] = {
+                    "__type__": "GwtTurnRecord",
+                    "data": tools["ghost_gwt"](envelope.payload["gwt_tick"]),
+                }
+            messages.append(message)
+        return {
+            "invocation_id": self.invocation_id,
+            "module_id": self.module_id,
+            "messages": messages,
+        }

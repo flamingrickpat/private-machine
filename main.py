@@ -16,21 +16,13 @@ from pathlib import Path
 
 from pm.memory.store import MemoryStore
 from pm.memory.store_tools import build_tools
-from modules import (
-    AssistantDialogue,
-    CheckSubprocess,
-    DummyDialogue,
-    DummyMainCogLoop,
-    InnerThoughtLoop,
-    MainCogLoop,
-    ScheduleSubprocesses,
-    SelfManagement,
-    StewardModule,
-    StoryDialogue,
-    TaskTable,
-    ToolPlusDialogue,
-    UserInputProxy,
-)
+from workflows.dialogue_assistant.host import AssistantDialogue
+from workflows.demo.host import CheckSubprocess, DummyDialogue, DummyMainCogLoop, ScheduleSubprocesses, TaskTable, ToolPlusDialogue
+from workflows.main_cognition.host import InnerThoughtLoop, MainCogLoop
+from workflows.self_management.host import SelfManagement
+from workflows.steward.host import StewardModule
+from workflows.dialogue_story.host import StoryDialogue
+from workflows.public_speech.user_input import UserInputProxy
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
 from workflows.memory_consolidation.artifact_consolidation import Consolidator
@@ -56,7 +48,7 @@ def default_config_path() -> str:
 
 
 def _managed_workflows(stage_model=None) -> dict:
-    from workflows.minecraft.module_tools import build_minecraft_module_tools
+    from workflows.minecraft.host import build_minecraft_module_tools
     from workflows.note_task.steps import build_note_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
@@ -112,12 +104,10 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
                       supervisor):
     """Return the (main_cog, story, assistant, self_management) modules."""
     if cognition == "real":
-        from workflows.dialogue_story.module_tools import build_story_tools
-        from workflows.dialogue_assistant.module_tools import (
-            build_assistant_tools,
-        )
-        from workflows.main_cognition.module_tools import build_main_cognition_tools
-        from workflows.self_management.module_tools import build_self_management_tools
+        from workflows.dialogue_story.host import build_story_tools
+        from workflows.dialogue_assistant.host import build_assistant_tools
+        from workflows.main_cognition.host import build_main_cognition_tools
+        from workflows.self_management.host import build_self_management_tools
 
         if stage_model is None:
             from pm.llm.stage_model import LazyStageModel
@@ -293,7 +283,7 @@ def build_app(
     )
     steward_module = None
     if cognition == "real":
-        from workflows.steward.module_tools import build_steward_module_tools
+        from workflows.steward.host import build_steward_module_tools
 
         steward_module = StewardModule(
             "steward", bus, on_error, clock, None,

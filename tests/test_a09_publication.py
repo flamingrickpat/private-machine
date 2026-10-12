@@ -10,7 +10,7 @@ import yaml
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
-from modules import UserInputProxy
+from workflows.public_speech.user_input import UserInputProxy
 from pm.memory.snapshot import GhostConflict
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
@@ -55,7 +55,7 @@ class PublicationTests(unittest.TestCase):
             commit_public_reply(self.ghost, "Old reply.", correlation, commit_id="old", context=context)
 
     def test_source_conflict_prevents_semantic_and_protocol_recovery(self):
-        from modules import StoryDialogue
+        from workflows.dialogue_story.host import StoryDialogue
         from pm.memory.bash_view import MemoryBashTarget
         from workflows.dialogue_story.standalone import MANIFEST
 
@@ -82,7 +82,7 @@ class PublicationTests(unittest.TestCase):
                 self.assertEqual(exchange.metadata["exchange_status"], "resolved")
 
     def test_protocol_failure_cannot_become_an_invented_user_report(self):
-        from modules import StoryDialogue
+        from workflows.dialogue_story.host import StoryDialogue
         from pm.memory.bash_view import MemoryBashTarget
         from workflows.dialogue_story.standalone import MANIFEST
 

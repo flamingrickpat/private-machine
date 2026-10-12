@@ -22,12 +22,12 @@ submit -> input Feature -> user.input envelope
 
 ## Important steps
 
-[`modules.UserInputProxy.submit`][] stores a dialogue feature with the current user as its source.
+[`workflows.public_speech.user_input.UserInputProxy.submit`][] stores a dialogue feature with the current user as its source.
 It assigns a correlation ID and publishes the input.
 The bus gives each matching subscriber a detached JSON copy.
 Each module processes its own mailbox batch.
 
-[`modules.MainCogLoop`][] invokes the real parent workflow.
+[`workflows.main_cognition.host.MainCogLoop`][] invokes the real parent workflow.
 [`workflows.main_cognition.pipeline.run_cycle`][] runs the ordered children.
 The parent commits accepted state before action dispatch.
 The selected dialogue module commits its reply before public output.

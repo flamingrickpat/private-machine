@@ -30,7 +30,7 @@ The application module commits accepted state and publishes action envelopes.
 
 [`workflows.main_cognition.stage_runner.build_stage_runner`][] invokes each child through the shared kernel runner.
 The child does not need its own module thread or bus subscription.
-[`modules.MainCogLoop`][] connects this pipeline to the bus and Ghost.
+[`workflows.main_cognition.host.MainCogLoop`][] connects this pipeline to the bus and Ghost.
 
 Story dialogue produces character speech.
 Assistant dialogue can call scoped tools.

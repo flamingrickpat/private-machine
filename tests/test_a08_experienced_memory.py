@@ -11,7 +11,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from modules import _feature, StoryDialogue, _envelope
+from pm.records.memory_records import new_feature
+from workflows.dialogue_story.host import StoryDialogue
+from pm.bus.envelopes import new_envelope
 from pm.memory.snapshot import GhostConflict, Snapshot
 from pm.memory.retrieval import index_chunks, excerpt
 from pm.memory.store import MemoryStore
@@ -34,7 +36,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
         self.ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
 
     def say(self, text, *, source="Jesse", metadata=None):
-        return _feature(self.ghost, text, FeatureType.Dialogue, source=source, metadata=metadata)
+        return new_feature(self.ghost, text, FeatureType.Dialogue, source=source, metadata=metadata)
 
     def retrieve(self, query, **kwargs):
         return asyncio.run(self.ghost.retrieve_experiences(query, **kwargs))
@@ -49,7 +51,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
         module.ghost = self.ghost
         memory = self.retrieve("wrong attachment", limit=1)["matches"][0]["text"]
         self.assertIn(original.metadata["executed_at"], memory)
-        request = StoryRequest.model_validate(module.prepare_input([_envelope(
+        request = StoryRequest.model_validate(module.prepare_input([new_envelope(
             "main_cog", "data", "action.request", "recall-test",
             {"knoxel_id": action.id, "stimuli": [{"text": "Recall a past failed method."}],
              "memories": [memory]},

@@ -17,7 +17,7 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from pm.memory.store_tools import build_tools
 from main import build_app
-from modules import SelfManagement
+from workflows.self_management.host import SelfManagement
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec

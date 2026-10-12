@@ -16,7 +16,8 @@ from pm.records.mental_state import FullMentalState
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
-from modules import InnerThoughtLoop, MainCogLoop, _feature
+from workflows.main_cognition.host import InnerThoughtLoop, MainCogLoop
+from pm.records.memory_records import new_feature
 from pm.memory.snapshot import GhostConflict
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig

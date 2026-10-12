@@ -656,7 +656,7 @@ class GameplayTests(unittest.TestCase):
         from pm_workflows.runtime import WorkflowRuntime
         from dev.work_items.alpha_a11_minecraft_gate import project_contract_manifest
         from dev.work_items.alpha_a13_minecraft_gate import m3_plan_constraints, m3_project_check
-        from workflows.minecraft.module_tools import build_minecraft_module_tools
+        from workflows.minecraft.host import build_minecraft_module_tools
         from workflows.minecraft_project.schemas import TaskTree
         from pm.host.folder_target import FolderEnvironment
         project = Path(__file__).resolve().parents[1]

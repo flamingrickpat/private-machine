@@ -9,6 +9,9 @@ from pm.records.base import RecordBase
 from pm.records.enums import *
 from pm.records.taxonomy import EpistemicStatus, MemoryTaxonomy, MemoryVolatility, RecordStatus, RecordType, TruthStatus
 from pm.records.mental_state import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
+from datetime import datetime
+from pm.records.base import Provenance
+from pm.records.enums import FeatureType, SourceKind
 
 QUOTE_START = '"'
 QUOTE_END = '"'
@@ -494,3 +497,30 @@ class Feature(RecordBase):
 
     def get_sub_type(self) -> RecordSubtypeBase:
         return self.feature_type
+
+
+def new_feature(ghost, content, feature_type, *, source, interlocus=None, causal=True, changes=None,
+             source_kind=None, metadata=None):
+    kwargs = {
+        "content": content,
+        "feature_type": feature_type,
+        "causal": causal,
+        "override_source": source,
+    }
+    if interlocus is not None:
+        kwargs["interlocus"] = interlocus
+    if source_kind is not None:
+        kwargs["provenance"] = Provenance(source_kind=source_kind, source_ref=str(source))
+    elif feature_type == FeatureType.Dialogue:
+        kind = SourceKind.User if source == ghost.get_user_name() else SourceKind.Self
+        kwargs["provenance"] = Provenance(source_kind=kind, source_ref=str(source))
+    kwargs["metadata"] = {
+        "memory_kind": ("utterance" if feature_type == FeatureType.Dialogue else
+                        "speculation" if feature_type in {FeatureType.Thought, FeatureType.InnerMonologue} else
+                        "executed_event"),
+        "executed_at": datetime.utcnow().isoformat(),
+    }
+    if metadata:
+        kwargs["metadata"].update(metadata)
+    create = ghost.store_knoxel if changes is None else changes.create
+    return create(Feature(**kwargs))
