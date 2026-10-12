@@ -46,10 +46,33 @@ Managed tasks can overlap dialogue.
 | Worker | Application, trace hooks, pending exchange | [`pm.console.worker.run`][] |
 | Application | Module lifecycle and first error | [`pm.host.application.Application`][] |
 | Bus | Subscriptions and serialized fan-out | [`pm.bus.bus.BusSystem`][] |
-| Module | Private inbox and active invocation | [`pm.host.application.BusModule`][] |
-| Ghost | Memory, revisions, GWT, receipts | [`pm.memory.store.MemoryStore`][] |
+| Bus module | Private inbox and active invocation | [`pm.host.application.BusModule`][] |
+| Memory store | Records, revisions, GWT, receipts | [`pm.memory.store.MemoryStore`][] |
 | Kernel runner | One workflow invocation and artifacts | [`pm.runs.workflow_runner.WorkflowRunner`][] |
 | Supervisor | Managed-run lifecycle | [`pm.runs.supervisor.ManagedRunSupervisor`][] |
+| Assembly | Which bus modules run and how they are wired | [`workflows.companion.build_app`][] |
+
+## Code layout
+
+The runtime in `pm/` provides APIs and entry points. It never imports `workflows/`.
+All companion behavior lives in `workflows/`.
+
+| Folder | Content |
+| --- | --- |
+| `pm/bus/` | Envelopes and the bus. |
+| `pm/host/` | Bus modules, the application, host folders, MCP listeners, durable files, cancellation. |
+| `pm/llm/` | LLM configuration, HTTP client, activation, context window, stage model, workflow sessions. |
+| `pm/records/` | The record schema, mental state, and cycle state. |
+| `pm/memory/` | The memory store, snapshots, write batches, retrieval, embeddings, checkpoints. |
+| `pm/runs/` | Workflow-backed bus modules, the kernel runner, and the managed-run supervisor. |
+| `pm/app/`, `pm/console/` | The terminal CLI and the operator console. |
+| `workflows/<name>/` | One workflow: manifest, `steps.py`, prompts, schemas, and `host.py`. |
+| `workflows/public_speech/`, `workflows/minecraft_body/` | Libraries that several workflows share. |
+| `workflows/companion.py` | The assembly. |
+
+`tests/unit/test_architecture.py` enforces these import directions.
+The [structural refactor](../work_items/refactor/index.md) explains the layout and three walkthroughs.
+The [glossary](glossary.md) defines the terms.
 
 ## Traps
 

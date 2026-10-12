@@ -119,9 +119,9 @@ These read only the target structure.
 ### A developer changes a planning policy
 
 1. Open `workflows/minecraft_project/`. The planner prompt is `resources/planner.md`.
-2. The planner role is `planning/plan.py`. Its model call is in `planning/decisions.py`. Its inputs come from `planning/context.py`.
+2. The planner role is `planning/plan.py`. Its model call is in `planning/decisions.py`. Its inputs come from `planning/run_context.py`, `planning/proposals.py`, `planning/constraints.py`, and `history_encoding.py`.
 3. Change the policy there. The runtime is not involved.
-4. Run `tests/unit/minecraft_project/` and the captured-receipt replays.
+4. Run `tests/unit/workflows/minecraft_project/`. Its tests replay captured receipts from `test_data/captures/alpha/`.
 
 ## Phases
 
@@ -136,7 +136,7 @@ Each phase is one branch. Each commit is a move, a rename, or an extraction, nev
 | 4 | Remove domain knowledge from the runtime. Empty the allowlist. | Done, branch `refactor/phase-4`. One library coupling stays open. |
 | 5 | Split large files: `minecraft_project/steps.py`, `supervisor.py`, `main_cognition/host.py`. | Partly done, branch `refactor/phase-5`: the planner split by role, the supervisor's receipt and spec split out. The `ManagedRunSupervisor` and `MainCogLoop` method extraction waits for a test run. |
 | 6 | Reorganize tests into `unit/`, `contract/`, `live/`. | Done, branch `refactor/phase-6`. Work-item test files are renamed by subject. |
-| 7 | Walkthrough review. Then the A13 investigation. | Pending. |
+| 7 | Walkthrough review. Then the A13 investigation. | Walkthrough paths checked against the tree. Owner review and the test run are pending. |
 
 ## Verification
 

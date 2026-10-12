@@ -1,4 +1,4 @@
-# pm-next-v2 ? Spamuel companion
+# private-machine
 
 Spamuel runs on a shared Ghost, an in-memory bus, and the `pm-workflows` kernel.
 The terminal uses real cognition by default. The model activates on the first request.
