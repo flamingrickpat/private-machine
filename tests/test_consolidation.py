@@ -16,7 +16,8 @@ from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.records.enums import FeatureType
 from workflows.memory_consolidation.artifact_consolidation import Consolidator
-from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.memory_consolidation.schemas import ConsolidationReport
 from pm.memory.bash_view import MemoryBashEnvironment

@@ -12,7 +12,9 @@ import unittest
 
 from pm.records.cycle_state import PersonaConfig
 from pm.memory.store import MemoryStore
-from pm.runs.supervisor import ManagedRunError, ManagedRunSupervisor, WorkflowSpec
+from pm.runs.run_receipt import ManagedRunError
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
 from pm.runs.workflow_module import PROJECT_ROOT
 
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
@@ -150,7 +152,7 @@ class ManagedRunTests(unittest.TestCase):
     def test_nested_children_keep_configuration_and_separate_folders(self):
         from threading import Event
         from pm_workflows.runtime import WorkflowRuntime
-        from pm.runs.supervisor import scoped_children
+        from pm.runs.workflow_spec import scoped_children
         from pm.host.folder_target import FolderEnvironment
 
         runtime = scoped_children(WorkflowRuntime(FolderEnvironment(self.root / "scope", "bash"),

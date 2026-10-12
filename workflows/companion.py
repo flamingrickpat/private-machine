@@ -22,7 +22,8 @@ from workflows.public_speech.user_input import UserInputProxy
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
 from workflows.memory_consolidation.artifact_consolidation import Consolidator
-from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
 from pm.host.application import Application
 from workflows.steward.gate import Steward
 from pm.llm.workflow_sessions import WorkflowModels

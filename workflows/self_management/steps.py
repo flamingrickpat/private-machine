@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import yaml
 
-from pm.runs.supervisor import ManagedRunError
+from pm.runs.run_receipt import ManagedRunError
 from workflows.self_management.schemas import SelfManagementReport, SelfManagementRequest
 
 

@@ -1737,7 +1737,8 @@ class GameplayTests(unittest.TestCase):
                  criteria=[{"id": "alive", "description": "Living body.", "kind": "alive"}])
 
     def test_milestone_commits_once_and_preserves_publication_identity(self):
-        from pm.runs.supervisor import ManagedRunReceipt, ManagedRunSupervisor
+        from pm.runs.run_receipt import ManagedRunReceipt
+        from pm.runs.supervisor import ManagedRunSupervisor
         from tests.test_design_contracts import small_ghost
         with TemporaryDirectory() as directory:
             events = []
@@ -1758,7 +1759,8 @@ class GameplayTests(unittest.TestCase):
                 supervisor.milestone("run", 2, "actor-0002", "Stale progress.", "other-journal")
 
     def test_milestone_sink_can_inspect_receipt_from_another_thread(self):
-        from pm.runs.supervisor import ManagedRunReceipt, ManagedRunSupervisor
+        from pm.runs.run_receipt import ManagedRunReceipt
+        from pm.runs.supervisor import ManagedRunSupervisor
         from tests.test_design_contracts import small_ghost
         with TemporaryDirectory() as directory:
             supervisor = ManagedRunSupervisor(small_ghost(), runtime_root=Path(directory), workflows={}, clock=lambda: 1)

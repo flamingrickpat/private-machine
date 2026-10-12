@@ -21,7 +21,8 @@ from workflows.dialogue_assistant.host import AssistantDialogue
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.llm.stage_model import LazyStageModel
-from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
 from pm.llm.activation import ModelActivation
 from pm.llm.config import LlmPreset, load_config, resolve_connection
 from tests.support import Recorder

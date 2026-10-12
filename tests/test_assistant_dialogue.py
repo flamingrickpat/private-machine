@@ -209,7 +209,8 @@ class AssistantModuleTests(unittest.TestCase):
         from workflows.dialogue_assistant.host import AssistantDialogue
         from pm.memory.store import MemoryStore
         from pm.records.cycle_state import PersonaConfig
-        from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
+        from pm.runs.supervisor import ManagedRunSupervisor
+        from pm.runs.workflow_spec import WorkflowSpec
         from workflows.dialogue_assistant.host import build_assistant_tools
 
         ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))

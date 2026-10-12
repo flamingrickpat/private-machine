@@ -35,7 +35,7 @@ They never cause automatic mutation replay.
 
 ## Managed progress
 
-[`pm.runs.supervisor.ManagedRunReceipt`][] stores pending `events` with their message and acknowledgment status.
+[`pm.runs.run_receipt.ManagedRunReceipt`][] stores pending `events` with their message and acknowledgment status.
 The event ID contains the logical run ID, worker epoch, and event sequence.
 [`pm.runs.supervisor.ManagedRunSupervisor`][] commits the message before it calls the event sink.
 An event-sink failure leaves the pending message in the checkpoint and `control.json`.

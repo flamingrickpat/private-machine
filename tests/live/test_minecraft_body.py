@@ -29,7 +29,8 @@ from pm.llm.stage_model import LazyStageModel
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from workflows.memory_consolidation.artifact_consolidation import Consolidator
-from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
 from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, build_minecraft_tools
 from tests.live.minecraft_stack import MinecraftStack, autostart_enabled
 from pm.runs.workflow_module import PROJECT_ROOT

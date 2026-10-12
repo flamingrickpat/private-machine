@@ -20,7 +20,8 @@ from workflows.companion import build_app
 from workflows.self_management.host import SelfManagement
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
-from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
 from pm.runs.management_api import build_management_tools
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from tests.support import Recorder

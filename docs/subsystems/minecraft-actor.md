@@ -15,7 +15,7 @@ Projects: [durable subtasks](minecraft-tasks.md).
 ## Request and execution
 
 [`workflows.companion.build_app`][] configures the `minecraft` managed workflow.
-[`pm.runs.supervisor.WorkflowSpec`][] supplies its manifest, tool factory, optional agent model, and MCP descriptors.
+[`pm.runs.workflow_spec.WorkflowSpec`][] supplies its manifest, tool factory, optional agent model, and MCP descriptors.
 [`pm.runs.supervisor.ManagedRunSupervisor.start`][] commits the accepted receipt before it starts the worker thread.
 The worker creates its environment, cancellation event, and instruction callback.
 Its child runtime uses a separate `children/<scope>` directory and inherits cancellation and tools.

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
-from pm.runs.supervisor import ManagedRunError, ManagedRunSupervisor
+from pm.runs.run_receipt import ManagedRunError
+from pm.runs.supervisor import ManagedRunSupervisor
 
 
 def build_management_tools(supervisor: ManagedRunSupervisor) -> dict[str, Callable[..., Any]]:

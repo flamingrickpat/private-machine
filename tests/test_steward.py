@@ -11,7 +11,8 @@ from pm_workflows.runtime import WorkflowRuntime
 
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
-from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
 from workflows.steward.gate import Steward
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.steward.schemas import StewardReport

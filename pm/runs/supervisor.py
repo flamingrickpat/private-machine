@@ -16,8 +16,6 @@ from __future__ import annotations
 import threading
 from copy import deepcopy
 import uuid
-from dataclasses import dataclass, field
-from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -27,121 +25,8 @@ from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowResul
 from pm.host.folder_target import FolderEnvironment
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.host.durable_files import ProcessLock, BodyBusy, atomic_json, read_json
-
-STATES = frozenset({
-    "accepted", "running", "waiting_for_input", "completed", "failed",
-    "cancelled", "interrupted",
-})
-ACTIVE_STATES = frozenset({"accepted", "running", "waiting_for_input"})
-
-
-class ManagedRunError(RuntimeError):
-    """A management operation cannot complete as requested."""
-
-
-class UnavailableWorkflow(ManagedRunError):
-    """The run named a workflow the application does not manage."""
-
-
-def scoped_children(runtime: WorkflowRuntime, root: Path) -> WorkflowRuntime:
-    """Give each child a folder while retaining model, tools, and cancellation.
-
-    Nested children remain below their parent. This is runtime configuration,
-    not a durable task tree or an independent body owner.
-    """
-    from pm_workflows.inputs import relative_path
-
-    def child(scope: str) -> WorkflowRuntime:
-        path = root / "children" / relative_path(scope)
-        child_runtime = replace(runtime, environment=FolderEnvironment(path, "bash"))
-        return scoped_children(child_runtime, path)
-    runtime.child_factory = child
-    return runtime
-
-
-@dataclass(frozen=True)
-class WorkflowSpec:
-    """One workflow with explicit agent, MCP, and child runtime configuration.
-
-    Children retain cancellation and tool ownership. Each child gets its own
-    directory. Trusted Python roles keep their existing MCP configuration.
-    """
-
-    manifest: Path
-    environment_factory: Callable[[str], Any] | None = None
-    namespace: str = ""
-    tools_factory: Callable[[str, Any], Mapping[str, Callable]] | None = None
-    agent_model: Any = None
-    mcp_servers: Mapping[str, Mapping[str, Any]] | None = None
-    #: An interrupted, cancelled, or failed run may resume with a new epoch.
-    resumable: bool = False
-    #: Extra request fields, read from the memory store under its lock at each launch.
-    request_context: Callable[[Any], Mapping[str, Any]] | None = None
-
-
-@dataclass
-class ManagedRunReceipt:
-    """One row of the managed-run table. Serialized into MemoryStore verbatim."""
-
-    run_id: str
-    action_id: str
-    workflow_name: str
-    parent_correlation: str
-    state: str
-    latest_event: str
-    artifact_path: str
-    instructions: str = ""
-    revision: int = 0
-    applied_revision: int = -1
-    updates_open: bool = True
-    question_id: str = ""
-    answer: str = ""
-    request_ids: list[str] = field(default_factory=list)
-    arguments: dict = field(default_factory=dict)
-    evidence: list[str] = field(default_factory=list)
-    created_at: float = 0.0
-    updated_at: float = 0.0
-    execution_epoch: int = 1
-    control_version: int = 0
-    interrupted_from: str = ""
-    events: list[dict] = field(default_factory=list)
-    resume_requests: list[str] = field(default_factory=list)
-
-    def __post_init__(self) -> None:
-        if self.state not in STATES:
-            raise ValueError(f"Unknown managed-run state: {self.state!r}")
-
-    def to_dict(self) -> dict:
-        return {
-            "run_id": self.run_id,
-            "action_id": self.action_id,
-            "workflow_name": self.workflow_name,
-            "parent_correlation": self.parent_correlation,
-            "state": self.state,
-            "latest_event": self.latest_event,
-            "artifact_path": self.artifact_path,
-            "instructions": self.instructions,
-            "revision": self.revision,
-            "applied_revision": self.applied_revision,
-            "updates_open": self.updates_open,
-            "question_id": self.question_id,
-            "answer": self.answer,
-            "request_ids": list(self.request_ids),
-            "arguments": dict(self.arguments),
-            "evidence": list(self.evidence),
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "execution_epoch": self.execution_epoch,
-            "control_version": self.control_version,
-            "interrupted_from": self.interrupted_from,
-            "events": list(self.events),
-            "resume_requests": list(self.resume_requests),
-        }
-
-    @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "ManagedRunReceipt":
-        known = {name: deepcopy(data[name]) for name in cls.__dataclass_fields__ if name in data}
-        return cls(**known)
+from pm.runs.run_receipt import ACTIVE_STATES, ManagedRunError, ManagedRunReceipt
+from pm.runs.workflow_spec import WorkflowSpec, scoped_children
 
 
 class ManagedRunSupervisor:
@@ -805,13 +690,3 @@ class ManagedRunSupervisor:
         for run_id in list(self._threads):
             self.join(run_id, timeout)
 
-
-__all__ = [
-    "ACTIVE_STATES",
-    "STATES",
-    "ManagedRunError",
-    "ManagedRunReceipt",
-    "ManagedRunSupervisor",
-    "UnavailableWorkflow",
-    "WorkflowSpec",
-]

@@ -12,7 +12,9 @@ import unittest
 from pm_workflows.runtime import WorkflowRuntime
 from pm.host.durable_files import BodyBusy, ProcessLock, atomic_json
 from workflows.minecraft_body.lease import BodyLeases, StaleEpoch
-from pm.runs.supervisor import ManagedRunError, ManagedRunReceipt, ManagedRunSupervisor, WorkflowSpec
+from pm.runs.run_receipt import ManagedRunError, ManagedRunReceipt
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
 from workflows.minecraft_body.gateway import observed_target, target_block_cell
 from workflows.minecraft_body.journal import read_actor_journal
 from pm.memory.store import MemoryStore
