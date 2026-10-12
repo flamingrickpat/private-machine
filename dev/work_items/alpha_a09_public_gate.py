@@ -30,8 +30,8 @@ def run(args):
     from pm.bus.envelopes import Envelope, _new_id
     from main import build_app
     from pm.memory.retrieval import candidate
-    from pm.memory.store import Ghost
-    from pm.records.memory_records import ActionSchemaKnoxel
+    from pm.memory.store import MemoryStore
+    from pm.records.memory_records import ActionSchemaRecord
     from pm.records.enums import ActionType
     from runtime.capabilities import capability_snapshot
     from runtime.publication import exchange_record
@@ -45,7 +45,7 @@ def run(args):
         raise ValueError("Keep captured public evidence under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
     selected = set(getattr(args, "case", None) or CASE_NAMES)
-    ghost = Ghost.from_checkpoint(args.checkpoint)
+    ghost = MemoryStore.from_checkpoint(args.checkpoint)
     ghost.checkpoint = out / "ghost.json"
     receipt = {"ok": False, "scope": "operator-selected actions; real generation and publication",
                "source_checkpoint": str(args.checkpoint.resolve()),
@@ -69,7 +69,7 @@ def run(args):
         records = view.serialize_knoxels()
         evidence = [candidate(view, key, records[key]) for key in memory_ids]
         changes = ghost.begin_batch("operator-action:" + correlation)
-        action = changes.create(ActionSchemaKnoxel(content=intent, action_type=ActionType.Reply,
+        action = changes.create(ActionSchemaRecord(content=intent, action_type=ActionType.Reply,
             metadata={"presentation": presentation or {"mode": "candid"}, "memory_evidence": evidence,
                       "memory_trace": {"query_rewrite": {"evidence_use": "event" if memory_ids else "general"}},
                       "selection_source": "operator_boundary_gate"}))
@@ -129,7 +129,7 @@ def run(args):
         assistant = app.assistant
         checkpoint = out / f"{name}-publication-source.json"
         shutil.copy2(ghost.checkpoint, checkpoint)
-        branch = Ghost.from_checkpoint(checkpoint)
+        branch = MemoryStore.from_checkpoint(checkpoint)
         branch.checkpoint = out / f"{name}-assistant-publication.json"
         original_ghost = assistant.ghost
         original_consumer = app.user_input.ghost

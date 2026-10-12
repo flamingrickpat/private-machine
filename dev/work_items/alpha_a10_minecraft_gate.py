@@ -22,7 +22,7 @@ def run(args) -> None:
     """Own the real stack, retain failures, and inspect actual actor effects."""
     from main import build_app, _cognition_workflow_options
     from pm.bus.envelopes import Envelope, _new_id
-    from pm.records.memory_records import ActionSchemaKnoxel
+    from pm.records.memory_records import ActionSchemaRecord
     from pm.records.enums import ActionType
     from runtime.body_lease import BODY_LEASES
     from runtime.minecraft_actor import READ_TOOLS
@@ -102,7 +102,7 @@ def run(args) -> None:
                 correlation = app.user_input.submit(prompt, session="a10")
                 user = exchange_record(app.ghost, correlation)
                 batch = app.ghost.begin_batch("a10-inventory-action")
-                action = batch.create(ActionSchemaKnoxel(content=chosen["content"], action_type=ActionType.Reply,
+                action = batch.create(ActionSchemaRecord(content=chosen["content"], action_type=ActionType.Reply,
                                                         metadata={"selection_source": "live_action_selection"}))
                 app.ghost.commit(batch)
                 envelope = Envelope(id=_new_id(), source="a10_gate", kind="data", topic="action.request", correlation_id=correlation,

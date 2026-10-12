@@ -2,7 +2,7 @@
 
 Entry point: ``run(context)``. Builds the triage messages, validates the model
 JSON into :class:`TriageResult`, and writes ``outbox/report.yaml``. The message
-builder is pure and tested without a kernel, model, or Ghost.
+builder is pure and tested without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
 

@@ -4,12 +4,12 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from pm.host.folder_target import FolderTarget
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 
 class AgentTargetTests(unittest.TestCase):
     def test_virtual_binding_preserves_user_and_machine(self):
-        environment = GhostBashEnvironment({}, {}, "read")
+        environment = MemoryBashEnvironment({}, {}, "read")
         target = environment.agent_target(Path("artifacts"))
         self.assertIs(target.bash_machine, environment.machine)
         self.assertEqual(target.user, "workflow")

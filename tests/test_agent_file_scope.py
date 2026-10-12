@@ -1,4 +1,4 @@
-"""Direct debugger checks for the real coder tools on a Ghost projection."""
+"""Direct debugger checks for the real coder tools on a MemoryStore projection."""
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -7,13 +7,13 @@ import unittest
 import yaml
 from pm_coder import build_settings, make_file_tools, prompt_text
 
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 
 class AgentFileScopeTests(unittest.TestCase):
     def test_agent_tools_cannot_change_projected_memory(self):
         record = {"__type__": "Feature", "data": {"id": 1, "content": "accepted memory"}}
-        environment = GhostBashEnvironment({1: record}, {}, "read")
+        environment = MemoryBashEnvironment({1: record}, {}, "read")
         with TemporaryDirectory() as folder:
             settings = build_settings(cwd=folder, model="unused", context_window=96_000)
             tools = {tool.name: tool.function for tool in make_file_tools(settings, environment.machine, user="workflow")}
@@ -29,7 +29,7 @@ class AgentFileScopeTests(unittest.TestCase):
             self.assertEqual(environment.visible_knoxels[1], record)
 
     def test_agent_tools_use_virtual_cwd_without_host_fallback(self):
-        environment = GhostBashEnvironment({}, {}, "read")
+        environment = MemoryBashEnvironment({}, {}, "read")
         with TemporaryDirectory() as folder:
             host_file = Path(folder) / "host-only.txt"
             host_file.write_text("host-only content", encoding="utf-8")

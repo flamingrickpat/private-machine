@@ -10,7 +10,7 @@ import threading
 import unittest
 from pathlib import Path
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story import engine
@@ -24,7 +24,7 @@ from workflows.dialogue_story.steps import (
     load_prompts,
     render_prior_dialogue,
 )
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 
 def example_request(**overrides) -> StoryRequest:
@@ -160,7 +160,7 @@ class KernelContractTests(unittest.TestCase):
         def fake_complete(messages, **generation):
             return story_complete(messages, **generation)
 
-        environment = GhostBashEnvironment({}, {}, "read")
+        environment = MemoryBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment, stop_event=threading.Event(),
             tools={"story_complete": fake_complete, "public_complete": fake_complete}, propagate_python_errors=True,
@@ -183,7 +183,7 @@ class KernelContractTests(unittest.TestCase):
         async def story_complete(messages, **generation):
             return "I can see you through the camera, Jesse."
 
-        environment = GhostBashEnvironment({}, {}, "read")
+        environment = MemoryBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment, stop_event=threading.Event(),
             tools={"story_complete": story_complete, "public_complete": story_complete}, propagate_python_errors=True,

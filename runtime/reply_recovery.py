@@ -7,10 +7,10 @@ import json
 import yaml
 
 from pm.bus.envelopes import Envelope, _new_id
-from pm.records.memory_records import ActionSchemaKnoxel
+from pm.records.memory_records import ActionSchemaRecord
 from pm.records.enums import ActionType
 from runtime.publication import commit_public_reply, exchange_record, publish_reply
-from pm.host.application import ShellModule
+from pm.host.application import BusModule
 
 TERMINAL = frozenset({"completed", "failed", "cancelled", "interrupted"})
 
@@ -59,7 +59,7 @@ def task_evidence(receipt: dict) -> dict:
     return result
 
 
-class ReplyRecovery(ShellModule):
+class ReplyRecovery(BusModule):
     """Dispatch a terminal reply only when the prior action selected public speech."""
 
     DATA_TOPICS = frozenset({"workflow.event", "workflow.question", "action.receipt", "public.resume"})
@@ -113,7 +113,7 @@ class ReplyRecovery(ShellModule):
         if (exchange is None or exchange.metadata.get("exchange_status") != "pending"
                 or not arguments.get("_public_reply_requested")):
             return
-        if not isinstance(source, ActionSchemaKnoxel) or source.action_type != ActionType.ToolCallAndReply:
+        if not isinstance(source, ActionSchemaRecord) or source.action_type != ActionType.ToolCallAndReply:
             self.fail_exchange(correlation, f"The {receipt['workflow_name']} worker is {receipt['state']}. "
                                "Its selected reply intent is unavailable; no further task effect was verified.")
             return
@@ -126,10 +126,10 @@ class ReplyRecovery(ShellModule):
         identity = f"task-reply:{receipt['run_id']}:{receipt['revision']}:{source.id}"
         with self.ghost.lock:
             prior = next((item for item in self.ghost.all_knoxels.values()
-                          if isinstance(item, ActionSchemaKnoxel) and item.metadata.get("action_id") == identity), None)
+                          if isinstance(item, ActionSchemaRecord) and item.metadata.get("action_id") == identity), None)
             if prior is None:
                 changes = self.ghost.begin_batch(identity)
-                action = changes.create(ActionSchemaKnoxel(
+                action = changes.create(ActionSchemaRecord(
                     action_type=ActionType.Reply,
                     content="Answer the original request using this terminal task receipt. Explain verified work, failure, or uncertainty accurately.",
                     attention_frame_id=source.attention_frame_id, intention_ids=list(source.intention_ids),

@@ -9,8 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm.records.memory_records import ActionSchemaKnoxel
-from pm.records.cognitive_records import OntologyBindingKnoxel, OntologyTermKnoxel
+from pm.records.memory_records import ActionSchemaRecord
+from pm.records.cognitive_records import OntologyBindingRecord, OntologyTermRecord
 from workflows.main_cognition.state_changes import active_goal_texts
 
 
@@ -58,7 +58,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
     """
     view = ghost.snapshot()
     action = view.get_knoxel_by_id(payload.get("knoxel_id"))
-    metadata = action.metadata if isinstance(action, ActionSchemaKnoxel) else {}
+    metadata = action.metadata if isinstance(action, ActionSchemaRecord) else {}
     records = view.serialize_knoxels()
     presentation = Presentation.model_validate(metadata.get("presentation", {}))
     from pm.memory.retrieval import candidate, evidence_role
@@ -115,7 +115,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
         if raw["__type__"] not in {"OntologyTermKnoxel", "OntologyBindingKnoxel"}:
             continue
         item = view.get(key)
-        if isinstance(item, OntologyBindingKnoxel) and not item.active:
+        if isinstance(item, OntologyBindingRecord) and not item.active:
             continue
         ontology.append({"id": key, **item.model_dump(mode="json", exclude={"embedding"})})
         ids.add(key)
@@ -149,7 +149,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
         selected_action=str(action.content if action is not None else payload.get("content", "")),
         temporal_context=ghost.build_body_and_situation_addendum(),
         capabilities=domain_capabilities, ontology=ontology, presentation=presentation,
-        action_schema_id=action.id if isinstance(action, ActionSchemaKnoxel) else None,
+        action_schema_id=action.id if isinstance(action, ActionSchemaRecord) else None,
         revisions={key: view.revisions[key] for key in ids if key in view.revisions},
         user_frontier=max(users, default=None), task_receipt=dict(payload.get("task_receipt", {})),
         state_tick=state.tick_id if state is not None else None,

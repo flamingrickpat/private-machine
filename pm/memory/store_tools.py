@@ -1,7 +1,7 @@
-"""Scoped Ghost tools, exposed both as plain functions and as an MCP server.
+"""Scoped MemoryStore tools, exposed both as plain functions and as an MCP server.
 
 Read tools resolve the invocation's visibility snapshot from the working
-environment. When a run's ``GhostWriteBatch`` is supplied, the same tools read
+environment. When a run's ``WriteBatch`` is supplied, the same tools read
 the batch's staged view and two proposal tools stage new records or
 replacements. Proposals stay invisible to every other run until the batch is
 committed; this module never commits.

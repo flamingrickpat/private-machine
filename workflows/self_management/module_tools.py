@@ -1,6 +1,6 @@
 """Module-level tool factory for the SelfManagement workflow.
 
-The application supplies one managed-run supervisor and one Ghost. The read
+The application supplies one managed-run supervisor and one MemoryStore. The read
 tools resolve the supervisor's durable table; the ghost tools use a scoped
 view. The same function set is registered on the Assistant MCP server, so
 Python steps and MCP clients share one implementation.

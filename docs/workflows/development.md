@@ -152,8 +152,8 @@ Each completed item must regenerate the HTML, even when the visible change is a 
 ## Debugger entry points
 
 Use `.venv/Scripts/python.exe` as the interpreter.
-Place a breakpoint in [`pm.host.application.ShellModule.step`][] for mailbox processing.
+Place a breakpoint in [`pm.host.application.BusModule.step`][] for mailbox processing.
 Place a breakpoint in [`pm.runs.workflow_runner.WorkflowRunner.invoke`][] for workflow execution.
-Place a breakpoint in [`pm.memory.store.Ghost.commit`][] for accepted memory.
+Place a breakpoint in [`pm.memory.store.MemoryStore.commit`][] for accepted memory.
 
 Read [workflow runtime](../runtime.md) for direct calls without module threads.

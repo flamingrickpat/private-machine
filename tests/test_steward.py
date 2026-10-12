@@ -9,13 +9,13 @@ import unittest
 
 from pm_workflows.runtime import WorkflowRuntime
 
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
 from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from runtime.steward import Steward
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.steward.schemas import StewardReport
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
 STEWARD_MANIFEST = PROJECT_ROOT / "workflows" / "steward" / "steward.workflow.md"
@@ -34,8 +34,8 @@ class StewardTests(unittest.TestCase):
     def setUp(self):
         self._tmp = TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        self.ghost = Ghost(
-            GhostConfig(user_name="Jesse", companion_name="Spamuel"),
+        self.ghost = MemoryStore(
+            PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
             checkpoint=self.root / "ghost.json",
         )
         self.supervisor = ManagedRunSupervisor(
@@ -139,7 +139,7 @@ class StewardWorkflowTests(unittest.TestCase):
     def test_workflow_reports_dormant_refusal(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+            ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
             supervisor = ManagedRunSupervisor(
                 ghost, runtime_root=root / "runtime",
                 workflows={
@@ -154,7 +154,7 @@ class StewardWorkflowTests(unittest.TestCase):
             receipt = supervisor.start(
                 action_id="action-0", workflow_name="local_task", instructions="note",
             )
-            environment = GhostBashEnvironment({}, {}, "read")
+            environment = MemoryBashEnvironment({}, {}, "read")
             runtime = WorkflowRuntime(
                 environment=environment, stop_event=threading.Event(),
                 tools={

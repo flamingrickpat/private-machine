@@ -6,7 +6,7 @@ owns: the GWT turn record model (spec v2 §7), its YAML serialization, and
 not own: GWT slot publishing (the loop engine writes gwt/ files), the
   attention frame lifecycle after the cycle stores it, markdown shards.
 fails when: a turn record YAML file does not hold a mapping.
-domain: one accepted cycle produces one AttentionFrameKnoxel (a knoxel in
+domain: one accepted cycle produces one AttentionFrameRecord (a knoxel in
   the ghost) plus one GWT turn record (a projection file in gwt/). The
   turn record references the frame and the causal knoxel ids of the cycle,
   so readers can rebuild the broadcast from memory alone (decision D-M4-4).
@@ -22,9 +22,9 @@ from typing import Any, Dict, List, Optional
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm.records.base import KnoxelScope, Provenance
+from pm.records.base import RecordScope, Provenance
 from pm.records.enums import SourceKind
-from pm.records.cognitive_records import AttentionFrameKnoxel
+from pm.records.cognitive_records import AttentionFrameRecord
 
 GWT_TURN_SCHEMA = "pm.gwt-turn.v1"
 
@@ -72,13 +72,13 @@ def build_attention_frame(
     reality_id: int,
     control_mode: str = "reactive",
     winning_attention_ids: Optional[List[int]] = None,
-) -> AttentionFrameKnoxel:
+) -> AttentionFrameRecord:
     """Build the one attention frame a cycle publishes (decision D-M4-4).
 
     The caller assigns the knoxel id through the ghost service and stores
     the frame together with the other cycle knoxels in one batch.
     """
-    frame = AttentionFrameKnoxel(
+    frame = AttentionFrameRecord(
         content=content,
         tick_id=tick_id,
         focus_knoxel_ids=list(focus_knoxel_ids),
@@ -87,7 +87,7 @@ def build_attention_frame(
         control_mode=control_mode,
         frame_reason=frame_reason,
     )
-    frame.scope = KnoxelScope(reality_id=reality_id)
+    frame.scope = RecordScope(reality_id=reality_id)
     frame.provenance = Provenance(
         source_kind=SourceKind.Workflow, source_ref="personality-cycle"
     )

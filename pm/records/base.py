@@ -2,11 +2,11 @@
 holds - shared knoxel identity, typing, timestamps, and owner storage hooks for memory objects.
 
 archetype: information-holder
-owns: KnoxelType names including Structure and ModuleOutput, KnoxelBase identity/timestamp fields, trace tags, type/subtype helpers, and KnoxelHaver in-memory ownership.
+owns: RecordKind names including Structure and ModuleOutput, RecordBase identity/timestamp fields, trace tags, type/subtype helpers, and RecordOwner in-memory ownership.
 not own: concrete cognitive payload fields, persistence backends, module scheduling, or external side effects.
-fails when: pydantic rejects malformed base fields or a subclass name is missing from the KnoxelType registry.
+fails when: pydantic rejects malformed base fields or a subclass name is missing from the RecordKind registry.
 domain: every memory object shares a base identity, causal time range, trace tags, and optional owner-backed lookup surface before specialized knoxel models add domain payload.
-invariant: KnoxelBase.type resolves through the public KnoxelType registry, and owner-backed access assumes KnoxelHaver stores knoxels by stable ids.
+invariant: RecordBase.type resolves through the public RecordKind registry, and owner-backed access assumes RecordOwner stores knoxels by stable ids.
 """
 
 from datetime import datetime
@@ -20,7 +20,7 @@ from typing import (
 
 from pydantic import BaseModel, Field, PrivateAttr
 
-from pm.records.enums import FrameEnum, KnoxelSubtypeBase, NoSubtype, SourceKind
+from pm.records.enums import FrameEnum, RecordSubtypeBase, NoSubtype, SourceKind
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +75,11 @@ def get_real_datetime() -> datetime:
 REAL_REALITY_ID: int = -1
 
 
-class KnoxelScope(BaseModel):
+class RecordScope(BaseModel):
     """
     Reality scoping for every knoxel (spec v2 §1.1).
 
-    ``reality_id`` references a RealityKnoxel id (entity-ref pattern).
+    ``reality_id`` references a RealityRecord id (entity-ref pattern).
     ``frame`` separates in-world facts from facts about the reality, so
     knowledge from one reality/frame cannot poison another
     (minecraft house location vs server ip; orgblorg kills goblin vs
@@ -97,43 +97,43 @@ class Provenance(BaseModel):
     source_ref: Optional[str] = Field(default=None, description="e.g. task id, workflow run id, entity id")
 
 
-class KnoxelType(StrEnum):
+class RecordKind(StrEnum):
     Entity = "Entity"
-    RealityKnoxel = "RealityKnoxel"
+    RealityRecord = "RealityKnoxel"
     Stimulus = "Stimulus"
     Action = "Action"
-    ActionSchemaKnoxel = "ActionSchemaKnoxel"
+    ActionSchemaRecord = "ActionSchemaKnoxel"
     Intention = "Intention"
-    BeliefKnoxel = "BeliefKnoxel"
-    BeliefShiftKnoxel = "BeliefShiftKnoxel"
-    AttentionKnoxel = "AttentionKnoxel"
-    AttentionFrameKnoxel = "AttentionFrameKnoxel"
-    OntologyTermKnoxel = "OntologyTermKnoxel"
-    OntologyBindingKnoxel = "OntologyBindingKnoxel"
-    QualeKnoxel = "QualeKnoxel"
-    CoversTicksEventsKnoxel = "CoversTicksEventsKnoxel"
+    BeliefRecord = "BeliefKnoxel"
+    BeliefShiftRecord = "BeliefShiftKnoxel"
+    AttentionRecord = "AttentionKnoxel"
+    AttentionFrameRecord = "AttentionFrameKnoxel"
+    OntologyTermRecord = "OntologyTermKnoxel"
+    OntologyBindingRecord = "OntologyBindingKnoxel"
+    QualeRecord = "QualeKnoxel"
+    CoversTicksEventsRecord = "CoversTicksEventsKnoxel"
     Narrative = "Narrative"
     Feature = "Feature"
     GraphNode = "GraphNode"
     GraphEdge = "GraphEdge"
     ConceptNode = "ConceptNode"
     CodeletPercept = "CodeletPercept"
-    MemoryClusterKnoxel = "MemoryClusterKnoxel"
-    DeclarativeFactKnoxel = "DeclarativeFactKnoxel"
-    CauseEffectKnoxel = "CauseEffectKnoxel"
-    VirtualKnoxel = "VirtualKnoxel"
+    MemoryClusterRecord = "MemoryClusterKnoxel"
+    DeclarativeFactRecord = "DeclarativeFactKnoxel"
+    CauseEffectRecord = "CauseEffectKnoxel"
+    VirtualRecord = "VirtualKnoxel"
     Structure = "Structure"
     ModuleOutput = "ModuleOutput"
-    ExecutableSkillKnoxel = "ExecutableSkillKnoxel"
-    WorldPlaceKnoxel = "WorldPlaceKnoxel"
-    WorldObjectKnoxel = "WorldObjectKnoxel"
-    BodyEpisodeKnoxel = "BodyEpisodeKnoxel"
-    SemanticRecordKnoxel = "SemanticRecordKnoxel"
+    ExecutableSkillRecord = "ExecutableSkillKnoxel"
+    WorldPlaceRecord = "WorldPlaceKnoxel"
+    WorldObjectRecord = "WorldObjectKnoxel"
+    BodyEpisodeRecord = "BodyEpisodeKnoxel"
+    SemanticRecord = "SemanticRecordKnoxel"
 
 
-class KnoxelBase(BaseModel):
+class RecordBase(BaseModel):
     _trace_tags: set[str] = PrivateAttr(default_factory=set)
-    _owner: Optional["KnoxelHaver"] = PrivateAttr(default=None)
+    _owner: Optional["RecordOwner"] = PrivateAttr(default=None)
 
     id: int = -1
     tick_id: int = -1
@@ -145,15 +145,15 @@ class KnoxelBase(BaseModel):
     timestamp_world_end: datetime = Field(default_factory=get_causal_datetime)
     last_accessed: datetime = Field(default_factory=datetime.utcnow)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    scope: KnoxelScope = Field(default_factory=KnoxelScope, description="Reality + frame scoping; default real/in_world.")
+    scope: RecordScope = Field(default_factory=RecordScope, description="Reality + frame scoping; default real/in_world.")
     provenance: Optional[Provenance] = Field(default=None, description="Who/what created this knoxel.")
 
     def __hash__(self):
         return hash(self.id) + hash(self.timestamp_creation)
 
     @property
-    def type(self) -> KnoxelType:
-        return KnoxelType[self.__class__.__name__]
+    def type(self) -> RecordKind:
+        return RecordKind[self.__class__.__name__]
 
     def is_beyond_frontier(self, frontier_tick: int, frontier_subtick: int) -> bool:
         """
@@ -170,10 +170,10 @@ class KnoxelBase(BaseModel):
         return self.tick_id == frontier_tick and self.sub_tick_id > frontier_subtick
 
     @property
-    def subtype(self) -> KnoxelSubtypeBase:
+    def subtype(self) -> RecordSubtypeBase:
         return self.get_sub_type()
 
-    def get_sub_type(self) -> KnoxelSubtypeBase:
+    def get_sub_type(self) -> RecordSubtypeBase:
         return NoSubtype.NoSubtype
 
     def get_story_element(self) -> str:
@@ -225,9 +225,9 @@ class KnoxelBase(BaseModel):
         self._trace_tags.add(t)
 
 
-class KnoxelHaver:
+class RecordOwner:
     def __init__(self):
-        self.all_knoxels: Dict[int, KnoxelBase] = {}
+        self.all_knoxels: Dict[int, RecordBase] = {}
 
     @property
     def sorted_knoxels_raw(self):

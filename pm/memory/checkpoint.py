@@ -1,4 +1,4 @@
-"""Versioned Ghost checkpoints. Replacement failure preserves the old file.
+"""Versioned MemoryStore checkpoints. Replacement failure preserves the old file.
 
 Invalid external snapshots fail validation. Filesystem errors propagate to
 the debugger. This module does not retry a failed commit or publish memory.
@@ -24,7 +24,7 @@ class CommitReceipt(BaseModel):
     tick_id: int
 
 
-class GhostCheckpoint(BaseModel):
+class Checkpoint(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_id: Literal["pm.ghost-snapshot.v1"] = "pm.ghost-snapshot.v1"
     state: dict
@@ -38,7 +38,7 @@ class GhostCheckpoint(BaseModel):
     consolidations: dict[str, dict] = Field(default_factory=dict)
 
 
-def write_checkpoint(path: Path, checkpoint: GhostCheckpoint, check_cancelled) -> None:
+def write_checkpoint(path: Path, checkpoint: Checkpoint, check_cancelled) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
@@ -55,5 +55,5 @@ def write_checkpoint(path: Path, checkpoint: GhostCheckpoint, check_cancelled) -
             temporary.unlink(missing_ok=True)
 
 
-def read_checkpoint(path: Path) -> GhostCheckpoint:
-    return GhostCheckpoint.model_validate_json(Path(path).read_text(encoding="utf-8"))
+def read_checkpoint(path: Path) -> Checkpoint:
+    return Checkpoint.model_validate_json(Path(path).read_text(encoding="utf-8"))

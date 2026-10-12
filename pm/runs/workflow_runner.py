@@ -52,7 +52,7 @@ class WorkflowResult:
 
 
 class WorkflowRunner:
-    """Reuse the real kernel without a bus, module thread, or Ghost dependency.
+    """Reuse the real kernel without a bus, module thread, or MemoryStore dependency.
 
     Construction starts no work. Each invocation uses the supplied environment
     and cancellation signal. The caller owns their lifetime and unique run ID.

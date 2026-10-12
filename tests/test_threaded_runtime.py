@@ -12,8 +12,8 @@ from pm.bus.envelopes import Envelope
 from tests.support import Recorder
 from tests.test_design_contracts import small_ghost
 from tests.test_shell import _MANIFEST
-from pm.memory.bash_view import GhostBashWrapper
-from pm.host.workflow_module import ShellModuleWorkflow
+from pm.memory.bash_view import MemoryBashTarget
+from pm.host.workflow_module import WorkflowModule
 
 
 class ThreadedRuntimeTests(unittest.TestCase):
@@ -39,7 +39,7 @@ class ThreadedRuntimeTests(unittest.TestCase):
             self.assertTrue(all(not module._thread.is_alive() for module in app.modules))
 
     def test_bus_terminates_an_active_workflow(self):
-        class WaitingWorkflow(ShellModuleWorkflow):
+        class WaitingWorkflow(WorkflowModule):
             DATA_TOPICS = frozenset({"start"})
 
             def prepare_input(self, batch):
@@ -64,7 +64,7 @@ class ThreadedRuntimeTests(unittest.TestCase):
             started = threading.Event()
             module = WaitingWorkflow(
                 "waiting", bus, app.on_error, time.monotonic, None,
-                working_target=GhostBashWrapper(small_ghost()), workflow=manifest,
+                working_target=MemoryBashTarget(small_ghost()), workflow=manifest,
                 tools_factory=lambda env, batch: {"started": started.set}, runtime_root=root / "runtime",
             )
             app.modules = [module]

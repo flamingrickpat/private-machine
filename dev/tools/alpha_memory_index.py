@@ -16,13 +16,13 @@ sys.path.insert(0, str(ROOT))
 
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import scoped_records, index_chunks
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.llm.config import load_config
 
 
 async def run(args) -> None:
     """Prepare only the caller's explicit scope and retain coverage evidence."""
-    ghost = Ghost.from_checkpoint(args.checkpoint) if args.checkpoint else Ghost.from_yaml(args.seed)
+    ghost = MemoryStore.from_checkpoint(args.checkpoint) if args.checkpoint else MemoryStore.from_yaml(args.seed)
     ids = json.loads(Path(args.ids).read_text(encoding="utf-8")) if args.ids else None
     view = ghost.snapshot(ids)
     scopes = {(args.reality, args.frame)} if args.reality is not None else None

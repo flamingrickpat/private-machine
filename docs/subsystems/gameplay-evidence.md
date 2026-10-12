@@ -230,7 +230,7 @@ Its `evidence` identifies the original journal.
 The [existing bus path](../workflows/exchange.md) supplies this event to cognition.
 No per-call appraisal or emotional update runs inside the gateway.
 
-[`runtime.consolidation.Consolidator`][] retains gameplay evidence inside `BodyEpisodeKnoxel.evidence`.
+[`runtime.consolidation.Consolidator`][] retains gameplay evidence inside `BodyEpisodeRecord.evidence`.
 The episode text names the latest failure and any active recovery causes.
 Artifact hashes and original paths preserve its provenance.
 Repeated consolidation keeps the existing memory keys.

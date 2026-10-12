@@ -20,7 +20,7 @@ from pm.llm.activation import ChatClient
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.main_cognition.pipeline import STAGE_ORDER
 from workflows.main_cognition.schemas import CognitiveReport, CognitiveRequest
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 PARENT_MANIFEST = PACKAGE_DIR / "main_cognition.workflow.md"
@@ -33,9 +33,9 @@ def stage_manifest(name: str) -> Path:
     return STAGES_DIR / name / f"{name}.workflow.md"
 
 
-def make_environment(ghost) -> GhostBashEnvironment:
+def make_environment(ghost) -> MemoryBashEnvironment:
     view = ghost.snapshot()
-    return GhostBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
+    return MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
 
 
 def build_llm_tool(client: ChatClient) -> Callable[..., str]:
@@ -67,7 +67,7 @@ def build_stage_runner(
 
     def run_stage(name: str, payload: dict) -> dict:
         stage_run_id = f"{run_id}-{name}" if run_id else f"{name}-{uuid4().hex[:12]}"
-        environment = (GhostBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
+        environment = (MemoryBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
                        if read_environment is not None else make_environment(ghost))
         def grounded_complete(messages, **generation):
             import json

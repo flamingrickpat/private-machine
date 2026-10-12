@@ -1,6 +1,6 @@
 """Managed-run table, worker, and lifecycle operation tests.
 
-Real Ghost checkpoints, real kernel invocations, and real local task files.
+Real MemoryStore checkpoints, real kernel invocations, and real local task files.
 No module thread, bus, or model endpoint is required.
 """
 from __future__ import annotations
@@ -10,8 +10,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from pm.records.cycle_state import GhostConfig
-from pm.memory.store import Ghost
+from pm.records.cycle_state import PersonaConfig
+from pm.memory.store import MemoryStore
 from pm.runs.supervisor import ManagedRunError, ManagedRunSupervisor, WorkflowSpec
 from pm.host.workflow_module import PROJECT_ROOT
 
@@ -31,8 +31,8 @@ class ManagedRunTests(unittest.TestCase):
     def setUp(self):
         self._tmp = TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        self.ghost = Ghost(
-            GhostConfig(user_name="Jesse", companion_name="Spamuel"),
+        self.ghost = MemoryStore(
+            PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
             checkpoint=self.root / "ghost.json",
         )
         self.clock_value = 1000.0
@@ -213,7 +213,7 @@ class ManagedRunTests(unittest.TestCase):
         )
         run_id = receipt["run_id"]
         self.assertTrue(_wait_for(lambda: self.supervisor.status(run_id)["state"] == "completed"))
-        reopened = Ghost.from_checkpoint(self.root / "ghost.json")
+        reopened = MemoryStore.from_checkpoint(self.root / "ghost.json")
         self.assertEqual(reopened.managed_runs[run_id]["state"], "completed")
         self.assertEqual(reopened.managed_runs[run_id]["action_id"], "action-6")
 

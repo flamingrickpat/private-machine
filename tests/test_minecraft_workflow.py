@@ -13,8 +13,8 @@ import unittest
 
 from pm_workflows.runtime import WorkflowRuntime
 
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
 from runtime.consolidation import Consolidator
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.minecraft import steps
@@ -142,7 +142,7 @@ class MinecraftConsolidationTests(MinecraftTestBase):
             request = {"goal": "chop one oak log", "action_tool": "minecraft_mine_block"}
             environment, report = self._run(request, minecraft, root)
 
-            ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+            ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
             consolidator = Consolidator(ghost, clock=lambda: 10.0)
             receipt = consolidator.consolidate("minecraft-1", root / "task")
             self.assertTrue(receipt["memory_ids"])

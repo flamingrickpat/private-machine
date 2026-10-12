@@ -1,4 +1,4 @@
-"""Role-scoped Ghost proposals over a real write batch."""
+"""Role-scoped MemoryStore proposals over a real write batch."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
@@ -6,18 +6,18 @@ import unittest
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.memory.store_tools import build_tools
-from pm.records.cycle_state import GhostConfig
+from pm.records.cycle_state import PersonaConfig
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
 from pm.memory.yaml_codec import _serialize_knoxel
-from pm.memory.bash_view import GhostBashEnvironment, GhostBashWrapper
-from pm.host.workflow_module import ShellModuleWorkflow
+from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
+from pm.host.workflow_module import WorkflowModule
 
 
-def _ghost() -> Ghost:
-    return Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+def _ghost() -> MemoryStore:
+    return MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
 
 
 def _record(content: str) -> dict:
@@ -26,13 +26,13 @@ def _record(content: str) -> dict:
 
 class GhostProposalTests(unittest.TestCase):
     def test_read_only_tools_expose_no_proposal_tools(self):
-        env = GhostBashEnvironment({}, {}, "read")
+        env = MemoryBashEnvironment({}, {}, "read")
         keys = set(build_tools(env))
         self.assertEqual(keys, {"ghost_get", "ghost_search", "ghost_gwt"})
 
     def test_create_is_staged_in_the_batch_then_becomes_canonical(self):
         ghost = _ghost()
-        env = GhostBashEnvironment({}, {}, "read")
+        env = MemoryBashEnvironment({}, {}, "read")
         batch = ghost.begin_batch("turn")
         tools = build_tools(env, batch)
 
@@ -46,12 +46,12 @@ class GhostProposalTests(unittest.TestCase):
 
         self.assertEqual(ghost.get_knoxel_by_id(new_id).content, "a new memory")
         view = ghost.snapshot()
-        committed_env = GhostBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
+        committed_env = MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
         self.assertEqual(build_tools(committed_env)["ghost_get"](new_id)["data"]["content"], "a new memory")
 
     def test_proposal_is_invisible_to_an_uncommitted_other_run(self):
         ghost = _ghost()
-        env = GhostBashEnvironment({}, {}, "read")
+        env = MemoryBashEnvironment({}, {}, "read")
         first = build_tools(env, ghost.begin_batch("first"))
         second = build_tools(env, ghost.begin_batch("second"))
 
@@ -67,7 +67,7 @@ class GhostProposalTests(unittest.TestCase):
         original = ghost.store_knoxel(
             Feature(feature_type=FeatureType.Dialogue, content="before")
         )
-        env = GhostBashEnvironment({}, {}, "read")
+        env = MemoryBashEnvironment({}, {}, "read")
         batch = ghost.begin_batch("update")
         tools = build_tools(env, batch)
 
@@ -84,7 +84,7 @@ class GhostProposalTests(unittest.TestCase):
 
     def test_untrusted_record_is_rejected(self):
         ghost = _ghost()
-        env = GhostBashEnvironment({}, {}, "read")
+        env = MemoryBashEnvironment({}, {}, "read")
         tools = build_tools(env, ghost.begin_batch("bad"))
         with self.assertRaises(Exception):
             tools["ghost_propose_create"]({"__type__": "NotAKnoxel", "data": {}})
@@ -115,7 +115,7 @@ class GhostProposalTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            class CommitWorkflow(ShellModuleWorkflow):
+            class CommitWorkflow(WorkflowModule):
                 DATA_TOPICS = frozenset({"start"})
 
                 def prepare_input(self, batch):
@@ -127,7 +127,7 @@ class GhostProposalTests(unittest.TestCase):
 
             module = CommitWorkflow(
                 "commit", BusSystem(), self.fail, time.monotonic, None,
-                working_target=GhostBashWrapper(ghost),
+                working_target=MemoryBashTarget(ghost),
                 workflow=manifest, tools_factory=build_tools,
                 runtime_root=root / "runtime",
                 batch_provider=lambda: ghost.begin_batch("run"),

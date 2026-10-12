@@ -1,4 +1,4 @@
-"""Exercise real process locks, Ghost receipts, and captured live interruptions."""
+"""Exercise real process locks, MemoryStore receipts, and captured live interruptions."""
 from __future__ import annotations
 
 import json
@@ -14,7 +14,7 @@ from pm.host.durable_files import BodyBusy, ProcessLock, atomic_json
 from runtime.body_lease import BodyLeases, StaleEpoch
 from pm.runs.supervisor import ManagedRunError, ManagedRunReceipt, ManagedRunSupervisor, WorkflowSpec
 from runtime.minecraft_actor import observed_target, read_actor_journal, target_block_cell
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from tests.test_design_contracts import small_ghost
 from pm.host.workflow_module import PROJECT_ROOT
 from pm.host.folder_target import FolderEnvironment
@@ -138,7 +138,7 @@ class RecoveryTests(unittest.TestCase):
         supervisor._persist(original)
         # Populate the survivor's cache before the other process commits.
         supervisor.get("run")
-        other = Ghost.from_checkpoint(ghost.checkpoint)
+        other = MemoryStore.from_checkpoint(ghost.checkpoint)
         accepted = dict(other.managed_runs["run"])
         accepted.update(state="running", revision=1, instructions="accepted replacement",
                         control_version=accepted["control_version"] + 1)
@@ -162,7 +162,7 @@ class RecoveryTests(unittest.TestCase):
                                     str(self.root / "task"))
         supervisor._persist(receipt)
         supervisor._emit("run", "interrupted", evidence=["scratch/actor-journal.jsonl"])
-        restored = Ghost.from_checkpoint(ghost.checkpoint)
+        restored = MemoryStore.from_checkpoint(ghost.checkpoint)
         events = []
         next_supervisor = ManagedRunSupervisor(restored, runtime_root=self.root, clock=lambda: 1,
                                               workflows={}, event_sink=events.append)

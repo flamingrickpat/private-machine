@@ -11,8 +11,8 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderTarget
-from pm.memory.bash_view import GhostBashEnvironment
-from pm.host.workflow_module import ShellModuleWorkflow
+from pm.memory.bash_view import MemoryBashEnvironment
+from pm.host.workflow_module import WorkflowModule
 
 
 class WorkflowRunnerTests(unittest.TestCase):
@@ -45,7 +45,7 @@ class WorkflowRunnerTests(unittest.TestCase):
 
     def runtime(self, target="virtual"):
         environment = (
-            GhostBashEnvironment({}, {}, "read") if target == "virtual"
+            MemoryBashEnvironment({}, {}, "read") if target == "virtual"
             else FolderTarget(self.root / "target", "bash").open("probe")
         )
         return WorkflowRuntime(environment, threading.Event(), {}, propagate_python_errors=True)
@@ -128,7 +128,7 @@ class WorkflowRunnerTests(unittest.TestCase):
             runner.invoke(WorkflowRequest("wrong-report", {}), self.runtime())
 
     def module(self, runner):
-        class ProbeWorkflow(ShellModuleWorkflow):
+        class ProbeWorkflow(WorkflowModule):
             def prepare_input(self, batch):
                 return batch[0].payload
 

@@ -6,48 +6,48 @@ from typing import Any, Dict, Type
 import yaml
 
 from pm.records.cycle_state import CycleStateModel
-from pm.records.base import persisted_type_name, KnoxelBase
-from pm.records.memory_records import Action, ActionSchemaKnoxel, CauseEffectKnoxel, CoversTicksEventsKnoxel, DeclarativeFactKnoxel, Entity, Feature, MemoryClusterKnoxel, Narrative, RealityKnoxel, SemanticRecordKnoxel, Stimulus
+from pm.records.base import persisted_type_name, RecordBase
+from pm.records.memory_records import Action, ActionSchemaRecord, CauseEffectRecord, CoversTicksEventsRecord, DeclarativeFactRecord, Entity, Feature, MemoryClusterRecord, Narrative, RealityRecord, SemanticRecord, Stimulus
 from pm.records.codelet_records import CodeletPercept, Structure
 from pm.records.codelet_records import ModuleOutput
-from pm.records.world_records import BodyEpisodeKnoxel, ExecutableSkillKnoxel, WorldObjectKnoxel, WorldPlaceKnoxel
+from pm.records.world_records import BodyEpisodeRecord, ExecutableSkillRecord, WorldObjectRecord, WorldPlaceRecord
 from pm.records.graph_records import ConceptNode, GraphEdge, GraphNode
-from pm.records.qualia_records import QualeKnoxel
-from pm.records.cognitive_records import AttentionFrameKnoxel, AttentionKnoxel, BeliefKnoxel, BeliefShiftKnoxel, Intention, OntologyBindingKnoxel, OntologyTermKnoxel
+from pm.records.qualia_records import QualeRecord
+from pm.records.cognitive_records import AttentionFrameRecord, AttentionRecord, BeliefRecord, BeliefShiftRecord, Intention, OntologyBindingRecord, OntologyTermRecord
 
-KNOXEL_TYPE_REGISTRY: Dict[str, Type[KnoxelBase]] = {
+KNOXEL_TYPE_REGISTRY: Dict[str, Type[RecordBase]] = {
     persisted_type_name(cls): cls
     for cls in [
         Action,
-        ActionSchemaKnoxel,
-        AttentionFrameKnoxel,
-        AttentionKnoxel,
-        BeliefKnoxel,
-        BeliefShiftKnoxel,
-        BodyEpisodeKnoxel,
-        CauseEffectKnoxel,
+        ActionSchemaRecord,
+        AttentionFrameRecord,
+        AttentionRecord,
+        BeliefRecord,
+        BeliefShiftRecord,
+        BodyEpisodeRecord,
+        CauseEffectRecord,
         CodeletPercept,
         ConceptNode,
-        CoversTicksEventsKnoxel,
-        DeclarativeFactKnoxel,
+        CoversTicksEventsRecord,
+        DeclarativeFactRecord,
         Entity,
-        ExecutableSkillKnoxel,
+        ExecutableSkillRecord,
         Feature,
         GraphEdge,
         GraphNode,
         Intention,
-        MemoryClusterKnoxel,
+        MemoryClusterRecord,
         ModuleOutput,
         Narrative,
-        OntologyBindingKnoxel,
-        OntologyTermKnoxel,
-        QualeKnoxel,
-        RealityKnoxel,
-        SemanticRecordKnoxel,
+        OntologyBindingRecord,
+        OntologyTermRecord,
+        QualeRecord,
+        RealityRecord,
+        SemanticRecord,
         Stimulus,
         Structure,
-        WorldObjectKnoxel,
-        WorldPlaceKnoxel,
+        WorldObjectRecord,
+        WorldPlaceRecord,
     ]
 }
 
@@ -68,14 +68,14 @@ def _represent_list(dumper: _GhostStateYamlDumper, data: list[Any]) -> yaml.node
 _GhostStateYamlDumper.add_representer(list, _represent_list)
 
 
-def _serialize_knoxel(knoxel: KnoxelBase) -> Dict[str, Any]:
+def _serialize_knoxel(knoxel: RecordBase) -> Dict[str, Any]:
     return {
         "__type__": persisted_type_name(type(knoxel)),
         "data": knoxel.model_dump(mode="json", serialize_as_any=True),
     }
 
 
-def _deserialize_knoxel(raw: Any) -> KnoxelBase:
+def _deserialize_knoxel(raw: Any) -> RecordBase:
     if not isinstance(raw, dict):
         raise ValueError("Knoxel YAML entry must be a mapping")
 

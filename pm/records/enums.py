@@ -2,14 +2,14 @@ import enum
 from enum import StrEnum, auto
 
 
-class KnoxelSubtypeBase(StrEnum):
+class RecordSubtypeBase(StrEnum):
     pass
 
-class NoSubtype(KnoxelSubtypeBase):
+class NoSubtype(RecordSubtypeBase):
     NoSubtype = "NoSubtype"
 
 
-class ActionType(KnoxelSubtypeBase):
+class ActionType(RecordSubtypeBase):
     """
     The basic action types the AI can choose from.
     """
@@ -23,9 +23,9 @@ class ActionType(KnoxelSubtypeBase):
     Idle = "Idle"
 
 
-class RealityKind(KnoxelSubtypeBase):
+class RealityKind(RecordSubtypeBase):
     """
-    The kind of reality a RealityKnoxel describes. Real life, an embodied
+    The kind of reality a RealityRecord describes. Real life, an embodied
     game world (minecraft body), a fantasy campaign, system/meta reality.
     """
     Real = "Real"
@@ -34,9 +34,9 @@ class RealityKind(KnoxelSubtypeBase):
     System = "System"
 
 
-class ActionSchemaStatus(KnoxelSubtypeBase):
+class ActionSchemaStatus(RecordSubtypeBase):
     """
-    Lifecycle of an ActionSchemaKnoxel plan spec.
+    Lifecycle of an ActionSchemaRecord plan spec.
     """
     Proposed = "Proposed"
     Selected = "Selected"
@@ -44,9 +44,9 @@ class ActionSchemaStatus(KnoxelSubtypeBase):
     Abandoned = "Abandoned"
 
 
-class ActionSchemaExecutionMode(KnoxelSubtypeBase):
+class ActionSchemaExecutionMode(RecordSubtypeBase):
     """
-    How an ActionSchemaKnoxel gets executed.
+    How an ActionSchemaRecord gets executed.
     SingleShotMcp: build a prompt for single-shot MCP/tool generation.
     Skill/Workflow: hand to the respective executor.
     ProseExternal: another skill verbalizes/acts it out.
@@ -57,9 +57,9 @@ class ActionSchemaExecutionMode(KnoxelSubtypeBase):
     ProseExternal = "ProseExternal"
 
 
-class ActionSchemaVerbalization(KnoxelSubtypeBase):
+class ActionSchemaVerbalization(RecordSubtypeBase):
     """
-    Who turns the ActionSchemaKnoxel into user-facing prose. Never the
+    Who turns the ActionSchemaRecord into user-facing prose. Never the
     personality simulation itself.
     """
     Roleplay = "Roleplay"
@@ -89,7 +89,7 @@ class SourceKind(StrEnum):
     Migration = "Migration"
 
 
-class FeatureType(KnoxelSubtypeBase):
+class FeatureType(RecordSubtypeBase):
     """
     Coarse prompt-facing feature families.
 
@@ -128,7 +128,7 @@ class FeatureType(KnoxelSubtypeBase):
     StateUpdate = "StateUpdate"
 
 
-class StimulusType(KnoxelSubtypeBase):
+class StimulusType(RecordSubtypeBase):
     UserMessage = "UserMessage"
     CompanionMessage = "CompanionMessage"
     SystemMessage = "SystemMessage"
@@ -141,7 +141,7 @@ class StimulusType(KnoxelSubtypeBase):
     MemoryRecall = "MemoryRecall"
 
 
-class StimulusGroup(KnoxelSubtypeBase):
+class StimulusGroup(RecordSubtypeBase):
     All = "All"
     WorldInput = "WorldInput"
     SystemInput = "SystemInput"
@@ -149,14 +149,14 @@ class StimulusGroup(KnoxelSubtypeBase):
     SelfInput = "SelfInput"
 
 
-class EntityClass(KnoxelSubtypeBase):
+class EntityClass(RecordSubtypeBase):
     Self = "Self"
     Human = "Human"
     AI = "AI"
     Agent = "Agent"
 
 
-class NarrativeTypes(KnoxelSubtypeBase):
+class NarrativeTypes(RecordSubtypeBase):
     AttentionFocus = "AttentionFocus"
     SelfImage = "SelfImage"
     PsychologicalAnalysis = "PsychologicalAnalysis"
@@ -168,7 +168,7 @@ class NarrativeTypes(KnoxelSubtypeBase):
     InnerMonologue = "InnerMonologue"
 
 
-class ClusterType(KnoxelSubtypeBase):
+class ClusterType(RecordSubtypeBase):
     GraphEpisode = "graph_episode"
     Topical = "topical"
     Temporal = "temporal"
@@ -181,14 +181,14 @@ class InterlocusType(enum.IntEnum):
     PrivateInternal = -2
 
 
-class StimulusTriage(KnoxelSubtypeBase):
+class StimulusTriage(RecordSubtypeBase):
     Insignificant = "Insignificant"  # ignore simulus, add as causal feature only
     Moderate = "Moderate"  # fast-track the action generation with limited cws
     Significant = "Significant"  # full pipeline
     Critical = "Critical"
 
 
-class FeatureSubtype(KnoxelSubtypeBase):
+class FeatureSubtype(RecordSubtypeBase):
     """
     Fine-grained subtype seeds for prompt feature generation.
 
@@ -405,7 +405,7 @@ class FeatureSubtype(KnoxelSubtypeBase):
     NarrativeUpdate = auto()
     MetaInsight = auto()
 
-class IntentionType(KnoxelSubtypeBase):
+class IntentionType(RecordSubtypeBase):
     SelfStatePhysical = auto()
     SelfStateMental = auto()
     SelfSituation = auto()

@@ -8,7 +8,7 @@ mental state:
 - an accepted appraisal (canonical axes, or explicit emotion and need deltas);
 - the stable personality profile.
 
-The dynamics never call a model, touch the Ghost, or read trace files. The
+The dynamics never call a model, touch the MemoryStore, or read trace files. The
 caller owns persistence and commit. The output carries a trace that names every
 input, the decay factor, the personality gains, and the expectation error.
 

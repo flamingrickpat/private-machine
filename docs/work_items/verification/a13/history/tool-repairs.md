@@ -68,7 +68,7 @@ It reported one missing birch plank, preserved inventory on failure, and crafted
 That check also used retained ordinary native supplies without grants or a reset.
 
 The saved stop procedure now restores a detached control snapshot without applying checkpoint restart recovery.
-`stop_live_case.py` uses `Ghost._restore(read_checkpoint(path), None)` before the normal supervisor termination API.
+`stop_live_case.py` uses `MemoryStore._restore(read_checkpoint(path), None)` before the normal supervisor termination API.
 The failed run's `operator-stop-correction.json` records the earlier loader mistake.
 
 Run `a13-m3-03` exposed a diagnosis binding error after ordinary wood gathering and crafting.

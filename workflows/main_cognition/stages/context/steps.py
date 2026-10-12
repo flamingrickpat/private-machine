@@ -5,7 +5,7 @@ and its triage, appraisal, and memory-candidate payloads, validates the model
 JSON into :class:`ContextResult`, checks that every selected candidate id came
 from the supplied candidates, and writes ``outbox/report.yaml``. The message
 builder and the selection check are pure and tested without a kernel, model,
-or Ghost.
+or MemoryStore.
 """
 from __future__ import annotations
 

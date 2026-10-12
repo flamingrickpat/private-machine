@@ -40,10 +40,10 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
-from pm.records.base import KnoxelBase
+from pm.records.base import RecordBase
 
 
-class Intention(KnoxelBase):
+class Intention(RecordBase):
     """
     Active goal or expectation tracked across future ticks.
     and lifecycle markers (status/timeout). Often created by actions and later evaluated
@@ -64,11 +64,11 @@ class Intention(KnoxelBase):
     status: str = Field(default="active", description="active, completed, failed, pending")
     timeout: int = Field(default=100, description="Ticks until this intention expires")
 
-class BeliefKnoxel(KnoxelBase):
+class BeliefRecord(RecordBase):
     """
     Persistent-but-revisable epistemic stance.
 
-    A BeliefKnoxel represents what the companion currently takes to be the case, suspects,
+    A BeliefRecord represents what the companion currently takes to be the case, suspects,
     lacks, or theorizes. It is intentionally broader and messier than a crisp logical proposition.
     The goal is not formal proof but architecture-facing traceability.
 
@@ -147,7 +147,7 @@ class BeliefKnoxel(KnoxelBase):
     superseded_by_id: Optional[int] = Field(default=None, description="If replaced, points at the newer belief knoxel.")
 
 
-class BeliefShiftKnoxel(KnoxelBase):
+class BeliefShiftRecord(RecordBase):
     """
     Proposed or recorded change to belief state.
 
@@ -202,7 +202,7 @@ class BeliefShiftKnoxel(KnoxelBase):
     accepted: bool = Field(default=False, description="Whether the shift has already been committed.")
 
 
-class AttentionKnoxel(KnoxelBase):
+class AttentionRecord(RecordBase):
     """
     Candidate attention nomination for competition and ranking.
 
@@ -255,7 +255,7 @@ class AttentionKnoxel(KnoxelBase):
     from_codelet: str = Field(default="", description="Name of the codelet or module that produced this nomination.")
 
 
-class AttentionFrameKnoxel(KnoxelBase):
+class AttentionFrameRecord(RecordBase):
     """
     Snapshot of what currently matters.
 
@@ -290,7 +290,7 @@ class AttentionFrameKnoxel(KnoxelBase):
     expires_after_ticks: int = Field(default=1, ge=0, description="Approximate lifetime hint before the frame should be reconsidered.")
 
 
-class OntologyTermKnoxel(KnoxelBase):
+class OntologyTermRecord(RecordBase):
     """
     Evolving private-ontology vocabulary item.
 
@@ -343,7 +343,7 @@ class OntologyTermKnoxel(KnoxelBase):
     preferred: bool = Field(default=False, description="Whether this is the currently preferred label among alternatives.")
 
 
-class OntologyBindingKnoxel(KnoxelBase):
+class OntologyBindingRecord(RecordBase):
     """
     Temporary or current fit between a private-ontology term and live state.
 

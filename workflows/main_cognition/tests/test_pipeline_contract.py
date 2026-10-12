@@ -14,7 +14,7 @@ from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunne
 from workflows.main_cognition.dispatch import resolve_dispatches, resolve_same_cycle
 from workflows.main_cognition.pipeline import STAGE_ORDER, run_cycle, stable_action_id
 from workflows.main_cognition.schemas import ActionDispatch, CognitiveReport
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 MANIFEST = Path(__file__).resolve().parent.parent / "main_cognition.workflow.md"
 
@@ -134,7 +134,7 @@ class KernelTests(unittest.TestCase):
             report["summary"] = f"{name} done"
             return report
 
-        environment = GhostBashEnvironment({}, {}, "read")
+        environment = MemoryBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment, stop_event=threading.Event(),
             tools={"run_stage": run_stage}, propagate_python_errors=True,

@@ -13,7 +13,7 @@ from pm.bus.bus import BusSystem, Mailbox
 from pm.bus.envelopes import Envelope, _new_id
 
 
-class ShellModule(ABC):
+class BusModule(ABC):
     """Common inbox, thread, and termination behavior for every module."""
 
     DATA_TOPICS: frozenset[str] = frozenset()
@@ -140,7 +140,7 @@ class ShellModule(ABC):
 class Application:
     """Owns modules, an error queue, and a shared shutdown event."""
 
-    def __init__(self, bus: BusSystem, modules: list[ShellModule]) -> None:
+    def __init__(self, bus: BusSystem, modules: list[BusModule]) -> None:
         self.bus = bus
         self.modules = modules
         self.shutdown_event = threading.Event()

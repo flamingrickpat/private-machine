@@ -18,8 +18,8 @@ import yaml
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from modules import AssistantDialogue
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
 from pm.llm.stage_model import LazyStageModel
 from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from pm.llm.activation import ModelActivation
@@ -29,7 +29,7 @@ from workflows.dialogue_assistant.module_tools import (
     build_assistant_tools,
 )
 from pm.host.workflow_module import PROJECT_ROOT
-from pm.memory.bash_view import GhostBashWrapper
+from pm.memory.bash_view import MemoryBashTarget
 
 EVIDENCE_ROOT = Path(".runtime/w6/live-assistant") / (
     datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
@@ -57,7 +57,7 @@ class LiveAssistantTests(unittest.TestCase):
     def test_assistant_executes_a_real_management_tool(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+            ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
             supervisor = ManagedRunSupervisor(
                 ghost, runtime_root=root / "runtime",
                 workflows={
@@ -78,7 +78,7 @@ class LiveAssistantTests(unittest.TestCase):
             bus = BusSystem()
             module = AssistantDialogue(
                 "assistant", bus, self.fail, time.monotonic, None,
-                working_target=GhostBashWrapper(ghost, mode="read"),
+                working_target=MemoryBashTarget(ghost, mode="read"),
                 workflow=ASSISTANT_MANIFEST,
                 tools_factory=build_assistant_tools(model, supervisor),
                 runtime_root=root / "runtime", ghost=ghost,

@@ -129,11 +129,11 @@ def run(args):
             seed = ROOT / "test_data/personas/spamuel/canon.yaml"
             if label == "cheerful":
                 import yaml
-                from pm.memory.store import Ghost
-                from pm.records.cycle_state import GhostConfig
+                from pm.memory.store import MemoryStore
+                from pm.records.cycle_state import PersonaConfig
                 config = yaml.safe_load((ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))
                 seed = out / "cheerful-seed.yaml"
-                seed.write_text(yaml.safe_dump(Ghost(GhostConfig.model_validate(config)).state_dict(), allow_unicode=True), encoding="utf-8")
+                seed.write_text(yaml.safe_dump(MemoryStore(PersonaConfig.model_validate(config)).state_dict(), allow_unicode=True), encoding="utf-8")
             persona = {"name": label, "seed": str(seed), "seed_sha256": hashlib.sha256(seed.read_bytes()).hexdigest(), "exchanges": []}
             receipt["personas"].append(persona)
             instance = request("/api/deploy", {"name": f"A08 {label}", "seed": str(seed),
@@ -170,10 +170,10 @@ def run(args):
                 # paraphrase that shares no distinctive terms with the source.
                 import asyncio
                 from pm.memory.embeddings import EmbeddingService
-                from pm.memory.store import Ghost
+                from pm.memory.store import MemoryStore
                 from pm.llm.config import load_config
                 from pm.memory.references import referenced_ids
-                ghost = Ghost.from_checkpoint(out / "instances" / instance / "ghost.json")
+                ghost = MemoryStore.from_checkpoint(out / "instances" / instance / "ghost.json")
                 service = EmbeddingService(load_config(args.config).embedding, live_test=True)
                 visible = sorted({preference_id, codeword_id,
                     *referenced_ids(ghost.get_knoxel_by_id(preference_id)),

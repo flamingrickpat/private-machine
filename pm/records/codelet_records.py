@@ -13,7 +13,7 @@ from typing import List, Union
 
 from pydantic import BaseModel, Field, JsonValue
 
-from pm.records.base import KnoxelBase
+from pm.records.base import RecordBase
 from pm.records.mental_state import FullMentalState, MentalState, VectorModelReservedSize, create_empty_ms_vector
 
 def _coerce_full_mental_state(value) -> FullMentalState:
@@ -50,7 +50,7 @@ class StructureRelation(BaseModel):
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class Structure(KnoxelBase):
+class Structure(RecordBase):
     """
     Bundle of knoxels sharing some common theme with metadata to allow competition for attention mechanisms.
     """
@@ -63,7 +63,7 @@ class Structure(KnoxelBase):
     primitive_metadata: dict[str, JsonValue] = Field(default_factory=dict, description="Freeform primitive metadata for runtime inspection")
 
     @property
-    def knoxels(self) -> List[KnoxelBase]:
+    def knoxels(self) -> List[RecordBase]:
         return [x for x in self._owner.all_knoxels.values() if x.id in self.internal_knoxel_ids]
 
     @property
@@ -87,7 +87,7 @@ class ModuleDestination(BaseModel):
     port: str | None = None
 
 
-class ModuleOutput(KnoxelBase):
+class ModuleOutput(RecordBase):
     source_module: str
     destinations: List[ModuleDestination] = Field(default_factory=list)
     status: str = "completed"
@@ -118,7 +118,7 @@ class ModuleOutput(KnoxelBase):
         return None
 
     @property
-    def control(self) -> KnoxelBase | None:
+    def control(self) -> RecordBase | None:
         if self._owner is None:
             return None
         return self._owner.all_knoxels.get(self.control_knoxel_id, None)
@@ -134,7 +134,7 @@ class ModuleOutput(KnoxelBase):
         ]
 
 
-class CodeletPercept(KnoxelBase):
+class CodeletPercept(RecordBase):
     """
     Minimal header that every percept carries for selection and blending.
     """
@@ -147,7 +147,7 @@ class CodeletPercept(KnoxelBase):
     internal_knoxel_ids: List[int] = Field(default_factory=list, description="list of knoxels that are based on this percept (new beliefs, attention shifts, goals, or just the features)")
 
     @property
-    def knoxels(self) -> List[KnoxelBase]:
+    def knoxels(self) -> List[RecordBase]:
         return [x for x in self._owner.all_knoxels.values() if x.id in self.internal_knoxel_ids]
 
     @property

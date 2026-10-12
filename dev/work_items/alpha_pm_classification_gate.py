@@ -31,7 +31,7 @@ from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowSta
 from dev.work_items.alpha_classification_gate import inspect_overflow, long_log, make_logs, response_recorder
 from dev.work_items.shared.evidence import save_json, sha256_file
 from pm.host.folder_target import FolderEnvironment
-from pm.memory.bash_view import GhostBashWrapper
+from pm.memory.bash_view import MemoryBashTarget
 
 DEMO = ROOT / "workflows/classification_demo/classification_demo.workflow.md"
 LONG_DEMO = DEMO.with_name("long_inspection.workflow.md")
@@ -134,7 +134,7 @@ def main() -> None:
         assert models.owner._ready == {}, "Construction contacted chat."
         assert all(module.workflow_models is models for module in app.modules if hasattr(module, "workflow_models"))
         assert app.supervisor.workflow_models is models
-        virtual = GhostBashWrapper(app.ghost).open("a05")
+        virtual = MemoryBashTarget(app.ghost).open("a05")
         host = FolderEnvironment(out / "host", "bash")
         expected_path, sources = make_logs(out, host, virtual)
         config = load_config(args.config)

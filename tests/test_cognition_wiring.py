@@ -3,7 +3,7 @@
 No live model and no module thread. A deterministic ``run_stage`` stands in for
 the seven real children, and a deterministic ``story_complete`` stands in for
 Story generation. The real parent kernel, the real module adapter, the real
-Ghost commits, and the real bus are exercised.
+MemoryStore commits, and the real bus are exercised.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from tests.support import ManualClock, Recorder
 from pm.host.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.module_tools import build_main_cognition_tools
 from workflows.main_cognition.pipeline import stable_action_id
-from pm.memory.bash_view import GhostBashWrapper
+from pm.memory.bash_view import MemoryBashTarget
 
 REAL_MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
 STORY_MANIFEST = PROJECT_ROOT / "workflows" / "dialogue_story" / "dialogue_story.workflow.md"
@@ -77,7 +77,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             errors: list[BaseException] = []
             module = MainCogLoop(
                 "main_cog", bus, errors.append, ManualClock(), None,
-                working_target=GhostBashWrapper(ghost, "read"),
+                working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
                 tools_factory=lambda environment, batch: {"run_stage": run_stage},
                 runtime_root=Path(tmp) / "runtime",
@@ -128,7 +128,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             errors: list[BaseException] = []
             module = MainCogLoop(
                 "main_cog", bus, errors.append, ManualClock(), None,
-                working_target=GhostBashWrapper(ghost, "read"),
+                working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
                 tools_factory=lambda environment, batch: {"run_stage": run_stage},
                 runtime_root=Path(tmp) / "runtime",
@@ -167,7 +167,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             errors: list[BaseException] = []
             module = MainCogLoop(
                 "main_cog", bus, errors.append, ManualClock(), None,
-                working_target=GhostBashWrapper(ghost, "read"),
+                working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
                 tools_factory=lambda environment, batch: {"run_stage": run_stage},
                 runtime_root=Path(tmp) / "runtime",
@@ -204,7 +204,7 @@ class StoryDialogueWiringTests(unittest.TestCase):
 
         module = StoryDialogue(
             "dialogue", bus, errors.append, ManualClock(), None,
-            working_target=GhostBashWrapper(ghost, "read"),
+            working_target=MemoryBashTarget(ghost, "read"),
             workflow=STORY_MANIFEST,
             tools_factory=lambda environment, batch: {"story_complete": story_complete, "public_complete": public_complete},
             runtime_root=root / "runtime",
@@ -371,14 +371,14 @@ class MultiExchangeTests(unittest.TestCase):
             root = Path(tmp)
             main_cog = MainCogLoop(
                 "main_cog", bus, errors.append, ManualClock(), None,
-                working_target=GhostBashWrapper(ghost, "read"),
+                working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
                 tools_factory=lambda environment, batch: {"run_stage": run_stage},
                 runtime_root=root / "main", ghost=ghost,
             )
             dialogue = StoryDialogue(
                 "dialogue", bus, errors.append, ManualClock(), None,
-                working_target=GhostBashWrapper(ghost, "read"),
+                working_target=MemoryBashTarget(ghost, "read"),
                 workflow=STORY_MANIFEST,
                 tools_factory=lambda environment, batch: {"story_complete": story_complete, "public_complete": public_complete},
                 runtime_root=root / "story", ghost=ghost,

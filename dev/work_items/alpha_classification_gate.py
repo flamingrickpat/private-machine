@@ -27,11 +27,11 @@ from pm_workflows.classification import replay_classification
 from pm_workflows.dryrun import check_workflow
 from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.memory.yaml_codec import load_ghost_state_from_yaml
 from pm.llm.config import load_config, resolve_connection
 from pm.host.folder_target import FolderEnvironment
-from pm.memory.bash_view import GhostBashWrapper
+from pm.memory.bash_view import MemoryBashTarget
 
 CLASSES = {"all_good": "The current completed test run ran at least one test and all tests passed.",
            "some_failed": "The current completed test run reports at least one passed test and at least one failed test.",
@@ -257,8 +257,8 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=False)
     seed_path = ROOT / "test_data/personas/spamuel/canon.yaml"
     seed_digest = sha256_file(seed_path)
-    ghost = Ghost.from_state(load_ghost_state_from_yaml(seed_path))
-    virtual = GhostBashWrapper(ghost).open("a04")
+    ghost = MemoryStore.from_state(load_ghost_state_from_yaml(seed_path))
+    virtual = MemoryBashTarget(ghost).open("a04")
     host = FolderEnvironment(out / "host", "bash")
     expected_path, source_receipts = make_logs(out, host, virtual)
     connection = resolve_connection(load_config(args.config))

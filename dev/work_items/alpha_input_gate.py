@@ -1,4 +1,4 @@
-"""Inspect actual folder and Ghost inputs, then run a bound-input agent."""
+"""Inspect actual folder and MemoryStore inputs, then run a bound-input agent."""
 from __future__ import annotations
 
 import argparse
@@ -22,13 +22,13 @@ from dev.work_items.shared.evidence import save_json
 
 from pm_workflows.inputs import InputError, InputResolver, InputScope
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.memory.yaml_codec import load_ghost_state_from_yaml
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
-from pm.memory.bash_view import GhostBashWrapper
+from pm.memory.bash_view import MemoryBashTarget
 
 REPORT = ROOT / ".runtime/alpha/a01/console-spamuel/instances/fd71e4655da44430b9779eb6739d45f5/managed_tasks/dd8a80caec16462b97e0e85cbdf87346/outbox/report.yaml"
 
@@ -38,7 +38,7 @@ def main() -> None:
 
     Host logs retain their actual source modification times. Virtual logs use
     content revisions and unknown times. The agent sees a captured A01 report
-    and a selected original memory from the complete Spamuel Ghost projection.
+    and a selected original memory from the complete Spamuel MemoryStore projection.
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
@@ -50,8 +50,8 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=False)
     seed = ROOT / "test_data/personas/spamuel/canon.yaml"
     seed_sha = hashlib.sha256(seed.read_bytes()).hexdigest()
-    ghost = Ghost.from_state(load_ghost_state_from_yaml(seed))
-    virtual = GhostBashWrapper(ghost).open("a03")
+    ghost = MemoryStore.from_state(load_ghost_state_from_yaml(seed))
+    virtual = MemoryBashTarget(ghost).open("a03")
     host = FolderEnvironment(out / "host", "bash")
     sources = [ROOT / ".runtime/alpha/a01/foundation-verbose.log",
                ROOT / ".runtime/alpha/model-policy/foundation-final.log",

@@ -7,11 +7,11 @@ import tempfile
 from pathlib import Path
 
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.memory_records import ActionSchemaKnoxel, Feature
+from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.records.enums import ActionType, FeatureType, InterlocusType
 from pm.memory.yaml_codec import ghost_state_from_dict, ghost_state_to_dict, load_ghost_state_from_yaml
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from main import build_app
 from pm.bus.envelopes import Envelope, _new_id
 
@@ -59,9 +59,9 @@ def load_seed_state():
     return ghost_state_to_dict(state)
 
 
-def fresh_ghost(seed_dict: dict) -> Ghost:
+def fresh_ghost(seed_dict: dict) -> MemoryStore:
     state = ghost_state_from_dict(copy.deepcopy(seed_dict))
-    return Ghost.from_state(state)
+    return MemoryStore.from_state(state)
 
 
 def make_app(seed_dict: dict, runtime_root: Path | None = None):
@@ -83,7 +83,7 @@ def make_app(seed_dict: dict, runtime_root: Path | None = None):
     return app
 
 
-def store_feature(ghost: Ghost, content: str = "test feature") -> int:
+def store_feature(ghost: MemoryStore, content: str = "test feature") -> int:
     feature = ghost.store_knoxel(Feature(
         content=content,
         feature_type=FeatureType.Dialogue,
@@ -95,7 +95,7 @@ def store_feature(ghost: Ghost, content: str = "test feature") -> int:
 
 
 def store_action(
-    ghost: Ghost,
+    ghost: MemoryStore,
     *,
     route: str = "dialogue",
     content: str = "test",
@@ -104,7 +104,7 @@ def store_action(
 ) -> Envelope:
     changes = ghost.begin_batch(_new_id(), new_tick=True)
     tick = changes.tick_id
-    action = changes.create(ActionSchemaKnoxel(
+    action = changes.create(ActionSchemaRecord(
         content=content,
         action_type=_ACTION_TYPE[route],
         metadata={"route": route, "task_id": task_id, "task_kind": task_kind},

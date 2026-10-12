@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 def run(args):
     """Retain each unchanged candidate, source context, and semantic decision."""
     from pm.memory.retrieval import candidate
-    from pm.memory.store import Ghost
+    from pm.memory.store import MemoryStore
     from pm.llm.stage_model import LazyStageModel
     from pm.llm.activation import ModelActivation
     from pm.llm.config import load_config, resolve_connection
@@ -25,7 +25,7 @@ def run(args):
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Keep live claim evidence under .runtime.")
     out.mkdir(parents=True, exist_ok=False)
-    ghost = Ghost.from_checkpoint(args.checkpoint)
+    ghost = MemoryStore.from_checkpoint(args.checkpoint)
     ghost.checkpoint = out / "ghost.json"
     view = ghost.snapshot()
     records = view.serialize_knoxels()
@@ -33,10 +33,10 @@ def run(args):
     if not all(key in records for key in ids):
         raise ValueError("The captured A08 source records are absent.")
     context = build_public_context(ghost, {"memory_evidence": [candidate(view, key, records[key]) for key in ids]})
-    from pm.records.memory_records import ActionSchemaKnoxel
+    from pm.records.memory_records import ActionSchemaRecord
     from pm.records.enums import ActionType
     changes = ghost.begin_batch("operator-deception-intent")
-    action = changes.create(ActionSchemaKnoxel(content="Give a deliberately false codeword as a playful joke.",
+    action = changes.create(ActionSchemaRecord(content="Give a deliberately false codeword as a playful joke.",
         action_type=ActionType.Reply, metadata={"presentation": {"mode": "deceive",
         "purpose": "A requested teasing codeword; retain the actual codeword.", "known_fact_ids": [11212]}}))
     ghost.commit(changes)

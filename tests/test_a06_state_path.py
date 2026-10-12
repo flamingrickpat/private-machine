@@ -1,7 +1,7 @@
 """A06 state-path tests: affect, goals, evidence, identity, and lifecycle.
 
 No live model, module thread, or Minecraft server. The real parent kernel, the
-real module adapter, and the real Ghost commit boundary are exercised with a
+real module adapter, and the real MemoryStore commit boundary are exercised with a
 deterministic ``run_stage`` stub.
 """
 from __future__ import annotations
@@ -18,8 +18,8 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
 from modules import InnerThoughtLoop, MainCogLoop, _feature
 from pm.memory.snapshot import GhostConflict
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
 from pm.app.lifecycle_records import CLEAN_END, UNCERTAIN_END, record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
 from pm.host.workflow_module import PROJECT_ROOT
@@ -27,7 +27,7 @@ from workflows.main_cognition.dispatch import resolve_prerequisites
 from workflows.main_cognition.pipeline import run_cycle
 from workflows.main_cognition.schemas import ActionDispatch
 from workflows.main_cognition.state_changes import find_intention, normalize_goal_key
-from pm.memory.bash_view import GhostBashWrapper
+from pm.memory.bash_view import MemoryBashTarget
 
 REAL_MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
 INNER_MANIFEST = PROJECT_ROOT / "workflows" / "inner_thought.workflow.md"
@@ -78,7 +78,7 @@ def _module(ghost, reports, tmp, module_id="main_cog"):
     errors: list[BaseException] = []
     module = MainCogLoop(
         module_id, bus, errors.append, ManualClock(), None,
-        working_target=GhostBashWrapper(ghost, "read"),
+        working_target=MemoryBashTarget(ghost, "read"),
         workflow=REAL_MANIFEST,
         tools_factory=lambda environment, batch: {"run_stage": run_stage},
         runtime_root=Path(tmp) / "runtime",
@@ -262,7 +262,7 @@ class GoalLifecycleTests(unittest.TestCase):
     def test_active_intention_survives_checkpoint_restart(self):
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "ghost.json"
-            ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=path)
+            ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=path)
             stimulus_id = _store(ghost, "let us build a house")
             reports = _reports(stimulus_id, goals=[{"change": "add", "goal": "build a house"}])
             module, bus, errors = _module(ghost, reports, tmp)
@@ -272,7 +272,7 @@ class GoalLifecycleTests(unittest.TestCase):
             self.assertEqual(errors, [])
             self.assertIsNotNone(find_intention(ghost, normalize_goal_key("build a house")))
 
-            reopened = Ghost.from_checkpoint(path)
+            reopened = MemoryStore.from_checkpoint(path)
             found = find_intention(reopened, normalize_goal_key("build a house"))
             self.assertIsNotNone(found)
             self.assertEqual(found.status, "active")
@@ -353,7 +353,7 @@ class EventOriginTests(unittest.TestCase):
             errors: list[BaseException] = []
             module = InnerThoughtLoop(
                 "inner_thought", bus, errors.append, ManualClock(), None,
-                working_target=GhostBashWrapper(ghost, "read"),
+                working_target=MemoryBashTarget(ghost, "read"),
                 workflow=INNER_MANIFEST,
                 tools_factory=lambda environment, batch: {},
                 runtime_root=Path(tmp) / "runtime",

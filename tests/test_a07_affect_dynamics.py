@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm_core.model.affect_dynamics import (
     REGULATION_REACTIVE,
     REGULATION_REFLECTIVE,
@@ -18,8 +18,8 @@ from pm_core.model.affect_dynamics import (
     personality_gains,
     project_affect,
 )
-from pm.records.cycle_state import GhostConfig
-from pm.records.memory_records import ActionSchemaKnoxel, Feature
+from pm.records.cycle_state import PersonaConfig
+from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.records.enums import FeatureSubtype, FeatureType
 from pm.records.mental_state import FullMentalState, create_empty_state, make_personality_profile
 
@@ -30,7 +30,7 @@ from pm.app.lifecycle_records import record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
 from pm.host.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.schemas import AppraisalResult
-from pm.memory.bash_view import GhostBashWrapper
+from pm.memory.bash_view import MemoryBashTarget
 
 REAL_MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
 
@@ -86,7 +86,7 @@ def _module(ghost, reports, tmp, module_id="main_cog"):
     errors: list[BaseException] = []
     module = MainCogLoop(
         module_id, bus, errors.append, ManualClock(), None,
-        working_target=GhostBashWrapper(ghost, "read"),
+        working_target=MemoryBashTarget(ghost, "read"),
         workflow=REAL_MANIFEST,
         tools_factory=lambda environment, batch: {"run_stage": run_stage},
         runtime_root=Path(tmp) / "runtime",
@@ -233,7 +233,7 @@ class ModuleCommitTests(unittest.TestCase):
             # The later choice keeps the accepted affect beside its own identity.
             action = [
                 knoxel for knoxel in ghost.all_knoxels.values()
-                if isinstance(knoxel, ActionSchemaKnoxel)
+                if isinstance(knoxel, ActionSchemaRecord)
             ][-1]
             self.assertEqual(action.metadata["regulation"], feature.metadata["regulation"])
             self.assertTrue(action.metadata["affect_summary"])
@@ -254,7 +254,7 @@ class ModuleCommitTests(unittest.TestCase):
     def test_affect_survives_a_checkpoint_restart(self):
         with TemporaryDirectory() as tmp:
             checkpoint = Path(tmp) / "ghost.json"
-            ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=checkpoint)
+            ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=checkpoint)
             stimulus_id = _store(ghost, "That failure was not your fault.")
             reports = _reports(stimulus_id, emotion={"sadness": 0.7})
             module, bus, errors, _ = _module(ghost, reports, tmp)
@@ -264,7 +264,7 @@ class ModuleCommitTests(unittest.TestCase):
             self.assertEqual(errors, [])
             before = FullMentalState.init_from_list(ghost.states[-1].mental_state_latent_vec)
 
-            reopened = Ghost.from_checkpoint(checkpoint)
+            reopened = MemoryStore.from_checkpoint(checkpoint)
             after = FullMentalState.init_from_list(reopened.states[-1].mental_state_latent_vec)
             self.assertAlmostEqual(after.state_emotions.sadness, before.state_emotions.sadness)
             # A restart does not reset the persona to neutral.

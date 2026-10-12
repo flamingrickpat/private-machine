@@ -14,7 +14,7 @@ from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunne
 from workflows.main_cognition.schemas import WorkspaceResult
 from workflows.main_cognition.stage_support import StageOutputError
 from workflows.main_cognition.stages.workspace import steps
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 MANIFEST = Path(steps.__file__).resolve().parent / "workspace.workflow.md"
 
@@ -83,7 +83,7 @@ class KernelTests(unittest.TestCase):
             captured["generation"] = generation
             return completion
 
-        environment = GhostBashEnvironment({}, {}, "read")
+        environment = MemoryBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment, stop_event=threading.Event(),
             tools={"llm_complete": llm_complete}, propagate_python_errors=True,

@@ -8,13 +8,13 @@ from typing import (
 
 from pydantic import Field
 
-from pm.records.base import KnoxelBase
-from pm.records.memory_records import SemanticallyClassifiedKnoxel
+from pm.records.base import RecordBase
+from pm.records.memory_records import SemanticallyClassifiedRecord
 
 logger = logging.getLogger(__name__)
 
 
-class GraphNode(KnoxelBase):
+class GraphNode(RecordBase):
     """
     Graph-memory entity node derived from consolidated memories and fact extraction.
 
@@ -29,7 +29,7 @@ class GraphNode(KnoxelBase):
     attributes: Dict[str, Any] = Field(default_factory=dict)  # For additional, non-relational data
 
 
-class GraphEdge(SemanticallyClassifiedKnoxel):
+class GraphEdge(SemanticallyClassifiedRecord):
     """
     Graph-memory relation between two ``GraphNode`` entries.
 
@@ -38,7 +38,7 @@ class GraphEdge(SemanticallyClassifiedKnoxel):
     Used for relation retrieval, contradiction handling, and evidence tracing.
 
     The semantic classification layer (subject/record type/epistemic/essence) marks
-    the edge's fact_text as a claim and links it to its canonical SemanticRecordKnoxel.
+    the edge's fact_text as a claim and links it to its canonical SemanticRecord.
     """
     source_id: int  # UUID of the source GraphNode
     target_id: int  # UUID of the target GraphNode
@@ -50,7 +50,7 @@ class GraphEdge(SemanticallyClassifiedKnoxel):
     attributes: Dict[str, Any] = Field(default_factory=dict)
 
 
-class ConceptNode(KnoxelBase):
+class ConceptNode(RecordBase):
     """
     Concept hierarchy node for abstraction and taxonomy alignment.
 

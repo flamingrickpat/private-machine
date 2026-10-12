@@ -23,8 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -103,8 +103,8 @@ class LiveMinecraftBodyTests(unittest.TestCase):
     def test_body_lifecycle_and_memory_recovery(self):
         root = EVIDENCE_ROOT / "state"
         root.mkdir(parents=True, exist_ok=True)
-        ghost = Ghost(
-            GhostConfig(user_name="Jesse", companion_name="Spamuel"),
+        ghost = MemoryStore(
+            PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
             checkpoint=root / "ghost.json",
         )
         consolidator = Consolidator(ghost, clock=time.monotonic)
@@ -171,7 +171,7 @@ class LiveMinecraftBodyTests(unittest.TestCase):
 
         # Memory recovery from a reopened checkpoint.
         self.assertTrue(_wait_for(lambda: ghost.consolidations, timeout=30))
-        reopened = Ghost.from_checkpoint(root / "ghost.json")
+        reopened = MemoryStore.from_checkpoint(root / "ghost.json")
         self.assertTrue(reopened.consolidations)
         consolidation = next(iter(reopened.consolidations.values()))
         self.assertEqual(consolidation["run_id"], run_id)

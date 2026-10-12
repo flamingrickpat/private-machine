@@ -4,7 +4,7 @@ Entry point: ``run(context)``. Builds the goals messages from the request, its
 appraisal, its context, and the current goal list, validates the model JSON
 into :class:`GoalsResult`, rejects any unsupported change kind, and writes
 ``outbox/report.yaml``. The message builder and the change guard are pure and
-tested without a kernel, model, or Ghost.
+tested without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
 

@@ -30,9 +30,9 @@ The `data` object contains that class's fields.
 
 ## State changes
 
-[`pm.memory.write_batch.GhostWriteBatch.replace`][] preserves the class, scope, and creation tick.
-[`pm.memory.write_batch.GhostWriteBatch.create`][] reserves a fresh ID.
-[`pm.memory.store.Ghost.commit`][] validates references and writes the checkpoint before acceptance.
+[`pm.memory.write_batch.WriteBatch.replace`][] preserves the class, scope, and creation tick.
+[`pm.memory.write_batch.WriteBatch.create`][] reserves a fresh ID.
+[`pm.memory.store.MemoryStore.commit`][] validates references and writes the checkpoint before acceptance.
 The console then refreshes its snapshot.
 
 ## Traps
@@ -71,8 +71,8 @@ The progress counter shows the indexed and total record counts.
 Select **Cancel search** to interrupt preparation without stopping Ghost.
 Completed vectors remain in the cache.
 
-[`pm.memory.store.Ghost.search_memory`][] owns scoped search.
-[`pm.memory.store.Ghost.dialogue_history`][] owns accepted public dialogue inspection.
+[`pm.memory.store.MemoryStore.search_memory`][] owns scoped search.
+[`pm.memory.store.MemoryStore.dialogue_history`][] owns accepted public dialogue inspection.
 Other trusted callers can reuse these APIs with their permitted record IDs.
 
 The knoxel editor hides embedding and state-vector fields. Existing vectors remain intact when you edit other fields.

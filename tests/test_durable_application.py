@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from main import build_app
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.memory.snapshot import GhostCancelled
 from tests.support import ManualClock, Recorder
 from tests.test_ghost_commits import small_ghost
@@ -25,7 +25,7 @@ class DurableApplicationTests(unittest.TestCase):
         observed = []
 
         def receive(envelope):
-            reopened = Ghost.from_checkpoint(self.path)
+            reopened = MemoryStore.from_checkpoint(self.path)
             if "knoxel_id" in envelope.payload:
                 self.assertIsNotNone(reopened.get_knoxel_by_id(envelope.payload["knoxel_id"]))
             if "gwt_tick" in envelope.payload:

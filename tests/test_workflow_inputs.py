@@ -9,12 +9,12 @@ from pm_workflows.inputs import InputError, InputResolver, InputScope
 from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
 from pm.host.folder_target import FolderEnvironment
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 
 class WorkflowInputTests(unittest.TestCase):
     def test_missing_ghost_file_keeps_the_missing_cause(self):
-        environment = GhostBashEnvironment({}, {}, "read")
+        environment = MemoryBashEnvironment({}, {}, "read")
         resolver = InputResolver(environment, InputScope("test", "run"))
         with self.assertRaises(InputError) as caught:
             resolver.capture_file("logs/missing.log")
@@ -22,7 +22,7 @@ class WorkflowInputTests(unittest.TestCase):
 
     def test_application_metadata_keeps_host_time_and_unknown_virtual_time(self):
         with TemporaryDirectory() as directory:
-            for environment, host in [(FolderEnvironment(Path(directory), "bash"), True), (GhostBashEnvironment({}, {}, "read"), False)]:
+            for environment, host in [(FolderEnvironment(Path(directory), "bash"), True), (MemoryBashEnvironment({}, {}, "read"), False)]:
                 environment.write_text("logs/report.txt", "12 passed\r\n\u00df\n")
                 resolver = InputResolver(environment, InputScope("test", "run"))
                 listing = resolver.list_folder("logs")
@@ -36,7 +36,7 @@ class WorkflowInputTests(unittest.TestCase):
 
     def test_application_paths_reject_absolute_and_traversal_reads(self):
         with TemporaryDirectory() as directory:
-            for environment in [FolderEnvironment(Path(directory), "bash"), GhostBashEnvironment({}, {}, "read")]:
+            for environment in [FolderEnvironment(Path(directory), "bash"), MemoryBashEnvironment({}, {}, "read")]:
                 for path in ["../outside.txt", "/outside.txt", "C:/outside.txt"]:
                     with self.assertRaises(InputError):
                         environment.read_text(path)
@@ -57,7 +57,7 @@ class WorkflowInputTests(unittest.TestCase):
                             "inputs": {"job": {"request": "job.id", "expected_type": "string"}},
                             "outputs": {"job": {"pointer": "/job", "expected_type": "string"}}}],
             }) + "---\n", encoding="utf-8")
-            runtime = WorkflowRuntime(GhostBashEnvironment({}, {}, "read"), Event(), {}, True)
+            runtime = WorkflowRuntime(MemoryBashEnvironment({}, {}, "read"), Event(), {}, True)
             result = WorkflowRunner(manifest, root / "runtime", base_dir=root).invoke(WorkflowRequest("request", {"job": {"id": "current"}}), runtime)
             self.assertEqual(result.status, WorkflowStatus.Completed)
             self.assertEqual(result.report, {"job": "current"})

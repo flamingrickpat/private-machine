@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pm.bus.envelopes import Envelope, _new_id
-from pm.records.memory_records import ActionSchemaKnoxel
+from pm.records.memory_records import ActionSchemaRecord
 from runtime.publication import exchange_record
 
 
@@ -12,7 +12,7 @@ def acknowledge_intent(ghost, action_id: int) -> None:
         if action_id not in ghost.revisions:
             return
         action = ghost.snapshot({action_id}).get(action_id)
-        if not isinstance(action, ActionSchemaKnoxel) or action.metadata.get("dispatch_status") != "pending":
+        if not isinstance(action, ActionSchemaRecord) or action.metadata.get("dispatch_status") != "pending":
             return
         batch = ghost.begin_batch(f"intent-ack:{action_id}")
         action.metadata["dispatch_status"] = "admitted"
@@ -29,7 +29,7 @@ def replay_intents(ghost, bus, supervisor) -> set[str]:
     handled = set()
     receipts = supervisor.receipts()
     for item in list(ghost.all_knoxels.values()):
-        if not isinstance(item, ActionSchemaKnoxel) or item.metadata.get("dispatch_status") != "pending":
+        if not isinstance(item, ActionSchemaRecord) or item.metadata.get("dispatch_status") != "pending":
             continue
         metadata = item.metadata
         correlation = metadata["dispatch_correlation"]

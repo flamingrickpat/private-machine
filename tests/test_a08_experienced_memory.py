@@ -12,15 +12,15 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from modules import _feature, StoryDialogue, _envelope
-from pm.memory.snapshot import GhostConflict, GhostView
+from pm.memory.snapshot import GhostConflict, Snapshot
 from pm.memory.retrieval import index_chunks, excerpt
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
-from pm.records.memory_records import ActionSchemaKnoxel, Feature, MemoryClusterKnoxel
-from pm.records.base import KnoxelScope
-from pm.records.world_records import WorldObjectKnoxel
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
+from pm.records.memory_records import ActionSchemaRecord, Feature, MemoryClusterRecord
+from pm.records.base import RecordScope
+from pm.records.world_records import WorldObjectRecord
 from pm.records.enums import ActionType, ClusterType, FeatureType, FrameEnum
-from pm.records.cognitive_records import BeliefKnoxel
+from pm.records.cognitive_records import BeliefRecord
 from runtime.consolidation import Consolidator
 from runtime.experience import update_beliefs, utterance_metadata
 from workflows.main_cognition.schemas import AppraisalResult, BeliefUpdate
@@ -31,7 +31,7 @@ from workflows.dialogue_story.steps import build_story_messages, load_prompts
 
 class ExperiencedMemoryTests(unittest.TestCase):
     def setUp(self):
-        self.ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+        self.ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
 
     def say(self, text, *, source="Jesse", metadata=None):
         return _feature(self.ghost, text, FeatureType.Dialogue, source=source, metadata=metadata)
@@ -41,7 +41,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
 
     def test_story_preserves_selected_action_beside_current_stimulus(self):
         original = self.say("The follow-up email still contained the wrong attachment.")
-        action = self.ghost.store_knoxel(ActionSchemaKnoxel(
+        action = self.ghost.store_knoxel(ActionSchemaRecord(
             content=f"Recall the unsuccessful attachment correction reported in original {original.id}.",
             action_type=ActionType.Reply,
         ))
@@ -68,7 +68,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
             original = self.say("Our project codeword is copper lantern.")
             for index in range(30):
                 self.say(f"The page counter is {index} today.")
-            reopened = Ghost.from_checkpoint(self.ghost.checkpoint)
+            reopened = MemoryStore.from_checkpoint(self.ghost.checkpoint)
             result = asyncio.run(reopened.retrieve_experiences("project codeword", limit=8))
             self.assertIn(original.id, [item["knoxel_id"] for item in result["matches"]])
             self.assertEqual(reopened.get_knoxel_by_id(original.id).content, original.content)
@@ -79,8 +79,8 @@ class ExperiencedMemoryTests(unittest.TestCase):
         hidden = future.create(Feature(content="future copper lantern", feature_type=FeatureType.Dialogue))
         self.ghost.commit(future)
         foreign = self.ghost.store_knoxel(Feature(content="meta copper lantern", feature_type=FeatureType.Dialogue,
-                                                 scope=KnoxelScope(frame=FrameEnum.Meta)))
-        summary = self.ghost.store_knoxel(MemoryClusterKnoxel(
+                                                 scope=RecordScope(frame=FrameEnum.Meta)))
+        summary = self.ghost.store_knoxel(MemoryClusterRecord(
             content="copper lantern summary with hidden evidence", level=100, cluster_type=ClusterType.Topical,
             included_event_ids=f"{original.id},{hidden.id}",
         ))
@@ -129,7 +129,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
             batch = self.ghost.begin_batch(f"claim-{index}")
             update_beliefs(batch, [BeliefUpdate(source_id=source.id, quote=text, belief_key="gate")], user_name="Jesse")
             self.ghost.commit(batch)
-        beliefs = [item for item in self.ghost.all_knoxels.values() if isinstance(item, BeliefKnoxel)]
+        beliefs = [item for item in self.ghost.all_knoxels.values() if isinstance(item, BeliefRecord)]
         self.assertTrue(all(item.active for item in beliefs))
         self.assertTrue(beliefs[0].contradicting_knoxel_ids)
         self.assertTrue(all(item.belief_kind == "reported_by_user" for item in beliefs))
@@ -147,7 +147,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
 
     def test_deception_requires_prior_intent_and_preserves_known_evidence(self):
         fact = self.say("The task failed.")
-        action = self.ghost.store_knoxel(ActionSchemaKnoxel(content="conceal the failure", action_type=ActionType.Reply,
+        action = self.ghost.store_knoxel(ActionSchemaRecord(content="conceal the failure", action_type=ActionType.Reply,
             metadata={"presentation": {"mode": "deceive", "purpose": "avoid a dispute", "known_fact_ids": [fact.id]}}))
         metadata = utterance_metadata(self.ghost.snapshot(), action.id)
         false = self.say("The task succeeded.", source="Spamuel", metadata=metadata)
@@ -158,7 +158,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
         self.assertNotIn("deception_intent_id", utterance_metadata(self.ghost.snapshot([fact.id]), action.id))
 
     def test_world_memory_is_historical_even_if_confident(self):
-        observed = self.ghost.store_knoxel(WorldObjectKnoxel(content="oak log is at x=5", body_id="body",
+        observed = self.ghost.store_knoxel(WorldObjectRecord(content="oak log is at x=5", body_id="body",
                                                            object_key="log", object_kind="oak_log", confidence=1))
         result = self.retrieve("oak log")
         candidate = next(item for item in result["matches"] if item["knoxel_id"] == observed.id)
@@ -185,7 +185,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
             path = root / "scratch/observations.md"
             path.write_text("The report recorded an error.", encoding="utf-8")
             first = Consolidator(self.ghost, clock=lambda: 0).consolidate("run", root)
-            reopened = Ghost.from_checkpoint(self.ghost.checkpoint)
+            reopened = MemoryStore.from_checkpoint(self.ghost.checkpoint)
             path.write_text("The report now includes a retry.", encoding="utf-8")
             second = Consolidator(reopened, clock=lambda: 1).consolidate("run", root)
             self.assertEqual(len(second["memory_ids"]), 1)
@@ -201,9 +201,9 @@ class ExperiencedMemoryTests(unittest.TestCase):
 
     def test_nested_summary_cannot_expose_an_unavailable_original(self):
         hidden = self.say("A hidden private plan.")
-        first = self.ghost.store_knoxel(MemoryClusterKnoxel(content="Private plan summary", level=100,
+        first = self.ghost.store_knoxel(MemoryClusterRecord(content="Private plan summary", level=100,
             cluster_type=ClusterType.Topical, included_event_ids=str(hidden.id)))
-        second = self.ghost.store_knoxel(MemoryClusterKnoxel(content="Private plan nested summary", level=100,
+        second = self.ghost.store_knoxel(MemoryClusterRecord(content="Private plan nested summary", level=100,
             cluster_type=ClusterType.Topical, included_cluster_ids=str(first.id)))
         result = self.retrieve("private plan", visible_ids=[first.id, second.id])
         self.assertEqual(result["matches"], [])
@@ -267,7 +267,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
         original_view = self.ghost.snapshot()
         legacy = original_view.serialize_knoxels()
         legacy[appraisal.id]["data"]["metadata"].pop("memory_kind")
-        old_view = GhostView(legacy, original_view.serialize_gwt(), dict(original_view.revisions))
+        old_view = Snapshot(legacy, original_view.serialize_gwt(), dict(original_view.revisions))
         old_recall = self.retrieve("hardware sadness", view=old_view)
         old_state = next(item for item in old_recall["matches"] if item["knoxel_id"] == appraisal.id)
         self.assertEqual(old_state["memory_kind"], "internal_state")

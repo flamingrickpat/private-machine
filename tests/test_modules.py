@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import unittest
 
-from pm.records.memory_records import ActionSchemaKnoxel, Feature
-from pm.records.base import KnoxelType
+from pm.records.memory_records import ActionSchemaRecord, Feature
+from pm.records.base import RecordKind
 from pm.records.enums import ActionType, FeatureType
 
 from pm.bus.envelopes import Envelope, _new_id
@@ -88,7 +88,7 @@ class MainCogTests(ModuleTests):
                 app.user_input.submit(text)
                 app.main_cog.step(block=False)
                 recorder = Recorder(app.bus)
-                actions = app.ghost.knoxels_by_class(ActionSchemaKnoxel)
+                actions = app.ghost.knoxels_by_class(ActionSchemaRecord)
                 recent = sorted(actions, key=lambda a: a.id)[-len(routes):]
                 self.assertEqual([a.metadata["route"] for a in recent], routes)
 

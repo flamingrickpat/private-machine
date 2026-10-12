@@ -1,6 +1,6 @@
 """Scoped retrieval and activity queries over one accepted read snapshot.
 
-Network ranking uses the shared embedding cache outside the Ghost lock. Each
+Network ranking uses the shared embedding cache outside the MemoryStore lock. Each
 result keeps its original ID, revision, scope, and evidence links. Background
 and simulated events remain available with explicit attribution.
 """

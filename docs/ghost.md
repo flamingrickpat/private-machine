@@ -10,11 +10,11 @@ Parent: [project README](index.md).
 
 ## Accepted state
 
-The [`pm.memory.store.Ghost`][] owns accepted records, indexes, GWT records, revisions, counters, and commit receipts.
+The [`pm.memory.store.MemoryStore`][] owns accepted records, indexes, GWT records, revisions, counters, and commit receipts.
 The existing knoxel classes remain unchanged.
 The service copies the seed instead of retaining its mutable objects.
 
-A [`pm.memory.write_batch.GhostWriteBatch`][] captures a stable read view and collects private proposals.
+A [`pm.memory.write_batch.WriteBatch`][] captures a stable read view and collects private proposals.
 New records reserve integer IDs under the Ghost lock.
 A discarded batch can leave ID gaps.
 Other batches cannot read its proposals.

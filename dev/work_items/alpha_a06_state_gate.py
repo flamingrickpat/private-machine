@@ -1,6 +1,6 @@
 """A06 live gate: real appraisal and goal state across a clean restart.
 
-The gate uses the real local chat model, the real seed, and the real Ghost
+The gate uses the real local chat model, the real seed, and the real MemoryStore
 checkpoint. It drives one goal and emotion discussion through the real
 seven-stage cognition path, records the accepted state, records a clean
 shutdown, restarts from the same checkpoint, and asks about the goal.
@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT))
 from dev.work_items.shared.evidence import save_json
 
 from main import build_app
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.app.lifecycle_records import record_shutdown
 from workflows.main_cognition.state_changes import active_goal_texts, find_intention, normalize_goal_key
 
@@ -139,7 +139,7 @@ def main(argv=None) -> int:
     restart_report = restarted.main_cog.last_result.report if restarted.main_cog.last_result else {}
     save_json(root / "restart-report.json", restart_report)
 
-    reopened = Ghost.from_checkpoint(checkpoint)
+    reopened = MemoryStore.from_checkpoint(checkpoint)
     live_goals = active_goal_texts(reopened)
     river_goals = [goal for goal in live_goals if "river" in goal.lower()]
     intention = find_intention(reopened, normalize_goal_key(river_goals[0])) if river_goals else None

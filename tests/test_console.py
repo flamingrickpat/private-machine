@@ -6,8 +6,8 @@ import time
 import unittest
 import yaml
 
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
 
@@ -29,7 +29,7 @@ class ConsoleTests(unittest.TestCase):
     def test_worker_trace_memory_sessions_restart_and_kill(self):
         with tempfile.TemporaryDirectory() as directory:
             console = Console(Path(directory))
-            ghost = Ghost(GhostConfig(user_name="Rick", companion_name="Spamuel"))
+            ghost = MemoryStore(PersonaConfig(user_name="Rick", companion_name="Spamuel"))
             ghost.store_knoxel(Feature(content="fixture memory", feature_type=FeatureType.Dialogue))
             seed = Path(directory) / "seed.yaml"
             seed.write_text(yaml.safe_dump(ghost.state_dict()), encoding="utf-8")

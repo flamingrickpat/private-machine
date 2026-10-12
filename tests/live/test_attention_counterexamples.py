@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from workflows.main_cognition import engine
@@ -61,7 +61,7 @@ class LiveAttentionCounterexampleTests(unittest.TestCase):
         self.connection = resolve_connection(self.config)
         self.client = ChatClient(self.connection, self.owner, live_test=True)
         asyncio.run(self.owner.activate(self.connection, live_test=True))
-        self.ghost = Ghost.from_yaml(SEED)
+        self.ghost = MemoryStore.from_yaml(SEED)
 
     def _run(self, candidates: list[dict], name: str) -> AttentionResult:
         run_stage = engine.build_stage_runner(

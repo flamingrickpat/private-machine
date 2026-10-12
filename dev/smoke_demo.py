@@ -1,4 +1,4 @@
-"""Scripted demonstration through the real Ghost, Kernel, Bash, and bus.
+"""Scripted demonstration through the real MemoryStore, Kernel, Bash, and bus.
 
 Every check runs real modules and real workflow invocations. Fixed outputs are
 dummy behavior, labeled as such. The process exits nonzero if any check fails.
@@ -21,11 +21,11 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm_workflows.working_target import CommandResult
 
 import pm.memory.store_tools as ghost_mcp
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from main import BANNER, build_app
 from pm.bus.envelopes import Envelope, _new_id
 from pm.host.folder_target import FolderTarget
-from pm.memory.bash_view import GhostBashWrapper
+from pm.memory.bash_view import MemoryBashTarget
 
 SEED = ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
@@ -142,25 +142,25 @@ def run() -> int:
     tmp = Path(tempfile.mkdtemp(prefix="pmnext-"))
 
     # 1. seed
-    ghost = Ghost.from_yaml(SEED)
+    ghost = MemoryStore.from_yaml(SEED)
     ids = list(ghost.all_knoxels)
     check("1. seed: unique ids", len(ids) == len(set(ids)))
 
     # 2. virtual bash read + rejected write
-    env = GhostBashWrapper(ghost, "read").open("c2")
+    env = MemoryBashTarget(ghost, "read").open("c2")
     kid = min(env.visible_knoxels)
     check("2. bash read", env.exec(f"cat /work/ghost/knoxels/{kid}.yaml").exit_code == 0)
     check("2. bash write rejected", env.exec(f"echo x > /work/ghost/knoxels/{kid}.yaml").exit_code != 0)
 
     # 3. new feature seen by next invocation
     new_id = _store_feature(ghost, "freshly stored")
-    check("3. next env sees new memory", new_id in GhostBashWrapper(ghost, "read").open("c3").visible_knoxels)
+    check("3. next env sees new memory", new_id in MemoryBashTarget(ghost, "read").open("c3").visible_knoxels)
 
     # 4. restricted scope: bash and MCP hide an omitted record
     all_ids = set(ghost.all_knoxels)
     omitted = max(all_ids)
     kept = [i for i in sorted(all_ids) if i != omitted]
-    scoped = GhostBashWrapper(ghost, "read", visible_ids=kept).open("c4")
+    scoped = MemoryBashTarget(ghost, "read", visible_ids=kept).open("c4")
     check("4. bash hides omitted", scoped.exec(f"cat /work/ghost/knoxels/{omitted}.yaml").exit_code != 0)
     try:
         ghost_mcp.build_tools(scoped)["ghost_get"](omitted)

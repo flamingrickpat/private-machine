@@ -1,4 +1,4 @@
-"""Regression checks using the real Ghost, bus, kernel, workers, and MCP client.
+"""Regression checks using the real MemoryStore, bus, kernel, workers, and MCP client.
 
 The in-process MCP publishes controlled tool outcomes. These checks establish
 adapter behavior, not live Minecraft or model quality.

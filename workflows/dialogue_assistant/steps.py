@@ -7,7 +7,7 @@ A denied tool never runs. A tool receipt is the only support for a claim that
 a management operation happened.
 
 ``build_messages`` and the tool-call parsing are pure and tested without a
-kernel, model, or Ghost.
+kernel, model, or MemoryStore.
 """
 from __future__ import annotations
 

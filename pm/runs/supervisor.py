@@ -1,6 +1,6 @@
 """One durable managed-run table and its start/status/update/terminate domain.
 
-The table is stored in Ghost's ``managed_runs`` mapping so it survives
+The table is stored in MemoryStore's ``managed_runs`` mapping so it survives
 checkpoints and an interrupted process. The same domain functions serve the
 SelfManagement Python steps, the Assistant MCP tools, and the steward. No
 module owns a second copy.
@@ -77,7 +77,7 @@ class WorkflowSpec:
 
 @dataclass
 class ManagedRunReceipt:
-    """One row of the managed-run table. Serialized into Ghost verbatim."""
+    """One row of the managed-run table. Serialized into MemoryStore verbatim."""
 
     run_id: str
     action_id: str
@@ -230,10 +230,10 @@ class ManagedRunSupervisor:
         return None
 
     def _persist(self, receipt: ManagedRunReceipt) -> dict:
-        """Commit Ghost, then mirror control for other processes.
+        """Commit MemoryStore, then mirror control for other processes.
 
         The file mutex rejects a stale control write. A crash between commits
-        leaves the accepted Ghost receipt as the restart source.
+        leaves the accepted MemoryStore receipt as the restart source.
         """
         with self._lock:
             if receipt.artifact_path:
@@ -260,7 +260,7 @@ class ManagedRunSupervisor:
                     lock.close()
 
     def _commit_receipt(self, receipt: ManagedRunReceipt) -> dict:
-        """Retry a Ghost revision conflict once without launching external work."""
+        """Retry a MemoryStore revision conflict once without launching external work."""
         with self._lock:
             for _attempt in range(2):
                 batch = self.ghost.begin_batch(

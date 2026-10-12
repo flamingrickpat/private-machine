@@ -5,7 +5,7 @@ from typing import (
 
 from pydantic import AliasChoices, Field, PrivateAttr
 
-from pm.records.base import KnoxelBase
+from pm.records.base import RecordBase
 from pm.records.enums import *
 from pm.records.taxonomy import EpistemicStatus, MemoryTaxonomy, MemoryVolatility, RecordStatus, RecordType, TruthStatus
 from pm.records.mental_state import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
@@ -71,7 +71,7 @@ def _coerce_full_mental_state(value: Any) -> FullMentalState:
     raise TypeError(f"Cannot convert {type(value).__name__} to FullMentalState")
 
 
-class Entity(KnoxelBase):
+class Entity(RecordBase):
     """
     Persistent identity anchor for people, agents, or named actors in the story world.
 
@@ -86,7 +86,7 @@ class Entity(KnoxelBase):
         return f"Character: {self.content}"
 
 
-class Stimulus(KnoxelBase):
+class Stimulus(RecordBase):
     """
     Input trigger that started or shaped a cognitive cycle.
 
@@ -106,11 +106,11 @@ class Stimulus(KnoxelBase):
     def get_story_element(self) -> str:
         return f"[{self.stimulus_type.value}] {self.source}: {self.content}"
 
-    def get_sub_type(self) -> KnoxelSubtypeBase:
+    def get_sub_type(self) -> RecordSubtypeBase:
         return self.stimulus_type
 
 
-class Action(KnoxelBase):
+class Action(RecordBase):
     """
     Executed output decision produced by the companion.
 
@@ -124,11 +124,11 @@ class Action(KnoxelBase):
     def get_story_element(self) -> str:
         return f"[{self.action_type.value}] {self.content}"
 
-    def get_sub_type(self) -> KnoxelSubtypeBase:
+    def get_sub_type(self) -> RecordSubtypeBase:
         return self.action_type
 
 
-class RealityKnoxel(KnoxelBase):
+class RealityRecord(RecordBase):
     """
     A reality the companion can hold knowledge about: real life, an embodied
     game world (the minecraft body), a fantasy campaign, the system itself.
@@ -143,11 +143,11 @@ class RealityKnoxel(KnoxelBase):
     def get_story_element(self) -> str:
         return f"[Reality:{self.kind.value}] {self.content}"
 
-    def get_sub_type(self) -> KnoxelSubtypeBase:
+    def get_sub_type(self) -> RecordSubtypeBase:
         return self.kind
 
 
-class ActionSchemaKnoxel(KnoxelBase):
+class ActionSchemaRecord(RecordBase):
     """
     A plan spec selected by the personality simulation - never prose.
 
@@ -168,11 +168,11 @@ class ActionSchemaKnoxel(KnoxelBase):
     def get_story_element(self) -> str:
         return f"[ActionSchema:{self.action_type.value}:{self.status.value}] {self.content}"
 
-    def get_sub_type(self) -> KnoxelSubtypeBase:
+    def get_sub_type(self) -> RecordSubtypeBase:
         return self.action_type
 
 
-class CoversTicksEventsKnoxel(KnoxelBase):
+class CoversTicksEventsRecord(RecordBase):
     """
     Base class for memory artifacts that summarize or derive from event spans.
 
@@ -187,7 +187,7 @@ class CoversTicksEventsKnoxel(KnoxelBase):
     max_event_id: Optional[int] = Field(default=None, description="Highest original Event/Feature knoxel ID covered")
 
 
-class MemoryClusterKnoxel(CoversTicksEventsKnoxel):
+class MemoryClusterRecord(CoversTicksEventsRecord):
     """
     Consolidated episodic memory block produced by memory consolidation.
 
@@ -206,7 +206,7 @@ class MemoryClusterKnoxel(CoversTicksEventsKnoxel):
     emotion_description: Optional[str] = Field(default=None, description="todo")
     emotion_embedding: Optional[List[float]] = Field(default=None, description="todo")
 
-    def get_sub_type(self) -> KnoxelSubtypeBase:
+    def get_sub_type(self) -> RecordSubtypeBase:
         return self.cluster_type
 
     def get_story_element(self) -> str:
@@ -237,7 +237,7 @@ class MemoryClusterKnoxel(CoversTicksEventsKnoxel):
         return super().get_story_element()  # Fallback
 
 
-class SemanticallyClassifiedKnoxel(KnoxelBase):
+class SemanticallyClassifiedRecord(RecordBase):
     """
     Semantic classification layer for a single memory claim.
 
@@ -283,11 +283,11 @@ class SemanticallyClassifiedKnoxel(KnoxelBase):
     def is_semantically_classified(self) -> bool:
         return self.record_type != RecordType.Unclassified and self.confidence is not None
 
-    def get_sub_type(self) -> KnoxelSubtypeBase:
+    def get_sub_type(self) -> RecordSubtypeBase:
         return self.record_type
 
 
-class DeclarativeFactKnoxel(CoversTicksEventsKnoxel, SemanticallyClassifiedKnoxel):
+class DeclarativeFactRecord(CoversTicksEventsRecord, SemanticallyClassifiedRecord):
     """
     Structured fact extracted from a memory cluster summary.
 
@@ -296,7 +296,7 @@ class DeclarativeFactKnoxel(CoversTicksEventsKnoxel, SemanticallyClassifiedKnoxe
     designed for high-precision retrieval: stable facts, categories, importance, and
     time-dependence for ranking and filtering. The semantic classification layer
     (subject/record type/epistemic/essence) is added by the batch semantic classifier
-    in memory reconsolidation; canonical cross-source identity lives in SemanticRecordKnoxel.
+    in memory reconsolidation; canonical cross-source identity lives in SemanticRecord.
     """
     source_cluster_id: Optional[int] = Field(default=None, description="ID of the MemoryClusterKnoxel (Topical) it came from")
     reason: str = Field(description="Explain why you chose these categories, importance, and time_dependent.")
@@ -308,12 +308,12 @@ class DeclarativeFactKnoxel(CoversTicksEventsKnoxel, SemanticallyClassifiedKnoxe
         return f"*(Fact: {self.content})*"
 
 
-class SemanticRecordKnoxel(SemanticallyClassifiedKnoxel):
+class SemanticRecord(SemanticallyClassifiedRecord):
     """
     Canonical semantic claim: the deduplicated, cross-source identity of one fact.
 
     Consolidation may produce the same claim multiple times and from multiple
-    sources (a DeclarativeFactKnoxel and one or more GraphEdges can state the
+    sources (a DeclarativeFactRecord and one or more GraphEdges can state the
     identical thing). The canonical record is created once per
     ``(subject_entity_id, essence)`` identity and collects every source knoxel
     in ``source_knoxel_ids``. Sources get ``semantic_record_id`` back-pointers.
@@ -345,7 +345,7 @@ class SemanticRecordKnoxel(SemanticallyClassifiedKnoxel):
         return f"*(Record [{self.record_type.value}]: {self.content})*"
 
 
-class CauseEffectKnoxel(CoversTicksEventsKnoxel):
+class CauseEffectRecord(CoversTicksEventsRecord):
     """
     Learned causal pattern distilled from interaction history.
 
@@ -363,7 +363,7 @@ class CauseEffectKnoxel(CoversTicksEventsKnoxel):
         return f"*(Observed Cause/Effect: {self.content})*"
 
 
-class Narrative(KnoxelBase):
+class Narrative(RecordBase):
     """
     Evolving long-horizon self/other narrative for a specific psychological dimension.
 
@@ -400,14 +400,14 @@ class Narrative(KnoxelBase):
     def source(self, value: str) -> None:
         self.target_name = value
 
-    def get_sub_type(self) -> KnoxelSubtypeBase:
+    def get_sub_type(self) -> RecordSubtypeBase:
         return self.narrative_type
 
     def get_story_element(self) -> str:
         return f"Narrative '{self.narrative_type.value}' for {self.source}: \n{self.content}\n"
 
 
-class Feature(KnoxelBase):
+class Feature(RecordBase):
     """
     Atomic causal/mental event emitted by the LIDA-style cognitive pipeline.
     Feature knoxels are the primary high-resolution evidence stream: dialogue, thoughts,
@@ -492,5 +492,5 @@ class Feature(KnoxelBase):
         }
         return story_map.get(self.feature_type, self.content)
 
-    def get_sub_type(self) -> KnoxelSubtypeBase:
+    def get_sub_type(self) -> RecordSubtypeBase:
         return self.feature_type

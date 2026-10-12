@@ -3,7 +3,7 @@
 Fake Jesse is a real generation call with a scenario-specific role. It sees
 only the public transcript, its own role, and the scenario facts. The
 companion uses UserInputProxy, the cognitive loop, and its selected dialogue
-or management workflow through the real application bus. Each scenario uses its own Ghost
+or management workflow through the real application bus. Each scenario uses its own MemoryStore
 copy that persists for all twenty exchanges.
 
 All generation finishes before the evaluator is activated. The evaluator reads

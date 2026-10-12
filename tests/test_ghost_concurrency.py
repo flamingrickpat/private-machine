@@ -1,11 +1,11 @@
-"""Actual concurrent commits against one Ghost and one checkpoint."""
+"""Actual concurrent commits against one MemoryStore and one checkpoint."""
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Barrier
 import unittest
 
-from pm.memory.store import Ghost, GhostConflict
+from pm.memory.store import MemoryStore, GhostConflict
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
 from tests.test_ghost_commits import small_ghost
@@ -37,7 +37,7 @@ class GhostConcurrencyTests(unittest.TestCase):
         receipts = self.together(lambda batch, index: batch.create(
             Feature(feature_type=FeatureType.Dialogue, content=f"worker {index}")))
         self.assertTrue(all(not isinstance(item, Exception) for item in receipts))
-        reopened = Ghost.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path)
         self.assertEqual({record.content for record in reopened.all_knoxels.values()}, {"worker 0", "worker 1"})
         self.assertEqual(len({receipt.added_ids[0] for receipt in receipts}), 2)
         self.assertEqual(len({receipt.tick_id for receipt in receipts}), 2)
@@ -53,7 +53,7 @@ class GhostConcurrencyTests(unittest.TestCase):
 
         results = self.together(prepare)
         self.assertEqual(sum(isinstance(result, GhostConflict) for result in results), 1)
-        reopened = Ghost.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path)
         winner = reopened.get_knoxel_by_id(original.id).content[-1]
         self.assertEqual({record.content for record in reopened.all_knoxels.values()}, {f"winner {winner}", f"append {winner}"})
         self.assertEqual(reopened.revisions[original.id], 2)
@@ -62,5 +62,5 @@ class GhostConcurrencyTests(unittest.TestCase):
         results = self.together(lambda batch, index: batch.set_run_receipt(
             "job", {"state": "completed", "result": index}))
         self.assertEqual(sum(isinstance(result, GhostConflict) for result in results), 1)
-        reopened = Ghost.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path)
         self.assertEqual(reopened.managed_runs, self.ghost.managed_runs)

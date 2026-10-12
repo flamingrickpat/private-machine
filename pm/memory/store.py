@@ -1,4 +1,4 @@
-"""Ghost ownership, scoped snapshots, and atomic accepted memory.
+"""MemoryStore ownership, scoped snapshots, and atomic accepted memory.
 
 Invalid proposals and revision conflicts reject a complete batch. A failed
 checkpoint leaves accepted memory unchanged. Errors reach the debugger.
@@ -13,22 +13,22 @@ from pathlib import Path
 from threading import Event, RLock
 from uuid import uuid4
 
-from pm.memory.snapshot import GhostCancelled, GhostConflict, GhostView
-from pm.memory.write_batch import GhostWriteBatch
-from pm.memory.record_index import BaseGhost
+from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
+from pm.memory.write_batch import WriteBatch
+from pm.memory.record_index import RecordIndex
 from pm.memory.references import check_references
-from pm.records.cycle_state import CycleStateModel, GhostConfig
+from pm.records.cycle_state import CycleStateModel, PersonaConfig
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.base import KnoxelBase
+from pm.records.base import RecordBase
 from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel, ghost_state_from_dict, load_ghost_state_from_yaml
-from pm.memory.checkpoint import CommitReceipt, GhostCheckpoint, read_checkpoint, write_checkpoint
+from pm.memory.checkpoint import CommitReceipt, Checkpoint, read_checkpoint, write_checkpoint
 
 
 serialize_knoxel = _serialize_knoxel
 
 
-class Ghost(BaseGhost):
-    def __init__(self, config: GhostConfig, *, checkpoint: Path | None = None):
+class MemoryStore(RecordIndex):
+    def __init__(self, config: PersonaConfig, *, checkpoint: Path | None = None):
         super().__init__(None, config.model_copy(deep=True))
         self.lock = RLock()
         self.checkpoint = Path(checkpoint) if checkpoint is not None else None
@@ -41,8 +41,8 @@ class Ghost(BaseGhost):
         self._reserved_tick_id = 0
 
     @classmethod
-    def from_state(cls, state: CycleStateModel, *, checkpoint: Path | None = None) -> "Ghost":
-        config = GhostConfig.model_validate(state.model_dump(exclude={"knoxels", "cycles", "previous_emb_model"}))
+    def from_state(cls, state: CycleStateModel, *, checkpoint: Path | None = None) -> "MemoryStore":
+        config = PersonaConfig.model_validate(state.model_dump(exclude={"knoxels", "cycles", "previous_emb_model"}))
         ghost = cls(config, checkpoint=checkpoint)
         ghost.states = [cycle.model_copy(deep=True) for cycle in state.cycles]
         ghost._all_knoxels = {knoxel.id: _deserialize_knoxel(_serialize_knoxel(knoxel)) for knoxel in state.knoxels}
@@ -56,7 +56,7 @@ class Ghost(BaseGhost):
         return ghost
 
     @classmethod
-    def from_yaml(cls, path: str | Path, *, checkpoint: Path | None = None) -> "Ghost":
+    def from_yaml(cls, path: str | Path, *, checkpoint: Path | None = None) -> "MemoryStore":
         """Import the seed as attributed background without rewriting its file.
 
         Imported dialogue establishes what the source says. It does not prove
@@ -76,7 +76,7 @@ class Ghost(BaseGhost):
         return ghost
 
     @classmethod
-    def from_checkpoint(cls, path: str | Path) -> "Ghost":
+    def from_checkpoint(cls, path: str | Path) -> "MemoryStore":
         ghost = cls._restore(read_checkpoint(Path(path)), Path(path))
         for receipt in ghost.managed_runs.values():
             if receipt["state"] in {"accepted", "running", "waiting_for_input"}:
@@ -85,7 +85,7 @@ class Ghost(BaseGhost):
         return ghost
 
     @classmethod
-    def _restore(cls, data: GhostCheckpoint, path: Path | None) -> "Ghost":
+    def _restore(cls, data: Checkpoint, path: Path | None) -> "MemoryStore":
         ghost = cls.from_state(ghost_state_from_dict(data.state), checkpoint=path)
         if set(data.revisions) != set(ghost._all_knoxels) or any(revision < 1 for revision in data.revisions.values()):
             raise ValueError("Checkpoint record revisions do not match stored memory.")
@@ -116,14 +116,14 @@ class Ghost(BaseGhost):
                 "knoxels": [_serialize_knoxel(knoxel) for knoxel in self._all_knoxels.values()],
             }
 
-    def snapshot(self, visible_ids=None) -> GhostView:
+    def snapshot(self, visible_ids=None) -> Snapshot:
         with self.lock:
             ids = set(self._all_knoxels) if visible_ids is None else set(visible_ids)
             records = {record_id: _serialize_knoxel(self._all_knoxels[record_id]) for record_id in sorted(ids)}
             gwt = {tick: record.model_dump(mode="json") for tick, record in self.gwt_turns.items()
                    if set(record.knoxel_ids).issubset(ids)
                    and (record.attention_frame_id is None or record.attention_frame_id in ids)}
-            return GhostView(records, gwt, {record_id: self.revisions[record_id] for record_id in ids})
+            return Snapshot(records, gwt, {record_id: self.revisions[record_id] for record_id in ids})
 
     def dialogue_history(self, *, visible_ids=None, user: str | None = None) -> list[dict]:
         """Return public dialogue from accepted memory, ordered by world time.
@@ -170,7 +170,7 @@ class Ghost(BaseGhost):
 
         Search uses cached vectors and reports missing coverage. ``prepare``
         explicitly embeds missing records before search. Network work never
-        holds the Ghost lock. Type and subtype filters apply before indexing and ranking.
+        holds the MemoryStore lock. Type and subtype filters apply before indexing and ranking.
         Callers must pass their permitted record IDs.
         """
         view = self.snapshot(visible_ids)
@@ -189,16 +189,16 @@ class Ghost(BaseGhost):
                 "matches": [{"id": key, "score": score, "record": records[key],
                              "revision": view.revisions[key]} for key, score in results[:max(1, min(limit, 250))]]}
 
-    def begin_batch(self, commit_id: str, *, visible_ids=None, new_tick: bool = False, cancel: Event | None = None) -> GhostWriteBatch:
+    def begin_batch(self, commit_id: str, *, visible_ids=None, new_tick: bool = False, cancel: Event | None = None) -> WriteBatch:
         """Capture a stable view. A new tick reserves an ID without accepting memory."""
         with self.lock:
             tick = self.current_tick_id
             if new_tick:
                 self._reserved_tick_id = max(self._reserved_tick_id, self.current_tick_id) + 1
                 tick = self._reserved_tick_id
-            return GhostWriteBatch(self, commit_id, self.snapshot(visible_ids), tick, cancel)
+            return WriteBatch(self, commit_id, self.snapshot(visible_ids), tick, cancel)
 
-    def commit(self, batch: GhostWriteBatch) -> CommitReceipt:
+    def commit(self, batch: WriteBatch) -> CommitReceipt:
         """Save and accept a whole batch, or raise without accepting its proposals.
 
         Repeated commit IDs return their original receipt. Revision conflicts
@@ -257,7 +257,7 @@ class Ghost(BaseGhost):
             gwt = dict(self.gwt_turns)
             if batch._gwt is not None:
                 gwt[batch.tick_id] = batch._gwt
-            data = GhostCheckpoint(
+            data = Checkpoint(
                 state=state, current_knoxel_id=self.current_knoxel_id,
                 current_tick_id=max(self.current_tick_id, batch.tick_id), reserved_tick_id=self._reserved_tick_id,
                 revisions=revisions, gwt_turns=gwt,
@@ -279,7 +279,7 @@ class Ghost(BaseGhost):
             batch._closed = True
             return receipt
 
-    def store_knoxel(self, knoxel: KnoxelBase) -> KnoxelBase:
+    def store_knoxel(self, knoxel: RecordBase) -> RecordBase:
         """Commit one trusted host input through the same batch boundary."""
         with self.lock:
             batch = self.begin_batch(uuid4().hex)
@@ -287,7 +287,7 @@ class Ghost(BaseGhost):
             self.commit(batch)
             return self.get_knoxel_by_id(record.id)
 
-    def get_knoxel_by_id(self, knoxel_id: int) -> KnoxelBase | None:
+    def get_knoxel_by_id(self, knoxel_id: int) -> RecordBase | None:
         with self.lock:
             original = self._all_knoxels.get(knoxel_id)
             if original is None:
@@ -296,12 +296,12 @@ class Ghost(BaseGhost):
             record._owner = self
             return record
 
-    def add_knoxel(self, knoxel: KnoxelBase, generate_embedding: bool = True) -> KnoxelBase:
+    def add_knoxel(self, knoxel: RecordBase, generate_embedding: bool = True) -> RecordBase:
         raise NotImplementedError("Use store_knoxel or GhostWriteBatch.create to add memory.")
 
-    def replace_knoxel(self, knoxel: KnoxelBase) -> KnoxelBase:
+    def replace_knoxel(self, knoxel: RecordBase) -> RecordBase:
         raise NotImplementedError("Use GhostWriteBatch.replace to update memory.")
 
     def create_bash_environment(self, mode: str = "read", visible_ids=None):
-        from pm.memory.bash_view import GhostBashWrapper
-        return GhostBashWrapper(self, mode=mode, visible_ids=visible_ids)
+        from pm.memory.bash_view import MemoryBashTarget
+        return MemoryBashTarget(self, mode=mode, visible_ids=visible_ids)

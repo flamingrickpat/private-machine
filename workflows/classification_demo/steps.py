@@ -11,7 +11,7 @@ def run(context: RoleContext) -> dict:
     """Write the latest classification and its route history into the target.
 
     The kernel journal is the source of truth. This trusted Python role writes
-    only the demonstration report. It does not accept Ghost proposals or tasks.
+    only the demonstration report. It does not accept MemoryStore proposals or tasks.
     Cancellation prevents publication at the next cooperative boundary.
     A missing classification raises ValueError rather than inventing an answer.
     """

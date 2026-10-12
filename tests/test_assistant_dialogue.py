@@ -23,7 +23,7 @@ from workflows.dialogue_assistant.schemas import (
     ToolDescriptor,
     ToolReceipt,
 )
-from pm.memory.bash_view import GhostBashEnvironment, GhostBashWrapper
+from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
 
 MANIFEST = PROJECT_ROOT / "workflows" / "dialogue_assistant" / "dialogue_assistant.workflow.md"
 
@@ -136,7 +136,7 @@ class KernelTests(unittest.TestCase):
         # retained dialogue fixtures do not execute the Minecraft read.
         minecraft = build_minecraft_tools()["minecraft_call"]
         direct["minecraft_observe"] = lambda include_image=False: minecraft("minecraft_observe", {"include_image": include_image})
-        environment = GhostBashEnvironment({}, {}, "read")
+        environment = MemoryBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment,
             stop_event=threading.Event(),
@@ -207,12 +207,12 @@ class AssistantModuleTests(unittest.TestCase):
         from pm.bus.bus import BusSystem
         from pm.bus.envelopes import Envelope
         from modules import AssistantDialogue
-        from pm.memory.store import Ghost
-        from pm.records.cycle_state import GhostConfig
+        from pm.memory.store import MemoryStore
+        from pm.records.cycle_state import PersonaConfig
         from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
         from workflows.dialogue_assistant.module_tools import build_assistant_tools
 
-        ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+        ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
         supervisor = ManagedRunSupervisor(
             ghost, runtime_root=root / "runtime",
             workflows={
@@ -243,7 +243,7 @@ class AssistantModuleTests(unittest.TestCase):
         bus = BusSystem()
         module = AssistantDialogue(
             "dialogue", bus, self.fail, lambda: 1.0, None,
-            working_target=GhostBashWrapper(ghost, mode="read"),
+            working_target=MemoryBashTarget(ghost, mode="read"),
             workflow=MANIFEST,
             tools_factory=build_assistant_tools(FakeModel(), supervisor),
             runtime_root=root / "runtime", ghost=ghost,

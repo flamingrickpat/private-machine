@@ -1,7 +1,7 @@
 """A07 live gate: emotional dynamics change behavior across a real sequence.
 
 The gate uses the real local chat model, the real Spamuel seed, and a real
-Ghost checkpoint. It drives four turns:
+MemoryStore checkpoint. It drives four turns:
 
 1. a disappointment;
 2. an unrelated subject change;
@@ -33,8 +33,8 @@ sys.path.insert(0, str(ROOT))
 from dev.work_items.shared.evidence import save_json
 
 from main import build_app
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
 from pm.records.mental_state import FullMentalState
 from pm.app.lifecycle_records import record_shutdown
 
@@ -107,15 +107,15 @@ def _latest_appraisal(ghost) -> dict | None:
     }
 
 
-def build_control_ghost(path: Path, root: Path) -> Ghost:
-    """Build the cheerful control Ghost from the small persona fixture.
+def build_control_ghost(path: Path, root: Path) -> MemoryStore:
+    """Build the cheerful control MemoryStore from the small persona fixture.
 
     The fixture holds a character card, not a full state file. This helper
-    reads the card fields into a fresh Ghost with no history.
+    reads the card fields into a fresh MemoryStore with no history.
     """
     card = yaml.safe_load(path.read_text(encoding="utf-8"))
-    config = GhostConfig.model_validate(card)
-    return Ghost(config, checkpoint=root / "ghost.json")
+    config = PersonaConfig.model_validate(card)
+    return MemoryStore(config, checkpoint=root / "ghost.json")
 
 
 def run_sequence(seed_path: Path, root: Path, *, label: str, turns: list, replies: list, config: str, ghost=None) -> dict:

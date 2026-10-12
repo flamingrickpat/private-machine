@@ -1,6 +1,6 @@
 """Non-kernel orchestration for standalone Story dialogue.
 
-This module builds the generation tool, opens a read-only Ghost environment,
+This module builds the generation tool, opens a read-only MemoryStore environment,
 invokes the real kernel runner, reads the typed report, and (on request)
 commits the accepted dialogue. It also runs the post-generation evaluator.
 
@@ -25,7 +25,7 @@ from pm.records.enums import FeatureType, InterlocusType
 from pm.llm.activation import ChatClient
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
 MANIFEST = WORKFLOW_DIR / "dialogue_story.workflow.md"
@@ -46,14 +46,14 @@ def build_story_tools(client: ChatClient) -> dict:
     return {"story_complete": story_complete, "public_complete": story_complete}
 
 
-def make_environment(ghost) -> GhostBashEnvironment:
+def make_environment(ghost) -> MemoryBashEnvironment:
     view = ghost.snapshot()
-    return GhostBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
+    return MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
 
 
 def generate_story(
     ghost,
-    environment: GhostBashEnvironment,
+    environment: MemoryBashEnvironment,
     client: ChatClient,
     request_payload: dict,
     runtime_root: Path,

@@ -25,8 +25,8 @@ def run(args):
     """
     from pm.bus.bus import BusSystem
     from main import build_app
-    from pm.memory.store import Ghost
-    from pm.records.memory_records import ActionSchemaKnoxel
+    from pm.memory.store import MemoryStore
+    from pm.records.memory_records import ActionSchemaRecord
     from pm.host.durable_files import atomic_json
     from runtime.intents import replay_intents
     from pm.runs.supervisor import ManagedRunSupervisor
@@ -80,9 +80,9 @@ def run(args):
         if app.main_cog.last_result is not None:
             atomic_json(out / "cognition-report.json", app.main_cog.last_result.report)
         original_id = lost[0]["payload"]["knoxel_id"]
-        frozen = Ghost.from_checkpoint(checkpoint)
+        frozen = MemoryStore.from_checkpoint(checkpoint)
         action = frozen.get_knoxel_by_id(original_id)
-        if not isinstance(action, ActionSchemaKnoxel) or action.metadata["dispatch_status"] != "pending":
+        if not isinstance(action, ActionSchemaRecord) or action.metadata["dispatch_status"] != "pending":
             raise AssertionError("The accepted companion intent was not checkpointed.")
         # Inspect the actual recovery envelope before delivering any workflow.
         bus, replays = BusSystem(), []
@@ -110,7 +110,7 @@ def run(args):
             raise AssertionError("The real dialogue workflow did not reach public reply publication.")
         atomic_json(out / "lost-speech.json", speech[0])
         reply_id = speech[0]["payload"]["knoxel_id"]
-        frozen = Ghost.from_checkpoint(checkpoint)
+        frozen = MemoryStore.from_checkpoint(checkpoint)
         exchange = exchange_record(frozen, correlation)
         receipt["checks"]["reply_committed_before_delivery"] = (
             exchange.metadata["public_reply_id"] == reply_id
@@ -125,7 +125,7 @@ def run(args):
         app.user_input.step()
         receipt["checks"]["single_reply_delivery"] = delivered == [receipt["reply"]["text"]]
         receipt["checks"]["no_duplicate_accepted_intent"] = sum(
-            isinstance(item, ActionSchemaKnoxel) and item.metadata.get("action_id") == action.metadata["action_id"]
+            isinstance(item, ActionSchemaRecord) and item.metadata.get("action_id") == action.metadata["action_id"]
             for item in app.ghost.all_knoxels.values()) == 1
 
         # A real native note supplies terminal progress and a verifiable effect.

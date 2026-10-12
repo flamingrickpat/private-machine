@@ -3,17 +3,17 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Dict, Iterable, List, Optional, Type, Any
 
-from pm.records.cycle_state import CycleState, GhostConfig
+from pm.records.cycle_state import CycleState, PersonaConfig
 from pm.records.codelet_records import CodeletPercept, Structure
-from pm.records.memory_records import Action, CauseEffectKnoxel, DeclarativeFactKnoxel, Entity, Feature, MemoryClusterKnoxel, Narrative, Stimulus
-from pm.records.base import KnoxelBase, KnoxelHaver, KnoxelType
-from pm.records.enums import ActionType, ClusterType, EntityClass, FeatureSubtype, FeatureType, KnoxelSubtypeBase, NarrativeTypes, StimulusType
+from pm.records.memory_records import Action, CauseEffectRecord, DeclarativeFactRecord, Entity, Feature, MemoryClusterRecord, Narrative, Stimulus
+from pm.records.base import RecordBase, RecordOwner, RecordKind
+from pm.records.enums import ActionType, ClusterType, EntityClass, FeatureSubtype, FeatureType, RecordSubtypeBase, NarrativeTypes, StimulusType
 from pm.records.graph_records import ConceptNode, GraphEdge, GraphNode
-from pm.records.cognitive_records import AttentionFrameKnoxel, AttentionKnoxel, BeliefKnoxel, BeliefShiftKnoxel, Intention, OntologyBindingKnoxel, OntologyTermKnoxel
+from pm.records.cognitive_records import AttentionFrameRecord, AttentionRecord, BeliefRecord, BeliefShiftRecord, Intention, OntologyBindingRecord, OntologyTermRecord
 from pm.records.base import get_causal_datetime
 
 
-class BaseGhost(KnoxelHaver):
+class RecordIndex(RecordOwner):
     """
     Runtime owner for knoxels and cycle state.
 
@@ -22,33 +22,33 @@ class BaseGhost(KnoxelHaver):
     direct replacement of `all_knoxels`.
     """
 
-    _KNOXEL_TYPE_EXPANSIONS: dict[KnoxelType, set[KnoxelType]] = {
-        KnoxelType.CoversTicksEventsKnoxel: {
-            KnoxelType.CoversTicksEventsKnoxel,
-            KnoxelType.MemoryClusterKnoxel,
-            KnoxelType.DeclarativeFactKnoxel,
-            KnoxelType.CauseEffectKnoxel,
+    _KNOXEL_TYPE_EXPANSIONS: dict[RecordKind, set[RecordKind]] = {
+        RecordKind.CoversTicksEventsRecord: {
+            RecordKind.CoversTicksEventsRecord,
+            RecordKind.MemoryClusterRecord,
+            RecordKind.DeclarativeFactRecord,
+            RecordKind.CauseEffectRecord,
         },
     }
 
-    _SUBTYPE_PARENT_MAP: dict[type[KnoxelSubtypeBase], KnoxelType] = {
-        FeatureType: KnoxelType.Feature,
-        FeatureSubtype: KnoxelType.Feature,
-        StimulusType: KnoxelType.Stimulus,
-        ActionType: KnoxelType.Action,
-        NarrativeTypes: KnoxelType.Narrative,
-        EntityClass: KnoxelType.Entity,
-        ClusterType: KnoxelType.MemoryClusterKnoxel,
+    _SUBTYPE_PARENT_MAP: dict[type[RecordSubtypeBase], RecordKind] = {
+        FeatureType: RecordKind.Feature,
+        FeatureSubtype: RecordKind.Feature,
+        StimulusType: RecordKind.Stimulus,
+        ActionType: RecordKind.Action,
+        NarrativeTypes: RecordKind.Narrative,
+        EntityClass: RecordKind.Entity,
+        ClusterType: RecordKind.MemoryClusterRecord,
     }
 
-    def __init__(self, llm: Any | None, config: GhostConfig):
-        self._all_knoxels: Dict[int, KnoxelBase] = {}
-        self._knoxels_by_type: dict[KnoxelType, List[KnoxelBase]] = defaultdict(list)
-        self._knoxels_by_subtype: dict[KnoxelSubtypeBase, List[KnoxelBase]] = defaultdict(list)
-        self._knoxels_by_class: dict[type[KnoxelBase], List[KnoxelBase]] = defaultdict(list)
+    def __init__(self, llm: Any | None, config: PersonaConfig):
+        self._all_knoxels: Dict[int, RecordBase] = {}
+        self._knoxels_by_type: dict[RecordKind, List[RecordBase]] = defaultdict(list)
+        self._knoxels_by_subtype: dict[RecordSubtypeBase, List[RecordBase]] = defaultdict(list)
+        self._knoxels_by_class: dict[type[RecordBase], List[RecordBase]] = defaultdict(list)
         super().__init__()
 
-        self.ghost_config: GhostConfig = config
+        self.ghost_config: PersonaConfig = config
         self.llm: Any | None = llm
         self.current_db_path: str = ""
 
@@ -58,11 +58,11 @@ class BaseGhost(KnoxelHaver):
         self.simulated_reply: Optional[str] = None
 
     @property
-    def all_knoxels(self) -> Dict[int, KnoxelBase]:
+    def all_knoxels(self) -> Dict[int, RecordBase]:
         return self._all_knoxels
 
     @all_knoxels.setter
-    def all_knoxels(self, value: Dict[int, KnoxelBase]) -> None:
+    def all_knoxels(self, value: Dict[int, RecordBase]) -> None:
         self._all_knoxels = dict(value or {})
         if hasattr(self, "_knoxels_by_type"):
             self.rebuild_knoxel_indexes()
@@ -85,79 +85,79 @@ class BaseGhost(KnoxelHaver):
 
     @property
     def all_stimuli(self) -> List[Stimulus]:
-        return self._knoxels_for_type(KnoxelType.Stimulus)
+        return self._knoxels_for_type(RecordKind.Stimulus)
 
     @property
     def all_features(self) -> List[Feature]:
-        return self._knoxels_for_type(KnoxelType.Feature)
+        return self._knoxels_for_type(RecordKind.Feature)
 
     @property
     def all_actions(self) -> List[Action]:
-        return self._knoxels_for_type(KnoxelType.Action)
+        return self._knoxels_for_type(RecordKind.Action)
 
     @property
     def all_intentions(self) -> List[Intention]:
-        return self._knoxels_for_type(KnoxelType.Intention)
+        return self._knoxels_for_type(RecordKind.Intention)
 
     @property
     def all_narratives(self) -> List[Narrative]:
-        return self._knoxels_for_type(KnoxelType.Narrative)
+        return self._knoxels_for_type(RecordKind.Narrative)
 
     @property
-    def all_episodic_memories(self) -> List[MemoryClusterKnoxel]:
-        return self._knoxels_for_type(KnoxelType.MemoryClusterKnoxel)
+    def all_episodic_memories(self) -> List[MemoryClusterRecord]:
+        return self._knoxels_for_type(RecordKind.MemoryClusterRecord)
 
     @property
-    def all_declarative_facts(self) -> List[DeclarativeFactKnoxel]:
-        return self._knoxels_for_type(KnoxelType.DeclarativeFactKnoxel)
+    def all_declarative_facts(self) -> List[DeclarativeFactRecord]:
+        return self._knoxels_for_type(RecordKind.DeclarativeFactRecord)
 
     @property
-    def all_cause_effects(self) -> List[CauseEffectKnoxel]:
-        return self._knoxels_for_type(KnoxelType.CauseEffectKnoxel)
+    def all_cause_effects(self) -> List[CauseEffectRecord]:
+        return self._knoxels_for_type(RecordKind.CauseEffectRecord)
 
     @property
     def all_concepts(self) -> List[ConceptNode]:
-        return self._knoxels_for_type(KnoxelType.ConceptNode)
+        return self._knoxels_for_type(RecordKind.ConceptNode)
 
     @property
     def all_graph_nodes(self) -> List[GraphNode]:
-        return self._knoxels_for_type(KnoxelType.GraphNode)
+        return self._knoxels_for_type(RecordKind.GraphNode)
 
     @property
     def all_graph_edges(self) -> List[GraphEdge]:
-        return self._knoxels_for_type(KnoxelType.GraphEdge)
+        return self._knoxels_for_type(RecordKind.GraphEdge)
 
     @property
     def all_codelet_percepts(self) -> List[CodeletPercept]:
-        return self._knoxels_for_type(KnoxelType.CodeletPercept)
+        return self._knoxels_for_type(RecordKind.CodeletPercept)
 
     @property
     def all_percept_coalitions(self) -> List[Structure]:
         return self._knoxels_for_class(Structure)
 
     @property
-    def all_beliefs(self) -> List[BeliefKnoxel]:
-        return self._knoxels_for_class(BeliefKnoxel)
+    def all_beliefs(self) -> List[BeliefRecord]:
+        return self._knoxels_for_class(BeliefRecord)
 
     @property
-    def all_belief_shifts(self) -> List[BeliefShiftKnoxel]:
-        return self._knoxels_for_class(BeliefShiftKnoxel)
+    def all_belief_shifts(self) -> List[BeliefShiftRecord]:
+        return self._knoxels_for_class(BeliefShiftRecord)
 
     @property
-    def all_attention_knoxels(self) -> List[AttentionKnoxel]:
-        return self._knoxels_for_class(AttentionKnoxel)
+    def all_attention_knoxels(self) -> List[AttentionRecord]:
+        return self._knoxels_for_class(AttentionRecord)
 
     @property
-    def all_attention_frames(self) -> List[AttentionFrameKnoxel]:
-        return self._knoxels_for_class(AttentionFrameKnoxel)
+    def all_attention_frames(self) -> List[AttentionFrameRecord]:
+        return self._knoxels_for_class(AttentionFrameRecord)
 
     @property
-    def all_ontology_terms(self) -> List[OntologyTermKnoxel]:
-        return self._knoxels_for_class(OntologyTermKnoxel)
+    def all_ontology_terms(self) -> List[OntologyTermRecord]:
+        return self._knoxels_for_class(OntologyTermRecord)
 
     @property
-    def all_ontology_bindings(self) -> List[OntologyBindingKnoxel]:
-        return self._knoxels_for_class(OntologyBindingKnoxel)
+    def all_ontology_bindings(self) -> List[OntologyBindingRecord]:
+        return self._knoxels_for_class(OntologyBindingRecord)
 
     @property
     def all_structures(self) -> List[Structure]:
@@ -187,7 +187,7 @@ class BaseGhost(KnoxelHaver):
             "This is an in-character temporal anchor for reasoning."
         )
 
-    def get_all_knoxels(self) -> List[KnoxelBase]:
+    def get_all_knoxels(self) -> List[RecordBase]:
         return list(self.all_knoxels.values())
 
     def get_simple_character_story_block(self) -> str:
@@ -199,7 +199,7 @@ class BaseGhost(KnoxelHaver):
     def get_user_name(self) -> str:
         return self.ghost_config.user_name
 
-    def add_knoxel(self, knoxel: KnoxelBase, generate_embedding: bool = True) -> KnoxelBase:
+    def add_knoxel(self, knoxel: RecordBase, generate_embedding: bool = True) -> RecordBase:
         if knoxel.id == -1:
             knoxel.id = self._get_next_id()
         else:
@@ -232,7 +232,7 @@ class BaseGhost(KnoxelHaver):
 
         return knoxel
 
-    def replace_knoxel(self, knoxel: KnoxelBase) -> KnoxelBase:
+    def replace_knoxel(self, knoxel: RecordBase) -> RecordBase:
         """Replace the knoxel stored under knoxel.id (external-edit digest)."""
         existing = self.all_knoxels.get(knoxel.id)
         if existing is None:
@@ -245,7 +245,7 @@ class BaseGhost(KnoxelHaver):
         self._index_knoxel(knoxel)
         return knoxel
 
-    def get_knoxel_by_id(self, knoxel_id: int) -> Optional[KnoxelBase]:
+    def get_knoxel_by_id(self, knoxel_id: int) -> Optional[RecordBase]:
         return self.all_knoxels.get(knoxel_id, None)
 
     def get_entity_id(self, name: str) -> int | None:
@@ -284,13 +284,13 @@ class BaseGhost(KnoxelHaver):
         self._knoxels_by_subtype = defaultdict(list)
         self._knoxels_by_class = defaultdict(list)
 
-    def _index_knoxel(self, knoxel: KnoxelBase) -> None:
+    def _index_knoxel(self, knoxel: RecordBase) -> None:
         for bucket in self._iter_index_buckets(knoxel):
             bucket.append(knoxel)
 
-    def _deindex_knoxel(self, knoxel: KnoxelBase) -> None:
+    def _deindex_knoxel(self, knoxel: RecordBase) -> None:
         for cls in type(knoxel).mro():
-            if not isinstance(cls, type) or not issubclass(cls, KnoxelBase) or cls is KnoxelBase:
+            if not isinstance(cls, type) or not issubclass(cls, RecordBase) or cls is RecordBase:
                 continue
             bucket = self._knoxels_by_class.get(cls)
             if bucket and knoxel in bucket:
@@ -309,14 +309,14 @@ class BaseGhost(KnoxelHaver):
                 bucket.remove(knoxel)
 
         feature_subtype = getattr(knoxel, "feature_subtype", None)
-        if isinstance(feature_subtype, KnoxelSubtypeBase):
+        if isinstance(feature_subtype, RecordSubtypeBase):
             bucket = self._knoxels_by_subtype.get(feature_subtype)
             if bucket and knoxel in bucket:
                 bucket.remove(knoxel)
 
-    def _iter_index_buckets(self, knoxel: KnoxelBase):
+    def _iter_index_buckets(self, knoxel: RecordBase):
         for cls in type(knoxel).mro():
-            if not isinstance(cls, type) or not issubclass(cls, KnoxelBase) or cls is KnoxelBase:
+            if not isinstance(cls, type) or not issubclass(cls, RecordBase) or cls is RecordBase:
                 continue
             yield self._knoxels_by_class[cls]
 
@@ -329,36 +329,36 @@ class BaseGhost(KnoxelHaver):
             yield self._knoxels_by_subtype[subtype]
 
         feature_subtype = getattr(knoxel, "feature_subtype", None)
-        if isinstance(feature_subtype, KnoxelSubtypeBase):
+        if isinstance(feature_subtype, RecordSubtypeBase):
             yield self._knoxels_by_subtype[feature_subtype]
 
     @staticmethod
-    def _knoxel_type_of(knoxel: KnoxelBase) -> KnoxelType | None:
+    def _knoxel_type_of(knoxel: RecordBase) -> RecordKind | None:
         try:
             return knoxel.type
         except (KeyError, ValueError):
             return None
 
     @staticmethod
-    def _knoxel_subtype_of(knoxel: KnoxelBase) -> KnoxelSubtypeBase | None:
+    def _knoxel_subtype_of(knoxel: RecordBase) -> RecordSubtypeBase | None:
         try:
             return knoxel.subtype
         except (KeyError, ValueError):
             return None
 
-    def _knoxels_for_type(self, knoxel_type: KnoxelType) -> List:
+    def _knoxels_for_type(self, knoxel_type: RecordKind) -> List:
         return self._knoxels_by_type.get(knoxel_type, [])
 
-    def _knoxels_for_class(self, cls: Type[KnoxelBase]) -> List:
+    def _knoxels_for_class(self, cls: Type[RecordBase]) -> List:
         return self._knoxels_by_class.get(cls, [])
 
-    def knoxels_by_type(self, knoxel_type: KnoxelType, *, needs_causal: bool = False) -> List[KnoxelBase]:
+    def knoxels_by_type(self, knoxel_type: RecordKind, *, needs_causal: bool = False) -> List[RecordBase]:
         return [k for k in self._knoxels_for_type(knoxel_type) if self._passes_causal_filter(k, needs_causal)]
 
-    def knoxels_by_subtype(self, subtype: KnoxelSubtypeBase, *, needs_causal: bool = False) -> List[KnoxelBase]:
+    def knoxels_by_subtype(self, subtype: RecordSubtypeBase, *, needs_causal: bool = False) -> List[RecordBase]:
         return [k for k in self._knoxels_by_subtype.get(subtype, []) if self._passes_causal_filter(k, needs_causal)]
 
-    def knoxels_by_class(self, cls: Type[KnoxelBase], *, needs_causal: bool = False) -> List[KnoxelBase]:
+    def knoxels_by_class(self, cls: Type[RecordBase], *, needs_causal: bool = False) -> List[RecordBase]:
         return [k for k in self._knoxels_for_class(cls) if self._passes_causal_filter(k, needs_causal)]
 
     def _flatten_type_filters(self, *type_filters):
@@ -370,11 +370,11 @@ class BaseGhost(KnoxelHaver):
                 yield from self._flatten_type_filters(*item)
                 continue
 
-            if isinstance(item, (KnoxelType, KnoxelSubtypeBase)):
+            if isinstance(item, (RecordKind, RecordSubtypeBase)):
                 yield item
                 continue
 
-            if isinstance(item, type) and issubclass(item, KnoxelBase):
+            if isinstance(item, type) and issubclass(item, RecordBase):
                 yield item
                 continue
 
@@ -384,24 +384,24 @@ class BaseGhost(KnoxelHaver):
             )
 
     @classmethod
-    def _expand_knoxel_types(cls, knoxel_types: set[KnoxelType]) -> set[KnoxelType]:
-        expanded: set[KnoxelType] = set()
+    def _expand_knoxel_types(cls, knoxel_types: set[RecordKind]) -> set[RecordKind]:
+        expanded: set[RecordKind] = set()
         for knoxel_type in knoxel_types:
             expanded.update(cls._KNOXEL_TYPE_EXPANSIONS.get(knoxel_type, {knoxel_type}))
         return expanded
 
     @classmethod
-    def _parent_knoxel_type_for_subtype(cls, subtype: KnoxelSubtypeBase) -> KnoxelType:
+    def _parent_knoxel_type_for_subtype(cls, subtype: RecordSubtypeBase) -> RecordKind:
         for subtype_cls, parent_knoxel_type in cls._SUBTYPE_PARENT_MAP.items():
             if isinstance(subtype, subtype_cls):
                 return parent_knoxel_type
         raise TypeError(f"Unsupported subtype filter: {subtype!r} ({type(subtype).__name__})")
 
     @staticmethod
-    def _passes_causal_filter(knoxel: KnoxelBase, needs_causal: bool) -> bool:
+    def _passes_causal_filter(knoxel: RecordBase, needs_causal: bool) -> bool:
         if not needs_causal:
             return True
-        if BaseGhost._knoxel_type_of(knoxel) != KnoxelType.Feature:
+        if RecordIndex._knoxel_type_of(knoxel) != RecordKind.Feature:
             return True
         return bool(getattr(knoxel, "causal", False))
 
@@ -409,15 +409,15 @@ class BaseGhost(KnoxelHaver):
         self,
         *type_filters,
         needs_causal: bool = True,
-    ) -> List[KnoxelBase]:
-        requested_knoxel_types: set[KnoxelType] = set()
-        requested_subtypes: dict[KnoxelType, set[KnoxelSubtypeBase]] = {}
-        requested_classes: set[type[KnoxelBase]] = set()
+    ) -> List[RecordBase]:
+        requested_knoxel_types: set[RecordKind] = set()
+        requested_subtypes: dict[RecordKind, set[RecordSubtypeBase]] = {}
+        requested_classes: set[type[RecordBase]] = set()
 
         for item in self._flatten_type_filters(*type_filters):
-            if isinstance(item, KnoxelType):
+            if isinstance(item, RecordKind):
                 requested_knoxel_types.add(item)
-            elif isinstance(item, type) and issubclass(item, KnoxelBase):
+            elif isinstance(item, type) and issubclass(item, RecordBase):
                 requested_classes.add(item)
             else:
                 parent_knoxel_type = self._parent_knoxel_type_for_subtype(item)
@@ -426,10 +426,10 @@ class BaseGhost(KnoxelHaver):
         requested_knoxel_types = self._expand_knoxel_types(requested_knoxel_types)
 
         if not requested_knoxel_types and not requested_subtypes and not requested_classes:
-            candidates: Iterable[KnoxelBase] = self.all_knoxels.values()
+            candidates: Iterable[RecordBase] = self.all_knoxels.values()
         else:
             seen: set[int] = set()
-            selected: List[KnoxelBase] = []
+            selected: List[RecordBase] = []
 
             for knoxel_type in requested_knoxel_types:
                 self._append_unique(selected, seen, self._knoxels_for_type(knoxel_type))
@@ -448,7 +448,7 @@ class BaseGhost(KnoxelHaver):
         return result
 
     @staticmethod
-    def _append_unique(target: List[KnoxelBase], seen: set[int], items: Iterable[KnoxelBase]) -> None:
+    def _append_unique(target: List[RecordBase], seen: set[int], items: Iterable[RecordBase]) -> None:
         for item in items:
             if item.id in seen:
                 continue

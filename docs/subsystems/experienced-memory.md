@@ -14,11 +14,11 @@ Children: [consolidation and beliefs](memory-consolidation.md) and [A08 verifica
 ## Entry and execution path
 
 [`modules.MainCogLoop.prepare_input`][] resolves stimuli through the invocation's permitted view.
-[`pm.memory.bash_view.GhostBashWrapper.open`][] retains that detached view and its record revisions.
+[`pm.memory.bash_view.MemoryBashTarget.open`][] retains that detached view and its record revisions.
 New host workflow events remain explicit stimuli.
 They cannot expose memory appended after the invocation began.
 
-[`pm.memory.store.Ghost.retrieve_experiences`][] calls [`pm.memory.retrieval.retrieve`][].
+[`pm.memory.store.MemoryStore.retrieve_experiences`][] calls [`pm.memory.retrieval.retrieve`][].
 The newest stimulus supplies the `(tick_id, sub_tick_id)` frontier.
 The stimulus scopes supply the allowed `(reality_id, frame)` pairs.
 An empty permitted ID set exposes no memory.
@@ -88,7 +88,7 @@ It retains up to 16 competing records and 40 boundary rejection examples.
 
 ## Commit and concurrency
 
-[`pm.memory.write_batch.GhostWriteBatch.expect_revision`][] guards the input records, selected memories, and their linked sources.
+[`pm.memory.write_batch.WriteBatch.expect_revision`][] guards the input records, selected memories, and their linked sources.
 A changed revision rejects the complete cognition batch with `GhostConflict`.
 An unrelated concurrent append does not alter the frozen selection.
 Appraisal, beliefs, experience summaries, goals, frame, and actions commit together.
@@ -130,7 +130,7 @@ The [memory experiment procedure](../workflows/memory.md) describes the console 
 
 ## Seed and restart
 
-[`pm.memory.store.Ghost.from_yaml`][] marks imported records as `background` with `SourceKind.Migration` provenance.
+[`pm.memory.store.MemoryStore.from_yaml`][] marks imported records as `background` with `SourceKind.Migration` provenance.
 Metadata preserves the source path, file SHA-256, and original provenance.
 An imported utterance proves what the source says, rather than an action by this runtime.
 It cannot establish past physical senses or an unsupported emotion.

@@ -1,4 +1,4 @@
-"""Turn accepted stage proposals into committed Ghost state.
+"""Turn accepted stage proposals into committed MemoryStore state.
 
 Main cognition and the future inner loop share these helpers. They keep the
 accepted state path in one place:
@@ -8,7 +8,7 @@ accepted state path in one place:
 - a goal change creates, completes, or reprioritises an ``Intention`` knoxel
   that has a stable identity and a lifecycle status.
 
-The functions operate on one open ``GhostWriteBatch``. They never commit, send
+The functions operate on one open ``WriteBatch``. They never commit, send
 bus messages, or call a model. The caller commits after it adds the attention
 frame, GWT turn, and cycle receipt.
 """
@@ -51,9 +51,9 @@ def intention_key(intention) -> str:
 
 
 def active_intentions(record_source) -> list:
-    """Return active Intention knoxels from a Ghost view or a Ghost.
+    """Return active Intention knoxels from a MemoryStore view or a MemoryStore.
 
-    ``record_source`` may be a batch view or a Ghost. Only intentions with an
+    ``record_source`` may be a batch view or a MemoryStore. Only intentions with an
     ``active`` flag and an ``active`` status steer current work.
     """
     if hasattr(record_source, "all_knoxels"):

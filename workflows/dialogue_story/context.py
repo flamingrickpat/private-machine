@@ -1,6 +1,6 @@
 """Prepare standalone Story with shared retrieval and public evidence.
 
-The operator's situation supplies one accepted user input in the trial Ghost.
+The operator's situation supplies one accepted user input in the trial MemoryStore.
 Retrieval uses the shared embedding cache. Capability discovery runs outside
 the async loop. No raw private thought transcript enters the public request.
 """

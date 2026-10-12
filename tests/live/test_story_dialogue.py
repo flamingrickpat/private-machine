@@ -2,7 +2,7 @@
 
 Two checks:
   * one real accepted dialogue with the exact five message roles and prefix
-  * ten independent quality trials from the same initial Ghost state, then a
+  * ten independent quality trials from the same initial MemoryStore state, then a
     separate evaluator phase over the saved artifacts
 
 Generation always finishes before the evaluator model is activated. Missing
@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import LlmPreset, load_config, resolve_connection
 from workflows.dialogue_story import engine
@@ -60,7 +60,7 @@ class LiveStoryDialogueTests(unittest.TestCase):
 
     def test_real_accepted_dialogue_preserves_roles_and_prefix(self):
         asyncio.run(self.owner.activate(self.default, live_test=True))
-        ghost = Ghost.from_yaml(SEED)
+        ghost = MemoryStore.from_yaml(SEED)
         request = self._plan(ghost)
         result, report = engine.generate_story(
             ghost, engine.make_environment(ghost), self.client,
@@ -91,7 +91,7 @@ class LiveStoryDialogueTests(unittest.TestCase):
 
     def test_ten_independent_quality_trials_pass_the_gate(self):
         asyncio.run(self.owner.activate(self.default, live_test=True))
-        ghost = Ghost.from_yaml(SEED)
+        ghost = MemoryStore.from_yaml(SEED)
         request = self._plan(ghost)
         environment = engine.make_environment(ghost)
 

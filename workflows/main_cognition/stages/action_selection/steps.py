@@ -4,7 +4,7 @@ Entry point: ``run(context)``. Builds the action-selection messages from the
 workspace frame, the goal changes, the available workflows, and the companion's
 real capabilities, then validates the model JSON into
 :class:`ActionSelectionResult`. The message builder and the guards are pure and
-tested without a kernel, model, or Ghost.
+tested without a kernel, model, or MemoryStore.
 
 ``ActionIntent`` carries no id. This stage never invents one. ``depends_on``
 entries are the labels the model wrote (the workflow name of another action in

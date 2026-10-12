@@ -5,7 +5,7 @@ its attention result, its goals result, and the candidate texts, validates the
 model JSON into :class:`WorkspaceResult`, rejects focus ids outside the supplied
 candidates (and outside the attention selection when one was made), rejects an
 unknown control mode, and writes ``outbox/report.yaml``. The message builder and
-the guards are pure and tested without a kernel, model, or Ghost.
+the guards are pure and tested without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
 

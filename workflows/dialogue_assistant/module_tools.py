@@ -1,7 +1,7 @@
 """Module-level tool factory for Assistant dialogue.
 
 The application supplies one lazily-activated model, one managed-run
-supervisor, and the scoped Ghost tools. The same management functions are
+supervisor, and the scoped MemoryStore tools. The same management functions are
 registered on the scoped MCP server supplied by ``mcp_services_factory``, so
 the role can call them over MCP or directly with one implementation.
 """

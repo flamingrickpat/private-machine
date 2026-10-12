@@ -1,6 +1,6 @@
 """SelfManagement direct workflow and module tests.
 
-Real Ghost, real supervisor, real kernel. The local worker is a real local
+Real MemoryStore, real supervisor, real kernel. The local worker is a real local
 workflow. No model endpoint or module thread is required.
 """
 from __future__ import annotations
@@ -18,14 +18,14 @@ from pm.bus.envelopes import Envelope
 from pm.memory.store_tools import build_tools
 from main import build_app
 from modules import SelfManagement
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
 from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from pm.runs.management_api import build_management_tools
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from tests.support import Recorder
 from workflows.self_management.schemas import SelfManagementReport
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 
 MANIFEST = PROJECT_ROOT / "workflows" / "self_management" / "self_management.workflow.md"
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
@@ -44,8 +44,8 @@ class SelfManagementTests(unittest.TestCase):
     def setUp(self):
         self._tmp = TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        self.ghost = Ghost(
-            GhostConfig(user_name="Jesse", companion_name="Spamuel"),
+        self.ghost = MemoryStore(
+            PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
             checkpoint=self.root / "ghost.json",
         )
         self.supervisor = ManagedRunSupervisor(
@@ -65,7 +65,7 @@ class SelfManagementTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def _run(self, request: dict) -> SelfManagementReport:
-        environment = GhostBashEnvironment({}, {}, "read")
+        environment = MemoryBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment,
             stop_event=threading.Event(),
@@ -134,8 +134,8 @@ class SelfManagementModuleTests(unittest.TestCase):
     def test_module_maps_action_arguments_to_a_receipt(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            ghost = Ghost(
-                GhostConfig(user_name="Jesse", companion_name="Spamuel"),
+            ghost = MemoryStore(
+                PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
                 checkpoint=root / "ghost.json",
             )
             supervisor = ManagedRunSupervisor(
@@ -188,8 +188,8 @@ class ManagementMcpTests(unittest.TestCase):
 
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            ghost = Ghost(
-                GhostConfig(user_name="Jesse", companion_name="Spamuel"),
+            ghost = MemoryStore(
+                PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
                 checkpoint=root / "ghost.json",
             )
             supervisor = ManagedRunSupervisor(

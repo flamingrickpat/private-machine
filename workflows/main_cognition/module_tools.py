@@ -1,9 +1,9 @@
 """Module-level tool factory for the real main-cognition parent.
 
 The application supplies one lazily-activated completion callable. This module
-binds it, the Ghost, and the runtime root into the ``run_stage`` tool the
+binds it, the MemoryStore, and the runtime root into the ``run_stage`` tool the
 parent Python role names in its manifest. Each ``run_stage`` call builds a
-fresh read-only Ghost projection and invokes the real child kernel exactly as
+fresh read-only MemoryStore projection and invokes the real child kernel exactly as
 the child's standalone tests do.
 """
 from __future__ import annotations

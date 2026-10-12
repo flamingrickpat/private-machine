@@ -1,4 +1,4 @@
-"""Private proposals over a scoped, stable Ghost read view.
+"""Private proposals over a scoped, stable MemoryStore read view.
 
 Invalid proposals, stale commits, and cancellation are explicit failures.
 Model and network calls belong outside these objects. The batch is a trusted
@@ -12,13 +12,13 @@ from threading import Event
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
-from pm.records.base import KnoxelBase
+from pm.records.base import RecordBase
 from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel
-from pm.memory.snapshot import GhostCancelled, GhostView
+from pm.memory.snapshot import GhostCancelled, Snapshot
 
 
-class GhostWriteBatch:
-    def __init__(self, ghost, commit_id: str, snapshot: GhostView, tick_id: int, cancel: Event | None):
+class WriteBatch:
+    def __init__(self, ghost, commit_id: str, snapshot: Snapshot, tick_id: int, cancel: Event | None):
         self._ghost = ghost
         self.commit_id = commit_id
         self._snapshot = snapshot
@@ -40,7 +40,7 @@ class GhostWriteBatch:
         if self._closed or (self.cancel is not None and self.cancel.is_set()):
             raise GhostCancelled("The Ghost batch is closed or cancelled.")
 
-    def view(self, visible_ids=None) -> GhostView:
+    def view(self, visible_ids=None) -> Snapshot:
         records = {**self._snapshot._records, **self._new, **self._replacements}
         if visible_ids is not None:
             records = {record_id: records[record_id] for record_id in visible_ids}
@@ -48,9 +48,9 @@ class GhostWriteBatch:
                if set(raw["knoxel_ids"]).issubset(records)
                and (raw["attention_frame_id"] is None or raw["attention_frame_id"] in records)}
         revisions = {record_id: revision for record_id, revision in self._snapshot.revisions.items() if record_id in records}
-        return GhostView(deepcopy(records), deepcopy(gwt), revisions)
+        return Snapshot(deepcopy(records), deepcopy(gwt), revisions)
 
-    def create(self, knoxel: KnoxelBase) -> KnoxelBase:
+    def create(self, knoxel: RecordBase) -> RecordBase:
         self.check_cancelled()
         record = _deserialize_knoxel(_serialize_knoxel(knoxel))
         if record.id != -1:
@@ -70,7 +70,7 @@ class GhostWriteBatch:
         self._new[record.id] = _serialize_knoxel(record)
         return record
 
-    def replace(self, knoxel: KnoxelBase) -> None:
+    def replace(self, knoxel: RecordBase) -> None:
         self.check_cancelled()
         raw = _serialize_knoxel(_deserialize_knoxel(_serialize_knoxel(knoxel)))
         previous = self._snapshot._records[knoxel.id]

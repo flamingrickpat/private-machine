@@ -4,10 +4,10 @@ from typing import Any
 
 from pydantic import Field
 
-from pm.records.base import KnoxelBase
+from pm.records.base import RecordBase
 
 
-class ExecutableSkillKnoxel(KnoxelBase):
+class ExecutableSkillRecord(RecordBase):
     """
     OBSOLETE: DO NEVER USE!
     """
@@ -30,7 +30,7 @@ class ExecutableSkillKnoxel(KnoxelBase):
         return f"Executable skill {self.name} v{self.version} ({status}): {self.description}"
 
 
-class WorldPlaceKnoxel(KnoxelBase):
+class WorldPlaceRecord(RecordBase):
     body_id: str
     place_key: str
     position: dict[str, Any] = Field(default_factory=dict)
@@ -43,7 +43,7 @@ class WorldPlaceKnoxel(KnoxelBase):
         return f"Known place {self.place_key} in {self.dimension}: {self.content}"
 
 
-class WorldObjectKnoxel(KnoxelBase):
+class WorldObjectRecord(RecordBase):
     body_id: str
     object_key: str
     object_kind: str
@@ -56,7 +56,7 @@ class WorldObjectKnoxel(KnoxelBase):
         return f"Known {self.object_kind} {self.object_key}: {self.content}"
 
 
-class BodyEpisodeKnoxel(KnoxelBase):
+class BodyEpisodeRecord(RecordBase):
     """One embodied experience, recorded at appraisal time.
 
     The raw episode arrives as a personality stimulus; the feature appears
@@ -80,8 +80,8 @@ class BodyEpisodeKnoxel(KnoxelBase):
 
 
 __all__ = [
-    "BodyEpisodeKnoxel",
-    "ExecutableSkillKnoxel",
-    "WorldObjectKnoxel",
-    "WorldPlaceKnoxel",
+    "BodyEpisodeRecord",
+    "ExecutableSkillRecord",
+    "WorldObjectRecord",
+    "WorldPlaceRecord",
 ]

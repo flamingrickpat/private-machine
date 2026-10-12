@@ -5,19 +5,19 @@ import unittest
 from pathlib import Path
 from threading import Event
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.memory.store import GhostConflict, GhostCancelled
-from pm.records.cycle_state import GhostConfig, CycleState
+from pm.records.cycle_state import PersonaConfig, CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
-from pm.records.cognitive_records import AttentionFrameKnoxel
+from pm.records.cognitive_records import AttentionFrameRecord
 from pm.memory.yaml_codec import ghost_state_from_dict
 from tests.support import load_seed_state
 
 
 def small_ghost(checkpoint=None):
-    return Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=checkpoint)
+    return MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=checkpoint)
 
 
 class GhostCommitTests(unittest.TestCase):
@@ -30,13 +30,13 @@ class GhostCommitTests(unittest.TestCase):
     def test_proposals_stay_private_until_complete_commit(self):
         batch = self.ghost.begin_batch("turn", new_tick=True)
         feature = batch.create(Feature(feature_type=FeatureType.Dialogue, content="a memory"))
-        frame = batch.create(AttentionFrameKnoxel(content="focus", focus_knoxel_ids=[feature.id]))
+        frame = batch.create(AttentionFrameRecord(content="focus", focus_knoxel_ids=[feature.id]))
         self.assertIsNone(self.ghost.get_knoxel_by_id(feature.id))
         self.assertEqual(batch.view().get(feature.id).content, "a memory")
         batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, attention_frame_id=frame.id, knoxel_ids=[feature.id, frame.id]),
                       CycleState(tick_id=batch.tick_id, attention_frame_id=frame.id))
         receipt = self.ghost.commit(batch)
-        reopened = Ghost.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path)
         self.assertEqual(reopened.get_knoxel_by_id(feature.id).content, "a memory")
         self.assertEqual(reopened.gwt_turns[batch.tick_id].attention_frame_id, frame.id)
         self.assertEqual(reopened.revisions[feature.id], 1)
@@ -83,7 +83,7 @@ class GhostCommitTests(unittest.TestCase):
         second = next_batch.create(Feature(feature_type=FeatureType.Dialogue, content="accepted"))
         abandoned.discard()
         self.ghost.commit(next_batch)
-        reopened = Ghost.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path)
         third = reopened.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="after restart"))
         self.assertGreater(second.id, first.id)
         self.assertGreater(third.id, second.id)
@@ -92,7 +92,7 @@ class GhostCommitTests(unittest.TestCase):
     def test_invalid_reference_rejects_the_whole_batch(self):
         batch = self.ghost.begin_batch("bad-reference")
         feature = batch.create(Feature(feature_type=FeatureType.Dialogue, content="unpublished"))
-        batch.create(AttentionFrameKnoxel(content="bad focus", focus_knoxel_ids=[999999]))
+        batch.create(AttentionFrameRecord(content="bad focus", focus_knoxel_ids=[999999]))
         with self.assertRaises(ValueError):
             self.ghost.commit(batch)
         self.assertIsNone(self.ghost.get_knoxel_by_id(feature.id))
@@ -131,13 +131,13 @@ class GhostCommitTests(unittest.TestCase):
         batch.set_run_receipt("running-job", {"state": "running", "workflow": "local"})
         batch.set_run_receipt("done-job", {"state": "completed", "workflow": "local"})
         self.ghost.commit(batch)
-        reopened = Ghost.from_checkpoint(self.path)
+        reopened = MemoryStore.from_checkpoint(self.path)
         self.assertEqual(reopened.managed_runs["running-job"]["state"], "interrupted")
         self.assertEqual(reopened.managed_runs["done-job"]["state"], "completed")
 
     def test_narrow_batch_view_hides_revisions_and_attention_frame(self):
         batch = self.ghost.begin_batch("frame", new_tick=True)
-        frame = batch.create(AttentionFrameKnoxel(content="hidden"))
+        frame = batch.create(AttentionFrameRecord(content="hidden"))
         batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, attention_frame_id=frame.id, knoxel_ids=[]))
         self.ghost.commit(batch)
         self.assertEqual(self.ghost.snapshot([]).serialize_gwt(), {})
@@ -164,7 +164,7 @@ class GhostCommitTests(unittest.TestCase):
         accepted = self.ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="accepted"))
         batch = self.ghost.begin_batch("bad-replacement")
         with self.assertRaises(ValueError):
-            batch.replace(AttentionFrameKnoxel(id=accepted.id, tick_id=accepted.tick_id, content="different type"))
+            batch.replace(AttentionFrameRecord(id=accepted.id, tick_id=accepted.tick_id, content="different type"))
         replacement = batch.view().get(accepted.id)
         replacement.tick_id += 1
         with self.assertRaises(ValueError):
@@ -200,7 +200,7 @@ class GhostCommitTests(unittest.TestCase):
                 data[field] = value
                 self.path.write_text(json.dumps(data), encoding="utf-8")
                 with self.assertRaises(ValueError):
-                    Ghost.from_checkpoint(self.path)
+                    MemoryStore.from_checkpoint(self.path)
 
 
 
@@ -209,9 +209,9 @@ class FullSeedCheckpointTests(unittest.TestCase):
         seed = load_seed_state()
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ghost.json"
-            ghost = Ghost.from_state(ghost_state_from_dict(seed), checkpoint=path)
+            ghost = MemoryStore.from_state(ghost_state_from_dict(seed), checkpoint=path)
             ghost.commit(ghost.begin_batch("checkpoint-seed", visible_ids=[]))
-            reopened = Ghost.from_checkpoint(path)
+            reopened = MemoryStore.from_checkpoint(path)
             self.assertEqual(reopened.state_dict(), seed)
             self.assertEqual(len(reopened.all_knoxels), 11202)
             self.assertEqual(reopened.get_entity_id("Jesse"), ghost.get_entity_id("Jesse"))

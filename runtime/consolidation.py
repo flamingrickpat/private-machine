@@ -24,7 +24,7 @@ import yaml
 
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance
-from pm.records.world_records import BodyEpisodeKnoxel, WorldObjectKnoxel, WorldPlaceKnoxel
+from pm.records.world_records import BodyEpisodeRecord, WorldObjectRecord, WorldPlaceRecord
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
 
 TEXT_SUFFIXES = frozenset({".md", ".txt", ".yaml", ".yml", ".json"})
@@ -67,7 +67,7 @@ class ConsolidationReceipt:
 
 
 class Consolidator:
-    """One consolidator bound to one Ghost."""
+    """One consolidator bound to one MemoryStore."""
 
     def __init__(self, ghost, *, clock: Callable[[], float]) -> None:
         self.ghost = ghost
@@ -206,7 +206,7 @@ class Consolidator:
 
         proposals: list[Any] = []
         for place in data.get("places", []) or []:
-            proposals.append(WorldPlaceKnoxel(
+            proposals.append(WorldPlaceRecord(
                 content=str(place.get("content") or place.get("place_key") or "known place"),
                 body_id=str(place.get("body_id", "body")),
                 place_key=str(place.get("place_key", "")),
@@ -217,7 +217,7 @@ class Consolidator:
                 metadata={"run_id": run_id, "kind": "place"},
             ))
         for obj in data.get("objects", []) or []:
-            proposals.append(WorldObjectKnoxel(
+            proposals.append(WorldObjectRecord(
                 content=str(obj.get("content") or obj.get("object_key") or "known object"),
                 body_id=str(obj.get("body_id", "body")),
                 object_key=str(obj.get("object_key", "")),
@@ -253,7 +253,7 @@ class Consolidator:
             ]
             if not attached and images:
                 attached = [self._image_evidence(item) for item in images]
-            proposals.append(BodyEpisodeKnoxel(
+            proposals.append(BodyEpisodeRecord(
                 content=self._clip(
                     f"Body episode for {episode.get('body_id', 'body')}: "
                     f"{episode.get('outcome', 'observed')}. {episode.get('goal', '')}{consequence}"

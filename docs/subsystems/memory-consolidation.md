@@ -14,7 +14,7 @@ Evidence: [A08 verification](../work_items/verification/a08-experienced-memory.m
 ## Cognitive experiences
 
 [`runtime.experience.consolidate_cycle`][] groups source events by reality/frame scope.
-It creates a topical `MemoryClusterKnoxel` with the original event IDs and their timestamps.
+It creates a topical `MemoryClusterRecord` with the original event IDs and their timestamps.
 The summary quotes the source records with attribution.
 It adds the accepted affect summary and links the appraisal Feature.
 The source event remains separate from the internal emotional consequence.
@@ -56,7 +56,7 @@ It rejects companion speech, background, speculation, missing sources, and unsup
 Main cognition also restricts belief sources to the current stimulus ID grant.
 Rejections remain inspectable in the action's belief-update receipt.
 
-An accepted `BeliefKnoxel` remains `reported_by_user`.
+An accepted `BeliefRecord` remains `reported_by_user`.
 It cites its supporting user utterance and preserves reality/frame scope.
 It does not become an independently observed outside fact.
 An identical active quote reuses its belief ID.
@@ -64,7 +64,7 @@ An identical active quote reuses its belief ID.
 A different claim with the same scoped key adds conflict evidence.
 Without an explicit correction, both claims remain active.
 An explicit correction deactivates earlier beliefs and sets `superseded_by_id` to the new belief.
-A `BeliefShiftKnoxel` retains the original cause and accepted change.
+A `BeliefShiftRecord` retains the original cause and accepted change.
 Neither operation rewrites the original utterance.
 
 The model still chooses the semantic key and correction intent.
@@ -101,7 +101,7 @@ A changed screenshot produces new image evidence.
 The existing terminal hook still consolidates completed, failed, or cancelled runs.
 Main cognition also consolidates artifact snapshots when it accepts workflow progress events.
 
-[`pm.memory.write_batch.GhostWriteBatch.guard_consolidation_run`][] protects concurrent inventory decisions.
+[`pm.memory.write_batch.WriteBatch.guard_consolidation_run`][] protects concurrent inventory decisions.
 A changed run ledger rejects the stale consolidation batch.
 The caller can repeat the operation against the new ledger.
 Failed reads or commits retain the artifact folder and accept no partial memory.
@@ -109,7 +109,7 @@ Malformed report text remains attributed report text, without promotion to a ver
 
 ## Temporal activity
 
-[`pm.memory.store.Ghost.activity_summary`][] returns atomic activity within a half-open UTC interval: `[start, end)`.
+[`pm.memory.store.MemoryStore.activity_summary`][] returns atomic activity within a half-open UTC interval: `[start, end)`.
 Naive legacy timestamps mean UTC.
 The result contains original IDs, timestamps, categories, provenance, and an evidence-linked textual summary.
 It excludes background, predictions, simulations, and artifact summaries from executed activity.

@@ -14,7 +14,7 @@ import threading
 import time
 from pathlib import Path
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.memory.store_tools import build_tools
 from modules import (
     AssistantDialogue,
@@ -38,8 +38,8 @@ from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from pm.host.application import Application
 from runtime.steward import Steward
 from pm.llm.workflow_sessions import WorkflowModels
-from pm.memory.bash_view import GhostBashWrapper
-from pm.host.workflow_module import PROJECT_ROOT, ShellModuleWorkflow
+from pm.memory.bash_view import MemoryBashTarget
+from pm.host.workflow_module import PROJECT_ROOT, WorkflowModule
 
 BANNER = "DUMMY COGNITION \u2014 no LLM calls\n"
 REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
@@ -214,10 +214,10 @@ def build_app(
     if ghost is None:
         checkpoint = Path(checkpoint_path) if checkpoint_path is not None else None
         if checkpoint is not None and checkpoint.exists():
-            ghost = Ghost.from_checkpoint(checkpoint)
+            ghost = MemoryStore.from_checkpoint(checkpoint)
         else:
-            ghost = Ghost.from_yaml(Path(seed_path), checkpoint=checkpoint)
-    target = GhostBashWrapper(ghost, mode="read")
+            ghost = MemoryStore.from_yaml(Path(seed_path), checkpoint=checkpoint)
+    target = MemoryBashTarget(ghost, mode="read")
     bus = BusSystem()
     tasks = TaskTable(clock)
     app = Application(bus, [])
@@ -355,7 +355,7 @@ def build_app(
     if steward_module is not None:
         modules.append(steward_module)
     for module in modules:
-        if isinstance(module, ShellModuleWorkflow):
+        if isinstance(module, WorkflowModule):
             module.workflow_models = workflow_models
         bus.subscribe(module.module_id, module.accepts, module.deliver)
     app.modules = modules

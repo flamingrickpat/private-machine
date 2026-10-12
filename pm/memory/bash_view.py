@@ -17,7 +17,7 @@ from pm_bash_machine import Access, BashMachine
 from pm_workflows.working_target import AgentTarget, CommandResult, WorkingEnvironment, WorkingTarget
 
 
-class _LazyGhostFile:
+class _LazyRecordFile:
     """A BashMachine content entry that renders YAML only on first read."""
 
     def __init__(self, data: dict):
@@ -44,8 +44,8 @@ def _index_entry(knoxel_id: int, record: dict) -> dict:
     }
 
 
-class GhostBashEnvironment(WorkingEnvironment):
-    """One read-only Ghost projection inside a fresh in-memory BashMachine."""
+class MemoryBashEnvironment(WorkingEnvironment):
+    """One read-only MemoryStore projection inside a fresh in-memory BashMachine."""
 
     def agent_target(self, artifact_workspace: Path) -> AgentTarget:
         return AgentTarget(artifact_workspace, self.machine, "workflow")
@@ -74,12 +74,12 @@ class GhostBashEnvironment(WorkingEnvironment):
         for knoxel_id in sorted(visible_knoxels):
             record = visible_knoxels[knoxel_id]
             path = f"/work/ghost/knoxels/{knoxel_id}.yaml"
-            files[path] = _LazyGhostFile(record)
+            files[path] = _LazyRecordFile(record)
             index["knoxels"].append(_index_entry(knoxel_id, record))
         for tick in sorted(visible_gwt):
             path = f"/work/ghost/gwt/{tick}.yaml"
-            files[path] = _LazyGhostFile(visible_gwt[tick])
-        files["/work/ghost/index.yaml"] = _LazyGhostFile(index)
+            files[path] = _LazyRecordFile(visible_gwt[tick])
+        files["/work/ghost/index.yaml"] = _LazyRecordFile(index)
         self.machine.write_texts(files, access=Access.R)
 
         self.machine.add_user("workflow", cwd="/work")
@@ -143,19 +143,19 @@ class GhostBashEnvironment(WorkingEnvironment):
         )
 
 
-class GhostBashWrapper(WorkingTarget):
-    """Opens a fresh read-only Ghost Bash environment per invocation."""
+class MemoryBashTarget(WorkingTarget):
+    """Opens a fresh read-only MemoryStore Bash environment per invocation."""
 
     def __init__(self, ghost, mode: str = "read", visible_ids=None):
         self.ghost = ghost
         self.mode = mode
         self.visible_ids = visible_ids
 
-    def open(self, invocation_id: str) -> GhostBashEnvironment:
+    def open(self, invocation_id: str) -> MemoryBashEnvironment:
         view = self.ghost.snapshot(self.visible_ids)
-        environment = GhostBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), self.mode)
+        environment = MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), self.mode)
         environment.ghost_view = view
         return environment
 
 
-__all__ = ["GhostBashEnvironment", "GhostBashWrapper"]
+__all__ = ["MemoryBashEnvironment", "MemoryBashTarget"]

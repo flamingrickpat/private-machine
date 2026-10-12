@@ -35,10 +35,10 @@ def main() -> None:
     seed = ROOT / "test_data/personas/spamuel/canon.yaml"
     if args.persona == "cheerful":
         import yaml
-        from pm.memory.store import Ghost
-        from pm.records.cycle_state import GhostConfig
+        from pm.memory.store import MemoryStore
+        from pm.records.cycle_state import PersonaConfig
         seed = out / "cheerful-seed.yaml"
-        ghost = Ghost(GhostConfig.model_validate(yaml.safe_load(
+        ghost = MemoryStore(PersonaConfig.model_validate(yaml.safe_load(
             (ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))))
         seed.write_text(yaml.safe_dump(ghost.state_dict()), encoding="utf-8")
     base = f"http://127.0.0.1:{args.port}"

@@ -1,6 +1,6 @@
 """W5 live application-path check.
 
-Real ``build_app(cognition="real")`` wiring, real model, real bus, real Ghost.
+Real ``build_app(cognition="real")`` wiring, real model, real bus, real MemoryStore.
 One user input must produce a committed GWT, a typed action intent, and one
 correlated public reply. Missing endpoints fail the suite.
 """
@@ -14,7 +14,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.llm.stage_model import LazyStageModel
 from pm.llm.activation import ModelActivation
 from pm.llm.config import load_config, resolve_connection
@@ -42,7 +42,7 @@ class LiveAppPathTests(unittest.TestCase):
         connection = resolve_connection(config)
         model = LazyStageModel(connection, ModelActivation(), live_test=True)
 
-        ghost = Ghost.from_yaml(SEED)
+        ghost = MemoryStore.from_yaml(SEED)
         replies: list[str] = []
         with TemporaryDirectory() as tmp:
             app = build_app(

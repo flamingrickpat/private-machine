@@ -1,6 +1,6 @@
 """Evidence-backed consolidation tests.
 
-Real Ghost, real task artifacts, real kernel invocation. No model endpoint.
+Real MemoryStore, real task artifacts, real kernel invocation. No model endpoint.
 """
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ import unittest
 
 from pm_workflows.runtime import WorkflowRuntime
 
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
 from pm.records.enums import FeatureType
 from runtime.consolidation import Consolidator
 from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.memory_consolidation.schemas import ConsolidationReport
-from pm.memory.bash_view import GhostBashEnvironment
+from pm.memory.bash_view import MemoryBashEnvironment
 from pm.records.base import persisted_type_name
 
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
@@ -41,8 +41,8 @@ class ConsolidatorTests(unittest.TestCase):
     def setUp(self):
         self._tmp = TemporaryDirectory()
         self.root = Path(self._tmp.name)
-        self.ghost = Ghost(
-            GhostConfig(user_name="Jesse", companion_name="Spamuel"),
+        self.ghost = MemoryStore(
+            PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
             checkpoint=self.root / "ghost.json",
         )
         self.clock_value = 5.0
@@ -98,7 +98,7 @@ class ConsolidatorTests(unittest.TestCase):
         self.assertEqual(first["memory_ids"], second["memory_ids"])
         self.assertEqual(len(self.ghost.consolidations), 1)
         # The checkpoint persisted the ledger.
-        reopened = Ghost.from_checkpoint(self.root / "ghost.json")
+        reopened = MemoryStore.from_checkpoint(self.root / "ghost.json")
         self.assertIn(first["key"], reopened.consolidations)
 
     def test_changed_artifact_produces_a_new_receipt(self):
@@ -204,7 +204,7 @@ class ConsolidationWorkflowTests(unittest.TestCase):
     def test_workflow_converts_artifacts_and_reuses_the_receipt(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+            ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
             artifact = root / "artifacts"
             (artifact / "outbox").mkdir(parents=True)
             (artifact / "scratch").mkdir(parents=True)
@@ -217,7 +217,7 @@ class ConsolidationWorkflowTests(unittest.TestCase):
             consolidator = Consolidator(ghost, clock=time.monotonic)
 
             def invoke(run_id: str) -> ConsolidationReport:
-                environment = GhostBashEnvironment({}, {}, "read")
+                environment = MemoryBashEnvironment({}, {}, "read")
                 runtime = WorkflowRuntime(
                     environment=environment, stop_event=threading.Event(),
                     tools={

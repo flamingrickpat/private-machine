@@ -13,7 +13,7 @@ from typing import List
 
 from pydantic import BaseModel, Field
 
-from pm.records.base import KnoxelBase
+from pm.records.base import RecordBase
 
 
 class QualeChannelState(BaseModel):
@@ -26,7 +26,7 @@ class QualeChannelState(BaseModel):
     last_driver_ids: List[int] = Field(default_factory=list, description="Knoxel ids that last moved this channel.")
 
 
-class QualeKnoxel(KnoxelBase):
+class QualeRecord(RecordBase):
     """Snapshot of a qualia channel written on notable movement.
 
     ``content`` = human readable description of the experience snapshot.

@@ -82,10 +82,10 @@ class ConsoleGate:
         seed = ROOT / "test_data/personas/spamuel/canon.yaml"
         if persona == "cheerful":
             import yaml
-            from pm.memory.store import Ghost
-            from pm.records.cycle_state import GhostConfig
+            from pm.memory.store import MemoryStore
+            from pm.records.cycle_state import PersonaConfig
             seed = self.out / "cheerful-seed.yaml"
-            ghost = Ghost(GhostConfig.model_validate(yaml.safe_load((ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))))
+            ghost = MemoryStore(PersonaConfig.model_validate(yaml.safe_load((ROOT / "test_data/personas/cheerful/config.yaml").read_text(encoding="utf-8"))))
             seed.write_text(yaml.safe_dump(ghost.state_dict(), allow_unicode=True), encoding="utf-8")
         self.instance = self.request("/api/deploy", {"name": f"A09 {persona}", "seed": str(seed),
             "config": str(Path(config).resolve()), "cognition": "real"})["id"]

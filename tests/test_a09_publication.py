@@ -12,9 +12,9 @@ from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from modules import UserInputProxy
 from pm.memory.snapshot import GhostConflict
-from pm.memory.store import Ghost
-from pm.records.cycle_state import GhostConfig
-from pm.records.memory_records import ActionSchemaKnoxel
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
+from pm.records.memory_records import ActionSchemaRecord
 from pm.records.enums import ActionType
 from runtime.publication import acknowledge_reply, commit_public_reply, exchange_record
 from runtime.reply_recovery import ReplyRecovery, task_evidence
@@ -25,7 +25,7 @@ from workflows.public_claims import ClaimReview, validate_claim_review
 
 class PublicationTests(unittest.TestCase):
     def setUp(self):
-        self.ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+        self.ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
         self.bus = BusSystem()
         self.proxy = UserInputProxy("user_input", self.bus, self.fail, lambda: 0, self.ghost, lambda text: None)
         self.tmp = TemporaryDirectory()
@@ -56,7 +56,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_source_conflict_prevents_semantic_and_protocol_recovery(self):
         from modules import StoryDialogue
-        from pm.memory.bash_view import GhostBashWrapper
+        from pm.memory.bash_view import MemoryBashTarget
         from workflows.dialogue_story.engine import MANIFEST
 
         for status in ("rejected", "failed"):
@@ -64,7 +64,7 @@ class PublicationTests(unittest.TestCase):
                 correlation = self.proxy.submit("Keep this source unchanged.")
                 source = exchange_record(self.ghost, correlation)
                 module = StoryDialogue("dialogue", self.bus, self.fail, lambda: 0, None,
-                    working_target=GhostBashWrapper(self.ghost, "read"),
+                    working_target=MemoryBashTarget(self.ghost, "read"),
                     workflow=MANIFEST, tools_factory=lambda environment, batch: {},
                     runtime_root=Path(tmp), ghost=self.ghost)
                 module._public_context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": source.id}]})
@@ -83,14 +83,14 @@ class PublicationTests(unittest.TestCase):
 
     def test_protocol_failure_cannot_become_an_invented_user_report(self):
         from modules import StoryDialogue
-        from pm.memory.bash_view import GhostBashWrapper
+        from pm.memory.bash_view import MemoryBashTarget
         from workflows.dialogue_story.engine import MANIFEST
 
         with TemporaryDirectory() as tmp:
             correlation = self.proxy.submit("Reply after a transport error.")
             source = exchange_record(self.ghost, correlation)
             module = StoryDialogue("dialogue", self.bus, self.fail, lambda: 0, None,
-                working_target=GhostBashWrapper(self.ghost, "read"), workflow=MANIFEST,
+                working_target=MemoryBashTarget(self.ghost, "read"), workflow=MANIFEST,
                 tools_factory=lambda environment, batch: {}, runtime_root=Path(tmp), ghost=self.ghost)
             module._public_context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": source.id}]})
             module.invocation_id = "protocol-failure"
@@ -110,7 +110,7 @@ class PublicationTests(unittest.TestCase):
             self.ghost.checkpoint = Path(tmp) / "ghost.json"
             correlation = self.proxy.submit("One exchange.", session="original-session")
             reply_id = commit_public_reply(self.ghost, "One answer.", correlation, commit_id="reply")
-            restored = Ghost.from_checkpoint(self.ghost.checkpoint)
+            restored = MemoryStore.from_checkpoint(self.ghost.checkpoint)
             self.assertEqual(exchange_record(restored, correlation).metadata["public_reply_id"], reply_id)
             self.assertIsNone(commit_public_reply(restored, "Duplicate answer.", correlation, commit_id="duplicate"))
             recovery = ReplyRecovery("reply_recovery", self.bus, self.fail, lambda: 0, None,
@@ -128,7 +128,7 @@ class PublicationTests(unittest.TestCase):
         correlation = self.proxy.submit("The factual codeword is copper lantern.")
         fact = exchange_record(self.ghost, correlation)
         changes = self.ghost.begin_batch("intent")
-        action = changes.create(ActionSchemaKnoxel(content="A deliberate joke with a false codeword.", action_type=ActionType.Reply,
+        action = changes.create(ActionSchemaRecord(content="A deliberate joke with a false codeword.", action_type=ActionType.Reply,
             metadata={"presentation": {"mode": "deceive", "purpose": "A declared teasing presentation.", "known_fact_ids": [fact.id]}}))
         self.ghost.commit(changes)
         context = build_public_context(self.ghost, {"knoxel_id": action.id})

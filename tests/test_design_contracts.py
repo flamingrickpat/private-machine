@@ -7,26 +7,26 @@ import unittest
 from fastmcp import Client
 import yaml
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.memory.store_tools import build_mcp, build_tools
 from main import build_app
-from pm.records.cycle_state import GhostConfig
-from pm.host.application import Application, ShellModule
+from pm.records.cycle_state import PersonaConfig
+from pm.host.application import Application, BusModule
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
 from tests.support import ManualClock, Recorder, store_action
-from pm.memory.bash_view import GhostBashEnvironment, GhostBashWrapper
+from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
 from pm.host.folder_target import FolderTarget
-from pm.host.workflow_module import ShellModuleWorkflow
+from pm.host.workflow_module import WorkflowModule
 
 
 def small_ghost():
-    return Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+    return MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
 
 
 class DesignContracts(unittest.TestCase):
     def test_cleanup_exception_reaches_application(self):
-        class BrokenCleanup(ShellModule):
+        class BrokenCleanup(BusModule):
             def handle_batch(self, batch):
                 pass
 
@@ -44,14 +44,14 @@ class DesignContracts(unittest.TestCase):
 
     def test_virtual_files_are_discoverable_and_read_only(self):
         record = {"__type__": "Feature", "data": {"id": 1, "content": "visible memory"}}
-        env = GhostBashEnvironment({1: record}, {}, "read")
+        env = MemoryBashEnvironment({1: record}, {}, "read")
         self.assertEqual(env.list_files("ghost/knoxels"), ["ghost/knoxels/1.yaml"])
         self.assertIn("visible memory", env.exec("grep -r 'visible memory' /work/ghost").stdout)
         self.assertNotEqual(env.exec("echo changed > /work/ghost/knoxels/1.yaml").exit_code, 0)
         self.assertEqual(yaml.safe_load(env.read_text("ghost/knoxels/1.yaml")), record)
 
     def test_virtual_text_preserves_whitespace(self):
-        env = GhostBashEnvironment({}, {}, "read")
+        env = MemoryBashEnvironment({}, {}, "read")
         text = "  indented markdown\n\n"
         env.write_text("scratch/text.md", text)
         env.move("scratch/text.md", "outbox/text.md")
@@ -59,7 +59,7 @@ class DesignContracts(unittest.TestCase):
 
     def test_real_mcp_roundtrip_and_scope(self):
         record = {"__type__": "Feature", "data": {"id": 1, "content": "Jesse"}}
-        env = GhostBashEnvironment({1: record}, {}, "read")
+        env = MemoryBashEnvironment({1: record}, {}, "read")
 
         async def exercise():
             async with Client(build_mcp(env)) as client:
@@ -72,7 +72,7 @@ class DesignContracts(unittest.TestCase):
         asyncio.run(exercise())
 
     def test_tool_results_cannot_mutate_the_snapshot(self):
-        env = GhostBashEnvironment({1: {"__type__": "Feature", "data": {"id": 1, "content": "original"}}}, {}, "read")
+        env = MemoryBashEnvironment({1: {"__type__": "Feature", "data": {"id": 1, "content": "original"}}}, {}, "read")
         tools = build_tools(env)
         tools["ghost_get"](1)["data"]["content"] = "changed"
         self.assertEqual(tools["ghost_get"](1)["data"]["content"], "original")
@@ -83,7 +83,7 @@ class DesignContracts(unittest.TestCase):
             ghost = small_ghost()
             action = store_action(ghost, content="hidden instruction")
             app = build_app(None, tmp, ghost=ghost, clock=ManualClock())
-            app.dialogue.working_target = GhostBashWrapper(ghost, visible_ids=())
+            app.dialogue.working_target = MemoryBashTarget(ghost, visible_ids=())
             app.bus.put(action)
             with self.assertRaises(KeyError):
                 app.dialogue.step()
@@ -91,7 +91,7 @@ class DesignContracts(unittest.TestCase):
             self.assertEqual(app.dialogue.last_environment.list_files("inbox"), [])
 
     def test_generic_workflow_needs_no_ghost(self):
-        class PlainWorkflow(ShellModuleWorkflow):
+        class PlainWorkflow(WorkflowModule):
             def prepare_input(self, batch):
                 return {"text": batch[0].payload["text"]}
 

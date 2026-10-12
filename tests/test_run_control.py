@@ -10,7 +10,7 @@ from pm.bus.envelopes import Envelope
 from pm.runs.workflow_runner import WorkflowStatus
 from tests.support import Recorder
 from pm.host.folder_target import FolderTarget
-from pm.host.workflow_module import ShellModuleWorkflow
+from pm.host.workflow_module import WorkflowModule
 
 
 def _wait_until(predicate, timeout=10.0):
@@ -22,7 +22,7 @@ def _wait_until(predicate, timeout=10.0):
     return False
 
 
-class _ProbeWorkflow(ShellModuleWorkflow):
+class _ProbeWorkflow(WorkflowModule):
     DATA_TOPICS = frozenset({"start"})
 
     def prepare_input(self, batch):

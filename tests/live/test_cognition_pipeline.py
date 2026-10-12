@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from workflows.main_cognition import engine
@@ -70,7 +70,7 @@ class LiveCognitionCycleTests(unittest.TestCase):
 
     def test_one_real_cycle_completes_with_typed_dispatches(self):
         asyncio.run(self.owner.activate(self.connection, live_test=True))
-        ghost = Ghost.from_yaml(SEED)
+        ghost = MemoryStore.from_yaml(SEED)
         request = fixed_request()
         result, report = engine.run_cycle(
             ghost, self.client, request, EVIDENCE_ROOT / "runs", f"w5-{uuid4().hex[:6]}",

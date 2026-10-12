@@ -1,14 +1,14 @@
 """Evidence-preserving experiences and reported beliefs in a cognition batch.
 
-The module proposes memory through the existing Ghost batch. It never commits
+The module proposes memory through the existing MemoryStore batch. It never commits
 separately, infers external facts from companion prose, or invents activity.
 """
 from __future__ import annotations
 
-from pm.records.memory_records import ActionSchemaKnoxel, Feature, MemoryClusterKnoxel
+from pm.records.memory_records import ActionSchemaRecord, Feature, MemoryClusterRecord
 from pm.records.base import Provenance
 from pm.records.enums import ClusterType, FeatureType, SourceKind
-from pm.records.cognitive_records import BeliefKnoxel, BeliefShiftKnoxel
+from pm.records.cognitive_records import BeliefRecord, BeliefShiftRecord
 
 
 def consolidate_cycle(batch, source_ids: list[int], appraisal: Feature, affect_summary: str) -> list[int]:
@@ -32,7 +32,7 @@ def consolidate_cycle(batch, source_ids: list[int], appraisal: Feature, affect_s
         # Affect is an accepted internal event, even when its cause is imagined.
         lines.append(f"Accepted internal consequence [{appraisal.id}]: {affect_summary}")
         ids.append(appraisal.id)
-        cluster = batch.create(MemoryClusterKnoxel(
+        cluster = batch.create(MemoryClusterRecord(
             content="\n".join(lines), cluster_type=ClusterType.Topical, level=100,
             included_event_ids=",".join(map(str, ids)),
             min_tick_id=min(record.tick_id for record in records), max_tick_id=appraisal.tick_id,
@@ -72,14 +72,14 @@ def update_beliefs(batch, updates, *, user_name: str, permitted_source_ids: set[
             continue
         key = " ".join(update.belief_key.casefold().split())
         prior = [record for record in view.all_knoxels.values()
-                 if isinstance(record, BeliefKnoxel) and record.active
+                 if isinstance(record, BeliefRecord) and record.active
                  and record.belief_key == key and record.scope == source.scope
                  and record.source == f"user:{user_name}"]
         duplicate = next((record for record in prior if record.content == update.quote), None)
         if duplicate:
             accepted.append(duplicate.id)
             continue
-        belief = batch.create(BeliefKnoxel(
+        belief = batch.create(BeliefRecord(
             content=update.quote, belief_key=key, belief_kind="reported_by_user",
             supporting_knoxel_ids=[source.id], source=f"user:{user_name}", scope=source.scope,
             provenance=source.provenance,
@@ -92,7 +92,7 @@ def update_beliefs(batch, updates, *, user_name: str, permitted_source_ids: set[
                 old.active = False
                 old.superseded_by_id = belief.id
             batch.replace(old)
-            batch.create(BeliefShiftKnoxel(
+            batch.create(BeliefShiftRecord(
                 content=f"User {'corrected' if update.correction else 'reported a competing claim for'} {key}",
                 target_belief_id=old.id, proposed_belief_key=key,
                 shift_type="supersede" if update.correction else "conflict",
@@ -111,7 +111,7 @@ def utterance_metadata(view, action_id: int | None) -> dict:
     """
     result = {"memory_kind": "utterance", "factual_promotion": False}
     action = view.get_knoxel_by_id(action_id) if action_id is not None else None
-    if isinstance(action, ActionSchemaKnoxel):
+    if isinstance(action, ActionSchemaRecord):
         result["action_schema_id"] = action.id
         presentation = action.metadata.get("presentation", {})
         if (presentation.get("mode") == "deceive" and presentation.get("purpose")

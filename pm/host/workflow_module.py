@@ -23,12 +23,12 @@ from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
 from pm.bus.envelopes import Envelope, _new_id
 from pm.host.mcp_listeners import serve_services
-from pm.host.application import ShellModule
+from pm.host.application import BusModule
 from pm.llm.workflow_sessions import WorkflowModels
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 
 
-class ShellModuleWorkflow(ShellModule):
+class WorkflowModule(BusModule):
     """One module that turns data batches into real workflow invocations."""
 
     QUESTION_TOPIC = "workflow.question"
@@ -235,4 +235,4 @@ class ShellModuleWorkflow(ShellModule):
         return None
 
 
-__all__ = ["ShellModuleWorkflow", "PROJECT_ROOT"]
+__all__ = ["WorkflowModule", "PROJECT_ROOT"]

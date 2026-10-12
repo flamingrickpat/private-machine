@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Optional
 
 from pydantic import AliasChoices, BaseModel, Field, PrivateAttr, SerializeAsAny
 
-from pm.records.base import KnoxelBase
+from pm.records.base import RecordBase
 from pm.records.mental_state import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
 from pm.records.needs_axes import NeedsAxesModel, CognitionAxesModel
 
@@ -53,7 +53,7 @@ class CycleState(BaseModel):
     def mental_state_latent(self, value: FullMentalState | List[float] | dict) -> None:
         self.mental_state_latent_vec = _coerce_full_mental_state(value).to_list()
 
-class GhostConfig(BaseModel):
+class PersonaConfig(BaseModel):
     user_name: str
     companion_name: str
     timestamp_format: str = "%Y-%m-%d %H:%M"
@@ -76,9 +76,9 @@ class CycleStateModel(BaseModel):
     """
     Container for all data to daaamp and load it.
     """
-    _knoxel_index: Dict[int, KnoxelBase] = PrivateAttr(default_factory=dict)
+    _knoxel_index: Dict[int, RecordBase] = PrivateAttr(default_factory=dict)
 
-    knoxels: List[SerializeAsAny[KnoxelBase]]
+    knoxels: List[SerializeAsAny[RecordBase]]
     cycles: List[CycleState]
 
     previous_emb_model: str = ""
@@ -103,18 +103,18 @@ class CycleStateModel(BaseModel):
             knoxel._owner = self
 
     @property
-    def all_knoxels(self) -> Dict[int, KnoxelBase]:
+    def all_knoxels(self) -> Dict[int, RecordBase]:
         if len(self._knoxel_index) != len(self.knoxels):
             self.rebuild_knoxel_index()
         return self._knoxel_index
 
     @property
-    def sorted_knoxels_raw(self) -> List[KnoxelBase]:
+    def sorted_knoxels_raw(self) -> List[RecordBase]:
         return sorted(self.knoxels, key=lambda x: x.timestamp_creation)
 
     @property
-    def sorted_knoxels_causal(self) -> List[KnoxelBase]:
+    def sorted_knoxels_causal(self) -> List[RecordBase]:
         return sorted(self.knoxels, key=lambda x: x.timestamp_world_begin)
 
-    def get_knoxel_by_id(self, knoxel_id: int) -> KnoxelBase | None:
+    def get_knoxel_by_id(self, knoxel_id: int) -> RecordBase | None:
         return self.all_knoxels.get(knoxel_id)

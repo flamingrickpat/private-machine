@@ -1,6 +1,6 @@
 """Shared-behavior checks for the bus, batch, timer, and termination.
 
-These use real modules, a real bus, and a real Ghost, but step modules directly
+These use real modules, a real bus, and a real MemoryStore, but step modules directly
 so no thread is ever started.
 """
 from __future__ import annotations
@@ -11,8 +11,8 @@ from pathlib import Path
 import pm.memory.store_tools as ghost_mcp
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, _new_id
-from pm.host.application import ShellModule
-from pm.memory.bash_view import GhostBashWrapper
+from pm.host.application import BusModule
+from pm.memory.bash_view import MemoryBashTarget
 
 from tests.support import (
     ManualClock,
@@ -30,7 +30,7 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm_workflows.working_target import CommandResult
 
 
-class _EchoModule(ShellModule):
+class _EchoModule(BusModule):
     """Handler records each batch size and re-publishes one message per item."""
 
     DATA_TOPICS = frozenset({"ping"})
@@ -130,7 +130,7 @@ class ShellBusTests(unittest.TestCase):
 
     def test_fresh_environment(self):
         ghost = fresh_ghost(self.seed_dict)
-        wrapper = GhostBashWrapper(ghost, "read")
+        wrapper = MemoryBashTarget(ghost, "read")
         before = set(ghost.all_knoxels)
         new_id = store_feature(ghost, "fresh feature")
         self.assertNotIn(new_id, before)
@@ -142,7 +142,7 @@ class ShellBusTests(unittest.TestCase):
         all_ids = set(ghost.all_knoxels)
         omitted = max(all_ids)
         kept = [kid for kid in sorted(all_ids) if kid != omitted]
-        target = GhostBashWrapper(ghost, "read", visible_ids=kept)
+        target = MemoryBashTarget(ghost, "read", visible_ids=kept)
         environment = target.open("inv-1")
 
         result = environment.exec(f"cat /work/ghost/knoxels/{omitted}.yaml")

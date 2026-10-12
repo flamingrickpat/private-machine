@@ -1,12 +1,12 @@
-"""Public dialogue inspection and scoped semantic search through Ghost."""
+"""Public dialogue inspection and scoped semantic search through MemoryStore."""
 import asyncio
 from pathlib import Path
 import tempfile
 import unittest
 
-from pm.memory.store import Ghost
+from pm.memory.store import MemoryStore
 from pm.memory.embeddings import EmbeddingService
-from pm.records.cycle_state import GhostConfig
+from pm.records.cycle_state import PersonaConfig
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType, InterlocusType
 from pm.llm.config import EmbeddingConfig
@@ -14,7 +14,7 @@ from pm.llm.config import EmbeddingConfig
 
 class GhostInspectionTests(unittest.TestCase):
     def setUp(self):
-        self.ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+        self.ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
         self.jesse = self.ghost.store_knoxel(Feature(content="hello", feature_type=FeatureType.Dialogue,
                                                   interlocus=InterlocusType.Public, override_source="Jesse"))
         self.spamuel = self.ghost.store_knoxel(Feature(content="world", feature_type=FeatureType.Dialogue,

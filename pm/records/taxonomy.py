@@ -17,10 +17,10 @@ invariant: every taxonomy string round-trips through its enum unchanged; normali
 from enum import StrEnum
 from typing import List, Optional
 
-from pm.records.enums import KnoxelSubtypeBase
+from pm.records.enums import RecordSubtypeBase
 
 
-class RecordType(KnoxelSubtypeBase):
+class RecordType(RecordSubtypeBase):
     """Claim-kind classification for a single piece of semantic memory.
 
     This is the agentic processing taxonomy: it says what KIND of claim a fact is,

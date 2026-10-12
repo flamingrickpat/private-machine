@@ -1,6 +1,6 @@
 """Cognitive module subclasses and the shared task table.
 
-Every module is a ``ShellModule`` or ``ShellModuleWorkflow``. Fixed routing and
+Every module is a ``BusModule`` or ``WorkflowModule``. Fixed routing and
 fixed output are explicit prototype behavior here and in ``workflows/roles.py``,
 never LLM output.
 """
@@ -15,16 +15,16 @@ import yaml
 from pm_core.model.affect_dynamics import AffectProjection
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.memory_records import ActionSchemaKnoxel, Feature
+from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.records.base import Provenance
 from pm.records.enums import ActionType, FeatureType, InterlocusType, SourceKind
-from pm.records.cognitive_records import AttentionFrameKnoxel
+from pm.records.cognitive_records import AttentionFrameRecord
 from pm.records.mental_state import FullMentalState, create_empty_state
 from runtime.experience import consolidate_cycle, update_beliefs, utterance_metadata
 
 from pm.bus.envelopes import Envelope, _new_id
-from pm.host.application import ShellModule
-from pm.host.workflow_module import PROJECT_ROOT, ShellModuleWorkflow
+from pm.host.application import BusModule
+from pm.host.workflow_module import PROJECT_ROOT, WorkflowModule
 from pm.memory.store_tools import build_tools
 from workflows.dialogue_story.schemas import DialogueTurn, StoryReport, StoryRequest
 from workflows.main_cognition.pipeline import DEFAULT_WORKFLOWS
@@ -157,7 +157,7 @@ def _recent_public_dialogue(ghost, limit: int = 4, *, exclude_ids=()) -> list[Di
     """Bound prior turns and exclude the input rendered as the current message.
 
     Rendering a pending user input twice invents a repeated conversational turn.
-    The original records remain complete in the canonical Ghost.
+    The original records remain complete in the canonical MemoryStore.
     """
     features = [
         knoxel for knoxel in ghost.all_features
@@ -254,7 +254,7 @@ def _projection_from_report(report, previous_vec) -> AffectProjection | None:
     )
 
 
-class UserInputProxy(ShellModule):
+class UserInputProxy(BusModule):
     """Wraps terminal input and prints public replies."""
 
     DATA_TOPICS = frozenset({"dialogue.reply"})
@@ -285,7 +285,7 @@ class UserInputProxy(ShellModule):
                 acknowledge_reply(self.ghost, feature.id)
 
 
-class CognitiveWorkflow(ShellModuleWorkflow):
+class CognitiveWorkflow(WorkflowModule):
     """Knoxel routing shared by cognitive workflows, outside the generic runner."""
 
     def __init__(self, *args, ghost, **kwargs):
@@ -340,13 +340,13 @@ class DummyMainCogLoop(CognitiveWorkflow):
 
         changes = self.ghost.begin_batch(self.invocation_id or _new_id(), new_tick=True, cancel=self.stop_event)
         tick = changes.tick_id
-        frame = changes.create(AttentionFrameKnoxel(
+        frame = changes.create(AttentionFrameRecord(
             content=summary, tick_id=tick, focus_knoxel_ids=list(incoming_ids),
             active_goal_ids=[], winning_attention_ids=[], control_mode="reactive", frame_reason=summary,
         ))
         action_ids: list[int] = []
         for decision in decisions:
-            action = changes.create(ActionSchemaKnoxel(
+            action = changes.create(ActionSchemaRecord(
                 content=decision.get("content", ""), action_type=ACTION_TYPE[decision["route"]],
                 attention_frame_id=frame.id,
                 metadata={"route": decision["route"], "task_id": decision.get("task_id", ""),
@@ -659,7 +659,7 @@ class MainCogLoop(CognitiveWorkflow):
                                       permitted_source_ids=set(self._stimulus_ids))
         experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, parsed.affect_summary)
 
-        frame = changes.create(AttentionFrameKnoxel(
+        frame = changes.create(AttentionFrameRecord(
             content=parsed.frame_reason or parsed.summary,
             tick_id=tick,
             focus_knoxel_ids=list(parsed.focus_ids),
@@ -692,7 +692,7 @@ class MainCogLoop(CognitiveWorkflow):
                 or any(key not in view.revisions for key in presentation.known_fact_ids)
             ):
                 raise ValueError("The proposed deception lacks retained factual context.")
-            action = changes.create(ActionSchemaKnoxel(
+            action = changes.create(ActionSchemaRecord(
                 content=dispatch.content,
                 action_type=ACTION_BY_NAME.get(dispatch.action_type, ActionType.Reply),
                 attention_frame_id=frame.id,
@@ -782,7 +782,7 @@ class MainCogLoop(CognitiveWorkflow):
     def _committed_action_id(self, dispatch, tick: int) -> int | None:
         """Return the accepted action id for this identity and tick, if any."""
         for knoxel in self.ghost.all_knoxels.values():
-            if not isinstance(knoxel, ActionSchemaKnoxel):
+            if not isinstance(knoxel, ActionSchemaRecord):
                 continue
             if int(knoxel.tick_id) != int(tick):
                 continue
@@ -799,7 +799,7 @@ class MainCogLoop(CognitiveWorkflow):
         if ACTION_BY_NAME.get(dispatch.action_type, ActionType.Reply) == ActionType.Reply:
             return None
         for knoxel in self.ghost.all_knoxels.values():
-            if not isinstance(knoxel, ActionSchemaKnoxel):
+            if not isinstance(knoxel, ActionSchemaRecord):
                 continue
             if str(knoxel.metadata.get("action_id", "")) == dispatch.action_id:
                 return int(knoxel.id)
@@ -1100,7 +1100,7 @@ class SelfManagement(CognitiveWorkflow):
                 "summary": report.get("summary", ""),
                 "receipt": report.get("receipt", {}),
                 "action_schema_id": getattr(source, "id", None),
-                "public_reply_requested": isinstance(source, ActionSchemaKnoxel)
+                "public_reply_requested": isinstance(source, ActionSchemaRecord)
                 and source.action_type == ActionType.ToolCallAndReply,
             },
             causation_id=cause,

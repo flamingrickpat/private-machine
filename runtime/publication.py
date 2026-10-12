@@ -1,4 +1,4 @@
-"""Durable public utterances and exchange resolution in the canonical Ghost.
+"""Durable public utterances and exchange resolution in the canonical MemoryStore.
 
 Commit precedes bus publication. A restart replays unacknowledged utterances.
 Delivery can repeat after a crash. Consumers deduplicate by the utterance ID.
@@ -64,7 +64,7 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
 def validate_public_context(ghost, context) -> None:
     """Reject changed sources before publication or grounding recovery.
 
-    The caller holds the Ghost lock. Recovery must not replace old revision
+    The caller holds the MemoryStore lock. Recovery must not replace old revision
     guards with a fresh snapshot after their original evidence changed.
     """
     for key, revision in context.revisions.items():

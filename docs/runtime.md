@@ -68,7 +68,7 @@ The caller owns proposal acceptance and Ghost commits. The generic runner knows 
 
 ## Module behavior
 
-`ShellModuleWorkflow.handle_batch()` opens the target and prepares the request.
+`WorkflowModule.handle_batch()` opens the target and prepares the request.
 It passes that request to the shared runner.
 `last_result` exposes the typed outcome. `last_kernel_summary` retains compatibility with existing diagnostics.
 Only completed runs reach `publish_output()`.
@@ -84,7 +84,7 @@ The optional `enable_thinking` setting defaults to true. `live_test=True` makes 
 The runner selects pm-coder when this connection is present. Python skill files still use the Python driver.
 
 `FolderEnvironment` binds tools to its real root.
-`GhostBashEnvironment` binds tools to its BashMachine and the `workflow` user.
+`MemoryBashEnvironment` binds tools to its BashMachine and the `workflow` user.
 The virtual user's permissions also apply to read, write, edit, glob, and search tools.
 Automatic host instructions, skills, and MCP discovery are disabled for these runtime roles.
 The driver supplies the selected role's instructions directly.
@@ -115,10 +115,10 @@ It closes the socket after success, error, or cancellation.
 Without this factory, a child reuses the parent runtime.
 
 A run's cancellation is separate from module shutdown.
-`ShellModuleWorkflow.cancel_run()` cancels one run.
+`WorkflowModule.cancel_run()` cancels one run.
 `stop()` and a terminate control also cancel the active run.
 A run that suspends for user input publishes `workflow.question` and exposes its question ID and resume phase. A `workflow.answer` data message resumes it through a durable `pm.answer-receipt.v1`.
-`pm.memory.store_tools.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `GhostWriteBatch`.
+`pm.memory.store_tools.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `WriteBatch`.
 Proposals stay private until the batch commits.
 
 ## Current limits
@@ -139,7 +139,7 @@ The cognitive parent invokes seven child workflows through scoped runtimes.
 ## Code and evidence
 
 - [`pm.runs.workflow_runner.WorkflowRunner`][]
-- [`pm.host.workflow_module.ShellModuleWorkflow`][]
+- [`pm.host.workflow_module.WorkflowModule`][]
 - Direct runner tests: `tests/test_workflow_runner.py`
 - Direct file-permission tests: `tests/test_agent_file_scope.py`
 - Run control tests: `tests/test_run_control.py`
