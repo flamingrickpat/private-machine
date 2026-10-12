@@ -299,7 +299,7 @@ def run(args) -> None:
     save = lambda: atomic_json(out / "receipt.json", receipt)
     import hashlib
     receipt["sources"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for directory in ("runtime", "workflows/minecraft", "workflows/minecraft_project")
+        for directory in ("pm", "workflows/minecraft", "workflows/minecraft_body", "workflows/minecraft_project")
         for path in (ROOT / directory).rglob("*.py")}
     receipt["sources"][str(Path(__file__).relative_to(ROOT))] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     receipt["seed_sha256"] = hashlib.sha256((ROOT / "test_data/personas/spamuel/canon.yaml").read_bytes()).hexdigest()

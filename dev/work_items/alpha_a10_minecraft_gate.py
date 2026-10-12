@@ -56,7 +56,7 @@ def run(args) -> None:
                "source_seed_sha256": hashlib.sha256((ROOT / "test_data/personas/spamuel/canon.yaml").read_bytes()).hexdigest(),
                "status": "running", "checks": {}}
     receipt["source_files_sha256"] = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for folder in ("runtime", "workflows/minecraft", "workflows/dialogue_assistant")
+        for folder in ("pm", "workflows/minecraft", "workflows/minecraft_body", "workflows/dialogue_assistant")
         for path in (ROOT / folder).rglob("*") if path.is_file() and path.suffix in {".py", ".md", ".yaml"}}
     def save():
         (out / "receipt.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False, default=str), encoding="utf-8")

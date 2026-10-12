@@ -129,7 +129,7 @@ Each phase is one branch. Each commit is a move, a rename, or an extraction, nev
 | 0 | Baseline and repository hygiene: `dev/`, `test_data/`, `docs/work_items/`, `AGENTS.md`. | Done, branch `refactor/phase-0`. Test baseline not yet run. |
 | 1 | This page, the glossary, the naming rules, and the relocation map. | Done, branch `refactor/phase-1`. Awaits owner review. |
 | 2 | Build `pm/`: move the runtime packages. One commit per package. Then renames. | Done, branch `refactor/phase-2`. Static checks only. |
-| 3 | Move behavior into `workflows/`: Minecraft first, then `modules.py`, then the assembly. | Pending. |
+| 3 | Move behavior into `workflows/`: Minecraft first, then `modules.py`, then the assembly. | Done, branch `refactor/phase-3`. Static checks only. |
 | 4 | Remove domain knowledge from the runtime. Empty the allowlist. | Pending. |
 | 5 | Split large files: `minecraft_project/steps.py`, `supervisor.py`, `main_cognition/host.py`. | Pending. |
 | 6 | Reorganize tests into `unit/`, `contract/`, `live/`. | Pending. |

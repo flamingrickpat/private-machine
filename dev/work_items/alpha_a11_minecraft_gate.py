@@ -132,7 +132,7 @@ def run(args) -> None:
         "runtime_root": str(runtime_root), "checkpoint_path": str(checkpoint), "character_root": str(character),
         "source_seed_sha256": hashlib.sha256((ROOT / "test_data/personas/spamuel/canon.yaml").read_bytes()).hexdigest(),
         "source_files_sha256": {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
-            for folder in ("runtime", "workflows/minecraft", "workflows/minecraft_project")
+            for folder in ("pm", "workflows/minecraft", "workflows/minecraft_body", "workflows/minecraft_project")
             for path in (ROOT / folder).rglob("*") if path.is_file() and path.suffix in {".py", ".md"}}}
     receipt["source_files_sha256"].update({name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
         for name in ("main.py", "dev/work_items/alpha_a11_minecraft_gate.py", "workflows/main_cognition/stages/action_selection/prompts.yaml")})

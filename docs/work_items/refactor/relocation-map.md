@@ -79,14 +79,17 @@ No file is deleted. Reserved code moves with its owner.
 | Current | Target | Action | Phase | Reason |
 | --- | --- | --- | --- | --- |
 | `main.py` (`build_app`, workflow specs) | `workflows/companion.py` | split | 3 | The assembly. Same construction order. |
-| `modules.py` `MainCogLoop`, `InnerThoughtLoop`, `CognitiveWorkflow` | `workflows/main_cognition/host.py` | split | 3 | Bus modules of cognition. Phase 5 extracts `input_preparation.py` and `cycle_commit.py`. |
-| `modules.py` Ghost query helpers, `_feature`, `_projection_from_report` | `workflows/main_cognition/host.py` | split | 3 | Used only by cognition. |
+| `modules.py` `MainCogLoop`, `InnerThoughtLoop` | `workflows/main_cognition/host.py` | split | 3 | Bus modules of cognition. Phase 5 extracts `input_preparation.py` and `cycle_commit.py`. |
+| `modules.py` `CognitiveWorkflow` | `pm/runs/workflow_module.py` | split | 3 | Base class of the workflow-backed bus modules. It uses only the runtime. |
+| `modules.py` cognition helpers, `_projection_from_report`, `ACTION_BY_NAME` | `workflows/main_cognition/host.py` | split | 3 | Used only by cognition. |
+| `modules.py` `_envelope`, `_feature` | `pm.bus.envelopes.new_envelope`, `pm.records.memory_records.new_feature` | split | 3 | Shared factories of several workflows and libraries. |
+| `modules.py` `_recency`, `_clip`, `_recent_public_dialogue` | `workflows/public_speech/public_dialogue.py` | split | 3 | Used by Story and Assistant. |
 | `modules.py` `PublicDialogue` | `workflows/public_speech/public_dialogue.py` | split | 3 | Base bus module of both dialogue paths. |
 | `modules.py` `StoryDialogue` | `workflows/dialogue_story/host.py` | split | 3 | |
 | `modules.py` `AssistantDialogue` | `workflows/dialogue_assistant/host.py` | split | 3 | |
 | `modules.py` `SelfManagement` | `workflows/self_management/host.py` | split | 3 | |
 | `modules.py` `StewardModule` | `workflows/steward/host.py` | split | 3 | |
-| `modules.py` `UserInputProxy` | `pm/app/user_input.py` | split | 3 | Terminal input is an entry point. |
+| `modules.py` `UserInputProxy` | `workflows/public_speech/user_input.py` | split | 3 | It uses public-speech publication, so it cannot live in the runtime. |
 | `modules.py` `Dummy*`, `TaskTable`, `ScheduleSubprocesses`, `CheckSubprocess`, `ToolPlusDialogue` | `workflows/demo/host.py` | split | 3 | `--cognition dummy` mode. |
 | `*/module_tools.py` (six workflows) | the same folder's `host.py` | merge | 3 | One host binding per workflow. |
 | `runtime/experience.py` | `workflows/main_cognition/experience.py` | move | 3 | Cycle clusters and beliefs. |
