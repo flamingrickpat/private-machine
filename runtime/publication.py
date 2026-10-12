@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from pm.memory.snapshot import GhostConflict
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance
@@ -81,7 +81,7 @@ def validate_public_context(ghost, context) -> None:
 
 def publish_reply(bus, source: str, correlation: str, reply_id: int, *, cause=None, **fields):
     """Publish a committed utterance. Its pending marker survives delivery failure."""
-    bus.put(Envelope(id=_new_id(), source=source, kind="data", topic="dialogue.reply",
+    bus.put(Envelope(id=new_id(), source=source, kind="data", topic="dialogue.reply",
                      correlation_id=correlation, payload={"knoxel_id": reply_id, **fields}, causation_id=cause))
 
 

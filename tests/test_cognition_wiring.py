@@ -16,7 +16,7 @@ from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
 
 from pm.bus.bus import BusSystem
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from modules import MainCogLoop, StoryDialogue
 from tests.support import ManualClock, Recorder
 from pm.host.workflow_module import PROJECT_ROOT
@@ -88,7 +88,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             gwt = Recorder(bus, "gwt.updated")
 
             bus.put(Envelope(
-                id=_new_id(), source="user_input", kind="data", topic="user.input",
+                id=new_id(), source="user_input", kind="data", topic="user.input",
                 correlation_id="corr-fire", payload={"knoxel_id": stimulus_id},
             ))
             self.assertTrue(module.step(block=False))
@@ -138,7 +138,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             requests = Recorder(bus, "action.request")
             receipts = Recorder(bus, "action.receipt")
             bus.put(Envelope(
-                id=_new_id(), source="user_input", kind="data", topic="user.input",
+                id=new_id(), source="user_input", kind="data", topic="user.input",
                 correlation_id="corr-x", payload={"knoxel_id": stimulus_id},
             ))
             self.assertTrue(module.step(block=False))
@@ -175,7 +175,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             )
             bus.subscribe(module.module_id, module.accepts, module.deliver)
             question = Envelope(
-                id=_new_id(), source="managed_run", kind="telemetry", topic="workflow.question",
+                id=new_id(), source="managed_run", kind="telemetry", topic="workflow.question",
                 correlation_id="corr-q", payload={"question_id": "q1", "question": "Start the task?"},
             )
             self.assertTrue(module.accepts(question))
@@ -215,7 +215,7 @@ class StoryDialogueWiringTests(unittest.TestCase):
 
     def _action(self, correlation_id: str):
         return Envelope(
-            id=_new_id(), source="main_cog", kind="data", topic="action.request",
+            id=new_id(), source="main_cog", kind="data", topic="action.request",
             correlation_id=correlation_id, target="dialogue_story",
             payload={
                 "action_id": "action-0",

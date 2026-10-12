@@ -32,7 +32,7 @@ from modules import (
     UserInputProxy,
 )
 from pm.bus.bus import BusSystem
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from runtime.consolidation import Consolidator
 from pm.runs.supervisor import ManagedRunSupervisor, WorkflowSpec
 from pm.host.application import Application
@@ -252,7 +252,7 @@ def build_app(
             parent = ""
         topic = "workflow.question" if event.get("event") == "waiting_for_input" else "workflow.event"
         bus.put(Envelope(
-            id=_new_id(), source="managed_run", kind="telemetry", topic=topic,
+            id=new_id(), source="managed_run", kind="telemetry", topic=topic,
             correlation_id=parent, payload=dict(event),
         ))
 
@@ -391,7 +391,7 @@ def build_app(
         recovery.resume()
     if cognition == "real" and boot is not None:
         bus.put(Envelope(
-            id=_new_id(), source="system", kind="data", topic="system.lifecycle",
+            id=new_id(), source="system", kind="data", topic="system.lifecycle",
             correlation_id="", payload={"knoxel_id": boot["knoxel_id"]},
         ))
     return app

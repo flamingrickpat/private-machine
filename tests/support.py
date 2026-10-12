@@ -13,7 +13,7 @@ from pm.memory.yaml_codec import ghost_state_from_dict, ghost_state_to_dict, loa
 
 from pm.memory.store import MemoryStore
 from main import build_app
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 
 SEED_PATH = Path(__file__).resolve().parent.parent / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
@@ -102,7 +102,7 @@ def store_action(
     task_id: str = "",
     task_kind: str = "",
 ) -> Envelope:
-    changes = ghost.begin_batch(_new_id(), new_tick=True)
+    changes = ghost.begin_batch(new_id(), new_tick=True)
     tick = changes.tick_id
     action = changes.create(ActionSchemaRecord(
         content=content,
@@ -113,8 +113,8 @@ def store_action(
         tick_id=tick, attention_frame_id=None, knoxel_ids=[action.id], summary="x",
     ))
     ghost.commit(changes)
-    correlation_id = _new_id()
+    correlation_id = new_id()
     return Envelope(
-        id=_new_id(), source="test", kind="data", topic=f"action.{route}",
+        id=new_id(), source="test", kind="data", topic=f"action.{route}",
         correlation_id=correlation_id, payload={"knoxel_id": action.id, "gwt_tick": tick},
     )

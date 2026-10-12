@@ -23,7 +23,7 @@ from pm_workflows.working_target import CommandResult
 import pm.memory.store_tools as ghost_mcp
 from pm.memory.store import MemoryStore
 from main import BANNER, build_app
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from pm.host.folder_target import FolderTarget
 from pm.memory.bash_view import MemoryBashTarget
 
@@ -234,7 +234,7 @@ def run() -> int:
     # 13. terminate an idle module and join its thread
     terminations = Recorder(app.bus, topic="module.terminated")
     app.status.run()
-    app.bus.put(Envelope(id=_new_id(), source="demo", kind="control", topic="terminate",
+    app.bus.put(Envelope(id=new_id(), source="demo", kind="control", topic="terminate",
                          correlation_id="", payload={}, target="status"))
     app.status.join()
     check("13. idle module terminates cleanly", len(terminations.events) == 1)

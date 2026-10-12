@@ -7,7 +7,7 @@ from pm.records.memory_records import ActionSchemaRecord, Feature
 from pm.records.base import RecordKind
 from pm.records.enums import ActionType, FeatureType
 
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 
 from tests.support import (
     Recorder,
@@ -47,7 +47,7 @@ class UserInputTests(ModuleTests):
         app = make_app(self.seed_dict)
         feature_id = store_feature(app.ghost, "public reply text")
         app.bus.put(Envelope(
-            id=_new_id(), source="dialogue", kind="data", topic="dialogue.reply",
+            id=new_id(), source="dialogue", kind="data", topic="dialogue.reply",
             correlation_id="corr", payload={"knoxel_id": feature_id},
         ))
         app.user_input.step(block=False)
@@ -97,7 +97,7 @@ class MainCogTests(ModuleTests):
         feature_id = store_feature(app.ghost, "telemetry feature")
         before = app.ghost.current_tick_id
         app.bus.put(Envelope(
-            id=_new_id(), source="scheduler", kind="telemetry", topic="task.telemetry",
+            id=new_id(), source="scheduler", kind="telemetry", topic="task.telemetry",
             correlation_id="corr", payload={"knoxel_id": feature_id, "task_id": "task-1", "status": "running"},
         ))
         actions = Recorder(app.bus, topic="action.dialogue")
@@ -110,7 +110,7 @@ class MainCogTests(ModuleTests):
         app = make_app(self.seed_dict)
         before = app.ghost.current_tick_id
         app.bus.put(Envelope(
-            id=_new_id(), source="main_cog", kind="data", topic="gwt.updated",
+            id=new_id(), source="main_cog", kind="data", topic="gwt.updated",
             correlation_id="", payload={"gwt_tick": before},
         ))
         self.assertFalse(app.main_cog.step(block=False))

@@ -6,7 +6,7 @@ import json
 
 import yaml
 
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.enums import ActionType
 from runtime.publication import commit_public_reply, exchange_record, publish_reply
@@ -141,7 +141,7 @@ class ReplyRecovery(BusModule):
             else:
                 action_id = prior.id
         self.bus.put(Envelope(
-            id=_new_id(), source=self.module_id, kind="data", topic="action.request", correlation_id=correlation,
+            id=new_id(), source=self.module_id, kind="data", topic="action.request", correlation_id=correlation,
             target="dialogue_assistant", payload={"knoxel_id": action_id, "action_id": identity,
                 "task_receipt": evidence, "stimuli": [{"knoxel_id": exchange.id, "text": exchange.content}],
                 "workspace": "The selected task reached a terminal boundary. Its receipt does not imply unverified instruction execution."},
@@ -166,7 +166,7 @@ class ReplyRecovery(BusModule):
         for item in self.ghost.all_features:
             correlation = item.metadata.get("exchange_correlation")
             if (correlation and item.metadata.get("exchange_status") == "pending" and correlation not in waiting):
-                self.bus.put(Envelope(id=_new_id(), source="user_input", kind="data", topic="user.input",
+                self.bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                                      correlation_id=correlation, payload={"knoxel_id": item.id, "recovery_outcome": "redispatched"}))
 
 

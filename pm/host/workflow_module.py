@@ -21,7 +21,7 @@ from typing import Any, Callable, Mapping
 from fastmcp import FastMCP
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from pm.host.mcp_listeners import serve_services
 from pm.host.application import BusModule
 from pm.llm.workflow_sessions import WorkflowModels
@@ -84,7 +84,7 @@ class WorkflowModule(BusModule):
     def publish_question(self, result: WorkflowResult, batch: list[Envelope]) -> None:
         """Announce a suspended run's question for routing by MainCogLoop."""
         self.bus.put(Envelope(
-            id=_new_id(),
+            id=new_id(),
             source=self.module_id,
             kind="telemetry",
             topic=self.QUESTION_TOPIC,

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pm.memory.store_tools as ghost_mcp
 from pm.bus.bus import BusSystem
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from pm.host.application import BusModule
 from pm.memory.bash_view import MemoryBashTarget
 
@@ -43,21 +43,21 @@ class _EchoModule(BusModule):
         self.batch_sizes.append(len(batch))
         for _envelope in batch:
             self.bus.put(Envelope(
-                id=_new_id(), source=self.module_id, kind="data",
+                id=new_id(), source=self.module_id, kind="data",
                 topic="ping", correlation_id="", payload={},
             ))
 
 
 def _ping(bus):
     bus.put(Envelope(
-        id=_new_id(), source="x", kind="data", topic="ping",
+        id=new_id(), source="x", kind="data", topic="ping",
         correlation_id="", payload={},
     ))
 
 
 def _terminate(bus, module):
     bus.put(Envelope(
-        id=_new_id(), source="app", kind="control", topic="terminate",
+        id=new_id(), source="app", kind="control", topic="terminate",
         correlation_id="", payload={}, target=module.module_id,
     ))
 
@@ -82,7 +82,7 @@ class ShellBusTests(unittest.TestCase):
         recorder_a = Recorder(bus, topic="data.topic")
         recorder_b = Recorder(bus, topic="data.topic")
         bus.put(Envelope(
-            id=_new_id(), source="x", kind="data", topic="data.topic",
+            id=new_id(), source="x", kind="data", topic="data.topic",
             correlation_id="", payload={},
         ))
         self.assertEqual(len(recorder_a.events), 1)

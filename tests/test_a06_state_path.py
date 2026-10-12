@@ -15,7 +15,7 @@ from pm.records.enums import FeatureSubtype, FeatureType, SourceKind
 from pm.records.mental_state import FullMentalState
 
 from pm.bus.bus import BusSystem
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from modules import InnerThoughtLoop, MainCogLoop, _feature
 from pm.memory.snapshot import GhostConflict
 from pm.memory.store import MemoryStore
@@ -96,7 +96,7 @@ class AppraisalCommitTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             module, bus, errors = _module(ghost, reports, tmp)
             requests = Recorder(bus, "action.request")
-            bus.put(Envelope(id=_new_id(), source="user_input", kind="data", topic="user.input",
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                              correlation_id="corr-joy", payload={"knoxel_id": stimulus_id}))
             self.assertTrue(module.step(block=False))
 
@@ -123,7 +123,7 @@ class AppraisalCommitTests(unittest.TestCase):
             module, bus, errors = _module(ghost, reports, tmp)
             requests = Recorder(bus, "action.request")
             envelope = Envelope(
-                id=_new_id(), source="user_input", kind="data", topic="user.input",
+                id=new_id(), source="user_input", kind="data", topic="user.input",
                 correlation_id="corr-repeat", payload={"knoxel_id": stimulus_id},
             )
             request = module.prepare_input([envelope])
@@ -161,7 +161,7 @@ class GoalLifecycleTests(unittest.TestCase):
         add = _reports(stimulus_id, goals=[{"change": "add", "goal": "build a house"}])
         with TemporaryDirectory() as tmp:
             module, bus, errors = _module(ghost, add, tmp)
-            bus.put(Envelope(id=_new_id(), source="user_input", kind="data", topic="user.input",
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                              correlation_id="corr-add", payload={"knoxel_id": stimulus_id}))
             self.assertTrue(module.step(block=False))
 
@@ -174,7 +174,7 @@ class GoalLifecycleTests(unittest.TestCase):
         complete = _reports(stimulus_id, goals=[{"change": "complete", "goal": "build a house"}])
         with TemporaryDirectory() as tmp:
             module, bus, errors = _module(ghost, complete, tmp)
-            bus.put(Envelope(id=_new_id(), source="user_input", kind="data", topic="user.input",
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                              correlation_id="corr-done", payload={"knoxel_id": stimulus_id}))
             self.assertTrue(module.step(block=False))
 
@@ -266,7 +266,7 @@ class GoalLifecycleTests(unittest.TestCase):
             stimulus_id = _store(ghost, "let us build a house")
             reports = _reports(stimulus_id, goals=[{"change": "add", "goal": "build a house"}])
             module, bus, errors = _module(ghost, reports, tmp)
-            bus.put(Envelope(id=_new_id(), source="user_input", kind="data", topic="user.input",
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                              correlation_id="corr-save", payload={"knoxel_id": stimulus_id}))
             self.assertTrue(module.step(block=False))
             self.assertEqual(errors, [])
@@ -318,7 +318,7 @@ class DuplicateIdentityTests(unittest.TestCase):
             requests = Recorder(bus, "action.request")
             receipts = Recorder(bus, "action.receipt")
             for _ in range(2):
-                bus.put(Envelope(id=_new_id(), source="user_input", kind="data", topic="user.input",
+                bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                                  correlation_id="corr-start", payload={"knoxel_id": stimulus_id}))
                 self.assertTrue(module.step(block=False))
 
@@ -333,7 +333,7 @@ class EventOriginTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             module, bus, errors = _module(ghost, _reports(0), tmp)
             envelope = Envelope(
-                id=_new_id(), source="managed_run", kind="telemetry", topic="workflow.event",
+                id=new_id(), source="managed_run", kind="telemetry", topic="workflow.event",
                 correlation_id="corr-task",
                 payload={"run_id": "run-7", "event": "completed", "detail": "placed 4 blocks",
                          "artifact_path": "evidence/run-7.txt"},
@@ -400,7 +400,7 @@ class LifecycleTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             module, bus, errors = _module(ghost, _reports(boot["knoxel_id"]), tmp)
             envelope = Envelope(
-                id=_new_id(), source="system", kind="data", topic="system.lifecycle",
+                id=new_id(), source="system", kind="data", topic="system.lifecycle",
                 correlation_id="", payload={"knoxel_id": boot["knoxel_id"]},
             )
             knoxel_id, text, kind = module._stimulus_from(envelope)

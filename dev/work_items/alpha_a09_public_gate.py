@@ -27,7 +27,7 @@ CASE_NAMES = (
 
 def run(args):
     """Compare both real generators and inspect stale and failed publication."""
-    from pm.bus.envelopes import Envelope, _new_id
+    from pm.bus.envelopes import Envelope, new_id
     from main import build_app
     from pm.memory.retrieval import candidate
     from pm.memory.store import MemoryStore
@@ -74,7 +74,7 @@ def run(args):
                       "memory_trace": {"query_rewrite": {"evidence_use": "event" if memory_ids else "general"}},
                       "selection_source": "operator_boundary_gate"}))
         ghost.commit(changes)
-        return Envelope(id=_new_id(), source="operator_gate", kind="data", topic="action.request",
+        return Envelope(id=new_id(), source="operator_gate", kind="data", topic="action.request",
                         correlation_id=correlation, payload={"knoxel_id": action.id,
                         "stimuli": [{"knoxel_id": user.id, "text": text}], "workspace": intent})
 

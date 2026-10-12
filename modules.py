@@ -22,7 +22,7 @@ from pm.records.cognitive_records import AttentionFrameRecord
 from pm.records.mental_state import FullMentalState, create_empty_state
 from runtime.experience import consolidate_cycle, update_beliefs, utterance_metadata
 
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from pm.host.application import BusModule
 from pm.host.workflow_module import PROJECT_ROOT, WorkflowModule
 from pm.memory.store_tools import build_tools
@@ -61,7 +61,7 @@ ACTION_TYPE = {
 
 def _envelope(source, kind, topic, correlation_id, payload, target=None, causation_id=None):
     return Envelope(
-        id=_new_id(), source=source, kind=kind, topic=topic,
+        id=new_id(), source=source, kind=kind, topic=topic,
         correlation_id=correlation_id, payload=payload, target=target, causation_id=causation_id,
     )
 
@@ -265,7 +265,7 @@ class UserInputProxy(BusModule):
         self.emit_reply = emit_reply
 
     def submit(self, text: str, *, session: str = "") -> str:
-        correlation_id = _new_id()
+        correlation_id = new_id()
         feature = _feature(
             self.ghost, text, FeatureType.Dialogue,
             source=self.ghost.get_user_name(), interlocus=InterlocusType.Public,
@@ -338,7 +338,7 @@ class DummyMainCogLoop(CognitiveWorkflow):
             if "knoxel_id" in envelope.payload
         ]
 
-        changes = self.ghost.begin_batch(self.invocation_id or _new_id(), new_tick=True, cancel=self.stop_event)
+        changes = self.ghost.begin_batch(self.invocation_id or new_id(), new_tick=True, cancel=self.stop_event)
         tick = changes.tick_id
         frame = changes.create(AttentionFrameRecord(
             content=summary, tick_id=tick, focus_knoxel_ids=list(incoming_ids),
@@ -619,7 +619,7 @@ class MainCogLoop(CognitiveWorkflow):
         correlation = self._batch_correlation or (batch[0].correlation_id if batch else "")
         cause = batch[0].id if batch else None
         changes = self.ghost.begin_batch(
-            self.invocation_id or _new_id(), new_tick=True, cancel=self.stop_event,
+            self.invocation_id or new_id(), new_tick=True, cancel=self.stop_event,
         )
         tick = changes.tick_id
         view = changes.view()
@@ -839,7 +839,7 @@ class DummyDialogue(CognitiveWorkflow):
         replies = report.get("replies", [])
         causes = [next(envelope.id for envelope in batch if envelope.correlation_id == reply["correlation_id"])
                   for reply in replies]
-        changes = self.ghost.begin_batch(self.invocation_id or _new_id(), cancel=self.stop_event)
+        changes = self.ghost.begin_batch(self.invocation_id or new_id(), cancel=self.stop_event)
         for reply in replies:
             _feature(
                 self.ghost, reply["content"], FeatureType.Dialogue,
@@ -973,7 +973,7 @@ class PublicDialogue(CognitiveWorkflow):
                     self._public_context.task_receipt = current_task
                     raise GhostConflict("Verified task bytes changed during public generation.")
             reply_id = commit_public_reply(
-                self.ghost, text, envelope.correlation_id, commit_id=self.invocation_id or _new_id(),
+                self.ghost, text, envelope.correlation_id, commit_id=self.invocation_id or new_id(),
                 action_id=None if recovery_outcome else envelope.payload.get("knoxel_id"), context=self._public_context,
                 recovery=recovery_outcome, cancel=self.stop_event,
             )
@@ -1230,7 +1230,7 @@ class InnerThoughtLoop(CognitiveWorkflow):
     DATA_TOPICS = frozenset()
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
-        changes = self.ghost.begin_batch(self.invocation_id or _new_id(), cancel=self.stop_event)
+        changes = self.ghost.begin_batch(self.invocation_id or new_id(), cancel=self.stop_event)
         _feature(
             self.ghost, report["thought"], FeatureType.InnerMonologue,
             source=self.ghost.get_companion_name(), changes=changes,

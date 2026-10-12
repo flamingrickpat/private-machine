@@ -6,7 +6,8 @@ import uuid
 from typing import Literal
 
 
-def _new_id() -> str:
+def new_id() -> str:
+    """Return a fresh envelope identifier."""
     return uuid.uuid4().hex
 
 

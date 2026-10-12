@@ -1,7 +1,7 @@
 """Replay the exact accepted dispatch after a commit/publication interruption."""
 from __future__ import annotations
 
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from pm.records.memory_records import ActionSchemaRecord
 from runtime.publication import exchange_record
 
@@ -39,7 +39,7 @@ def replay_intents(ghost, bus, supervisor) -> set[str]:
         if admitted or (exchange is not None and exchange.metadata.get("exchange_status") == "resolved"):
             acknowledge_intent(ghost, item.id)
             continue
-        bus.put(Envelope(id=_new_id(), source="intent_recovery", kind="data", topic="action.request",
+        bus.put(Envelope(id=new_id(), source="intent_recovery", kind="data", topic="action.request",
                          correlation_id=correlation, target=metadata["dispatch_target"],
                          payload={**metadata["dispatch_payload"], "knoxel_id": item.id, "recovery_outcome": "intent_replayed"}))
     return handled

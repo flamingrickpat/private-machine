@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from typing import Callable
 
 from pm.bus.bus import BusSystem, Mailbox
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 
 
 class BusModule(ABC):
@@ -94,7 +94,7 @@ class BusModule(ABC):
         self._termination_done = True
         self.on_terminate()
         self.bus.put(Envelope(
-            id=_new_id(),
+            id=new_id(),
             source=self.module_id,
             kind="telemetry",
             topic="module.terminated",

@@ -24,7 +24,7 @@ from pm.records.enums import FeatureSubtype, FeatureType
 from pm.records.mental_state import FullMentalState, create_empty_state, make_personality_profile
 
 from pm.bus.bus import BusSystem
-from pm.bus.envelopes import Envelope, _new_id
+from pm.bus.envelopes import Envelope, new_id
 from modules import MainCogLoop
 from pm.app.lifecycle_records import record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
@@ -214,7 +214,7 @@ class ModuleCommitTests(unittest.TestCase):
         })
         with TemporaryDirectory() as tmp:
             module, bus, errors, _ = _module(ghost, reports, tmp)
-            bus.put(Envelope(id=_new_id(), source="user_input", kind="data", topic="user.input",
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                              correlation_id="corr-a07", payload={"knoxel_id": stimulus_id}))
             self.assertTrue(module.step(block=False))
             self.assertEqual(errors, [])
@@ -244,7 +244,7 @@ class ModuleCommitTests(unittest.TestCase):
         reports = _reports(stimulus_id, need={"connection": 0.3})
         with TemporaryDirectory() as tmp:
             module, bus, errors, _ = _module(ghost, reports, tmp)
-            bus.put(Envelope(id=_new_id(), source="user_input", kind="data", topic="user.input",
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                              correlation_id="corr-need", payload={"knoxel_id": stimulus_id}))
             self.assertTrue(module.step(block=False))
             self.assertEqual(errors, [])
@@ -258,7 +258,7 @@ class ModuleCommitTests(unittest.TestCase):
             stimulus_id = _store(ghost, "That failure was not your fault.")
             reports = _reports(stimulus_id, emotion={"sadness": 0.7})
             module, bus, errors, _ = _module(ghost, reports, tmp)
-            bus.put(Envelope(id=_new_id(), source="user_input", kind="data", topic="user.input",
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                              correlation_id="corr-save", payload={"knoxel_id": stimulus_id}))
             self.assertTrue(module.step(block=False))
             self.assertEqual(errors, [])
@@ -279,7 +279,7 @@ class ModuleCommitTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             module, bus, errors, _ = _module(ghost, reports, tmp)
             envelope = Envelope(
-                id=_new_id(), source="system", kind="data", topic="system.lifecycle",
+                id=new_id(), source="system", kind="data", topic="system.lifecycle",
                 correlation_id="", payload={"knoxel_id": boot["knoxel_id"]},
             )
             knoxel_id, text, kind = module._stimulus_from(envelope)
