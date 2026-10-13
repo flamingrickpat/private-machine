@@ -16,17 +16,15 @@ ROOT = REPO_ROOT
 
 
 def environment_values() -> tuple[dict, str]:
-    """Read the selected .env without exporting credentials into global state."""
-    candidates = [Path(os.environ["PM_ENV_FILE"])] if os.environ.get("PM_ENV_FILE") else [ROOT / ".env", ROOT.parent / "pm_next/.env"]
+    """Read the selected .env without exporting credentials into global state.
+
+    ``PM_ENV_FILE`` or the repository ``.env`` is used first; the legacy
+    ``../pm_next/.env`` is the fallback. Process environment values win.
+    """
+    from pm.llm.env_file import env_file_path, read_env_file
+    candidates = [env_file_path()] if os.environ.get("PM_ENV_FILE") else [env_file_path(), ROOT.parent / "pm_next/.env"]
     path = next((p for p in candidates if p.is_file()), None)
-    values = {}
-    if path:
-        for line in path.read_text(encoding="utf-8-sig").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.removeprefix("export ").split("=", 1)
-            values[key.strip()] = value.strip().strip('"').strip("'")
+    values = read_env_file(path) if path else {}
     values.update(os.environ)
     return values, str(path) if path else "process environment"
 

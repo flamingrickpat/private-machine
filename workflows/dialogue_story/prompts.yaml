@@ -21,7 +21,11 @@ system_prompt: |
   The story so far is in your own previous turn. That transcript is the
   strongest guide for the voice: the rhythm, the humor, the attitude, the
   words each character uses. Continue it so that nobody could tell where the
-  old text ends and your new text begins.
+  old text ends and your new text begins. The transcript also contains some
+  earlier private thoughts of the companion, written as "thinks: *...*".
+  Those thoughts were never said aloud. They show the inner life behind the
+  words; the other character never heard them.
+  A line such as *(30 May 2026)* marks the start of a new day.
 
   The other message gives you background material: the character card, how
   the character works on the inside, what the character can and cannot do,
@@ -111,7 +115,17 @@ time_now: "Now it is {now}."
 time_since: "Before this message, {companion_name} and {user_name} last talked {elapsed} ago, on {last}."
 time_first: "There is no earlier conversation with {user_name} in the transcript."
 
-memories_title: "## What {companion_name} remembers"
+# Memory sections, one per context-plan lane, in this order. The focus lane
+# comes last: it is closest to the current moment.
+memory_lanes:
+  - lane: history
+    title: "## Earlier times with {user_name}"
+  - lane: narratives
+    title: "## How {companion_name} understands themselves and {user_name}"
+  - lane: facts
+    title: "## What {companion_name} knows"
+  - lane: focus
+    title: "## What comes back to {companion_name} right now"
 memories_note: |
   These memories happened before this moment. Older ones may be out of date.
   Use them naturally and loosely, the way a person remembers.
@@ -146,6 +160,8 @@ context_end: |
 regeneration_title: "## Avoid this"
 
 speaker_line: '{speaker} says: "{text}"'
+thought_line: '{speaker} thinks: *{text}*'
+day_marker: '*({date})*'
 reply_prefix: '{companion_name} says: "'
 
 generation:

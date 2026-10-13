@@ -35,8 +35,9 @@ import re
 from pathlib import Path
 
 import yaml
+from pm.memory.retrieval import utc_time
 from workflows.public_speech.public_context import (
-    ability_lines, describe_elapsed, format_moment, memory_lines, plain_memory_text, task_lines,
+    ability_lines, memory_sections, plain_memory_text, task_lines, time_lines,
 )
 from workflows.public_speech.speech_review import (
     is_blocked, load_policy, regeneration_note, review_speech, should_regenerate,
@@ -63,27 +64,31 @@ def load_ontology(path: Path | None = None) -> dict:
 
 
 def render_prior_dialogue(turns: list[DialogueTurn], prompts: dict | None = None) -> str:
-    """Render prior turns verbatim as one story transcript, both speakers included."""
-    template = (prompts or {}).get("speaker_line", '{speaker} says: "{text}"')
-    return "\n".join(template.format(speaker=turn.speaker, text=turn.text) for turn in turns)
+    """Render prior turns verbatim as one story transcript, both speakers included.
+
+    Speech renders as ``says: "..."`` and the companion's earlier private
+    thoughts as ``thinks: *...*``, the established story-element forms. A day
+    marker such as ``*(30 May 2026)*`` precedes the first turn of each day, so
+    a window that spans several days does not read as one evening.
+    """
+    prompts = prompts or {}
+    speech = prompts.get("speaker_line", '{speaker} says: "{text}"')
+    thought = prompts.get("thought_line", "{speaker} thinks: *{text}*")
+    marker = prompts.get("day_marker", "*({date})*")
+    lines, day = [], None
+    for turn in turns:
+        if turn.timestamp:
+            moment = utc_time(turn.timestamp)
+            if moment.date() != day:
+                day = moment.date()
+                lines.append(marker.format(date=f"{moment.day} {moment.strftime('%B %Y')}"))
+        lines.append((thought if turn.kind == "thought" else speech).format(speaker=turn.speaker, text=turn.text))
+    return "\n".join(lines)
 
 
 def _section(title: str, lines: list[str]) -> str:
     body = "\n".join(line for line in lines if line.strip())
     return f"{title}\n{body}" if body else ""
-
-
-def _time_lines(request: StoryRequest, prompts: dict, names: dict) -> list[str]:
-    """Describe now and the gap since the last earlier exchange, in words."""
-    lines = [prompts["time_now"].format(now=format_moment(request.now), **names)] if request.now else []
-    stamps = [turn.timestamp for turn in request.prior_dialogue if turn.timestamp]
-    if stamps and request.now:
-        from pm.memory.retrieval import utc_time
-        gap = (utc_time(request.now) - utc_time(max(stamps))).total_seconds()
-        lines.append(prompts["time_since"].format(elapsed=describe_elapsed(gap), last=format_moment(max(stamps)), **names))
-    elif not request.prior_dialogue:
-        lines.append(prompts["time_first"].format(**names))
-    return lines
 
 
 def _inner_lines(request: StoryRequest, prompts: dict, names: dict) -> list[str]:
@@ -115,28 +120,36 @@ def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = 
     shown = {turn.knoxel_id for turn in request.prior_dialogue if turn.knoxel_id is not None}
     if request.current_message_id is not None:
         shown.add(request.current_message_id)
+    fallback_title = prompts["memory_lanes"][-1]["title"].format(**names)
     if context is not None:
         abilities = ability_lines(context)
-        # Plain memory strings are the fallback when the action carried no
-        # evidence records, for example in a standalone situation.
         transcript_texts = [turn.text for turn in request.prior_dialogue] + [request.current_user_message]
-        memories = memory_lines(context, exclude_ids=shown, exclude_texts=transcript_texts) or [
-            f"- {plain_memory_text(item)}" for item in request.memories if plain_memory_text(item)]
+        memory_blocks = memory_sections(context, prompts["memory_lanes"], exclude_ids=shown,
+                                        exclude_texts=transcript_texts)
+        if not memory_blocks:
+            # Plain memory strings are the fallback when the action carried no
+            # evidence records, for example in a standalone situation.
+            shown_texts = {" ".join(text.split()) for text in transcript_texts}
+            memory_blocks = [_section(fallback_title, [f"- {plain_memory_text(item)}" for item in request.memories
+                                                       if plain_memory_text(item)
+                                                       and plain_memory_text(item) not in shown_texts])]
         tasks = task_lines(context)
     else:
         abilities = [f"- {item}" for item in request.supported_capabilities]
         abilities += [f"- Cannot: {item}" for item in request.unsupported_capabilities]
         abilities += [f"- Note: {item}" for item in request.capability_notes]
-        memories = [f"- {item}" for item in request.memories]
+        memory_blocks = [_section(fallback_title, [f"- {item}" for item in request.memories])]
         tasks = []
+    memory_blocks = [part for part in memory_blocks if part]
+    if memory_blocks:
+        memory_blocks.insert(0, prompts["memories_note"].strip())
     parts = [
         prompts["context_start"].format(**names).strip(),
         _section(prompts["character_title"], [request.character_card_story.strip()]),
         _section(prompts["architecture_title"].format(**names), [prompts["architecture_text"].format(**names).strip()]),
         _section(prompts["abilities_title"].format(**names), abilities),
-        _section(prompts["time_title"], _time_lines(request, prompts, names)),
-        _section(prompts["memories_title"].format(**names),
-                 [prompts["memories_note"].strip(), *memories] if memories else []),
+        _section(prompts["time_title"], time_lines(request.now, request.prior_dialogue, prompts, names)),
+        *memory_blocks,
         _section(prompts["goals_title"].format(**names), [f"- {goal}" for goal in request.goals]),
         _section(prompts["tasks_title"], tasks),
         _section(prompts["inner_title"].format(**names), _inner_lines(request, prompts, names)),
@@ -182,6 +195,11 @@ def clean_reply(raw: str, companion_name: str, user_name: str) -> str:
         f"\n{user_name} says:", f"{user_name} says:",
         f"\n{user_name}:", f"{user_name}:",
         "\nStateUpdate:", "\nNarrative:", "\nFact:",
+        # The transcript shows earlier private thoughts. A continuation that
+        # starts a new thought line is not speech.
+        f"\n{companion_name} thinks:",
+        # A new day marker is narration, not speech.
+        "\n*(",
     ]
     cut = len(reply)
     for marker in other_markers:
@@ -277,7 +295,7 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate, review_com
             raise TypeError("story_complete must return the completion text as a string.")
         candidate = clean_reply(raw, request.companion_name, request.user_name)
         review = asyncio.run(review_speech(review_complete, candidate, request.public_context,
-                                           conversation=[*request.prior_dialogue[-6:], DialogueTurn(
+                                           conversation=[*[turn for turn in request.prior_dialogue if turn.kind == "speech"][-6:], DialogueTurn(
                                                speaker=request.user_name, text=request.current_user_message)],
                                            policy=policy))
         attempts.append(StoryAttempt(raw_completion=raw, candidate=candidate, review=review, avoid=avoid,

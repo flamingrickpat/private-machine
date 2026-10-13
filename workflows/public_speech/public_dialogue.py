@@ -9,10 +9,7 @@ from __future__ import annotations
 
 import yaml
 
-from pm.records.enums import FeatureType, InterlocusType
-
 from pm.bus.envelopes import Envelope, new_id
-from workflows.public_speech.public_context import DialogueTurn
 from workflows.public_speech.public_context import build_public_context
 from workflows.public_speech.publication import commit_public_reply, exchange_record, publish_reply
 from pm.bus.envelopes import new_envelope
@@ -21,30 +18,6 @@ from pm.runs.workflow_module import CognitiveWorkflow
 
 def _recency(knoxel) -> tuple:
     return (getattr(knoxel, "tick_id", 0), getattr(knoxel, "id", 0))
-
-
-def _recent_public_dialogue(ghost, limit: int = 4, *, exclude_ids=(), max_chars: int = 240) -> list[DialogueTurn]:
-    """Bound prior turns and exclude the input rendered as the current message.
-
-    Rendering a pending user input twice invents a repeated conversational turn.
-    The original records remain complete in the canonical MemoryStore.
-    Each turn keeps its record id and time. Story uses a larger ``limit`` and
-    ``max_chars``, because its voice depends on verbatim prior lines.
-    """
-    features = [
-        knoxel for knoxel in ghost.all_features
-        if knoxel.feature_type == FeatureType.Dialogue
-        and knoxel.interlocus == InterlocusType.Public
-        and str(knoxel.content).strip()
-        and knoxel.id not in exclude_ids
-    ]
-    features.sort(key=_recency)
-    return [
-        DialogueTurn(speaker=str(knoxel.override_source or ghost.get_entity_name(knoxel.entity_id) or "unknown"),
-                     text=_clip(str(knoxel.content), max_chars), knoxel_id=int(knoxel.id),
-                     timestamp=knoxel.timestamp_world_begin.isoformat())
-        for knoxel in features[-limit:]
-    ]
 
 
 def _clip(text: str, limit: int = 500) -> str:
@@ -59,11 +32,45 @@ class PublicDialogue(CognitiveWorkflow):
 
     capability_provider = None
 
-    def public_context(self, payload):
+    # Shared embedding service for context planning. The assembly sets it;
+    # without it, planning scores lexically.
+    context_embeddings = None
+
+    def public_context(self, payload, planned=None):
         capabilities = self.capability_provider() if self.capability_provider else None
         with self.ghost.lock:
-            self._public_context = build_public_context(self.ghost, payload, capabilities=capabilities)
+            self._public_context = build_public_context(self.ghost, payload, capabilities=capabilities,
+                                                        planned=planned)
         return self._public_context
+
+    def plan_context(self, payload: dict, plan_name: str):
+        """Plan the reply's memory context from the cycle's workspace.
+
+        The workspace experience, the current message, the winning attention
+        nominations, and the active goals form the focus. Records that the
+        nominations target, and records that cognition selected, are required.
+        The current stimuli are excluded; the prompt shows them as the current line.
+        Runs on the module thread; embedding calls happen outside the lock.
+        """
+        import asyncio
+        from workflows.main_cognition.stage_commits import active_goal_texts
+        from workflows.public_speech.context_planning import FocusInput, plan_reply_context
+        stimuli = [item for item in payload.get("stimuli", []) if "knoxel_id" in item]
+        attention = list(payload.get("attention", []))
+        with self.ghost.lock:
+            view = self.ghost.snapshot()
+            goals = active_goal_texts(self.ghost)[:6]
+        focus = FocusInput(
+            workspace=str(payload.get("workspace", "")),
+            current_message=str(stimuli[-1].get("text", "")) if stimuli else str(payload.get("content", "")),
+            attention_texts=[str(item.get("text", "")) for item in attention],
+            goals=goals,
+            required_ids=[int(key) for item in attention for key in item.get("target_ids", [])]
+                         + [int(item["knoxel_id"]) for item in payload.get("memory_evidence", [])],
+            exclude_ids=[int(item["knoxel_id"]) for item in stimuli],
+        )
+        return asyncio.run(plan_reply_context(view, plan_name, focus, self.context_embeddings,
+                                              cancel=getattr(self, "stop_event", None)))
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         # Each public action owns one report and one exchange resolution.

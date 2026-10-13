@@ -497,6 +497,11 @@ class MainCogLoop(CognitiveWorkflow):
         # marked stale and cannot win. The cycle itself continues: one stale
         # proposal must not cost the user a reply.
         stale = stale_nominations(parsed.nominations, view.revisions)
+        # The winning nominations are the workspace focus that the public
+        # workflows plan their memory context from. Stale ones never win.
+        attention_focus = [{"text": item.text, "target_ids": list(item.target_ids), "reality": item.reality}
+                           for item in parsed.nominations
+                           if item.status == "selected" and item.nomination_id not in stale and item.text]
         trace = dict(parsed.codelet_trace or {})
         attention_ids: list[int] = []
         winning_ids: list[int] = []
@@ -598,7 +603,8 @@ class MainCogLoop(CognitiveWorkflow):
                         "stimuli": list(self._stimulus_records), "memories": [item.text for item in parsed.selected_memories],
                         "memory_evidence": [item.model_dump(mode="json") for item in parsed.selected_memories],
                         "workspace": parsed.subjective_experience or parsed.frame_reason,
-                        "affect": parsed.affect_summary, "regulation": parsed.regulation},
+                        "affect": parsed.affect_summary, "regulation": parsed.regulation,
+                        "attention": attention_focus},
                 },
             ))
             created_order.append(action.id)
@@ -645,6 +651,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "workspace": parsed.subjective_experience or parsed.frame_reason,
                     "affect": parsed.affect_summary,
                     "regulation": parsed.regulation,
+                    "attention": attention_focus,
                 },
                 target=dispatch.workflow_name,
                 causation_id=cause,

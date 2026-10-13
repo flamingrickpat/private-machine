@@ -35,6 +35,25 @@ class ModelConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             resolve_connection()
 
+    def test_env_file_supplies_a_missing_credential_without_exporting_it(self):
+        name = "PM_W1_ENV_FILE_SECRET"
+        previous = os.environ.pop("PM_ENV_FILE", None)
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                env_file = Path(directory) / ".env"
+                env_file.write_text(f'# local\nexport {name}="file-marker"\n', encoding="utf-8")
+                os.environ["PM_ENV_FILE"] = str(env_file)
+                config = ConnectionConfig(base_url="http://localhost:8080/v1", model="qwen", api_key_env=name)
+                self.assertEqual(config.resolve().api_key.get_secret_value(), "file-marker")
+                self.assertNotIn(name, os.environ)
+                os.environ[name] = "process-marker"
+                self.assertEqual(config.resolve().api_key.get_secret_value(), "process-marker")
+        finally:
+            os.environ.pop(name, None)
+            os.environ.pop("PM_ENV_FILE", None)
+            if previous is not None:
+                os.environ["PM_ENV_FILE"] = previous
+
     def test_environment_reference_resolves_once(self):
         name = "PM_W1_TEST_SECRET"
         previous = os.environ.get(name)

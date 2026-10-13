@@ -7,15 +7,17 @@ the role can call them over MCP or directly with one implementation.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Callable
 
 from pm.memory.store_tools import build_mcp, build_tools
 from pm.runs.management_api import build_management_tools, management_mcp
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_assistant.schemas import AssistantMessage, AssistantReport, AssistantRequest
-from workflows.dialogue_assistant.steps import unsupported_management_claims
+from workflows.dialogue_assistant.steps import load_prompts, unsupported_management_claims
 from workflows.dialogue_assistant.tools import TOOL_DESCRIPTORS, TOOL_NAMES
-from workflows.public_speech.public_dialogue import PublicDialogue, _clip, _recent_public_dialogue
+from workflows.public_speech.public_context import ability_lines, time_lines
+from workflows.public_speech.public_dialogue import PublicDialogue, _clip
 
 
 def build_assistant_tools(model, supervisor) -> Callable[[object, object], dict]:
@@ -82,14 +84,19 @@ class AssistantDialogue(PublicDialogue):
         action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
         intent = str(action.content) if action is not None else str(payload.get("content", ""))
         current = str(payload.get("stimuli", [{}])[-1].get("text", "")) if payload.get("stimuli") else intent
-        public = self.public_context(payload)
+        # The "assistant" context plan picks the prior chat window and the
+        # memory lanes from the cycle's workspace (context_plans.yaml).
+        planned = self.plan_context(payload, "assistant")
+        public = self.public_context(payload, planned)
+        names = {"companion_name": self.ghost.get_companion_name(), "user_name": self.ghost.get_user_name()}
         request = AssistantRequest(
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
             character_card=self.ghost.get_simple_character_story_block(),
-            private_ontology=self._ontology(),
-            temporal_context=public.temporal_context,
-            prior_dialogue=self._prior_dialogue(current, exclude_ids={item["knoxel_id"] for item in payload.get("stimuli", []) if "knoxel_id" in item}),
+            abilities="\n".join(ability_lines(public)),
+            time="\n".join(time_lines(datetime.utcnow().isoformat(), planned.dialogue, load_prompts(), names)),
+            feelings=public.feelings,
+            prior_dialogue=self._prior_dialogue(current, planned.dialogue),
             current_user_message=current or intent or "(no message)",
             memories=public.memories,
             workspace=public.workspace,
@@ -101,15 +108,9 @@ class AssistantDialogue(PublicDialogue):
         )
         return request.model_dump(mode="json")
 
-    def _ontology(self) -> str:
-        config = self.ghost.ghost_config
-        parts = [str(item) for item in config.supported_capabilities]
-        parts += [f"Cannot: {item}" for item in config.unsupported_capabilities]
-        parts += [str(item) for item in config.capability_notes]
-        return "\n".join(f"- {part}" for part in parts) or "(none declared)"
-
-    def _prior_dialogue(self, current: str, *, exclude_ids=()) -> list[AssistantMessage]:
-        turns = _recent_public_dialogue(self.ghost, exclude_ids=exclude_ids)
+    def _prior_dialogue(self, current: str, turns) -> list[AssistantMessage]:
+        """Turn the planned speech window into user and assistant chat messages."""
+        turns = [turn for turn in turns if turn.kind == "speech"]
         messages: list[AssistantMessage] = []
         for index, turn in enumerate(turns):
             is_last = index == len(turns) - 1

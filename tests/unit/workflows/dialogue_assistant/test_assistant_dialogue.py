@@ -33,8 +33,8 @@ def example_request(**overrides) -> AssistantRequest:
         companion_name="Spamuel",
         user_name="Jesse",
         character_card="An acerbic, loyal companion.",
-        private_ontology="Cannot see, cannot move.",
-        temporal_context="An ordinary evening.",
+        abilities="- Cannot see, cannot move.",
+        time="An ordinary evening.",
         prior_dialogue=[
             AssistantMessage(role="user", content="hey"),
             AssistantMessage(role="assistant", content="oh, you again"),

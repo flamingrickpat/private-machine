@@ -2,7 +2,7 @@
 
 Invalid external config raises ValueError with redacted input. Code errors
 keep their tracebacks. Resolving a credential reads its environment reference
-once. Resolved connections never select a backend through global environment.
+once, then the git-ignored repository ``.env`` (``pm.llm.env_file``). Resolved connections never select a backend through global environment.
 """
 from __future__ import annotations
 
@@ -62,9 +62,11 @@ class ConnectionConfig(Connection):
     def resolve(self) -> Connection:
         key = self.api_key or SecretStr("")
         if self.api_key_env is not None:
-            value = os.environ.get(self.api_key_env)
+            # The process environment wins; the git-ignored .env is the fallback.
+            from pm.llm.env_file import credential
+            value = credential(self.api_key_env)
             if not value:
-                raise ValueError(f"Set the credential environment variable {self.api_key_env}.")
+                raise ValueError(f"Set the credential environment variable {self.api_key_env} or add it to .env.")
             key = SecretStr(value)
         return Connection(base_url=self.base_url, model=self.model, api_key=key, startup_script=self.startup_script,
                           context_window=self.context_window, context_input_fraction=self.context_input_fraction)

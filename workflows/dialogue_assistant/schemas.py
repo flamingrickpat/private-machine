@@ -53,8 +53,12 @@ class AssistantRequest(BaseModel):
     companion_name: str = Field(min_length=1)
     user_name: str = Field(min_length=1)
     character_card: str = ""
-    private_ontology: str = ""
-    temporal_context: str = ""
+    # Ability lines: configured, unavailable, and notes, one "- " line each.
+    abilities: str = ""
+    # The current time and the gap since the last exchange, in words.
+    time: str = ""
+    # Accepted feelings in words.
+    feelings: str = ""
     prior_dialogue: list[AssistantMessage] = Field(default_factory=list)
     current_user_message: str = Field(min_length=1)
     memories: list[str] = Field(default_factory=list)

@@ -1,8 +1,10 @@
-"""Prepare standalone Story with shared retrieval and public evidence.
+"""Prepare standalone Story with the shared context plan and public evidence.
 
 The operator's situation supplies one accepted user input in the trial MemoryStore.
-Retrieval uses the shared embedding cache. Capability discovery runs outside
-the async loop. No raw private thought transcript enters the public request.
+The ``story`` context plan uses the shared embedding cache. Capability discovery
+runs outside the async loop. The companion's earlier private thoughts can
+appear in the verbatim transcript as ``thinks: *...*`` lines; they guide the
+voice and are never published.
 """
 from __future__ import annotations
 
@@ -10,7 +12,6 @@ from datetime import datetime
 
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import distinctive_terms
-from pm.records.enums import FeatureType
 
 from workflows.dialogue_story.schemas import DialogueTurn, StoryRequest
 
@@ -24,8 +25,11 @@ async def plan_story_request(
 ) -> StoryRequest:
     """Build the typed Story request for one fixed situation.
 
-    ``situation`` is the YAML mapping in ``situation.yaml``: prior dialogue,
-    a current user message, and an optional temporal note.
+    ``situation`` is the YAML mapping in ``situation.yaml``: a current user
+    message and an optional workspace text. The ``story`` context plan selects
+    the verbatim dialogue window and the memory lanes from the real seed,
+    exactly as the application does. ``prior_dialogue`` in the situation is
+    used only for a store without dialogue history.
     """
     companion = ghost.get_companion_name()
     user = ghost.get_user_name()
@@ -47,13 +51,16 @@ async def plan_story_request(
         provenance=Provenance(source_kind=SourceKind.User, source_ref="story-situation:" + str(situation.get("name", "operator"))),
         metadata={"memory_kind": "utterance", "input_source": "standalone_situation"}))
     ghost.commit(changes)
-    query = current + "\n" + "\n".join(turn.text for turn in prior[-6:])
-    retrieval = await ghost.retrieve_experiences(query, embedding, limit=12, cancel=cancel)
+    from workflows.public_speech.context_planning import FocusInput, plan_reply_context
+    workspace = str(situation.get("workspace", ""))
+    planned = await plan_reply_context(ghost.snapshot(), "story", FocusInput(
+        workspace=workspace, current_message=current, exclude_ids=[int(source.id)]), embedding, cancel=cancel)
     capabilities = await asyncio.to_thread(capability_snapshot, ghost, [])
     public = build_public_context(ghost, {"content": "Answer the current user message in the established voice.",
-                                        "memory_evidence": retrieval["matches"],
-                                        "stimuli": [{"knoxel_id": source.id, "text": current}]},
-                                  capabilities=capabilities)
+                                          "workspace": workspace,
+                                          "stimuli": [{"knoxel_id": source.id, "text": current}]},
+                                  capabilities=capabilities, planned=planned)
+    prior = planned.dialogue or prior
 
     return StoryRequest(
         companion_name=companion,

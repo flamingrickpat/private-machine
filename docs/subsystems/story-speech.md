@@ -50,18 +50,18 @@ A live check on 2026-10-13 confirmed that `qwen/qwen3.8-flash` on OpenRouter con
 | How the companion works on the inside | A plain description of the cognitive cycle, memory, and time away. It is adapted from the `pm_next` architecture text. |
 | Abilities | Configured abilities, unavailable abilities, notes, and "no human body and no human senses". |
 | Time | The current time and the gap since the last prior turn, in words ("about 4 months ago, on 30 May 2026, 21:03"). |
-| Memories | [`memory_lines`][workflows.public_speech.public_context.memory_lines]: dated plain lines, oldest first, without IDs or machine labels. Dialogue reads "Jesse said: …". Summaries read "My summary of earlier times: …". Internal-state records with numbers do not render. |
+| Memories | One section per plan lane, from [`memory_sections`][workflows.public_speech.public_context.memory_sections]: dated plain lines, oldest first, without IDs or machine labels. Dialogue reads "Jesse said: …". Internal-state records with numbers do not render. |
 | Goals | The active goals. |
 | Task and tool results | The durable task receipt, in words. |
 | Inside the companion | Feelings in words from [`feelings_in_words`][workflows.public_speech.public_context.feelings_in_words], the regulation mode, the workspace experience, the chosen intent, and the presentation (candid, withhold, or deceive). |
 | Avoid this | Only on a regeneration attempt: the counted problems of the previous draft. |
 
-### Prior dialogue window
+### Context plan
 
-The Story host keeps 24 prior public turns of at most 1,200 characters each.
-The constants are `STORY_DIALOGUE_TURNS` and `STORY_TURN_CHARACTERS` in `workflows/dialogue_story/host.py`.
-This fixed window is temporary.
-The next step ports the `pm_next` context planner. It budgets lanes and selects context from the current workspace.
+The [context planner](context-planning.md) chooses the transcript window and the memory sections from the current workspace.
+The `dialogue` lane fills the assistant turn: speech and the companion's earlier private thoughts, oldest first.
+A thought renders as `Spamuel thinks: *...*`. A day marker such as `*(30 May 2026)*` starts each new day in the window.
+The other lanes fill the user turn as titled sections: earlier times, how the companion understands themselves and the user, what the companion knows, and what comes back right now.
 
 ## Hallucination review
 
@@ -101,6 +101,7 @@ A blocked draft goes to the host's rejection path. That path publishes the expli
 The report keeps every attempt with its raw completion, review, note, and blocked flag.
 
 Assistant replies use the same review once, with their tool receipts and no regeneration loop.
+The Assistant prompt uses the same readable context sections from its own context plan, as ordinary chat messages followed by tool calls.
 A second tool run could change the world. Only a blocking kind rejects an Assistant reply.
 
 ## Evidence
@@ -127,7 +128,6 @@ It passed "a thousand years", "I definitely did not miss you", and a joke about 
 ## Limits
 
 - The stale and failed paths still publish fixed recovery texts. They mean a changed snapshot or a failed model call, not a rejected reply.
-- The Assistant prompt still uses the JSON public context. It is a tool-mode prompt and is not changed by this item.
-- The prior dialogue window is fixed until the context planner port.
+- Private thoughts in the transcript differ from the A09 rule that no raw thought enters a public prompt. They guide the voice and are never published; the hallucination review flags a thought transcript in a reply as `private_leak`.
 - The private ontology (a stable vocabulary for inner experience) is not implemented.
 - The live evidence ran at OpenRouter precision. The Q3 build on the home computer is not verified.

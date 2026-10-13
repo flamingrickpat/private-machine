@@ -328,6 +328,13 @@ def build_app(
         main_cog.retrieval_query_provider = retrieval_query
         dialogue.capability_provider = provider
         assistant.capability_provider = provider
+        # Context planning for public replies shares one embedding service and
+        # its disk cache. Construction makes no network request.
+        from pm.llm.config import load_config
+        from pm.memory.embeddings import EmbeddingService
+        context_embeddings = EmbeddingService(load_config(resolved_config).embedding)
+        dialogue.context_embeddings = context_embeddings
+        assistant.context_embeddings = context_embeddings
         recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
         modules.append(recovery)
         app.reply_recovery = recovery

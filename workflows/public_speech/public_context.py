@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.records.memory_records import ActionSchemaRecord
-from pm.records.cognitive_records import OntologyBindingRecord, OntologyTermRecord
+from pm.records.cognitive_records import OntologyBindingRecord
 from workflows.main_cognition.stage_commits import active_goal_texts
 
 
@@ -26,6 +26,9 @@ class DialogueTurn(BaseModel):
     # verbatim line as a memory and to mark day changes in the transcript.
     knoxel_id: int | None = None
     timestamp: str | None = None
+    # "speech" is public dialogue; "thought" is the companion's own earlier
+    # private thought. Only the Story transcript renders thoughts.
+    kind: Literal["speech", "thought"] = "speech"
 
 
 class Presentation(BaseModel):
@@ -64,13 +67,20 @@ class PublicContext(BaseModel):
     user_frontier: int | None = None
     task_receipt: dict = Field(default_factory=dict)
     state_tick: int | None = None
+    # The context plan trace (lanes, budgets, semantic status) when planned.
+    plan: dict = Field(default_factory=dict)
 
 
-def build_public_context(ghost, payload: dict, *, capabilities: dict | None = None) -> PublicContext:
+def build_public_context(ghost, payload: dict, *, capabilities: dict | None = None, planned=None) -> PublicContext:
     """Freeze one accepted snapshot without importing raw private thoughts.
 
     Only an existing action can grant presentation intent. Invalid deception
     intent raises ValueError before generation. Source revisions guard commit.
+
+    ``planned`` is a ``PlannedContext`` from ``context_planning``. When it is
+    given, its lane-tagged records replace the cognition-selected evidence and
+    the 48-record source-chain expansion: the plan already budgeted them. The
+    revisions of their source records still guard the commit.
     """
     view = ghost.snapshot()
     action = view.get_knoxel_by_id(payload.get("knoxel_id"))
@@ -85,7 +95,9 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
                for key in presentation.known_fact_ids if key in view.revisions)
     ):
         raise ValueError("Deception requires a prior purpose and retained facts.")
-    evidence = list(metadata.get("memory_evidence", payload.get("memory_evidence", [])))
+    evidence = (list(planned.evidence) if planned is not None
+                else list(metadata.get("memory_evidence", payload.get("memory_evidence", []))))
+    lanes = {int(item["knoxel_id"]): item["lane"] for item in evidence if item.get("lane")}
     ids = {key for item in evidence for key in [item["knoxel_id"], *item.get("source_ids", [])]}
     ids.update(presentation.known_fact_ids)
     ids.update(int(item["knoxel_id"]) for item in payload.get("stimuli", []) if "knoxel_id" in item)
@@ -102,8 +114,11 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
     stimulus_ids = [int(item["knoxel_id"]) for item in payload.get("stimuli", []) if "knoxel_id" in item]
     # Reserve original leaves beside selected summaries. A long source chain
     # must not turn one direct chat request into an unbounded history dump.
-    order = list(dict.fromkeys([*stimulus_ids, *presentation.known_fact_ids, *selected_ids, *startup_ids,
-                               *sorted(ids - set(selected_ids))]))[:48]
+    if planned is not None:
+        order = list(dict.fromkeys([*stimulus_ids, *presentation.known_fact_ids, *startup_ids, *selected_ids]))
+    else:
+        order = list(dict.fromkeys([*stimulus_ids, *presentation.known_fact_ids, *selected_ids, *startup_ids,
+                                   *sorted(ids - set(selected_ids))]))[:48]
     for key in order:
         if key in records and key != getattr(action, "id", None):
             if (evidence_use == "event" and key not in selected_ids
@@ -112,6 +127,8 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
             original = candidate(view, key, records[key])
             if key in startup_ids:
                 original["lifecycle_event"] = "startup"
+            if key in lanes:
+                original["lane"] = lanes[key]
             originals.append(original)
     states = ghost.states
     state = states[-1] if states else None
@@ -172,6 +189,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
         revisions={key: view.revisions[key] for key in ids if key in view.revisions},
         user_frontier=max(users, default=None), task_receipt=dict(payload.get("task_receipt", {})),
         state_tick=state.tick_id if state is not None else None,
+        plan=dict(planned.trace) if planned is not None else {},
     )
 
 
@@ -188,12 +206,10 @@ def feelings_in_words(state) -> str:
 
 _LABEL = re.compile(r"^\[(?P<label>[^\]]*)\]\s*")
 _SOURCE = re.compile(r"source=([^;\]]+)")
-# Plain words for memory kinds. A kind that is not listed renders as "Memory".
+# Labels for memory kinds whose reality differs from a plain memory. Other
+# kinds render without a label: the section title says what the lane holds.
 _KIND_WORDS = {
-    "experience_summary": "Summary of an earlier conversation",
-    "background": "Older shared history",
     "reported_belief": "Something I believe from what {user_name} told me",
-    "executed_event": "Event",
     "observation": "Earlier observation",
     "interpretation": "My earlier interpretation",
     "speculation": "An earlier private thought of mine",
@@ -234,19 +250,37 @@ def describe_elapsed(seconds: float | None) -> str:
     return f"about {round(days / 365)} years"
 
 
-def memory_lines(context: PublicContext, *, exclude_ids=(), exclude_texts=()) -> list[str]:
+def time_lines(now: str, turns: list[DialogueTurn], templates: dict, names: dict) -> list[str]:
+    """Describe now and the gap since the last spoken exchange, in words.
+
+    ``templates`` holds ``time_now``, ``time_since``, and ``time_first`` from a
+    workflow prompt file. Private thoughts do not count as an exchange.
+    """
+    from pm.memory.retrieval import utc_time
+    lines = [templates["time_now"].format(now=format_moment(now), **names)] if now else []
+    stamps = [turn.timestamp for turn in turns if turn.timestamp and turn.kind == "speech"]
+    if stamps and now:
+        gap = (utc_time(now) - utc_time(max(stamps))).total_seconds()
+        lines.append(templates["time_since"].format(elapsed=describe_elapsed(gap), last=format_moment(max(stamps)), **names))
+    elif not stamps:
+        lines.append(templates["time_first"].format(**names))
+    return lines
+
+
+def memory_lines(context: PublicContext, *, exclude_ids=(), exclude_texts=(), lanes=None) -> list[str]:
     """Render evidence records as dated plain-language lines, oldest first.
 
     The machine label of each record (kind, source, evidence id) becomes a
     short phrase and a date. Ids never appear: a model that sees ids tends to
     quote them in speech. Dialogue by the companion or the user reads
-    "<name> said", also when it is imported history. Summaries and narratives
-    read as the companion's own summary.
+    "<name> said", also when it is imported history. Beliefs, observations,
+    interpretations, and speculations keep a label; other records need none.
 
     ``exclude_ids`` and ``exclude_texts`` remove records that the prompt
     already shows verbatim, such as the current message or transcript lines.
     Internal-state records hold numbers, and bare entity records hold only a
-    name, so neither renders.
+    name, so neither renders. ``lanes`` limits the lines to records of those
+    context-plan lanes; a record without a lane counts as ``focus``.
     """
     excluded = {int(key) for key in exclude_ids}
     shown = {" ".join(str(text).split()) for text in exclude_texts}
@@ -254,6 +288,8 @@ def memory_lines(context: PublicContext, *, exclude_ids=(), exclude_texts=()) ->
     rows = []
     for item in context.evidence:
         if int(item["knoxel_id"]) in excluded or item.get("memory_kind") in _HIDDEN_KINDS:
+            continue
+        if lanes is not None and item.get("lane", "focus") not in lanes:
             continue
         text = str(item.get("text", ""))
         match = _LABEL.match(text)
@@ -268,13 +304,29 @@ def memory_lines(context: PublicContext, *, exclude_ids=(), exclude_texts=()) ->
             phrase = "What I know about my own time away"
         elif speaker in people and item.get("evidence_role") in {"user_report", "companion_utterance"}:
             phrase = f"{speaker} said"
-        elif item.get("evidence_role") == "derived":
-            phrase = "My summary of earlier times"
         else:
-            phrase = _KIND_WORDS.get(kind, "Memory").format(user_name=context.user_name)
+            # The section title already says what a lane holds. Only kinds that
+            # change how real the content is keep a label.
+            phrase = _KIND_WORDS.get(kind, "").format(user_name=context.user_name)
         when = format_moment(item.get("timestamp"))
-        rows.append((str(item.get("timestamp") or ""), f"- {when + ', ' if when else ''}{phrase}: {body}"))
+        label = ", ".join(part for part in (when, phrase) if part)
+        rows.append((str(item.get("timestamp") or ""), f"- {label + ': ' if label else ''}{body}"))
     return [line for _, line in sorted(rows, key=lambda row: row[0])]
+
+
+def memory_sections(context: PublicContext, sections: list[dict], *, exclude_ids=(), exclude_texts=()) -> list[str]:
+    """Render one titled block per context-plan lane, skipping empty lanes.
+
+    ``sections`` is the ordered list of ``{"lane", "title"}`` mappings from a
+    workflow prompt file. Titles may use ``{companion_name}`` and ``{user_name}``.
+    """
+    names = {"companion_name": context.companion_name, "user_name": context.user_name}
+    blocks = []
+    for section in sections:
+        lines = memory_lines(context, exclude_ids=exclude_ids, exclude_texts=exclude_texts, lanes={section["lane"]})
+        if lines:
+            blocks.append(section["title"].format(**names) + "\n" + "\n".join(lines))
+    return blocks
 
 
 def plain_memory_text(text: str) -> str:
@@ -314,39 +366,5 @@ def task_lines(context: PublicContext, receipts: list[dict] | None = None) -> li
     return lines
 
 
-def render_public_context(context: PublicContext) -> str:
-    """Render the same bounded evidence for Story, Assistant, and claim review."""
-    import json
-    return json.dumps(context.model_dump(mode="json", exclude={"revisions"}), ensure_ascii=False)
-
-
-def render_factual_focus(context: PublicContext) -> str:
-    """Repeat original evidence at the answer boundary, after voice priors.
-
-    Reports retain actor attribution and uncertainty. This block supplies no
-    invented summary and cannot promote prior companion prose into facts.
-    """
-    import json
-    reports = [json.dumps(item, ensure_ascii=False, default=str) for item in context.evidence
-               if item.get("evidence_role") in {"user_report", "runtime_event", "world_observation"}]
-    return ("Answer the current request from these original reports and the actual task receipt. "
-            "Prior companion turns are recorded speech, not a reply prefix to continue. "
-            "Preserve each reported actor, timestamp, and uncertainty. Do not copy unrelated prior reply text.\n"
-            "These selected reports are a partial snapshot. Do not call them the only event or failure in the whole log. "
-            "Attribute a reported suspicion as a suspicion rather than a verified action.\n"
-            "A grounding rule is not a failed historical attempt. Do not invent causes that connect unrelated reports.\n"
-            "When asked what you actually know, distinguish supplied evidence from general possibilities. "
-            "Do not present an unsourced technical explanation or treatment as an established fact. "
-            "State uncertainty when the subject, observation, or authoritative source is missing.\n"
-            + "\nCurrent clock: " + context.temporal_context + "\n" + "\n".join(reports)
-            + "\nOlder reported conditions are not current observations. Attribute an archived condition to its recorded time. "
-            "Do not state that it is true today without a current user report or observation. "
-            + "\nWhen the user asks what you actually know about advice, first state what the supplied reports establish. "
-            "If the object identity or an authoritative source is missing, say that directly and ask for the missing information. "
-            "Do not supply a treatment or a scientific explanation from model knowledge. "
-            "A selected intent requesting botanical or other technical facts cannot create the missing evidence. "
-            "Fulfil that intent with uncertainty instead of invented verification.")
-
-
 __all__ = ["DialogueTurn", "Presentation", "PublicContext", "ability_lines", "build_public_context", "describe_elapsed", "feelings_in_words",
-           "format_moment", "memory_lines", "plain_memory_text", "render_factual_focus", "render_public_context", "task_lines"]
+           "format_moment", "memory_lines", "memory_sections", "plain_memory_text", "time_lines", "task_lines"]

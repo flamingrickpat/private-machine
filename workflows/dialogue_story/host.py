@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Callable
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_story.schemas import StoryReport, StoryRequest
-from workflows.public_speech.public_dialogue import PublicDialogue, _recent_public_dialogue
+from workflows.public_speech.public_dialogue import PublicDialogue
 
 
 def build_story_tools(model) -> Callable[[object, object], dict]:
@@ -25,11 +25,6 @@ def build_story_tools(model) -> Callable[[object, object], dict]:
 
 
 __all__ = ["build_story_tools"]
-
-
-# Verbatim prior dialogue window for Story generation.
-STORY_DIALOGUE_TURNS = 24
-STORY_TURN_CHARACTERS = 1200
 
 
 class StoryDialogue(PublicDialogue):
@@ -52,7 +47,10 @@ class StoryDialogue(PublicDialogue):
             if str(item.get("text", "")).strip()
         ]
         current = str(stimuli[-1]["text"]) if stimuli else intent
-        public = self.public_context(payload)
+        # The context plan picks the verbatim dialogue window and the memory
+        # lanes from the cycle's workspace (context_plans.yaml: story).
+        planned = self.plan_context(payload, "story")
+        public = self.public_context(payload, planned)
         current_ids = [int(item["knoxel_id"]) for item in stimuli if "knoxel_id" in item]
         request = StoryRequest(
             companion_name=self.ghost.get_companion_name(),
@@ -62,10 +60,7 @@ class StoryDialogue(PublicDialogue):
             unsupported_capabilities=[str(item) for item in self.ghost.ghost_config.unsupported_capabilities],
             capability_notes=[str(item) for item in self.ghost.ghost_config.capability_notes],
             now=datetime.utcnow().isoformat(),
-            # Verbatim prior speech anchors the voice. Until the context
-            # planner budgets it, keep a generous fixed window.
-            prior_dialogue=_recent_public_dialogue(self.ghost, STORY_DIALOGUE_TURNS, exclude_ids=set(current_ids),
-                                                   max_chars=STORY_TURN_CHARACTERS),
+            prior_dialogue=planned.dialogue,
             current_user_message=current or intent or "(no message)",
             current_message_id=current_ids[-1] if current_ids else None,
             feelings=public.feelings,

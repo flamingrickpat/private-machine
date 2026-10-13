@@ -55,6 +55,7 @@ nav:
       - Emotional dynamics: subsystems/emotional-dynamics.md
       - Codelets and attention: subsystems/codelets.md
       - Story speech: subsystems/story-speech.md
+      - Context planning: subsystems/context-planning.md
       - Experienced memory: subsystems/experienced-memory.md
       - Experience consolidation: subsystems/memory-consolidation.md
       - Public dialogue: subsystems/public-dialogue.md

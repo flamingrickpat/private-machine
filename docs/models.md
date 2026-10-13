@@ -33,13 +33,15 @@ Read [A08 verification](work_items/verification/a08-experienced-memory.md) for t
 ### Local setup
 
 1. Copy `config.example.yaml` to `config.local.yaml` for local changes.
-2. Set `OPENROUTER_API_KEY` in the local process environment.
+2. Put `OPENROUTER_API_KEY=...` into the git-ignored `.env` in the repository root, or set it in the process environment.
 3. For a literal key instead, configure `embedding.api_key` in that ignored file.
 4. For a literal key, remove `embedding.api_key_env`.
 5. Start the configured Qwen endpoint before the live tests.
 6. Set `PM_MODEL_CONFIG` to select another complete config file for those tests.
 
-The client does not load `.env` files automatically.
+Credential resolution reads the process environment first, then the repository `.env`.
+[`pm.llm.env_file.credential`][] returns the value without writing it into `os.environ`.
+`PM_ENV_FILE` selects another file.
 The live tests use `config.local.yaml` when it exists. Otherwise, they use the example config.
 Library code receives a config path explicitly.
 Relative script and cache paths resolve from that file's directory.

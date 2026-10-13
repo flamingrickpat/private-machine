@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from workflows.public_speech.public_context import render_public_context, render_factual_focus
+from workflows.public_speech.public_context import memory_sections, task_lines
 from workflows.public_speech.speech_review import is_blocked, load_policy, review_speech
 
 from workflows.dialogue_assistant.schemas import (
@@ -38,27 +38,44 @@ def _bullets(items: list[str]) -> str:
     return "\n".join(f"- {item.strip()}" for item in items if str(item).strip()) or "(none)"
 
 
+def render_memories(request: AssistantRequest, prompts: dict) -> str:
+    """Render the planned memory lanes, or the plain memory list without a plan.
+
+    Lines already shown as prior chat turns or as the current message are left out.
+    """
+    if request.public_context is None:
+        return "## What comes back to you right now\n" + _bullets(request.memories)
+    shown = [message.content for message in request.prior_dialogue if message.role in {"user", "assistant"}]
+    blocks = memory_sections(request.public_context, prompts["memory_lanes"],
+                             exclude_texts=[*shown, request.current_user_message])
+    return "\n\n".join(blocks) or "## What comes back to you right now\n(nothing in particular)"
+
+
 def build_messages(request: AssistantRequest, prompts: dict) -> list[AssistantMessage]:
-    """Return the system message, the preserved prior transcript, then input."""
+    """Return the system message, the preserved prior transcript, then input.
+
+    The user turn holds the derived context in plain sections (no JSON), the
+    task results, and the current message. Tool calls and their results then
+    follow as normal chat messages.
+    """
     system = prompts["system_prompt"].format(
         companion_name=request.companion_name,
         user_name=request.user_name,
-        private_ontology=request.private_ontology.strip() or "(none declared)",
+        abilities=request.abilities.strip() or "- Text conversation only.",
     ).strip()
+    tasks = task_lines(request.public_context) if request.public_context is not None else []
     user = prompts["user_template"].format(
         companion_name=request.companion_name,
         user_name=request.user_name,
         character_card=request.character_card.strip() or "(none)",
-        temporal_context=request.temporal_context.strip() or "(none)",
-        memories=_bullets(request.memories),
-        workspace=request.workspace.strip() or "(none)",
+        time=request.time.strip() or "(unknown)",
+        memories=render_memories(request, prompts),
+        feelings=request.feelings.strip() or "calm, nothing strong",
+        workspace=request.workspace.strip() or "(nothing in particular)",
+        intent=request.selected_action.strip() or "answer in your own voice",
+        tasks="\n".join(tasks) or "- No task result yet.",
         current_user_message=request.current_user_message,
     ).strip()
-    if request.public_context is not None:
-        user += "\n\nAccepted public context\n" + render_public_context(request.public_context)
-    user += "\n\nSelected action\n" + request.selected_action
-    if request.public_context is not None:
-        user += "\n\n" + render_factual_focus(request.public_context)
     messages = [AssistantMessage(role="system", content=system)]
     messages.extend(request.prior_dialogue)
     messages.append(AssistantMessage(role="user", content=user))
@@ -318,6 +335,7 @@ __all__ = [
     "execute_tool_calls",
     "load_prompts",
     "parse_completion",
+    "render_memories",
     "run",
     "tool_schemas",
     "unsupported_management_claims",

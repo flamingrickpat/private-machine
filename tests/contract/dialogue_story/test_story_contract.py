@@ -59,13 +59,25 @@ class MessageContractTests(unittest.TestCase):
     def test_verbatim_speech_lives_only_in_the_assistant_turn(self):
         messages = build_story_messages(example_request(), load_prompts())
         story = messages[2]["content"]
-        self.assertEqual(story.splitlines()[:3], [
+        self.assertEqual(story.splitlines()[:4], [
+            "*(28 September 2026)*",
             'Jesse says: "my sink is judging me"',
             'Spamuel says: "then you owe it a dish"',
             'Jesse says: "ok dish is done"',
         ])
         for line in ("my sink is judging me", "then you owe it a dish", "ok dish is done"):
             self.assertNotIn(line, messages[0]["content"] + messages[1]["content"])
+
+    def test_thoughts_and_day_changes_render_as_story_elements(self):
+        rendered = render_prior_dialogue([
+            DialogueTurn(speaker="Jesse", text="a", timestamp="2026-05-21T20:00:00"),
+            DialogueTurn(speaker="Spamuel", text="he is back", kind="thought", timestamp="2026-05-21T20:01:00"),
+            DialogueTurn(speaker="Spamuel", text="b", timestamp="2026-05-22T09:00:00"),
+        ], load_prompts())
+        self.assertEqual(rendered.splitlines(), [
+            "*(21 May 2026)*", 'Jesse says: "a"', "Spamuel thinks: *he is back*",
+            "*(22 May 2026)*", 'Spamuel says: "b"'])
+        self.assertEqual(clean_reply('Fine."\n*(23 May 2026)*\nJesse says: "x"', "Spamuel", "Jesse"), "Fine.")
 
     def test_derived_context_lives_only_in_the_user_turn(self):
         messages = build_story_messages(example_request(), load_prompts())

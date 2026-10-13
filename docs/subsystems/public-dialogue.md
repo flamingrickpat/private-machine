@@ -43,7 +43,7 @@ The trace retains excluded IDs under `speech_only_excluded_ids`.
 Retrieval reserves eight of 24 slots for imported episodes and original user reports.
 This reserve prevents recent recall questions and generated answers from consuming the whole older-history pool.
 
-The public prompt retains four recent dialogue turns, with at most 240 characters per turn.
+The [context planner](context-planning.md) selects the verbatim dialogue window and the memory lanes from the current workspace.
 The canonical records remain complete.
 This bound gives original evidence space beside conversational voice examples.
 Current input IDs are excluded from that prior transcript.
@@ -59,11 +59,10 @@ Stable names, preferences, and plans remain usable until later evidence changes 
 For technical advice, missing object details or verified sources require an uncertainty statement or a question.
 The selected action cannot supply missing treatment evidence.
 
-The source render contains at most 48 records.
-Each memory excerpt contains at most 1,200 characters.
-Current stimuli, known deception facts, and selected memories precede other source-chain records.
-Omitted IDs remain visible in the diagnostic context.
-An omitted source cannot establish a claim through an invented quotation.
+With a context plan, the planned lane records replace the old source render.
+Without a plan, the source render contains at most 48 records of at most 1,200 characters each.
+Current stimuli, known deception facts, and startup events always precede the planned or selected records.
+The revisions of planned records and of their sources guard the commit.
 
 Raw recent thoughts no longer become Story's `feelings` field.
 Accepted affect values supply that field.

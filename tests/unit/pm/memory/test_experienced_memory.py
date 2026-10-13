@@ -59,12 +59,13 @@ class ExperiencedMemoryTests(unittest.TestCase):
         messages = build_story_messages(request, load_prompts())
         self.assertEqual(request.current_user_message, "Recall a past failed method.")
         self.assertEqual(request.selected_action, action.content)
-        # The selected intent and the recalled report are derived context and
-        # live in the user turn, without machine labels or evidence ids.
+        # The selected intent is derived context and lives in the user turn.
+        # The original report is a recent Jesse line: the context plan puts it
+        # verbatim into the assistant transcript, not into the memories.
         context, story = messages[1]["content"], messages[2]["content"]
         self.assertIn(action.content, context)
-        self.assertIn(original.content, context)
-        self.assertNotIn(original.content, story)
+        self.assertIn(f'Jesse says: "{original.content}"', story)
+        self.assertNotIn(original.content, context)
         self.assertNotIn("evidence=", context)
         self.assertEqual([m["role"] for m in messages], ["system", "user", "assistant"])
 
