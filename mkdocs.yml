@@ -55,6 +55,7 @@ nav:
       - Emotional dynamics: subsystems/emotional-dynamics.md
       - Codelets and attention: subsystems/codelets.md
       - Story speech: subsystems/story-speech.md
+      - The private ontology: subsystems/private-ontology.md
       - Context planning: subsystems/context-planning.md
       - Experienced memory: subsystems/experienced-memory.md
       - Experience consolidation: subsystems/memory-consolidation.md
@@ -151,6 +152,7 @@ nav:
           - A07 emotional dynamics: work_items/verification/a07-emotional-dynamics.md
           - A08 experienced memory: work_items/verification/a08-experienced-memory.md
           - A09 public dialogue: work_items/verification/a09-public-dialogue.md
+          - A09R private ontology: work_items/verification/a09r-private-ontology.md
           - A10 Minecraft actor: work_items/verification/a10-minecraft-actor.md
           - A11 Minecraft projects: work_items/verification/a11-minecraft-projects.md
           - A12 body recovery: work_items/verification/a12-body-recovery.md

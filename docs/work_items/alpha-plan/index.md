@@ -34,7 +34,8 @@ and [real interruption evidence](../verification/a12-body-recovery.md).
 A13 implementation is delivered at the operator's request; its remaining behavioral acceptance is deferred.
 The best working state includes the completed house, self-crafted iron pickaxe, verified entry and exit, and saved home waypoint.
 The revised return-route gate and remaining fresh acceptance cases have no completion claim.
-A14 through A20 and A09R remain pending.
+A09R engineering delivery is recorded; its live behavioral acceptance remains pending.
+A14 through A20 remain pending.
 A13's [gate review](../verification/a13/task-gate-review.md) records the pending real acceptance and implemented workflow split.
 
 The LLM is the default for selection, classification, and interpretation.
@@ -119,7 +120,7 @@ After A20, promote the useful ones into proper beta work items.
 | A07 | [Make emotional state change behavior](work-items/a07.md) — engineering delivery recorded | |
 | A08 | [Retrieve and learn from experienced memory](work-items/a08.md) — engineering delivery recorded | |
 | A09 | [Unify public voice and capability grounding](work-items/a09.md) - engineering delivery recorded | M2: a continuous companion across restart |
-| A09R | [Agentic public voice and the private ontology](work-items/a09r.md) — supersedes the A09 review mechanism | Redo of A09's grounding mechanism |
+| A09R | [Agentic public voice and the private ontology](work-items/a09r.md) — engineering delivery recorded; live acceptance pending | Redo of A09's grounding mechanism |
 | A10 | [Run one sustained Minecraft specialist session](work-items/a10.md) - engineering delivery recorded | Developer check: many calls per leaf |
 | A11 | [Plan and verify durable Minecraft subtasks](work-items/a11.md) — engineering delivery recorded | |
 | A12 | [Control and recover interrupted body work](work-items/a12.md) — engineering delivery recorded | |

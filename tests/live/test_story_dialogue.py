@@ -69,7 +69,7 @@ class LiveStoryDialogueTests(unittest.TestCase):
         self.assertEqual(result.status.value, "completed")
         self.assertEqual(
             report.message_roles,
-            ["system", "user", "assistant", "user", "assistant"],
+            ["system", "user", "assistant"],
         )
         self.assertEqual(report.reply_prefix, 'Spamuel says: "')
         self.assertTrue(report.raw_completion.strip())

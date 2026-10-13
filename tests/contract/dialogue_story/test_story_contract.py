@@ -6,6 +6,7 @@ message-role contract is tested before any prose quality test.
 """
 from __future__ import annotations
 
+import json
 import threading
 import unittest
 from pathlib import Path
@@ -18,12 +19,12 @@ from workflows.dialogue_story.context import distinctive_terms
 from workflows.dialogue_story.schemas import DialogueTurn, StoryRequest
 from workflows.dialogue_story.steps import (
     build_story_messages,
-    check_ontology,
     clean_reply,
-    load_ontology,
     load_prompts,
     render_prior_dialogue,
+    review_context,
 )
+from workflows.public_speech.speech_review import load_prompts as load_review_prompts
 from pm.memory.bash_view import MemoryBashEnvironment
 
 
@@ -88,12 +89,6 @@ class MessageContractTests(unittest.TestCase):
             self.assertIn(text, context)
             self.assertNotIn(text, messages[2]["content"])
 
-    def test_regeneration_note_reaches_only_the_user_turn(self):
-        messages = build_story_messages(example_request(), load_prompts(), avoid="Do not invent the dish.")
-        self.assertIn("Do not invent the dish.", messages[1]["content"])
-        self.assertNotIn("Do not invent the dish.", messages[2]["content"])
-
-
 class CleanReplyTests(unittest.TestCase):
     def test_echoed_prefix_is_removed(self):
         self.assertEqual(clean_reply('Spamuel says: "Pathetic."', "Spamuel", "Jesse"), "Pathetic.")
@@ -109,32 +104,12 @@ class CleanReplyTests(unittest.TestCase):
         self.assertEqual(clean_reply('Pathetic. Bed."', "Spamuel", "Jesse"), "Pathetic. Bed.")
 
 
-class OntologyTests(unittest.TestCase):
-    def setUp(self):
-        self.ontology = load_ontology()
-
-    def test_unsupported_visual_claim_is_rejected(self):
-        verdict = check_ontology(
-            "I can see you through the camera, Jesse.", self.ontology, example_request()
-        )
-        self.assertFalse(verdict.accepted)
-        self.assertEqual([violation.rule_id for violation in verdict.violations], ["visual_perception"])
-
-    def test_unsupported_physical_action_is_rejected(self):
-        verdict = check_ontology(
-            "I walked over and opened the door for you.", self.ontology, example_request()
-        )
-        self.assertFalse(verdict.accepted)
-        self.assertEqual([violation.rule_id for violation in verdict.violations], ["physical_action"])
-
-    def test_established_voice_and_rudeness_are_accepted(self):
-        for candidate in (
-            "You're pathetic. Bed. Now, grease stain.",
-            "Mockery is a love language and you are fluent in silence.",
-            "The soup lost, Jesse. Sit down before the sink wins again.",
-        ):
-            with self.subTest(candidate=candidate):
-                self.assertTrue(check_ontology(candidate, self.ontology, example_request()).accepted)
+class ReviewContextTests(unittest.TestCase):
+    def test_no_context_review_keeps_abilities_and_memories(self):
+        context = review_context(example_request())
+        self.assertIn("I can communicate via text.", context.capabilities["configured"])
+        self.assertIn("Cannot: I cannot directly act in the physical world.", context.capabilities["configured"])
+        self.assertIn("Jesse has a sink.", context.memories)
 
 
 class ContextSelectionTests(unittest.TestCase):
@@ -170,13 +145,17 @@ class KernelContractTests(unittest.TestCase):
             captured["story"] = messages[-1]["content"]
             return 'Spamuel says: "Pathetic. Bed."\nJesse says: "rude"'
 
+        async def review_complete(messages, **generation):
+            return json.dumps({"judgment": "accept", "reason": "in character",
+                               "false_task_result": False, "findings": []})
+
         def fake_complete(messages, **generation):
             return story_complete(messages, **generation)
 
         environment = MemoryBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment, stop_event=threading.Event(),
-            tools={"story_complete": fake_complete, "public_complete": fake_complete}, propagate_python_errors=True,
+            tools={"story_complete": fake_complete, "public_complete": review_complete}, propagate_python_errors=True,
         )
         runner = WorkflowRunner(
             engine.MANIFEST, self.root, namespace="dialogue_story",
@@ -191,15 +170,21 @@ class KernelContractTests(unittest.TestCase):
         self.assertTrue(captured["story"].endswith('Spamuel says: "'))
         self.assertEqual(report.candidate, "Pathetic. Bed.")
         self.assertTrue(report.accepted)
+        self.assertEqual(report.review_reason, "in character")
 
-    def test_kernel_report_rejects_an_unsupported_claim(self):
+    def test_kernel_report_reports_an_invented_ability_without_blocking(self):
         async def story_complete(messages, **generation):
             return "I can see you through the camera, Jesse."
+
+        async def review_complete(messages, **generation):
+            return json.dumps({"judgment": "accept", "reason": "reported for review",
+                               "false_task_result": False,
+                               "findings": [{"kind": "invented_ability", "why": "no eyes"}]})
 
         environment = MemoryBashEnvironment({}, {}, "read")
         runtime = WorkflowRuntime(
             environment=environment, stop_event=threading.Event(),
-            tools={"story_complete": story_complete, "public_complete": story_complete}, propagate_python_errors=True,
+            tools={"story_complete": story_complete, "public_complete": review_complete}, propagate_python_errors=True,
         )
         runner = WorkflowRunner(
             engine.MANIFEST, self.root, namespace="dialogue_story",
@@ -210,8 +195,9 @@ class KernelContractTests(unittest.TestCase):
         )
         self.assertEqual(result.status, WorkflowStatus.Completed)
         report = engine.StoryReport.model_validate(result.report)
-        self.assertFalse(report.accepted)
-        self.assertEqual(report.ontology.violations[0].rule_id, "visual_perception")
+        self.assertTrue(report.accepted)
+        self.assertFalse(report.speech_review.false_task_result)
+        self.assertEqual(report.speech_review.findings[0].kind, "invented_ability")
 
 
 if __name__ == "__main__":

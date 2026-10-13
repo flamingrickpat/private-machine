@@ -225,10 +225,22 @@ A rename changes Python identifiers only.
 - Definition: putting a committed reply on the bus. Commit before publication is an invariant.
 - Owner: `workflows/public_speech/publication.py`.
 
-### violation
+### finding
 
-- Definition: one hallucination that the speech review reports in a draft reply, with a kind, an exact quote, and a policy weight. Lies and exaggeration are never violations.
+- Definition: one advisory observation that the agentic speech review reports for a draft reply, with a kind, an exact quote, and a short reason. A finding never blocks a reply. A chosen lie, a tease, an exaggeration, and a metaphor are never findings.
 - Owner: `workflows/public_speech/speech_review.py`.
+- Old names: violation, weighted hallucination.
+
+### false task result
+
+- Definition: a reply that says a task, tool, file, or game action was done or succeeded when no task result shows it. It is the only hard block of the agentic review.
+- Owner: `workflows.public_speech.speech_review.is_blocked`.
+
+### private ontology
+
+- Definition: durable terms and bindings that give the companion stable words for its implemented inner state. It is advisory, never a sentence-by-sentence gate.
+- Owner: `workflows/public_speech/ontology.py`.
+- See: [the private ontology](../subsystems/private-ontology.md).
 
 ### public context
 

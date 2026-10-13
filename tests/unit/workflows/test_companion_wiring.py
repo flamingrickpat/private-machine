@@ -41,8 +41,8 @@ class StubStageModel:
     def build_async_tool(self):
         self.activations += 1
         async def complete_async(messages, **generation):
-            if "Your only job: find hallucinations" in messages[0]["content"]:
-                return '{"violations": []}'
+            if "checks their own words" in messages[0]["content"]:
+                return '{"judgment": "accept", "reason": "grounded", "false_task_result": false, "findings": []}'
             return "Spamuel says: \"wired.\""
 
         return complete_async

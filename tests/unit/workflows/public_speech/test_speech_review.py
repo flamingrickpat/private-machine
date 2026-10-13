@@ -1,9 +1,10 @@
-"""Hallucination review weighting and the Story regeneration loop.
+"""Agentic review parsing and the single-generation Story path.
 
 No model endpoint. A deterministic completion stands in for the reviewer and
-the generator. These tests fix the policy rules: which reported violations
-count, how much they weigh, and when Story generates again. They do not show
-that a real model finds real hallucinations; the live speech check does that.
+the generator. These tests fix the A09R rules: one review returns a judgment
+and a reason, advisory findings never block, and only a false task result
+blocks. They do not show that a real model finds real hallucinations; the
+live speech check does that.
 """
 from __future__ import annotations
 
@@ -11,107 +12,126 @@ import json
 import unittest
 
 from workflows.dialogue_story.schemas import DialogueTurn, StoryRequest
-from workflows.dialogue_story.steps import generate_reviewed, load_prompts
-from workflows.public_speech.public_context import PublicContext, memory_lines
+from workflows.dialogue_story.steps import generate_reviewed, load_prompts, review_context
+from workflows.public_speech.public_context import PublicContext
 from workflows.public_speech.speech_review import (
-    build_review_messages, is_blocked, load_policy, should_regenerate, weigh,
+    build_review_messages, is_blocked, load_prompts as load_review_prompts, parse_review,
 )
 
 REPLY = "Oh, fantastic. Four months of silence and you open with a guilt trip?"
 
 
-class WeighTests(unittest.TestCase):
-    def setUp(self):
-        self.policy = load_policy()
+class ParseReviewTests(unittest.TestCase):
+    def test_findings_do_not_block_and_the_reason_is_kept(self):
+        review = parse_review({
+            "judgment": "accept", "reason": "in character",
+            "false_task_result": False,
+            "findings": [{"kind": "invented_ability", "quote": "I saw", "why": "no eyes"}],
+        })
+        self.assertEqual(review.judgment, "accept")
+        self.assertEqual(review.reason, "in character")
+        self.assertFalse(is_blocked(review))
+        self.assertEqual(review.findings[0].kind, "invented_ability")
 
-    def test_known_kinds_weigh_and_invented_kinds_are_ignored(self):
-        review = weigh({"violations": [
-            {"kind": "invented_event", "quote": "Four months of silence", "why": "no record"},
-            {"kind": "exaggeration", "quote": "Oh, fantastic", "why": "sarcasm"},
-        ]}, REPLY, self.policy)
-        self.assertEqual([item.kind for item in review.violations], ["invented_event"])
-        self.assertEqual([item.kind for item in review.ignored], ["exaggeration"])
-        self.assertEqual(review.score, 2)
-        self.assertFalse(should_regenerate(review, self.policy))
+    def test_a_false_task_result_is_the_only_block(self):
+        review = parse_review({
+            "judgment": "block", "reason": "claimed a saved note",
+            "false_task_result": True, "findings": [],
+        })
+        self.assertTrue(is_blocked(review))
 
-    def test_a_quote_that_is_not_in_the_reply_cannot_count(self):
-        review = weigh({"violations": [{"kind": "private_leak", "quote": "system log at 10:09", "why": "x"}]},
-                       REPLY, self.policy)
-        self.assertEqual(review.score, 0)
-        self.assertEqual(len(review.ignored), 1)
-
-    def test_duplicates_count_once_and_heavy_kinds_trigger_regeneration(self):
-        item = {"kind": "private_leak", "quote": "guilt trip", "why": "x"}
-        review = weigh({"violations": [item, dict(item)]}, REPLY, self.policy)
-        self.assertEqual(review.score, 3)
-        self.assertTrue(should_regenerate(review, self.policy))
-        self.assertFalse(is_blocked(review, self.policy))
-
-    def test_a_false_task_result_blocks_publication(self):
-        review = weigh({"violations": [{"kind": "false_task_result", "quote": "guilt trip", "why": "x"}]},
-                       REPLY, self.policy)
-        self.assertTrue(is_blocked(review, self.policy))
+    def test_a_string_finding_is_accepted_as_an_advisory_note(self):
+        review = parse_review({"why": "unsupported label", "findings": ["unsupported_label"]})
+        self.assertFalse(is_blocked(review))
+        self.assertEqual(review.findings[0].kind, "unsupported_label")
 
 
 class ReviewMessageTests(unittest.TestCase):
     def test_review_input_is_plain_text_without_evidence_ids(self):
         context = PublicContext(companion_name="Spamuel", user_name="Jesse", evidence=[{
-            "knoxel_id": 42, "memory_kind": "utterance", "evidence_role": "user_report", "timestamp": "2026-05-30T21:03:00",
-            "text": "[utterance; source=Jesse; evidence=42; recorded_at=2026-05-30T21:03:00+00:00] see you tomorrow"}])
-        messages = build_review_messages(REPLY, context, load_policy())
+            "knoxel_id": 42, "memory_kind": "utterance", "evidence_role": "user_report",
+            "timestamp": "2026-05-30T21:03:00",
+            "text": "[utterance; source=Jesse; evidence=42; recorded_at=2026-05-30T21:03:00+00:00] see you tomorrow"}],
+            character="Spamuel is brash.", feelings="mild guilt",
+            capabilities={"configured": ["I can talk in text."], "unavailable": [], "notes": [], "human_body": False},
+            ontology=[{"id": 7, "term": "guilt", "term_kind": "mood_word",
+                       "definition": "Responsibility discomfort.", "usage_rule": "Use with state.",
+                       "stability": 1.0},
+                      {"id": 8, "term_id": 7, "active": True, "fit_score": 0.5, "explanation": "accepted guilt 0.50"}])
+        messages = build_review_messages(REPLY, context, load_review_prompts())
         self.assertEqual([item["role"] for item in messages], ["system", "user"])
-        self.assertIn("30 May 2026, 21:03, Jesse said: see you tomorrow", messages[1]["content"])
+        self.assertIn("see you tomorrow", messages[1]["content"])
         self.assertNotIn("evidence=42", messages[1]["content"])
-        self.assertIn("lie, tease, exaggerate", messages[0]["content"])
+        self.assertIn("Spamuel is brash.", messages[1]["content"])
+        self.assertIn("- guilt (mood_word)", messages[1]["content"])
+        self.assertIn("guilt fits right now", messages[1]["content"])
+        self.assertIn("judge it the way a person checks their own words", messages[0]["content"])
 
-    def test_internal_state_records_never_render_as_memories(self):
-        context = PublicContext(companion_name="Spamuel", user_name="Jesse", evidence=[{
-            "knoxel_id": 7, "memory_kind": "internal_state", "text": "core affect valence -0.19"}])
-        self.assertEqual(memory_lines(context), [])
+    def test_a_deception_intent_is_given_to_the_review(self):
+        from workflows.public_speech.public_context import Presentation
+        context = PublicContext(companion_name="Spamuel", user_name="Jesse",
+                                presentation=Presentation(mode="deceive", purpose="tease",
+                                                          known_fact_ids=[4]))
+        messages = build_review_messages("The codeword is wrong.", context, load_review_prompts())
+        self.assertIn("chose to deceive on purpose", messages[1]["content"])
+        self.assertIn("Known facts kept: [4]", messages[1]["content"])
 
 
-class RegenerationLoopTests(unittest.TestCase):
+class StorySingleGenerationTests(unittest.TestCase):
     def request(self) -> StoryRequest:
         return StoryRequest(companion_name="Spamuel", user_name="Jesse", character_card_story="Brash.",
                             prior_dialogue=[DialogueTurn(speaker="Jesse", text="hi")],
                             current_user_message="where were you?",
                             public_context=PublicContext(companion_name="Spamuel", user_name="Jesse"))
 
-    def run_loop(self, drafts: list[str], reviews: list[list[dict]]):
-        notes: list[str] = []
+    def run_once(self, draft: str, review_payload: dict):
+        review_calls = []
 
         async def generate(messages, **generation):
-            notes.append(messages[1]["content"])
-            return drafts.pop(0)
+            return draft
 
         async def review(messages, **generation):
-            return json.dumps({"violations": reviews.pop(0)})
+            review_calls.append(messages)
+            return json.dumps(review_payload)
 
-        attempts, chosen = generate_reviewed(self.request(), load_prompts(), generate, review)
-        return attempts, chosen, notes
+        attempts, chosen = generate_reviewed(self.request(), load_prompts(), generate, review,
+                                             review_prompts=load_review_prompts())
+        return attempts, chosen, review_calls
 
-    def test_a_clean_first_draft_is_used_without_regeneration(self):
-        attempts, chosen, _ = self.run_loop(['I was sulking, obviously."'], [[]])
+    def test_one_draft_generates_exactly_one_review(self):
+        attempts, chosen, calls = self.run_once('I was sulking, obviously."',
+                                                {"judgment": "accept", "reason": "in character"})
         self.assertEqual(len(attempts), 1)
+        self.assertEqual(len(calls), 1)
         self.assertEqual(chosen.candidate, "I was sulking, obviously.")
-
-    def test_a_heavy_draft_is_regenerated_with_an_in_character_note(self):
-        attempts, chosen, notes = self.run_loop(
-            ['*sighs* I was offline."', 'I was sulking, obviously."'],
-            [[{"kind": "private_leak", "quote": "*sighs*", "why": "stage direction"}], []])
-        self.assertEqual(len(attempts), 2)
-        self.assertEqual(chosen.candidate, "I was sulking, obviously.")
-        self.assertIn("*sighs*", notes[1])
-        self.assertIn("stay fully in character", notes[1])
-
-    def test_after_all_attempts_the_lightest_draft_is_chosen(self):
-        heavy = [{"kind": "private_leak", "quote": "logs", "why": "x"}]
-        attempts, chosen, _ = self.run_loop(
-            ['my logs say so."', 'my logs, my logs."', 'the logs agree."'],
-            [heavy + [{"kind": "invented_event", "quote": "say so", "why": "x"}], heavy, heavy])
-        self.assertEqual(len(attempts), 3)
-        self.assertEqual(chosen.candidate, "my logs, my logs.")
+        self.assertEqual(chosen.review.reason, "in character")
         self.assertFalse(chosen.blocked)
+
+    def test_an_invented_ability_finding_does_not_block(self):
+        attempts, chosen, _ = self.run_once(
+            'I watched you through the camera."',
+            {"judgment": "accept", "reason": "reported",
+             "findings": [{"kind": "invented_ability", "why": "no eyes"}]})
+        self.assertEqual(len(attempts), 1)
+        self.assertFalse(chosen.blocked)
+
+    def test_a_false_task_result_blocks(self):
+        attempts, chosen, _ = self.run_once(
+            'I saved the note already."',
+            {"judgment": "block", "reason": "no note receipt", "false_task_result": True})
+        self.assertTrue(chosen.blocked)
+
+
+class NoContextReviewTests(unittest.TestCase):
+    def test_request_context_keeps_abilities_and_memories(self):
+        request = StoryRequest(companion_name="Spamuel", user_name="Jesse", character_card_story="Brash.",
+                               supported_capabilities=["I can talk in text."],
+                               unsupported_capabilities=["I cannot see."],
+                               current_user_message="hi", memories=["Jesse has a sink."])
+        context = review_context(request)
+        self.assertIn("I can talk in text.", context.capabilities["configured"])
+        self.assertIn("Cannot: I cannot see.", context.capabilities["configured"])
+        self.assertEqual(context.memories, ["Jesse has a sink."])
 
 
 if __name__ == "__main__":

@@ -198,12 +198,13 @@ class StoryDialogueWiringTests(unittest.TestCase):
             return completion
 
         async def public_complete(messages, **generation):
-            # Boundary fixture for the hallucination review: a claimed saved
-            # note with no task result is the blocking kind.
+            # Boundary fixture for the agentic review: a claimed saved note
+            # with no task result is the one hard block.
             import json
-            quote = "I saved the note for you"
-            found = [{"kind": "false_task_result", "quote": quote, "why": "no task ran"}] if quote in completion else []
-            return json.dumps({"violations": found})
+            claimed = "I saved the note for you" in completion
+            return json.dumps({"judgment": "block" if claimed else "accept",
+                               "reason": "no task ran" if claimed else "grounded",
+                               "false_task_result": claimed, "findings": []})
 
         module = StoryDialogue(
             "dialogue", bus, errors.append, ManualClock(), None,
@@ -367,7 +368,7 @@ class MultiExchangeTests(unittest.TestCase):
             return f'Spamuel says: "Reply number {counter["n"]}."'
 
         async def public_complete(messages, **generation):
-            return '{"violations": []}'
+            return '{"judgment": "accept", "reason": "grounded", "false_task_result": false, "findings": []}'
 
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -77,9 +77,12 @@ class StoryDialogue(PublicDialogue):
         story = StoryReport.model_validate(report)
         correlation = batch[0].correlation_id if batch else ""
         cause = batch[0].id if batch else None
+        review = story.speech_review
         if not story.accepted:
-            reason = "; ".join(violation.reason for violation in story.ontology.violations)
-            reason = reason or "; ".join(story.ontology.fact_conflicts) or "ontology boundary"
+            from workflows.public_speech.speech_review import block_reason
+            reason = block_reason(review) if review is not None else "false task result"
             self.reject_reply(batch, reason)
             return
-        self.accept_reply(story.candidate, batch)
+        self.accept_reply(story.candidate, batch,
+                          review_reason=story.review_reason,
+                          review_judgment=review.judgment if review is not None else "")

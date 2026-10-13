@@ -8,7 +8,7 @@ The Ghost commits public speech and exchange resolution together.
 Rejected, stale, or failed work produces an observable recovery outcome.
 
 Parent: [cognition](cognition.md).
-Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
+Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), [the private ontology](private-ontology.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
 Design: [private ontology](../work_items/alpha-plan/ontology.md).
 
 ## Context and entry points
@@ -71,7 +71,7 @@ The selected workspace guides speech but does not grant raw thought disclosure.
 ## Two generation paths
 
 Story uses three messages: a story-writer system message, a user message with all derived context, and an assistant message with only verbatim dialogue and the open companion prefill.
-[Story speech](story-speech.md) describes the layout, the hallucination review, and the regeneration loop.
+[Story speech](story-speech.md) describes the layout and the one agentic review.
 Earlier generated speech cannot independently establish its described event.
 
 Assistant preserves normal user, assistant, and tool messages.
@@ -104,7 +104,9 @@ Missing human senses do not imply missing memory.
 An image path alone cannot grant vision.
 
 Implemented emotion names come from `StateEmotions`.
-Accepted values and relevant existing ontology terms and bindings accompany the prompt.
+[The private ontology](private-ontology.md) writes durable terms and bindings for those implemented states.
+The host observes the ontology before it freezes the public context.
+Accepted values and the active ontology terms and bindings accompany the prompt.
 The host retains at most 24 ontology records in this context.
 An imported term cannot establish a new sensory mechanism.
 Metaphor and compound emotion descriptions remain permitted with clear attribution.
@@ -131,23 +133,30 @@ Adding an intent after generation cannot justify the earlier prose.
 Deception cannot waive capability, task verification, or private-disclosure checks.
 Public speech remains an attributed communicative event and cannot automatically establish a factual belief.
 
-## Hallucination review
+## Agentic review
 
-Both public paths review a draft with [`workflows.public_speech.speech_review.review_speech`][].
-The review looks only for hallucinations: invented events, false task results, invented abilities, private leaks, and sincere contradictions.
-Lies, teasing, exaggeration, metaphor, and feelings are never violations.
-Python weights the reported violations. Story generates again in character when the weight reaches the policy limit.
-[Story speech](story-speech.md#hallucination-review) gives the kinds, the weights, and the evidence.
+Both public paths review a draft once with [`workflows.public_speech.speech_review.review_speech`][].
+The review is one model call with a persona-aware prompt.
+It judges the draft against the accepted state, the character card, the abilities, the private ontology, and the task results.
+It returns a short `judgment`, a `reason`, and advisory `findings`.
+Findings name an invented ability, an invented event, an unsupported label, or a private leak.
+A finding stays in the receipt for review. It never blocks a reply and never triggers regeneration.
 
+Only a false task result is a hard block.
+A false task result can change what the user does with a real object.
+Python decides the block from the model's explicit `false_task_result` flag, so an invented kind cannot reject a reply.
+A chosen lie, a tease, an exaggeration, or a metaphor is not a false task result.
+The accepted reply records `review.reason` beside its durable utterance and in the published reply.
 The A09 claim-by-claim review and its grounding recovery were removed on 2026-10-13.
 The [A09 verification](../work_items/verification/a09-public-dialogue.md) keeps their historical evidence.
+[A09R](../work_items/verification/a09r-private-ontology.md) replaced the weighted hallucination policy with this review.
 
 ## Inspect a real exchange
 
 Run the [A09 console gate](../work_items/verification/a09-public-dialogue.md).
 Read the correlated public request and the workflow report.
-For Story, read `attempts`: each holds the draft, its hallucination review, and the regeneration note.
-Inspect the public Feature's `factual_promotion`, `action_schema_id`, and presentation attribution.
+For Story, read `attempts` and `speech_review`: the attempt holds the draft and its one review.
+Inspect the public Feature's `review_reason`, `review_judgment`, `factual_promotion`, `action_schema_id`, and presentation attribution.
 For publication failures, inspect the recovery receipt and durable exchange marker.
 
 Go deeper: [publication and recovery](public-publication.md), [managed work](managed-work.md), and [memory consolidation](memory-consolidation.md).

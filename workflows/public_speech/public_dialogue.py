@@ -1,9 +1,9 @@
 """``PublicDialogue``: the shared bus module of Story and Assistant replies.
 
 It guards stale replies and commits each reply before publication. Story
-and Assistant subclass it. Hallucination review and regeneration happen
-inside each workflow role (``speech_review``), so a rejected reply here is
-rare: it means a stale snapshot, a failed run, or a blocking violation.
+and Assistant subclass it. The one agentic review happens inside each
+workflow role (``speech_review``), so a rejected reply here is rare: it means
+a stale snapshot, a failed run, or a false task result.
 """
 from __future__ import annotations
 
@@ -37,6 +37,10 @@ class PublicDialogue(CognitiveWorkflow):
     context_embeddings = None
 
     def public_context(self, payload, planned=None):
+        # Refresh the durable private ontology before the snapshot. The review
+        # reads the terms and bindings from the frozen public context.
+        from workflows.public_speech.ontology import observe_ontology
+        observe_ontology(self.ghost)
         capabilities = self.capability_provider() if self.capability_provider else None
         with self.ghost.lock:
             self._public_context = build_public_context(self.ghost, payload, capabilities=capabilities,
@@ -125,8 +129,12 @@ class PublicDialogue(CognitiveWorkflow):
             publish_reply(self.bus, self.module_id, envelope.correlation_id, reply_id,
                           cause=envelope.id, recovery_outcome=status)
 
-    def accept_reply(self, text: str, batch, *, tool_receipts=None, recovery_outcome="") -> None:
-        """Commit an evidence-guarded reply, or expose its stale recovery result."""
+    def accept_reply(self, text: str, batch, *, tool_receipts=None, recovery_outcome="",
+                     review_reason="", review_judgment="") -> None:
+        """Commit an evidence-guarded reply, or expose its stale recovery result.
+
+        ``review_reason`` records why the agentic review accepted this reply.
+        """
         from pm.memory.snapshot import GhostConflict
         envelope = batch[0]
         try:
@@ -149,7 +157,8 @@ class PublicDialogue(CognitiveWorkflow):
             reply_id = commit_public_reply(
                 self.ghost, text, envelope.correlation_id, commit_id=self.invocation_id or new_id(),
                 action_id=None if recovery_outcome else envelope.payload.get("knoxel_id"), context=self._public_context,
-                recovery=recovery_outcome, cancel=self.stop_event,
+                recovery=recovery_outcome, review_reason=review_reason, review_judgment=review_judgment,
+                cancel=self.stop_event,
             )
         except GhostConflict as error:
             self.reject_reply(batch, str(error), status="stale")
@@ -157,5 +166,6 @@ class PublicDialogue(CognitiveWorkflow):
         if reply_id is not None:
             publish_reply(self.bus, self.module_id, envelope.correlation_id, reply_id, cause=envelope.id,
                           action_id=envelope.payload.get("action_id", ""), tool_receipts=tool_receipts or [],
-                          recovery_outcome=recovery_outcome)
+                          recovery_outcome=recovery_outcome, review_reason=review_reason,
+                          review_judgment=review_judgment)
 

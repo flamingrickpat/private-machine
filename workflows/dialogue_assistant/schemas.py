@@ -83,6 +83,7 @@ class AssistantReport(BaseModel):
     accepted: bool
     rejection_reason: str = ""
     speech_review: SpeechReview | None = None
+    review_reason: str = ""
 
 
 __all__ = [

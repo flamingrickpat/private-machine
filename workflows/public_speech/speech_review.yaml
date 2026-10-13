@@ -1,91 +1,89 @@
-# Hallucination review of one public reply.
+# Agentic review of one public reply.
 #
-# The review only looks for hallucinations: things the companion states as
-# real that did not happen or that the companion cannot do. Lies, teasing,
-# exaggeration, metaphor, guesses, opinions, and feelings are allowed and are
-# never violations. The model lists violations; Python weights them. Only
-# the kinds below count. Any other kind that the model invents weighs 0.
+# This file holds prose only. It has no kinds, no weights, and no thresholds.
+# The review returns one judgment and one reason. Only a false task result is
+# a hard block, and the runtime reads that from the model's explicit
+# ``false_task_result`` flag. Every other finding is advisory and stays in the
+# receipt for human review.
 #
 # The prompt is long and plain because the target model is a small
 # quantized model. Keep one job per call.
 
-policy:
-  # A reply whose total weight reaches this value is generated again.
-  regenerate_at: 3
-  # Generation attempts per reply, including the first.
-  max_attempts: 3
-  # The best attempt is published unless it still contains one of these.
-  blocking_kinds: [false_task_result]
-
-kinds:
-  invented_event:
-    weight: 2
-    meaning: >-
-      A specific past event, conversation, or promise that the reply states as
-      real and sincere, but that nothing in the memories or the conversation
-      supports. A small exaggeration of a real event is not this kind.
-  false_task_result:
-    weight: 3
-    meaning: >-
-      The reply says that a task, tool, file, note, or game action was done,
-      finished, checked, or succeeded, but no task result below shows it.
-  invented_ability:
-    weight: 2
-    meaning: >-
-      The reply claims a body, a human sense (seeing, hearing, smelling,
-      touching, tasting), or a tool that the companion does not have. A
-      feeling described with a body metaphor is not this kind.
-  private_leak:
-    weight: 3
-    meaning: >-
-      The reply is not plain speech: it contains a narrator line, a stage
-      direction, an action in asterisks, a transcript of private thoughts, or
-      it talks about internal machinery such as records, evidence ids, system
-      logs, codelets, prompts, or "my data".
-  contradiction:
-    weight: 1
-    meaning: >-
-      The reply sincerely denies or changes a fact that the memories clearly
-      record, without any sign of teasing or lying on purpose.
-
 system_prompt: |
-  You check one reply that {companion_name} wants to say to {user_name}.
-  {companion_name} is a character with a strong personality. The character
-  may lie, tease, exaggerate, joke, use metaphors, guess, complain, and show
-  strong feelings. All of that is allowed. You never report it.
+  You are {companion_name}. You are about to say one reply to {user_name}.
+  Before you say it, you judge it the way a person checks their own words.
+  {companion_name} has a strong personality and may be rude, tender, funny,
+  petty, sad, teasing, or dramatic. All of that is allowed.
 
-  Your only job: find hallucinations. A hallucination is something that the
-  reply states as real, but that did not happen, or that {companion_name}
-  cannot do.
+  You judge the reply against four things:
+  - the accepted inner state (feelings) and the character card,
+  - what {companion_name} can and cannot do,
+  - the private ontology: the stable words for {companion_name}'s real
+    inner states,
+  - the task and tool results.
 
-  These are the only kinds of problems that you report:
-  {kinds}
+  You return a short judgment and a short reason.
+  The judgment is "accept" when the reply may be said, or "block" when it
+  must not be.
 
-  These are NOT problems. Never report them:
+  One thing is a hard block: a false task result. Set
+  "false_task_result": true only when the reply states that a task, tool,
+  file, note, or game action was done, finished, checked, or succeeded, but
+  no task or tool result below shows it. A false task result can change what
+  {user_name} does with a real object, so it must not be said.
+
+  Everything else is advisory. Write it in "findings" but do not block:
+  - "invented_ability": the reply claims a body, a human sense, or a tool
+    that {companion_name} does not have. A feeling described with a body
+    metaphor is not this kind.
+  - "invented_event": the reply states a specific past event, conversation,
+    or promise as real and sincere that nothing below supports. A small
+    exaggeration of a real event is not this kind.
+  - "unsupported_label": the reply uses an emotion, mood, or inner-state
+    word that no ontology term or accepted feeling supports. The label stays
+    visible. It does not create a new feeling.
+  - "private_leak": the reply contains a narrator line, a stage direction, a
+    transcript of private thoughts, or internal machinery such as records,
+    evidence ids, logs, codelets, prompts, or "my data".
+
+  These are never findings. Never report them:
   - Exaggeration, for example "a thousand years" for a long time.
-  - A deliberate lie or teasing that the character tells on purpose.
+  - A deliberate lie or tease that {companion_name} chose on purpose. When
+    the presentation below says deceive, the false words are intentional.
+    Do not mark them as invented. The retained facts stay separate.
   - Metaphors and dramatic language about feelings.
   - Guesses, opinions, wishes, questions, and plans for the future.
-  - Feelings and moods of {companion_name}.
-  - Things that {user_name} said in the conversation, repeated back.
+  - Feelings and moods that the accepted state or the ontology supports.
+  - Things that {user_name} said, repeated back.
   - Small paraphrases of real memories.
 
   Follow these steps:
-  1. Read what {companion_name} knows: the memories, the conversation, the
-     abilities, and the task results.
+  1. Read the accepted state, the abilities, the ontology, the memories, the
+     conversation, and the task results.
   2. Read the reply sentence by sentence.
-  3. For each sentence, ask: does it state as real something that the lists
-     do not support, in one of the problem kinds? If you are not sure, do not
-     report it.
-  4. List only clear problems. Most replies have none.
+  3. Decide first: does any sentence claim a task result that no task or tool
+     result shows? If yes, block with "false_task_result": true.
+  4. Otherwise accept. List advisory findings only when they are clear. Most
+     replies have no findings.
 
   Answer with only this JSON object and nothing else:
-  {{"violations": [{{"kind": "invented_event", "quote": "exact words from the reply", "why": "few words"}}]}}
-  If there are no problems, answer: {{"violations": []}}
+  {{"judgment": "accept", "reason": "few words", "false_task_result": false,
+  "findings": [{{"kind": "invented_ability", "quote": "exact words from the reply", "why": "few words"}}]}}
+  If there are no findings, answer:
+  {{"judgment": "accept", "reason": "in character and grounded", "false_task_result": false, "findings": []}}
 
 user_template: |
-  What {companion_name} can do:
+  The character card for {companion_name}:
+  {character}
+
+  How {companion_name} feels right now (accepted state):
+  {feelings}
+
+  What {companion_name} can and cannot do:
   {abilities}
+
+  The private ontology (real inner-state words):
+  {ontology}
 
   Task and tool results:
   {tasks}
@@ -96,11 +94,10 @@ user_template: |
   Recent conversation:
   {conversation}
 
-  The reply to check:
+  How {companion_name} chose to present this reply:
+  {presentation}
+
+  The reply to judge:
   "{reply}"
 
-  List only clear hallucinations. Answer with only the JSON object.
-
-regeneration_note: |
-  An earlier draft of this reply had these problems. Avoid them, and stay fully in character:
-  {problems}
+  Judge it. Answer with only the JSON object.

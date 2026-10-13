@@ -26,6 +26,7 @@ def exchange_record(ghost, correlation: str):
 
 def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
                         action_id: int | None = None, context=None, recovery: str = "",
+                        review_reason: str = "", review_judgment: str = "",
                         cancel=None) -> int | None:
     """Commit speech and exchange resolution together, or reject stale input.
 
@@ -47,7 +48,9 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
             provenance=Provenance(source_kind=SourceKind.Self, source_ref=str(action_id or "public_recovery")),
             metadata={**utterance_metadata(batch.view(), action_id),
                       "reply_correlation": correlation, "publication_status": "pending",
-                      "recovery_outcome": recovery, "executed_at": datetime.now(timezone.utc).isoformat()},
+                      "recovery_outcome": recovery, "review_reason": review_reason,
+                      "review_judgment": review_judgment,
+                      "executed_at": datetime.now(timezone.utc).isoformat()},
         ))
         if exchange is not None:
             exchange.metadata.update(exchange_status="resolved", public_reply_id=reply.id, recovery_outcome=recovery)

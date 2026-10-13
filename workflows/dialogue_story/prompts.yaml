@@ -110,6 +110,11 @@ architecture_text: |
 
 abilities_title: "## What {companion_name} can and cannot do"
 
+ontology_title: "## Words {companion_name} has for its own inner state"
+
+# A term here describes a state the runtime implements. Use these words when
+# they fit. Never invent a state word that is not here.
+
 time_title: "## Time"
 time_now: "Now it is {now}."
 time_since: "Before this message, {companion_name} and {user_name} last talked {elapsed} ago, on {last}."

@@ -246,8 +246,8 @@ class AssistantModuleTests(unittest.TestCase):
         class FakeModel:
             def build_async_tool(self):
                 async def review(messages, **generation):
-                    # Boundary fixture: the hallucination review finds nothing.
-                    return '{"violations": []}'
+                    # Boundary fixture: the agentic review finds nothing.
+                    return '{"judgment": "accept", "reason": "grounded", "false_task_result": false, "findings": []}'
                 return review
 
             def build_tool_completion(self):

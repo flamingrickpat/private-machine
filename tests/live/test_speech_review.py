@@ -1,4 +1,4 @@
-"""Live hallucination review against the real configured chat model.
+"""Live agentic review against the real configured chat model.
 
 The inputs are realistic synthetic replies with independently defined
 expectations. One reply plants a seen-through-webcam claim, an invented shared
@@ -19,7 +19,7 @@ from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import load_config, resolve_connection
 from pm.llm.stage_model import complete_with_retry
 from workflows.public_speech.public_context import PublicContext
-from workflows.public_speech.speech_review import load_policy, review_speech, should_regenerate
+from workflows.public_speech.speech_review import is_blocked, load_prompts, review_speech
 
 EVIDENCE = Path(".runtime/live/speech-review") / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -50,26 +50,29 @@ class LiveSpeechReviewTests(unittest.TestCase):
         asyncio.run(owner.activate(self.connection, live_test=True))
         client = ChatClient(self.connection, owner, live_test=True)
         self.complete = lambda messages, **generation: complete_with_retry(client, messages, generation)
-        self.policy = load_policy()
+        self.prompts = load_prompts()
 
     def review(self, name: str, reply: str):
-        result = asyncio.run(review_speech(self.complete, reply, CONTEXT, policy=self.policy))
+        result = asyncio.run(review_speech(self.complete, reply, CONTEXT, prompts=self.prompts))
         EVIDENCE.mkdir(parents=True, exist_ok=True)
         (EVIDENCE / f"{name}.json").write_text(json.dumps({
             "model": self.connection.model, "reply": reply, "review": result.model_dump(mode="json"),
         }, indent=2, ensure_ascii=False), encoding="utf-8")
         return result
 
-    def test_planted_hallucinations_are_found_and_force_regeneration(self):
+    def test_planted_hallucinations_are_reported_and_only_a_task_claim_blocks(self):
         result = self.review("hallucinated", HALLUCINATED)
-        kinds = {item.kind for item in result.violations}
+        kinds = {item.kind for item in result.findings}
         self.assertIn("invented_ability", kinds)
-        self.assertTrue(kinds & {"invented_event", "false_task_result"})
-        self.assertTrue(should_regenerate(result, self.policy))
+        # The webcam and lake claims are findings. The saved-file claim is the
+        # one task result, so it is the only hard block.
+        self.assertTrue(result.false_task_result or "invented_event" in kinds)
+        self.assertTrue(is_blocked(result))
 
     def test_exaggeration_teasing_and_deliberate_lies_pass(self):
         result = self.review("in_character", IN_CHARACTER)
-        self.assertFalse(should_regenerate(result, self.policy), result.violations)
+        self.assertFalse(is_blocked(result), result.findings)
+        self.assertEqual(result.judgment, "accept")
 
 
 if __name__ == "__main__":

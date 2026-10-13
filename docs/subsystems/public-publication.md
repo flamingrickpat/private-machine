@@ -59,7 +59,7 @@ The design does not claim exactly-once bus delivery.
 
 A reply reaches the rejection path only when the workflow marks it rejected.
 For Story, that means its best draft still holds a blocking violation (`false_task_result`) after all attempts.
-See [Story speech](story-speech.md#generation-attempts).
+See [Story speech](story-speech.md#one-generation).
 The receipt keeps the rejection reason, and the host publishes the explicit recovery text.
 A task exchange instead publishes the actual task state from its receipt.
 

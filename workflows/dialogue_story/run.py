@@ -4,8 +4,8 @@
     python -m workflows.dialogue_story.run trials --trials 10
     python -m workflows.dialogue_story.run show
 
-``accept`` runs the fixed situation once, with the hallucination review and
-regeneration loop, and commits an accepted reply to a MemoryStore checkpoint. ``trials`` runs N independent
+``accept`` runs the fixed situation once, with the one agentic review, and
+commits an accepted reply to a MemoryStore checkpoint. ``trials`` runs N independent
 generations from the same initial MemoryStore state, then activates the evaluator
 over the saved artifacts and reports the quality gate. ``show`` prints the
 exact three messages without contacting a model.

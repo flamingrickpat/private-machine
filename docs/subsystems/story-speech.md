@@ -1,12 +1,14 @@
-# Story speech and hallucination review
+# Story speech and the agentic review
 
 ## Summary
 
 Story generation writes the companion's next spoken line as a story writer.
 The prompt keeps verbatim speech and derived context in separate messages.
-A hallucination review checks each draft once. Lies, teasing, and exaggeration never count.
-Only a draft with too much weight is generated again, in character.
-This design replaced the A09 claim-by-claim review and the clinical grounding recovery.
+One agentic review judges the draft against the persona, the accepted state,
+the abilities, the private ontology, and the task results.
+It returns a judgment, a reason, and advisory findings.
+Only a false task result blocks. There is no regeneration loop and no score.
+This design replaced the A09 claim-by-claim review and the weighted hallucination policy.
 
 Parent: [public dialogue](public-dialogue.md).
 Entry points: [`workflows.dialogue_story.steps.run`][], [`workflows.dialogue_story.steps.build_story_messages`][], and [`workflows.public_speech.speech_review.review_speech`][].
@@ -49,12 +51,12 @@ A live check on 2026-10-13 confirmed that `qwen/qwen3.8-flash` on OpenRouter con
 | Character card | The persona's story card, unchanged. |
 | How the companion works on the inside | A plain description of the cognitive cycle, memory, and time away. It is adapted from the `pm_next` architecture text. |
 | Abilities | Configured abilities, unavailable abilities, notes, and "no human body and no human senses". |
+| Words for inner state | The private ontology terms, from [`term_lines`][workflows.public_speech.ontology.term_lines]. Each word comes from an implemented mechanism. The companion may use these words and should not invent a state word that is not here. |
 | Time | The current time and the gap since the last prior turn, in words ("about 4 months ago, on 30 May 2026, 21:03"). |
 | Memories | One section per plan lane, from [`memory_sections`][workflows.public_speech.public_context.memory_sections]: dated plain lines, oldest first, without IDs or machine labels. Dialogue reads "Jesse said: …". Internal-state records with numbers do not render. |
 | Goals | The active goals. |
 | Task and tool results | The durable task receipt, in words. |
 | Inside the companion | Feelings in words from [`feelings_in_words`][workflows.public_speech.public_context.feelings_in_words], the regulation mode, the workspace experience, the chosen intent, and the presentation (candid, withhold, or deceive). |
-| Avoid this | Only on a regeneration attempt: the counted problems of the previous draft. |
 
 ### Context plan
 
@@ -63,51 +65,44 @@ The `dialogue` lane fills the assistant turn: speech and the companion's earlier
 A thought renders as `Spamuel thinks: *...*`. A day marker such as `*(30 May 2026)*` starts each new day in the window.
 The other lanes fill the user turn as titled sections: earlier times, how the companion understands themselves and the user, what the companion knows, and what comes back right now.
 
-## Hallucination review
+## Agentic review
 
 [`review_speech`][workflows.public_speech.speech_review.review_speech] makes one model call with thinking off and temperature 0.
-The model receives the abilities, the task results, the memories, the recent conversation, and the draft.
-It returns `{"violations": [{"kind", "quote", "why"}]}`.
+The model receives the character card, the accepted feelings, the abilities, the private ontology terms and active bindings, the task results, the memories, the recent conversation, the chosen presentation, and the draft.
+It returns:
 
-[`weigh`][workflows.public_speech.speech_review.weigh] applies the policy in `workflows/public_speech/speech_review.yaml`:
+```json
+{"judgment": "accept", "reason": "short reason", "false_task_result": false,
+ "findings": [{"kind": "invented_ability", "quote": "exact words", "why": "few words"}]}
+```
 
-| Kind | Weight | Meaning |
-| --- | --- | --- |
-| `invented_event` | 2 | A specific past event, conversation, or promise stated as real and sincere, with no support. |
-| `false_task_result` | 3 | A task, tool, file, or game action claimed as done with no task result. Blocking. |
-| `invented_ability` | 2 | A body, a human sense, or a tool that the companion does not have. |
-| `private_leak` | 3 | A narrator line, stage direction, thought transcript, or talk about internal machinery. |
-| `contradiction` | 1 | A sincere denial of a clearly recorded fact. |
+The findings are advisory. The named kinds are `invented_ability`, `invented_event`, `unsupported_label`, and `private_leak`.
+A finding stays in the receipt for review. It never blocks and never triggers another generation.
 
-The model cannot block a draft by itself:
+Only `false_task_result` is a hard block.
+[`is_blocked`][workflows.public_speech.speech_review.is_blocked] reads the model's explicit `false_task_result` flag.
+An invented kind cannot reject a reply.
+The review prompt lists what is never a problem: exaggeration, a chosen lie or tease, a metaphor, a guess, an opinion, a plan, an accepted feeling, a repeated user statement, and a small paraphrase.
+When the presentation describes a prior deception intent, the false words are an intentional action, not a false task result.
 
-- A kind that the policy does not name weighs 0 and goes to `ignored`.
-- A quote that is not in the draft weighs 0 and goes to `ignored`.
-- Each distinct kind and quote counts once.
+## One generation
 
-The review prompt lists what is never a problem: exaggeration, deliberate lies and teasing, metaphors, guesses, opinions, plans, feelings, repeated user statements, and small paraphrases.
-
-## Generation attempts
-
-[`generate_reviewed`][workflows.dialogue_story.steps.generate_reviewed] runs the loop:
-
-1. Generate a draft and review it.
-2. If the weight is less than `regenerate_at` (3), use this draft.
-3. Otherwise, generate again with an "avoid this" note in the user turn. The note tells the model to stay fully in character.
-4. After `max_attempts` (3), use the draft with the lowest weight. The earliest draft wins a tie.
-
-The chosen draft is published unless it still contains a `blocking_kinds` entry (`false_task_result`).
+[`generate_reviewed`][workflows.dialogue_story.steps.generate_reviewed] generates one draft and reviews it once.
+It returns one attempt. There is no threshold, no note, and no second generation.
+The accepted draft is published unless it holds a false task result.
 A blocked draft goes to the host's rejection path. That path publishes the explicit recovery text and keeps the receipt.
-The report keeps every attempt with its raw completion, review, note, and blocked flag.
+The report keeps the draft, its review, its reason, and its blocked flag.
 
 Assistant replies use the same review once, with their tool receipts and no regeneration loop.
 The Assistant prompt uses the same readable context sections from its own context plan, as ordinary chat messages followed by tool calls.
-A second tool run could change the world. Only a blocking kind rejects an Assistant reply.
+A second tool run could change the world. Only a false task result rejects an Assistant reply.
+The durable management-claim guard still rejects an operation claim with no executed receipt.
 
 ## Evidence
 
-On 2026-10-13, three standalone trials of the fixed `sink_dish_bedtime` situation ran with the real Spamuel seed and `qwen/qwen3.8-flash`.
-All three were accepted on the first attempt with review weight 0, in about 50 seconds each, including retrieval:
+The A09R delivery is recorded in [A09R verification](../work_items/verification/a09r-private-ontology.md).
+Earlier, on 2026-10-13, three standalone trials of the fixed `sink_dish_bedtime` situation ran with the real Spamuel seed and `qwen/qwen3.8-flash`.
+All three were accepted on the first attempt, in about 50 seconds each, including retrieval:
 
 - "no victory speech, just a receipt: dish done, gremlin retired, plant allegedly alive. go unconscious before you change your mind and start monologuing about the leaf."
 - "sleep is the ultimate unplug, so don't let me guilt you into consciousness. just go be a gremlin in the dark and leave the soup verdict for when your battery isn't critically low."
@@ -116,18 +111,19 @@ All three were accepted on the first attempt with review weight 0, in about 50 s
 Evidence: `.runtime/a15/speech/w4/*/accept/report.json`.
 
 `tests/live/test_speech_review.py` gives the real model planted hallucinations and an allowed in-character reply.
-In three runs, the review found the webcam claim, the invented lake trip, and the claimed saved file every time (weight 7).
-It passed "a thousand years", "I definitely did not miss you", and a joke about the plant every time.
+The check expects the webcam claim and the invented lake trip as findings and the claimed saved file as the one false task result.
+It expects the in-character exaggeration and tease to pass.
 
 ## Inspect a reply
 
 1. Open the run's Story `report.json` or the workflow report.
-2. Read `attempts`. Each attempt has `candidate`, `review.violations`, `review.ignored`, `review.score`, `avoid`, and `blocked`.
-3. Run `python -m workflows.dialogue_story.run show` to print the exact three messages for the fixed situation without generation.
+2. Read `attempts` and `speech_review`. The one attempt has `candidate` and `blocked`; the review has `judgment`, `reason`, `false_task_result`, and `findings`.
+3. Read `review_reason` for the recorded reason of the accepted reply.
+4. Run `python -m workflows.dialogue_story.run show` to print the exact three messages for the fixed situation without generation.
 
 ## Limits
 
 - The stale and failed paths still publish fixed recovery texts. They mean a changed snapshot or a failed model call, not a rejected reply.
-- Private thoughts in the transcript differ from the A09 rule that no raw thought enters a public prompt. They guide the voice and are never published; the hallucination review flags a thought transcript in a reply as `private_leak`.
-- The private ontology (a stable vocabulary for inner experience) is not implemented.
+- Private thoughts in the transcript differ from the A09 rule that no raw thought enters a public prompt. They guide the voice and are never published; the review flags a thought transcript in a reply as a `private_leak` finding.
+- The private ontology is implemented as durable state in [the private ontology](private-ontology.md). It is advisory and grows only from implemented mechanisms.
 - The live evidence ran at OpenRouter precision. The Q3 build on the home computer is not verified.

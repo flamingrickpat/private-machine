@@ -132,4 +132,8 @@ class AssistantDialogue(PublicDialogue):
             )
             self.reject_reply(batch, reason)
             return
-        self.accept_reply(parsed.final_text, batch, tool_receipts=[item.model_dump(mode="json") for item in parsed.tool_receipts])
+        review = parsed.speech_review
+        self.accept_reply(parsed.final_text, batch,
+                          tool_receipts=[item.model_dump(mode="json") for item in parsed.tool_receipts],
+                          review_reason=parsed.review_reason,
+                          review_judgment=review.judgment if review is not None else "")

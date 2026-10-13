@@ -8,14 +8,18 @@ Unsupported prose cannot create a new sense or emotion.
 Conscious deception remains an intentional action whose false content does not become factual memory.
 
 Parent: [cognitive architecture](cognition.md).
-Delivery: [A08](work-items/a08.md), [A09](work-items/a09.md), and [A18](work-items/a18.md).
+Delivery: [A08](work-items/a08.md), [A09](work-items/a09.md), [A09R](work-items/a09r.md), and [A18](work-items/a18.md).
 User requirement: [D10](decision-register.md#confirmed-direction).
+Runtime mechanism: [the private ontology](../../subsystems/private-ontology.md).
 
 ## Expression contracts
 
 An expression term has a meaning, applicable reality, supporting state, and usage rule.
 Reuse existing ontology term/binding, provenance, and reality/frame models.
 Do not add an unrelated ontology database.
+A09R implements the first durable term and binding writer.
+It seeds terms only from implemented mechanisms.
+The ontology stays advisory: an unsupported label is a review finding, not a block.
 
 A sensory claim requires an enabled capability and relevant observation.
 A game visual claim requires actual interpretation of a visual input.
