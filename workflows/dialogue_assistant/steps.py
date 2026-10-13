@@ -80,6 +80,28 @@ def tool_schemas(request: AssistantRequest) -> list[dict]:
     ]
 
 
+def wire_message(message: AssistantMessage) -> dict:
+    """Return one OpenAI-compatible message for a request body.
+
+    Dropping empty optional fields keeps strict providers happy. Alibaba rejects
+    an empty ``tool_calls`` array with HTTP 400, but the local server tolerated
+    it. Always keep ``role`` and ``content`` because a tool-call turn may carry
+    empty text.
+    """
+    data = message.model_dump(mode="json")
+    if not data.get("tool_calls"):
+        data.pop("tool_calls", None)
+    for field in ("tool_call_id", "name"):
+        if not data.get(field):
+            data.pop(field, None)
+    return data
+
+
+def wire_messages(messages: list[AssistantMessage]) -> list[dict]:
+    """Return the whole transcript in the request wire form."""
+    return [wire_message(message) for message in messages]
+
+
 def parse_completion(raw: Any) -> dict:
     if isinstance(raw, str):
         raw = json.loads(raw)
@@ -227,7 +249,7 @@ def run(context) -> dict:
         schemas = []
     turns = request.max_tool_turns
     for turn in range(turns):
-        payload = [message.model_dump(mode="json", exclude_none=False) for message in messages]
+        payload = wire_messages(messages)
         # On the last allowed turn, ban tools so the model must answer in text.
         allow_tools = schemas if turn < turns - 1 else []
         raw = asyncio.run(completion(payload, tools=allow_tools, **prompts.get("generation", {})))
@@ -251,7 +273,7 @@ def run(context) -> dict:
     if not final_text:
         # The tool budget is done and the model returned no text. Force one
         # final, tool-free completion so the run always produces a result.
-        payload = [message.model_dump(mode="json", exclude_none=False) for message in messages]
+        payload = wire_messages(messages)
         raw = asyncio.run(completion(payload, tools=[], **prompts.get("generation", {})))
         message = parse_completion(raw)
         final_text = str(message.get("content") or "").strip()
@@ -293,4 +315,6 @@ __all__ = [
     "run",
     "tool_schemas",
     "unsupported_management_claims",
+    "wire_message",
+    "wire_messages",
 ]

@@ -18,7 +18,7 @@ from pm.records.cycle_state import PersonaConfig
 from workflows.memory_consolidation.artifact_consolidation import Consolidator
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.minecraft import steps
-from workflows.minecraft.schemas import MinecraftReport
+from workflows.minecraft.schemas import MinecraftReport, MinecraftRequest
 from pm.host.folder_target import FolderEnvironment
 from workflows.minecraft_body.lease import BODY_LEASES
 from pm.records.base import persisted_type_name
@@ -161,6 +161,15 @@ class MinecraftConsolidationTests(MinecraftTestBase):
 
 
 class PlanParsingTests(unittest.TestCase):
+    def test_request_ignores_unknown_model_arguments(self):
+        # A model action can add a helpful but undeclared argument. The boundary
+        # request keeps the declared fields and drops the hint.
+        request = MinecraftRequest.model_validate({
+            "instruction": "Observe only.", "observe_only": True, "fields": ["position"],
+        })
+        self.assertEqual(request.instruction, "Observe only.")
+        self.assertFalse(hasattr(request, "observe_only"))
+
     def test_parse_plan_splits_tool_and_json(self):
         self.assertEqual(
             steps.parse_plan('minecraft_mine_block {"position": {"x": 1}}'),

@@ -153,8 +153,8 @@ def run() -> int:
     check("2. bash write rejected", env.exec(f"echo x > /work/ghost/knoxels/{kid}.yaml").exit_code != 0)
 
     # 3. new feature seen by next invocation
-    new_id = _store_feature(ghost, "freshly stored")
-    check("3. next env sees new memory", new_id in MemoryBashTarget(ghost, "read").open("c3").visible_knoxels)
+    feature_id = _store_feature(ghost, "freshly stored")
+    check("3. next env sees new memory", feature_id in MemoryBashTarget(ghost, "read").open("c3").visible_knoxels)
 
     # 4. restricted scope: bash and MCP hide an omitted record
     all_ids = set(ghost.all_knoxels)

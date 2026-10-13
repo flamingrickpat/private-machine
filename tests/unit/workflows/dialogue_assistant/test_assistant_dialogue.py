@@ -85,6 +85,22 @@ class MessageTests(unittest.TestCase):
         self.assertEqual(messages[2].role, "tool")
         self.assertEqual(messages[2].tool_call_id, "c1")
 
+    def test_wire_message_drops_empty_tool_fields(self):
+        plain = steps.wire_message(AssistantMessage(role="user", content="hi"))
+        self.assertEqual(plain, {"role": "user", "content": "hi"})
+        call = steps.wire_message(AssistantMessage(role="assistant", content="", tool_calls=[
+            {"id": "c1", "type": "function", "function": {"name": "managed_list", "arguments": "{}"}},
+        ]))
+        self.assertIn("tool_calls", call)
+        self.assertEqual(call["content"], "")
+        result = steps.wire_message(AssistantMessage(role="tool", content="[]", tool_call_id="c1"))
+        self.assertEqual(result, {"role": "tool", "content": "[]", "tool_call_id": "c1"})
+
+    def test_wire_messages_never_contains_empty_tool_calls(self):
+        messages = steps.build_messages(example_request(), steps.load_prompts())
+        for message in steps.wire_messages(messages):
+            self.assertNotEqual(message.get("tool_calls"), [])
+
 
 class ClaimTests(unittest.TestCase):
     def test_management_claim_needs_a_receipt(self):

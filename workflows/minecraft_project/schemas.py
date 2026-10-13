@@ -105,7 +105,13 @@ class TaskTree(Contract):
 
 
 class ProjectRequest(Contract):
-    """Start a generic project, or inspect its reviewed plan without execution."""
+    """Start a generic project, or inspect its reviewed plan without execution.
+
+    This is the model-fed boundary of the project, so it ignores argument hints
+    that the schema does not declare. The tree contracts stay strict.
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
     run_id: str = ""
     instruction: str = ""

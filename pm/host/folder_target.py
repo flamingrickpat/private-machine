@@ -5,6 +5,7 @@ workflows that are allowed to touch host files.
 """
 from __future__ import annotations
 
+import posixpath
 import shutil
 import subprocess
 from pathlib import Path
@@ -66,13 +67,13 @@ class FolderEnvironment(WorkingEnvironment):
         target.write_bytes(data)
 
     def list_files(self, directory: str) -> list[str]:
-        root = self._path(directory)
+        # The kernel names its root with ".", never "". Normalizing the join
+        # keeps root entries as "b.txt" rather than "./b.txt".
+        root = self._path(directory or ".")
         if not root.is_dir():
             return []
-        prefix = directory.rstrip("/")
-        if prefix:
-            prefix += "/"
-        return sorted(prefix + p.name for p in root.iterdir() if p.is_file())
+        return sorted(posixpath.normpath(posixpath.join(directory or ".", p.name))
+                      for p in root.iterdir() if p.is_file())
 
     def exec(self, command: str) -> CommandResult:
         result = subprocess.run(

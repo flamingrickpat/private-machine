@@ -16,7 +16,7 @@ from pm_workflows.manifest import parse_workflow
 from pydantic import ValidationError
 
 from workflows.minecraft.specialist_session import ActorOutcome
-from workflows.minecraft_project.schemas import Condition, Node, PlanProposal, TaskTree
+from workflows.minecraft_project.schemas import Condition, Node, PlanProposal, ProjectRequest, TaskTree
 from workflows.minecraft_project.tree_store import TreeStore, acceptance_requirements, digest, validate_tree
 from workflows.minecraft_project.acceptance import evaluate
 from workflows.minecraft_project.planning.run_context import progress_facts, scoped_reads
@@ -473,6 +473,16 @@ class CapturedEvidenceTests(unittest.TestCase):
         condition = Condition(id="living", description="Alive.", kind="alive")
         self.assertFalse(evaluate([condition], [])["living"])
         self.assertFalse(evaluate([condition], [original, original])["living"])
+
+
+class ProjectRequestTests(unittest.TestCase):
+    def test_request_ignores_unknown_model_arguments(self):
+        # The project boundary keeps its declared fields and drops model hints.
+        request = ProjectRequest.model_validate({
+            "instruction": "Build a shelter.", "observe_only": True, "fields": ["position"],
+        })
+        self.assertEqual(request.instruction, "Build a shelter.")
+        self.assertFalse(hasattr(request, "observe_only"))
 
 
 if __name__ == "__main__":
