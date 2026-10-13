@@ -14,6 +14,26 @@ plugins:
       scripts:
         - dev/tools/gen_reference.py
   - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["."]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_signature_annotations: true
+            show_if_no_docstring: true
+            members: true
+            docstring_style: null
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+nav:
   - Overview: index.md
   - Workflows:
       - Jesse quickstart: workflows/jesse-quickstart.md
