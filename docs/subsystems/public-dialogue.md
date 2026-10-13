@@ -71,9 +71,8 @@ The selected workspace guides speech but does not grant raw thought disclosure.
 
 ## Two generation paths
 
-Story preserves five message roles: system, user, assistant, user, assistant.
-The last message retains the companion prefill.
-The history provides voice examples and conversational continuity.
+Story uses three messages: a story-writer system message, a user message with all derived context, and an assistant message with only verbatim dialogue and the open companion prefill.
+[Story speech](story-speech.md) describes the layout, the hallucination review, and the regeneration loop.
 Earlier generated speech cannot independently establish its described event.
 
 Assistant preserves normal user, assistant, and tool messages.
@@ -133,105 +132,22 @@ Adding an intent after generation cannot justify the earlier prose.
 Deception cannot waive capability, task verification, or private-disclosure checks.
 Public speech remains an attributed communicative event and cannot automatically establish a factual belief.
 
-## Time interpretation and claim review
+## Hallucination review
 
-[`workflows.public_speech.claim_review.review_public_claims`][] uses the normal LLM at temperature 0.1.
-All three review phases enable reasoning for attribution, exact spans, paraphrases, and chronology.
-Each phase runs once.
-The first phase receives only the candidate and extracts literal plant, room, or game conditions with their time scope.
-It retains exact text spans and rejects invented spans.
-Complete clauses retain quoted attribution, negation, and uncertainty.
-The candidate limit is 12,000 characters.
-Oversized or malformed input raises an explicit protocol error.
-This phase excludes capabilities, task verification, emotions, names, preferences, and plans.
-It cannot reinterpret a present assertion as a past report after reading old evidence.
-The second phase receives these conditions, original evidence, accepted state, and execution receipts.
-It must retain each extracted condition as a claim.
-If that review accepts supported historical claims, a third phase checks only those claims and their cited original text.
-It receives no character, workspace, or prior dialogue transcript.
-Speaker and addressee names resolve pronouns in the candidate.
-Each source author resolves first-person pronouns in that original report.
-Original startup events and the current user report supply chronology and request scope.
-The current question cannot establish a missing external fact.
-An original source in accepted memory supports remembering that report or having it on file.
-That wording does not claim a literal file write or a complete memory inventory.
-An unknown antecedent does not qualify an asserted conditional technical rule.
-A definite treatment effect or another person's intent still requires evidence.
-A partial snapshot cannot establish an exhaustive count of canonical memory records.
-The supplied UTC clock supports relative dates from source timestamps.
-Faithful paraphrases and ordinary conversational acknowledgments do not require identical source wording.
-A prior joke request cannot authorize a lie in the current exchange.
-Derived summaries resolve through their visible original source records.
-Generated utterances can establish their recorded words when the claim concerns speech.
-It checks the topic, actor, action, object, and relation separately from the broader conversational interpretation.
-Adjacent sentences cannot establish an action-object relation or causality.
-For example, a coffee report beside a plant update does not establish that coffee was given to the plant.
-Each citation check retains its claim index, support decision, and reason in `citation_checks`.
-The limit is 32 claims; missing, repeated, or ungranted indices raise a protocol error.
-Unsupported citation checks reject the candidate.
-This conditional phase does not repeat a review until it passes.
-The first live review stalled with temperature zero and hidden reasoning enabled.
-The retained failure and the direct repair probe are part of the A09 evidence.
-The host also validates citation roles after semantic review.
-The request uses the review model's JSON schema to constrain protocol fields and enum values.
-Malformed transport or schema output still triggers explicit recovery.
-A supported historical event requires an original report or an actual event citation.
-For a cited abstraction, the host follows its rendered source chain and appends visible original event IDs.
-A cited earlier companion answer cannot satisfy that condition.
-Speech acts use `evidence_use=utterance`; their recorded text supports what was said.
-The `public_complete` tool is an explicit grant in both dialogue manifests.
-The reviewer receives the candidate, accepted evidence and state, and executed tool receipts.
-Its copy of the common context omits character prose, workspace text, selected-action prose, and duplicate memory excerpts.
-Those fields guide voice but cannot establish an external event.
-The review retains identity, affect, goals, capabilities, original evidence, ontology, and the prior presentation choice.
-Pure greetings, thanks, apologies, and acknowledgments do not need factual citations.
-A plausible interpretation does not establish a fact.
-For example, reporting a wrong-file attachment does not establish that the reporter attached that file.
+Both public paths review a draft with [`workflows.public_speech.speech_review.review_speech`][].
+The review looks only for hallucinations: invented events, false task results, invented abilities, private leaks, and sincere contradictions.
+Lies, teasing, exaggeration, metaphor, and feelings are never violations.
+Python weights the reported violations. Story generates again in character when the weight reaches the policy limit.
+[Story speech](story-speech.md#hallucination-review) gives the kinds, the weights, and the evidence.
 
-Each claim identifies its text, domain, status, evidence IDs, and reason.
-Each claim also has `verification_claim`.
-`time_scope` accepts `past`, `current`, `stable`, or `unspecified`.
-`external_physical_state` identifies literal conditions that need fresh evidence.
-The host retains the first phase's time interpretation for matching claims.
-A supported current physical condition requires a nonhistorical original report or observation.
-`tool_receipt_ids` cite invocation-local `tool_call_id` strings separately from numeric Ghost `evidence_ids`.
-A successful executed `minecraft_observe` receipt can establish its current Minecraft snapshot.
-Absent, denied, and failed receipts cannot supply that condition.
-Historical claims still require their original numeric source chain.
-Omitting a current extracted condition rejects the review.
-This flag identifies a current executed operation, verified task state, or actual current file or world effect.
-Conversational naming, metaphor, future speech, and imported historical reports do not establish those effects.
-The constrained response requires every claim field, including this flag.
-Its default is conservative for older captured protocol records.
-Domains include history, tasks, human senses, Minecraft, emotions, privacy, and other claims.
-Statuses distinguish supported facts, metaphor, uncertainty, intentional deception, and unsupported certainty.
-Unknown source IDs and unsupported claims reject the whole utterance.
-An external claim in the `other` domain cannot pass as supported when it has no source or state evidence.
-General model knowledge does not independently verify that claim.
-Every supported positive historical assertion requires a supplied citation, including assertions labeled as knowledge state.
-An absent report cannot support a claim that the companion has that report.
-The generator must distinguish supplied evidence from uncertain technical possibilities.
-A report of a neighbor's advice does not establish that the advice is correct.
-Prior authorized deception can apply to a teasing name even when the model uses the coarse `task` domain label.
-It cannot apply to a claim that current task execution or file verification occurred.
-Malformed review output fails the workflow and triggers publication recovery.
-The review also classifies `public_form` as `speech`, `narration`, `private_transcript`, or `empty`.
-Only `speech` can pass.
-This check applies beside factual claims, because a stage direction can avoid making an explicit factual claim.
-
-The reviewer does not score persona quality or rewrite prose.
-A rejected candidate remains in its report beside the source comparison.
-No repeated quality-score loop rewrites a valid reply until it passes.
-Model review remains imperfect and requires independent source checks in live acceptance.
-Human immersion ratings remain with the operator.
-After a semantic rejection, the module can invoke [bounded grounding recovery](public-publication.md#bounded-grounding-recovery).
-That new response has its own review and a distinct recovery outcome.
+The A09 claim-by-claim review and its grounding recovery were removed on 2026-10-13.
+The [A09 verification](../work_items/verification/a09-public-dialogue.md) keeps their historical evidence.
 
 ## Inspect a real exchange
 
 Run the [A09 console gate](../work_items/verification/a09-public-dialogue.md).
-Read the correlated public request, workflow report, and `claim_review`.
-Compare every historical claim with the supplied original evidence IDs.
+Read the correlated public request and the workflow report.
+For Story, read `attempts`: each holds the draft, its hallucination review, and the regeneration note.
 Inspect the public Feature's `factual_promotion`, `action_schema_id`, and presentation attribution.
 For publication failures, inspect the recovery receipt and durable exchange marker.
 

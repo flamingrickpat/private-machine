@@ -1,21 +1,32 @@
 """Story dialogue role.
 
-Entry point: ``run(context)``. The role assembles the exact five-message Story
-sequence, calls the injected ``story_complete`` generation tool, cleans the
-continuation to one companion utterance, applies the private-ontology boundary,
-and writes a full report to ``outbox/report.yaml``.
+Entry point: ``run(context)``. The role builds the three Story messages,
+generates one companion line, reviews it for hallucinations, generates again
+when the review weight is too high, and writes a full report to
+``outbox/report.yaml``.
 
 The message roles are a contract:
 
-  1. system    - expert storyteller instruction and story constraints
-  2. user      - character information, background, and temporal context
-  3. assistant - prior dialogue as a story, including both speakers
-  4. user      - current feelings, memories, and workspace context
-  5. assistant - the companion prefill, ``<name> says: "``
+  1. system    - the story-writer instruction
+  2. user      - all derived material: character card, inner architecture,
+                 abilities, time, memories, goals, current feelings, intent
+  3. assistant - only verbatim prose: prior dialogue exactly as spoken, the
+                 current user line, and the open prefill ``<name> says: "``
 
-The workflow never stores a model-invented next user utterance. No tool call is
-requested from the generation model. ``build_story_messages`` is pure and is
-tested directly without a kernel, model, or MemoryStore.
+Verbatim speech and derived prose never share a message. The voice is
+anchored only by real dialogue, and summary wording cannot leak into it.
+
+Generation attempts (``speech_review.yaml``):
+
+- Each attempt is reviewed once. Lies, teasing, and exaggeration never count.
+- An attempt below ``regenerate_at`` is published at once.
+- Otherwise the next attempt receives a short "avoid this" note in the user
+  message. After ``max_attempts``, the lowest-weight attempt is published,
+  unless it still has a blocking kind (a false task result).
+
+The workflow never stores a model-invented next user utterance. No tool call
+is requested from the generation model. ``build_story_messages`` is pure and
+is tested directly without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
 
@@ -24,22 +35,23 @@ import re
 from pathlib import Path
 
 import yaml
-from workflows.public_speech.public_context import render_public_context, render_factual_focus
-from workflows.public_speech.claim_review import review_public_claims
+from workflows.public_speech.public_context import (
+    ability_lines, describe_elapsed, format_moment, memory_lines, plain_memory_text, task_lines,
+)
+from workflows.public_speech.speech_review import (
+    is_blocked, load_policy, regeneration_note, review_speech, should_regenerate,
+)
 
 from workflows.dialogue_story.schemas import (
     DialogueTurn,
     OntologyVerdict,
     OntologyViolation,
+    StoryAttempt,
     StoryReport,
     StoryRequest,
 )
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
-
-_SYSTEM_ROLE = "system"
-_USER_ROLE = "user"
-_ASSISTANT_ROLE = "assistant"
 
 
 def load_prompts(path: Path | None = None) -> dict:
@@ -50,74 +62,100 @@ def load_ontology(path: Path | None = None) -> dict:
     return yaml.safe_load((path or WORKFLOW_DIR / "ontology.yaml").read_text(encoding="utf-8"))
 
 
-def _named(template: str, **values) -> str:
-    return template.format(**values).strip()
+def render_prior_dialogue(turns: list[DialogueTurn], prompts: dict | None = None) -> str:
+    """Render prior turns verbatim as one story transcript, both speakers included."""
+    template = (prompts or {}).get("speaker_line", '{speaker} says: "{text}"')
+    return "\n".join(template.format(speaker=turn.speaker, text=turn.text) for turn in turns)
 
 
-def render_prior_dialogue(turns: list[DialogueTurn]) -> str:
-    """Render prior turns as one story transcript, both speakers included."""
-    return "\n".join(f'{turn.speaker} says: "{turn.text}"' for turn in turns)
+def _section(title: str, lines: list[str]) -> str:
+    body = "\n".join(line for line in lines if line.strip())
+    return f"{title}\n{body}" if body else ""
 
 
-def _bullets(title: str, items: list[str]) -> str:
-    if not items:
-        return ""
-    body = "\n".join(f"- {item.strip()}" for item in items if item.strip())
-    return f"{title}\n{body}"
+def _time_lines(request: StoryRequest, prompts: dict, names: dict) -> list[str]:
+    """Describe now and the gap since the last earlier exchange, in words."""
+    lines = [prompts["time_now"].format(now=format_moment(request.now), **names)] if request.now else []
+    stamps = [turn.timestamp for turn in request.prior_dialogue if turn.timestamp]
+    if stamps and request.now:
+        from pm.memory.retrieval import utc_time
+        gap = (utc_time(request.now) - utc_time(max(stamps))).total_seconds()
+        lines.append(prompts["time_since"].format(elapsed=describe_elapsed(gap), last=format_moment(max(stamps)), **names))
+    elif not request.prior_dialogue:
+        lines.append(prompts["time_first"].format(**names))
+    return lines
 
 
-def build_story_messages(request: StoryRequest, prompts: dict) -> list[dict]:
-    """Return exactly the five contract messages in order."""
-    companion = request.companion_name
-    user = request.user_name
-    available_tools = ", ".join(request.supported_capabilities) or "none declared"
+def _inner_lines(request: StoryRequest, prompts: dict, names: dict) -> list[str]:
+    lines = []
+    if request.feelings:
+        lines.append(prompts["inner_feelings"].format(feelings=request.feelings, **names))
+    if request.regulation in prompts["inner_regulation"]:
+        lines.append(prompts["inner_regulation"][request.regulation].format(**names))
+    if request.workspace.strip():
+        lines.append(prompts["inner_mind"].format(workspace=request.workspace.strip(), **names))
+    if request.selected_action.strip():
+        lines.append(prompts["inner_intent"].format(intent=request.selected_action.strip(), **names))
+    presentation = request.public_context.presentation if request.public_context else None
+    mode = presentation.mode if presentation else "candid"
+    lines.append(prompts["presentation"][mode].format(
+        summary=getattr(presentation, "shareable_summary", "") or "nothing",
+        purpose=getattr(presentation, "purpose", "") or "unstated", **names))
+    return lines
 
-    system = _named(prompts["system_prompt"])
 
-    first_user_parts = [
-        _named(prompts["first_user_turn_start"]),
-        "Character Card\n" + request.character_card_story.strip(),
-        "Architecture\n" + _named(
-            prompts["architecture_text"], companion_name=companion, user_name=user
-        ),
-        "Capabilities\n" + _named(
-            prompts["capability_addendum"], companion_name=companion,
-            user_name=user, available_tools=available_tools,
-        ),
-        _bullets("Unavailable capabilities", request.unsupported_capabilities),
-        _bullets("Capability notes", request.capability_notes),
-        _named(prompts["body_and_situation_title"]) + "\n" + request.temporal_context.strip(),
-        _named(prompts["first_user_turn_end"]),
+def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = "") -> str:
+    """Render the user message: every derived or summarized piece of context.
+
+    Verbatim dialogue never appears here. Memories that duplicate a verbatim
+    transcript line, or the current message, are left out.
+    """
+    names = {"companion_name": request.companion_name, "user_name": request.user_name}
+    context = request.public_context
+    shown = {turn.knoxel_id for turn in request.prior_dialogue if turn.knoxel_id is not None}
+    if request.current_message_id is not None:
+        shown.add(request.current_message_id)
+    if context is not None:
+        abilities = ability_lines(context)
+        # Plain memory strings are the fallback when the action carried no
+        # evidence records, for example in a standalone situation.
+        transcript_texts = [turn.text for turn in request.prior_dialogue] + [request.current_user_message]
+        memories = memory_lines(context, exclude_ids=shown, exclude_texts=transcript_texts) or [
+            f"- {plain_memory_text(item)}" for item in request.memories if plain_memory_text(item)]
+        tasks = task_lines(context)
+    else:
+        abilities = [f"- {item}" for item in request.supported_capabilities]
+        abilities += [f"- Cannot: {item}" for item in request.unsupported_capabilities]
+        abilities += [f"- Note: {item}" for item in request.capability_notes]
+        memories = [f"- {item}" for item in request.memories]
+        tasks = []
+    parts = [
+        prompts["context_start"].format(**names).strip(),
+        _section(prompts["character_title"], [request.character_card_story.strip()]),
+        _section(prompts["architecture_title"].format(**names), [prompts["architecture_text"].format(**names).strip()]),
+        _section(prompts["abilities_title"].format(**names), abilities),
+        _section(prompts["time_title"], _time_lines(request, prompts, names)),
+        _section(prompts["memories_title"].format(**names),
+                 [prompts["memories_note"].strip(), *memories] if memories else []),
+        _section(prompts["goals_title"].format(**names), [f"- {goal}" for goal in request.goals]),
+        _section(prompts["tasks_title"], tasks),
+        _section(prompts["inner_title"].format(**names), _inner_lines(request, prompts, names)),
+        _section(prompts["regeneration_title"], [avoid]) if avoid else "",
+        prompts["context_end"].format(**names).strip(),
     ]
-    first_user = "\n\n".join(part for part in first_user_parts if part)
+    return "\n\n".join(part for part in parts if part)
 
-    prior = render_prior_dialogue(request.prior_dialogue)
-    assistant_story = "\n\n".join(
-        part for part in [_named(prompts["prior_dialogue_header"]), prior] if part
-    )
 
-    context_parts = [
-        _named(prompts["current_context_header"], companion_name=companion),
-        _bullets(prompts["feelings_title"], request.feelings),
-        _bullets(prompts["memories_title"], request.memories),
-        _bullets(prompts["workspace_title"], [request.workspace]),
-        # Keep the accepted action when a user stimulus supplies the last line.
-        # Otherwise, Story loses the decision that selected these memories.
-        _bullets("Selected action", [request.selected_action]),
-        "Accepted public context\n" + render_public_context(request.public_context) if request.public_context else "",
-        f"{user} says: \"{request.current_user_message}\"",
-        render_factual_focus(request.public_context) if request.public_context else "",
-    ]
-    current = "\n\n".join(part for part in context_parts if part)
-
-    prefix = _named(prompts["reply_prefix"], companion_name=companion)
-
+def build_story_messages(request: StoryRequest, prompts: dict, *, avoid: str = "") -> list[dict]:
+    """Return the three contract messages: system, derived context, verbatim story."""
+    names = {"companion_name": request.companion_name, "user_name": request.user_name}
+    transcript = render_prior_dialogue(request.prior_dialogue, prompts)
+    current = prompts["speaker_line"].format(speaker=request.user_name, text=request.current_user_message)
+    story = "\n".join(part for part in [transcript, current, prompts["reply_prefix"].format(**names)] if part)
     return [
-        {"role": _SYSTEM_ROLE, "content": system},
-        {"role": _USER_ROLE, "content": first_user},
-        {"role": _ASSISTANT_ROLE, "content": assistant_story},
-        {"role": _USER_ROLE, "content": current},
-        {"role": _ASSISTANT_ROLE, "content": prefix},
+        {"role": "system", "content": prompts["system_prompt"].strip()},
+        {"role": "user", "content": build_context_message(request, prompts, avoid=avoid)},
+        {"role": "assistant", "content": story},
     ]
 
 
@@ -221,6 +259,37 @@ def _fact_conflicts(candidate: str, request: StoryRequest) -> list[str]:
     return conflicts
 
 
+def generate_reviewed(request: StoryRequest, prompts: dict, generate, review_complete) -> tuple[list[StoryAttempt], StoryAttempt]:
+    """Generate, review, and regenerate until an attempt passes or attempts run out.
+
+    ``generate`` and ``review_complete`` are async completion callables. The
+    result is every attempt plus the chosen one: the first attempt below the
+    regeneration weight, otherwise the attempt with the lowest weight (the
+    earliest one on a tie). Model transport errors propagate.
+    """
+    policy = load_policy()
+    attempts: list[StoryAttempt] = []
+    avoid = ""
+    for _ in range(int(policy["policy"]["max_attempts"])):
+        messages = build_story_messages(request, prompts, avoid=avoid)
+        raw = asyncio.run(generate(messages, **prompts.get("generation", {})))
+        if not isinstance(raw, str):
+            raise TypeError("story_complete must return the completion text as a string.")
+        candidate = clean_reply(raw, request.companion_name, request.user_name)
+        review = asyncio.run(review_speech(review_complete, candidate, request.public_context,
+                                           conversation=[*request.prior_dialogue[-6:], DialogueTurn(
+                                               speaker=request.user_name, text=request.current_user_message)],
+                                           policy=policy))
+        attempts.append(StoryAttempt(raw_completion=raw, candidate=candidate, review=review, avoid=avoid,
+                                     blocked=is_blocked(review, policy)))
+        if candidate and not should_regenerate(review, policy):
+            break
+        avoid = regeneration_note(review, policy) if review.violations else ""
+    usable = [item for item in attempts if item.candidate] or attempts
+    chosen = min(usable, key=lambda item: item.review.score)
+    return attempts, chosen
+
+
 def run(context) -> dict:
     """Kernel entry point. Runs synchronously on the calling thread."""
     environment = context.runtime.environment
@@ -228,32 +297,31 @@ def run(context) -> dict:
         yaml.safe_load(environment.read_text("inbox/request.yaml"))
     )
     prompts = load_prompts()
-    messages = build_story_messages(request, prompts)
-
-    tool = context.runtime.tools["story_complete"]
-    raw = asyncio.run(tool(messages, **prompts.get("generation", {})))
-    if not isinstance(raw, str):
-        raise TypeError("story_complete must return the completion text as a string.")
-
-    candidate = clean_reply(raw, request.companion_name, request.user_name)
+    tools = context.runtime.tools
     if request.public_context is not None:
-        review = asyncio.run(review_public_claims(context.runtime.tools["public_complete"], candidate, request.public_context))
-        verdict = OntologyVerdict(version="public-ontology-v2", accepted=review.accepted,
+        attempts, chosen = generate_reviewed(request, prompts, tools["story_complete"], tools["public_complete"])
+        accepted = bool(chosen.candidate) and not chosen.blocked
+        verdict = OntologyVerdict(version="speech-review-v1", accepted=accepted,
                                   facts_checked=len(request.public_context.evidence),
-                                  fact_conflicts=[claim.reason for claim in review.claims if claim.status == "unsupported"])
+                                  fact_conflicts=[f"{item.kind}: {item.quote}" for item in chosen.review.violations])
     else:
-        review = None
+        messages = build_story_messages(request, prompts)
+        raw = asyncio.run(tools["story_complete"](messages, **prompts.get("generation", {})))
+        candidate = clean_reply(raw, request.companion_name, request.user_name)
         verdict = check_ontology(candidate, load_ontology(), request)
+        chosen = StoryAttempt(raw_completion=raw, candidate=candidate)
+        attempts = [chosen]
 
+    messages = build_story_messages(request, prompts, avoid=chosen.avoid)
     report = StoryReport(
         companion_name=request.companion_name,
         message_roles=[message["role"] for message in messages],
-        reply_prefix=messages[-1]["content"],
-        raw_completion=raw,
-        candidate=candidate,
+        reply_prefix=prompts["reply_prefix"].format(companion_name=request.companion_name),
+        raw_completion=chosen.raw_completion,
+        candidate=chosen.candidate,
         accepted=verdict.accepted,
         ontology=verdict,
-        claim_review=review,
+        attempts=attempts,
     )
     environment.write_text(
         "scratch/report.yaml",
@@ -262,14 +330,17 @@ def run(context) -> dict:
     environment.move("scratch/report.yaml", "outbox/report.yaml")
     return {
         "status": "done",
-        "summary": f"story candidate {'accepted' if verdict.accepted else 'rejected'}",
+        "summary": f"story candidate {'accepted' if verdict.accepted else 'rejected'} "
+                   f"after {len(attempts)} attempt(s), review weight {chosen.review.score if chosen.review else 0}",
     }
 
 
 __all__ = [
+    "build_context_message",
     "build_story_messages",
     "clean_reply",
     "check_ontology",
+    "generate_reviewed",
     "load_ontology",
     "load_prompts",
     "render_prior_dialogue",

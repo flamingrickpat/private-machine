@@ -35,14 +35,14 @@ def example_request(**overrides) -> StoryRequest:
         supported_capabilities=["I can communicate via text."],
         unsupported_capabilities=["I cannot directly act in the physical world."],
         capability_notes=["Never claim capabilities beyond the implementation."],
-        temporal_context="Current causal datetime: 2026-09-29 12:00 UTC",
+        now="2026-09-29T12:00:00",
         prior_dialogue=[
-            DialogueTurn(speaker="Jesse", text="my sink is judging me"),
-            DialogueTurn(speaker="Spamuel", text="then you owe it a dish"),
+            DialogueTurn(speaker="Jesse", text="my sink is judging me", timestamp="2026-09-28T20:00:00"),
+            DialogueTurn(speaker="Spamuel", text="then you owe it a dish", timestamp="2026-09-28T20:01:00"),
         ],
         current_user_message="ok dish is done",
-        feelings=["Spamuel thinks: *she finally did it*"],
-        memories=["*(Fact: Jesse has a sink.)*"],
+        feelings="clear pride and mild tenderness",
+        memories=["Jesse has a sink."],
         workspace="No attention frame is recorded yet.",
     )
     base.update(overrides)
@@ -50,35 +50,36 @@ def example_request(**overrides) -> StoryRequest:
 
 
 class MessageContractTests(unittest.TestCase):
-    def test_exact_message_roles_and_prefix(self):
+    def test_three_roles_and_the_open_prefill_ends_the_story(self):
         messages = build_story_messages(example_request(), load_prompts())
-        self.assertEqual(
-            [message["role"] for message in messages],
-            ["system", "user", "assistant", "user", "assistant"],
-        )
-        self.assertEqual(messages[-1]["content"], 'Spamuel says: "')
+        self.assertEqual([message["role"] for message in messages], ["system", "user", "assistant"])
+        self.assertTrue(messages[-1]["content"].endswith('Spamuel says: "'))
+        self.assertIn("story writer", messages[0]["content"])
 
-    def test_prior_dialogue_is_one_assistant_story_with_both_speakers(self):
+    def test_verbatim_speech_lives_only_in_the_assistant_turn(self):
         messages = build_story_messages(example_request(), load_prompts())
         story = messages[2]["content"]
-        self.assertIn('Jesse says: "my sink is judging me"', story)
-        self.assertIn('Spamuel says: "then you owe it a dish"', story)
-        # No prior turn may leak into the user messages as a separate turn.
-        for message in (messages[1], messages[3]):
-            self.assertNotIn('says: "my sink is judging me"', message["content"])
+        self.assertEqual(story.splitlines()[:3], [
+            'Jesse says: "my sink is judging me"',
+            'Spamuel says: "then you owe it a dish"',
+            'Jesse says: "ok dish is done"',
+        ])
+        for line in ("my sink is judging me", "then you owe it a dish", "ok dish is done"):
+            self.assertNotIn(line, messages[0]["content"] + messages[1]["content"])
 
-    def test_character_background_and_temporal_context_are_message_two(self):
+    def test_derived_context_lives_only_in_the_user_turn(self):
         messages = build_story_messages(example_request(), load_prompts())
-        first_user = messages[1]["content"]
-        self.assertIn("Spamuel is a brash, theatrical companion.", first_user)
-        self.assertIn("2026-09-29 12:00 UTC", first_user)
-        self.assertIn("I cannot directly act in the physical world.", first_user)
+        context = messages[1]["content"]
+        for text in ("Spamuel is a brash, theatrical companion.", "I cannot directly act in the physical world.",
+                     "Jesse has a sink.", "clear pride and mild tenderness", "29 September 2026, 12:00",
+                     "about 16 hours ago"):
+            self.assertIn(text, context)
+            self.assertNotIn(text, messages[2]["content"])
 
-    def test_current_message_is_the_fourth_message(self):
-        messages = build_story_messages(example_request(), load_prompts())
-        fourth = messages[3]["content"]
-        self.assertIn('Jesse says: "ok dish is done"', fourth)
-        self.assertIn("she finally did it", fourth)
+    def test_regeneration_note_reaches_only_the_user_turn(self):
+        messages = build_story_messages(example_request(), load_prompts(), avoid="Do not invent the dish.")
+        self.assertIn("Do not invent the dish.", messages[1]["content"])
+        self.assertNotIn("Do not invent the dish.", messages[2]["content"])
 
 
 class CleanReplyTests(unittest.TestCase):
@@ -154,7 +155,7 @@ class KernelContractTests(unittest.TestCase):
 
         async def story_complete(messages, **generation):
             captured["roles"] = [message["role"] for message in messages]
-            captured["prefix"] = messages[-1]["content"]
+            captured["story"] = messages[-1]["content"]
             return 'Spamuel says: "Pathetic. Bed."\nJesse says: "rude"'
 
         def fake_complete(messages, **generation):
@@ -174,8 +175,8 @@ class KernelContractTests(unittest.TestCase):
         )
         self.assertEqual(result.status, WorkflowStatus.Completed)
         report = engine.StoryReport.model_validate(result.report)
-        self.assertEqual(captured["roles"], ["system", "user", "assistant", "user", "assistant"])
-        self.assertEqual(captured["prefix"], 'Spamuel says: "')
+        self.assertEqual(captured["roles"], ["system", "user", "assistant"])
+        self.assertTrue(captured["story"].endswith('Spamuel says: "'))
         self.assertEqual(report.candidate, "Pathetic. Bed.")
         self.assertTrue(report.accepted)
 

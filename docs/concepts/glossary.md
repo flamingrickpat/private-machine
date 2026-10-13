@@ -225,10 +225,10 @@ A rename changes Python identifiers only.
 - Definition: putting a committed reply on the bus. Commit before publication is an invariant.
 - Owner: `workflows/public_speech/publication.py`.
 
-### claim
+### violation
 
-- Definition: one sentence-level assertion in a candidate reply that the claim review checks against evidence.
-- Owner: `workflows/public_speech/claim_review.py`.
+- Definition: one hallucination that the speech review reports in a draft reply, with a kind, an exact quote, and a policy weight. Lies and exaggeration are never violations.
+- Owner: `workflows/public_speech/speech_review.py`.
 
 ### public context
 

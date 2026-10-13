@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from workflows.public_speech.public_context import PublicContext
-from workflows.public_speech.claim_review import ClaimReview
+from workflows.public_speech.speech_review import SpeechReview
 
 
 class AssistantMessage(BaseModel):
@@ -78,7 +78,7 @@ class AssistantReport(BaseModel):
     tool_receipts: list[ToolReceipt]
     accepted: bool
     rejection_reason: str = ""
-    claim_review: ClaimReview | None = None
+    speech_review: SpeechReview | None = None
 
 
 __all__ = [

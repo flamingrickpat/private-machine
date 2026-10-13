@@ -1,7 +1,7 @@
 """Direct W5 checkpoint-two wiring tests.
 
 No live model and no module thread. A deterministic ``run_stage`` stands in for
-the seven real children, and a deterministic ``story_complete`` stands in for
+the eight real children, and a deterministic ``story_complete`` stands in for
 Story generation. The real parent kernel, the real module adapter, the real
 MemoryStore commits, and the real bus are exercised.
 """
@@ -198,11 +198,12 @@ class StoryDialogueWiringTests(unittest.TestCase):
             return completion
 
         async def public_complete(messages, **generation):
-            if generation["response_format"]["json_schema"]["name"] == "literal_conditions":
-                return '{"conditions": []}'
-            accepted = "I can see you" not in completion
+            # Boundary fixture for the hallucination review: a claimed saved
+            # note with no task result is the blocking kind.
             import json
-            return json.dumps({"accepted": accepted, "claims": [], "reason": "Boundary fixture."})
+            quote = "I saved the note for you"
+            found = [{"kind": "false_task_result", "quote": quote, "why": "no task ran"}] if quote in completion else []
+            return json.dumps({"violations": found})
 
         module = StoryDialogue(
             "dialogue", bus, errors.append, ManualClock(), None,
@@ -249,14 +250,14 @@ class StoryDialogueWiringTests(unittest.TestCase):
             self.assertEqual(feature.content, "That sounds like a mess, Jesse.")
             self.assertEqual(feature.feature_type, FeatureType.Dialogue)
 
-    def test_ontology_rejected_story_is_not_committed(self):
+    def test_blocked_story_is_not_committed(self):
         ghost = _small_ghost()
         with TemporaryDirectory() as tmp:
             bus = BusSystem()
             errors: list[BaseException] = []
             module = self._module(
                 bus, errors, ghost, Path(tmp),
-                'Spamuel says: "I can see you, Jesse."',
+                'Spamuel says: "I saved the note for you, Jesse."',
             )
             replies = Recorder(bus, "dialogue.reply")
             receipts = Recorder(bus, "action.receipt")
@@ -266,7 +267,7 @@ class StoryDialogueWiringTests(unittest.TestCase):
             self.assertEqual(errors, [])
             self.assertEqual(len(replies.events), 1)
             recovery = ghost.get_knoxel_by_id(replies.events[0].payload["knoxel_id"])
-            self.assertNotIn("I can see you", recovery.content)
+            self.assertNotIn("I saved the note", recovery.content)
             self.assertEqual(recovery.metadata["recovery_outcome"], "rejected")
             self.assertEqual(len(receipts.events), 1)
             self.assertEqual(receipts.events[0].payload["status"], "rejected")
@@ -366,9 +367,7 @@ class MultiExchangeTests(unittest.TestCase):
             return f'Spamuel says: "Reply number {counter["n"]}."'
 
         async def public_complete(messages, **generation):
-            if generation["response_format"]["json_schema"]["name"] == "literal_conditions":
-                return '{"conditions": []}'
-            return '{"accepted": true, "claims": [], "reason": "Boundary fixture."}'
+            return '{"violations": []}'
 
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import json
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -20,7 +19,6 @@ from workflows.public_speech.publication import acknowledge_reply, commit_public
 from workflows.public_speech.reply_recovery import ReplyRecovery, task_evidence
 from pm.runs.supervisor import ManagedRunSupervisor
 from workflows.public_speech.public_context import build_public_context
-from workflows.public_speech.claim_review import ClaimReview, validate_claim_review
 
 
 class PublicationTests(unittest.TestCase):
@@ -69,7 +67,6 @@ class PublicationTests(unittest.TestCase):
                     runtime_root=Path(tmp), ghost=self.ghost)
                 module._public_context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": source.id}]})
                 module.invocation_id = "stale-" + status
-                module.grounding_recovery = lambda context: self.fail("Stale evidence reached model recovery.")
                 changes = self.ghost.begin_batch("changed-" + status)
                 source.content = "Changed while the generation was running."
                 changes.replace(source)
@@ -94,7 +91,6 @@ class PublicationTests(unittest.TestCase):
                 tools_factory=lambda environment, batch: {}, runtime_root=Path(tmp), ghost=self.ghost)
             module._public_context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": source.id}]})
             module.invocation_id = "protocol-failure"
-            module.grounding_recovery = lambda context: self.fail("Protocol failure reached semantic recovery.")
             module.reject_reply([Envelope(id="protocol-failure", source="operator", kind="data",
                 topic="action.request", correlation_id=correlation, payload={})],
                 "HTTP 404 from the original request.", status="failed")
@@ -174,31 +170,6 @@ class PublicationTests(unittest.TestCase):
         source = exchange_record(self.ghost, correlation)
         self.assertEqual(source.metadata["exchange_status"], "resolved")
         self.assertIn("unavailable", self.ghost.get_knoxel_by_id(source.metadata["public_reply_id"]).content)
-
-    def test_captured_review_cannot_promote_companion_speech_to_an_event(self):
-        capture = json.loads((Path(__file__).resolve().parents[4] / "test_data/captures/alpha/a09-companion-claim.json").read_text(encoding="utf-8"))
-        context = build_public_context(self.ghost, {})
-        context.evidence = [capture["evidence"]]
-        review = ClaimReview.model_validate({"accepted": capture["accepted"], "claims": [capture["claim"]]})
-        result = validate_claim_review(review, capture["claim"]["text"], context)
-        self.assertFalse(result.accepted)
-        self.assertEqual(result.claims[0].status, "unsupported")
-
-    def test_captured_review_cannot_verify_unsourced_technical_advice(self):
-        capture = json.loads((Path(__file__).resolve().parents[4] / "test_data/captures/alpha/a09-unsourced-claim.json").read_text(encoding="utf-8"))
-        context = build_public_context(self.ghost, {})
-        review = ClaimReview.model_validate({"accepted": capture["accepted"], "claims": [capture["claim"]]})
-        result = validate_claim_review(review, capture["claim"]["text"], context)
-        self.assertFalse(result.accepted)
-        self.assertEqual(result.claims[0].status, "unsupported")
-
-    def test_captured_review_cannot_invent_a_missing_report_as_knowledge_state(self):
-        capture = json.loads((Path(__file__).resolve().parents[4] / "test_data/captures/alpha/a09-missing-report.json").read_text(encoding="utf-8"))
-        context = build_public_context(self.ghost, {})
-        review = ClaimReview.model_validate(capture["review"])
-        result = validate_claim_review(review, capture["candidate"], context)
-        self.assertFalse(result.accepted)
-        self.assertEqual(result.claims[0].status, "unsupported")
 
 
 if __name__ == "__main__":

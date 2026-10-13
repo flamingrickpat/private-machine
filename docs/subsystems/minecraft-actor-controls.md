@@ -103,7 +103,7 @@ Other transient server failures retain cancellation-aware retries.
 The failure classifier does not expose response bodies in public error text.
 The role manifest grants the direct observation tool explicitly.
 Raw tool-call markup cannot pass as a public reply.
-The speech check runs before claim review and publication.
+The speech check runs before the hallucination review and publication.
 
 ## Inspect a failure
 

@@ -4,11 +4,11 @@
     python -m workflows.dialogue_story.run trials --trials 10
     python -m workflows.dialogue_story.run show
 
-``accept`` runs the fixed situation once, applies the ontology boundary, and
-commits an accepted reply to a MemoryStore checkpoint. ``trials`` runs N independent
+``accept`` runs the fixed situation once, with the hallucination review and
+regeneration loop, and commits an accepted reply to a MemoryStore checkpoint. ``trials`` runs N independent
 generations from the same initial MemoryStore state, then activates the evaluator
 over the saved artifacts and reports the quality gate. ``show`` prints the
-exact five messages without contacting a model.
+exact three messages without contacting a model.
 """
 from __future__ import annotations
 
@@ -191,7 +191,7 @@ def main(argv=None) -> int:
     parser.add_argument("--live-test", action=argparse.BooleanOptionalAction, default=True,
                         help="Fail fast on an unavailable endpoint instead of retrying forever.")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("show", help="print the exact five messages without a model")
+    sub.add_parser("show", help="print the exact three messages without a model")
     sub.add_parser("accept", help="run once and commit an accepted reply")
     trials = sub.add_parser("trials", help="run N independent trials and evaluate them")
     trials.add_argument("--trials", type=int, default=10)

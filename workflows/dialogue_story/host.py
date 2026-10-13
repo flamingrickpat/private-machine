@@ -7,6 +7,7 @@ role receives an async completion tool bound to the already-active client.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Callable
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_story.schemas import StoryReport, StoryRequest
@@ -24,6 +25,11 @@ def build_story_tools(model) -> Callable[[object, object], dict]:
 
 
 __all__ = ["build_story_tools"]
+
+
+# Verbatim prior dialogue window for Story generation.
+STORY_DIALOGUE_TURNS = 24
+STORY_TURN_CHARACTERS = 1200
 
 
 class StoryDialogue(PublicDialogue):
@@ -46,8 +52,8 @@ class StoryDialogue(PublicDialogue):
             if str(item.get("text", "")).strip()
         ]
         current = str(stimuli[-1]["text"]) if stimuli else intent
-        memories = [str(item) for item in payload.get("memories", []) if str(item).strip()]
         public = self.public_context(payload)
+        current_ids = [int(item["knoxel_id"]) for item in stimuli if "knoxel_id" in item]
         request = StoryRequest(
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
@@ -55,10 +61,16 @@ class StoryDialogue(PublicDialogue):
             supported_capabilities=[str(item) for item in self.ghost.ghost_config.supported_capabilities],
             unsupported_capabilities=[str(item) for item in self.ghost.ghost_config.unsupported_capabilities],
             capability_notes=[str(item) for item in self.ghost.ghost_config.capability_notes],
-            temporal_context=public.temporal_context,
-            prior_dialogue=_recent_public_dialogue(self.ghost, exclude_ids={item["knoxel_id"] for item in stimuli if "knoxel_id" in item}),
+            now=datetime.utcnow().isoformat(),
+            # Verbatim prior speech anchors the voice. Until the context
+            # planner budgets it, keep a generous fixed window.
+            prior_dialogue=_recent_public_dialogue(self.ghost, STORY_DIALOGUE_TURNS, exclude_ids=set(current_ids),
+                                                   max_chars=STORY_TURN_CHARACTERS),
             current_user_message=current or intent or "(no message)",
-            feelings=[public.affect] if public.affect else [],
+            current_message_id=current_ids[-1] if current_ids else None,
+            feelings=public.feelings,
+            regulation=public.regulation,
+            goals=list(public.goals),
             memories=public.memories,
             workspace=public.workspace,
             selected_action=intent,

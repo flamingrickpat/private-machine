@@ -22,8 +22,9 @@ phases:
 
 # Story dialogue
 
-One standalone Story generation. The role builds the five-message sequence,
-continues the companion prefill, cleans the continuation, and applies the
-private-ontology boundary. The workflow requests no tool call from the
-generation model. It writes no memory; the caller decides what to do with an
-accepted candidate.
+One Story generation. The role builds the three-message sequence (story
+writer, derived context, verbatim transcript with the open companion prefill),
+continues the prefill, cleans the continuation, and reviews it for
+hallucinations. A draft with too much weight is generated again in character.
+The workflow requests no tool call from the generation model. It writes no
+memory; the caller decides what to do with an accepted candidate.

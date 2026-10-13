@@ -246,9 +246,8 @@ class AssistantModuleTests(unittest.TestCase):
         class FakeModel:
             def build_async_tool(self):
                 async def review(messages, **generation):
-                    if generation["response_format"]["json_schema"]["name"] == "literal_conditions":
-                        return '{"conditions": []}'
-                    return '{"accepted": true, "claims": [], "reason": "Boundary fixture."}'
+                    # Boundary fixture: the hallucination review finds nothing.
+                    return '{"violations": []}'
                 return review
 
             def build_tool_completion(self):

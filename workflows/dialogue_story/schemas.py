@@ -10,7 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from workflows.public_speech.public_context import DialogueTurn, PublicContext
-from workflows.public_speech.claim_review import ClaimReview
+from workflows.public_speech.speech_review import SpeechReview
 
 
 class StoryRequest(BaseModel):
@@ -25,10 +25,17 @@ class StoryRequest(BaseModel):
     supported_capabilities: list[str] = Field(default_factory=list)
     unsupported_capabilities: list[str] = Field(default_factory=list)
     capability_notes: list[str] = Field(default_factory=list)
-    temporal_context: str
+    # ISO UTC time of this generation. The prompt renders it and the gap
+    # since the last prior turn in plain words.
+    now: str = ""
     prior_dialogue: list[DialogueTurn] = Field(default_factory=list)
     current_user_message: str = Field(min_length=1)
-    feelings: list[str] = Field(default_factory=list)
+    current_message_id: int | None = None
+    # Accepted feelings in words, for example "strong fear and mild guilt".
+    feelings: str = ""
+    regulation: str = ""
+    goals: list[str] = Field(default_factory=list)
+    # Plain memory lines. Used only when no public context is supplied.
     memories: list[str] = Field(default_factory=list)
     workspace: str = ""
     selected_action: str = ""
@@ -53,6 +60,22 @@ class OntologyVerdict(BaseModel):
     fact_conflicts: list[str] = Field(default_factory=list)
 
 
+class StoryAttempt(BaseModel):
+    """One generation attempt and its hallucination review.
+
+    ``avoid`` is the note that this attempt received from the previous
+    review. ``blocked`` marks a review that still holds a blocking kind.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    raw_completion: str
+    candidate: str
+    review: SpeechReview | None = None
+    avoid: str = ""
+    blocked: bool = False
+
+
 class StoryReport(BaseModel):
     """Everything a reviewer needs to audit one generation."""
 
@@ -66,7 +89,7 @@ class StoryReport(BaseModel):
     candidate: str
     accepted: bool
     ontology: OntologyVerdict
-    claim_review: ClaimReview | None = None
+    attempts: list[StoryAttempt] = Field(default_factory=list)
 
 
 class StoryQualityScore(BaseModel):
@@ -94,6 +117,7 @@ class StoryTrialResult(BaseModel):
 
 __all__ = [
     "DialogueTurn",
+    "StoryAttempt",
     "StoryRequest",
     "OntologyViolation",
     "OntologyVerdict",

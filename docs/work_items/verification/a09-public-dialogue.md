@@ -9,6 +9,10 @@ The operator has rated the five sampled replies and declined regeneration for ev
 Capabilities received 4 out of 5; the other samples received 5 out of 5.
 The operator noted insufficient capability depth.
 
+This page is a historical record. On 2026-10-13, the claim review, the grounding recovery, and the five-message Story prompt were replaced by [Story speech](../../subsystems/story-speech.md).
+In the A15 live runs with `qwen/qwen3.8-flash`, the old review rejected most in-character replies.
+`dev/work_items/alpha_a09_claim_gate.py` was removed with the code that it tested. The receipts below remain unchanged.
+
 Parent: [public dialogue](../../subsystems/public-dialogue.md).
 Delivery: [A09](../alpha-plan/work-items/a09.md).
 Prior failures: [A08 verification](a08-experienced-memory.md) and [A01 baseline](../alpha-plan/baseline/receipts.md).
@@ -79,7 +83,7 @@ Use repeatable `--case NAME` arguments to rerun specific unchanged cases after d
 The receipt lists the selected cases and rejects an incomplete selection.
 The server starts only when the selection includes `connected-capability`.
 
-[`dev.work_items.alpha_a09_claim_gate.run`][] evaluates independently specified claims against original A08 source records.
+The removed `dev/work_items/alpha_a09_claim_gate.py` evaluated independently specified claims against original A08 source records.
 It interprets time and reviews evidence once per unchanged candidate.
 It does not regenerate candidates until they pass.
 

@@ -1,7 +1,9 @@
 """``PublicDialogue``: the shared bus module of Story and Assistant replies.
 
-It guards stale replies, recovers grounding once, and commits each reply
-before publication. Story and Assistant subclass it.
+It guards stale replies and commits each reply before publication. Story
+and Assistant subclass it. Hallucination review and regeneration happen
+inside each workflow role (``speech_review``), so a rejected reply here is
+rare: it means a stale snapshot, a failed run, or a blocking violation.
 """
 from __future__ import annotations
 
@@ -21,11 +23,13 @@ def _recency(knoxel) -> tuple:
     return (getattr(knoxel, "tick_id", 0), getattr(knoxel, "id", 0))
 
 
-def _recent_public_dialogue(ghost, limit: int = 4, *, exclude_ids=()) -> list[DialogueTurn]:
+def _recent_public_dialogue(ghost, limit: int = 4, *, exclude_ids=(), max_chars: int = 240) -> list[DialogueTurn]:
     """Bound prior turns and exclude the input rendered as the current message.
 
     Rendering a pending user input twice invents a repeated conversational turn.
     The original records remain complete in the canonical MemoryStore.
+    Each turn keeps its record id and time. Story uses a larger ``limit`` and
+    ``max_chars``, because its voice depends on verbatim prior lines.
     """
     features = [
         knoxel for knoxel in ghost.all_features
@@ -37,7 +41,8 @@ def _recent_public_dialogue(ghost, limit: int = 4, *, exclude_ids=()) -> list[Di
     features.sort(key=_recency)
     return [
         DialogueTurn(speaker=str(knoxel.override_source or ghost.get_entity_name(knoxel.entity_id) or "unknown"),
-                     text=_clip(str(knoxel.content), 240))
+                     text=_clip(str(knoxel.content), max_chars), knoxel_id=int(knoxel.id),
+                     timestamp=knoxel.timestamp_world_begin.isoformat())
         for knoxel in features[-limit:]
     ]
 
@@ -53,7 +58,6 @@ class PublicDialogue(CognitiveWorkflow):
     """Shared stale guards and observable recovery for public workflows."""
 
     capability_provider = None
-    grounding_recovery = None
 
     def public_context(self, payload):
         capabilities = self.capability_provider() if self.capability_provider else None
@@ -95,38 +99,6 @@ class PublicDialogue(CognitiveWorkflow):
             except GhostConflict as error:
                 status, stale, reason = "stale", True, str(error)
                 text = "That reply became stale before I could send it. Please ask again."
-        recovery = None
-        # A protocol error establishes a failed request, not a user report.
-        # Keep that failure explicit instead of inventing its conversational cause.
-        if status == "rejected" and context is not None and not context.task_receipt and self.grounding_recovery is not None:
-            original = exchange_record(self.ghost, envelope.correlation_id)
-            if original is not None and original.id == context.user_frontier:
-                from pm.llm.http_client import ModelError
-                from workflows.main_cognition.stage_support import StageOutputError
-                try:
-                    sources = [item for item in context.evidence if item.get("evidence_role") in
-                               {"user_report", "runtime_event", "world_observation"}]
-                    fresh = self.public_context({"stimuli": [{"knoxel_id": original.id, "text": original.content}],
-                                                 "memory_evidence": sources})
-                    fresh.presentation = context.presentation
-                    fresh.capabilities["evidence_limit"]["source_use"] = context.capabilities.get(
-                        "evidence_limit", {}).get("source_use", "event")
-                    recovery = self.grounding_recovery(fresh)
-                    # The kernel already finished. Its virtual outbox no longer
-                    # exports new files, so retain this attempt in host artifacts.
-                    artifact = self.runtime_root / self.module_id / self.invocation_id / "workspace" / "outbox" / "grounding-recovery.yaml"
-                    artifact.parent.mkdir(parents=True, exist_ok=True)
-                    artifact.write_text(yaml.safe_dump(recovery, allow_unicode=True), encoding="utf-8")
-                    if recovery["accepted"]:
-                        from workflows.public_speech.public_context import PublicContext
-                        self._public_context = PublicContext.model_validate(recovery["context"])
-                        self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
-                            {"status": status, "workflow_name": self.WORKFLOW_NAME, "rejection_reason": reason,
-                             "recovery_outcome": "grounding_recovered", "recovery": recovery}, causation_id=envelope.id))
-                        self.accept_reply(recovery["candidate"], batch, recovery_outcome="grounding_recovered")
-                        return
-                except (ModelError, StageOutputError, ValueError, OSError) as error:
-                    reason += f"; scoped recovery failed: {type(error).__name__}: {error}"
         if context is not None and context.task_receipt:
             task = context.task_receipt
             if task.get("task_verified"):
@@ -141,7 +113,7 @@ class PublicDialogue(CognitiveWorkflow):
         self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
                                {"status": status, "workflow_name": self.WORKFLOW_NAME,
                                 "rejection_reason": reason, "recovery_outcome": "published" if reply_id else "already_resolved",
-                                "public_reply_id": reply_id, **({"recovery": recovery} if recovery is not None else {})}, causation_id=envelope.id))
+                                "public_reply_id": reply_id}, causation_id=envelope.id))
         if reply_id is not None:
             publish_reply(self.bus, self.module_id, envelope.correlation_id, reply_id,
                           cause=envelope.id, recovery_outcome=status)

@@ -55,55 +55,18 @@ If a crash occurs between delivery and acknowledgement, replay can repeat delive
 Consumers must deduplicate by the public utterance ID.
 The design does not claim exactly-once bus delivery.
 
-## Bounded grounding recovery
+## Rejected replies
 
-[`workflows.public_speech.grounding_recovery.recover_grounding`][] handles semantic rejection for the current original user exchange.
-The receipt preserves the original rejection and its reason.
-The original rejected candidate remains in its workflow report.
-The handler receives the current original user report and the accepted retrieval scope.
-General uncertainty uses only that current original report.
-Evaluating newly reported advice uses this general scope, even if the topic appears in older conversations.
-Event and utterance recall retain original reports from the rejected context.
-The scope comes from `capabilities.evidence_limit.source_use`.
-The host preserves this original scope when it builds a fresh recovery context.
-It retains user reports, actual runtime events, and world observations.
-Derived summaries and earlier companion assertions cannot establish facts in this recovery.
-It clears older memory excerpts, goals, workspace, selected-action prose, and the prior action ID.
-Identity, character voice, accepted affect, capabilities, and ontology remain available.
-A prior withholding choice remains effective.
-An earlier deception choice cannot authorize this new recovery speech.
+A reply reaches the rejection path only when the workflow marks it rejected.
+For Story, that means its best draft still holds a blocking violation (`false_task_result`) after all attempts.
+See [Story speech](story-speech.md#generation-attempts).
+The receipt keeps the rejection reason, and the host publishes the explicit recovery text.
+A task exchange instead publishes the actual task state from its receipt.
 
-The normal chat model generates one bounded uncertainty response at temperature 0.2 with hidden reasoning disabled.
-It uses one short paragraph of two to four sentences.
-It states the known report, missing evidence, and one useful clarification when needed.
-Historical recall identifies the dated original report and quotes a complete original sentence.
-The quotation keeps its pronouns and actor intact.
-The quotation preserves source uncertainty and avoids reconstructed causes or missing thread identifiers.
-When that report answers the historical request, its prompt requests no additional question.
-It forbids an unqualified premise from an adjacent report.
-Older reports answer requests about history, retained names, preferences, or plans with their original dates and uncertainty.
-The partial snapshot cannot justify claiming that memory is absent or that records disappeared.
-It does not supply treatment advice, technical explanations, or unverified current physical conditions.
-The response receives the same time interpretation and evidence review as other public speech.
-The handler never repeats a failed recovery.
-It does not rewrite valid replies or use a quality score.
-
-`outbox/grounding-recovery.yaml` retains the scoped context, new candidate, and claim review.
-The module writes this file into the host workflow workspace after the kernel finishes.
-Writing only to the finished virtual outbox would lose the artifact.
-The action receipt retains both accepted and rejected recovery attempts.
-An accepted response publishes with `recovery_outcome=grounding_recovered`.
-The action receipt still reports the original rejection and its reason.
-Publication applies the fresh source, user, state, capability, and cancellation guards.
-The recovered utterance does not inherit the rejected action's deception attribution.
-
-This handler does not run for stale work or receipt-based task replies.
-Those paths retain their explicit recovery text and task evidence.
-An original protocol failure validates its original source guards, then publishes explicit host failure text.
-It does not invoke semantic model recovery or treat a request's presupposition as a user report.
-The action receipt keeps its failed status and actual protocol error.
-Changed source guards produce the stale reply.
-A rejected or malformed scoped response also reaches the explicit failure reply.
+The A09 grounding recovery was removed on 2026-10-13.
+It rewrote rejected replies in a clinical "you reported" voice, and its own review often failed as well.
+An original protocol failure still validates its source guards and then publishes explicit host failure text.
+Changed source guards still produce the stale reply.
 No exchange depends on an unlimited model retry.
 
 ## Terminal task replies
@@ -117,7 +80,7 @@ Self-management retains that choice and action ID in the durable run arguments.
 If the original exchange remains pending, recovery creates a receipt-based Assistant action.
 The new action retains the original action as its cause.
 The actual task receipt and report accompany the request.
-The public reply still receives the same identity, affect, goals, memory, and claim review as ordinary dialogue.
+The public reply still receives the same identity, affect, goals, memory, and hallucination review as ordinary dialogue.
 If task evidence cannot be read or verified, recovery publishes an explicit failure result.
 It does not leave the exchange pending.
 

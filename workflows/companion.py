@@ -5,7 +5,6 @@ points in ``pm.app`` receive this module; the runtime never imports it.
 """
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 import time
 from pathlib import Path
@@ -329,11 +328,6 @@ def build_app(
         main_cog.retrieval_query_provider = retrieval_query
         dialogue.capability_provider = provider
         assistant.capability_provider = provider
-        from workflows.public_speech.grounding_recovery import recover_grounding
-        def grounding_recovery(context):
-            return asyncio.run(recover_grounding(stage_model.build_async_tool(), context))
-        dialogue.grounding_recovery = grounding_recovery
-        assistant.grounding_recovery = grounding_recovery
         recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
         modules.append(recovery)
         app.reply_recovery = recovery

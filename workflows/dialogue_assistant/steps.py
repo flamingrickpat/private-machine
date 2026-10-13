@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 from workflows.public_speech.public_context import render_public_context, render_factual_focus
-from workflows.public_speech.claim_review import review_public_claims
+from workflows.public_speech.speech_review import is_blocked, load_policy, review_speech
 
 from workflows.dialogue_assistant.schemas import (
     AssistantMessage,
@@ -282,10 +282,15 @@ def run(context) -> dict:
     validate_public_speech(final_text)
     accepted = bool(final_text)
     review = None
-    if request.public_context is not None:
-        review = asyncio.run(review_public_claims(context.runtime.tools["public_complete"], final_text,
-                                                 request.public_context, [item.model_dump(mode="json") for item in receipts]))
-        accepted = accepted and review.accepted
+    if request.public_context is not None and final_text:
+        # Tool replies get one hallucination review and no regeneration loop:
+        # a second tool run could change the world. Only a blocking kind,
+        # such as a claimed tool result that no receipt shows, rejects.
+        policy = load_policy()
+        review = asyncio.run(review_speech(context.runtime.tools["public_complete"], final_text,
+                                           request.public_context, policy=policy,
+                                           receipts=[item.model_dump(mode="json") for item in receipts]))
+        accepted = accepted and not is_blocked(review, policy)
     report = AssistantReport(
         companion_name=request.companion_name,
         message_roles=[message.role for message in messages],
@@ -293,8 +298,9 @@ def run(context) -> dict:
         final_text=final_text,
         tool_receipts=receipts,
         accepted=accepted,
-        rejection_reason="" if accepted else (review.reason if review is not None else "The model returned an empty reply."),
-        claim_review=review,
+        rejection_reason="" if accepted else ("; ".join(f"{item.kind}: {item.quote}" for item in review.violations)
+                                             if review is not None else "The model returned an empty reply."),
+        speech_review=review,
     )
     environment.write_text(
         "scratch/report.yaml",

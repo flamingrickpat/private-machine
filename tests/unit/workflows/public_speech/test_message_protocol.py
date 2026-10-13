@@ -1,7 +1,8 @@
 """Classify the actual A10 parser rejection captured from local chat.
 
-These checks establish HTTP error classification. Live generation verifies
-the repaired inventory transcript separately.
+These checks establish HTTP error classification. The A09 citation checks of
+the old claim review were removed with that review. The hallucination review
+(``speech_review``) has its own tests.
 """
 import json
 from pathlib import Path
@@ -11,8 +12,6 @@ import httpx
 
 from pm.llm.http_client import rejected_message_protocol
 from workflows.dialogue_assistant.steps import validate_public_speech
-from workflows.public_speech.claim_review import ClaimReview, validate_claim_review
-from workflows.public_speech.public_context import PublicContext
 
 
 class MessageProtocolTests(unittest.TestCase):
@@ -30,41 +29,3 @@ class MessageProtocolTests(unittest.TestCase):
         captured = (Path(__file__).resolve().parents[4] / "test_data/captures/alpha/a10-assistant-tool-markup.txt").read_text()
         with self.assertRaisesRegex(ValueError, "tool protocol"):
             validate_public_speech(captured)
-
-    def _inventory_citations(self):
-        """Remap the captured supported clauses to their actual invocation ID.
-
-        The original model invented numeric source IDs. These checks isolate
-        citation validation from the separately required live interpretation.
-        """
-        captured = json.loads((Path(__file__).resolve().parents[4] / "test_data/captures/alpha/a10-inventory-citation.json").read_text(encoding="utf-8"))
-        review = ClaimReview.model_validate(captured["claim_review"])
-        review.accepted = True
-        for claim in review.claims[:2]:
-            claim.status = "supported"
-            claim.evidence_ids = []
-            claim.tool_receipt_ids = [captured["tool_receipts"][0]["tool_call_id"]]
-        return captured, review, PublicContext(companion_name="Spamuel", user_name="Jesse")
-
-    def test_actual_observation_can_support_its_current_inventory(self):
-        captured, review, context = self._inventory_citations()
-        result = validate_claim_review(review, captured["candidate"], context, receipts=captured["tool_receipts"])
-        self.assertTrue(result.accepted)
-
-    def test_failed_observation_cannot_support_current_inventory(self):
-        captured, review, context = self._inventory_citations()
-        captured["tool_receipts"][0]["result"]["ok"] = False
-        self.assertFalse(validate_claim_review(review, captured["candidate"], context,
-                                              receipts=captured["tool_receipts"]).accepted)
-
-    def test_tool_citation_cannot_excuse_an_unknown_numeric_id(self):
-        captured, review, context = self._inventory_citations()
-        review.claims[0].evidence_ids = [11203, 11204]
-        self.assertFalse(validate_claim_review(review, captured["candidate"], context,
-                                              receipts=captured["tool_receipts"]).accepted)
-
-    def test_observation_does_not_replace_a_historical_source(self):
-        captured, review, context = self._inventory_citations()
-        review.claims[0].domain = "history"
-        self.assertFalse(validate_claim_review(review, captured["candidate"], context,
-                                              receipts=captured["tool_receipts"]).accepted)

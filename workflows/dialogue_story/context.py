@@ -6,6 +6,8 @@ the async loop. No raw private thought transcript enters the public request.
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 from pm.memory.embeddings import EmbeddingService
 from pm.memory.retrieval import distinctive_terms
 from pm.records.enums import FeatureType
@@ -60,10 +62,13 @@ async def plan_story_request(
         supported_capabilities=list(ghost.ghost_config.supported_capabilities),
         unsupported_capabilities=[str(item) for item in ghost.ghost_config.unsupported_capabilities],
         capability_notes=[str(item) for item in ghost.ghost_config.capability_notes],
-        temporal_context=str(situation.get("temporal_context") or ghost.build_body_and_situation_addendum()),
+        now=str(situation.get("now") or datetime.utcnow().isoformat()),
         prior_dialogue=prior,
         current_user_message=current,
-        feelings=[public.affect] if public.affect else [],
+        current_message_id=int(source.id),
+        feelings=public.feelings,
+        regulation=public.regulation,
+        goals=list(public.goals),
         memories=public.memories,
         workspace=public.workspace,
         selected_action=public.selected_action,

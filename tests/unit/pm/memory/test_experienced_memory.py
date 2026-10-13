@@ -59,10 +59,14 @@ class ExperiencedMemoryTests(unittest.TestCase):
         messages = build_story_messages(request, load_prompts())
         self.assertEqual(request.current_user_message, "Recall a past failed method.")
         self.assertEqual(request.selected_action, action.content)
-        self.assertIn(action.content, messages[3]["content"])
-        self.assertIn(original.content, messages[3]["content"])
-        self.assertIn(original.metadata["executed_at"], messages[3]["content"])
-        self.assertEqual([m["role"] for m in messages], ["system", "user", "assistant", "user", "assistant"])
+        # The selected intent and the recalled report are derived context and
+        # live in the user turn, without machine labels or evidence ids.
+        context, story = messages[1]["content"], messages[2]["content"]
+        self.assertIn(action.content, context)
+        self.assertIn(original.content, context)
+        self.assertNotIn(original.content, story)
+        self.assertNotIn("evidence=", context)
+        self.assertEqual([m["role"] for m in messages], ["system", "user", "assistant"])
 
     def test_older_original_survives_distractors_and_restart(self):
         with TemporaryDirectory() as tmp:

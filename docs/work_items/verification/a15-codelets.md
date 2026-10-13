@@ -46,6 +46,7 @@ The review marked "over three thousand hours of silence between us" as unsupport
 It marked "I can't verify what exactly happened during that gap" as `uncertain`, although the sentence states the limit correctly.
 Each turn spent 8 to 15 minutes in dialogue and claim review.
 A15 does not change this path. The gate records it in `facts.speech` and does not count it as an A15 failure.
+The review and recovery were replaced after these runs. See [Story speech](../../subsystems/story-speech.md).
 
 ## Open checks
 
