@@ -55,6 +55,7 @@ def _reports(stimulus_id: int, *, appraisal=None, emotion=None, need=None, actio
             "summary": "a",
         },
         "context": {"memories": [], "candidate_ids": [], "summary": "c"},
+        "codelets": {"proposals": [], "runs": [], "summary": "codelets"},
         "attention": {"selected_ids": [stimulus_id], "nominations": [], "summary": "n"},
         "goals": {"changes": [], "summary": "g"},
         "workspace": {"frame_reason": "reply", "focus_ids": [stimulus_id],

@@ -45,6 +45,24 @@ Library code receives a config path explicitly.
 Relative script and cache paths resolve from that file's directory.
 Config parsing and connection resolution make no network requests.
 
+### Hosted chat through OpenRouter
+
+A chat preset can use `https://openrouter.ai/api/v1` with `api_key_env: OPENROUTER_API_KEY`.
+OpenRouter has no `/props` route, so set `context_window` in the preset.
+Context measurement then uses the labelled `tiktoken` estimate.
+
+Workflows switch thinking off with `chat_template_kwargs: {enable_thinking: false}`.
+A local llama.cpp server honors this field. OpenRouter ignores it and keeps reasoning on.
+For the exact `openrouter.ai` host, [`provider_generation`][pm.llm.activation.provider_generation] adds the equivalent `reasoning: {enabled: false}`.
+An explicit `reasoning` field from the caller always wins.
+Other hosts receive the request unchanged.
+
+A measured `qwen/qwen3.8-flash` request on 2026-10-13 returned 24 reasoning tokens with only `chat_template_kwargs`.
+The same request with `reasoning.enabled: false` returned 0 reasoning tokens.
+
+OpenRouter serves `qwen/qwen3.8-flash` only through Alibaba, at a precision that OpenRouter does not report.
+A result from OpenRouter therefore does not establish the behavior of a Q3 build of the same model.
+
 ## Code ownership
 
 | File | Responsibility |

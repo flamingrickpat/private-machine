@@ -1,16 +1,29 @@
 """Attention role.
 
-Entry point: ``run(context)``. Builds the attention messages, validates the
-model JSON into :class:`AttentionResult`, rejects citations of knoxel ids that
-were not supplied as candidates, and writes ``outbox/report.yaml``. The message
-builder and the id guard are pure and tested without a kernel, model, or MemoryStore.
+Entry point: ``run(context)``. Since A15 the role works in two steps:
+
+1. Scoring (model). The codelets stage supplies typed proposals. The role
+   asks the model for four 0..10 integer scores per proposal, in batches of
+   ``score_batch_size``. A batch that misses ids gets one repair request for
+   only the missing ids. A proposal that still has no score is ``rejected``
+   as ``unscored``.
+2. Selection (pure Python). ``attention_competition.compete`` chooses the
+   winners and gives every nomination a status and a reason.
+
+The role writes :class:`AttentionResult` to ``outbox/report.yaml``. It never
+writes memory. Target ids come only from proposals, and the codelets stage
+already limited them to supplied stimuli, memories, and goals; the id guard
+here repeats that check at the stage boundary.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from workflows.main_cognition.schemas import AttentionResult
+from workflows.main_cognition.attention_competition import compete
+from workflows.main_cognition.codelet_schedule import AttentionPolicy, in_danger
+from workflows.main_cognition.schemas import (
+    AttentionNomination, AttentionResult, CodeletProposal, NominationScores,
+)
 from workflows.main_cognition.stage_support import (
     StageOutputError, complete_json, load_yaml, read_request, write_report,
 )
@@ -24,22 +37,6 @@ def load_prompts(path: Path | None = None) -> dict:
 
 def candidate_ids(candidates: list[dict]) -> set[int]:
     return {int(candidate["knoxel_id"]) for candidate in candidates}
-
-
-def render_candidates(candidates: list[dict]) -> str:
-    lines = []
-    for candidate in candidates:
-        lines.append(
-            f"- id={candidate.get('knoxel_id')} kind={candidate.get('kind', '')} "
-            f"text={candidate.get('text', '')!r}"
-        )
-    return "\n".join(lines) or "(none)"
-
-
-def render_block(value) -> str:
-    if value is None:
-        return "(none)"
-    return json.dumps(value, indent=2, sort_keys=False, default=str)
 
 
 def ensure_candidate_ids(result: AttentionResult, allowed: set[int]) -> None:
@@ -58,41 +55,97 @@ def ensure_candidate_ids(result: AttentionResult, allowed: set[int]) -> None:
             )
 
 
-def build_messages(request: dict, prompts: dict) -> list[dict]:
-    candidates = list(request.get("candidates", []))
-    system = prompts["system_prompt"].format(
-        companion_name=request.get("companion_name", "Spamuel"),
+def proposals_from(request: dict) -> list[CodeletProposal]:
+    return [CodeletProposal.model_validate(item)
+            for item in (request.get("codelets") or {}).get("proposals", [])]
+
+
+def render_items(proposals: list[CodeletProposal], prompts: dict) -> str:
+    labels = prompts["reality_labels"]
+    lines = [f'- {item.nomination_id} ({labels.get(item.reality, item.reality)}): "{item.text}"'
+             for item in proposals]
+    return "\n".join(lines) or "(none)"
+
+
+def build_messages(request: dict, prompts: dict, proposals: list[CodeletProposal]) -> list[dict]:
+    companion = request.get("companion_name", "Spamuel")
+    user = request.get("user_name", "Jesse")
+    system = prompts["system_prompt"].format(companion_name=companion, user_name=user)
+    affect = request.get("affect") or {}
+    user_message = prompts["user_template"].format(
+        companion_name=companion, user_name=user,
+        affect=affect.get("summary") or request.get("state_summary") or "(calm, nothing strong)",
+        active_goals="\n".join(f"- {goal}" for goal in request.get("active_goals", [])) or "(none)",
+        items=render_items(proposals, prompts),
     )
-    user = prompts["user_template"].format(
-        companion_name=request.get("companion_name", "Spamuel"),
-        user_name=request.get("user_name", "Jesse"),
-        state_summary=request.get("state_summary") or "(no recorded state update)",
-        affect=render_block(request.get("affect")),
-        active_goals=", ".join(request.get("active_goals", [])) or "(none)",
-        triage=render_block(request.get("triage")),
-        appraisal=render_block(request.get("appraisal")),
-        context=render_block(request.get("context")),
-        candidates=render_candidates(candidates),
-    )
-    return [
-        {"role": "system", "content": system.strip()},
-        {"role": "user", "content": user.strip()},
-    ]
+    return [{"role": "system", "content": system.strip()}, {"role": "user", "content": user_message.strip()}]
+
+
+def score_batch(context, request: dict, prompts: dict, batch: list[CodeletProposal]) -> dict[str, dict]:
+    """Return ``{nomination_id: score dict}`` for one batch.
+
+    Unknown ids in the model answer are ignored. Missing ids get one repair
+    request that lists only those items.
+    """
+    wanted = {item.nomination_id for item in batch}
+    messages = build_messages(request, prompts, batch)
+    result = complete_json(context, messages, NominationScores, temperature=0.1,
+                           chat_template_kwargs={"enable_thinking": False})
+    scores = {item.id: item.model_dump() for item in result.scores if item.id in wanted}
+    missing = [item for item in batch if item.nomination_id not in scores]
+    if missing:
+        repair = [*messages, {"role": "assistant", "content": result.model_dump_json()},
+                  {"role": "user", "content": prompts["repair_template"].format(
+                      missing=", ".join(item.nomination_id for item in missing),
+                      items=render_items(missing, prompts))}]
+        retry = complete_json(context, repair, NominationScores, temperature=0.1,
+                              chat_template_kwargs={"enable_thinking": False})
+        for item in retry.scores:
+            if item.id in wanted and item.id not in scores:
+                scores[item.id] = item.model_dump()
+    return scores
+
+
+def nominations_from(proposals: list[CodeletProposal], scores: dict[str, dict]) -> list[AttentionNomination]:
+    """Merge proposals and their 0..10 scores into 0..1 nominations."""
+    nominations = []
+    for proposal in proposals:
+        score = scores.get(proposal.nomination_id)
+        nomination = AttentionNomination(
+            target_ids=list(proposal.target_ids), attention_kind=proposal.proposal_kind,
+            nomination_id=proposal.nomination_id, codelet=proposal.codelet, family=proposal.family,
+            origin=proposal.origin, reality=proposal.reality, text=proposal.text, cause=list(proposal.cause),
+            activation=proposal.activation, source_revisions=dict(proposal.source_revisions),
+        )
+        if score is None:
+            nomination.status, nomination.reason, nomination.score = "rejected", "unscored", 0.0
+        else:
+            for axis in ("urgency", "novelty", "goal_relevance", "reportability"):
+                setattr(nomination, axis, round(int(score[axis]) / 10.0, 2))
+            nomination.reasoning = str(score.get("why", ""))
+        nominations.append(nomination)
+    return nominations
 
 
 def run(context) -> dict:
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
-    messages = build_messages(request, prompts)
-    result = complete_json(context, messages, AttentionResult, temperature=0.2)
-    ensure_candidate_ids(result, candidate_ids(list(request.get("candidates", []))))
+    proposals = proposals_from(request)
+    policy = AttentionPolicy.model_validate((request.get("codelets") or {}).get("policy") or {})
+    scores: dict[str, dict] = {}
+    for start in range(0, len(proposals), policy.score_batch_size):
+        scores.update(score_batch(context, request, prompts, proposals[start:start + policy.score_batch_size]))
+    danger = in_danger((request.get("codelets") or {}).get("signals") or {})
+    result = compete(nominations_from(proposals, scores), policy, danger=danger)
+    result.competition["scoring_calls"] = -(-len(proposals) // policy.score_batch_size) if proposals else 0
+    allowed = candidate_ids(list(request.get("candidates", [])))
+    allowed |= {int(goal["knoxel_id"]) for goal in request.get("active_goal_records", [])}
+    ensure_candidate_ids(result, allowed)
     write_report(context.runtime.environment, result)
+    winners = sum(1 for item in result.nominations if item.status == "selected")
     return {
         "status": "done",
-        "summary": (
-            f"nominated {len(result.nominations)} and selected "
-            f"{len(result.selected_ids)} candidates"
-        ),
+        "summary": f"scored {len(scores)} of {len(proposals)} nominations and selected {winners}",
     }
 
 
@@ -101,7 +154,9 @@ __all__ = [
     "candidate_ids",
     "ensure_candidate_ids",
     "load_prompts",
-    "render_block",
-    "render_candidates",
+    "nominations_from",
+    "proposals_from",
+    "render_items",
     "run",
+    "score_batch",
 ]

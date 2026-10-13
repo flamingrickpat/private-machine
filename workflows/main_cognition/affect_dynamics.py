@@ -47,6 +47,8 @@ EXPECTATION_SURPRISE_GAIN = 0.40
 
 # Behavior-mapping thresholds. These names have defined effects, not labels.
 THREAT_FEAR_THRESHOLD = 0.55
+# Appraised bodily threat at which danger preempts contemplation.
+THREAT_APPRAISAL_THRESHOLD = 0.6
 ANGER_REACTIVE_THRESHOLD = 0.60
 SADNESS_REFLECTIVE_THRESHOLD = 0.50
 WITHDRAWAL_REFLECTIVE_THRESHOLD = 0.55
@@ -361,7 +363,7 @@ def _behavior_mapping(state: FullMentalState, attention_bias: tuple[float, float
     # come from the appraisal axes even before a discrete fear value forms.
     threat = float(state.appraisal_general.bodily_threat)
     aversive = float(state.appraisal_general.aversive_pressure)
-    if (threat >= 0.6 or aversive >= 0.75
+    if (threat >= THREAT_APPRAISAL_THRESHOLD or aversive >= 0.75
             or emotions.fear >= THREAT_FEAR_THRESHOLD
             or emotions.anger >= ANGER_REACTIVE_THRESHOLD):
         regulation = REGULATION_REACTIVE

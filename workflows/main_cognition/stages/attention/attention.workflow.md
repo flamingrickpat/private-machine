@@ -22,8 +22,10 @@ phases:
 
 # Attention
 
-Nominate and rank the candidate knoxels that matter for this cycle. Weigh
-urgency, novelty, goal relevance, and reportability against the appraisal and
-retrieved context. Dangerous or goal-blocking items outrank benign detail, and
-repetition does not by itself defeat salience. Select only ids that were
-supplied as candidates. It never writes memory.
+Score the codelet nominations of this cycle and choose the winners. The model
+gives four integer scores per nomination: urgency, novelty, goal relevance,
+and reportability. Python then runs the inspectable competition in
+`workflows/main_cognition/attention_competition.py`: reserved places,
+capacity, a minimum score, and a danger bonus for urgency. Every nomination
+receives a status and a reason. Target ids come only from supplied
+candidates. It never writes memory.

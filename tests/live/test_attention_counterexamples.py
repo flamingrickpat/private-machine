@@ -1,8 +1,9 @@
 """W5 live attention counterexamples.
 
 The deterministic attention contract test fixes the model output. This live
-test asks the real backend to rank candidates and asserts the contract the
-plan names: a dangerous item outranks a benign visual detail, a paraphrase
+test asks the real backend to score one ``direct_stimulus`` nomination per
+candidate, as the A15 codelets stage supplies them, and asserts the contract
+the plan names: a dangerous item outranks a benign visual detail, a paraphrase
 still selects the danger, and every returned id is a supplied candidate.
 
 Missing endpoints fail the suite. No generation speed target exists.
@@ -49,6 +50,12 @@ def attention_payload(candidates: list[dict]) -> dict:
         ]},
         "appraisal": {"feeling": "curious", "reasoning": "the situation is mixed"},
         "context": {"candidate_ids": candidate_ids},
+        "codelets": {"proposals": [
+            {"nomination_id": f"n{index + 1}", "codelet": "direct_stimulus", "proposal_kind": "attention",
+             "origin": "outside", "reality": "observed", "text": candidate["text"],
+             "target_ids": [candidate["knoxel_id"]]}
+            for index, candidate in enumerate(candidates)
+        ]},
         "candidates": candidates,
     }
 

@@ -15,6 +15,7 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Event, Lock
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -118,6 +119,27 @@ class ChatResult(BaseModel):
     choices: list[ChatChoice] = Field(min_length=1)
 
 
+OPENROUTER_HOST = "openrouter.ai"
+
+
+def provider_generation(connection: Connection, generation: dict) -> dict:
+    """Translate the thinking switch for a hosted OpenRouter connection.
+
+    Workflows request a non-thinking call with the llama.cpp field
+    ``chat_template_kwargs.enable_thinking``. A local llama.cpp server honors
+    it. OpenRouter ignores it and keeps reasoning on, so the same call costs
+    reasoning tokens and time, and it behaves differently from the local
+    deployment. For the exact ``openrouter.ai`` host, this function adds the
+    equivalent ``reasoning.enabled`` field. An explicit ``reasoning`` field
+    from the caller always wins. Other hosts receive the payload unchanged.
+    """
+    host = (urlsplit(connection.base_url).hostname or "").lower()
+    thinking = (generation.get("chat_template_kwargs") or {}).get("enable_thinking")
+    if host != OPENROUTER_HOST or not isinstance(thinking, bool) or "reasoning" in generation:
+        return generation
+    return {**generation, "reasoning": {"enabled": thinking}}
+
+
 class ChatClient:
     def __init__(self, connection: Connection, activation: ModelActivation, *, live_test: bool = False):
         self.connection = connection
@@ -129,7 +151,8 @@ class ChatClient:
             raise ValueError("Use the resolved model and non-streaming response path.")
         with self.activation.use(self.connection):
             response = await self.client.request("POST", "chat/completions", payload={
-                **generation, "model": self.connection.model, "messages": messages, "stream": False,
+                **provider_generation(self.connection, generation), "model": self.connection.model,
+                "messages": messages, "stream": False,
             }, cancel=cancel)
         try:
             result = ChatResult.model_validate(response)

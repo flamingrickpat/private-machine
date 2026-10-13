@@ -172,7 +172,7 @@ A rename changes Python identifiers only.
 
 ### stage
 
-- Definition: one of the seven ordered child workflows of a cognition cycle: triage, appraisal, context, attention, goals, workspace, action selection.
+- Definition: one of the eight ordered child workflows of a cognition cycle: triage, appraisal, context, codelets, attention, goals, workspace, action selection.
 - Not: a role or a skill file.
 
 ### mental state

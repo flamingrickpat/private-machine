@@ -84,7 +84,7 @@ class LiveCognitionCycleTests(unittest.TestCase):
             "generation_requests": self.client.client.request_count,
         })
         self.assertEqual(result.status.value, "completed")
-        self.assertEqual(len(report.receipts), 7)
+        self.assertEqual(len(report.receipts), 8)
         self.assertTrue(report.dispatches, "the cycle selected no action")
         self.assertTrue(
             any(dispatch.status == "dispatched" for dispatch in report.dispatches),

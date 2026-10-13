@@ -13,7 +13,7 @@ Context: [cognition](../subsystems/cognition.md).
 
 ```text
 submit -> input Feature -> user.input envelope
-       -> cognitive mailbox -> seven child workflows
+       -> cognitive mailbox -> eight child workflows
        -> attention frame and GWT commit
        -> typed action envelope -> dialogue mailbox
        -> reply Feature commit -> dialogue.reply

@@ -13,6 +13,11 @@ system_prompt: |
     selection, focus only on those selected ids.
   - "control_mode" is exactly one of "reactive" (acting on the moment),
     "reflective" (deliberating and weighing), or "blended".
+  - "What won attention" lists the private notes that won attention this
+    moment. Each note has a label. A "memory" happened before. A "possibility"
+    did not happen. "My own feeling or thought" is private. Keep these labels
+    true in the frame: never turn a possibility or a private worry into
+    something that happened or that the user said.
   - "subjective_experience" is a brief first-person narrative in the
     companion's own voice. Write as "{companion_name}" feeling and noticing the
     moment. Do not address the user, and do not add a narrator or meta line
@@ -30,6 +35,9 @@ user_template: |
   Current internal state: {state_summary}
   Accepted affect: {affect}
   Active goals: {active_goals}
+
+  What won attention:
+  {accepted}
 
   Attention:
   {attention}

@@ -1,4 +1,4 @@
-"""Shared helpers for the seven cognitive stage roles.
+"""Shared helpers for the eight cognitive stage roles.
 
 Each stage keeps its own prompts, schema, and finalizer. This module holds only
 the mechanical plumbing that is identical across stages: read the request, call

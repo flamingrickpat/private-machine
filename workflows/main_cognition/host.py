@@ -19,7 +19,7 @@ from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.enums import ActionType, FeatureType, SourceKind
-from pm.records.cognitive_records import AttentionFrameRecord
+from pm.records.cognitive_records import AttentionFrameRecord, AttentionRecord
 from pm.records.mental_state import FullMentalState, create_empty_state
 from workflows.main_cognition.experience import consolidate_cycle, update_beliefs
 from pm.bus.envelopes import Envelope, new_id
@@ -104,6 +104,68 @@ def _state_summary(ghost) -> str:
     return str(getattr(turns[max(turns)], "summary", ""))
 
 
+def codelet_history(ghost) -> dict[str, dict]:
+    """Return per-codelet run history from committed attention frames.
+
+    Each committed ``AttentionFrameRecord`` stores the codelets that ran in
+    its cycle under ``metadata["codelet_runs"]``. Runs that stayed silent
+    count too, so a quiet LLM codelet still waits out its cooldown and does
+    not spend a model call every cycle. The history is derived, never stored
+    separately, so it survives restart and has one owner: the MemoryStore.
+
+    ``cycles_since`` is the number of committed cycles after the last run.
+    ``seconds_since`` uses the frame's creation time.
+    """
+    frames = sorted(ghost.all_attention_frames, key=lambda item: (item.tick_id, item.id))
+    if not frames:
+        return {}
+    latest_tick = max(int(item.tick_id) for item in frames)
+    now = datetime.utcnow()
+    history: dict[str, dict] = {}
+    for frame in frames:
+        for entry in frame.metadata.get("codelet_runs", []) or []:
+            name = str(entry.get("codelet", ""))
+            if not name or entry.get("status") not in {"ran", "silent", "failed"}:
+                continue
+            record = history.setdefault(name, {"runs": 0})
+            record["runs"] += 1
+            record["last_tick"] = int(frame.tick_id)
+            record["cycles_since"] = latest_tick - int(frame.tick_id)
+            record["seconds_since"] = max(0.0, (now - frame.timestamp_creation).total_seconds())
+    return history
+
+
+def seconds_since_user_input(ghost, exclude_ids) -> float | None:
+    """Return seconds since the newest earlier user message, or None.
+
+    The current batch's own messages are excluded; otherwise every message
+    would measure an idle time of zero.
+    """
+    user = ghost.get_user_name()
+    excluded = {int(item) for item in exclude_ids}
+    times = [knoxel.timestamp_world_begin for knoxel in ghost.all_features
+             if knoxel.feature_type == FeatureType.Dialogue and knoxel.source == user
+             and int(knoxel.id) not in excluded]
+    if not times:
+        return None
+    return max(0.0, (datetime.utcnow() - max(times)).total_seconds())
+
+
+def stale_nominations(nominations, revisions) -> set[str]:
+    """Return ids of nominations whose read sources changed before commit.
+
+    ``revisions`` is the commit batch's current revision map. A source that is
+    missing from it was removed, which also makes the proposal stale.
+    """
+    stale = set()
+    for nomination in nominations:
+        for key, seen in (nomination.source_revisions or {}).items():
+            if revisions.get(int(key)) != int(seen):
+                stale.add(nomination.nomination_id)
+                break
+    return stale
+
+
 def _projection_from_report(report, previous_vec) -> AffectProjection | None:
     """Rebuild the parent affect projection from the committed report.
 
@@ -134,7 +196,7 @@ def _projection_from_report(report, previous_vec) -> AffectProjection | None:
 
 
 class MainCogLoop(CognitiveWorkflow):
-    """Real cognitive parent: seven stages, committed GWT, typed dispatches.
+    """Real cognitive parent: eight stages, committed GWT, typed dispatches.
 
     The parent workflow owns the stage order and the dispatch ids. This module
     owns the bus: it builds one typed request from the batch, commits one
@@ -149,8 +211,12 @@ class MainCogLoop(CognitiveWorkflow):
         "system.lifecycle",
     })
 
-    def __init__(self, *args, workflow_catalogue=None, embedding_config_path=None, **kwargs):
+    def __init__(self, *args, workflow_catalogue=None, embedding_config_path=None,
+                 codelet_catalogue=None, **kwargs):
         super().__init__(*args, **kwargs)
+        # The codelet catalogue is a workflow resource. ``None`` selects the
+        # default file; a gate or persona can name another one.
+        self.codelet_catalogue = str(codelet_catalogue) if codelet_catalogue else ""
         # Configuration supplies the action space. The fixed catalogue remains
         # the fallback so direct tests and older callers keep working.
         self.workflow_catalogue = list(workflow_catalogue) if workflow_catalogue else None
@@ -300,6 +366,15 @@ class MainCogLoop(CognitiveWorkflow):
             managed_runs=[{key: run.get(key) for key in
                           ("run_id", "workflow_name", "state", "instructions", "parent_correlation")}
                           for run in list(self.ghost.managed_runs.values())[-16:]],
+            stimulus_revisions={str(key): int(value) for key, value in self._stimulus_revisions.items()},
+            active_goal_records=[
+                {"knoxel_id": int(item.id), "text": str(item.content),
+                 "revision": int(memory_view.revisions.get(int(item.id), 1))}
+                for item in active_intentions(memory_view)[:8]
+            ],
+            codelet_history=codelet_history(self.ghost),
+            seconds_since_user_input=seconds_since_user_input(self.ghost, self._stimulus_ids),
+            codelet_catalogue=self.codelet_catalogue,
         )
         return request.model_dump(mode="json")
 
@@ -417,17 +492,64 @@ class MainCogLoop(CognitiveWorkflow):
                                       permitted_source_ids=set(self._stimulus_ids))
         experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, parsed.affect_summary)
 
+        # Commit every nomination, winner or not, as an AttentionRecord. A
+        # nomination whose read sources changed since the cycle began is
+        # marked stale and cannot win. The cycle itself continues: one stale
+        # proposal must not cost the user a reply.
+        stale = stale_nominations(parsed.nominations, view.revisions)
+        trace = dict(parsed.codelet_trace or {})
+        attention_ids: list[int] = []
+        winning_ids: list[int] = []
+        for nomination in parsed.nominations:
+            status, reason = nomination.status, nomination.reason
+            if nomination.nomination_id in stale:
+                status, reason = "stale", "a source changed before commit; was " + (nomination.status or "unscored")
+            record = changes.create(AttentionRecord(
+                content=nomination.text or nomination.reasoning or nomination.attention_kind,
+                tick_id=tick,
+                target_knoxel_ids=[int(key) for key in nomination.target_ids],
+                attention_kind=nomination.attention_kind,
+                score=max(0.0, min(1.0, float(nomination.score))),
+                novelty=float(nomination.novelty), urgency=float(nomination.urgency),
+                goal_relevance=float(nomination.goal_relevance), reportability=float(nomination.reportability),
+                competition_group="main",
+                selected=status == "selected",
+                from_codelet=nomination.codelet,
+                metadata={
+                    "nomination_id": nomination.nomination_id, "status": status, "reason": reason,
+                    "origin": nomination.origin, "reality": nomination.reality, "family": nomination.family,
+                    "cause": list(nomination.cause), "activation": nomination.activation,
+                    "source_revisions": dict(nomination.source_revisions), "why": nomination.reasoning,
+                    "loop": trace.get("loop", "main"),
+                    "catalogue_version": trace.get("catalogue_version", ""),
+                    "catalogue_digest": trace.get("catalogue_digest", ""),
+                },
+            ))
+            attention_ids.append(record.id)
+            if status == "selected":
+                winning_ids.append(record.id)
         frame = changes.create(AttentionFrameRecord(
             content=parsed.frame_reason or parsed.summary,
             tick_id=tick,
             focus_knoxel_ids=list(parsed.focus_ids),
-            winning_attention_ids=list(parsed.winning_attention_ids),
+            # Older reports carry no nominations; keep their selected ids.
+            winning_attention_ids=winning_ids if parsed.nominations else list(parsed.winning_attention_ids),
             active_goal_ids=goal_ids or list(parsed.active_goal_ids),
             control_mode=parsed.control_mode,
             frame_reason=parsed.frame_reason or parsed.summary,
+            metadata={
+                "codelet_runs": [{key: run.get(key) for key in
+                                  ("codelet", "kind", "status", "reason", "activation", "calls")}
+                                 for run in trace.get("runs", [])],
+                "codelet_cost": trace.get("cost", {}),
+                "catalogue_version": trace.get("catalogue_version", ""),
+                "catalogue_digest": trace.get("catalogue_digest", ""),
+                "stale_nominations": sorted(stale),
+                "attention_record_ids": attention_ids,
+            },
         ))
         created_order: list[int] = [frame.id, appraisal_feature.id, *created_goal_ids, *experience_ids,
-                                    *belief_receipt["accepted_ids"]]
+                                    *belief_receipt["accepted_ids"], *winning_ids]
         published: list[tuple] = []
         rejected = []
         queued = []

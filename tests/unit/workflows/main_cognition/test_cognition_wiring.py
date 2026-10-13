@@ -46,6 +46,7 @@ def _fake_reports(stimulus_id: int, candidate_id: int) -> dict:
         "triage": {"items": [{"knoxel_id": stimulus_id, "category": "Critical"}], "summary": "triaged"},
         "appraisal": {"feeling": "alarmed", "emotion_delta": {"anxiety": 0.4}, "summary": "appraised"},
         "context": {"memories": ["fire extinguisher"], "candidate_ids": [candidate_id], "summary": "context"},
+        "codelets": {"proposals": [], "runs": [], "summary": "codelets"},
         "attention": {"selected_ids": [stimulus_id], "nominations": [], "summary": "attention"},
         "goals": {"changes": [], "summary": "goals"},
         "workspace": {
@@ -348,6 +349,7 @@ class MultiExchangeTests(unittest.TestCase):
                 "triage": {"items": [{"knoxel_id": stimulus_id, "category": "Critical"}], "summary": "t"},
                 "appraisal": {"feeling": "curious", "summary": "a"},
                 "context": {"candidate_ids": context_ids, "summary": "c"},
+                "codelets": {"proposals": [], "runs": [], "summary": "codelets"},
                 "attention": {"selected_ids": selected, "nominations": [], "summary": "n"},
                 "goals": {"changes": [], "summary": "g"},
                 "workspace": {"frame_reason": "reply", "focus_ids": selected, "summary": "w"},

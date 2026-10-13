@@ -80,5 +80,29 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.request_count, 0)
 
 
+class ProviderGenerationTests(unittest.TestCase):
+    """The thinking switch reaches OpenRouter in its own field."""
+
+    def _connection(self, url):
+        from pm.llm.config import Connection
+        return Connection(base_url=url, model="m")
+
+    def test_openrouter_receives_reasoning_enabled(self):
+        from pm.llm.activation import provider_generation
+        generation = {"temperature": 0.1, "chat_template_kwargs": {"enable_thinking": False}}
+        result = provider_generation(self._connection("https://openrouter.ai/api/v1"), generation)
+        self.assertEqual(result["reasoning"], {"enabled": False})
+        self.assertNotIn("reasoning", generation)
+
+    def test_local_host_and_explicit_reasoning_stay_unchanged(self):
+        from pm.llm.activation import provider_generation
+        generation = {"chat_template_kwargs": {"enable_thinking": False}}
+        local = provider_generation(self._connection("http://127.0.0.1:8080/v1"), generation)
+        self.assertEqual(local, generation)
+        explicit = {**generation, "reasoning": {"effort": "low"}}
+        hosted = provider_generation(self._connection("https://openrouter.ai/api/v1"), explicit)
+        self.assertEqual(hosted["reasoning"], {"effort": "low"})
+
+
 if __name__ == "__main__":
     unittest.main()

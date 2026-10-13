@@ -41,6 +41,7 @@ def fake_reports() -> dict:
         "triage": {"items": [{"knoxel_id": 11, "category": "Critical"}]},
         "appraisal": {"feeling": "alarmed", "emotion_delta": {"anxiety": 0.5}},
         "context": {"memories": ["Jesse owns a fire extinguisher."], "candidate_ids": [42]},
+        "codelets": {"proposals": [], "runs": [], "summary": "codelets"},
         "attention": {"selected_ids": [11], "nominations": []},
         "goals": {"changes": [{"change": "add", "goal": "put out the fire"}]},
         "workspace": {"frame_reason": "fire", "focus_ids": [11], "subjective_experience": "Everything is loud."},
@@ -74,7 +75,7 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("triage", payloads["appraisal"])
         self.assertIn("appraisal", payloads["attention"])
         self.assertIn("attention", payloads["workspace"])
-        self.assertEqual(len(report.receipts), 7)
+        self.assertEqual(len(report.receipts), 8)
         expected_ids = [
             intent.get("action_id") or stable_action_id(intent, index)
             for index, intent in enumerate(fake_reports()["action_selection"]["actions"])
@@ -146,7 +147,7 @@ class KernelTests(unittest.TestCase):
         result = runner.invoke(WorkflowRequest("cycle-kernel-1", example_request()), runtime)
         self.assertEqual(result.status, WorkflowStatus.Completed)
         report = CognitiveReport.model_validate(result.report)
-        self.assertEqual(len(report.receipts), 7)
+        self.assertEqual(len(report.receipts), 8)
         first = fake_reports()["action_selection"]["actions"][0]
         self.assertEqual(report.dispatches[0].action_id, first.get("action_id") or stable_action_id(first, 0))
 

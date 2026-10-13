@@ -111,7 +111,7 @@ The host retains at most 24 ontology records in this context.
 An imported term cannot establish a new sensory mechanism.
 Metaphor and compound emotion descriptions remain permitted with clear attribution.
 
-All seven cognitive generating stages receive the same domain and ontology boundary.
+The generating cognitive stages receive the same domain and ontology boundary. The codelets and attention scoring calls omit it; see [codelets](codelets.md).
 The cognitive affect projection still supplies each stage's prospective state separately.
 The production action path uses domain evidence instead of the older global physical-verb guard.
 Legacy direct requests retain their compatibility guard until callers supply the common contract.

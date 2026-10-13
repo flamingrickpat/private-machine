@@ -2,7 +2,7 @@
 
 ## Summary
 
-The parent workflow runs seven stages in a fixed order.
+The parent workflow runs eight stages in a fixed order.
 Later stages receive earlier reports.
 The module accepts the resulting attention frame and GWT before it dispatches typed actions.
 
@@ -21,7 +21,8 @@ The application module commits accepted state and publishes action envelopes.
 | Triage | Classify the incoming situation | [`workflows.main_cognition.stages.triage.steps.run`][] |
 | Appraisal | Evaluate the situation | [`workflows.main_cognition.stages.appraisal.steps.run`][] |
 | Context | Select supplied memory candidates | [`workflows.main_cognition.stages.context.steps.run`][] |
-| Attention | Select material for the frame | [`workflows.main_cognition.stages.attention.steps.run`][] |
+| Codelets | Schedule codelets and collect typed proposals | [`workflows.main_cognition.stages.codelets.steps.run`][] |
+| Attention | Score proposals, then select winners in Python | [`workflows.main_cognition.stages.attention.steps.run`][] |
 | Goals | Produce goal proposals | [`workflows.main_cognition.stages.goals.steps.run`][] |
 | Workspace | Form the workspace proposal | [`workflows.main_cognition.stages.workspace.steps.run`][] |
 | Action selection | Select typed actions | [`workflows.main_cognition.stages.action_selection.steps.run`][] |
@@ -54,6 +55,8 @@ A scheduled action does not prove that an external task succeeded.
 Parent workflow timings include child timings.
 
 ## Go deeper
+
+Read [codelets and attention competition](codelets.md) for scheduling, scoring, and committed nominations.
 
 Read [experienced memory](experienced-memory.md) for retrieval, attribution, and source constraints.
 

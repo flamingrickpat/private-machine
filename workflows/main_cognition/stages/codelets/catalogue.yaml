@@ -1,0 +1,215 @@
+# Codelet catalogue for the main cognition cycle (A15).
+#
+# The version string and a SHA-256 digest of this file go into every cycle
+# trace and every committed AttentionRecord. Change "version" when behavior
+# changes, so that evidence from two configurations stays distinguishable.
+#
+# Signals that conditions and boosts can read:
+#   stimulus.count, stimulus.user, stimulus.thought, stimulus.workflow, stimulus.system
+#   emotion.<field>, emotion.strongest, core.valence, core.arousal,
+#   core.negative_valence, core.positive_valence, needs.<field>
+#   appraisal.<axis>, appraisal.disappointment, appraisal.pleasant_surprise
+#   goals.active, memories.selected, time.idle_hours, regulation.reactive
+#
+# Danger (appraised bodily threat >= 0.6) limits LLM codelets
+# to danger_llm_codelets and adds danger_urgency_bonus to urgency.
+#
+# A16 grows this list into the grounded repertoire. Keep each LLM codelet to
+# one clear job: the target model is a small quantized model.
+version: "a15.3"
+
+policy:
+  main:
+    activation_threshold: 0.5
+    max_llm_codelets: 3
+    danger_llm_codelets: 0
+    capacity: 4
+    min_score: 0.3
+    score_batch_size: 8
+    weights: {urgency: 0.35, novelty: 0.15, goal_relevance: 0.3, reportability: 0.2}
+    danger_urgency_bonus: 0.3
+    # The companion always notices the message or event that started the cycle.
+    reserved_codelets: {direct_stimulus: 1}
+  # Prepared for the second conscious loop (A17). It is not used yet.
+  inner:
+    activation_threshold: 0.5
+    max_llm_codelets: 2
+    danger_llm_codelets: 0
+    capacity: 3
+    min_score: 0.3
+    score_batch_size: 8
+    weights: {urgency: 0.15, novelty: 0.3, goal_relevance: 0.3, reportability: 0.25}
+    danger_urgency_bonus: 0.3
+    reserved_codelets: {}
+
+codelets:
+  # ---- pure codelets: no model call --------------------------------------
+  - name: direct_stimulus
+    family: attention
+    kind: pure
+    proposal: attention
+    origin: outside
+    reality: observed
+    description: Nominate each event that started this cycle.
+    base_activation: 1.0
+    when: [{signal: stimulus.count, op: ">=", value: 1}]
+
+  - name: context_recall
+    family: memory
+    kind: pure
+    proposal: memory_access
+    origin: memory
+    reality: remembered
+    description: Nominate each memory that the context stage selected.
+    base_activation: 0.8
+    when: [{signal: memories.selected, op: ">=", value: 1}]
+
+  - name: absence_return
+    family: needs
+    kind: pure
+    proposal: appraisal
+    origin: state
+    reality: observed
+    description: Notice that the user returns after a long silence.
+    base_activation: 0.6
+    when:
+      - {signal: stimulus.user, op: ">=", value: 1}
+      - {signal: time.idle_hours, op: ">=", value: 3}
+    boost: [{signal: needs.closeness_need, weight: 0.3}]
+
+  - name: goal_reminder
+    family: attention
+    kind: pure
+    proposal: attention
+    origin: state
+    reality: internal
+    description: Keep the most important active goal in competition.
+    base_activation: 0.6
+    when: [{signal: goals.active, op: ">=", value: 1}]
+
+  - name: lingering_feeling
+    family: appraisal
+    kind: pure
+    proposal: appraisal
+    origin: state
+    reality: internal
+    description: Keep a strong accepted emotion present in the frame.
+    base_activation: 0.3
+    when: [{signal: emotion.strongest, op: ">=", value: 0.35}]
+    boost: [{signal: emotion.strongest, weight: 0.5}]
+    cooldown_ticks: 2
+
+  # ---- LLM codelets: one short model call each ----------------------------
+  - name: disappointment_echo
+    family: memory
+    kind: llm
+    proposal: memory_access
+    origin: memory
+    reality: remembered
+    description: Connect a current let-down to an earlier one.
+    base_activation: 0.2
+    when: [{signal: memories.selected, op: ">=", value: 1}]
+    boost:
+      - {signal: core.negative_valence, weight: 0.8}
+      - {signal: appraisal.disappointment, weight: 0.8}
+      - {signal: emotion.sadness, weight: 0.6}
+      - {signal: emotion.anger, weight: 0.3}
+    cooldown_ticks: 1
+    instructions: |
+      Look for a memory in the list where {user_name} or {companion_name} was
+      let down before, and where that old let-down is similar to the current
+      event. If you find one, write how the current event reminds you of it.
+      If no memory is similar, stay quiet.
+
+  - name: relationship_check
+    family: appraisal
+    kind: llm
+    proposal: appraisal
+    origin: outside
+    reality: inferred
+    description: Read what the current message means for the relationship.
+    base_activation: 0.35
+    when: [{signal: stimulus.user, op: ">=", value: 1}]
+    boost:
+      - {signal: needs.closeness_need, weight: 0.3}
+      - {signal: emotion.tenderness, weight: 0.3}
+      - {signal: emotion.sadness, weight: 0.2}
+      - {signal: appraisal.perceived_warmth, weight: 0.3}
+    cooldown_ticks: 1
+    instructions: |
+      Notice what the current message says about the relationship between you
+      and {user_name}. Does {user_name} seem closer, more distant, warmer,
+      colder, hurt, or affectionate? Write one guess about what this moment
+      means for the two of you.
+
+  - name: curiosity_probe
+    family: imagination
+    kind: llm
+    proposal: simulation
+    origin: outside
+    reality: imagined
+    description: Wonder about one unknown thing in the current events.
+    base_activation: 0.25
+    when: [{signal: stimulus.user, op: ">=", value: 1}]
+    boost:
+      - {signal: emotion.curiosity, weight: 0.6}
+      - {signal: appraisal.novelty, weight: 0.4}
+      - {signal: emotion.surprise, weight: 0.3}
+    cooldown_ticks: 2
+    instructions: |
+      Find one thing in the current events that you do not know yet and would
+      like to know. Write it as a question or a possibility that you wonder
+      about.
+
+  - name: self_regulation
+    family: coping
+    kind: llm
+    proposal: regulation
+    origin: state
+    reality: internal
+    description: Notice an unpleasant feeling and name an in-character way to stay steady.
+    base_activation: 0.2
+    when: [{signal: core.negative_valence, op: ">=", value: 0.15}]
+    boost:
+      - {signal: core.negative_valence, weight: 0.6}
+      - {signal: core.arousal, weight: 0.3}
+      - {signal: emotion.fear, weight: 0.4}
+      - {signal: emotion.anger, weight: 0.4}
+      - {signal: emotion.shame, weight: 0.4}
+    cooldown_ticks: 1
+    instructions: |
+      Your feeling is unpleasant right now. First, name the feeling honestly.
+      Then name one way to stay steady that fits who you are. Examples: take
+      your time before you answer, ask a question, say how you feel, or keep
+      some distance for a while. Do not pretend that the feeling is gone.
+
+  - name: goal_pressure
+    family: action
+    kind: llm
+    proposal: action_tendency
+    origin: state
+    reality: inferred
+    description: Notice when a current event helps or blocks an active goal.
+    base_activation: 0.5
+    when:
+      - {signal: goals.active, op: ">=", value: 1}
+      - {signal: stimulus.count, op: ">=", value: 1}
+    cooldown_ticks: 2
+    instructions: |
+      Look at your active goals. Does a current event help a goal, block a
+      goal, or make a goal less important? If yes, write which goal it is and
+      what you now want to do about it. If no goal is touched, stay quiet.
+
+  - name: thought_echo
+    family: narrative
+    kind: llm
+    proposal: memory_access
+    origin: thought
+    reality: internal
+    description: Connect a private thought to a memory or goal.
+    base_activation: 0.7
+    when: [{signal: stimulus.thought, op: ">=", value: 1}]
+    instructions: |
+      A private thought of yours just came up. It is your own thought. Nobody
+      else said it. Connect this thought to one memory or goal from the lists,
+      if one fits. Write what the thought means to you now.

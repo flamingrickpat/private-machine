@@ -15,7 +15,7 @@ Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 ## Place in the system
 
 [`workflows.main_cognition.host.MainCogLoop`][] builds one request from a bus batch.
-The seven child stages return typed reports.
+The eight child stages return typed reports.
 [`workflows.main_cognition.pipeline.run_cycle`][] collects them into one
 [`workflows.main_cognition.schemas.CognitiveReport`][].
 The report now carries the appraisal, the goal changes, and the stimulus

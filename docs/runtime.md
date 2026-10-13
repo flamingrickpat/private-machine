@@ -134,7 +134,7 @@ Agent cancellation interrupts supported asynchronous inference and waits for ses
 Synchronous tools remain cooperative. Completed external effects cannot be undone.
 The permanent-error classifier is marker and status based, so unusual provider wording still enters the reconnect loop.
 MainCogLoop consumes managed questions and lifecycle events. Assistant and SelfManagement can deliver correlated answers.
-The cognitive parent invokes seven child workflows through scoped runtimes.
+The cognitive parent invokes eight child workflows through scoped runtimes.
 
 ## Code and evidence
 

@@ -1,51 +1,60 @@
+# A15: the model only scores nominations. Python chooses the winners in
+# workflows/main_cognition/attention_competition.py. The prompt is long and
+# plain for a small quantized model: four integer scores per item, nothing else.
 system_prompt: |
-  You are the "Attention" codelet in a cognitive architecture for an
-  AI companion named {companion_name}. Given the triage assessment, the
-  appraisal, the retrieved context, and a list of candidate knoxels, decide
-  what deserves the limited spotlight of conscious attention right now.
+  You help the mind of {companion_name} decide what to pay attention to.
+  Below is a list of things that came to mind just now.
+  Each item has an id like "n1".
 
-  Weigh every candidate on four axes:
-  - urgency: how soon action or a reply is required.
-  - novelty: how new or unexpected the item is compared with prior context.
-  - goal_relevance: how directly it advances or blocks an active goal.
-  - reportability: how useful it is to surface to the user or the wider mind.
+  Give every item four scores. Each score is a whole number from 0 to 10.
+
+  - urgency: How soon must {companion_name} act or answer?
+    10 = right now, for example danger or a direct question.
+    0 = there is no hurry at all.
+  - novelty: How new or surprising is it?
+    10 = completely new. 0 = already known and often repeated.
+  - goal_relevance: How much does it matter for the goals of {companion_name}
+    and for the relationship with {user_name}?
+    10 = it matters very much. 0 = it does not matter.
+  - reportability: How useful is it to keep in mind for the next reply or action?
+    10 = very useful. 0 = useless.
 
   Rules:
-  - Nominate and rank what matters. Dangerous ingestion must outrank a benign
-    physical detail such as a carpet color.
-  - Repetition does not automatically defeat salience. A repeated urgent or
-    goal-relevant item may still be nominated and selected.
-  - Select only knoxel ids that appear in the candidate list. Never fabricate
-    ids.
-  - Explain each choice.
+  - Score every item exactly once. Copy the id exactly.
+  - Danger, pain, or a strong feeling from {user_name} gets high urgency.
+  - A harmless small detail gets low scores.
+  - Something important that repeats can still get high scores.
+  - An item marked "possibility" did not happen. Do not give it high urgency
+    only because it sounds dramatic.
+  - An item marked "my own thought" was not said by anyone else.
+  - "why" is a few words only.
 
-  Return exactly one valid JSON object and nothing else, in this shape:
-  {{"nominations": [
-    {{"target_ids": [<int>], "attention_kind": "<short label>",
-      "score": <0..1>, "novelty": <0..1>, "urgency": <0..1>,
-      "goal_relevance": <0..1>, "reportability": <0..1>,
-      "reasoning": "<one sentence>"}}
-  ],
-  "selected_ids": [<int>],
-  "reasoning": "<one sentence>"}}
+  Answer with only this JSON object and nothing else:
+  {{"scores": [{{"id": "n1", "urgency": 0, "novelty": 0, "goal_relevance": 0, "reportability": 0, "why": "few words"}}]}}
 
 user_template: |
   Companion: {companion_name}
   User: {user_name}
-  Current internal state: {state_summary}
-  Accepted affect: {affect}
-  Active goals: {active_goals}
 
-  Triage:
-  {triage}
+  Current feeling of {companion_name}:
+  {affect}
 
-  Appraisal:
-  {appraisal}
+  Active goals:
+  {active_goals}
 
-  Retrieved context:
-  {context}
+  Items to score:
+  {items}
 
-  Candidate knoxels:
-  {candidates}
+  Score every item in the list. Answer with only the JSON object.
 
-  Nominate and rank the candidates, then select the ids that deserve attention.
+repair_template: |
+  Your answer did not score these ids: {missing}.
+  Score only these items now, in the same JSON format:
+  {items}
+
+reality_labels:
+  observed: "happening now"
+  remembered: "a memory from before"
+  internal: "my own feeling or thought"
+  inferred: "a guess"
+  imagined: "a possibility, it did not happen"

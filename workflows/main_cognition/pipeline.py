@@ -1,4 +1,4 @@
-"""Pure orchestration of the seven cognitive stages.
+"""Pure orchestration of the eight cognitive stages.
 
 The parent runs the ordered children over one request and one shared proposal
 batch. Each child is a real kernel workflow invoked through ``run_stage``; this
@@ -19,11 +19,13 @@ from workflows.main_cognition.schemas import (
     StageReceipt,
 )
 from workflows.main_cognition.affect_dynamics import REGULATION_REACTIVE, project_affect
+from workflows.main_cognition.codelet_schedule import state_signals
 
 STAGE_ORDER = (
     "triage",
     "appraisal",
     "context",
+    "codelets",
     "attention",
     "goals",
     "workspace",
@@ -102,7 +104,7 @@ def run_cycle(
     run_stage: Callable[[str, dict], dict],
     action_receipts: dict[str, str] | None = None,
 ) -> CognitiveReport:
-    """Run all seven stages in order and return the typed parent report.
+    """Run all eight stages in order and return the typed parent report.
 
     ``run_stage(name, payload)`` returns the parsed stage report as a mapping.
     Stage payloads are cumulative: every earlier stage's report is available to
@@ -165,10 +167,24 @@ def run_cycle(
         if memory_by_id[int(key)] not in selected_memories:
             selected_memories.append(memory_by_id[int(key)])
     reports["context"]["memories"] = [item["text"] for item in selected_memories]
-    call("attention", {
+    # Codelets read the accepted affect projection, not the previous state, so
+    # an emotion that this event just caused can already activate them.
+    # Codelet and scoring calls omit the public grounding block. Each is one
+    # small question for a small model; the workspace and later stages still
+    # receive that block before anything can reach public speech.
+    call("codelets", {
+        "public_context": None,
         "triage": reports["triage"],
         "appraisal": reports["appraisal"],
         "context": reports["context"],
+        "state_signals": state_signals(projection.state),
+    })
+    call("attention", {
+        "public_context": None,
+        "triage": reports["triage"],
+        "appraisal": reports["appraisal"],
+        "context": reports["context"],
+        "codelets": reports["codelets"],
         "candidates": _candidates(request, reports),
     })
     call("goals", {
@@ -243,6 +259,9 @@ def run_cycle(
         memory_trace={**request.get("memory_trace", {}),
                       "context_selected_ids": [item["knoxel_id"] for item in selected_memories]},
         belief_updates=reports["context"].get("belief_updates", []),
+        nominations=[dict(item) for item in attention.get("nominations", [])],
+        codelet_trace={key: value for key, value in reports["codelets"].items() if key != "proposals"}
+        | {"competition": attention.get("competition", {})},
     )
 
 

@@ -22,7 +22,9 @@ phases:
 
 # Main cognitive cycle
 
-Runs the seven ordered children (triage, appraisal, context, attention, goals,
-workspace, action selection) over one request and one shared proposal batch.
-The parent assigns action IDs and releases typed dispatch records. The module,
-not this role, commits the GWT and publishes dispatches.
+Runs the eight ordered children (triage, appraisal, context, codelets,
+attention, goals, workspace, action selection) over one request and one shared
+proposal batch. Codelets nominate; attention scores the nominations and runs
+the competition. The parent assigns action IDs and releases typed dispatch
+records. The module, not this role, commits the GWT, the attention records,
+and publishes dispatches.

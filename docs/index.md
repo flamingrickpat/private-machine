@@ -25,7 +25,7 @@ This manual explains current behavior, test procedures, and the earlier implemen
 
 The application constructs modules in [`workflows.companion.build_app`][].
 Each module owns a mailbox and a thread.
-Cognition runs seven synchronous child workflows before it dispatches actions.
+Cognition runs eight synchronous child workflows before it dispatches actions.
 Story dialogue and Assistant dialogue use separate prompts and tools.
 
 The console deploys local process definitions.

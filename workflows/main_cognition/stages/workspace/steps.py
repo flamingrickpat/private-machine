@@ -84,6 +84,40 @@ def ensure_valid_result(result: WorkspaceResult, allowed: set[int]) -> None:
         )
 
 
+ACCEPTED_LABELS = {
+    "observed": "happening now",
+    "remembered": "memory",
+    "internal": "my own feeling or thought",
+    "inferred": "guess",
+    "imagined": "possibility",
+}
+
+
+def render_accepted(attention: dict | None) -> str:
+    """List the winning nominations with their reality labels.
+
+    Older attention reports have no status field; they render as ``(none)``.
+    """
+    lines = []
+    for item in (attention or {}).get("nominations", []):
+        if item.get("status") != "selected" or not str(item.get("text", "")).strip():
+            continue
+        label = ACCEPTED_LABELS.get(str(item.get("reality", "")), str(item.get("reality", "")))
+        lines.append(f"- ({label}) {item['text']}")
+    return "\n".join(lines) or "(none)"
+
+
+def compact_attention(attention: dict | None) -> dict:
+    """Keep the workspace prompt short: ids, status, and scores only."""
+    attention = attention or {}
+    return {
+        "selected_ids": attention.get("selected_ids", []),
+        "nominations": [{key: item.get(key) for key in
+                         ("nomination_id", "target_ids", "status", "score", "reality")}
+                        for item in attention.get("nominations", [])],
+    }
+
+
 def build_messages(request: dict, prompts: dict) -> list[dict]:
     companion_name = request.get("companion_name", "Spamuel")
     system = prompts["system_prompt"].format(companion_name=companion_name)
@@ -93,7 +127,8 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         state_summary=request.get("state_summary") or "(no recorded state update)",
         affect=render_block(request.get("affect")),
         active_goals=", ".join(request.get("active_goals", [])) or "(none)",
-        attention=render_block(request.get("attention")),
+        accepted=render_accepted(request.get("attention")),
+        attention=render_block(compact_attention(request.get("attention"))),
         goals=render_block(request.get("goals")),
         candidates=render_candidates(request.get("candidate_texts", [])),
     )
@@ -120,7 +155,10 @@ def run(context) -> dict:
 
 
 __all__ = [
+    "ACCEPTED_LABELS",
     "CONTROL_MODES",
+    "compact_attention",
+    "render_accepted",
     "allowed_focus_ids",
     "build_messages",
     "candidate_ids",

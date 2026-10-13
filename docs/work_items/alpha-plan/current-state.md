@@ -21,7 +21,7 @@ Its commit precedes normal publication.
 The console exposes operation, traces, memory inspection, and task controls.
 Managed runs have durable receipts, instruction revisions, cancellation, and terminal evidence consolidation.
 
-Main cognition runs seven child workflows.
+Main cognition runs eight child workflows. A15 added the codelets stage.
 The workflow engine supports finite routing, scoped agent sessions, child workflows, journals, and external state policies.
 The coding workflow demonstrates reviewed task trees.
 These boundaries should remain.
