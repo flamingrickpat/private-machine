@@ -22,6 +22,9 @@ A07 supplies [emotional dynamics](../../subsystems/emotional-dynamics.md) and it
 [A07 verification](../verification/a07-emotional-dynamics.md).
 A08 supplies [experienced memory](../../subsystems/experienced-memory.md) and its [verification](../verification/a08-experienced-memory.md).
 A09 supplies [public dialogue](../../subsystems/public-dialogue.md), [publication recovery](../../subsystems/public-publication.md), and [verification](../verification/a09-public-dialogue.md).
+Its strict claim review and clinical recovery produced poor, slow replies.
+A story-speech prompt and a fixed hallucination policy replaced them.
+A09R supersedes that policy with an agentic, persona-driven voice and a working private ontology.
 A10 supplies the [sustained Minecraft actor](../../subsystems/minecraft-actor.md),
 [body controls](../../subsystems/minecraft-actor-controls.md), and [verification](../verification/a10-minecraft-actor.md).
 A11 supplies [durable Minecraft projects](../../subsystems/minecraft-tasks.md),
@@ -31,7 +34,7 @@ and [real interruption evidence](../verification/a12-body-recovery.md).
 A13 implementation is delivered at the operator's request; its remaining behavioral acceptance is deferred.
 The best working state includes the completed house, self-crafted iron pickaxe, verified entry and exit, and saved home waypoint.
 The revised return-route gate and remaining fresh acceptance cases have no completion claim.
-A14 through A20 remain pending.
+A14 through A20 and A09R remain pending.
 A13's [gate review](../verification/a13/task-gate-review.md) records the pending real acceptance and implemented workflow split.
 
 The LLM is the default for selection, classification, and interpretation.
@@ -64,6 +67,31 @@ Perfect sentience simulation and zero unwanted replies are aspirations.
 This alpha evaluates concrete behavior and records the user's wish to regenerate each reply.
 It does not claim to prove consciousness or reproduce every human emotion.
 
+## Generalization ladder
+
+Alpha uses inspectable deterministic rules for attention selection, routing, and public review.
+The rules are simple, testable, and easy to diagnose.
+Beta replaces a rule with an agentic equivalent when a tested reason exists.
+The rule stays as the regression baseline.
+A replacement must match or beat the rule-based behavior on the same cases.
+This method turns explicit logic into a deliberate alpha stage, rather than a defect.
+
+Apply the ladder in this order for each rule:
+
+1. Record the rule and the cases that exercise it.
+2. Keep the rule and the test as the baseline.
+3. Build the agentic candidate behind the same interface.
+4. Compare the two on the recorded cases and on new cases.
+5. Keep the rule when the candidate is not better.
+
+Read the [model policy](model-policy.md#generalization-ladder) and the [evaluation contract](evaluation.md).
+
+## Beta idea items
+
+The [beta ideas](../../work_items/beta-ideas/index.md) hold directions that are out of alpha scope.
+They are rough notes, not plans.
+After A20, promote the useful ones into proper beta work items.
+
 ## Read the plan
 
 | Document | Purpose |
@@ -72,7 +100,7 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | [Previous attempts](previous-attempts.md) | What to preserve, adapt, and leave behind |
 | [Cognitive architecture](cognition.md) | State, emotion, codelets, internal thought, and self-reflection |
 | [Private ontology](ontology.md) | Capability-consistent expression and protection against polluted memory |
-| [Model selection and reliability](model-policy.md) | LLM default, optional Laya test requirements, and immediate LLM repairs |
+| [Model selection and reliability](model-policy.md) | Endpoint and capability requirement, the generalization ladder, and optional decision-classifier tests |
 | [Models and workflow inputs](decisions.md) | Public pm-coder client, file selection, classification, and INVALID fallback |
 | [Minecraft architecture](minecraft.md) | Task trees, specialist sessions, recovery, and shared body ownership |
 | [Milestones and verification](verification.md) | Real manual tests and acceptance evidence |
@@ -91,6 +119,7 @@ It does not claim to prove consciousness or reproduce every human emotion.
 | A07 | [Make emotional state change behavior](work-items/a07.md) — engineering delivery recorded | |
 | A08 | [Retrieve and learn from experienced memory](work-items/a08.md) — engineering delivery recorded | |
 | A09 | [Unify public voice and capability grounding](work-items/a09.md) - engineering delivery recorded | M2: a continuous companion across restart |
+| A09R | [Agentic public voice and the private ontology](work-items/a09r.md) — supersedes the A09 review mechanism | Redo of A09's grounding mechanism |
 | A10 | [Run one sustained Minecraft specialist session](work-items/a10.md) - engineering delivery recorded | Developer check: many calls per leaf |
 | A11 | [Plan and verify durable Minecraft subtasks](work-items/a11.md) — engineering delivery recorded | |
 | A12 | [Control and recover interrupted body work](work-items/a12.md) — engineering delivery recorded | |

@@ -100,7 +100,7 @@ Its receipt records the concrete reason.
 The optional `backend: llm` field makes the default path explicit.
 `connection` selects an explicitly supplied runtime classification connection.
 The parser rejects `backend: laya`; no optional Laya adapter became active in A04.
-Any later adapter requires the [live test requirements](model-policy.md#before-enabling-a-laya-use).
+Any later adapter requires the [live test requirements](model-policy.md#before-enabling-a-decision-classifier-use).
 
 For a known file, replace selection with:
 

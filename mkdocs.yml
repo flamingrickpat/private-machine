@@ -130,6 +130,7 @@ nav:
               - A07 Emotional dynamics: work_items/alpha-plan/work-items/a07.md
               - A08 Experienced memory: work_items/alpha-plan/work-items/a08.md
               - A09 Public voice: work_items/alpha-plan/work-items/a09.md
+              - A09R Agentic public voice: work_items/alpha-plan/work-items/a09r.md
               - A10 Sustained Minecraft actor: work_items/alpha-plan/work-items/a10.md
               - A11 Durable task tree: work_items/alpha-plan/work-items/a11.md
               - A12 Interruption and recovery: work_items/alpha-plan/work-items/a12.md
@@ -172,4 +173,15 @@ nav:
           - A15 codelets: work_items/verification/a15-codelets.md
           - Console: work_items/verification/console.md
       - Next experiments: work_items/experiments.md
+      - Beta idea items:
+          - Overview: work_items/beta-ideas/index.md
+          - Workspace momentum: work_items/beta-ideas/workspace-momentum.md
+          - Agentic generalization: work_items/beta-ideas/agentic-generalization.md
+          - Codelet discovery: work_items/beta-ideas/codelet-discovery.md
+          - Deeper qualia and ontology: work_items/beta-ideas/deeper-qualia-ontology.md
+          - Multi-persona deployment: work_items/beta-ideas/multi-persona-deployment.md
+          - Sandboxed host access: work_items/beta-ideas/sandboxed-host-access.md
+          - Companions and factions: work_items/beta-ideas/companions-and-factions.md
+          - Source self-modification: work_items/beta-ideas/source-self-modification.md
+          - System One decision uses: work_items/beta-ideas/system-one-uses.md
   - API reference: reference/

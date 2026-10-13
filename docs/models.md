@@ -8,8 +8,10 @@ The [PM classification provider](subsystems/workflow-inputs/pm-connections.md) r
 
 The separate [typed decision client](subsystems/decisions/index.md) is available through pm-coder.
 A02 verifies its API without changing existing workflow model choices.
-Its [deployment guide](subsystems/decisions/operation.md) describes the independent Laya endpoint.
+Its [deployment guide](subsystems/decisions/operation.md) describes the independent decision endpoint.
 The alpha's [model policy](work_items/alpha-plan/model-policy.md) uses the normal LLM by default.
+The endpoint can be local or remote.
+The policy states the required capability class, not one server or one model.
 
 Parent: [README](index.md).
 
@@ -17,26 +19,38 @@ Parent: [README](index.md).
 
 The credential-free example is `config.example.yaml`.
 It contains `Default`, `UnitTestEvaluator`, and one `embedding` entry.
-Both chat presets initially use the same Qwen endpoint.
+Both chat presets initially use the same endpoint.
 This is a shared-backend evaluation, not an independent neutral reviewer.
 
-The embedding request uses `perplexity/pplx-embed-v1-0.6b`.
-OpenRouter currently returns `pplx-embed-v1-0.6b` in its response.
-The explicit `response_model` field permits that alias. Other model names fail validation.
+The endpoint can be local or remote.
+A local server, vLLM, llama.cpp, or a hosted API is valid when it speaks the OpenAI API.
+The YAML file records the base URL and the model names.
+A process environment variable or a repository `.env` file supplies the credential.
+The process environment wins. The `.env` file is the fallback.
+
+A Windows environment variable and a repository `.env` file are both valid credential sources.
+Use the environment variable on one machine and the `.env` file on another.
+
+### Current models
+
+The current deployment uses `qwen3.8-flash-next` for chat and
+`perplexity/pplx-embed-v1-0.6b` for embeddings.
+OpenRouter returns `pplx-embed-v1-0.6b` in its response.
+The explicit `response_model` field permits that alias. Another model name fails validation.
 The request model remains the cache identity, so existing vectors stay compatible.
 
-`config.alpha.example.yaml` also uses OpenRouter embeddings with local Qwen chat on port 8080.
-The credential comes from `OPENROUTER_API_KEY`.
-The unused local embedding service on port 8081 has a recorded invalid-vector defect.
+The embedding service accepts any OpenAI-compatible embedding model.
+A server that returns the requested model name needs no alias field.
+The unused local embedding endpoint on port 8081 has a recorded invalid-vector defect.
 Read [A08 verification](work_items/verification/a08-experienced-memory.md) for the real failure and recovery evidence.
 
 ### Local setup
 
 1. Copy `config.example.yaml` to `config.local.yaml` for local changes.
-2. Put `OPENROUTER_API_KEY=...` into the git-ignored `.env` in the repository root, or set it in the process environment.
-3. For a literal key instead, configure `embedding.api_key` in that ignored file.
-4. For a literal key, remove `embedding.api_key_env`.
-5. Start the configured Qwen endpoint before the live tests.
+2. Put the credential into the process environment, or into the git-ignored `.env` in the repository root.
+3. For a literal key instead, configure `api_key` in an ignored file.
+4. For a literal key, remove `api_key_env`.
+5. Start the configured chat endpoint before the live tests.
 6. Set `PM_MODEL_CONFIG` to select another complete config file for those tests.
 
 Credential resolution reads the process environment first, then the repository `.env`.
@@ -47,14 +61,16 @@ Library code receives a config path explicitly.
 Relative script and cache paths resolve from that file's directory.
 Config parsing and connection resolution make no network requests.
 
-### Hosted chat through OpenRouter
+### Endpoint behavior and context window
 
-A chat preset can use `https://openrouter.ai/api/v1` with `api_key_env: OPENROUTER_API_KEY`.
-OpenRouter has no `/props` route, so set `context_window` in the preset.
+A hosted endpoint may have no `/props` route.
+Set `context_window` in the preset for such an endpoint.
 Context measurement then uses the labelled `tiktoken` estimate.
+The serving model must offer at least 128,000 tokens of context.
+Read the [model policy](work_items/alpha-plan/model-policy.md) for the capability requirement.
 
 Workflows switch thinking off with `chat_template_kwargs: {enable_thinking: false}`.
-A local llama.cpp server honors this field. OpenRouter ignores it and keeps reasoning on.
+A local llama.cpp server honors this field.
 For the exact `openrouter.ai` host, [`provider_generation`][pm.llm.activation.provider_generation] adds the equivalent `reasoning: {enabled: false}`.
 An explicit `reasoning` field from the caller always wins.
 Other hosts receive the request unchanged.
@@ -62,8 +78,8 @@ Other hosts receive the request unchanged.
 A measured `qwen/qwen3.8-flash` request on 2026-10-13 returned 24 reasoning tokens with only `chat_template_kwargs`.
 The same request with `reasoning.enabled: false` returned 0 reasoning tokens.
 
-OpenRouter serves `qwen/qwen3.8-flash` only through Alibaba, at a precision that OpenRouter does not report.
-A result from OpenRouter therefore does not establish the behavior of a Q3 build of the same model.
+A hosted service may not report the served precision.
+A result from a hosted service therefore does not establish the behavior of a local quantized build of the same model.
 
 ## Code ownership
 
