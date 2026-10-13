@@ -28,9 +28,9 @@ The application module commits accepted state and publishes action envelopes.
 
 ## Asynchronous boundary
 
-[`workflows.main_cognition.engine.build_stage_runner`][] invokes each child through the shared kernel runner.
+[`workflows.main_cognition.stage_runner.build_stage_runner`][] invokes each child through the shared kernel runner.
 The child does not need its own module thread or bus subscription.
-[`modules.MainCogLoop`][] connects this pipeline to the bus and Ghost.
+[`workflows.main_cognition.host.MainCogLoop`][] connects this pipeline to the bus and Ghost.
 
 Story dialogue produces character speech.
 Assistant dialogue can call scoped tools.
@@ -60,7 +60,7 @@ Read [experienced memory](experienced-memory.md) for retrieval, attribution, and
 Read [emotional dynamics](emotional-dynamics.md) for the bounded affect step.
 Read [accepted cognition state](cognition-state.md) for affect, goals, and
 stable action identities.
-Read [A06 verification](cognition-state-verification.md) for the real state
+Read [A06 verification](../work_items/verification/a06-cognition-state.md) for the real state
 receipts.
 Read [one exchange](../workflows/exchange.md), [managed work](managed-work.md),
-and [next experiments](../decisions/experiments.md).
+and [next experiments](../work_items/experiments.md).

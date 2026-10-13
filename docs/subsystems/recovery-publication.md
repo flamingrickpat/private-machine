@@ -12,20 +12,20 @@ Related: [body recovery](body-recovery.md) and [managed work](managed-work.md).
 
 ## Accepted companion intent
 
-[`modules.MainCogLoop`][] accepts the action schema, GWT state, and frozen dispatch payload in one Ghost batch.
+[`workflows.main_cognition.host.MainCogLoop`][] accepts the action schema, GWT state, and frozen dispatch payload in one Ghost batch.
 The action metadata stores `dispatch_status: pending`, `dispatch_target`, `dispatch_correlation`, and `dispatch_payload`.
 The payload retains the selected action ID, content, arguments, stimuli, memory evidence, workspace, affect, and regulation.
 Publication follows the durable commit.
 The original action schema ID remains the publication identity.
 
-[`runtime.intents.replay_intents`][] reads pending actions after restart.
+[`workflows.main_cognition.dispatch_recovery.replay_intents`][] reads pending actions after restart.
 An existing managed receipt with the same action ID proves admission.
 Recovery acknowledges that intent without launching its worker.
 A resolved exchange also proves that its public reply already committed.
 Otherwise, recovery publishes the frozen payload with the original action and exchange IDs.
 It does not run cognition again to invent a replacement intent.
 
-[`runtime.intents.acknowledge_intent`][] marks durable admission after SelfManagement returns its control receipt.
+[`workflows.main_cognition.dispatch_recovery.acknowledge_intent`][] marks durable admission after SelfManagement returns its control receipt.
 A normal public commit acknowledges its selected intent in the same batch as speech and exchange resolution.
 Updates, cancellation, and resumes use stable request IDs for idempotency.
 An acknowledged old cancellation cannot cancel a later resumed epoch when its intent replays.
@@ -35,14 +35,14 @@ They never cause automatic mutation replay.
 
 ## Managed progress
 
-[`runtime.managed_runs.ManagedRunReceipt`][] stores pending `events` with their message and acknowledgment status.
+[`pm.runs.run_receipt.ManagedRunReceipt`][] stores pending `events` with their message and acknowledgment status.
 The event ID contains the logical run ID, worker epoch, and event sequence.
-[`runtime.managed_runs.ManagedRunSupervisor`][] commits the message before it calls the event sink.
+[`pm.runs.supervisor.ManagedRunSupervisor`][] commits the message before it calls the event sink.
 An event-sink failure leaves the pending message in the checkpoint and `control.json`.
 If the task outcome already committed, a later publication error preserves that outcome.
 Its separate `publication_interrupted` event identifies the delivery failure.
 
-[`runtime.reply_recovery.ReplyRecovery`][] consumes `workflow.event` and `workflow.question` messages.
+[`workflows.public_speech.reply_recovery.ReplyRecovery`][] consumes `workflow.event` and `workflow.question` messages.
 It acknowledges their original event IDs through the supervisor.
 Startup replays pending progress through `replay_events`.
 This replay creates no worker and changes no world state.
@@ -77,4 +77,4 @@ The bus provides at-least-once recovery.
 A crash after delivery and before acknowledgment can repeat an envelope.
 Consumers must deduplicate by action ID, event ID, or public utterance ID.
 Neither a published event nor a completed workflow establishes an unverified external effect.
-Read [A12 verification](body-recovery-verification.md) for the actual failure-injection receipts.
+Read [A12 verification](../work_items/verification/a12-body-recovery.md) for the actual failure-injection receipts.

@@ -7,7 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class MinecraftRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # A model action can add a helpful argument that the schema does not know
+    # (for example ``observe_only``). This is a boundary object, so ignore those
+    # hints instead of stopping the whole application. Other contracts stay strict.
+    model_config = ConfigDict(extra="ignore")
 
     schema_version: Literal["pm.minecraft-request.v1"] = "pm.minecraft-request.v1"
     run_id: str = ""

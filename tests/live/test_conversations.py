@@ -19,9 +19,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from runtime.cognitive_model import LazyStageModel
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.models import load_config, resolve_connection
+from pm.llm.stage_model import LazyStageModel
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.config import load_config, resolve_connection
 from tests.live import conversation as conv
 
 EVIDENCE_ROOT = (

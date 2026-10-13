@@ -1,43 +1,16 @@
 """Prepare standalone Story with shared retrieval and public evidence.
 
-The operator's situation supplies one accepted user input in the trial Ghost.
+The operator's situation supplies one accepted user input in the trial MemoryStore.
 Retrieval uses the shared embedding cache. Capability discovery runs outside
 the async loop. No raw private thought transcript enters the public request.
 """
 from __future__ import annotations
 
-import re
-
-from pm_core.embeddings import EmbeddingService
-from pm_core.model.knoxel_enums import FeatureType
+from pm.memory.embeddings import EmbeddingService
+from pm.memory.retrieval import distinctive_terms
+from pm.records.enums import FeatureType
 
 from workflows.dialogue_story.schemas import DialogueTurn, StoryRequest
-
-_WORD = re.compile(r"[a-zA-Z][a-zA-Z'-]+")
-
-_STOPWORDS = frozenset({
-    "about", "again", "also", "and", "any", "are", "because", "been", "but",
-    "can", "could", "did", "does", "doing", "dont", "for", "from", "get",
-    "going", "got", "had", "has", "have", "her", "here", "him", "his", "how",
-    "into", "its", "just", "like", "made", "make", "more", "much", "not",
-    "now", "off", "one", "only", "other", "our", "out", "over", "really",
-    "right", "said", "same", "she", "should", "some", "still", "such", "than",
-    "that", "the", "their", "them", "then", "there", "these", "they", "this",
-    "those", "through", "too", "under", "very", "want", "was", "were", "what",
-    "when", "where", "which", "while", "who", "will", "with", "would", "your",
-    "youre", "youve", "well", "yeah", "okay", "even", "ever", "much", "back",
-    "thing", "things", "know", "think", "thought", "tell", "said",
-})
-
-def distinctive_terms(text: str) -> list[str]:
-    """Stable, lowercase, long-enough words used only as a pre-filter."""
-    seen: dict[str, None] = {}
-    for match in _WORD.finditer(text.casefold()):
-        word = match.group(0)
-        if len(word) < 4 or word in _STOPWORDS:
-            continue
-        seen.setdefault(word, None)
-    return list(seen)
 
 
 async def plan_story_request(
@@ -57,11 +30,11 @@ async def plan_story_request(
     prior = [DialogueTurn.model_validate(turn) for turn in situation.get("prior_dialogue", [])]
     current = str(situation["current_user_message"])
 
-    from workflows.public_context import build_public_context
-    from runtime.capabilities import capability_snapshot
-    from pm_core.model.knoxel_common import Feature
-    from pm_core.model.knoxel_core import Provenance
-    from pm_core.model.knoxel_enums import FeatureType, InterlocusType, SourceKind
+    from workflows.public_speech.public_context import build_public_context
+    from workflows.minecraft_body.capabilities import capability_snapshot
+    from pm.records.memory_records import Feature
+    from pm.records.base import Provenance
+    from pm.records.enums import FeatureType, InterlocusType, SourceKind
     from uuid import uuid4
     import asyncio
     # The fixed situation supplies a new user input. Keep that exact input as

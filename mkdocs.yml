@@ -1,4 +1,4 @@
-site_name: Spamuel engineering manual
+site_name: private-machine engineering manual
 site_url: ""
 use_directory_urls: false
 theme:
@@ -12,7 +12,7 @@ plugins:
   - search
   - gen-files:
       scripts:
-        - scripts/gen_reference.py
+        - dev/tools/gen_reference.py
   - literate-nav:
       nav_file: SUMMARY.md
   - section-index
@@ -47,43 +47,27 @@ nav:
   - Concepts:
       - System map: concepts/architecture.md
       - Evidence and quality: concepts/evidence.md
+      - Glossary: concepts/glossary.md
+      - Naming rules: concepts/naming.md
   - Subsystems:
       - Cognition: subsystems/cognition.md
       - Accepted cognition state: subsystems/cognition-state.md
-      - A06 verification: subsystems/cognition-state-verification.md
       - Emotional dynamics: subsystems/emotional-dynamics.md
-      - A07 verification: subsystems/emotional-dynamics-verification.md
       - Experienced memory: subsystems/experienced-memory.md
       - Experience consolidation: subsystems/memory-consolidation.md
-      - A08 verification: subsystems/memory-verification.md
       - Public dialogue: subsystems/public-dialogue.md
       - Public publication and recovery: subsystems/public-publication.md
-      - A09 verification: subsystems/public-verification.md
       - Sustained Minecraft actor: subsystems/minecraft-actor.md
       - Minecraft actor controls: subsystems/minecraft-actor-controls.md
-      - A10 verification: subsystems/minecraft-actor-verification.md
+      - Native gameplay provider protocol: subsystems/gameplay-provider-protocol.md
       - Durable Minecraft projects: subsystems/minecraft-tasks.md
       - Minecraft task evidence: subsystems/minecraft-task-evidence.md
-      - A11 verification: subsystems/minecraft-task-verification.md
+      - Scoped project decisions: subsystems/gameplay-decision-scopes.md
       - Body interruption and recovery: subsystems/body-recovery.md
       - Durable body leases: subsystems/body-leases.md
       - Intent and progress recovery: subsystems/recovery-publication.md
-      - A12 verification: subsystems/body-recovery-verification.md
       - Expected gameplay failures: subsystems/gameplay-recovery.md
       - Gameplay history and cognition: subsystems/gameplay-evidence.md
-      - A13 verification:
-          - Overview: subsystems/gameplay-verification.md
-          - Failure fixtures: subsystems/gameplay-fixture-verification.md
-          - M3 house and iron: subsystems/gameplay-m3-verification.md
-          - Concrete replanning: subsystems/gameplay-replanning-verification.md
-          - Task and gate review: subsystems/gameplay-task-gate-review.md
-          - Earlier evidence:
-              - Fixture receipts: subsystems/gameplay-fixture-history.md
-              - Hazard diagnoses: subsystems/gameplay-fixture-diagnostics.md
-              - Tool repairs: subsystems/gameplay-tool-repair-history.md
-              - Plan context: subsystems/gameplay-plan-context-history.md
-              - Review repairs: subsystems/gameplay-review-repair-history.md
-              - Engineering checks: subsystems/gameplay-engineering-history.md
       - Operator service: subsystems/console.md
       - Ghost and bus: ghost.md
       - Models:
@@ -92,68 +76,96 @@ nav:
       - Optional typed decisions:
           - Client boundary: subsystems/decisions/index.md
           - Local deployment: subsystems/decisions/operation.md
-          - A02 verification: subsystems/decisions/verification.md
           - Model observations and limits: subsystems/decisions/quality.md
       - Workflow runtime:
           - Invocation and grants: runtime.md
           - Scoped inputs: subsystems/workflow-inputs/index.md
           - Binding syntax: subsystems/workflow-inputs/bindings.md
           - Versions and replay: subsystems/workflow-inputs/versions.md
-          - A03 verification: subsystems/workflow-inputs/verification.md
           - Classification contract: subsystems/workflow-inputs/classification.md
           - Classification recovery and context: subsystems/workflow-inputs/classification-recovery.md
-          - A04 verification: subsystems/workflow-inputs/classification-verification.md
           - PM classification connections: subsystems/workflow-inputs/pm-connections.md
-          - A05 verification: subsystems/workflow-inputs/pm-verification.md
           - PM classification diagnosis: subsystems/workflow-inputs/pm-failures.md
       - Managed work: subsystems/managed-work.md
-  - Decisions:
-      - Plan and implementation: decisions/plan.md
+  - Work items:
+      - Development process: work_items/process.md
+      - Structural refactor:
+          - Plan: work_items/refactor/index.md
+          - Relocation map: work_items/refactor/relocation-map.md
+      - Plan and implementation: work_items/plan.md
       - Companion alpha plan:
-          - Overview and order: decisions/alpha-plan/index.md
-          - Model selection and reliability: decisions/alpha-plan/model-policy.md
-          - Current implementation audit: decisions/alpha-plan/current-state.md
-          - Previous PM attempts: decisions/alpha-plan/previous-attempts.md
-          - Cognitive architecture: decisions/alpha-plan/cognition.md
-          - Private ontology and expression: decisions/alpha-plan/ontology.md
-          - Second conscious loop: decisions/alpha-plan/private-loop.md
-          - Self-model and reflection: decisions/alpha-plan/reflection.md
-          - Models and workflow inputs: decisions/alpha-plan/decisions.md
-          - Classification inputs and INVALID: decisions/alpha-plan/workflow-inputs.md
-          - Minecraft architecture: decisions/alpha-plan/minecraft.md
-          - Minecraft body operation: decisions/alpha-plan/minecraft-operations.md
-          - Manual milestones: decisions/alpha-plan/verification.md
-          - Inner-loop milestones: decisions/alpha-plan/cognition-verification.md
-          - Evaluation and session evidence: decisions/alpha-plan/evaluation.md
-          - Decision register: decisions/alpha-plan/decision-register.md
+          - Overview and order: work_items/alpha-plan/index.md
+          - Model selection and reliability: work_items/alpha-plan/model-policy.md
+          - Current implementation audit: work_items/alpha-plan/current-state.md
+          - Previous PM attempts: work_items/alpha-plan/previous-attempts.md
+          - Cognitive architecture: work_items/alpha-plan/cognition.md
+          - Private ontology and expression: work_items/alpha-plan/ontology.md
+          - Second conscious loop: work_items/alpha-plan/private-loop.md
+          - Self-model and reflection: work_items/alpha-plan/reflection.md
+          - Models and workflow inputs: work_items/alpha-plan/decisions.md
+          - Classification inputs and INVALID: work_items/alpha-plan/workflow-inputs.md
+          - Minecraft architecture: work_items/alpha-plan/minecraft.md
+          - Minecraft body operation: work_items/alpha-plan/minecraft-operations.md
+          - Manual milestones: work_items/alpha-plan/verification.md
+          - Inner-loop milestones: work_items/alpha-plan/cognition-verification.md
+          - Evaluation and session evidence: work_items/alpha-plan/evaluation.md
+          - Decision register: work_items/alpha-plan/decision-register.md
           - A01 baseline:
-              - Snapshot and boundaries: decisions/alpha-plan/baseline/index.md
-              - Baseline receipts: decisions/alpha-plan/baseline/receipts.md
-              - Scenario matrix: decisions/alpha-plan/baseline/scenarios.md
-              - Repeatable local commands: decisions/alpha-plan/baseline/commands.md
-              - Session handoff: decisions/alpha-plan/baseline/handoff.md
-              - Original brief: decisions/alpha-plan/baseline/original-brief.md
+              - Snapshot and boundaries: work_items/alpha-plan/baseline/index.md
+              - Baseline receipts: work_items/alpha-plan/baseline/receipts.md
+              - Scenario matrix: work_items/alpha-plan/baseline/scenarios.md
+              - Repeatable local commands: work_items/alpha-plan/baseline/commands.md
+              - Session handoff: work_items/alpha-plan/baseline/handoff.md
+              - Original brief: work_items/alpha-plan/baseline/original-brief.md
           - Work items:
-              - A01 Baseline and scenarios: decisions/alpha-plan/work-items/a01.md
-              - A02 Public pm-coder decision client: decisions/alpha-plan/work-items/a02.md
-              - A03 Files and folder metadata: decisions/alpha-plan/work-items/a03.md
-              - A04 Classification and INVALID: decisions/alpha-plan/work-items/a04.md
-              - A05 PM classification wiring: decisions/alpha-plan/work-items/a05.md
-              - A06 Accepted affect and goals: decisions/alpha-plan/work-items/a06.md
-              - A07 Emotional dynamics: decisions/alpha-plan/work-items/a07.md
-              - A08 Experienced memory: decisions/alpha-plan/work-items/a08.md
-              - A09 Public voice: decisions/alpha-plan/work-items/a09.md
-              - A10 Sustained Minecraft actor: decisions/alpha-plan/work-items/a10.md
-              - A11 Durable task tree: decisions/alpha-plan/work-items/a11.md
-              - A12 Interruption and recovery: decisions/alpha-plan/work-items/a12.md
-              - A13 Adaptive replanning: decisions/alpha-plan/work-items/a13.md
-              - A14 Cooperative play and initiative: decisions/alpha-plan/work-items/a14.md
-              - A15 Codelet engine: decisions/alpha-plan/work-items/a15.md
-              - A16 Codelet repertoire: decisions/alpha-plan/work-items/a16.md
-              - A17 Second conscious loop: decisions/alpha-plan/work-items/a17.md
-              - A18 Source-grounded self-model: decisions/alpha-plan/work-items/a18.md
-              - A19 Effective reflection: decisions/alpha-plan/work-items/a19.md
-              - A20 Integrated alpha trial: decisions/alpha-plan/work-items/a20.md
-      - Next experiments: decisions/experiments.md
-      - Console verification: decisions/console-verification.md
+              - A01 Baseline and scenarios: work_items/alpha-plan/work-items/a01.md
+              - A02 Public pm-coder decision client: work_items/alpha-plan/work-items/a02.md
+              - A03 Files and folder metadata: work_items/alpha-plan/work-items/a03.md
+              - A04 Classification and INVALID: work_items/alpha-plan/work-items/a04.md
+              - A05 PM classification wiring: work_items/alpha-plan/work-items/a05.md
+              - A06 Accepted affect and goals: work_items/alpha-plan/work-items/a06.md
+              - A07 Emotional dynamics: work_items/alpha-plan/work-items/a07.md
+              - A08 Experienced memory: work_items/alpha-plan/work-items/a08.md
+              - A09 Public voice: work_items/alpha-plan/work-items/a09.md
+              - A10 Sustained Minecraft actor: work_items/alpha-plan/work-items/a10.md
+              - A11 Durable task tree: work_items/alpha-plan/work-items/a11.md
+              - A12 Interruption and recovery: work_items/alpha-plan/work-items/a12.md
+              - A13 Adaptive replanning: work_items/alpha-plan/work-items/a13.md
+              - A14 Cooperative play and initiative: work_items/alpha-plan/work-items/a14.md
+              - A15 Codelet engine: work_items/alpha-plan/work-items/a15.md
+              - A16 Codelet repertoire: work_items/alpha-plan/work-items/a16.md
+              - A17 Second conscious loop: work_items/alpha-plan/work-items/a17.md
+              - A18 Source-grounded self-model: work_items/alpha-plan/work-items/a18.md
+              - A19 Effective reflection: work_items/alpha-plan/work-items/a19.md
+              - A20 Integrated alpha trial: work_items/alpha-plan/work-items/a20.md
+      - Verification:
+          - A02 decisions: work_items/verification/a02-decisions.md
+          - A03 workflow inputs: work_items/verification/a03-workflow-inputs.md
+          - A04 classification: work_items/verification/a04-classification.md
+          - A05 PM classification: work_items/verification/a05-pm-classification.md
+          - A06 cognition state: work_items/verification/a06-cognition-state.md
+          - A07 emotional dynamics: work_items/verification/a07-emotional-dynamics.md
+          - A08 experienced memory: work_items/verification/a08-experienced-memory.md
+          - A09 public dialogue: work_items/verification/a09-public-dialogue.md
+          - A10 Minecraft actor: work_items/verification/a10-minecraft-actor.md
+          - A11 Minecraft projects: work_items/verification/a11-minecraft-projects.md
+          - A12 body recovery: work_items/verification/a12-body-recovery.md
+          - A13 gameplay:
+              - Overview: work_items/verification/a13/index.md
+              - Failure fixtures: work_items/verification/a13/failure-fixtures.md
+              - M3 house and iron: work_items/verification/a13/m3-house-and-iron.md
+              - Concrete replanning: work_items/verification/a13/replanning.md
+              - Task and gate review: work_items/verification/a13/task-gate-review.md
+              - Gate contract proposal: work_items/verification/a13/gate-contract-proposal.md
+              - Scoped acceptance evidence: work_items/verification/a13/scoped-acceptance-evidence.md
+              - Block interaction evidence: work_items/verification/a13/block-interaction.md
+              - Earlier evidence:
+                  - Fixture receipts: work_items/verification/a13/history/fixture-receipts.md
+                  - Hazard diagnoses: work_items/verification/a13/history/hazard-diagnoses.md
+                  - Tool repairs: work_items/verification/a13/history/tool-repairs.md
+                  - Plan context: work_items/verification/a13/history/plan-context.md
+                  - Review repairs: work_items/verification/a13/history/review-repairs.md
+                  - Engineering checks: work_items/verification/a13/history/engineering-checks.md
+          - Console: work_items/verification/console.md
+      - Next experiments: work_items/experiments.md
   - API reference: reference/

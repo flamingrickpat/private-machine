@@ -9,14 +9,14 @@ The configured text model uses numeric observations and retains screenshots as s
 
 Parent: [managed work](managed-work.md).
 Operation: [actor controls](minecraft-actor-controls.md).
-Evidence: [A10 verification](minecraft-actor-verification.md).
+Evidence: [A10 verification](../work_items/verification/a10-minecraft-actor.md).
 Projects: [durable subtasks](minecraft-tasks.md).
 
 ## Request and execution
 
-[`main.build_app`][] configures the `minecraft` managed workflow.
-[`runtime.managed_runs.WorkflowSpec`][] supplies its manifest, tool factory, optional agent model, and MCP descriptors.
-[`runtime.managed_runs.ManagedRunSupervisor.start`][] commits the accepted receipt before it starts the worker thread.
+[`workflows.companion.build_app`][] configures the `minecraft` managed workflow.
+[`pm.runs.workflow_spec.WorkflowSpec`][] supplies its manifest, tool factory, optional agent model, and MCP descriptors.
+[`pm.runs.supervisor.ManagedRunSupervisor.start`][] commits the accepted receipt before it starts the worker thread.
 The worker creates its environment, cancellation event, and instruction callback.
 Its child runtime uses a separate `children/<scope>` directory and inherits cancellation and tools.
 Nested scopes retain the agent model and MCP descriptors beneath their parent directory.
@@ -37,7 +37,7 @@ Explicit `action_tool` requests and the old instruction-wait fixtures select the
 `mode: boundary_check` also selects that path.
 The request has no `max_actions` field or workflow tool-call ceiling.
 
-[`workflows.minecraft.actor.run_actor`][] acquires the lease, observes the body, and discovers upstream tool schemas.
+[`workflows.minecraft.specialist_session.run_specialist_session`][] acquires the lease, observes the body, and discovers upstream tool schemas.
 It starts a temporary loopback MCP gateway and passes its descriptor to `PmCoderDriver.run_session`.
 The model comes from the supplied `agent_model` or the lazy `Default` model session.
 The driver uses pm-coder's native session, serving context, history, and automatic compaction.
@@ -46,7 +46,7 @@ This deadline is independent of the number of tools or actions.
 
 ## Specialist resources
 
-[`scripts.compile_minecraft_skill.compile_skill`][] copies selected upstream sections into project resources.
+[`dev.tools.compile_minecraft_skill.compile_skill`][] copies selected upstream sections into project resources.
 It leaves `C:/Users/rick/.agents/skills/minecraft-survival-coach/SKILL.md` intact.
 `workflows/minecraft/resources/source.json` records its digest and each compiled resource digest.
 Local builder guidance lives in `workflows/minecraft/guidance/builder.md`.
@@ -77,7 +77,7 @@ Scripts can hide multiple actions from the current instruction boundary.
 Operator test routes remain outside the actor grant.
 The `actor_instructions` tool reports the latest instructions and lease owner without a world call.
 
-[`runtime.minecraft_actor.ActorGateway`][] stores original results and screenshot paths in its journal.
+[`workflows.minecraft_body.gateway.BodyGateway`][] stores original results and screenshot paths in its journal.
 Image bytes never enter text observations or embeddings.
 The active actor sets visual interpretation to false.
 The gateway can return MCP image blocks through its explicit `visual` capability.
@@ -86,14 +86,14 @@ Changing a request cannot establish that its model supports images.
 
 ## Completion evidence
 
-[`workflows.minecraft.actor.ActorOutcome`][] contains `status`, `summary`, and `handoff`.
+[`workflows.minecraft.specialist_session.ActorOutcome`][] contains `status`, `summary`, and `handoff`.
 Its status is `complete`, `yield`, `blocked`, or `replan`.
 This model output is a candidate, not independent proof of task completion.
 
 The A10 `acceptance.kind: wood_return` verifier uses original tool receipts and a fresh final observation.
 It requires distinct positive tree harvests, retained logs, meaningful travel, return, dimension continuity, and a living grounded body.
 The default values require five trees, travel of at least 16 blocks, and return within three blocks.
-[`workflows.minecraft.actor.verify_wood_return`][] supplies these measured checks.
+[`workflows.minecraft.specialist_session.verify_wood_return`][] supplies these measured checks.
 General task-tree verification belongs to A11.
 Other leaves retain their candidate and artifacts without an accepted completion claim.
 
@@ -101,7 +101,7 @@ The final report uses `pm.minecraft-actor-report.v1`.
 It includes the goal, body label, outcome, verification, session reference, revision, call count, and both observations.
 It also includes the journal path, screenshot paths, and rejection reason.
 The report retains its acceptance specification and independent `verified` flag.
-Before public task dispatch, [`runtime.reply_recovery.task_evidence`][] recomputes wood-return checks from the retained journal.
+Before public task dispatch, [`workflows.public_speech.reply_recovery.task_evidence`][] recomputes wood-return checks from the retained journal.
 This check establishes recorded task effects, not a later unchanged world.
 The role writes `outbox/handoff.md` and `outbox/world.yaml` beside the report.
 If the native session already wrote its handoff, the host preserves that document.

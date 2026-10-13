@@ -10,8 +10,8 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-from workflows.public_context import PublicContext
-from workflows.public_claims import ClaimReview
+from workflows.public_speech.public_context import PublicContext
+from workflows.public_speech.claim_review import ClaimReview
 
 
 class AssistantMessage(BaseModel):

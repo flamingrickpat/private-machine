@@ -3,7 +3,7 @@
 Entry point: ``run(context)``. Builds the appraisal messages from the request
 and its triage result, validates the model JSON into :class:`AppraisalResult`,
 and writes ``outbox/report.yaml``. The message builder is pure and tested
-without a kernel, model, or Ghost.
+without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
 

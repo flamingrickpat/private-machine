@@ -5,8 +5,8 @@
     python -m workflows.dialogue_story.run show
 
 ``accept`` runs the fixed situation once, applies the ontology boundary, and
-commits an accepted reply to a Ghost checkpoint. ``trials`` runs N independent
-generations from the same initial Ghost state, then activates the evaluator
+commits an accepted reply to a MemoryStore checkpoint. ``trials`` runs N independent
+generations from the same initial MemoryStore state, then activates the evaluator
 over the saved artifacts and reports the quality gate. ``show`` prints the
 exact five messages without contacting a model.
 """
@@ -20,16 +20,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm_core.embeddings import EmbeddingService
-from pm_core.ghost.service import Ghost
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.models import LlmPreset, load_config, resolve_connection
-from workflows.dialogue_story import engine
+from pm.memory.embeddings import EmbeddingService
+from pm.memory.store import MemoryStore
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.config import LlmPreset, load_config, resolve_connection
+from workflows.dialogue_story import standalone as engine
 from workflows.dialogue_story.context import plan_story_request
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
 from workflows.dialogue_story.steps import build_story_messages, load_prompts, render_prior_dialogue
 
-DEFAULT_SEED = engine.PROJECT_ROOT / "data" / "spamuel_agentic_canon.yaml"
+DEFAULT_SEED = engine.PROJECT_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 DEFAULT_SITUATION = engine.WORKFLOW_DIR / "situation.yaml"
 REQUIRED_GOOD = 7
 
@@ -52,7 +52,7 @@ def _plan_request(ghost, embedding, situation):
 
 
 def command_show(args) -> int:
-    ghost = Ghost.from_yaml(args.seed)
+    ghost = MemoryStore.from_yaml(args.seed)
     embedding = EmbeddingService(load_config(_config_path()).embedding, live_test=True)
     request = _plan_request(ghost, embedding, engine.read_yaml(args.situation))
     prompts = load_prompts()
@@ -72,7 +72,7 @@ def command_accept(args) -> int:
     embedding = EmbeddingService(config.embedding, live_test=args.live_test)
 
     run_root = _run_root(args.runtime_root)
-    ghost = Ghost.from_yaml(args.seed, checkpoint=run_root / "ghost.json")
+    ghost = MemoryStore.from_yaml(args.seed, checkpoint=run_root / "ghost.json")
     situation = engine.read_yaml(args.situation)
     request = _plan_request(ghost, embedding, situation)
     prompts = load_prompts()
@@ -117,7 +117,7 @@ def command_trials(args) -> int:
     embedding = EmbeddingService(config.embedding, live_test=args.live_test)
 
     run_root = _run_root(args.runtime_root)
-    ghost = Ghost.from_yaml(args.seed)
+    ghost = MemoryStore.from_yaml(args.seed)
     situation = engine.read_yaml(args.situation)
     request = _plan_request(ghost, embedding, situation)
     environment = engine.make_environment(ghost)

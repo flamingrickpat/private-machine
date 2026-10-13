@@ -1,0 +1,1 @@
+"""pm.console.static package."""

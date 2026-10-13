@@ -8,11 +8,11 @@ Fresh observation precedes mutation.
 Durable journals retain effects that cancellation cannot undo.
 
 Parent: [Minecraft actor controls](minecraft-actor-controls.md).
-Details: [body leases](body-leases.md), [publication recovery](recovery-publication.md), and [A12 verification](body-recovery-verification.md).
+Details: [body leases](body-leases.md), [publication recovery](recovery-publication.md), and [A12 verification](../work_items/verification/a12-body-recovery.md).
 
 ## Control path
 
-[`runtime.managed_runs.ManagedRunSupervisor.resume`][] accepts `interrupted`, `cancelled`, and `failed` body runs.
+[`pm.runs.supervisor.ManagedRunSupervisor.resume`][] accepts `interrupted`, `cancelled`, and `failed` body runs.
 It supports `minecraft` and `minecraft_project`.
 It rejects a running worker, incomplete cleanup, or an unavailable worker lock.
 It preserves `run_id`, `action_id`, arguments, instruction revision, and artifact paths.
@@ -52,8 +52,8 @@ app.supervisor.update(run_id, instructions, request_id="instruction-2")
 app.supervisor.terminate(run_id, request_id="operator-cancel-1")
 ```
 
-[`runtime.management_tools.build_management_tools`][] exposes `managed_resume` through the management MCP.
-[`runtime.steward.Steward.resume`][] uses the same domain after explicit steward activation.
+[`pm.runs.management_api.build_management_tools`][] exposes `managed_resume` through the management MCP.
+[`workflows.steward.gate.Steward.resume`][] uses the same domain after explicit steward activation.
 SelfManagement accepts `operation: resume` through normal selected actions.
 It uses the selected action ID as the default idempotency key.
 Checkpoint restoration marks active receipts `interrupted`.
@@ -61,17 +61,17 @@ Restoration does not automatically resume world work.
 
 ## Observation and reconciliation
 
-[`runtime.minecraft_actor.ActorGateway`][] pins the body token at its first leased call.
+[`workflows.minecraft_body.gateway.BodyGateway`][] pins the body token at its first leased call.
 Its first successful `minecraft_observe` establishes observation for that epoch.
 A mutation before this observation raises `StaleEpoch`.
-[`runtime.minecraft_actor.ActorGateway.reconcile`][] reads earlier dispatches and their original results.
+[`workflows.minecraft_body.gateway.BodyGateway.reconcile`][] reads earlier dispatches and their original results.
 A dispatch without a result remains `uncertain`, even when current world state appears correct.
 
 The reconciliation receipt records the body epoch, instruction revision, observation sequence, retained actions, and exact target reads.
 Position, target, and base operands produce fresh `minecraft_inspect_block` calls.
 An unavailable target read prevents mutation.
 An explicit air result is usable even though the live tool returns `ok: false` and `reason: not_found`.
-[`runtime.minecraft_actor.observed_target`][] checks that this result names the exact requested cell.
+[`workflows.minecraft_body.gateway.observed_target`][] checks that this result names the exact requested cell.
 Project evidence retains the original tool outcome and adds `observation_available` for model review.
 This lets the reviewer distinguish observed air from an unavailable cell.
 Other changes require the body observation and the actor's normal task-specific reads.
@@ -111,4 +111,4 @@ Blocks, inventory, entities, player state, and time remain external state.
 Fresh observation establishes current facts, but cannot identify who caused a change during downtime.
 
 Read [body leases](body-leases.md) for server fencing and restart requirements.
-Read [A12 verification](body-recovery-verification.md) for the measured live boundaries and remaining limits.
+Read [A12 verification](../work_items/verification/a12-body-recovery.md) for the measured live boundaries and remaining limits.

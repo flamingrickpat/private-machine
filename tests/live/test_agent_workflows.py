@@ -10,12 +10,13 @@ from uuid import uuid4
 import yaml
 from pm_workflows.runtime import AgentModel, WorkflowRuntime
 
-from runtime.mcp_services import ScopedMcpRegistry
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config, resolve_connection
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
-from ghost_mcp import build_mcp
-from working_target import FolderTarget, GhostBashEnvironment
+from pm.host.mcp_listeners import ScopedMcpRegistry
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config, resolve_connection
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner, WorkflowStatus
+from pm.memory.store_tools import build_mcp
+from pm.host.folder_target import FolderTarget
+from pm.memory.bash_view import MemoryBashEnvironment
 
 
 class LiveAgentWorkflowTests(unittest.TestCase):
@@ -32,7 +33,7 @@ class LiveAgentWorkflowTests(unittest.TestCase):
         marker = "TARGET_" + uuid4().hex
         record = {"__type__": "Feature", "data": {"id": 1, "content": marker}}
         environment = (
-            GhostBashEnvironment({1: record}, {}, "read") if virtual
+            MemoryBashEnvironment({1: record}, {}, "read") if virtual
             else FolderTarget(root / "target", "bash").open("probe")
         )
         memory = "ghost/knoxels/1.yaml"
@@ -87,7 +88,7 @@ class LiveAgentWorkflowTests(unittest.TestCase):
         root.mkdir(parents=True)
         marker = "MCP_" + uuid4().hex
         record = {"__type__": "Feature", "data": {"id": 1, "content": marker}}
-        environment = GhostBashEnvironment({1: record}, {}, "read")
+        environment = MemoryBashEnvironment({1: record}, {}, "read")
         skill = root / "role.md"
         skill.write_text(
             "Do not read the memory file directly. Call the MCP tool `ghost_get` with "

@@ -15,21 +15,20 @@ from uuid import uuid4
 
 import yaml
 
-from bus.bus import BusSystem
-from bus.envelopes import Envelope
-from modules import AssistantDialogue
-from pm_core.ghost.service import Ghost
-from pm_core.model.ghost_state import GhostConfig
-from runtime.cognitive_model import LazyStageModel
-from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
-from runtime.model_activation import ModelActivation
-from runtime.models import LlmPreset, load_config, resolve_connection
+from pm.bus.bus import BusSystem
+from pm.bus.envelopes import Envelope
+from workflows.dialogue_assistant.host import AssistantDialogue
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
+from pm.llm.stage_model import LazyStageModel
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
+from pm.llm.activation import ModelActivation
+from pm.llm.config import LlmPreset, load_config, resolve_connection
 from tests.support import Recorder
-from workflows.dialogue_assistant.module_tools import (
-    build_assistant_tools,
-)
-from workflow_adapter import PROJECT_ROOT
-from working_target import GhostBashWrapper
+from workflows.dialogue_assistant.host import build_assistant_tools
+from pm.runs.workflow_module import PROJECT_ROOT
+from pm.memory.bash_view import MemoryBashTarget
 
 EVIDENCE_ROOT = Path(".runtime/w6/live-assistant") / (
     datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8]
@@ -57,7 +56,7 @@ class LiveAssistantTests(unittest.TestCase):
     def test_assistant_executes_a_real_management_tool(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"))
+            ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
             supervisor = ManagedRunSupervisor(
                 ghost, runtime_root=root / "runtime",
                 workflows={
@@ -78,7 +77,7 @@ class LiveAssistantTests(unittest.TestCase):
             bus = BusSystem()
             module = AssistantDialogue(
                 "assistant", bus, self.fail, time.monotonic, None,
-                working_target=GhostBashWrapper(ghost, mode="read"),
+                working_target=MemoryBashTarget(ghost, mode="read"),
                 workflow=ASSISTANT_MANIFEST,
                 tools_factory=build_assistant_tools(model, supervisor),
                 runtime_root=root / "runtime", ghost=ghost,

@@ -9,15 +9,15 @@ Hazards keep recovery active until observations prove safety.
 The project planner retains partial work and changes actual leaves.
 
 Parent: [durable projects](minecraft-tasks.md).
-Details: [evidence and memory](gameplay-evidence.md) and [verification](gameplay-verification.md).
-Related: [body interruption](body-recovery.md) and [survival design](../decisions/alpha-plan/minecraft-operations.md).
+Details: [evidence and memory](gameplay-evidence.md) and [verification](../work_items/verification/a13/index.md).
+Related: [body interruption](body-recovery.md) and [survival design](../work_items/alpha-plan/minecraft-operations.md).
 
 ## Owning code and execution path
 
 The implementation lives in `pm_next_v2`.
-[`runtime.minecraft_actor.ActorGateway`][] runs its checks inside the existing serialized command boundary.
+[`workflows.minecraft_body.gateway.BodyGateway`][] runs its checks inside the existing serialized command boundary.
 The journal retains the original dispatch and result before the actor receives gameplay guidance.
-[`runtime.minecraft_outcomes.GameplayEvidence`][] derives method history, search coverage, service waiting, and recovery from that journal.
+[`workflows.minecraft_body.call_outcomes.GameplayEvidence`][] derives method history, search coverage, service waiting, and recovery from that journal.
 
 The existing sustained `minecraft` workflow activates these checks automatically.
 The `minecraft_project` workflow supplies cumulative history from earlier actor attempts.
@@ -39,7 +39,7 @@ flowchart LR
 
 ## Outcomes
 
-[`runtime.minecraft_outcomes.classify`][] separates tool outcomes from independent acceptance.
+[`workflows.minecraft_body.call_outcomes.classify`][] separates tool outcomes from independent acceptance.
 
 | Outcome | Evidence and route |
 | --- | --- |
@@ -58,7 +58,7 @@ Routine observation calls stay in the journal and do not create individual cogni
 
 ## Repetition and diagnosis
 
-[`runtime.minecraft_actor.argument_errors`][] checks operands against the actual upstream JSON schema before dispatch.
+[`workflows.minecraft_body.gateway.argument_errors`][] checks operands against the actual upstream JSON schema before dispatch.
 The gateway records an `arguments_rejected` event and returns `invalid_arguments` with the field errors.
 No action is sent, and this rejection cannot create an uncertain external effect or a service wait.
 The actor can correct the operands and continue with the same execution epoch.
@@ -66,7 +66,7 @@ An exception after a real dispatch still retains uncertainty and stops further a
 
 The actor compares omitted optional arguments with defaults from the live tool schema.
 For example, an omitted `repetitions` and `repetitions=1` identify the same crafting method.
-[`runtime.minecraft_outcomes.GameplayEvidence.method_key`][] applies these defaults only when comparing actions.
+[`workflows.minecraft_body.call_outcomes.GameplayEvidence.method_key`][] applies these defaults only when comparing actions.
 Original journal arguments remain unchanged, and a different repetition count stays distinct.
 
 A method signature includes the tool name and actual argument values.
@@ -166,12 +166,12 @@ The current implementation does not infer every threat from screenshots or nearb
 
 ## Replanning and deferral
 
-[`workflows.minecraft_tasks.steps.gameplay_history`][] supplies cumulative methods, search coverage, recent outcomes, and active recovery to planning.
+[`workflows.minecraft_project.history_encoding.gameplay_history`][] supplies cumulative methods, search coverage, recent outcomes, and active recovery to planning.
 Replanning after a requested method change must add, revise, or defer a concrete leaf.
 An unchanged tree with a different explanation returns `invalid` before dispatch.
 Unchanged accepted nodes keep their identities and certificates.
 Original inventory baselines prevent repeated increments after partial work.
-[`workflows.minecraft_tasks.tree.validate_tree`][] reports the affected node, condition, and certificate source when a proposed reference fails.
+[`workflows.minecraft_project.tree_store.validate_tree`][] reports the affected node, condition, and certificate source when a proposed reference fails.
 For a leaf, the message lists allowed prerequisites and explains the required direct `depends_on` reference.
 The planner repairs the proposal and submits it to the same validation rules.
 Later proposals can replace or add explicit nodes through `updates`; omitted nodes remain unchanged.
@@ -179,7 +179,7 @@ The merged complete tree still passes those same rules and independent review.
 When no recovery leaf is ready, active recovery supersedes an earlier optional refinement restriction.
 Once a recovery leaf is ready, the named refinement boundary applies again.
 
-[`workflows.minecraft_tasks.schemas.Node`][] supports `deferred=true` with an explicit `defer_reason`.
+[`workflows.minecraft_project.schemas.Node`][] supports `deferred=true` with an explicit `defer_reason`.
 Only a leaf can be deferred.
 The selector skips it while other ready work proceeds.
 Its specification, attempts, and world effects remain.
@@ -207,4 +207,4 @@ No outcome category grants permission to replay an uncertain action.
 ## Go deeper
 
 Read [gameplay evidence](gameplay-evidence.md) for durable records and meaningful cognition events.
-Read [verification](gameplay-verification.md) for real receipts, commands, and outstanding acceptance.
+Read [verification](../work_items/verification/a13/index.md) for real receipts, commands, and outstanding acceptance.

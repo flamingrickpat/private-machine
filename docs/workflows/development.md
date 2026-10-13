@@ -8,13 +8,13 @@ Run its contracts, inspect a real exchange, and record the result.
 Update the documentation with the changed behavior.
 
 Parent: [manual](../index.md).
-Planning: [next experiments](../decisions/experiments.md).
-Alpha delivery: [baseline commands](../decisions/alpha-plan/baseline/commands.md) and [session handoff](../decisions/alpha-plan/baseline/handoff.md).
-Optional decisions: [client boundary](../subsystems/decisions/index.md), [live procedure](../subsystems/decisions/operation.md), and [A02 results](../subsystems/decisions/verification.md).
+Planning: [next experiments](../work_items/experiments.md).
+Alpha delivery: [baseline commands](../work_items/alpha-plan/baseline/commands.md) and [session handoff](../work_items/alpha-plan/baseline/handoff.md).
+Optional decisions: [client boundary](../subsystems/decisions/index.md), [live procedure](../subsystems/decisions/operation.md), and [A02 results](../work_items/verification/a02-decisions.md).
 
 ## Read the session instructions
 
-1. Read `codex.md` in the repository root.
+1. Read `AGENTS.md` in the repository root and the [work-item process](../work_items/process.md).
 2. Read the selected alpha work item and its linked design.
 3. Open the simple-english and project-documentation skills before writing explanatory prose.
 
@@ -60,14 +60,14 @@ Use the [memory editor](memory.md) for changes to an existing instance.
 Run only the root foundation modules to exclude live endpoints.
 
 ```powershell
-$testModules = Get-ChildItem tests/test_*.py | ForEach-Object { 'tests.' + $_.BaseName }
-uv run --locked python -m unittest $testModules -b
+uv run --locked python -m unittest discover -s tests/unit -t . -b
+uv run --locked python -m unittest discover -s tests/contract -t . -b
 ```
 
 Run the owning stage's direct contracts after a stage change.
 
 ```powershell
-uv run --locked python -m unittest workflows.main_cognition.stages.attention.tests.test_attention_contract -v -b
+uv run --locked python -m unittest tests.contract.main_cognition.stages.test_attention_contract -v -b
 ```
 
 `unittest discover -s tests` includes live suites.
@@ -83,13 +83,13 @@ Remove-Item Env:PM_MODEL_CONFIG
 ```
 
 The full conversation gate uses `tests.live.test_conversations`.
-The primary companion seed is `data/spamuel_agentic_canon.yaml`, including the real Spamuel/Jesse history.
+The primary companion seed is `test_data/personas/spamuel/canon.yaml`, including the real Spamuel/Jesse history.
 Tiny invented seeds and fixed model responses cannot establish companion acceptance.
 Existing deterministic foundation tests remain useful for their stated contracts.
 
 The real Minecraft server is `C:/source/minecraft-server-real`.
 The historical generic W8 autostart path uses a superflat TDD template.
-Use the [A01 real-server wrapper](../decisions/alpha-plan/baseline/commands.md#real-minecraft-world-and-reset) for acceptance on the user's actual world.
+Use the [A01 real-server wrapper](../work_items/alpha-plan/baseline/commands.md#real-minecraft-world-and-reset) for acceptance on the user's actual world.
 If the actual server cannot be identified, ask the user for its location.
 Do not substitute dummy tests or the superflat template for a required real-world gate.
 
@@ -152,8 +152,8 @@ Each completed item must regenerate the HTML, even when the visible change is a 
 ## Debugger entry points
 
 Use `.venv/Scripts/python.exe` as the interpreter.
-Place a breakpoint in [`runtime.shell.ShellModule.step`][] for mailbox processing.
-Place a breakpoint in [`runtime.workflow_runner.WorkflowRunner.invoke`][] for workflow execution.
-Place a breakpoint in [`pm_core.ghost.service.Ghost.commit`][] for accepted memory.
+Place a breakpoint in [`pm.host.application.BusModule.step`][] for mailbox processing.
+Place a breakpoint in [`pm.runs.workflow_runner.WorkflowRunner.invoke`][] for workflow execution.
+Place a breakpoint in [`pm.memory.store.MemoryStore.commit`][] for accepted memory.
 
 Read [workflow runtime](../runtime.md) for direct calls without module threads.

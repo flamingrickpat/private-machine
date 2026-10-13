@@ -10,11 +10,11 @@ Parent: [project README](index.md).
 
 ## Accepted state
 
-The [`pm_core.ghost.service.Ghost`][] owns accepted records, indexes, GWT records, revisions, counters, and commit receipts.
+The [`pm.memory.store.MemoryStore`][] owns accepted records, indexes, GWT records, revisions, counters, and commit receipts.
 The existing knoxel classes remain unchanged.
 The service copies the seed instead of retaining its mutable objects.
 
-A [`pm_core.ghost.batch.GhostWriteBatch`][] captures a stable read view and collects private proposals.
+A [`pm.memory.write_batch.WriteBatch`][] captures a stable read view and collects private proposals.
 New records reserve integer IDs under the Ghost lock.
 A discarded batch can leave ID gaps.
 Other batches cannot read its proposals.
@@ -51,10 +51,10 @@ Cancellation after replacement does not undo an accepted commit.
 
 ```python
 from pathlib import Path
-from pm_core.ghost.service import Ghost
-from pm_core.model.ghost_state import GhostConfig
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType
+from pm.memory.store import Ghost
+from pm.records.cycle_state import GhostConfig
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType
 
 ghost = Ghost(GhostConfig(user_name="Jesse", companion_name="Spamuel"),
               checkpoint=Path(".runtime/example-ghost.json"))
@@ -103,7 +103,7 @@ The managed-run supervisor uses these receipts for real workflow execution.
 
 ## Bus behavior
 
-[`bus.bus.BusSystem`][] serializes each envelope before delivery.
+[`pm.bus.bus.BusSystem`][] serializes each envelope before delivery.
 Each subscriber receives a separate deserialized envelope, including its nested payload.
 Predicates and delivery callbacks run outside the subscription lock.
 The callbacks select or enqueue data. They do not run a workflow.
@@ -136,7 +136,7 @@ These tests establish state and delivery behavior, not dialogue quality.
 For direct memory and application tests, run:
 
 ```powershell
-uv run --locked python -m unittest tests.test_bus_isolation tests.test_ghost_commits tests.test_durable_application -v -b
+uv run --locked python -m unittest tests.unit.pm.bus.test_bus_isolation tests.unit.pm.memory.test_store_commits tests.unit.pm.host.test_durable_application -v -b
 ```
 
 These tests start no module threads. The full-seed test uses the real Spamuel seed.
@@ -145,7 +145,7 @@ The direct application tests run the real Python workflow kernel and virtual Bas
 For actual concurrent commits, run:
 
 ```powershell
-uv run --locked python -m unittest tests.test_ghost_concurrency -v -b
+uv run --locked python -m unittest tests.unit.pm.memory.test_store_concurrency -v -b
 ```
 
 The concurrent tests use two real threads, barriers, and actual checkpoint files.

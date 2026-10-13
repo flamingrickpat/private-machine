@@ -17,13 +17,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm_core.ghost.service import Ghost
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.models import load_config, resolve_connection
-from workflows.main_cognition import engine
+from pm.memory.store import MemoryStore
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.config import load_config, resolve_connection
+from workflows.main_cognition import stage_runner as engine
 from workflows.main_cognition.schemas import AttentionResult
 
-SEED = engine.PROJECT_ROOT / "data" / "spamuel_agentic_canon.yaml"
+SEED = engine.PROJECT_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 EVIDENCE_ROOT = (
     Path(".runtime/w5/live-attention")
     / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8])
@@ -61,7 +61,7 @@ class LiveAttentionCounterexampleTests(unittest.TestCase):
         self.connection = resolve_connection(self.config)
         self.client = ChatClient(self.connection, self.owner, live_test=True)
         asyncio.run(self.owner.activate(self.connection, live_test=True))
-        self.ghost = Ghost.from_yaml(SEED)
+        self.ghost = MemoryStore.from_yaml(SEED)
 
     def _run(self, candidates: list[dict], name: str) -> AttentionResult:
         run_stage = engine.build_stage_runner(

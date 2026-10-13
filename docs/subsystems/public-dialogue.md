@@ -8,14 +8,14 @@ The Ghost commits public speech and exchange resolution together.
 Rejected, stale, or failed work produces an observable recovery outcome.
 
 Parent: [cognition](cognition.md).
-Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), and [A09 verification](public-verification.md).
-Design: [private ontology](../decisions/alpha-plan/ontology.md).
+Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
+Design: [private ontology](../work_items/alpha-plan/ontology.md).
 
 ## Context and entry points
 
-[`workflows.public_context.PublicContext`][] defines the common contract in the root repository.
-[`workflows.public_context.build_public_context`][] freezes accepted state before generation.
-[`modules.StoryDialogue`][] and [`modules.AssistantDialogue`][] use this same builder.
+[`workflows.public_speech.public_context.PublicContext`][] defines the common contract in the root repository.
+[`workflows.public_speech.public_context.build_public_context`][] freezes accepted state before generation.
+[`workflows.dialogue_story.host.StoryDialogue`][] and [`workflows.dialogue_assistant.host.AssistantDialogue`][] use this same builder.
 The standalone Story planner also uses this contract.
 
 The context contains character identity, accepted affect, regulation, active goals, attributed memories, and the selected workspace.
@@ -91,7 +91,7 @@ The prompts do not require a repeated disclaimer about the companion's nature.
 
 ## Domain capabilities and private ontology
 
-[`runtime.capabilities.capability_snapshot`][] reads configured workflows and current Minecraft transport availability.
+[`workflows.minecraft_body.capabilities.capability_snapshot`][] reads configured workflows and current Minecraft transport availability.
 It discovers MCP tools with a five-second deadline and probes the game socket with a two-second deadline.
 This operation does not move the character or reset the world.
 
@@ -118,7 +118,7 @@ Legacy direct requests retain their compatibility guard until callers supply the
 
 ## Disclosure and deception
 
-[`workflows.public_context.Presentation`][] accepts `candid`, `withhold`, and `deceive`.
+[`workflows.public_speech.public_context.Presentation`][] accepts `candid`, `withhold`, and `deceive`.
 The cognitive action commits this choice before dialogue starts.
 Each choice applies to its selected public action.
 An older request for one teasing answer does not become an ongoing preference to falsify later recall.
@@ -128,14 +128,14 @@ It differs from failed generation or rejected publication.
 
 `deceive` requires a prior purpose and retained `known_fact_ids`.
 The runtime rejects an incomplete deception intent before generation.
-[`runtime.experience.utterance_metadata`][] links the resulting utterance to that prior action.
+[`workflows.main_cognition.experience.utterance_metadata`][] links the resulting utterance to that prior action.
 Adding an intent after generation cannot justify the earlier prose.
 Deception cannot waive capability, task verification, or private-disclosure checks.
 Public speech remains an attributed communicative event and cannot automatically establish a factual belief.
 
 ## Time interpretation and claim review
 
-[`workflows.public_claims.review_public_claims`][] uses the normal LLM at temperature 0.1.
+[`workflows.public_speech.claim_review.review_public_claims`][] uses the normal LLM at temperature 0.1.
 All three review phases enable reasoning for attribution, exact spans, paraphrases, and chronology.
 Each phase runs once.
 The first phase receives only the candidate and extracts literal plant, room, or game conditions with their time scope.
@@ -229,7 +229,7 @@ That new response has its own review and a distinct recovery outcome.
 
 ## Inspect a real exchange
 
-Run the [A09 console gate](public-verification.md).
+Run the [A09 console gate](../work_items/verification/a09-public-dialogue.md).
 Read the correlated public request, workflow report, and `claim_review`.
 Compare every historical claim with the supplied original evidence IDs.
 Inspect the public Feature's `factual_promotion`, `action_schema_id`, and presentation attribution.

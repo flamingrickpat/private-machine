@@ -3,7 +3,7 @@
 Fake Jesse is a real generation call with a scenario-specific role. It sees
 only the public transcript, its own role, and the scenario facts. The
 companion uses UserInputProxy, the cognitive loop, and its selected dialogue
-or management workflow through the real application bus. Each scenario uses its own Ghost
+or management workflow through the real application bus. Each scenario uses its own MemoryStore
 copy that persists for all twenty exchanges.
 
 All generation finishes before the evaluator is activated. The evaluator reads
@@ -18,15 +18,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from pm_core.model.knoxel_common import Feature
-from pm_core.model.knoxel_enums import FeatureType, InterlocusType
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType, InterlocusType
 
-from bus.envelopes import Envelope, _new_id
-from main import build_app
-from runtime.cognitive_model import LazyStageModel
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.model_io import ModelError
-from runtime.models import LlmPreset, load_config, resolve_connection
+from pm.bus.envelopes import Envelope, new_id
+from workflows.companion import build_app
+from pm.llm.stage_model import LazyStageModel
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.http_client import ModelError
+from pm.llm.config import LlmPreset, load_config, resolve_connection
 from tests.support import Recorder, fresh_ghost, load_seed_state
 
 HERE = Path(__file__).resolve().parent

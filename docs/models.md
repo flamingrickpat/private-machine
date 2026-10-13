@@ -9,7 +9,7 @@ The [PM classification provider](subsystems/workflow-inputs/pm-connections.md) r
 The separate [typed decision client](subsystems/decisions/index.md) is available through pm-coder.
 A02 verifies its API without changing existing workflow model choices.
 Its [deployment guide](subsystems/decisions/operation.md) describes the independent Laya endpoint.
-The alpha's [model policy](decisions/alpha-plan/model-policy.md) uses the normal LLM by default.
+The alpha's [model policy](work_items/alpha-plan/model-policy.md) uses the normal LLM by default.
 
 Parent: [README](index.md).
 
@@ -28,7 +28,7 @@ The request model remains the cache identity, so existing vectors stay compatibl
 `config.alpha.example.yaml` also uses OpenRouter embeddings with local Qwen chat on port 8080.
 The credential comes from `OPENROUTER_API_KEY`.
 The unused local embedding service on port 8081 has a recorded invalid-vector defect.
-Read [A08 verification](subsystems/memory-verification.md) for the real failure and recovery evidence.
+Read [A08 verification](work_items/verification/a08-experienced-memory.md) for the real failure and recovery evidence.
 
 ### Local setup
 
@@ -49,11 +49,11 @@ Config parsing and connection resolution make no network requests.
 
 | File | Responsibility |
 | --- | --- |
-| `runtime/models.py` | Config, presets, credential resolution, redaction |
-| `runtime/model_io.py` | Shared HTTP requests, retries, cancellation |
-| `runtime/model_activation.py` | Finite scripts, readiness, active calls, chat responses |
-| `runtime/workflow_models.py` | Lazy classification sessions, serving context, and redacted service receipts |
-| `pm_core/embeddings.py` | Legacy reads, new cache writes, scoped preparation, cosine search |
+| `pm/llm/config.py` | Config, presets, credential resolution, redaction |
+| `pm/llm/http_client.py` | Shared HTTP requests, retries, cancellation |
+| `pm/llm/activation.py` | Finite scripts, readiness, active calls, chat responses |
+| `pm/llm/workflow_sessions.py` | Lazy classification sessions, serving context, and redacted service receipts |
+| `pm/memory/embeddings.py` | Legacy reads, new cache writes, scoped preparation, cosine search |
 
 These files contain no character policy or cognitive routing.
 
@@ -64,8 +64,8 @@ Breakpoints inside `activate()` and `complete()` use the production path.
 
 ```python
 import asyncio
-from runtime.models import load_config, resolve_connection
-from runtime.model_activation import ChatClient, ModelActivation
+from pm.llm.config import load_config, resolve_connection
+from pm.llm.activation import ChatClient, ModelActivation
 
 async def run_once():
     config = load_config("config.alpha.example.yaml")
@@ -148,7 +148,7 @@ It rejects zero and nonfinite vectors.
 Cosine comparison divides by both vector norms.
 
 ```python
-from pm_core.embeddings import EmbeddingService
+from pm.memory.embeddings import EmbeddingService
 
 service = EmbeddingService(config.embedding, live_test=True)
 visible_text = {record.id: record.content for record in scoped_records}
@@ -172,7 +172,7 @@ The API uses OpenRouter's [embedding endpoint](https://openrouter.ai/docs/api/ap
 Run these direct tests without a model endpoint:
 
 ```powershell
-uv run --locked python -m unittest tests.test_models tests.test_embeddings tests.test_model_activation -v -b
+uv run --locked python -m unittest tests.unit.pm.llm.test_config tests.unit.pm.memory.test_embeddings tests.unit.pm.llm.test_activation -v -b
 ```
 
 These tests use real cache files and real finite subprocesses.

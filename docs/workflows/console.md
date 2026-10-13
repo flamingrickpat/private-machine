@@ -15,7 +15,7 @@ Design: [operator service](../subsystems/console.md).
 2. Run the console command.
 
 ```powershell
-uv run --locked python -m console.server
+uv run --locked python -m pm.console.server
 ```
 
 3. Open `http://127.0.0.1:8090`.
@@ -55,7 +55,7 @@ The worker rejects another exchange until the current reply arrives.
 
 The timing table sorts work by total elapsed time.
 It does not assign a usefulness score.
-The [experiment guide](../decisions/experiments.md) explains how to compare usefulness.
+The [experiment guide](../work_items/experiments.md) explains how to compare usefulness.
 
 ## Notifications and lifecycle
 
@@ -91,5 +91,5 @@ The dummy fixture verifies wiring without establishing companion quality.
 
 ## Code links
 
-[`console.server.serve`][], [`console.server.Instance.command`][], and [`console.worker.run`][] implement this procedure.
+[`pm.console.server.serve`][], [`pm.console.server.Instance.command`][], and [`pm.console.worker.run`][] implement this procedure.
 Read the [development loop](development.md) for code changes and verification.

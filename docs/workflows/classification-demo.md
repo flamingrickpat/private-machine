@@ -9,11 +9,11 @@ Its separate long-inspection workflow checks actual agent compaction.
 
 Parent: [workflow runtime](../runtime.md).
 Connections: [PM model sessions](../subsystems/workflow-inputs/pm-connections.md).
-Evidence: [A05 verification](../subsystems/workflow-inputs/pm-verification.md).
+Evidence: [A05 verification](../work_items/verification/a05-pm-classification.md).
 
 ## Trigger and results
 
-The manifest is `workflows/classification_demo/classification_demo.workflow.md`.
+The manifest is `workflows/demo/classification/classification_demo.workflow.md`.
 It is a separate demonstration, rather than a replacement cognitive stage.
 The application does not add it to its automatic managed-work catalog.
 The caller supplies `artifact_folder`, a granted relative folder under `logs`.
@@ -27,7 +27,7 @@ Missing, incomplete, contradictory, or stale evidence cannot establish a class.
 
 The primary routes accepted classes to `publish` and INVALID to `inspect`.
 The dedicated handler routes its observed result to `publish`, including unresolved INVALID.
-[`workflows.classification_demo.steps.run`][] reads the latest classification for the same task and item from the kernel journal.
+[`workflows.demo.classification.steps.run`][] reads the latest classification for the same task and item from the kernel journal.
 The role session ID differs from the workflow run ID.
 The publisher therefore uses retained classification scope and reports the journal's workflow ID.
 
@@ -53,16 +53,16 @@ Use the locked package and local configuration:
 from pathlib import Path
 from threading import Event
 from pm_workflows.runtime import WorkflowRuntime
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config
-from runtime.workflow_models import WorkflowModels
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner
-from working_target import FolderEnvironment
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config
+from pm.llm.workflow_sessions import WorkflowModels
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner
+from pm.host.folder_target import FolderEnvironment
 
 models = WorkflowModels(load_config("config.alpha.example.yaml"), ModelActivation())
 runtime = WorkflowRuntime(FolderEnvironment(Path("your-test-workspace"), "bash"), Event(), {})
 runner = WorkflowRunner(
-    Path("workflows/classification_demo/classification_demo.workflow.md"),
+    Path("workflows/demo/classification/classification_demo.workflow.md"),
     Path(".runtime/your-classification-run"), models=models,
 )
 result = runner.invoke(WorkflowRequest("your-unique-run", {"artifact_folder": "logs"}), runtime)
@@ -76,7 +76,7 @@ The publisher performs no further inference.
 
 ## Long-file inspection
 
-`workflows/classification_demo/long_inspection.workflow.md` reads the exact `logs/overflow.log` input.
+`workflows/demo/classification/long_inspection.workflow.md` reads the exact `logs/overflow.log` input.
 Its 512-token direct budget deliberately requires INVALID recovery.
 Its acceptance skill requests one full virtual `cat`, then focused footer inspection after automatic compaction.
 The source contains an original Spamuel history prefix and an actual preserved test footer.
@@ -102,4 +102,4 @@ Journals and unique run IDs retain the previous results.
 Missing journal evidence raises a Python error; the publisher does not invent a result.
 Cancellation prevents report loading and public success delivery at the runner boundary.
 
-Run the complete [M1 gate](../subsystems/workflow-inputs/pm-verification.md#reproduce-m1) for independently checked real evidence.
+Run the complete [M1 gate](../work_items/verification/a05-pm-classification.md#reproduce-m1) for independently checked real evidence.

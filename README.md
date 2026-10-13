@@ -1,4 +1,4 @@
-# pm-next-v2 ? Spamuel companion
+# private-machine
 
 Spamuel runs on a shared Ghost, an in-memory bus, and the `pm-workflows` kernel.
 The terminal uses real cognition by default. The model activates on the first request.
@@ -17,7 +17,7 @@ Internal thought generation remains disabled in real mode.
 
 The [engineering manual](docs/index.md) explains operation, architecture, memory experiments, and the development loop.
 For a personal Minecraft test, read [Your own test Spamuel: local LLM and Jesse chat](docs/workflows/jesse-quickstart.md).
-Start the local operator console with `uv run --locked python -m console.server`.
+Start the local operator console with `uv run --locked python -m pm.console.server`.
 Open `http://127.0.0.1:8090` to deploy and control instances, chat, and inspect execution evidence.
 Each console instance has a separate checkpoint. Sessions within one instance share memory.
 Read the [console procedure](docs/workflows/console.md) for details.
@@ -38,7 +38,7 @@ Read the [model guide](docs/models.md) for endpoints, credentials, activation, a
 Keep credentials in the environment or ignored local config files.
 
 The terminal restores `.runtime/ghost.json` when that file exists.
-Otherwise, it loads `data/spamuel_agentic_canon.yaml`.
+Otherwise, it loads `test_data/personas/spamuel/canon.yaml`.
 Accepted changes reach the checkpoint before public output.
 `--checkpoint PATH` selects another checkpoint. `--ephemeral` disables checkpoint storage.
 
@@ -49,7 +49,7 @@ $env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
 ```
 
 `--cognition dummy` selects the fixed-output demonstration.
-`uv run --locked python demo.py` runs its finite checks without inference.
+`uv run --locked python dev/smoke_demo.py` runs its finite checks without inference.
 Dummy behavior does not establish real companion quality.
 
 ## Managed workflows
@@ -102,14 +102,14 @@ Artifacts stay under `.runtime/w4/`.
 Run all foundation tests without model or Minecraft endpoints:
 
 ```powershell
-$testModules = Get-ChildItem tests/test_*.py | ForEach-Object { 'tests.' + $_.BaseName }
-uv run --locked python -m unittest $testModules -b
+uv run --locked python -m unittest discover -s tests/unit -t . -b
+uv run --locked python -m unittest discover -s tests/contract -t . -b
 ```
 
 The regression suite checks failure reporting, instruction consumption, action routing, and conversation evidence:
 
 ```powershell
-uv run --locked python -m unittest tests.test_reconciliation -v -b
+uv run --locked python -m unittest tests.unit.workflows.minecraft_body.test_reconciliation -v -b
 ```
 
 Run the real application path and model checks:
@@ -171,10 +171,10 @@ Memory and quality checks cover different contracts. Passing foundation tests do
 - [Ghost, bus, and checkpoints](docs/ghost.md)
 - [Models and embeddings](docs/models.md)
 - [Workflow runtime and debugger examples](docs/runtime.md)
-- [Application wiring](main.py)
-- [Cognitive modules](modules.py)
-- [Managed-run supervisor](runtime/managed_runs.py)
-- [Consolidation](runtime/consolidation.py)
+- [Application wiring](workflows/companion.py)
+- [Cognition host binding](workflows/main_cognition/host.py)
+- [Managed-run supervisor](pm/runs/supervisor.py)
+- [Consolidation](workflows/memory_consolidation/artifact_consolidation.py)
 
 Workflow manifests are executable Markdown under `workflows/`.
 Historical plans, handoffs, audits, and delivery notes remain in Git history.

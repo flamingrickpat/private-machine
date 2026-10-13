@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Spamuel · Operator console</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <strong>SPAMUEL / OPERATOR CONSOLE</strong
+      ><span id="connection">Connecting</span
+      ><button id="notify">Enable notifications</button>
+    </header>
+    <main>
+      <aside>
+        <h1>Instances</h1>
+        <div id="instances"></div>
+        <div class="toolbar">
+          <strong id="selected">Select or deploy an instance</strong
+          ><button data-action="start">Start</button
+          ><button data-action="stop">Stop</button
+          ><button class="danger" data-action="kill">Kill</button
+          ><button id="refresh">Read memory</button>
+        </div>
+
+        <form id="deploy">
+          <h2>Deploy an instance</h2>
+          <label>Name<input name="name" value="Spamuel" required /></label
+          ><label
+            >Persona YAML path<input
+              name="seed"
+              placeholder="test_data/personas/spamuel/canon.yaml" /></label
+          ><label
+            >Model configuration path<input
+              name="config"
+              placeholder="Default configuration" /></label
+          ><label
+            >Cognition<select name="cognition">
+              <option value="real">Real model</option>
+              <option value="dummy">Dummy fixture</option>
+            </select></label
+          ><button>Deploy</button>
+        </form>
+        <p>
+          Deployment creates a local instance definition. Start launches its
+          worker. Each instance has its own checkpoint.
+        </p>
+      </aside>
+      <section class="workspace">
+        <div id="error" role="alert"></div>
+        <nav>
+          <button data-tab="chat">Chat</button
+          ><button data-tab="network">Network and workflow</button
+          ><button data-tab="memory">Knoxels</button
+          ><button data-tab="performance">Timing</button
+          ><button data-tab="runs">Managed runs</button
+          ><button data-tab="logs">Worker log</button
+          ><button data-tab="connections">Connections</button>
+        </nav>
+        <section id="chat" class="panel">
+          <div class="toolbar">
+            <label>User name<input id="user" value="Jesse" /></label
+            ><label>Session<select id="session"></select></label
+            ><button id="new-session">New session</button
+            ><span id="unread"></span>
+          </div>
+          <p>
+            All sessions share this instance's memory. One exchange runs at a
+            time. The user name enters the model context.
+          </p>
+          <div id="transcript" aria-live="polite"></div>
+          <form id="send">
+            <textarea
+              id="message"
+              rows="3"
+              required
+              placeholder="Send an input and inspect its trace"
+            ></textarea
+            ><button>Send</button>
+          </form>
+        </section>
+        <section id="network" class="panel" hidden>
+          <div class="toolbar">
+            <label
+              >Correlation filter<input
+                id="correlation"
+                placeholder="All exchanges" /></label
+            ><button id="clear-filter">Clear</button
+            ><label
+              >Event search<input
+                id="event-search"
+                placeholder="Topic, node, or payload"
+            /></label>
+          </div>
+          <p>
+            Edges show observed mailbox deliveries. Select an edge for its
+            messages. Select a node for its workflows and state.
+          </p>
+          <svg
+            id="graph"
+            viewBox="0 0 1000 420"
+            role="img"
+            aria-label="Runtime message network"
+          ></svg>
+          <h2>Internal workflow activity</h2>
+          <svg
+            id="workflow-graph"
+            viewBox="0 0 1000 130"
+            role="img"
+            aria-label="Observed workflow activity"
+          ></svg>
+          <div class="split">
+            <div>
+              <h2 id="detail-title">Trace</h2>
+              <div id="trace"></div>
+            </div>
+            <div>
+              <h2>Selected evidence</h2>
+              <div id="source-links"></div>
+              <pre id="detail">Select a node, edge, or event.</pre>
+            </div>
+          </div>
+        </section>
+        <section id="memory" class="panel" hidden>
+          <div class="toolbar">
+            <label>Knoxel type<input id="memory-type" list="memory-types" placeholder="All types" /></label>
+            <datalist id="memory-types"></datalist>
+            <label>Subtype<input id="memory-subtype" list="memory-subtypes" placeholder="All subtypes" /></label>
+            <datalist id="memory-subtypes"></datalist>
+            <select id="search-mode">
+              <option value="text">Text filter</option>
+              <option value="vector">Vector similarity</option></select
+            ><button id="vector-search">Search vectors</button
+            ><button id="prepare-index">Embed missing records and search</button
+            ><button id="cancel-search">Cancel search</button><span
+              id="search-status"
+            ></span>
+            <input
+              id="memory-search"
+              placeholder="Search ID, type, or content"
+            /><button id="new-memory">New from selected record</button
+            ><button id="save-memory">Commit memory</button>
+          </div>
+          <p>
+            Edits use validated Ghost batches and revision checks. A new record
+            gets a new ID. Accepted memory changes affect future requests.
+          </p>
+          <div class="split">
+            <div id="memory-list"></div>
+            <textarea
+              id="memory-editor"
+              spellcheck="false"
+              rows="30"
+              aria-label="Knoxel JSON editor"
+            ></textarea>
+          </div>
+        </section>
+        <section id="performance" class="panel" hidden>
+          <p>
+            Times measure real elapsed work. Parent workflow times include child
+            work. Quality requires your judgment and acceptance tests.
+          </p>
+          <div id="timing"></div>
+        </section>
+        <section id="runs" class="panel" hidden>
+          <div id="run-list"></div>
+          <form id="run-control">
+            <label>Run ID<input name="run_id" required /></label
+            ><label
+              >Operation<select name="operation">
+                <option value="update">Update instructions</option>
+                <option value="answer">Answer question</option>
+                <option value="cancel">Cancel</option>
+                <option value="resume">Resume interrupted body work</option>
+              </select></label
+            ><label>Question ID<input name="question_id" /></label
+            ><label>Text<textarea name="text"></textarea></label
+            ><button>Apply</button>
+          </form>
+        </section>
+        <section id="connections" class="panel" hidden>
+          <button id="check-connections">Check connections</button>
+          <p>
+            Probes do not activate models or perform Minecraft actions. TCP
+            reachability does not prove world readiness.
+          </p>
+          <div id="connection-status"></div>
+        </section>
+        <section id="logs" class="panel" hidden><pre id="log"></pre></section>
+      </section>
+    </main>
+    <footer>
+      Local workstation · Trace payloads and model prompts remain in
+      .runtime/console · No external UI assets
+    </footer>
+  </body>
+</html>

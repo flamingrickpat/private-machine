@@ -9,22 +9,22 @@ Imported canon remains attributed background.
 
 Parent: [cognitive pipeline](cognition.md).
 Related: [accepted state](cognition-state.md), [emotional dynamics](emotional-dynamics.md), and [memory experiments](../workflows/memory.md).
-Children: [consolidation and beliefs](memory-consolidation.md) and [A08 verification](memory-verification.md).
+Children: [consolidation and beliefs](memory-consolidation.md) and [A08 verification](../work_items/verification/a08-experienced-memory.md).
 
 ## Entry and execution path
 
-[`modules.MainCogLoop.prepare_input`][] resolves stimuli through the invocation's permitted view.
-[`working_target.GhostBashWrapper.open`][] retains that detached view and its record revisions.
+[`workflows.main_cognition.host.MainCogLoop.prepare_input`][] resolves stimuli through the invocation's permitted view.
+[`pm.memory.bash_view.MemoryBashTarget.open`][] retains that detached view and its record revisions.
 New host workflow events remain explicit stimuli.
 They cannot expose memory appended after the invocation began.
 
-[`pm_core.ghost.service.Ghost.retrieve_experiences`][] calls [`pm_core.ghost.memory.retrieve`][].
+[`pm.memory.store.MemoryStore.retrieve_experiences`][] calls [`pm.memory.retrieval.retrieve`][].
 The newest stimulus supplies the `(tick_id, sub_tick_id)` frontier.
 The stimulus scopes supply the allowed `(reality_id, frame)` pairs.
 An empty permitted ID set exposes no memory.
 The default trusted host view contains all accepted IDs.
 
-[`pm_core.ghost.memory.scoped_records`][] applies these boundaries before any embedding request.
+[`pm.memory.retrieval.scoped_records`][] applies these boundaries before any embedding request.
 Each record requires its typed references within the same boundaries.
 This includes speaker Entity IDs in a restricted source grant.
 A summary requires every linked source inside the same boundaries.
@@ -44,7 +44,7 @@ Already cached vectors participate across the full eligible snapshot.
 Missing coverage remains explicit in `memory_trace.coverage`.
 Incomplete coverage limits purely semantic recall of an unindexed record without matching terms.
 Full preparation removes that index limitation.
-[`pm_core.ghost.memory.index_chunks`][] splits long records into 2,000-character chunks with 200 characters of overlap.
+[`pm.memory.retrieval.index_chunks`][] splits long records into 2,000-character chunks with 200 characters of overlap.
 Each chunk retains its original record ID.
 The record's semantic score uses its strongest matching chunk.
 Coverage counts distinguish complete records from indexed chunks.
@@ -88,7 +88,7 @@ It retains up to 16 competing records and 40 boundary rejection examples.
 
 ## Commit and concurrency
 
-[`pm_core.ghost.batch.GhostWriteBatch.expect_revision`][] guards the input records, selected memories, and their linked sources.
+[`pm.memory.write_batch.WriteBatch.expect_revision`][] guards the input records, selected memories, and their linked sources.
 A changed revision rejects the complete cognition batch with `GhostConflict`.
 An unrelated concurrent append does not alter the frozen selection.
 Appraisal, beliefs, experience summaries, goals, frame, and actions commit together.
@@ -110,7 +110,7 @@ Explicit live-test clients fail immediately for service diagnosis.
 Run an inspection before preparation:
 
 ```powershell
-uv run --locked python scripts/alpha_memory_index.py --config config.alpha.example.yaml --out .runtime/alpha/a08/index-inspection.json
+uv run --locked python dev/tools/alpha_memory_index.py --config config.alpha.example.yaml --out .runtime/alpha/a08/index-inspection.json
 ```
 
 For a specific accepted checkpoint, supply `--checkpoint PATH`.
@@ -130,7 +130,7 @@ The [memory experiment procedure](../workflows/memory.md) describes the console 
 
 ## Seed and restart
 
-[`pm_core.ghost.service.Ghost.from_yaml`][] marks imported records as `background` with `SourceKind.Migration` provenance.
+[`pm.memory.store.MemoryStore.from_yaml`][] marks imported records as `background` with `SourceKind.Migration` provenance.
 Metadata preserves the source path, file SHA-256, and original provenance.
 An imported utterance proves what the source says, rather than an action by this runtime.
 It cannot establish past physical senses or an unsupported emotion.
@@ -151,4 +151,4 @@ A fresh instance establishes the explicit canon baseline.
 
 Record-count equality establishes persistence only.
 A correct public claim also needs relevant original evidence and appropriate attribution.
-[A08 verification](memory-verification.md) separates these results from A09's public-voice work.
+[A08 verification](../work_items/verification/a08-experienced-memory.md) separates these results from A09's public-voice work.

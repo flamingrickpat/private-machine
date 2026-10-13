@@ -15,7 +15,7 @@ The message roles are a contract:
 
 The workflow never stores a model-invented next user utterance. No tool call is
 requested from the generation model. ``build_story_messages`` is pure and is
-tested directly without a kernel, model, or Ghost.
+tested directly without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ import re
 from pathlib import Path
 
 import yaml
-from workflows.public_context import render_public_context, render_factual_focus
-from workflows.public_claims import review_public_claims
+from workflows.public_speech.public_context import render_public_context, render_factual_focus
+from workflows.public_speech.claim_review import review_public_claims
 
 from workflows.dialogue_story.schemas import (
     DialogueTurn,

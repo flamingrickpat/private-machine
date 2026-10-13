@@ -8,12 +8,12 @@ Cancellation prevents later dispatches but cannot undo an action already sent.
 Original calls and uncertain outcomes remain in the actor journal.
 
 Parent: [sustained actor](minecraft-actor.md).
-Evidence: [A10 verification](minecraft-actor-verification.md).
-Interaction semantics: [block activation evidence](gameplay-block-interaction.md).
+Evidence: [A10 verification](../work_items/verification/a10-minecraft-actor.md).
+Interaction semantics: [block activation evidence](../work_items/verification/a13/block-interaction.md).
 
 ## Lease boundary
 
-[`runtime.body_lease.BodyLeases`][] owns operating-system leases keyed by the configured MCP endpoint.
+[`workflows.minecraft_body.lease.BodyLeases`][] owns operating-system leases keyed by the configured MCP endpoint.
 Application instances and local processes use the shared durable registry.
 A request's `body_id` is a descriptive label and cannot obtain another lease.
 The registry normalizes a trailing slash.
@@ -36,9 +36,9 @@ Use one configured endpoint per avatar and one shared local lease directory.
 
 ## Updates between actions
 
-[`runtime.managed_runs.ManagedRunSupervisor.update`][] durably stores the new instruction and increments `revision`.
+[`pm.runs.supervisor.ManagedRunSupervisor.update`][] durably stores the new instruction and increments `revision`.
 Duplicate request IDs retain the original update.
-[`runtime.managed_runs.ManagedRunSupervisor.instructions_at_boundary`][] advances `applied_revision` on the worker boundary.
+[`pm.runs.supervisor.ManagedRunSupervisor.instructions_at_boundary`][] advances `applied_revision` on the worker boundary.
 
 Before each call, the gateway reads the current boundary and checks cancellation.
 If the revision changed, the gateway returns `instruction_changed` without sending the planned call.
@@ -56,13 +56,13 @@ A later update receives an explicit final-boundary rejection.
 
 ## Cancellation and uncertain calls
 
-[`runtime.managed_runs.ManagedRunSupervisor.terminate`][] sets the code-owned cancellation event.
+[`pm.runs.supervisor.ManagedRunSupervisor.terminate`][] sets the code-owned cancellation event.
 It records cancellation and preserves task files.
 The pm-coder driver cancels supported asynchronous inference and awaits session cleanup.
 The gateway rejects later calls before dispatch.
 
 Synchronous external work can continue after an MCP client disconnects.
-[`runtime.minecraft_actor.ActorTool.run`][] waits for that call's thread before completing cancellation.
+[`workflows.minecraft_body.gateway.GatewayTool.run`][] waits for that call's thread before completing cancellation.
 The gateway's final cleanup also waits for the dispatch lock.
 Only then can the body lease become available.
 Blocks, inventory, position, and time do not roll back.
@@ -82,7 +82,7 @@ The external Minecraft and MCP services remain owned by their operator or live h
 Action selection uses the normal LLM.
 A clear inventory question selects `dialogue_assistant` with `arguments.minecraft_read: inventory`.
 It does not select the managed `minecraft` workflow or require Laya.
-[`modules.AssistantDialogue.prepare_input`][] retains that argument in the typed request.
+[`workflows.dialogue_assistant.host.AssistantDialogue.prepare_input`][] retains that argument in the typed request.
 
 [`workflows.dialogue_assistant.steps.run`][] performs exactly one `minecraft_observe` call for this route.
 It uses `include_image: false`, appends the actual receipt, and generates a public answer with no further tools.
@@ -98,7 +98,7 @@ An observation error becomes explicit tool evidence and cannot establish an inve
 The inventory is a snapshot and can change while the actor continues.
 The synthesized assistant tool call includes `type: function` and serialized JSON arguments.
 A10 captured an actual HTTP 500 when the type field was absent.
-[`runtime.model_io.rejected_message_protocol`][] treats that deterministic parser rejection as a permanent protocol error.
+[`pm.llm.http_client.rejected_message_protocol`][] treats that deterministic parser rejection as a permanent protocol error.
 Other transient server failures retain cancellation-aware retries.
 The failure classifier does not expose response bodies in public error text.
 The role manifest grants the direct observation tool explicitly.

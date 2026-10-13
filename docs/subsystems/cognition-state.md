@@ -10,11 +10,11 @@ Actions keep a stable identity and a separate success prerequisite.
 
 Parent: [Cognition](cognition.md).
 Entry: [`workflows.main_cognition.pipeline.run_cycle`][].
-Committer: [`modules.MainCogLoop.publish_output`][].
+Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 
 ## Place in the system
 
-[`modules.MainCogLoop`][] builds one request from a bus batch.
+[`workflows.main_cognition.host.MainCogLoop`][] builds one request from a bus batch.
 The seven child stages return typed reports.
 [`workflows.main_cognition.pipeline.run_cycle`][] collects them into one
 [`workflows.main_cognition.schemas.CognitiveReport`][].
@@ -35,10 +35,10 @@ The module applies those proposals inside one Ghost write batch.
 
 [`workflows.main_cognition.pipeline.run_cycle`][] computes one affect
 projection after the appraisal stage.
-[`pm_core.model.affect_dynamics.project_affect`][] applies elapsed-time decay,
+[`workflows.main_cognition.affect_dynamics.project_affect`][] applies elapsed-time decay,
 personality gains, canonical appraisal axes, explicit emotion and need deltas,
 and an expectation error.
-[`workflows.main_cognition.state_changes.apply_appraisal`][] stages the result
+[`workflows.main_cognition.stage_commits.apply_appraisal`][] stages the result
 as one `Feature` with `feature_subtype=Appraisal`.
 The Feature carries the new total state in `mental_state_appraisal_vec`.
 It carries the difference in `mental_state_delta_vec`.
@@ -56,7 +56,7 @@ The math uses bounded values, so state stays in range.
 
 ## Goal lifecycle
 
-[`workflows.main_cognition.state_changes.apply_goal_changes`][] accepts these
+[`workflows.main_cognition.stage_commits.apply_goal_changes`][] accepts these
 change kinds:
 
 - `add` starts an active goal.
@@ -92,24 +92,24 @@ dependencies.
 A missing prerequisite leaves the action `queued`.
 A failed prerequisite rejects it.
 A queued action never starts dependent work.
-[`modules.MainCogLoop`][] suppresses a repeated non-reply start with the same
+[`workflows.main_cognition.host.MainCogLoop`][] suppresses a repeated non-reply start with the same
 durable identity.
 
 ## Lifecycle evidence
 
-[`runtime.lifecycle.record_startup`][] writes one `SystemMessage` Feature.
+[`pm.app.lifecycle_records.record_startup`][] writes one `SystemMessage` Feature.
 The Feature records the boot identity, the last known activity, and the gap.
 When a clean shutdown exists, the gap text says so.
 When no clean shutdown exists, the gap is uncertain.
-[`runtime.lifecycle.record_shutdown`][] writes the clean shutdown event.
-[`modules.MainCogLoop.on_terminate`][] calls it on a normal stop.
+[`pm.app.lifecycle_records.record_shutdown`][] writes the clean shutdown event.
+[`workflows.main_cognition.host.MainCogLoop.on_terminate`][] calls it on a normal stop.
 An abrupt exit never reaches that hook.
 The next startup then reports an uncertain end interval.
 A repeated boot identity or shutdown identity reuses the accepted event.
 
-At construction, [`main.build_app`][] records the boot event.
+At construction, [`workflows.companion.build_app`][] records the boot event.
 For real cognition it also puts a `system.lifecycle` envelope on the bus.
-[`modules.MainCogLoop`][] accepts that topic in `_stimulus_from`.
+[`workflows.main_cognition.host.MainCogLoop`][] accepts that topic in `_stimulus_from`.
 The first cycle then appraises the offline interval.
 The system never attributes an unknown stop cause to the user.
 
@@ -123,7 +123,7 @@ A failure before the commit leaves accepted state unchanged.
 A stale revision raises `GhostConflict`, so no partial update lands.
 The checkpoint write precedes action publication.
 
-[`modules.MainCogLoop`][] reads active goals from accepted memory.
+[`workflows.main_cognition.host.MainCogLoop`][] reads active goals from accepted memory.
 It writes intentions and Features through the Ghost batch.
 It sends `action.request`, `action.receipt`, and `gwt.updated` messages.
 It sends no model call in the commit path.
@@ -142,8 +142,8 @@ A hard process kill leaves the interval uncertain by design.
 ## Go deeper
 
 Read [emotional dynamics](emotional-dynamics.md) for the bounded affect step.
-Read [A06 verification](cognition-state-verification.md) for the checks and
+Read [A06 verification](../work_items/verification/a06-cognition-state.md) for the checks and
 the receipts.
 Read [Cognition](cognition.md) for the stage order.
 Read [Ghost and bus](../ghost.md) for the commit boundary.
-Read [`workflows.main_cognition.state_changes`][] for the exact helpers.
+Read [`workflows.main_cognition.stage_commits`][] for the exact helpers.

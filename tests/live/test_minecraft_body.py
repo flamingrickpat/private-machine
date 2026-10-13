@@ -13,7 +13,7 @@ The test demonstrates observation, one real action, status, an instruction
 update, termination, and memory recovery from a reopened checkpoint.
 """
 from __future__ import annotations
-from runtime.body_lease import BODY_LEASES
+from workflows.minecraft_body.lease import BODY_LEASES
 
 import json
 import os
@@ -23,16 +23,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm_core.ghost.service import Ghost
-from pm_core.model.ghost_state import GhostConfig
-from runtime.cognitive_model import LazyStageModel
-from runtime.model_activation import ModelActivation
-from runtime.models import load_config, resolve_connection
-from runtime.consolidation import Consolidator
-from runtime.managed_runs import ManagedRunSupervisor, WorkflowSpec
-from runtime.minecraft_tools import DEFAULT_MCP_URL, build_minecraft_tools
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
+from pm.llm.stage_model import LazyStageModel
+from pm.llm.activation import ModelActivation
+from pm.llm.config import load_config, resolve_connection
+from workflows.memory_consolidation.artifact_consolidation import Consolidator
+from pm.runs.supervisor import ManagedRunSupervisor
+from pm.runs.workflow_spec import WorkflowSpec
+from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, build_minecraft_tools
 from tests.live.minecraft_stack import MinecraftStack, autostart_enabled
-from workflow_adapter import PROJECT_ROOT
+from pm.runs.workflow_module import PROJECT_ROOT
+from workflows.minecraft.host import persona_context
 
 EVIDENCE_ROOT = (
     Path(".runtime/w8/live-minecraft")
@@ -103,8 +105,8 @@ class LiveMinecraftBodyTests(unittest.TestCase):
     def test_body_lifecycle_and_memory_recovery(self):
         root = EVIDENCE_ROOT / "state"
         root.mkdir(parents=True, exist_ok=True)
-        ghost = Ghost(
-            GhostConfig(user_name="Jesse", companion_name="Spamuel"),
+        ghost = MemoryStore(
+            PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
             checkpoint=root / "ghost.json",
         )
         consolidator = Consolidator(ghost, clock=time.monotonic)
@@ -115,6 +117,8 @@ class LiveMinecraftBodyTests(unittest.TestCase):
                 "minecraft": WorkflowSpec(
                     MANIFEST,
                     namespace="minecraft",
+                    resumable=True,
+                    request_context=persona_context,
                     tools_factory=lambda run_id, environment: {
                         **build_minecraft_tools(self.mcp_url, plan_model=self.model.complete),
                         "minecraft_endpoint": lambda: self.mcp_url,
@@ -171,7 +175,7 @@ class LiveMinecraftBodyTests(unittest.TestCase):
 
         # Memory recovery from a reopened checkpoint.
         self.assertTrue(_wait_for(lambda: ghost.consolidations, timeout=30))
-        reopened = Ghost.from_checkpoint(root / "ghost.json")
+        reopened = MemoryStore.from_checkpoint(root / "ghost.json")
         self.assertTrue(reopened.consolidations)
         consolidation = next(iter(reopened.consolidations.values()))
         self.assertEqual(consolidation["run_id"], run_id)

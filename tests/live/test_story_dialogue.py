@@ -2,7 +2,7 @@
 
 Two checks:
   * one real accepted dialogue with the exact five message roles and prefix
-  * ten independent quality trials from the same initial Ghost state, then a
+  * ten independent quality trials from the same initial MemoryStore state, then a
     separate evaluator phase over the saved artifacts
 
 Generation always finishes before the evaluator model is activated. Missing
@@ -19,15 +19,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm_core.ghost.service import Ghost
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.models import LlmPreset, load_config, resolve_connection
-from workflows.dialogue_story import engine
+from pm.memory.store import MemoryStore
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.config import LlmPreset, load_config, resolve_connection
+from workflows.dialogue_story import standalone as engine
 from workflows.dialogue_story.context import plan_story_request
 from workflows.dialogue_story.schemas import StoryReport
 from workflows.dialogue_story.steps import build_story_messages, load_prompts, render_prior_dialogue
 
-SEED = engine.PROJECT_ROOT / "data" / "spamuel_agentic_canon.yaml"
+SEED = engine.PROJECT_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 SITUATION = engine.WORKFLOW_DIR / "situation.yaml"
 EVIDENCE_ROOT = (
     Path(".runtime/w4/live")
@@ -54,13 +54,13 @@ class LiveStoryDialogueTests(unittest.TestCase):
         self.prompts = load_prompts()
 
     def _plan(self, ghost):
-        from pm_core.embeddings import EmbeddingService
+        from pm.memory.embeddings import EmbeddingService
         embedding = EmbeddingService(self.config.embedding, live_test=True)
         return asyncio.run(plan_story_request(ghost, embedding, self.situation))
 
     def test_real_accepted_dialogue_preserves_roles_and_prefix(self):
         asyncio.run(self.owner.activate(self.default, live_test=True))
-        ghost = Ghost.from_yaml(SEED)
+        ghost = MemoryStore.from_yaml(SEED)
         request = self._plan(ghost)
         result, report = engine.generate_story(
             ghost, engine.make_environment(ghost), self.client,
@@ -91,7 +91,7 @@ class LiveStoryDialogueTests(unittest.TestCase):
 
     def test_ten_independent_quality_trials_pass_the_gate(self):
         asyncio.run(self.owner.activate(self.default, live_test=True))
-        ghost = Ghost.from_yaml(SEED)
+        ghost = MemoryStore.from_yaml(SEED)
         request = self._plan(ghost)
         environment = engine.make_environment(ghost)
 

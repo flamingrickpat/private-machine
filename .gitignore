@@ -12,3 +12,7 @@ config.local.yaml
 .pytest_cache/
 site/
 hs_err_pid*.log
+
+# Workflow output accidentally written to the repo root
+/artifacts/
+/scratch/

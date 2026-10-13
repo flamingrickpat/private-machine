@@ -87,7 +87,7 @@ Stopping Spamuel does not stop either external server.
 
 ## Source and tests
 
-Read [`workflows.minecraft.schemas.MinecraftRequest`][], [`runtime.managed_runs.ManagedRunSupervisor`][], and [`runtime.minecraft_tools.build_minecraft_tools`][].
+Read [`workflows.minecraft.schemas.MinecraftRequest`][], [`pm.runs.supervisor.ManagedRunSupervisor`][], and [`workflows.minecraft_body.mcp_client.build_minecraft_tools`][].
 Read [actor controls](../subsystems/minecraft-actor-controls.md) for sustained updates, cancellation, and direct inventory dialogue.
 The role is `workflows/minecraft/steps.py`; its manifest is `workflows/minecraft/minecraft.workflow.md`.
 

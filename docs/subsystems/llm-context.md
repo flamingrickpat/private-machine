@@ -8,7 +8,7 @@ Real-endpoint checks verify direct calls beyond Laya's input limit.
 A04 also verifies actual server-context overflow and live agent recovery with decisive classification evidence intact.
 
 Parent: [model connections](../models.md).
-Policy: [alpha model selection](../decisions/alpha-plan/model-policy.md).
+Policy: [alpha model selection](../work_items/alpha-plan/model-policy.md).
 
 ## Separate service limits
 
@@ -18,9 +18,9 @@ Laya on 8082 advertises 8192 state-context tokens and a separate 192-token decis
 Laya's head can truncate questions and options.
 That mechanism does not truncate the chat service's questions or disable pm-coder compaction.
 
-[`runtime.model_activation.ChatClient.complete`][] sends one supplied message list and returns the full completion.
+[`pm.llm.activation.ChatClient.complete`][] sends one supplied message list and returns the full completion.
 It does not own conversation history or run automatic agent compaction.
-[`runtime.cognitive_model.LazyStageModel`][] exposes that path to synchronous and asynchronous Python roles.
+[`pm.llm.stage_model.LazyStageModel`][] exposes that path to synchronous and asynchronous Python roles.
 The caller constructs context from relevant memories, selected workspace evidence, and the current request.
 Structured stages use their actual parser and schema rather than treating every raw completion as an accepted result.
 The cognitive parser accepts a JSON object inside a Markdown code block.
@@ -34,7 +34,7 @@ Long-file classification uses scoped agent reads and preserves required conclusi
 
 ## Direct project decisions use token percentages
 
-[`runtime.model_context.measure_context`][] measures the selected connection before each Minecraft project decision.
+[`pm.llm.context_window.measure_context`][] measures the selected connection before each Minecraft project decision.
 The serving window comes from configured `context_window` or the endpoint's current `/props` response.
 Training-context metadata cannot establish the serving window.
 `context_input_fraction` defaults to `0.8` and accepts a number strictly between zero and one.
@@ -73,7 +73,7 @@ Strata reports actual prompt tokens through `/status`; those observations can di
 Run the retained gate against the actual chat service:
 
 ```powershell
-uv run --locked python scripts/alpha_llm_context_gate.py --config config.alpha.example.yaml --out .runtime/alpha/llm-context-repeat
+uv run --locked python dev/work_items/alpha_llm_context_gate.py --config config.alpha.example.yaml --out .runtime/alpha/llm-context-repeat
 ```
 
 The gate reads the unchanged real Spamuel seed and captured A01 completed-task report.
@@ -102,5 +102,5 @@ The live pm-coder checks also passed:
 Both tests passed in 15.27 seconds.
 They exercise real file edits and live compaction for two isolated agent sessions.
 That compaction check does not force a server-context overflow.
-The [A04 gate](workflow-inputs/classification-verification.md) also forces actual overflow with a real-history tool result.
+The [A04 gate](../work_items/verification/a04-classification.md) also forces actual overflow with a real-history tool result.
 It retains the provider rejection, live summaries, original instruction, class contract, checkpoint, and final source quotes.

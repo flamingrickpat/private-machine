@@ -7,16 +7,16 @@ state. The state changes attention, goals, regulation, and expressive context.
 Two trait profiles can react differently to the same facts.
 
 Parent: [Cognition](cognition.md).
-Entry: [`pm_core.model.affect_dynamics.project_affect`][].
-Committer: [`modules.MainCogLoop.publish_output`][].
+Entry: [`workflows.main_cognition.affect_dynamics.project_affect`][].
+Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 
 ## Place in the system
 
 [`workflows.main_cognition.pipeline.run_cycle`][] runs the seven stages.
 After the appraisal stage, the parent computes one affect projection.
 The projection feeds the later stages and the parent report.
-[`modules.MainCogLoop.publish_output`][] commits the same projected vector.
-[`workflows.main_cognition.state_changes.apply_appraisal`][] writes the
+[`workflows.main_cognition.host.MainCogLoop.publish_output`][] commits the same projected vector.
+[`workflows.main_cognition.stage_commits.apply_appraisal`][] writes the
 appraisal Feature with the state, the delta, and the causal trace.
 
 ## Input → change → output
@@ -31,7 +31,7 @@ appraisal Feature with the state, the delta, and the causal trace.
 
 ## The affect step
 
-[`pm_core.model.affect_dynamics.project_affect`][] applies these inputs in
+[`workflows.main_cognition.affect_dynamics.project_affect`][] applies these inputs in
 order:
 
 1. Load the previous state. An empty vector starts from an empty state.
@@ -39,7 +39,7 @@ order:
    core affect next, and needs slowest. Neuroticism slows the decay of negative
    emotions. Self-control steadies the mood.
 3. Apply the canonical appraisal axes. The existing
-   [`pm_core.model.mental_state_vectors.compute_state_delta`][] maps the axes
+   [`pm.records.mental_state.compute_state_delta`][] maps the axes
    to core affect and discrete emotions. The step blends the derived value into
    the current state with one EMA gain.
 4. Apply explicit emotion and need deltas at full weight. An explicit delta is
@@ -55,7 +55,7 @@ and `StateNeeds` fields. The `appraisal` names use the `AppraisalGeneral` and
 
 ## Personality
 
-[`pm_core.model.affect_dynamics.personality_gains`][] returns a bounded gain
+[`workflows.main_cognition.affect_dynamics.personality_gains`][] returns a bounded gain
 for each named field. Every gain stays in `[0.5, 1.5]`.
 
 - Extraversion, openness, and the approach drive raise positive emotion gains.
@@ -70,7 +70,7 @@ A trait changes the size of a reaction, not the facts.
 ## Behavior mapping
 
 Accepted affect maps to a regulation mode and named behavior pressures in
-[`pm_core.model.affect_dynamics._behavior_mapping`][].
+[`workflows.main_cognition.affect_dynamics._behavior_mapping`][].
 
 - `reactive`: danger is present. The appraisal `bodily_threat`, the aversive
   pressure, fear, or anger crosses a threshold. Game danger preempts slow
@@ -104,7 +104,7 @@ to the action content.
 ## State and side effects
 
 The step is pure. It reads no Ghost and writes no file.
-[`modules.MainCogLoop.publish_output`][] stages the appraisal Feature and the
+[`workflows.main_cognition.host.MainCogLoop.publish_output`][] stages the appraisal Feature and the
 cycle state in one Ghost batch. A failure before the commit leaves accepted
 state unchanged. A stale revision raises `GhostConflict`.
 
@@ -130,8 +130,8 @@ appraisal.
 
 ## Go deeper
 
-Read [A07 verification](emotional-dynamics-verification.md) for the checks and
+Read [A07 verification](../work_items/verification/a07-emotional-dynamics.md) for the checks and
 the live receipts.
 Read [accepted cognition state](cognition-state.md) for the commit boundary.
-Read [`pm_core.model.affect_dynamics`][] for the exact functions.
+Read [`workflows.main_cognition.affect_dynamics`][] for the exact functions.
 Read [Cognition](cognition.md) for the stage order.

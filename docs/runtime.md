@@ -33,7 +33,7 @@ Use `.venv/Scripts/python.exe` as the debugger interpreter.
 Run these direct tests without module threads:
 
 ```powershell
-uv run --locked python -m unittest tests.test_workflow_runner tests.test_agent_file_scope -v -b
+uv run --locked python -m unittest tests.unit.pm.runs.test_workflow_runner tests.unit.pm.memory.test_bash_view_scope -v -b
 ```
 
 Place a breakpoint in `WorkflowRunner.invoke()` or the Python role's `run(context)` function.
@@ -48,15 +48,15 @@ from threading import Event
 from uuid import uuid4
 
 from pm_workflows.runtime import WorkflowRuntime
-from runtime.workflow_runner import WorkflowRequest, WorkflowRunner
-from working_target import GhostBashEnvironment
+from pm.runs.workflow_runner import WorkflowRequest, WorkflowRunner
+from pm.memory.bash_view import GhostBashEnvironment
 
 environment = GhostBashEnvironment({}, {}, "read")
 runtime = WorkflowRuntime(
     environment, Event(), {}, propagate_python_errors=True,
 )
 runner = WorkflowRunner(
-    Path("workflows/inner_thought.workflow.md"), Path(".runtime/debug"),
+    Path("workflows/demo/inner_thought.workflow.md"), Path(".runtime/debug"),
 )
 result = runner.invoke(WorkflowRequest(uuid4().hex, {"messages": []}), runtime)
 print(result.status)
@@ -68,7 +68,7 @@ The caller owns proposal acceptance and Ghost commits. The generic runner knows 
 
 ## Module behavior
 
-`ShellModuleWorkflow.handle_batch()` opens the target and prepares the request.
+`WorkflowModule.handle_batch()` opens the target and prepares the request.
 It passes that request to the shared runner.
 `last_result` exposes the typed outcome. `last_kernel_summary` retains compatibility with existing diagnostics.
 Only completed runs reach `publish_output()`.
@@ -84,7 +84,7 @@ The optional `enable_thinking` setting defaults to true. `live_test=True` makes 
 The runner selects pm-coder when this connection is present. Python skill files still use the Python driver.
 
 `FolderEnvironment` binds tools to its real root.
-`GhostBashEnvironment` binds tools to its BashMachine and the `workflow` user.
+`MemoryBashEnvironment` binds tools to its BashMachine and the `workflow` user.
 The virtual user's permissions also apply to read, write, edit, glob, and search tools.
 Automatic host instructions, skills, and MCP discovery are disabled for these runtime roles.
 The driver supplies the selected role's instructions directly.
@@ -108,17 +108,17 @@ An undeclared name is a `ManifestError`.
 `WorkflowRuntime.mcp_servers` supplies named scoped service descriptors.
 This field replaces shared `.mcp.json` discovery when present.
 The kernel writes a private configuration for each attempt.
-[`runtime.mcp_services.ScopedMcpRegistry`][] starts each named FastMCP service on an OS-assigned loopback port.
+[`pm.host.mcp_listeners.ScopedMcpRegistry`][] starts each named FastMCP service on an OS-assigned loopback port.
 It holds the bound socket for its lifetime.
 It closes the socket after success, error, or cancellation.
 `WorkflowRuntime.child_factory(scope)` opens the runtime for one child invocation.
 Without this factory, a child reuses the parent runtime.
 
 A run's cancellation is separate from module shutdown.
-`ShellModuleWorkflow.cancel_run()` cancels one run.
+`WorkflowModule.cancel_run()` cancels one run.
 `stop()` and a terminate control also cancel the active run.
 A run that suspends for user input publishes `workflow.question` and exposes its question ID and resume phase. A `workflow.answer` data message resumes it through a durable `pm.answer-receipt.v1`.
-`ghost_mcp.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `GhostWriteBatch`.
+`pm.memory.store_tools.build_tools(environment, batch)` adds `ghost_propose_create` and `ghost_propose_replace` over the run's `WriteBatch`.
 Proposals stay private until the batch commits.
 
 ## Current limits
@@ -138,12 +138,12 @@ The cognitive parent invokes seven child workflows through scoped runtimes.
 
 ## Code and evidence
 
-- [`runtime.workflow_runner.WorkflowRunner`][]
-- [`workflow_adapter.ShellModuleWorkflow`][]
-- Direct runner tests: `tests/test_workflow_runner.py`
-- Direct file-permission tests: `tests/test_agent_file_scope.py`
-- Run control tests: `tests/test_run_control.py`
-- MCP lifetime tests: `tests/test_mcp_lifetime.py`
+- [`pm.runs.workflow_runner.WorkflowRunner`][]
+- [`pm.runs.workflow_module.WorkflowModule`][]
+- Direct runner tests: `tests/unit/pm/runs/test_workflow_runner.py`
+- Direct file-permission tests: `tests/unit/pm/memory/test_bash_view_scope.py`
+- Run control tests: `tests/unit/pm/runs/test_run_control.py`
+- MCP lifetime tests: `tests/unit/pm/host/test_mcp_listeners.py`
 
 ## Related guides
 

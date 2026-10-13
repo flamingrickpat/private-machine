@@ -30,9 +30,9 @@ The `data` object contains that class's fields.
 
 ## State changes
 
-[`pm_core.ghost.batch.GhostWriteBatch.replace`][] preserves the class, scope, and creation tick.
-[`pm_core.ghost.batch.GhostWriteBatch.create`][] reserves a fresh ID.
-[`pm_core.ghost.service.Ghost.commit`][] validates references and writes the checkpoint before acceptance.
+[`pm.memory.write_batch.WriteBatch.replace`][] preserves the class, scope, and creation tick.
+[`pm.memory.write_batch.WriteBatch.create`][] reserves a fresh ID.
+[`pm.memory.store.MemoryStore.commit`][] validates references and writes the checkpoint before acceptance.
 The console then refreshes its snapshot.
 
 ## Traps
@@ -53,7 +53,7 @@ The editor does not delete records or repair references automatically.
 3. Record which memory IDs enter the accepted frame.
 4. Compare the reply and timing evidence.
 
-Read [next experiments](../decisions/experiments.md) for broader evaluation criteria.
+Read [next experiments](../work_items/experiments.md) for broader evaluation criteria.
 
 ## Vector search
 
@@ -71,8 +71,8 @@ The progress counter shows the indexed and total record counts.
 Select **Cancel search** to interrupt preparation without stopping Ghost.
 Completed vectors remain in the cache.
 
-[`pm_core.ghost.service.Ghost.search_memory`][] owns scoped search.
-[`pm_core.ghost.service.Ghost.dialogue_history`][] owns accepted public dialogue inspection.
+[`pm.memory.store.MemoryStore.search_memory`][] owns scoped search.
+[`pm.memory.store.MemoryStore.dialogue_history`][] owns accepted public dialogue inspection.
 Other trusted callers can reuse these APIs with their permitted record IDs.
 
 The knoxel editor hides embedding and state-vector fields. Existing vectors remain intact when you edit other fields.

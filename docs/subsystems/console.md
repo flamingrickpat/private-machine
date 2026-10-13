@@ -11,8 +11,8 @@ Operation: [console procedure](../workflows/console.md).
 
 ## Input, change, and output
 
-The browser sends JSON commands to [`console.server.serve`][].
-[`console.server.Instance`][] forwards worker commands through standard input.
+The browser sends JSON commands to [`pm.console.server.serve`][].
+[`pm.console.server.Instance`][] forwards worker commands through standard input.
 The worker acknowledges or rejects each command.
 The service appends worker events to `events.jsonl`.
 
@@ -72,11 +72,11 @@ The UI does not expose model credentials from configuration files.
 
 ## Go deeper
 
-Read [memory experiments](../workflows/memory.md), [evidence](../concepts/evidence.md), and [`console.worker.run`][].
+Read [memory experiments](../workflows/memory.md), [evidence](../concepts/evidence.md), and [`pm.console.worker.run`][].
 
 ## Endpoint configuration
 
-[`runtime.operator_services.operator_config`][] reads the project model configuration.
+[`pm.app.operator_config.operator_config`][] reads the project model configuration.
 It reads embedding overrides from `PM_ENV_FILE`, the repository `.env`, or the legacy `../pm_next/.env`.
 An existing credential environment variable takes precedence over a legacy file credential.
 The service never includes credentials in connection reports.

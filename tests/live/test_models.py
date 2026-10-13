@@ -12,10 +12,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from pm_core.embeddings import EmbeddingService, cosine_similarity
-from runtime.model_activation import ChatClient, ModelActivation
-from runtime.model_io import ModelError
-from runtime.models import LlmPreset, load_config, resolve_connection
+from pm.memory.embeddings import EmbeddingService, cosine_similarity
+from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.http_client import ModelError
+from pm.llm.config import LlmPreset, load_config, resolve_connection
 from tests.support import fresh_ghost, load_seed_state
 
 

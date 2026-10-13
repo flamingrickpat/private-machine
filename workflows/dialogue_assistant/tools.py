@@ -1,7 +1,7 @@
 """Tool descriptors the Assistant model is offered.
 
 The names match the functions supplied by the module tools factory and
-registered on the scoped MCP servers. Ghost read tools use the same scoped
+registered on the scoped MCP servers. MemoryStore read tools use the same scoped
 view as every other run.
 """
 from __future__ import annotations

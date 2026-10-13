@@ -8,8 +8,8 @@ Callers can request choice, score, probability, or several independent decisions
 Receipts preserve inputs by digest and retain validated provider answers.
 
 Parent: [model connections](../../models.md).
-Delivery: [A02](../../decisions/alpha-plan/work-items/a02.md).
-Evidence: [A02 verification](verification.md).
+Delivery: [A02](../../work_items/alpha-plan/work-items/a02.md).
+Evidence: [A02 verification](../../work_items/verification/a02-decisions.md).
 Measured behavior: [quality and limits](quality.md).
 Operation: [local deployment](operation.md).
 
@@ -63,7 +63,7 @@ The client does not claim that closing a socket stopped inference.
 Protocol success does not establish correct interpretation or calibrated confidence.
 The real A02 results include incorrect score and probability decisions.
 Existing LLM workflows remain usable without Laya.
-The [model policy](../../decisions/alpha-plan/model-policy.md) uses the normal LLM by default.
+The [model policy](../../work_items/alpha-plan/model-policy.md) uses the normal LLM by default.
 Only the simplest Laya classifications can qualify through realistic live-endpoint unit tests.
 If qualification requires expensive effort, retain the client for later and keep the LLM.
 Later experiments can retain the technology without adopting it in any workflow.

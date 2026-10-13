@@ -6,20 +6,16 @@ from functools import cache
 import tempfile
 from pathlib import Path
 
-from pm_core.model.gwt import GwtTurnRecord
-from pm_core.model.knoxel_common import ActionSchemaKnoxel, Feature
-from pm_core.model.knoxel_enums import ActionType, FeatureType, InterlocusType
-from pm_core.persist.dataprovider_yaml import (
-    ghost_state_from_dict,
-    ghost_state_to_dict,
-    load_ghost_state_from_yaml,
-)
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.memory_records import ActionSchemaRecord, Feature
+from pm.records.enums import ActionType, FeatureType, InterlocusType
+from pm.memory.yaml_codec import ghost_state_from_dict, ghost_state_to_dict, load_ghost_state_from_yaml
 
-from ghost import Ghost
-from main import build_app
-from shell import Envelope, _new_id
+from pm.memory.store import MemoryStore
+from workflows.companion import build_app
+from pm.bus.envelopes import Envelope, new_id
 
-SEED_PATH = Path(__file__).resolve().parent.parent / "data" / "spamuel_agentic_canon.yaml"
+SEED_PATH = Path(__file__).resolve().parent.parent / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 _ACTION_TYPE = {
     "dialogue": ActionType.Reply,
@@ -63,9 +59,9 @@ def load_seed_state():
     return ghost_state_to_dict(state)
 
 
-def fresh_ghost(seed_dict: dict) -> Ghost:
+def fresh_ghost(seed_dict: dict) -> MemoryStore:
     state = ghost_state_from_dict(copy.deepcopy(seed_dict))
-    return Ghost.from_state(state)
+    return MemoryStore.from_state(state)
 
 
 def make_app(seed_dict: dict, runtime_root: Path | None = None):
@@ -87,7 +83,7 @@ def make_app(seed_dict: dict, runtime_root: Path | None = None):
     return app
 
 
-def store_feature(ghost: Ghost, content: str = "test feature") -> int:
+def store_feature(ghost: MemoryStore, content: str = "test feature") -> int:
     feature = ghost.store_knoxel(Feature(
         content=content,
         feature_type=FeatureType.Dialogue,
@@ -99,16 +95,16 @@ def store_feature(ghost: Ghost, content: str = "test feature") -> int:
 
 
 def store_action(
-    ghost: Ghost,
+    ghost: MemoryStore,
     *,
     route: str = "dialogue",
     content: str = "test",
     task_id: str = "",
     task_kind: str = "",
 ) -> Envelope:
-    changes = ghost.begin_batch(_new_id(), new_tick=True)
+    changes = ghost.begin_batch(new_id(), new_tick=True)
     tick = changes.tick_id
-    action = changes.create(ActionSchemaKnoxel(
+    action = changes.create(ActionSchemaRecord(
         content=content,
         action_type=_ACTION_TYPE[route],
         metadata={"route": route, "task_id": task_id, "task_kind": task_kind},
@@ -117,8 +113,8 @@ def store_action(
         tick_id=tick, attention_frame_id=None, knoxel_ids=[action.id], summary="x",
     ))
     ghost.commit(changes)
-    correlation_id = _new_id()
+    correlation_id = new_id()
     return Envelope(
-        id=_new_id(), source="test", kind="data", topic=f"action.{route}",
+        id=new_id(), source="test", kind="data", topic=f"action.{route}",
         correlation_id=correlation_id, payload={"knoxel_id": action.id, "gwt_tick": tick},
     )

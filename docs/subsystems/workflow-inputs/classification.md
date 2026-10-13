@@ -9,8 +9,8 @@ Existing workflows keep their original manifests and connections.
 A05 supplies [lazy PM connection wiring](pm-connections.md) and a [demonstration workflow](../../workflows/classification-demo.md).
 
 Parent: [scoped inputs](index.md).
-Details: [recovery and context](classification-recovery.md) and [verification](classification-verification.md).
-Delivery: [A04](../../decisions/alpha-plan/work-items/a04.md).
+Details: [recovery and context](classification-recovery.md) and [verification](../../work_items/verification/a04-classification.md).
+Delivery: [A04](../../work_items/alpha-plan/work-items/a04.md).
 
 ## Manifest contract
 

@@ -3,7 +3,7 @@
 Entry point: ``run(context)``. Builds the attention messages, validates the
 model JSON into :class:`AttentionResult`, rejects citations of knoxel ids that
 were not supplied as candidates, and writes ``outbox/report.yaml``. The message
-builder and the id guard are pure and tested without a kernel, model, or Ghost.
+builder and the id guard are pure and tested without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
 

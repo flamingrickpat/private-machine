@@ -8,8 +8,8 @@ Direct calls reject oversized context without clipping.
 Agent compaction retains the original request and summarizes accumulated execution.
 
 Parent: [classification](classification.md).
-Evidence: [A04 verification](classification-verification.md).
-Policy: [model selection](../../decisions/alpha-plan/model-policy.md).
+Evidence: [A04 verification](../../work_items/verification/a04-classification.md).
+Policy: [model selection](../../work_items/alpha-plan/model-policy.md).
 
 ## Limits and direct calls
 
@@ -40,7 +40,7 @@ Only `finish_reason: stop` permits answer validation.
 The direct HTTP timeout applies to each network I/O operation.
 The recovery deadline bounds the complete agent session.
 
-PM's direct [`runtime.model_activation.ChatClient.complete`][] remains a single-request API.
+PM's direct [`pm.llm.activation.ChatClient.complete`][] remains a single-request API.
 It does not inherit this caller's context construction or pm-coder's history loop.
 The [chat context guide](../llm-context.md) explains that distinction.
 

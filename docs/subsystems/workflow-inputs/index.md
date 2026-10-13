@@ -7,17 +7,17 @@ The kernel captures files, folder metadata, request fields, literal data, and na
 Receipts retain exact values and version evidence.
 A04 supplies [folder selection, classification, and INVALID recovery](classification.md).
 The normal LLM remains the default.
-A05 supplies [PM connections](pm-connections.md), the [demonstration](../../workflows/classification-demo.md), and [M1 verification](pm-verification.md).
+A05 supplies [PM connections](pm-connections.md), the [demonstration](../../workflows/classification-demo.md), and [M1 verification](../../work_items/verification/a05-pm-classification.md).
 
 Parent: [workflow runtime](../../runtime.md).
-Delivery: [A03](../../decisions/alpha-plan/work-items/a03.md).
-Details: [binding syntax and producer scope](bindings.md), [capture and stale-data rules](versions.md), and [A03 verification](verification.md).
+Delivery: [A03](../../work_items/alpha-plan/work-items/a03.md).
+Details: [binding syntax and producer scope](bindings.md), [capture and stale-data rules](versions.md), and [A03 verification](../../work_items/verification/a03-workflow-inputs.md).
 
 ## Owners and entry points
 
 `pm-workflows` owns manifest parsing, capture, output projection, and journal receipts.
 PM supplies the actual folder or Ghost environment.
-[`runtime.workflow_runner.WorkflowRunner.invoke`][] passes the request payload to [`pm_workflows.kernel.Kernel`][].
+[`pm.runs.workflow_runner.WorkflowRunner.invoke`][] passes the request payload to [`pm_workflows.kernel.Kernel`][].
 Python roles receive bound values through [`pm_workflows.python_role.RoleContext`][].
 Agent roles receive the same capture receipts in their request prompt.
 Child phases merge bound values into their explicit request.
@@ -55,8 +55,8 @@ It cannot infer the latest virtual file from a fabricated timestamp.
 ## State and external effects
 
 Capture reads through [`pm_workflows.working_target.WorkingEnvironment`][].
-[`working_target.FolderEnvironment`][] supplies host stat metadata.
-[`working_target.GhostBashEnvironment`][] supplies content versions and leaves unavailable times unknown.
+[`pm.host.folder_target.FolderEnvironment`][] supplies host stat metadata.
+[`pm.memory.bash_view.MemoryBashEnvironment`][] supplies content versions and leaves unavailable times unknown.
 Virtual paths never become host `Path` objects.
 Child factories continue to supply the granted environment for each invocation.
 
@@ -87,7 +87,7 @@ Trusted Python roles and shell tools retain their existing trust model.
 
 ## Operation
 
-Use the local chat configuration for the [verification gate](verification.md).
+Use the local chat configuration for the [verification gate](../../work_items/verification/a03-workflow-inputs.md).
 Ordinary input capture needs no model or embedding endpoint.
 The live agent evidence gate uses chat on port 8080 and the unchanged real Spamuel seed.
 Laya remains optional and disabled for this mechanism.

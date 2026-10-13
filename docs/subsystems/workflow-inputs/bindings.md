@@ -8,7 +8,7 @@ Their identity includes the exact producer attempt and logical item.
 Dynamic file paths retain those dependencies in the capture receipt.
 
 Parent: [scoped workflow inputs](index.md).
-Related: [version rules](versions.md) and [verification](verification.md).
+Related: [version rules](versions.md) and [verification](../../work_items/verification/a03-workflow-inputs.md).
 API: [`pm_workflows.protocol.InputBinding`][] and [`pm_workflows.protocol.OutputBinding`][].
 
 ## Phase syntax
@@ -75,7 +75,7 @@ Nonfinite numbers, foreign objects, and nonstring mapping keys fail JSON validat
 
 `request` uses the existing dotted expansion convention.
 For example, `task.items.0.id` selects a field from the first item.
-[`runtime.workflow_runner.WorkflowRunner.invoke`][] supplies its original payload through `Kernel.request_data`.
+[`pm.runs.workflow_runner.WorkflowRunner.invoke`][] supplies its original payload through `Kernel.request_data`.
 A child receives only the explicitly resolved child input mapping as its request data.
 The kernel snapshots that mapping at construction.
 
@@ -122,5 +122,5 @@ A duplicate key between those mappings fails instead of choosing one silently.
 Output declarations on a child phase project its normalized result, including `children` and `status`.
 Existing role contract validation remains compatible for manifests without output declarations.
 
-The [A03 live gate](verification.md) supplies a real report answer and original Spamuel memory through this interface.
+The [A03 live gate](../../work_items/verification/a03-workflow-inputs.md) supplies a real report answer and original Spamuel memory through this interface.
 Its generated manifest remains in the ignored evidence directory for direct inspection.

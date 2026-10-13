@@ -9,12 +9,12 @@ Independent observations establish acceptance and release prerequisites.
 Specifications, attempts, and verification receipts remain separate.
 
 Parent: [managed work](managed-work.md).
-Related: [sustained actor](minecraft-actor.md), [task evidence](minecraft-task-evidence.md), and [A11 verification](minecraft-task-verification.md).
+Related: [sustained actor](minecraft-actor.md), [task evidence](minecraft-task-evidence.md), and [A11 verification](../work_items/verification/a11-minecraft-projects.md).
 Gameplay failures use [retained method history and recovery priority](gameplay-recovery.md).
 
 ## Place in the system
 
-[`main._managed_workflows`][] registers the project beside the existing single-leaf `minecraft` workflow.
+[`workflows.companion._managed_workflows`][] registers the project beside the existing single-leaf `minecraft` workflow.
 The cognitive action catalog recommends the project for goals with several dependent outcomes.
 User appraisal can select its ordinary managed-start path.
 Any future private-loop caller can use that same path.
@@ -27,13 +27,13 @@ An inventory question retains its direct Assistant observation path.
 
 ## Input and result
 
-[`workflows.minecraft_tasks.schemas.ProjectRequest`][] accepts a goal or instruction, body identity, persona context, and optional proposed specification.
+[`workflows.minecraft_project.schemas.ProjectRequest`][] accepts a goal or instruction, body identity, persona context, and optional proposed specification.
 `plan_only=true` retains an independently reviewed plan without world mutation.
 It does not establish an executed project.
 Ordinary execution writes `outbox/report.yaml` with schema `pm.minecraft-project-report.v1`.
 Its `verified` flag requires retained independent evidence for every leaf, story, and goal.
 
-[`workflows.minecraft_tasks.schemas.TaskTree`][] contains stable IDs, hierarchy, dependencies, acceptance criteria, and relevant assumptions.
+[`workflows.minecraft_project.schemas.TaskTree`][] contains stable IDs, hierarchy, dependencies, acceptance criteria, and relevant assumptions.
 Goals and stories have children.
 Leaves have no children and describe meaningful outcomes.
 The model can choose any feasible goal content within the configured Minecraft action space.
@@ -59,7 +59,7 @@ flowchart LR
 ```
 
 The executable manifest declares every progress, completion, replanning, waiting, and blocked route.
-[`workflows.minecraft_tasks.steps.run`][] performs one declared Python role.
+[`workflows.minecraft_project.steps.run`][] performs one declared Python role.
 The planner and reviewer use separate scoped normal-LLM calls.
 The planner can return `survey` with explicit world-query operands.
 The survey phase reads those operands without an actor or world mutation.
@@ -88,7 +88,7 @@ The leaf retains native pm-coder history handling and automatic compaction.
 
 ## State ownership and revisions
 
-[`workflows.minecraft_tasks.tree.TreeStore`][] owns one managed task folder.
+[`workflows.minecraft_project.tree_store.TreeStore`][] owns one managed task folder.
 `planning/state.json` indexes immutable specification snapshots, attempts, decisions, and active acceptance receipts.
 It keeps the original project observation separately from the latest observation.
 Replanning receives both. An unchanged relative inventory request keeps its original baseline after partial work.
@@ -162,7 +162,7 @@ Waiting suspends through the existing managed question-and-answer mechanism.
 The answer resumes planning from the retained folder.
 There is no automatic polling of an unavailable external service.
 
-[`runtime.cancellation.LinkedStopEvent`][] links each actor's local stop to the parent cancellation signal.
+[`pm.host.cancellation.LinkedStopEvent`][] links each actor's local stop to the parent cancellation signal.
 Parent cancellation stops all current and later child work.
 A gateway uncertainty stops only that actor.
 After cleanup, the parent retains its original unpaired call and asks the planner to obtain fresh world state.
@@ -176,7 +176,7 @@ A11 persists plans and evidence but does not automatically resume interrupted wo
 The supervisor records an interrupted run after restart.
 The delivered [A12 recovery](body-recovery.md) provides explicit resume, shared ownership, epochs, and fresh observation.
 The [A13 implementation](gameplay-recovery.md) retains unsuccessful methods, local searches, and recovery across actor attempts.
-Its real acceptance remains [pending](gameplay-verification.md).
+Its real acceptance remains [pending](../work_items/verification/a13/index.md).
 
 Callers can configure optional `minecraft_plan_constraints` and `minecraft_project_check` callbacks through the workflow tool factory and explicit role grants.
 The plan callback receives the proposed tree before the ordinary world survey and independent model review.
@@ -186,9 +186,9 @@ Its recorded errors require a concrete leaf change; existing certificates and wo
 Both callbacks return an `errors` list and cannot grant acceptance.
 The M3 runner saves a fresh manifest copy with each additional grant and records both manifest digests.
 Projects without these callbacks retain their existing generic behavior.
-The [M3 procedure](gameplay-m3-verification.md) describes the scenario contracts and original evidence checks.
+The [M3 procedure](../work_items/verification/a13/m3-house-and-iron.md) describes the scenario contracts and original evidence checks.
 
 ## Go deeper
 
 Read [independent evidence](minecraft-task-evidence.md) for observation primitives and public claims.
-Read [verification](minecraft-task-verification.md) for real commands, inspected results, and remaining limits.
+Read [verification](../work_items/verification/a11-minecraft-projects.md) for real commands, inspected results, and remaining limits.
