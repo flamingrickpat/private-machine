@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from pm.context_render.turns import Role, Turn
+from pm.llm.completion import AsyncTextCompletion
 
 import yaml
 from pm.memory.retrieval import utc_time
@@ -158,16 +160,16 @@ def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = 
     return "\n\n".join(part for part in parts if part)
 
 
-def build_story_messages(request: StoryRequest, prompts: dict, *, avoid: str = "") -> list[dict]:
+def build_story_messages(request: StoryRequest, prompts: dict, *, avoid: str = "") -> list[Turn]:
     """Return the three contract messages: system, derived context, verbatim story."""
     names = {"companion_name": request.companion_name, "user_name": request.user_name}
     transcript = render_prior_dialogue(request.prior_dialogue, prompts)
     current = prompts["speaker_line"].format(speaker=request.user_name, text=request.current_user_message)
     story = "\n".join(part for part in [transcript, current, prompts["reply_prefix"].format(**names)] if part)
     return [
-        {"role": "system", "content": prompts["system_prompt"].strip()},
-        {"role": "user", "content": build_context_message(request, prompts, avoid=avoid)},
-        {"role": "assistant", "content": story},
+        Turn(Role.System, prompts["system_prompt"].strip()),
+        Turn(Role.User, build_context_message(request, prompts, avoid=avoid)),
+        Turn(Role.Assistant, story),
     ]
 
 
@@ -249,7 +251,7 @@ def review_conversation(request: StoryRequest) -> list[DialogueTurn]:
     return [*recent, DialogueTurn(speaker=request.user_name, text=request.current_user_message)]
 
 
-def generate_reviewed(request: StoryRequest, prompts: dict, generate, review_complete,
+def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextCompletion, review_complete: AsyncTextCompletion,
                       **review_deps) -> tuple[list[StoryAttempt], StoryAttempt]:
     """Generate one companion line and review it once.
 
@@ -293,7 +295,7 @@ def run(context) -> dict:
     messages = build_story_messages(request, prompts)
     report = StoryReport(
         companion_name=request.companion_name,
-        message_roles=[message["role"] for message in messages],
+        message_roles=[message.role.value for message in messages],
         reply_prefix=prompts["reply_prefix"].format(companion_name=request.companion_name),
         raw_completion=chosen.raw_completion,
         candidate=chosen.candidate,

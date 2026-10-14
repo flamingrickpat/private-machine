@@ -18,6 +18,7 @@ here repeats that check at the stage boundary.
 from __future__ import annotations
 
 from pathlib import Path
+from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.main_cognition.attention_competition import compete
 from workflows.main_cognition.codelet_schedule import AttentionPolicy, in_danger
@@ -67,18 +68,18 @@ def render_items(proposals: list[CodeletProposal], prompts: dict) -> str:
     return "\n".join(lines) or "(none)"
 
 
-def build_messages(request: dict, prompts: dict, proposals: list[CodeletProposal]) -> list[dict]:
+def build_messages(request: dict, prompts: dict, proposals: list[CodeletProposal]) -> list[Turn]:
     companion = request.get("companion_name", "Spamuel")
     user = request.get("user_name", "Jesse")
     system = prompts["system_prompt"].format(companion_name=companion, user_name=user)
     affect = request.get("affect") or {}
-    user_message = prompts["user_template"].format(
+    user_message = format_content(prompts["user_template"],
         companion_name=companion, user_name=user,
         affect=affect.get("summary") or request.get("state_summary") or "(calm, nothing strong)",
         active_goals="\n".join(f"- {goal}" for goal in request.get("active_goals", [])) or "(none)",
         items=render_items(proposals, prompts),
     )
-    return [{"role": "system", "content": system.strip()}, {"role": "user", "content": user_message.strip()}]
+    return [Turn(Role.System, system.strip()), Turn(Role.User, user_message.strip())]
 
 
 def score_batch(context, request: dict, prompts: dict, batch: list[CodeletProposal]) -> dict[str, dict]:

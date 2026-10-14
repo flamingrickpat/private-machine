@@ -13,6 +13,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.cognitive_records import OntologyBindingRecord
+from pm.context_render import ContextKind, render_context
+from pm.context_render.turns import Content
+from pathlib import Path
 from workflows.main_cognition.stage_commits import active_goal_texts
 
 
@@ -70,6 +73,35 @@ class PublicContext(BaseModel):
     state_tick: int | None = None
     # The context plan trace (lanes, budgets, semantic status) when planned.
     plan: dict = Field(default_factory=dict)
+
+
+@render_context.register(PublicContext)
+def render_public_context(context: PublicContext, kinds: ContextKind = ContextKind.All,
+                          *, schema_path: str | Path | None = None, dedupe: bool = True) -> Content:
+    """Select public context sections without exposing storage ownership fields.
+
+    Evidence retains original IDs, scope, attribution, and chronology. The
+    original context still owns revisions and publication guards. When a
+    cognitive stage supplies newer affect, it excludes this emotion section.
+    """
+    selected: dict = {"companion_name": context.companion_name, "user_name": context.user_name}
+    if kinds & ContextKind.Dialogue:
+        selected.update(character=context.character, workspace=context.workspace,
+                        selected_action=context.selected_action,
+                        presentation=context.presentation.model_dump(mode="python"))
+    if kinds & ContextKind.Emotion:
+        selected.update(affect=context.affect or context.feelings, regulation=context.regulation)
+    if kinds & ContextKind.Facts:
+        capabilities = {key: value for key, value in context.capabilities.items() if key != "emotion_state"}
+        selected.update(capabilities=capabilities, goals=context.goals, temporal_context=context.temporal_context,
+                        task_receipt=context.task_receipt)
+    if kinds & ContextKind.Memories:
+        selected["evidence"] = context.evidence
+        if not context.evidence:
+            selected["memories"] = context.memories
+    if kinds & ContextKind.Ontology:
+        selected["ontology"] = context.ontology
+    return render_context(selected, kinds, schema_path=schema_path, dedupe=dedupe)
 
 
 def build_public_context(ghost, payload: dict, *, capabilities: dict | None = None, planned=None) -> PublicContext:

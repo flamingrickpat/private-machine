@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from pm.context_render.turns import Role, Turn, format_content
 
 from pm.llm.context_window import estimate_tokens
 from workflows.main_cognition.codelet_schedule import (
@@ -215,7 +216,7 @@ def render_goals(request: dict) -> str:
     return "\n".join(lines) or "(no active goals)"
 
 
-def build_messages(request: dict, definition: CodeletDefinition, prompts: dict) -> list[dict]:
+def build_messages(request: dict, definition: CodeletDefinition, prompts: dict) -> list[Turn]:
     companion = request.get("companion_name", "Spamuel")
     user = request.get("user_name", "Jesse")
     instructions = definition.instructions.strip().format(companion_name=companion, user_name=user)
@@ -224,12 +225,12 @@ def build_messages(request: dict, definition: CodeletDefinition, prompts: dict) 
         instructions=instructions, reality_rule=prompts["reality_rules"][definition.reality],
     )
     affect = request.get("affect") or {}
-    user_message = prompts["user_template"].format(
+    user_message = format_content(prompts["user_template"],
         companion_name=companion, user_name=user, codelet_name=definition.name,
         affect=affect.get("summary") or request.get("state_summary") or "(calm, nothing strong)",
         events=render_events(request), memories=render_memories(request), goals=render_goals(request),
     )
-    return [{"role": "system", "content": system.strip()}, {"role": "user", "content": user_message.strip()}]
+    return [Turn(Role.System, system.strip()), Turn(Role.User, user_message.strip())]
 
 
 def run_llm_codelet(context, request: dict, definition: CodeletDefinition, prompts: dict) -> tuple[list[dict], dict]:
@@ -242,7 +243,7 @@ def run_llm_codelet(context, request: dict, definition: CodeletDefinition, promp
     answer = complete_json(context, messages, CodeletAnswer, temperature=0.4,
                            enable_thinking=False)
     input_tokens, _ = estimate_tokens("", messages)
-    output_tokens, _ = estimate_tokens("", [{"content": answer.model_dump_json()}])
+    output_tokens, _ = estimate_tokens("", [Turn(Role.Assistant, answer.model_dump_json())])
     cost = {"calls": 1, "input_tokens_estimate": input_tokens, "output_tokens_estimate": output_tokens,
             "seconds": round(time.perf_counter() - started, 3)}
     if not answer.fires or not answer.text.strip():

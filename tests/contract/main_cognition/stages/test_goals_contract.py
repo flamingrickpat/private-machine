@@ -39,11 +39,11 @@ def example_request() -> dict:
 class MessageTests(unittest.TestCase):
     def test_messages_are_system_then_user_with_the_current_goals(self):
         messages = steps.build_messages(example_request(), steps.load_prompts())
-        self.assertEqual([message["role"] for message in messages], ["system", "user"])
-        self.assertIn("Spamuel", messages[0]["content"])
-        self.assertIn("keep the bit going", messages[1]["content"])
-        self.assertIn("put out the fire", messages[1]["content"])
-        self.assertIn("alarmed", messages[1]["content"])
+        self.assertEqual([message.role.value for message in messages], ["system", "user"])
+        self.assertIn("Spamuel", messages[0].content.text)
+        self.assertIn("keep the bit going", messages[1].content.text)
+        self.assertIn("put out the fire", messages[1].content.text)
+        self.assertIn("alarmed", messages[1].content.text)
 
     def test_accepted_inner_proposals_render_as_motive_evidence(self):
         payload = example_request()
@@ -53,13 +53,13 @@ class MessageTests(unittest.TestCase):
             {"kind": "belief", "reality": "inferred",
              "text": "I keep my promises even when it is hard.", "target_ids": []},
         ]
-        user = steps.build_messages(payload, steps.load_prompts())[1]["content"]
+        user = steps.build_messages(payload, steps.load_prompts())[1].content.text
         self.assertIn("proposals, not commands", user)
         self.assertIn("(action_tendency; inferred) I want to set a limit", user)
         self.assertIn("(belief; inferred) I keep my promises", user)
 
     def test_missing_inner_proposals_render_as_none(self):
-        user = steps.build_messages(example_request(), steps.load_prompts())[1]["content"]
+        user = steps.build_messages(example_request(), steps.load_prompts())[1].content.text
         self.assertIn("(none)", user)
 
 
@@ -129,7 +129,7 @@ class KernelTests(unittest.TestCase):
             [change.change for change in report.changes],
             ["add", "reprioritize", "complete"],
         )
-        self.assertEqual(captured["messages"][0]["role"], "system")
+        self.assertEqual(captured["messages"][0].role.value, "system")
 
     def test_unsupported_change_from_the_model_raises(self):
         payload = (

@@ -11,6 +11,12 @@ import asyncio
 import threading
 from pathlib import Path
 from typing import Callable
+from pm.llm.completion import TextCompletion
+from pm.context_render.turns import Role, Turn
+from pm.llm.prompt_encoding import TurnInput, normalize_turns
+from collections.abc import Sequence
+from collections.abc import Mapping
+from pm.context_render import ContextKind, render_context
 from uuid import uuid4
 
 from pm_workflows.runtime import WorkflowRuntime
@@ -38,10 +44,10 @@ def make_environment(ghost) -> MemoryBashEnvironment:
     return MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
 
 
-def build_llm_tool(client: ChatClient) -> Callable[..., str]:
+def build_llm_tool(client: ChatClient) -> TextCompletion:
     """Wrap the async client as the synchronous tool roles call."""
 
-    def llm_complete(messages: list[dict], **generation) -> str:
+    def llm_complete(messages: Sequence[TurnInput], **generation: object) -> str:
         # The companion backend is a reasoning model. Reserve enough budget
         # that reasoning cannot consume the whole completion and leave empty
         # content. No generation deadline is imposed. An empty response is
@@ -53,32 +59,50 @@ def build_llm_tool(client: ChatClient) -> Callable[..., str]:
 
 def build_stage_runner(
     ghost,
-    llm_complete: Callable[..., str],
+    llm_complete: TextCompletion,
     runtime_root: Path,
     run_id: str | None = None,
     read_environment=None,
+    generation_overrides: Mapping[str, Mapping[str, object]] | None = None,
 ) -> Callable[[str, dict], dict]:
     """Return ``run_stage(name, payload)`` bound to one run's model tool.
 
     ``run_id`` is optional. The live smoke test supplies one so its artifacts
     carry a readable prefix; the application omits it and each stage gets a
     unique child run ID under the shared runtime root.
+    Generation overrides select per-stage options, such as enable_thinking.
+    They cannot change routing or the result schema. Current stage affect
+    takes precedence over the earlier public-context snapshot.
     """
 
     def run_stage(name: str, payload: dict) -> dict:
         stage_run_id = f"{run_id}-{name}" if run_id else f"{name}-{uuid4().hex[:12]}"
         environment = (MemoryBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
                        if read_environment is not None else make_environment(ghost))
-        def grounded_complete(messages, **generation):
-            import json
+        def grounded_complete(messages: Sequence[TurnInput], **generation: object) -> str:
+            overrides = dict((generation_overrides or {}).get(name, {}))
+            if overrides.keys() & {"model", "messages", "stream", "response_format"}:
+                raise ValueError("Stage generation overrides cannot change routing or the result contract.")
+            generation.update(overrides)
+            turns = normalize_turns(messages)
             boundary = payload.get("public_context")
             if boundary:
-                messages = [*messages]
-                messages[0] = {**messages[0], "content": messages[0]["content"]
-                    + "\nPrivate ontology and domain evidence:\n" + json.dumps(boundary, ensure_ascii=False)
-                    + "\nRespect domain capabilities and source attribution. Private thoughts remain private. "
-                    "An emotion word cannot create an unimplemented state or sense."}
-            return llm_complete(messages, **generation)
+                from workflows.public_speech.public_context import PublicContext
+                kinds = ContextKind.All
+                if payload.get("affect"):
+                    kinds &= ~ContextKind.Emotion
+                selected = PublicContext.model_validate(boundary)
+                stimuli = {row.get("knoxel_id"): row.get("text") for row in payload.get("stimuli", [])}
+                selected = selected.model_copy(update={"evidence": [row for row in selected.evidence
+                    if row.get("knoxel_id") not in stimuli or row.get("text") != stimuli[row.get("knoxel_id")]],
+                    "memories": [] if selected.evidence else selected.memories})
+                grounding = "Private context. Respect domain capabilities and source attribution. "
+                grounding += "Private thoughts remain private. An emotion word cannot create an unimplemented state or sense.\n"
+                fragment = grounding + render_context(selected, kinds)
+                # Context is data. Keep it outside the instruction turn, and
+                # place current stage input last so it remains authoritative.
+                turns.insert(1, Turn(Role.User, fragment))
+            return llm_complete(turns, **generation)
         runtime = WorkflowRuntime(
             environment=environment,
             stop_event=threading.Event(),

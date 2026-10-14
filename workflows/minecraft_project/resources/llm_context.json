@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "omit_fields": ["original_digest", "sha256", "certificate_digest", "spec_digest", "file_hashes", "persona_context", "hotbar", "display_name", "image"],
+  "omit_empty_fields": ["properties", "warnings", "message", "reason"],
+  "float_digits": 1,
+  "field_digits": {"time": 0, "started": 0, "finished": 0, "ended": 0},
+  "exact_fields": ["radius", "minimum"],
+  "key_list_fields": ["required_certificates", "dependencies"],
+  "table_fields": ["reads", "recipes", "inventory", "nearby_blocks", "nearby_entities", "preceding_reviews"],
+  "table_min_rows": 4,
+  "vector_fields": {"positions": ["x", "y", "z"]},
+  "legend": "Tables: zip table_rows with table_fields. positions cells: [x,y,z]. Floats are rounded for display; explicit thresholds stay exact. Hashes stay in runtime receipts. Return ordinary output-schema objects."
+}

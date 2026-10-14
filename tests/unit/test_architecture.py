@@ -12,12 +12,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCAL_ROOTS = {"pm", "workflows", "runtime", "pm_core", "main", "modules", "tests", "dev"}
-EVERYTHING_IN_PM = {"records", "llm", "memory", "bus", "host", "runs", "app", "console", "paths"}
+EVERYTHING_IN_PM = {"records", "llm", "context_render", "memory", "bus", "host", "runs", "app", "console", "paths"}
 
 #: Runtime package -> runtime packages it may import.
 ALLOWED_IN_PM: dict[str, set[str]] = {
     "records": {"records", "paths"},
-    "llm": {"llm", "records", "paths"},
+    "llm": {"llm", "context_render", "records", "paths"},
+    "context_render": {"context_render", "records", "paths"},
     "memory": {"memory", "records", "llm", "paths"},
     "bus": {"bus", "paths"},
     "host": {"host", "bus", "memory", "records", "paths"},

@@ -43,12 +43,12 @@ def example_request() -> dict:
 class MessageTests(unittest.TestCase):
     def test_messages_are_system_then_user_with_every_workflow(self):
         messages = steps.build_messages(example_request(), steps.load_prompts())
-        self.assertEqual([message["role"] for message in messages], ["system", "user"])
-        self.assertIn("Spamuel", messages[0]["content"])
-        self.assertIn("dialogue_story", messages[1]["content"])
-        self.assertIn("self_management", messages[1]["content"])
-        self.assertIn("I can communicate via text.", messages[1]["content"])
-        self.assertIn("the kitchen is on fire", messages[1]["content"])
+        self.assertEqual([message.role.value for message in messages], ["system", "user"])
+        self.assertIn("Spamuel", messages[0].content.text)
+        self.assertIn("dialogue_story", messages[1].content.text)
+        self.assertIn("self_management", messages[1].content.text)
+        self.assertIn("I can communicate via text.", messages[1].content.text)
+        self.assertIn("the kitchen is on fire", messages[1].content.text)
 
     def test_accepted_inner_proposals_render_with_their_reality_labels(self):
         payload = example_request()
@@ -58,13 +58,13 @@ class MessageTests(unittest.TestCase):
             {"kind": "simulation", "reality": "imagined",
              "text": "Maybe he pulls away if I ask.", "target_ids": [11]},
         ]
-        user = steps.build_messages(payload, steps.load_prompts())[1]["content"]
+        user = steps.build_messages(payload, steps.load_prompts())[1].content.text
         self.assertIn("proposals, not commands", user)
         self.assertIn("(regulation; internal) I will take my time", user)
         self.assertIn("(simulation; imagined) Maybe he pulls away", user)
 
     def test_missing_inner_proposals_render_as_none(self):
-        user = steps.build_messages(example_request(), steps.load_prompts())[1]["content"]
+        user = steps.build_messages(example_request(), steps.load_prompts())[1].content.text
         self.assertIn("(none)", user)
 
 
@@ -172,7 +172,7 @@ class KernelTests(unittest.TestCase):
         for action in selection.actions:
             self.assertTrue(action.content.strip(), "intent content must not be empty")
         self.assertTrue(selection.reasoning.strip())
-        self.assertEqual(captured["messages"][0]["role"], "system")
+        self.assertEqual(captured["messages"][0].role.value, "system")
 
     def test_invalid_model_output_raises_instead_of_a_successful_empty_answer(self):
         with self.assertRaises(StageOutputError):

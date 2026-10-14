@@ -12,7 +12,9 @@ from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.evidence_selection import catalog, read_source
 from workflows.minecraft_project.schemas import EvidenceRead, PlanProposal
 from workflows.minecraft_project.planning.draft import TaskDraft
-from workflows.minecraft_project.planning.run_context import identity, InstructionsChanged
+from workflows.minecraft_project.planning.run_context import identity, InstructionsChanged, RESOURCES
+from workflows.minecraft_project.planning.decisions import native_decision_context
+from pm.context_render import render_context
 
 
 def plan_session(context, store, payload: dict, *, scope: set[str] | None = None) -> PlanProposal:
@@ -39,23 +41,29 @@ def plan_session(context, store, payload: dict, *, scope: set[str] | None = None
         check_current, base=store.load() if store.state["revision"] else None, scope=scope,
         refinement_target=payload.get("refinement_target", ""))
     server = draft.server()
+    archive = f"planning/context/{len(store.state['decisions']):04d}-full-input.json"
+    store.write(archive, payload)
     sources = catalog(context, store)
+    selected_context = native_decision_context(payload)
+    selected_context["context_archive"] = {"original_receipt": archive, "catalog_source": archive}
 
     @server.tool()
-    def plan_context() -> dict:
+    def plan_context() -> str:
         """Read the current request, observations, history, and repair feedback."""
-        return payload
+        return render_context(selected_context, schema_path=RESOURCES / "llm_context.json").text
 
     @server.tool()
-    def world_read(tool: str, arguments: dict = {}) -> dict:
+    def world_read(tool: str, arguments: dict = {}) -> str:
         """Obtain current read-only Minecraft facts. This planner cannot mutate the world."""
         check_current()
         if tool not in READ_TOOLS:
-            return {"ok": False, "error": "Planning uses read-only tools. Use world_contracts to read their actual schemas."}
+            return render_context({"ok": False,
+                "error": "Planning uses read-only tools. Use world_contracts to read their actual schemas."},
+                schema_path=RESOURCES / "llm_context.json").text
         with BODY_LEASES.command(runtime.tools["minecraft_endpoint"](), runtime.stop_event):
             reply = runtime.tools["minecraft_call"](tool, arguments)
         check_current()
-        return reply
+        return render_context(reply, schema_path=RESOURCES / "llm_context.json").text
 
     @server.tool()
     def world_contracts() -> list[dict]:
@@ -78,8 +86,12 @@ def plan_session(context, store, payload: dict, *, scope: set[str] | None = None
     prompt = (
         "You are the companion's private Minecraft planner. Use the project_plan MCP tools to edit the task draft. "
         "Read plan_context and task_list first. You do not need to return a JSON tree or reproduce unchanged nodes. "
+        "Input tables use table_fields and table_rows: zip each row with its fields. Input positions use [x,y,z]. "
+        "Use ordinary condition objects for edits. Full context remains in context_archive through evidence_read. "
         "The backend assigns new IDs, parent links, and revision counters. task_edit changes only named fields. "
         "condition_set accepts an inclusive box for exact rectangular block cells. condition_copy preserves exact operands. "
+        "Different materials require separate exact conditions. Observe an uncertain marker before choosing its role. "
+        "A review is a proposed diagnosis. Check it against the request and evidence before changing a requirement. "
         "Choose concrete goal, story, and leaf outcomes with independently observable criteria. "
         "Read project_intent: preserve original constraints except for changes the current instruction explicitly requests. "
         "Keep a coherent task in one leaf when a capable actor can gather, craft, build, and verify it. "

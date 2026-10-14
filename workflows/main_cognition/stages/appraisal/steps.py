@@ -8,6 +8,7 @@ without a kernel, model, or MemoryStore.
 from __future__ import annotations
 
 from pathlib import Path
+from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.main_cognition.schemas import AppraisalResult
 from workflows.main_cognition.stage_support import (
@@ -41,10 +42,11 @@ def render_triage(request: dict) -> str:
     return "\n".join(lines) or "(none)"
 
 
-def build_messages(request: dict, prompts: dict) -> list[dict]:
+def build_messages(request: dict, prompts: dict) -> list[Turn]:
+    """Build typed turns from the selected triage and current stage input."""
     companion_name = request.get("companion_name", "Spamuel")
     system = prompts["system_prompt"].format(companion_name=companion_name)
-    user = prompts["user_template"].format(
+    user = format_content(prompts["user_template"],
         companion_name=companion_name,
         user_name=request.get("user_name", "Jesse"),
         state_summary=request.get("state_summary") or "(no recorded state update)",
@@ -52,8 +54,8 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         triage=render_triage(request),
     )
     return [
-        {"role": "system", "content": system.strip()},
-        {"role": "user", "content": user.strip()},
+        Turn(Role.System, system.strip()),
+        Turn(Role.User, user.strip()),
     ]
 
 

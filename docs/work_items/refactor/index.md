@@ -68,7 +68,8 @@ Imports may only point in these directions:
 | Package | May import |
 | --- | --- |
 | `pm.records` | external libraries only |
-| `pm.llm` | `pm.records` |
+| `pm.context_render` | `pm.records` |
+| `pm.llm` | `pm.context_render`, `pm.records` |
 | `pm.memory` | `pm.records`, `pm.llm` |
 | `pm.bus` | external libraries only |
 | `pm.host` | `pm.bus`, `pm.memory`, `pm.records` |

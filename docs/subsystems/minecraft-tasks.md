@@ -63,6 +63,9 @@ flowchart LR
 The executable manifest declares every progress, completion, replanning, waiting, and blocked route.
 [`workflows.minecraft_project.steps.run`][] performs one declared Python role.
 The planner edits a private draft through a native agent session with scoped MCP tools.
+Its context tool returns a rendered overview instead of the complete retained tree and method history.
+It reads exact tasks and historical evidence through separate tools.
+See [shared object rendering](llm-context.md#shared-object-rendering) for the rules and archive boundary.
 The reviewer uses a separate scoped normal-LLM call.
 The planner can return `survey` with explicit world-query operands.
 The survey phase reads those operands without an actor or world mutation.
@@ -74,11 +77,13 @@ Shared cells appear once, even when parent and child specifications repeat them.
 Review also receives the validated leaf-prerequisite graph and original inventory baseline.
 Read-only recipe lookups for exact inventory names supply ingredient counts and recipe output counts.
 Their retained stock counts describe the observation time; they do not establish future crafting or current acceptance.
-The original results remain in `planning/surveys/`; decision inputs retain relevant fields and original-result digests.
+The original results remain in `planning/surveys/`. Decision receipts retain relevant fields and original-result digests.
+Rendered model input omits the digests. Runtime integrity checks still use them.
 These observations describe the current site. They do not require future construction conditions to hold yet.
 Later replanning receives the retained survey with its exact specification identity and observation times.
 After verification, replanning receives the latest original verifier scope, operands, checks, and reads.
-It keeps the earlier survey's identity, path, and digest instead of adding duplicate historical cells to that repair input.
+It keeps the earlier survey's identity and path instead of adding duplicate historical cells to that repair input.
+The decision receipt retains the survey digest outside the rendered prompt.
 Independent review surveys each revised specification again.
 The selector uses deterministic graph and evidence checks.
 It verifies ready stories before selecting leaves that depend on those stories.
@@ -112,6 +117,9 @@ It preserves the selected acceptance conditions and every unrelated specificatio
 The separate `revise` outcome repairs incorrect or incomplete acceptance conditions.
 Stable nodes cannot disappear or move to another parent.
 Missing dependencies, dependency cycles, hierarchy cycles, duplicate IDs, and inconsistent parent references fail before dispatch.
+A revision cannot add material alternatives across multiple cells with a retained single-material requirement.
+A material exception needs its own condition. The other cells retain their required material.
+Existing terrain alternatives and equivalent air variants remain valid.
 Dependencies on a story expand to all its leaves.
 Ancestor dependencies also apply to descendant leaves.
 
@@ -119,7 +127,8 @@ Ancestor dependencies also apply to descendant leaves.
 
 The project uses the configured normal LLM through `minecraft_reason`.
 It does not require Laya.
-Planner, reviewer, and verifier calls disable hidden thinking, like native actor sessions and cognitive action selection.
+Python decision calls retain their configured thinking policy. Native planner and specialist sessions enable thinking.
+Typed completions keep reasoning separate from the final answer. Callers can select thinking for an individual decision.
 Each decision retains that generation setting beside its exact messages.
 There is no output-token cap that could truncate a specification or verdict.
 Direct decisions receive one snapshot with a token budget derived from the actual serving context.

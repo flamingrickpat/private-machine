@@ -23,6 +23,9 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType, InterlocusType
 from pm.llm.activation import ChatClient
+from pm.llm.completion import AsyncTextCompletion
+from pm.llm.prompt_encoding import TurnInput
+from collections.abc import Sequence
 from pm.runs.workflow_runner import WorkflowRequest, WorkflowResult, WorkflowRunner, WorkflowStatus
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
 from pm.memory.bash_view import MemoryBashEnvironment
@@ -36,12 +39,12 @@ def read_yaml(path: str | Path) -> dict:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
-def build_story_tools(client: ChatClient) -> dict:
+def build_story_tools(client: ChatClient) -> dict[str, AsyncTextCompletion]:
     """The scoped generation tool. Async so the sync role owns the event loop."""
 
-    async def story_complete(messages: list[dict], **generation) -> str:
+    async def story_complete(messages: Sequence[TurnInput], **generation: object) -> str:
         result = await client.complete(messages, **generation)
-        return result.choices[0].message.content or ""
+        return result.text
 
     return {"story_complete": story_complete, "public_complete": story_complete}
 

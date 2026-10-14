@@ -16,15 +16,18 @@ from __future__ import annotations
 
 import asyncio
 from threading import Lock
+from collections.abc import Sequence
 
-from pm.llm.activation import ChatClient, ModelActivation
+from pm.llm.activation import ChatClient, ModelActivation, OpenAICompletionBackend
 from pm.llm.http_client import ModelError
 from pm.llm.config import Connection
+from pm.llm.completion import AsyncTextCompletion, Completion, ToolCompletion
+from pm.llm.prompt_encoding import TurnInput
 
 
 async def complete_with_retry(
     client: ChatClient,
-    messages: list[dict],
+    messages: Sequence[TurnInput],
     generation: dict,
 ) -> str:
     """One completion with a bounded empty-content retry."""
@@ -37,7 +40,7 @@ async def complete_with_retry(
                 raise
             last = error
             continue
-        return result.choices[0].message.content or ""
+        return result.text
     raise last if last is not None else ModelError("The model returned no content.")
 
 
@@ -83,12 +86,20 @@ class LazyStageModel:
                 self._client = ChatClient(self.connection, self.owner, live_test=self.live_test)
             return self._client
 
-    def complete(self, messages: list[dict], **generation) -> str:
+    def complete(self, messages: Sequence[TurnInput], **generation: object) -> str:
         """Synchronous completion for Python-role stages."""
         client = self.ensure_client()
         return asyncio.run(complete_with_retry(client, messages, generation))
 
-    def measure_context(self, messages: list[dict], *, cancel=None, **generation) -> dict:
+    def complete_result(self, messages: Sequence[TurnInput], **generation: object) -> Completion:
+        """Return final content and reasoning separately for an explicit caller.
+
+        Activation and provider errors retain their existing boundaries.
+        This method does not substitute reasoning for a missing final answer.
+        """
+        return asyncio.run(OpenAICompletionBackend(self.ensure_client()).complete(messages, **generation))
+
+    def measure_context(self, messages: Sequence[TurnInput], *, cancel=None, **generation: object) -> dict:
         """Measure tokens using the same activated connection as inference."""
         from threading import Event
         from pm.llm.context_window import measure_context
@@ -96,7 +107,7 @@ class LazyStageModel:
         with self.owner.use(self.connection):
             return asyncio.run(measure_context(self.connection, messages, cancel if cancel is not None else Event(), **generation))
 
-    def build_async_tool(self):
+    def build_async_tool(self) -> AsyncTextCompletion:
         """Return an async completion callable for roles that run their own loop.
 
         Activation happens now, when the tool is built on the module thread,
@@ -104,12 +115,12 @@ class LazyStageModel:
         """
         client = self.ensure_client()
 
-        async def complete_async(messages: list[dict], **generation) -> str:
+        async def complete_async(messages: Sequence[TurnInput], **generation: object) -> str:
             return await complete_with_retry(client, messages, generation)
 
         return complete_async
 
-    def build_tool_completion(self):
+    def build_tool_completion(self) -> ToolCompletion:
         """Return an async tool-calling completion that preserves tool_calls.
 
         Assistant dialogue needs the full assistant message, including any
@@ -117,14 +128,14 @@ class LazyStageModel:
         """
         client = self.ensure_client()
 
-        async def complete_tool(messages: list[dict], tools=None, **generation) -> dict:
+        async def complete_tool(messages: Sequence[TurnInput], tools=None, **generation: object) -> Completion:
             if tools:
                 generation["tools"] = tools
             last: ModelError | None = None
             for attempt in range(3):
                 try:
                     result = await client.complete(messages, **generation)
-                    return result.model_dump(mode="json")
+                    return result.completion()
                 except ModelError as error:
                     last = error
                     if attempt == 2:

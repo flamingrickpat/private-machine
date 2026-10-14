@@ -6,6 +6,9 @@ import json
 
 from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel
+from pm.context_render import render_context
+from pm.context_render.turns import Role, Turn
+from pm.llm.prompt_encoding import OpenAIChatEncoder
 
 from workflows.minecraft_project.schemas import Node, TaskTree
 from workflows.minecraft_project.tree_store import TreeStore, digest
@@ -35,7 +38,12 @@ def reason(context: RoleContext, store: TreeStore, role: str, contract: type[Dec
     Repeated identical requests fail instead of silently looping or inventing
     evidence. An instruction change prevents publication after retrieval.
     """
+    archive = f"planning/context/{len(store.state['decisions']) + 1:04d}-full-input.json"
+    store.write(archive, payload)
     sources = catalog(context, store)
+    archive_path = store.path_for(archive)
+    sources["decision_context"] = {"path": str(archive_path.resolve()),
+                                   "sha256": hashlib.sha256(archive_path.read_bytes()).hexdigest()}
     relative = f"planning/context/{len(store.state['decisions']) + 1:04d}-catalog.json"
     store.write(relative, sources)
     catalog_digest = digest(sources)
@@ -82,15 +90,19 @@ def reason_once(context: RoleContext, store: TreeStore, role: str, contract: typ
     context.runtime.check_cancelled()
     schema = decision_schema(contract)
     original_payload = payload
+    payload = decision_context(payload)
+    name = f"decisions/{len(store.state['decisions']) + 1:04d}-{role}"
+    store.write(name + "/unscoped-context.json", original_payload)
+    payload["context_archive"] = {"original_receipt": name + "/unscoped-context.json",
+                                  "original_digest": digest(original_payload), "catalog_source": "decision_context"}
     system = ((RESOURCES / f"{role}.md").read_text(encoding="utf-8")
               + "\nTo inspect an original source, set evidence_requests with its catalog source ID and numbered line window or query. "
               "Read evidence_index to find original source IDs when the selected contract does not supply their names. "
               "That response requests retrieval only; no plan or acceptance from it is committed. "
               "After retrieval, return your final decision with evidence_requests empty."
-              + "\nJSON schema:\n" + json.dumps(schema, separators=(",", ":")))
-    messages = [{"role": "system", "content": system},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":"))}]
-    name = f"decisions/{len(store.state['decisions']) + 1:04d}-{role}"
+              + "\nThe response_format defines the output schema.")
+    messages = [Turn(Role.System, system),
+                Turn(Role.User, render_context(payload, schema_path=RESOURCES / "llm_context.json"))]
     generation = {"enable_thinking": False, "temperature": 0.1,
                   "response_format": {"type": "json_schema", "json_schema": {
                       "name": contract.__name__, "strict": True, "schema": schema}}}
@@ -105,17 +117,13 @@ def reason_once(context: RoleContext, store: TreeStore, role: str, contract: typ
     measure = context.runtime.tools.get("minecraft_context_measure")
     if measure is None:
         raise ValueError("Project decisions need serving-context measurement from the configured model.")
-    original_measurement = measurement = measure(messages, cancel=context.runtime.stop_event, **generation)
-    if measurement["input_tokens"] > measurement["input_budget_tokens"]:
-        payload = scoped_decision_context(payload)
-        store.write(name + "/unscoped-context.json", original_payload)
-        payload["context_archive"] = {"original_receipt": name + "/unscoped-context.json", "original_digest": digest(original_payload)}
-        messages[1]["content"] = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-        measurement = measure(messages, cancel=context.runtime.stop_event, **generation)
-    input_characters = sum(len(row["content"]) for row in messages)
-    store.write(name + "/input.json", {"identity": payload["identity"], "messages": messages,
+    measurement = measure(messages, cancel=context.runtime.stop_event, **generation)
+    if measurement.get("measurement_complete") is False:
+        raise ValueError("The project input contains unmeasured media. Its text estimate cannot establish the complete input budget.")
+    input_characters = sum(len(row.content.text) for row in messages)
+    store.write(name + "/input.json", {"identity": payload["identity"], "messages": OpenAIChatEncoder().encode(messages)["messages"], "context": payload,
                                         "generation": generation, "input_characters": input_characters,
-                                        "context_budget": measurement, "original_context_budget": original_measurement})
+                                        "context_budget": measurement})
     store.state["decisions"].append({"role": role, "path": name, "identity": payload["identity"]})
     store.save()
     if measurement["input_tokens"] > measurement["input_budget_tokens"]:
@@ -134,6 +142,52 @@ def reason_once(context: RoleContext, store: TreeStore, role: str, contract: typ
         text = "\n".join(text.strip().splitlines()[1:-1])
     result = contract.model_validate_json(text)
     store.write(name + "/output.json", result.model_dump(mode="json"))
+    return result
+
+
+def decision_context(payload: dict) -> dict:
+    """Select technical context before measurement, regardless of context capacity.
+
+    The caller archives the full input before inference. Evidence retrieval
+    remains available. This function does not change specifications or reads.
+    """
+    result = scoped_decision_context(compact_plan_context(payload))
+    result.pop("persona_context", None)
+    return result
+
+
+def native_decision_context(payload: dict) -> dict:
+    """Select an overview for a planner with task and world retrieval tools.
+
+    Current task specifications remain available through task_get. Historical
+    method operands and survey outputs remain in the caller's full archive.
+    Recovery, recent diagnoses, and failed verification stay visible here.
+    """
+    result = decision_context(payload)
+    tree = result.get("previous_tree")
+    if tree:
+        result["previous_tree"] = {"goal_id": tree["goal_id"], "revision": tree.get("revision", 1),
+            "specifications": "Use task_list and task_get for current draft specifications."}
+        result.pop("tree_topology", None)
+    result.pop("current_tool_contracts", None)
+    initial = result.get("project_initial_observation")
+    if initial:
+        # The original inventory anchors relative gathering targets. The
+        # original position anchors the site after the player moves.
+        result["project_initial_observation"] = {"inventory": initial.get("inventory", []),
+            "camera": {key: value for key, value in initial.get("camera", {}).items() if key == "feet_position"},
+            "player": {key: value for key, value in initial.get("player", {}).items() if key == "dimension"}}
+    history = result.pop("gameplay_history", None)
+    if history:
+        result["execution_context"] = {key: history[key] for key in
+            ("recovery", "service_wait", "navigation", "outcome_count", "completion_verified") if key in history}
+        result["execution_context"]["latest_diagnoses"] = history.get("diagnoses", [])[-2:]
+        result["execution_context"]["history_scope"] = "Full methods, searches, and outcomes remain in context_archive. Read them before repeating a failed method."
+    survey = result.get("previous_site_survey")
+    if survey:
+        result["previous_site_survey"] = {key: value for key, value in survey.items()
+                                          if key not in {"reads", "recipes", "tool_contracts", "shared_tool_contracts"}}
+        result["previous_site_survey"]["history_scope"] = "Historical outputs remain in context_archive. Use world_read for current facts."
     return result
 
 
@@ -179,7 +233,7 @@ def scoped_decision_context(payload: dict) -> dict:
     # Recipe availability belongs to its observed inventory. An older attempt
     # boundary cannot make those quantities current after more world effects.
     prior_survey = result.get("previous_site_survey", {})
-    attempt_started = result.get("latest_attempt", {}).get("started")
+    attempt_started = (result.get("latest_attempt") or {}).get("started")
     if (isinstance(attempt_started, (int, float)) and prior_survey.get("original_receipt")
             and prior_survey.get("original_digest")):
         result["previous_site_survey"] = {**prior_survey,

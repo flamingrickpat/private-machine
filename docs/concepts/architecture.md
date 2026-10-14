@@ -61,7 +61,8 @@ All companion behavior lives in `workflows/`.
 | --- | --- |
 | `pm/bus/` | Envelopes and the bus. |
 | `pm/host/` | Bus modules, the application, host folders, MCP listeners, durable files, cancellation. |
-| `pm/llm/` | LLM configuration, HTTP client, activation, context window, stage model, workflow sessions. |
+| `pm/context_render/` | Context selection interfaces, compact rendering, and neutral text and media turns. |
+| `pm/llm/` | LLM configuration, provider encoding, typed completions, HTTP client, activation, context window, stage model, workflow sessions. |
 | `pm/records/` | The record schema, mental state, and cycle state. |
 | `pm/memory/` | The memory store, snapshots, write batches, retrieval, embeddings, checkpoints. |
 | `pm/runs/` | Workflow-backed bus modules, the kernel runner, and the managed-run supervisor. |

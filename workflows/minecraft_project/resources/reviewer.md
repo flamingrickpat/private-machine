@@ -20,6 +20,9 @@ An actor can resolve routine recipe, gathering, and placement details through it
 Do not demand a complete arithmetic ledger or every tool step before useful execution.
 Revise only for a concrete unmet user requirement, infeasible dependency, or missing evidence needed to establish the outcome.
 State that specific defect. Speculative improvements belong in an accepting judgment, not a veto.
+If evidence disproves a suspected defect, discard that defect.
+Do not turn an uncertain marker interpretation into a construction requirement. Request the missing observation.
+Alternative block names permit every listed cell. Different required materials need separate exact conditions.
 An observation task can report an unsuitable or occupied site without clearing it or damaging a protected structure.
 review_scope selects one complete node contract. Its prerequisites appear in dependency_specifications and accepted_dependencies.
 For a leaf, review only that leaf and its prerequisite feasibility. Other task outcomes have separate decisions.

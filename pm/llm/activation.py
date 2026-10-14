@@ -21,6 +21,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from pm.llm.http_client import JsonClient, ModelError, cancellable
 from pm.llm.config import Connection
+from collections.abc import Sequence
+from pm.llm.prompt_encoding import OpenAIChatEncoder, TurnInput, tool_calls_from_wire
+from pm.llm.completion import Completion, Reasoning
+from pm.context_render.turns import Role, Turn
 
 
 def script_command(script: Path) -> list[str]:
@@ -105,6 +109,9 @@ class ChatMessage(BaseModel):
     model_config = ConfigDict(extra="allow", hide_input_in_errors=True)
     content: str | None = None
     tool_calls: list[dict] = Field(default_factory=list)
+    reasoning: str | None = None
+    reasoning_content: str | None = None
+    reasoning_details: list[dict] | None = None
 
 
 class ChatChoice(BaseModel):
@@ -117,6 +124,25 @@ class ChatResult(BaseModel):
     model_config = ConfigDict(extra="allow", hide_input_in_errors=True)
     model: str
     choices: list[ChatChoice] = Field(min_length=1)
+
+    @property
+    def text(self) -> str:
+        """Return final text without substituting reasoning or tool arguments."""
+        return self.choices[0].message.content or ""
+
+    def completion(self) -> Completion:
+        """Normalize the provider result while retaining separate reasoning.
+
+        Signed reasoning details stay available for replay on tool turns.
+        Provider usage and final content remain distinct from that reasoning.
+        """
+        choice = self.choices[0]
+        message = choice.message
+        state = {key: value for key, value in message.model_dump(mode="json").items()
+                 if key not in {"content", "tool_calls", "role"} and value is not None}
+        turn = Turn(Role.Assistant, message.content or "", tool_calls_from_wire(message.tool_calls), provider_state=state or None)
+        reasoning = Reasoning(message.reasoning or message.reasoning_content or "", tuple(message.reasoning_details or []))
+        return Completion(turn, reasoning, (self.model_extra or {}).get("usage") or {}, self.model, choice.finish_reason)
 
 
 OPENROUTER_HOST = "openrouter.ai"
@@ -149,13 +175,16 @@ class ChatClient:
         self.activation = activation
         self.client = JsonClient(connection, live_test=live_test)
 
-    async def complete(self, messages: list[dict], *, cancel: Event | None = None, **generation) -> ChatResult:
+    async def complete(self, messages: Sequence[TurnInput], *, cancel: Event | None = None, **generation: object) -> ChatResult:
         if "model" in generation or "stream" in generation:
             raise ValueError("Use the resolved model and non-streaming response path.")
+        if cancel is not None and cancel.is_set():
+            raise asyncio.CancelledError
+        encoded = OpenAIChatEncoder().encode(messages)
         with self.activation.use(self.connection):
             response = await self.client.request("POST", "chat/completions", payload={
                 **provider_generation(self.connection, generation), "model": self.connection.model,
-                "messages": messages, "stream": False,
+                **encoded, "stream": False,
             }, cancel=cancel)
         try:
             result = ChatResult.model_validate(response)
@@ -170,3 +199,16 @@ class ChatClient:
         if not message.content and not message.tool_calls:
             raise ModelError("The model returned no content or tool call. Inspect its generation config.")
         return result
+
+
+class OpenAICompletionBackend:
+    """Normalize an activated chat client into the shared completion contract."""
+
+    def __init__(self, client: ChatClient) -> None:
+        self.client = client
+
+    async def complete(self, turns: Sequence[TurnInput], *, cancel: Event | None = None,
+                       **generation: object) -> Completion:
+        """Return content and reasoning separately; transport errors propagate."""
+        result = await self.client.complete(turns, cancel=cancel, **generation)
+        return result.completion()

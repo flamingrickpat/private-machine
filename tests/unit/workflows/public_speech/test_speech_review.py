@@ -52,7 +52,7 @@ class ParseReviewTests(unittest.TestCase):
         calls: list[str] = []
 
         async def complete(messages, **generation):
-            calls.append(messages[1]["content"])
+            calls.append(messages[1].content.text)
             return "this is not json" if len(calls) == 1 else '{"judgment": "accept", "reason": "ok", "false_task_result": false}'
 
         context = PublicContext(companion_name="Spamuel", user_name="Jesse")
@@ -82,13 +82,13 @@ class ReviewMessageTests(unittest.TestCase):
                        "stability": 1.0},
                       {"id": 8, "term_id": 7, "active": True, "fit_score": 0.5, "explanation": "accepted guilt 0.50"}])
         messages = build_review_messages(REPLY, context, load_review_prompts())
-        self.assertEqual([item["role"] for item in messages], ["system", "user"])
-        self.assertIn("see you tomorrow", messages[1]["content"])
-        self.assertNotIn("evidence=42", messages[1]["content"])
-        self.assertIn("Spamuel is brash.", messages[1]["content"])
-        self.assertIn("- guilt (mood_word)", messages[1]["content"])
-        self.assertIn("guilt fits right now", messages[1]["content"])
-        self.assertIn("judge it the way a person checks their own words", messages[0]["content"])
+        self.assertEqual([item.role.value for item in messages], ["system", "user"])
+        self.assertIn("see you tomorrow", messages[1].content.text)
+        self.assertNotIn("evidence=42", messages[1].content.text)
+        self.assertIn("Spamuel is brash.", messages[1].content.text)
+        self.assertIn("- guilt (mood_word)", messages[1].content.text)
+        self.assertIn("guilt fits right now", messages[1].content.text)
+        self.assertIn("judge it the way a person checks their own words", messages[0].content.text)
 
     def test_a_deception_intent_is_given_to_the_review(self):
         from workflows.public_speech.public_context import Presentation
@@ -96,8 +96,8 @@ class ReviewMessageTests(unittest.TestCase):
                                 presentation=Presentation(mode="deceive", purpose="tease",
                                                           known_fact_ids=[4]))
         messages = build_review_messages("The codeword is wrong.", context, load_review_prompts())
-        self.assertIn("chose to deceive on purpose", messages[1]["content"])
-        self.assertIn("Known facts kept: [4]", messages[1]["content"])
+        self.assertIn("chose to deceive on purpose", messages[1].content.text)
+        self.assertIn("Known facts kept: [4]", messages[1].content.text)
 
 
 class StorySingleGenerationTests(unittest.TestCase):

@@ -203,6 +203,24 @@ class TreeStore:
         validate_tree(proposed)
         old = {node.id: node for node in self.load().nodes} if self.state["revision"] else {}
         new = {node.id: node for node in proposed.nodes}
+        # Adding a name permits that material at every cell. Keep a retained
+        # single-material requirement strict and assign exceptions separately.
+        # Existing terrain alternatives and historical certificates stay valid.
+        for key in old.keys() & new.keys():
+            if old[key].criteria == new[key].criteria:
+                continue
+            original = [row for row in old[key].criteria if row.kind == "block" and len(row.names) == 1]
+            for condition in new[key].criteria:
+                names = {name.removeprefix("minecraft:") for name in condition.names}
+                if condition.kind != "block" or len(names) < 2 or names <= {"air", "cave_air", "void_air"}:
+                    continue
+                cells = {(point.x, point.y, point.z) for point in condition.positions}
+                for prior in original:
+                    points = prior.positions or [prior.position]
+                    overlap = cells & {(point.x, point.y, point.z) for point in points}
+                    if prior.names[0].removeprefix("minecraft:") in names and len(overlap) > 1:
+                        raise ValueError(f"Node {key}, condition {condition.id}: multiple materials weaken retained exact cells. "
+                                         "Assign material exceptions with separate block conditions.")
         if old and not old.keys() <= new.keys():
             raise ValueError("A revision cannot remove stable nodes: " + ", ".join(sorted(old.keys() - new.keys()))
                              + ". Preserve each ID; refine a leaf into a story under that same ID.")

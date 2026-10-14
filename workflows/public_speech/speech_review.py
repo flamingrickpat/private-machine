@@ -21,6 +21,8 @@ review never rewrites the reply.
 from __future__ import annotations
 
 from pathlib import Path
+from pm.context_render.turns import Role, Turn
+from pm.llm.completion import AsyncTextCompletion
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -83,7 +85,7 @@ def _ontology_lines(context: PublicContext) -> list[str]:
 
 def build_review_messages(candidate: str, context: PublicContext, prompts: dict, *,
                           conversation: list[DialogueTurn] = (),
-                          receipts: list[dict] | None = None) -> list[dict]:
+                          receipts: list[dict] | None = None) -> list[Turn]:
     """Return the two review messages. Pure: no model, no store."""
     names = {"companion_name": context.companion_name, "user_name": context.user_name}
     presentation = context.presentation
@@ -110,8 +112,7 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: dict,
         reply=candidate,
         **names,
     )
-    return [{"role": "system", "content": prompts["system_prompt"].format(**names).strip()},
-            {"role": "user", "content": user.strip()}]
+    return [Turn(Role.System, prompts["system_prompt"].format(**names).strip()), Turn(Role.User, user.strip())]
 
 
 def parse_review(payload: dict, raw: str = "") -> SpeechReview:
@@ -165,7 +166,7 @@ def finding_summary(review: SpeechReview) -> str:
                      if item.kind or item.quote or item.why)
 
 
-async def review_speech(complete, candidate: str, context: PublicContext, *,
+async def review_speech(complete: AsyncTextCompletion, candidate: str, context: PublicContext, *,
                         conversation: list[DialogueTurn] = (),
                         receipts: list[dict] | None = None,
                         prompts: dict | None = None, attempts: int = 2) -> SpeechReview:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from threading import Event
 from urllib.parse import urlsplit, urlunsplit
+from collections.abc import Sequence
 
 import httpx
 import tiktoken
@@ -11,9 +12,11 @@ import tiktoken
 from pm.llm.http_client import ModelError, cancellable
 from pm.llm.config import Connection
 from pm.llm.workflow_sessions import serving_context
+from pm.llm.prompt_encoding import OpenAIChatEncoder, TurnInput, normalize_turns
+from pm.context_render.turns import Text
 
 
-async def measure_context(connection: Connection, messages: list[dict], cancel: Event, **generation) -> dict:
+async def measure_context(connection: Connection, messages: Sequence[TurnInput], cancel: Event, **generation) -> dict:
     """Count templated tokens and reserve a configured fraction for output.
 
     Compatible endpoints supply their actual chat template and tokenizer.
@@ -24,23 +27,25 @@ async def measure_context(connection: Connection, messages: list[dict], cancel: 
     if cancel.is_set():
         raise asyncio.CancelledError
     context, source = await serving_context(connection, cancel)
+    has_media = any(any(not isinstance(part, Text) for part in turn.content.parts) for turn in normalize_turns(messages))
     parts = urlsplit(connection.base_url)
     root = urlunsplit((parts.scheme, parts.netloc, parts.path.removesuffix("/v1"), "", ""))
     key = connection.api_key.get_secret_value()
     headers = {"Authorization": "Bearer " + key} if key else {}
-    payload = {"messages": messages, "add_generation_prompt": True}
+    payload = {**OpenAIChatEncoder().encode(messages), "add_generation_prompt": True}
     from pm.llm.activation import provider_generation
     generation = provider_generation(connection, generation)
     for field in ("chat_template_kwargs", "tools"):
         if field in generation:
             payload[field] = generation[field]
-    if parts.hostname == "openrouter.ai":
+    if parts.hostname == "openrouter.ai" or has_media:
         # OpenRouter has no llama.cpp template or tokenizer routes. Provider
         # usage after inference is authoritative. This count is an estimate.
         count, measurement = estimate_tokens(connection.model, messages)
         return {"context_window": context, "context_source": source, "input_tokens": count,
                 "measurement": measurement, "input_fraction": connection.context_input_fraction,
-                "input_budget_tokens": int(context * connection.context_input_fraction)}
+                "input_budget_tokens": int(context * connection.context_input_fraction),
+                "measurement_complete": not has_media}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             template = await cancellable(client.post(root + "/apply-template", headers=headers, json=payload), cancel)
@@ -62,10 +67,10 @@ async def measure_context(connection: Connection, messages: list[dict], cancel: 
         raise ModelError("Context measurement failed. Check the selected model endpoint and tokenizer.") from None
     return {"context_window": context, "context_source": source, "input_tokens": count,
             "measurement": measurement, "input_fraction": connection.context_input_fraction,
-            "input_budget_tokens": int(context * connection.context_input_fraction)}
+            "input_budget_tokens": int(context * connection.context_input_fraction), "measurement_complete": True}
 
 
-def estimate_tokens(model: str, messages: list[dict]) -> tuple[int, str]:
+def estimate_tokens(model: str, messages: Sequence[TurnInput]) -> tuple[int, str]:
     """Label the fallback estimate when the provider has no tokenizer route.
 
     The provider remains authoritative. Chat framing adds an estimated token
@@ -75,6 +80,14 @@ def estimate_tokens(model: str, messages: list[dict]) -> tuple[int, str]:
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
         encoding = tiktoken.get_encoding("o200k_base")
-    count = 24 + sum(12 + sum(len(encoding.encode(str(value), disallowed_special=()))
-                             for value in message.values()) for message in messages)
-    return count, "estimated.tiktoken." + encoding.name
+    turns = normalize_turns(messages)
+    media = any(any(not isinstance(part, Text) for part in turn.content.parts) for turn in turns)
+    count = 24
+    for turn in turns:
+        values = [turn.role.value, *turn.content.notes, *(part.text for part in turn.content.parts if isinstance(part, Text))]
+        values.extend(str(value) for value in (turn.tool_calls, turn.tool_call_id, turn.name) if value)
+        count += 12 + sum(len(encoding.encode(value, disallowed_special=())) for value in values)
+    # Binary size cannot establish image or audio token usage. Label the
+    # text-only lower bound instead of tokenizing base64 as ordinary prose.
+    label = "estimated.text_only.media_unmeasured." if media else "estimated.tiktoken."
+    return count, label + encoding.name

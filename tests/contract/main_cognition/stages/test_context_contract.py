@@ -40,11 +40,11 @@ def example_request() -> dict:
 class MessageTests(unittest.TestCase):
     def test_messages_are_system_then_user_with_candidates_and_ids(self):
         messages = steps.build_messages(example_request(), steps.load_prompts())
-        self.assertEqual([message["role"] for message in messages], ["system", "user"])
-        self.assertIn("Context", messages[0]["content"])
-        self.assertIn("Jesse's kitchen caught fire last week", messages[1]["content"])
-        self.assertIn("knoxel_id=501", messages[1]["content"])
-        self.assertIn("keep the bit going", messages[1]["content"])
+        self.assertEqual([message.role.value for message in messages], ["system", "user"])
+        self.assertIn("Context", messages[0].content.text)
+        self.assertIn("Jesse's kitchen caught fire last week", messages[1].content.text)
+        self.assertIn("knoxel_id=501", messages[1].content.text)
+        self.assertIn("keep the bit going", messages[1].content.text)
 
 
 class KernelTests(unittest.TestCase):
@@ -82,7 +82,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(report.memories, ["Jesse's kitchen caught fire last week"])
         self.assertEqual(report.candidate_ids, [501])
         self.assertEqual(report.active_goals, ["avoid fires"])
-        self.assertEqual(captured["messages"][0]["role"], "system")
+        self.assertEqual(captured["messages"][0].role.value, "system")
 
     def test_unavailable_candidate_id_and_unsupported_text_are_discarded(self):
         payload = (
@@ -94,7 +94,7 @@ class KernelTests(unittest.TestCase):
         report = ContextResult.model_validate(result.report)
         self.assertEqual(report.candidate_ids, [])
         self.assertEqual(report.memories, [])
-        self.assertIn("Return an empty selection", captured["messages"][-1]["content"])
+        self.assertIn("Return an empty selection", captured["messages"][-1].content.text)
 
     def test_invalid_model_output_raises(self):
         with self.assertRaises(StageOutputError):

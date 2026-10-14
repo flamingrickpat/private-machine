@@ -53,13 +53,13 @@ def example_request(**overrides) -> StoryRequest:
 class MessageContractTests(unittest.TestCase):
     def test_three_roles_and_the_open_prefill_ends_the_story(self):
         messages = build_story_messages(example_request(), load_prompts())
-        self.assertEqual([message["role"] for message in messages], ["system", "user", "assistant"])
-        self.assertTrue(messages[-1]["content"].endswith('Spamuel says: "'))
-        self.assertIn("story writer", messages[0]["content"])
+        self.assertEqual([message.role.value for message in messages], ["system", "user", "assistant"])
+        self.assertTrue(messages[-1].content.text.endswith('Spamuel says: "'))
+        self.assertIn("story writer", messages[0].content.text)
 
     def test_verbatim_speech_lives_only_in_the_assistant_turn(self):
         messages = build_story_messages(example_request(), load_prompts())
-        story = messages[2]["content"]
+        story = messages[2].content.text
         self.assertEqual(story.splitlines()[:4], [
             "*(28 September 2026)*",
             'Jesse says: "my sink is judging me"',
@@ -67,7 +67,7 @@ class MessageContractTests(unittest.TestCase):
             'Jesse says: "ok dish is done"',
         ])
         for line in ("my sink is judging me", "then you owe it a dish", "ok dish is done"):
-            self.assertNotIn(line, messages[0]["content"] + messages[1]["content"])
+            self.assertNotIn(line, messages[0].content.text + messages[1].content.text)
 
     def test_thoughts_and_day_changes_render_as_story_elements(self):
         rendered = render_prior_dialogue([
@@ -82,12 +82,12 @@ class MessageContractTests(unittest.TestCase):
 
     def test_derived_context_lives_only_in_the_user_turn(self):
         messages = build_story_messages(example_request(), load_prompts())
-        context = messages[1]["content"]
+        context = messages[1].content.text
         for text in ("Spamuel is a brash, theatrical companion.", "I cannot directly act in the physical world.",
                      "Jesse has a sink.", "clear pride and mild tenderness", "29 September 2026, 12:00",
                      "about 16 hours ago"):
             self.assertIn(text, context)
-            self.assertNotIn(text, messages[2]["content"])
+            self.assertNotIn(text, messages[2].content.text)
 
 class CleanReplyTests(unittest.TestCase):
     def test_echoed_prefix_is_removed(self):
@@ -141,8 +141,8 @@ class KernelContractTests(unittest.TestCase):
         captured: dict = {}
 
         async def story_complete(messages, **generation):
-            captured["roles"] = [message["role"] for message in messages]
-            captured["story"] = messages[-1]["content"]
+            captured["roles"] = [message.role.value for message in messages]
+            captured["story"] = messages[-1].content.text
             return 'Spamuel says: "Pathetic. Bed."\nJesse says: "rude"'
 
         async def review_complete(messages, **generation):

@@ -8,8 +8,9 @@ tested without a kernel, model, or MemoryStore.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
+from pm.context_render import render_context
+from pm.context_render.turns import Content, Role, Turn, format_content
 
 from workflows.main_cognition.schemas import GoalsResult
 from workflows.main_cognition.stage_support import (
@@ -25,10 +26,11 @@ def load_prompts(path: Path | None = None) -> dict:
     return load_yaml(path or WORKFLOW_DIR / "prompts.yaml")
 
 
-def render_block(value) -> str:
+def render_block(value: object) -> Content:
+    """Render selected stage data while retaining typed attachments."""
     if value is None:
-        return "(none)"
-    return json.dumps(value, indent=2, sort_keys=False, default=str)
+        return Content("(none)")
+    return render_context(value)
 
 
 def render_goals(goals: list[str]) -> str:
@@ -49,12 +51,13 @@ def render_inner_proposals(proposals: list[dict]) -> str:
     return "\n".join(lines) or "(none)"
 
 
-def build_messages(request: dict, prompts: dict) -> list[dict]:
+def build_messages(request: dict, prompts: dict) -> list[Turn]:
+    """Build typed stage turns from selected request data and prompt text."""
     goals = list(request.get("current_goals", request.get("active_goals", [])))
     system = prompts["system_prompt"].format(
         companion_name=request.get("companion_name", "Spamuel"),
     )
-    user = prompts["user_template"].format(
+    user = format_content(prompts["user_template"],
         companion_name=request.get("companion_name", "Spamuel"),
         user_name=request.get("user_name", "Jesse"),
         state_summary=request.get("state_summary") or "(no recorded state update)",
@@ -67,8 +70,8 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         inner_proposals=render_inner_proposals(request.get("inner_proposals", [])),
     )
     return [
-        {"role": "system", "content": system.strip()},
-        {"role": "user", "content": user.strip()},
+        Turn(Role.System, system.strip()),
+        Turn(Role.User, user.strip()),
     ]
 
 

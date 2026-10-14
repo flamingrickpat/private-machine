@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from pm.context_render import render_context
+from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.main_cognition.schemas import ContextResult
 from workflows.main_cognition.stage_support import (
@@ -46,26 +48,26 @@ def render_memories(candidates: list) -> str:
     return "\n".join(lines) or "(none)"
 
 
-def build_messages(request: dict, prompts: dict) -> list[dict]:
+def build_messages(request: dict, prompts: dict) -> list[Turn]:
     system = prompts["system_prompt"].format(
         companion_name=request.get("companion_name", "Spamuel"),
     )
-    user = prompts["user_template"].format(
+    user = format_content(prompts["user_template"],
         companion_name=request.get("companion_name", "Spamuel"),
         user_name=request.get("user_name", "Jesse"),
         state_summary=request.get("state_summary") or "(no recorded state update)",
-        triage_summary=json.dumps(request.get("triage") or {}, sort_keys=True),
-        appraisal_summary=json.dumps(request.get("appraisal") or {}, sort_keys=True),
+        triage_summary=render_context(request.get("triage") or {}),
+        appraisal_summary=render_context(request.get("appraisal") or {}),
         active_goals="\n".join(f"- {goal}" for goal in request.get("active_goals", []))
         or "(none)",
         capabilities="\n".join(f"- {capability}" for capability in request.get("capabilities", []))
         or "(none)",
         memory_candidates=render_memories(request.get("memory_candidates", [])),
-        stimuli=json.dumps(request.get("stimuli", []), ensure_ascii=False),
+        stimuli=render_context(request.get("stimuli", [])),
     )
     return [
-        {"role": "system", "content": system.strip()},
-        {"role": "user", "content": user.strip()},
+        Turn(Role.System, system.strip()),
+        Turn(Role.User, user.strip()),
     ]
 
 

@@ -51,12 +51,122 @@ The estimate includes chat framing but cannot promise the provider's exact token
 The provider remains authoritative if its tokenizer differs.
 Transport errors, invalid measurement responses, and cancellation retain explicit failure boundaries.
 
-When the original input exceeds its token budget, the project selects retained context and measures it again.
-The original input remains archived with its digest.
+The project selects decision context before measurement, regardless of the serving capacity.
+The original input remains archived with its digest and stays available through evidence retrieval.
 An oversized selected input fails in tokens with its serving capacity and percentage in the error.
 There is no character limit.
 The same policy scales with 98,304, 186,624, and 1,000,000 serving tokens.
 Native pm-coder history still uses its own serving-context discovery and automatic compaction.
+
+## Shared object rendering
+
+[`pm.context_render.render_context`][] renders selected data as [`pm.context_render.turns.Content`][].
+Content contains ordered text and media parts. It has no conversation role or provider fields.
+[`pm.context_render.turns.Turn`][] adds a role and optional tool protocol fields.
+The renderer accepts dictionaries, dataclasses, and Pydantic models. It does not change the input object.
+Type owners register specialized renderers through `render_context.register`.
+The `PublicContext` adapter belongs to `workflows.public_speech`; the runtime does not import workflow types.
+
+`ContextKind` selects facts, emotion, dialogue, memories, and ontology where a typed adapter supports those sections.
+The default schema limits emotional display values to two decimal places.
+Factual rendering without `ContextKind.Emotion` preserves measurement precision.
+Caller-owned JSON files define field selection, omission rules, precision, exact fields, vectors, aliases, and table columns.
+The renderer preserves row order. It keeps zero and false values unless a caller explicitly excludes them.
+Unsupported objects, invalid numeric values, and unavailable schema files raise errors before inference.
+
+Record deduplication defaults to `dedupe=True` within one render call.
+An identical repeated record becomes `record_ref` with its original ID.
+Records with different contents remain separate. Once an ID has multiple versions, later instances retain their full contents.
+Separate render calls do not share references. Prompt-local IDs are not used.
+Selected attachments remain typed media; repeated identical records do not repeat their attachments.
+Formatting notes appear once when fragments are composed into the same turn.
+
+The cognitive stages use this renderer for structured input and public context.
+Ontology rows retain definitions and usage rules while excluding storage metadata.
+Evidence retains source attribution, scope, and original IDs.
+The current stage affect takes precedence over the earlier public-context affect.
+Matching evidence already present in the current stimuli is excluded from the additional grounding turn.
+The complete stored records and state revisions remain unchanged.
+
+Minecraft project decisions use `workflows/minecraft_project/resources/llm_context.json`.
+The renderer omits receipt hashes, duplicate hotbar data, display names, and empty optional fields.
+Displayed world values use one decimal place. Displayed timestamps use whole seconds.
+Explicit radii and count thresholds retain their original precision.
+The runtime retains exact evidence, digests, and certificate checks outside the rendered prompt.
+The output schema appears once through `response_format`; the system message does not repeat it.
+
+The native planner receives a request overview with recovery state, recent diagnoses, and failed verification.
+It reads task specifications through `task_get` and current world facts through `world_read`.
+Full historical methods and survey outputs remain available through `evidence_read`.
+Context selection determines relevance. Rendering controls the representation of that selected context.
+The earlier `render_object_for_llm` function remains a text-only compatibility wrapper.
+It raises an error if converting its result would discard media.
+
+## Typed turns and media
+
+Compose content before assigning its role:
+
+```python
+from pm.context_render import Content, ContextKind, Role, Turn, render_context
+
+turns = [
+    Turn(Role.System, "Describe the supplied evidence."),
+    Turn(Role.User, Content("What does this record show?\n") + render_context(
+        record, ContextKind.Dialogue | ContextKind.Memories,
+    )),
+]
+result = model.complete_result(turns, enable_thinking=True)
+answer = result.text
+reasoning = result.reasoning
+```
+
+[`pm.context_render.turns.Media`][] holds an explicit modality, MIME type, and bytes or a remote URL.
+`Media.from_file` captures file bytes once. `Media.from_base64` decodes supplied bytes once.
+The renderer does not read files or download attachments.
+String conversion raises an error when content includes media.
+Record storage can supply these typed attachments; this change does not add a media persistence format.
+
+[`pm.llm.prompt_encoding.OpenAIChatEncoder`][] creates the wire payload at the provider boundary.
+It encodes images, WAV or MP3 audio, and file bytes using the documented OpenAI chat content fields.
+See the [OpenAI Chat Completions reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create).
+[`pm.context_render.turns.VideoFrames`][] carries sampled images with explicit offsets in seconds.
+Sampling belongs to the media owner. The current adapter sends these frames as timestamped images.
+Raw video and unsupported media formats raise errors before the HTTP request.
+Media currently belongs on user turns in this adapter.
+
+[`pm.llm.prompt_encoding.PromptEncoder`][] and [`pm.llm.completion.CompletionBackend`][] define the extension boundaries.
+Anthropic and direct tokenizer backends can consume the same neutral turns through their own adapters.
+Those adapters are not implemented here. Legacy message dictionaries remain accepted at the current boundary during migration.
+Token estimates for media count text only and report `measurement_complete=False`.
+They do not count base64 bytes as language tokens or claim that unknown media costs fit the context window.
+
+## Completion and reasoning
+
+[`pm.llm.completion.Completion`][] separates final content, tool calls, reasoning, usage, and finish status.
+`Completion.text` returns final text. It never substitutes reasoning for an absent answer.
+The text-only stage helpers return final text, while `LazyStageModel.complete_result` exposes the complete typed result.
+Tool completions preserve provider state needed to replay signed reasoning with the assistant turn.
+Raw provider receipts retain the original response under ignored runtime paths.
+
+Thinking remains a per-call option through `enable_thinking=True`.
+The provider translation uses its existing local-template or OpenRouter reasoning fields.
+The cognitive stage runner accepts `generation_overrides`, keyed by stage name.
+An override can enable thinking for one decision without changing other stages.
+Overrides cannot replace model routing, streaming, messages, or the result schema.
+Native Minecraft planner and specialist sessions already enable thinking.
+Research and extended tool use remain suitable for pm-coder sessions.
+
+## Ad hoc verification
+
+The typed-context checks are retained under `.runtime/adhoc/typed-context-20261015/`.
+Focused runtime, cognitive-stage, dialogue, and Minecraft checks passed.
+A real Qwen endpoint identified a generated red image with thinking enabled.
+That request returned final text and separate reasoning through the typed completion path.
+Capture previews reduced the estimated Workspace input by 14% and Goals input by 57%.
+These previews measure representation size; they do not establish behavioral quality or exact provider token savings.
+The full foundation suites are deferred at the owner's request until A16 finishes.
+
+## Historical context receipts
 
 The earlier A13 planner rejected 130,147 characters before contacting the model.
 The previous llama.cpp server tokenized that retained, templated request as 50,160 tokens.

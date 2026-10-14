@@ -70,7 +70,7 @@ def _render_messages(messages: list[dict]) -> list[str]:
         lines.append(heading)
         content = message.get("content")
         if isinstance(content, list):
-            content = " ".join(str(part.get("text", part)) if isinstance(part, dict) else str(part)
+            content = " ".join(str(part.get("text", f"[{part.get('type', 'media')} attachment; see request JSON]")) if isinstance(part, dict) else str(part)
                                for part in content)
         for line in wrap_text(str(content or ""), indent="  "):
             lines.append(line)

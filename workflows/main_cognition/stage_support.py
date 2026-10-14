@@ -9,13 +9,15 @@ policy.
 from __future__ import annotations
 
 import asyncio
-import copy
 import json
 import re
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, ValidationError
+from collections.abc import Sequence
+from pm.llm.prompt_encoding import TurnInput, normalize_turns
+from pm.context_render.turns import Role, Turn
 
 _JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
 
@@ -45,9 +47,9 @@ def extract_json(text: str) -> dict:
     return payload
 
 
-def complete_json(context, messages: list[dict], schema: type[BaseModel], **generation):
+def complete_json(context, messages: Sequence[TurnInput], schema: type[BaseModel], **generation: object):
     """Call the injected model tool and validate its JSON into ``schema``. Tries it 10 times."""
-    temp_list = copy.deepcopy(messages)
+    temp_list = normalize_turns(messages)
     error = None
     for _ in range(10):
         tool = context.runtime.tools["llm_complete"]
@@ -58,9 +60,9 @@ def complete_json(context, messages: list[dict], schema: type[BaseModel], **gene
         try:
             return schema.model_validate(payload)
         except ValidationError as error:
-            temp_list.append({"role": "assistant", "content": raw})
-            temp_list.append({"role": "user", "content": f"This is invalid JSON, '{error}'. "
-                                                         f"Try again and and ONLY output the JSON string."})
+            temp_list.append(Turn(Role.Assistant, raw))
+            temp_list.append(Turn(Role.User, f"This is invalid JSON, '{error}'. "
+                                          "Try again and and ONLY output the JSON string."))
     raise StageOutputError(f"The stage model output failed validation: {error}") from None
 
 

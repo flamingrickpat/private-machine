@@ -109,7 +109,7 @@ def plan(context: RoleContext, store: TreeStore) -> dict:
     latest_verifier = next((row for row in reversed(store.state["decisions"]) if row["role"] == "verifier"), None)
     if latest_verifier:
         decision = json.loads(store.path_for(latest_verifier["path"] + "/input.json").read_text(encoding="utf-8"))
-        selected = json.loads(decision["messages"][1]["content"])
+        selected = decision.get("context") or json.loads(decision["messages"][1]["content"])
         relative = selected["original_receipt"]
         proof = json.loads(store.path_for(relative).read_text(encoding="utf-8"))
         payload["latest_verification"] = {"identity": proof["identity"], "checks": proof["checks"],

@@ -43,11 +43,11 @@ def example_request() -> dict:
 class MessageTests(unittest.TestCase):
     def test_messages_are_system_then_user_with_candidate_text(self):
         messages = steps.build_messages(example_request(), steps.load_prompts())
-        self.assertEqual([message["role"] for message in messages], ["system", "user"])
-        self.assertIn("Spamuel", messages[0]["content"])
-        self.assertIn("the kitchen is on fire", messages[1]["content"])
-        self.assertIn("the carpet is beige", messages[1]["content"])
-        self.assertIn("id=11", messages[1]["content"])
+        self.assertEqual([message.role.value for message in messages], ["system", "user"])
+        self.assertIn("Spamuel", messages[0].content.text)
+        self.assertIn("the kitchen is on fire", messages[1].content.text)
+        self.assertIn("the carpet is beige", messages[1].content.text)
+        self.assertIn("id=11", messages[1].content.text)
 
 
 class ValidationGuardTests(unittest.TestCase):
@@ -104,7 +104,7 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(report.focus_ids, [11])
         self.assertEqual(report.control_mode, "reflective")
         self.assertIn("smoke", report.subjective_experience)
-        self.assertEqual(captured["messages"][0]["role"], "system")
+        self.assertEqual(captured["messages"][0].role.value, "system")
 
     def test_invalid_model_output_raises_instead_of_a_successful_empty_answer(self):
         with self.assertRaises(StageOutputError):

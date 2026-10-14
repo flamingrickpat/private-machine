@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Callable
+from pm.llm.completion import TextCompletion
+from collections.abc import Mapping
 
 from workflows.main_cognition.stage_runner import build_stage_runner
 import asyncio
@@ -46,13 +48,14 @@ from pm.runs.workflow_module import CognitiveWorkflow
 def build_main_cognition_tools(
     ghost,
     runtime_root: Path,
-    llm_complete: Callable[..., str],
+    llm_complete: TextCompletion,
+    *, generation_overrides: Mapping[str, Mapping[str, object]] | None = None,
 ) -> Callable[[object, object], dict]:
     """Return the ``tools_factory(environment, batch)`` for the parent module."""
 
     def factory(environment, batch) -> dict:
         return {"run_stage": build_stage_runner(ghost, llm_complete, Path(runtime_root),
-                                               read_environment=environment)}
+                                               read_environment=environment, generation_overrides=generation_overrides)}
 
     return factory
 

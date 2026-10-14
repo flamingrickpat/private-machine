@@ -7,6 +7,7 @@ builder is pure and tested without a kernel, model, or MemoryStore.
 from __future__ import annotations
 
 from pathlib import Path
+from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.main_cognition.schemas import Stimulus, TriageResult
 from workflows.main_cognition.stage_support import (
@@ -28,12 +29,13 @@ def render_stimuli(stimuli: list[Stimulus]) -> str:
     return "\n".join(lines) or "(none)"
 
 
-def build_messages(request: dict, prompts: dict) -> list[dict]:
+def build_messages(request: dict, prompts: dict) -> list[Turn]:
+    """Build typed turns from the current stimuli and prompt text."""
     stimuli = [Stimulus.model_validate(item) for item in request.get("stimuli", [])]
     system = prompts["system_prompt"].format(
         companion_name=request.get("companion_name", "Spamuel"),
     )
-    user = prompts["user_template"].format(
+    user = format_content(prompts["user_template"],
         companion_name=request.get("companion_name", "Spamuel"),
         user_name=request.get("user_name", "Jesse"),
         state_summary=request.get("state_summary") or "(no recorded state update)",
@@ -41,8 +43,8 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         stimuli=render_stimuli(stimuli),
     )
     return [
-        {"role": "system", "content": system.strip()},
-        {"role": "user", "content": user.strip()},
+        Turn(Role.System, system.strip()),
+        Turn(Role.User, user.strip()),
     ]
 
 

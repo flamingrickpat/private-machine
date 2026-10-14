@@ -24,6 +24,9 @@ class AssistantMessage(BaseModel):
     tool_calls: list[dict] = Field(default_factory=list)
     tool_call_id: str = ""
     name: str = ""
+    reasoning: str | None = None
+    reasoning_content: str | None = None
+    reasoning_details: list[dict] | None = None
 
 
 class ToolDescriptor(BaseModel):

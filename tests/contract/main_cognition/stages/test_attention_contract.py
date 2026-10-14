@@ -61,10 +61,10 @@ class MessageTests(unittest.TestCase):
     def test_messages_list_every_nomination_with_its_reality_label(self):
         items = [CodeletProposal.model_validate(item) for item in proposals()]
         messages = steps.build_messages(example_request(), steps.load_prompts(), items)
-        self.assertEqual([message["role"] for message in messages], ["system", "user"])
-        self.assertIn("Spamuel", messages[0]["content"])
-        self.assertIn("n1 (happening now)", messages[1]["content"])
-        self.assertIn("n3 (a possibility, it did not happen)", messages[1]["content"])
+        self.assertEqual([message.role.value for message in messages], ["system", "user"])
+        self.assertIn("Spamuel", messages[0].content.text)
+        self.assertIn("n1 (happening now)", messages[1].content.text)
+        self.assertIn("n3 (a possibility, it did not happen)", messages[1].content.text)
 
 
 class ValidationGuardTests(unittest.TestCase):
@@ -120,7 +120,7 @@ class KernelTests(unittest.TestCase):
         report = AttentionResult.model_validate(result.report)
         status = {item.nomination_id: item.status for item in report.nominations}
         self.assertEqual(len(calls), 2)
-        self.assertIn("n3", calls[1][-1]["content"])
+        self.assertIn("n3", calls[1][-1].content.text)
         self.assertNotEqual(status["n2"], "rejected")
         self.assertEqual(status["n3"], "rejected")
 

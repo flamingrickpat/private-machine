@@ -37,11 +37,11 @@ def example_request() -> dict:
 class MessageTests(unittest.TestCase):
     def test_messages_are_system_then_user_with_every_stimulus(self):
         messages = steps.build_messages(example_request(), steps.load_prompts())
-        self.assertEqual([message["role"] for message in messages], ["system", "user"])
-        self.assertIn("Spamuel", messages[0]["content"])
-        self.assertIn("the kitchen is on fire", messages[1]["content"])
-        self.assertIn("also the carpet is beige", messages[1]["content"])
-        self.assertIn("id=11", messages[1]["content"])
+        self.assertEqual([message.role.value for message in messages], ["system", "user"])
+        self.assertIn("Spamuel", messages[0].content.text)
+        self.assertIn("the kitchen is on fire", messages[1].content.text)
+        self.assertIn("also the carpet is beige", messages[1].content.text)
+        self.assertIn("id=11", messages[1].content.text)
 
 
 class KernelTests(unittest.TestCase):
@@ -79,7 +79,7 @@ class KernelTests(unittest.TestCase):
         report = TriageResult.model_validate(result.report)
         self.assertEqual([item.category for item in report.items],
                          ["Critical", "Insignificant"])
-        self.assertEqual(captured["messages"][0]["role"], "system")
+        self.assertEqual(captured["messages"][0].role.value, "system")
 
     def test_invalid_model_output_raises_instead_of_a_successful_empty_answer(self):
         with self.assertRaises(StageOutputError):

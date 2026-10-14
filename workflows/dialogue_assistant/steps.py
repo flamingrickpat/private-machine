@@ -15,6 +15,10 @@ import asyncio
 import json
 from pathlib import Path
 from typing import Any
+from pm.llm.activation import ChatResult
+from pm.llm.completion import Completion
+from pm.llm.prompt_encoding import OpenAIChatEncoder, normalize_turns
+from pm.context_render.turns import Turn
 
 import yaml
 from workflows.public_speech.public_context import DialogueTurn, memory_sections, task_lines
@@ -113,6 +117,9 @@ def wire_message(message: AssistantMessage) -> dict:
     for field in ("tool_call_id", "name"):
         if not data.get(field):
             data.pop(field, None)
+    for field in ("reasoning", "reasoning_content", "reasoning_details"):
+        if data.get(field) is None:
+            data.pop(field, None)
     return data
 
 
@@ -121,7 +128,16 @@ def wire_messages(messages: list[AssistantMessage]) -> list[dict]:
     return [wire_message(message) for message in messages]
 
 
+def completion_turns(messages: list[AssistantMessage]) -> list[Turn]:
+    """Read the preserved legacy transcript into neutral completion turns."""
+    return normalize_turns(wire_messages(messages))
+
+
 def parse_completion(raw: Any) -> dict:
+    if isinstance(raw, Completion):
+        return OpenAIChatEncoder().message(raw.turn)
+    if isinstance(raw, ChatResult):
+        return raw.choices[0].message.model_dump(mode="json")
     if isinstance(raw, str):
         raw = json.loads(raw)
     try:
@@ -282,7 +298,7 @@ def run(context) -> dict:
         schemas = []
     turns = request.max_tool_turns
     for turn in range(turns):
-        payload = wire_messages(messages)
+        payload = completion_turns(messages)
         # On the last allowed turn, ban tools so the model must answer in text.
         allow_tools = schemas if turn < turns - 1 else []
         raw = asyncio.run(completion(payload, tools=allow_tools, **prompts.get("generation", {})))
@@ -292,6 +308,8 @@ def run(context) -> dict:
                 role="assistant",
                 content=str(message.get("content") or ""),
                 tool_calls=[dict(call) for call in message["tool_calls"]],
+                reasoning=message.get("reasoning"), reasoning_content=message.get("reasoning_content"),
+                reasoning_details=message.get("reasoning_details"),
             ))
             new_receipts, additions = asyncio.run(
                 execute_tool_calls(context, message, request, servers)
@@ -306,7 +324,7 @@ def run(context) -> dict:
     if not final_text:
         # The tool budget is done and the model returned no text. Force one
         # final, tool-free completion so the run always produces a result.
-        payload = wire_messages(messages)
+        payload = completion_turns(messages)
         raw = asyncio.run(completion(payload, tools=[], **prompts.get("generation", {})))
         message = parse_completion(raw)
         final_text = str(message.get("content") or "").strip()
