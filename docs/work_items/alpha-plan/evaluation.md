@@ -37,12 +37,25 @@ Track these measures:
 
 Measure zero unsupported task completion receipts and zero overlapping body mutations in the acceptance scenarios.
 Track accidental false public claims separately from explicitly intended deception.
-Use the baseline to set persona-quality and latency targets before tuning prompts.
+Use the baseline to define persona-quality comparisons before tuning prompts.
+The owner currently accepts slow conversation under [companion development priorities](companion-development.md).
+Latency and cost are diagnostic measures, not current companion acceptance thresholds.
+Do not reduce required evidence or cognitive depth merely to improve those measures.
 Report the sample size and conditions beside every rate.
 
 The automated evaluator runs after generation.
 It must not secretly rewrite replies until it likes them.
 Protocol repair for malformed model output remains distinct from rewriting valid personality output.
+
+For A16 through A19, retain the selected causal path and the next relevant behavior.
+Distinguish a typed proposal, accepted state change, chosen action, and observed consequence.
+Record opposing evidence and unsuccessful trials.
+Machine assertions establish source and execution facts.
+Human review establishes neither a causal fact nor an automatic truth label.
+
+Large Minecraft fixtures remain deferred rather than replacement requirements for cognitive quality.
+Use modest real tasks when an acceptance case needs an external consequence.
+The [revised work items](index.md#ordered-delivery) define the selected companion cases.
 
 ## Optional Laya acceptance
 

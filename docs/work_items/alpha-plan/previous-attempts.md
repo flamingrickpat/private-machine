@@ -11,6 +11,11 @@ Avoid restoring a second competing runtime.
 Parent: [alpha plan](index.md).
 Current evidence: [implementation audit](current-state.md).
 
+This page is a historical review.
+The [curated cognitive sources](cognitive-sources.md) define the current reuse scope.
+A16 through A19 contain extracted requirements, so developers need not search the old summaries for architectural decisions.
+Current owner direction takes precedence over discarded or superseded historical choices.
+
 ## Reviewed history
 
 The original brief is `C:\Temp\pm.md`.

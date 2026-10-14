@@ -106,6 +106,8 @@ nav:
       - Plan and implementation: work_items/plan.md
       - Companion alpha plan:
           - Overview and order: work_items/alpha-plan/index.md
+          - Companion development priorities: work_items/alpha-plan/companion-development.md
+          - Curated cognitive sources: work_items/alpha-plan/cognitive-sources.md
           - Model selection and reliability: work_items/alpha-plan/model-policy.md
           - Current implementation audit: work_items/alpha-plan/current-state.md
           - Previous PM attempts: work_items/alpha-plan/previous-attempts.md
@@ -114,6 +116,7 @@ nav:
           - Scoped memory tools: work_items/alpha-plan/memory-tools.md
           - Memory-tool evidence and lifecycle: work_items/alpha-plan/memory-tool-evidence.md
           - Second conscious loop: work_items/alpha-plan/private-loop.md
+          - Felt-state projections: work_items/alpha-plan/felt-state.md
           - Self-model and reflection: work_items/alpha-plan/reflection.md
           - Models and workflow inputs: work_items/alpha-plan/decisions.md
           - Classification inputs and INVALID: work_items/alpha-plan/workflow-inputs.md
@@ -154,6 +157,7 @@ nav:
               - A19 Effective reflection: work_items/alpha-plan/work-items/a19.md
               - A20 Integrated alpha trial: work_items/alpha-plan/work-items/a20.md
       - Verification:
+          - Companion cognition plan revision: work_items/verification/cognition-plan-revision.md
           - A02 decisions: work_items/verification/a02-decisions.md
           - D3 System One comparison: work_items/verification/d3-systemone.md
           - A03 workflow inputs: work_items/verification/a03-workflow-inputs.md

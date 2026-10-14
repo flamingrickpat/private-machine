@@ -11,6 +11,11 @@ Public speech follows the same state and evidence as practical action.
 Parent: [alpha plan](index.md).
 Related designs: [decisions](decisions.md), [Minecraft](minecraft.md), and [verification](verification.md).
 
+The current phase follows [companion development priorities](companion-development.md).
+Conversation latency is diagnostic evidence, not a current quality threshold.
+The [curated source guide](cognitive-sources.md) defines which historical mechanisms inform A16 through A19.
+Their expanded work items contain the implementation requirements.
+
 ## The live cycle
 
 ```mermaid
@@ -107,6 +112,13 @@ The [private ontology](ontology.md) defines expression and memory-acceptance rul
 
 ## Codelets and shared attention
 
+The codelet repertoire is the society of mind for this design.
+Many small mechanisms propose a fragment of cognition.
+Attention competition decides what reaches the shared workspace.
+The behavior comes from their interaction, not from one central module.
+This continues the A15 scheduler.
+It is not a separate multi-agent runtime.
+
 A codelet declares inputs, activation conditions, cost, cooldown, and a typed proposal.
 Proposals can retrieve a memory, nominate attention, suggest an appraisal, simulate an outcome, or request regulation.
 They cannot directly mutate canonical state or issue body commands.
@@ -123,7 +135,14 @@ Competing nominations form an inspectable attention decision.
 The accepted workspace informs conversation, thought, and task goals.
 Useful family interactions matter more than counting model calls or running every definition each cycle.
 
+The [A16 contract](work-items/a16.md) connects each proposal kind to an accepted downstream consumer.
+A typed nomination without a consumer does not establish a cognitive effect.
+Selected pathways retain precursor evidence, competing motives, and resource deferrals.
+Subjective beliefs remain separate from original observations.
+Narrative interpretations retain opposing evidence and revision history.
+
 ## Continue through the two loops
 
 Read [the second conscious loop](private-loop.md) for private workspace and feedback behavior.
+Read [felt-state projections](felt-state.md) for derived internal transitions and vocabulary.
 Read [self-model and reflection](reflection.md) for implementation inspection and tested strategy changes.

@@ -102,6 +102,23 @@ Preserve pm-coder's automatic compaction for agent execution history.
 Direct chat callers must select suitable task context or explicitly compact it while preserving required evidence.
 Laya's decision-head limits do not configure chat.
 
+## Current companion development direction
+
+D16: On 2026-10-14, the owner prioritized companion quality over conversation latency during development.
+Useful reasoning, memory context, and emotional depth take precedence over lower inference cost.
+Performance remains diagnostic evidence.
+Repeated work without useful progress remains a behavior problem.
+Existing reliability, cancellation, and finite-context controls remain active.
+
+D17: The owner reduced the priority of large Minecraft tasks and requested curated requirements from historical sources.
+A16 through A19 can proceed without completing large A14 gameplay scenarios.
+Each item still verifies the interfaces it actually uses.
+Deferred and failed gameplay acceptance remains visible.
+The preserved original brief remains unchanged.
+
+The [companion development policy](companion-development.md) applies these decisions.
+The [curated source guide](cognitive-sources.md) defines the selected adaptations and excluded ideas.
+
 ## Seed import evidence
 
 Validate imported memories against the private ontology and capabilities at their attributed time.

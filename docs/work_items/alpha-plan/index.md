@@ -9,6 +9,15 @@ Each item defines a handoff for a fresh coding session.
 Parent: [engineering manual](../../index.md).
 Earlier delivery: [W0–W8 plan](../plan.md).
 
+## Current development priority
+
+The owner prioritizes companion quality over conversation latency during development.
+The next sequence is A16, A17, A18, A19, then companion acceptance in A20.
+Large Minecraft acceptance remains deferred.
+Each item still verifies the actual interfaces it uses.
+Read [companion development priorities](companion-development.md) before implementation.
+The [curated cognitive sources](cognitive-sources.md) extract useful historical mechanisms and identify excluded ideas.
+
 ## Delivery and model policy
 
 A01 supplies the [baseline and session handoff](baseline/index.md).
@@ -35,8 +44,14 @@ A13 implementation is delivered at the operator's request; its remaining behavio
 The best working state includes the completed house, self-crafted iron pickaxe, verified entry and exit, and saved home waypoint.
 The revised return-route gate and remaining fresh acceptance cases have no completion claim.
 A09R engineering repairs and real OpenRouter gates are recorded in the [current delivery](../verification/a09r-openrouter-delivery.md).
-Human M2 review and suitable conversation latency remain pending.
-A14 through A20 remain pending.
+Human M2 review remains pending.
+Conversation latency remains measured but is not a current acceptance threshold under the owner direction.
+A14's cooperation mechanisms are implemented, with incomplete behavioral acceptance.
+Its [evidence](../verification/a14-cooperation.md) retains successful away activity and failed or unverified gameplay cases.
+A15's codelet scheduler and attention competition are implemented.
+Its [verification](../verification/a15-codelets.md) retains remaining checks.
+A16 through A19 remain planned.
+A20 will verify the revised companion scope while retaining deferred gameplay status.
 A14B supplies [direct memory tools](../../subsystems/agent-memory.md) for native decisions.
 Its [verification](../verification/a14b-agent-memory.md) keeps the larger operator-designed test pending.
 A13's [gate review](../verification/a13/task-gate-review.md) records the pending real acceptance and implemented workflow split.
@@ -103,6 +118,9 @@ After A20, promote the useful ones into proper beta work items.
 | [Current state](current-state.md) | What exists, what is disconnected, and what was verified |
 | [Previous attempts](previous-attempts.md) | What to preserve, adapt, and leave behind |
 | [Cognitive architecture](cognition.md) | State, emotion, codelets, internal thought, and self-reflection |
+| [Companion development priorities](companion-development.md) | Quality first, revised dependencies, and deferred large gameplay acceptance |
+| [Curated cognitive sources](cognitive-sources.md) | Selected paper passages and historical code with explicit reuse boundaries |
+| [Felt-state projections](felt-state.md) | A17 channel measurements, reportability, and stable personal vocabulary |
 | [Private ontology](ontology.md) | Capability-consistent expression and protection against polluted memory |
 | [Model selection and reliability](model-policy.md) | Endpoint and capability requirement, the generalization ladder, and optional decision-classifier tests |
 | [Models and workflow inputs](decisions.md) | Public pm-coder client, file selection, classification, and INVALID fallback |
@@ -130,7 +148,7 @@ After A20, promote the useful ones into proper beta work items.
 | A13 | [Replan expected gameplay failures](work-items/a13.md) | M3: finished small house and self-crafted iron pickaxe |
 | A14 | [Play as a cooperative survival partner](work-items/a14.md) | M4: house, expedition, and changed conditions |
 | A14B | [Use editable drafts and scoped memory tools](work-items/a14b.md) — engineering implemented, larger test pending | Measured workflow efficiency, repair, and direct memory access |
-| A15 | [Run selective codelets through the workspace](work-items/a15.md) | |
+| A15 | [Run selective codelets through the workspace](work-items/a15.md) — engineering implemented, remaining checks recorded | |
 | A16 | [Deliver a grounded codelet repertoire](work-items/a16.md) | |
 | A17 | [Run the second conscious loop](work-items/a17.md) | M5: observable private activity with consequences |
 | A18 | [Inspect the implementation and update the self-model](work-items/a18.md) | |
@@ -153,7 +171,8 @@ Record repository revisions, changed contracts, commands, results, and remaining
 Use real model and world endpoints for behavioral acceptance.
 An unavailable endpoint leaves that live gate unverified.
 Keep implementation scope inside the selected item.
-A failed gate requires a concrete diagnosis before dependent items proceed.
+A failed gate requires a concrete diagnosis before an item depends on the affected mechanism.
+Deferred large gameplay acceptance does not block unrelated cognitive work under the current owner direction.
 
 These are delivery work packages.
 A complex package may need more than one coding session.

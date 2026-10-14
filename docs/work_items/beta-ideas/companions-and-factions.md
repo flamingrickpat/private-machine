@@ -30,6 +30,19 @@ This is where those live.
 - How do we evaluate a war without a human referee?
 - Does one companion ever learn another's private messages?
 
+## Relationship to the alpha
+
+The society needs no separate alpha subsystem.
+Once one companion works, host one container per persona and give them a shared world and chat.
+[Multi-persona deployment](multi-persona-deployment.md) is that topology.
+The society is an emergent result of running the same runtime several times.
+It is an example of what the companion must be able to handle, not a new engine to build now.
+
+This keeps the alpha general.
+Identity, relationship, memory, and peer events must not hardcode one user or one chat partner.
+The single-companion behavior remains the unit that repeats across containers.
+A later beta decides the shared chatroom, peer messaging, and faction rules.
+
 ## Notes
 
 The single-companion state already has `StateRelationship` per entity.

@@ -63,6 +63,9 @@ New Minecraft capabilities should be described as game capabilities.
 
 ## M3: a finished house and iron pickaxe
 
+This historical gameplay milestone retains its recorded results and remaining limits.
+It does not block A16 through A19 under the [current companion priorities](companion-development.md).
+
 **After A13.** Request a small usable house and an iron pickaxe from self-mined iron.
 Use an isolated Babymode world with no supplied iron or pickaxe.
 Do not obtain iron by taking village supplies.
@@ -83,6 +86,10 @@ Call counts are descriptive evidence.
 Requiring exactly 150 calls would reward inefficient behavior.
 
 ## M4: adaptive shared survival
+
+The large gameplay scenarios below are deferred under the current owner direction.
+Do not resume the diamond fixture as a prerequisite for cognitive development.
+Retain failed and unverified acceptance separately from the revised companion milestones.
 
 **After A14.** Extend or adapt the earlier house.
 Change its footprint while materials are being gathered.

@@ -48,6 +48,11 @@ A different server that returns the requested model name needs no alias field.
 
 ## Generalization ladder
 
+The [current development priorities](companion-development.md) favor companion quality over conversation latency.
+Do not replace useful reasoning or memory access with a weaker path solely to reduce latency or tokens.
+Keep performance measurements and reliability controls.
+An optimization must preserve the required behavior on comparable cases.
+
 Alpha uses inspectable deterministic rules for attention selection, routing, and
 public review.
 Beta replaces those rules with agentic equivalents when a tested reason exists.

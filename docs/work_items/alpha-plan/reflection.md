@@ -12,6 +12,11 @@ Related: [second conscious loop](private-loop.md), [A18](work-items/a18.md), and
 
 ## Self-model and reflection
 
+This design is planned behavior.
+[A18](work-items/a18.md) and [A19](work-items/a19.md) contain the expanded implementation and acceptance contracts.
+The [current priorities](companion-development.md) favor companion quality over conversation latency.
+The [source guide](cognitive-sources.md) separates selected mechanisms from excluded historical ideas.
+
 The self-model records current capabilities, limits, implementation evidence, and unresolved beliefs.
 A18 supplies tools to inspect source, documentation, model connections, and active workflow wiring.
 Every implementation claim carries a revision or evidence reference.
@@ -39,3 +44,37 @@ Source modification is a separate preference in the [decision register](decision
 Memory retrieval, planning, and reflection improved believability in the original [Generative Agents study](https://arxiv.org/abs/2304.03442).
 That result motivates evaluation of these mechanisms here.
 It does not predict perfect immersion for this system.
+
+## Cognitive episodes and inspection questions
+
+A18 retains episodes with causes, inputs, outputs, selected alternatives, and observed consequences.
+Each episode identifies its main or inner loop and its source revisions.
+Producer and consumer links establish influence across parallel execution.
+Timestamp order alone cannot establish causality.
+
+The inspector must explain what information was available and what changed after a decision.
+It must distinguish retrieved evidence from generated interpretation.
+Missing traces remain explicit evidence limits.
+Generated explanations do not reconstruct unknown execution facts.
+
+The capability overlay separates intended, implemented, enabled, and observed behavior.
+A changed source or configuration marks dependent beliefs stale.
+A schema or tool name alone does not establish observed capability.
+
+## Experiments and effective changes
+
+A19 records a hypothesis, alternative explanation, expected effect, and relevant observation before applying a change.
+It uses the existing owner of the goal, belief, attention policy, or workflow configuration.
+The next decision records the effective resource version.
+An edited file alone does not prove the running workflow used it.
+
+Later evidence can support, contradict, or leave the hypothesis unresolved.
+A failed intervention stays in the durable history.
+A reversal creates a new version rather than erasing the experiment.
+Concurrent source changes require reassessment before commit.
+Restart retains whether an intervention was proposed, applied, observed, or interrupted.
+
+Successful behavior can also justify reflection.
+Learning can retain a useful pattern with its scope and sources.
+This phase does not require a new neural training system.
+It does not turn negative mood or disagreement into defects to remove.

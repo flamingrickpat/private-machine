@@ -10,6 +10,11 @@ These gates require real endpoints and user observations.
 Parent: [manual milestones](verification.md).
 Related: [evaluation contract](evaluation.md) and [second conscious loop](private-loop.md).
 
+These milestones follow [companion development priorities](companion-development.md).
+Conversation latency remains diagnostic evidence.
+Large house and diamond scenarios are not prerequisites.
+The expanded [A16](work-items/a16.md), [A17](work-items/a17.md), [A18](work-items/a18.md), and [A19](work-items/a19.md) define their cases.
+
 ## M5: consequential private thought
 
 **After A17.** Leave an unresolved goal, a meaningful recent event, and an opportunity for idle activity.
@@ -33,6 +38,10 @@ Stop the process during a second trial.
 The stopped interval must produce no invented executed thoughts or actions.
 Verify a remembered lifecycle gap and its first-cycle appraisal after restart.
 Measure background inference and the latency of an interrupting user message.
+Verify that the incoming message remains queued and observable.
+Inspect commitment-to-action links, prior expectations, and their later observed outcomes.
+Verify a reportable felt-state pattern and stable vocabulary through distraction and restart.
+A ten-hour replay establishes interval query behavior, not ten hours of autonomous execution.
 
 ## M6: grounded self-reflection
 
@@ -49,6 +58,9 @@ Verify a specific hypothesis, a permitted change, and the next relevant behavior
 Undo that change and inspect the retained reflection history.
 
 A philosophical sentence alone does not pass this milestone.
+Answer A18's episode questions from actual input, output, and cause references.
+Inspect whether the running workflow consumed the intervention's effective resource version.
+Retain a failed diagnosis and its later correction.
 
 ## M7: sustained alpha trial
 
@@ -63,3 +75,6 @@ Keep raw observations beside the evaluator's summaries.
 Mark each earlier live gate as passed, failed, or unavailable for the final revision.
 Do not reuse a historical pass after changing the relevant behavior.
 A failed immersion gate can justify another focused iteration without pretending the alpha is perfect.
+The final matrix separates revised companion acceptance from deferred historical gameplay.
+Use modest actual tasks to establish initiative, interruption, and recovery.
+Do not claim completed large gameplay from those narrower cases.
