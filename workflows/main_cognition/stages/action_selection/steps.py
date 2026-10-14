@@ -102,6 +102,8 @@ def validate_actions(result: ActionSelectionResult, available_workflows: list[di
                 f"Action selection used unsupported action_type "
                 f"{action.action_type!r}. Allowed: {', '.join(ACTION_TYPES)}."
             )
+        if action.action_type in {"Ignore", "Idle", "Sleep"} and not action.workflow_name:
+            continue
         if action.workflow_name not in allowed:
             raise StageOutputError(
                 f"Action selection named workflow {action.workflow_name!r} that "

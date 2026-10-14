@@ -50,6 +50,20 @@ Health checks inclusive minimum points: health above 10 requires kind=health and
 Region air_cells combines air, cave_air, void_air. Accept all three for empty-cell counts; exact variants need block checks.
 Use stable short IDs. Runtime code assigns revision counters.
 Only the root goal has parent=null. Set every other node's parent to its containing goal or story ID.
+Set tree.goal_id to that declared root node's exact id.
+The task ID cannot serve as goal_id unless a node actually has that ID.
+If a rejected candidate has goal_id absent from nodes, repair that pointer to its existing root ID.
+Keep its declared nodes and physical criteria. Do not repeat the missing identifier.
+In retained_revision, preserve the exact case of every existing ID.
+For a scoped leaf repair, update that leaf rather than replacing its root or siblings.
+Keep every existing parent child reference, including children whose full nodes are omitted from this evidence scope.
+Updates cannot delete or rename a task. A redundant prerequisite still retains its stable ID.
+Repair its instruction and conditions to describe a valid outcome from the actual current state.
+Do not remove it from its parent's children or introduce a different spelling of its ID.
+If a prerequisite already meets its valid criteria, let its instruction inspect that outcome without unnecessary physical work.
+Check a review's diagnosis against supplied observations. Already satisfied criteria alone do not invalidate a task.
+Navigation inside an action does not need its own prerequisite leaf when the current body can already reach the target.
+Do not add a redundant navigation outcome to a new one-block interaction goal.
 List each child in that parent's children. Parent and child references must agree.
 Keep specifications separate from attempts and observed effects.
 A leaf describes one meaningful outcome. It can require many tool calls.

@@ -11,6 +11,8 @@ Specifications, attempts, and verification receipts remain separate.
 Parent: [managed work](managed-work.md).
 Related: [sustained actor](minecraft-actor.md), [task evidence](minecraft-task-evidence.md), and [A11 verification](../work_items/verification/a11-minecraft-projects.md).
 Gameplay failures use [retained method history and recovery priority](gameplay-recovery.md).
+Planning edits use [tool-backed draft sessions](draft-sessions.md).
+Plan and result judgments use [workflow review modes](workflow-reviews.md), with flexible review by default.
 
 ## Place in the system
 
@@ -60,7 +62,8 @@ flowchart LR
 
 The executable manifest declares every progress, completion, replanning, waiting, and blocked route.
 [`workflows.minecraft_project.steps.run`][] performs one declared Python role.
-The planner and reviewer use separate scoped normal-LLM calls.
+The planner edits a private draft through a native agent session with scoped MCP tools.
+The reviewer uses a separate scoped normal-LLM call.
 The planner can return `survey` with explicit world-query operands.
 The survey phase reads those operands without an actor or world mutation.
 It retains original results under `planning/requested-surveys/` and returns them to planning.

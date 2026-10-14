@@ -18,7 +18,7 @@ from workflows.minecraft_project.schemas import Node
 from workflows.minecraft_project.tree_store import TreeStore, digest
 from workflows.minecraft_project.acceptance import evaluate, observe_conditions
 from workflows.minecraft_project.evidence_selection import dependency_scope, scoped_history
-from workflows.minecraft_project.planning.run_context import InstructionsChanged, ROOT, boundary, identity, progress_facts, request, scoped_reads
+from workflows.minecraft_project.planning.run_context import InstructionsChanged, ROOT, boundary, identity, progress_facts, project_intent, request, scoped_reads
 from workflows.minecraft_project.history_encoding import gameplay_history
 from workflows.minecraft_project.planning.constraints import leaf_project_context
 
@@ -108,6 +108,7 @@ def act(context: RoleContext, store: TreeStore) -> dict:
                                           "journals": [str(store.path_for(row["path"] + "/scratch/actor-journal.jsonl")) for row in earlier],
                                           "scope": "Past work; current specification and fresh observations take precedence."}
     payload = MinecraftRequest(goal=node.instruction, instruction=node.instruction, body_id=req.body_id,
+        project_intent=project_intent(context, store),
         specialist=node.specialist, persona_context=req.persona_context, include_image=req.include_image,
         acceptance=acceptance,
         task_reference={**selected, "actor_attempt": attempt_id}).model_dump(mode="json")

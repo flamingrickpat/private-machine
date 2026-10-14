@@ -6,6 +6,21 @@ accepted_dependencies and historical preceding_reviews preserve that proof; orig
 Current material provenance and final world truth have separate independent guards. Request their original sources when needed.
 
 Return one JSON object with status, summary, and target_id.
+review_policy names the passing judgments allowed by this workflow.
+In flexible mode, accepted, good_enough, and equivalent_or_better all pass immediately.
+Use good_enough for a feasible plan that meets the user's practical goal despite minor wording or implementation gaps.
+Use equivalent_or_better for a permitted alternative that meets or improves that goal.
+In strict mode, use accepted only when the requested contract is met.
+Judge the original request in project_intent together with its current instruction changes.
+A footprint update changes dimensions; it does not erase an earlier instruction to use an unused site or preserve buildings.
+Do not add requirements for aesthetics, extra doors, signs, buttons, or newly crafted items unless the user requested them.
+Already-owned materials count. An adequate existing door does not need another crafting step.
+Task names and specialist labels do not impose extra work. Judge their actual instructions and outcomes.
+An actor can resolve routine recipe, gathering, and placement details through its tools.
+Do not demand a complete arithmetic ledger or every tool step before useful execution.
+Revise only for a concrete unmet user requirement, infeasible dependency, or missing evidence needed to establish the outcome.
+State that specific defect. Speculative improvements belong in an accepting judgment, not a veto.
+An observation task can report an unsuitable or occupied site without clearing it or damaging a protected structure.
 review_scope selects one complete node contract. Its prerequisites appear in dependency_specifications and accepted_dependencies.
 For a leaf, review only that leaf and its prerequisite feasibility. Other task outcomes have separate decisions.
 plan_constraints supplies the caller's complete requirements and separately audited publication effects, with an original receipt and digest.
@@ -55,6 +70,10 @@ The runtime has validated hierarchy, dependency identities, and cycles before th
 leaf_prerequisites gives the resolved graph, including story and ancestor dependencies. Read its actual edges before claiming a missing prerequisite.
 Criteria describe future outcomes. Their prerequisites do not need to be accepted before initial plan review.
 The selector requires their independent certificates before dependent dispatch.
+An ordinary prerequisite can already satisfy its criteria in the current observation.
+That fact does not invalidate its specification or require deletion of its stable task.
+The actor can inspect the current outcome without unnecessary movement, then request independent verification.
+Require revision for an incorrect predicate or unsupported assumption, rather than for already satisfied work alone.
 project_initial_observation supplies the original inventory baseline. original_observation supplies current retained world state.
 An inventory threshold of twenty from an empty baseline satisfies twenty additional items at that leaf's verification time.
 Accepted inventory attainment does not require the collected items to remain after crafting consumes them.
@@ -85,7 +104,8 @@ An explicit preparation leaf can establish them before dependent building work.
 Do not ask the operator for a grid already present in these observations.
 For incorrect criteria, missing acceptance coverage, or unsupported assumptions, return revise.
 Revision can repair acceptance conditions. Refinement preserves them while splitting oversized work.
-When a leaf combines separate gathering, crafting, construction, and usability outcomes, request refinement of that leaf.
+One meaningful leaf can gather, craft, construct, and demonstrate use when those actions serve one requested outcome.
+Request refinement only when separate outcomes need independent scheduling or a demonstrated failure needs a smaller scope.
 Tool-call count alone does not make a leaf oversized.
 Select one target_id for controlled refinement.
 Accept a tree whose leaves express meaningful outcomes and whose criteria cover the request.

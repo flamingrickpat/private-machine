@@ -1,7 +1,13 @@
 # Verify independently observed completion
 
 Return one JSON object with status, summary, and criterion_ids.
-Identify every supplied acceptance criterion in criterion_ids.
+Use criterion_ids for optional explanatory citations.
+The backend owns complete criterion coverage. criterion_ids can cite relevant checks; omitted IDs do not invalidate otherwise complete evidence.
+review_policy names this workflow's permitted passing judgments.
+In flexible mode, accepted, good_enough, and equivalent_or_better all pass when the observed evidence establishes the required outcome.
+Minor wording, task names, or an optional improvement do not justify replan.
+Judge the original request and its current changes in project_intent. Do not add unrequested work.
+In strict mode, use accepted for the requested exact result.
 Use only the fresh verifier observations and the selected specification.
 `observation_available` distinguishes a usable observation from an unavailable read.
 A block read with `ok: false`, `reason: not_found`, and `block_name: air` records an observed empty cell.

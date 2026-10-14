@@ -56,11 +56,16 @@ def build_minecraft_tools(
     mcp_url: str = DEFAULT_MCP_URL,
     *,
     plan_model: Any = None,
+    request_timeout_seconds: int = MCP_REQUEST_TIMEOUT_SECONDS,
 ) -> dict[str, Callable[..., Any]]:
-    """Return the Minecraft tools for one managed run."""
+    """Return scoped transport tools with a request deadline in seconds.
+
+    Managed runs use the long action deadline. Periodic observations can select
+    a shorter deadline. A transport error leaves external outcomes unverified.
+    """
 
     async def _call(name: str, arguments: dict, token: dict | None = None) -> dict:
-        async with _client(mcp_url) as client:
+        async with _client(mcp_url, timeout=request_timeout_seconds) as client:
             dispatch_name, dispatch_arguments = name, arguments or {}
             if token is not None:
                 dispatch_name = "minecraft_body_call"
@@ -93,13 +98,13 @@ def build_minecraft_tools(
 
     def minecraft_list_tools() -> list[str]:
         async def _list() -> list[str]:
-            async with _client(mcp_url) as client:
+            async with _client(mcp_url, timeout=request_timeout_seconds) as client:
                 return [tool.name for tool in await client.list_tools()]
         return asyncio.run(_list())
 
     def minecraft_tool_schemas() -> list[dict]:
         async def _list() -> list[dict]:
-            async with _client(mcp_url) as client:
+            async with _client(mcp_url, timeout=request_timeout_seconds) as client:
                 return [{"name": tool.name, "description": tool.description,
                          "parameters": tool.inputSchema} for tool in await client.list_tools()
                         if not tool.name.startswith("minecraft_body_")]

@@ -36,7 +36,10 @@ system_prompt: |
   Optional direct deltas, only when the axes do not capture a strong single
   emotion or need. Use the canonical field names:
   - "emotion_delta": keys such as joy, sadness, anger, fear, tenderness,
-    curiosity, pride, shame, guilt, relief, amusement.
+    curiosity, pride, shame, guilt, relief, amusement, resentment, jealousy, boredom.
+    Use resentment for retained unfair treatment, jealousy for a threatened valued role,
+    and boredom for repetition or lack of meaningful activity. Cite the actual stimulus.
+    A quiet world event alone does not imply rejection, jealousy, or anger from the user.
   - "need_delta": keys such as connection, closeness_need, relevance,
     learning_growth, creative_expression, autonomy.
 

@@ -5,11 +5,12 @@ import json
 
 import yaml
 from pm_workflows.python_role import RoleContext
+from pm.runs.review import PASSING_REVIEWS, review_passes, review_policy
 
 from workflows.minecraft_project.schemas import Node, VerificationReview
 from workflows.minecraft_project.tree_store import TreeStore
 from workflows.minecraft_project.acceptance import evaluate, observe_conditions
-from workflows.minecraft_project.planning.run_context import boundary, identity, scoped_reads
+from workflows.minecraft_project.planning.run_context import boundary, identity, project_intent, request, scoped_reads
 from workflows.minecraft_project.planning.decisions import reason
 
 
@@ -24,11 +25,13 @@ def verify_node(context: RoleContext, store: TreeStore, node: Node, actor_attemp
     store.write(relative, {"schema": "pm.minecraft-leaf-verification.v1", "identity": ident,
                            "verified": False, "reads": reads, "checks": checks, "review": {"status": "pending"}})
     review_result = reason(context, store, "verifier", VerificationReview, {
+        "project_intent": project_intent(context, store), "review_policy": review_policy(request(context).review_mode),
         "identity": ident, "specification": node.model_dump(mode="json"), "reads": scoped_reads(reads), "checks": checks,
         "original_receipt": relative})
     complete_ids = {row.id for row in node.criteria}
-    verified = (all(checks.values()) and review_result.status == "accepted"
-                and set(review_result.criterion_ids) == complete_ids and boundary(context, store))
+    reported_ids = list(review_result.criterion_ids)
+    verified = (all(checks.values()) and review_passes(review_result.status, request(context).review_mode)
+                and boundary(context, store))
     files = []
     if node.kind == "leaf":
         attempt = next(row for row in store.state["attempts"] if row["id"] == actor_attempt)
@@ -43,13 +46,21 @@ def verify_node(context: RoleContext, store: TreeStore, node: Node, actor_attemp
                     and len({row["seq"] for row in results}) == len(results)
                     and len(dispatches) == len(results))
         files = [attempt["report"], attempt["journal"]]
+    # Coverage comes from original reads and backend checks. The model's ID
+    # list is diagnostic; it must not make a valid result fail bookkeeping.
+    review_result.criterion_ids = sorted(complete_ids) if verified else reported_ids
+    recorded_review = review_result.model_dump(mode="json")
+    if verified:
+        recorded_review["status"] = "accepted"
     store.write(relative, {"schema": "pm.minecraft-leaf-verification.v1", "identity": ident,
-        "verified": verified, "reads": reads, "checks": checks, "review": review_result.model_dump(mode="json"),
+        "verified": verified, "reads": reads, "checks": checks, "review": recorded_review,
+        "review_judgment": review_result.status, "review_mode": request(context).review_mode,
+        "reported_criterion_ids": reported_ids, "criterion_coverage_source": "backend_checks",
         "outcome": "completion_evidence" if verified else "unmet_completion_conditions"})
     if verified:
         store.accept(node.id, relative, files)
         return {"status": "accepted", "summary": review_result.summary}
-    return {"status": "replan" if review_result.status == "accepted" else review_result.status,
+    return {"status": "replan" if review_result.status in PASSING_REVIEWS else review_result.status,
             "summary": "Independent verification failed: " + review_result.summary}
 
 

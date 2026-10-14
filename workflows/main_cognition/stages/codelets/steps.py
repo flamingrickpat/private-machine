@@ -93,6 +93,8 @@ def stimulus_label(stimulus: dict, user_name: str) -> tuple[str, str, str]:
     kind = str(stimulus.get("kind", ""))
     if kind == "thought.created":
         return "I thought", "thought", "internal"
+    if kind == "minecraft.world":
+        return "Minecraft observation", "outside", "observed"
     if kind.startswith("workflow."):
         return "Task event", "outside", "observed"
     if kind == "system.lifecycle":

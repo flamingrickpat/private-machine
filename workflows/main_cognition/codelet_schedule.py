@@ -219,6 +219,7 @@ def request_signals(request: dict) -> dict[str, float]:
         "stimulus.thought": 1.0 if "thought.created" in kinds else 0.0,
         "stimulus.workflow": 1.0 if any(kind.startswith("workflow.") for kind in kinds) else 0.0,
         "stimulus.system": 1.0 if "system.lifecycle" in kinds else 0.0,
+        "stimulus.world": 1.0 if "minecraft.world" in kinds else 0.0,
         "goals.active": float(len(request.get("active_goal_records") or request.get("active_goals") or [])),
         "memories.selected": float(len((request.get("context") or {}).get("candidate_ids", []))),
     }

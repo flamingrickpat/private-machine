@@ -52,6 +52,9 @@ order:
 The `emotion_delta` and `need_delta` names use the canonical `StateEmotions`
 and `StateNeeds` fields. The `appraisal` names use the `AppraisalGeneral` and
 `AppraisalSocial` fields. An unknown name has no effect.
+The [cooperative-survival path](cooperative-survival.md) adds named resentment, jealousy, and boredom deltas.
+It also retains a user's social appraisal in the persistent relationship vector.
+World events cannot change that relationship without an original user stimulus in the accepted appraisal evidence.
 
 ## Personality
 

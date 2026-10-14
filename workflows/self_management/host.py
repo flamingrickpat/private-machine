@@ -55,10 +55,18 @@ class SelfManagement(CognitiveWorkflow):
         arguments = dict(payload.get("arguments") or {})
         original = exchange_record(self.ghost, batch[0].correlation_id)
         if batch[0].target in self.managed_workflows:
-            arguments = {
-                "operation": "start", "workflow_name": batch[0].target,
-                "instructions": str(payload.get("content", "")), "arguments": arguments,
-            }
+            # A direct alias can address an existing run. Keep its identity at
+            # the control boundary, rather than nesting it in new-worker input.
+            operation = arguments.get("operation", "update" if arguments.get("run_id") else "start")
+            if operation == "start":
+                arguments = {
+                    "operation": "start", "workflow_name": batch[0].target,
+                    "instructions": str(arguments.get("instructions", arguments.get("instruction", payload.get("content", "")))),
+                    "arguments": arguments,
+                }
+            else:
+                arguments = {**arguments, "operation": operation, "workflow_name": batch[0].target,
+                    "instructions": str(arguments.get("instructions", arguments.get("instruction", payload.get("content", ""))))}
         request = SelfManagementRequest(
             operation=str(arguments.get("operation", "status")),
             action_id=str(payload.get("action_id", arguments.get("action_id", ""))),

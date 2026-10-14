@@ -69,6 +69,27 @@ def retain_contract_node(store: TreeStore, node: Node) -> None:
 
 
 class TaskGraphTests(unittest.TestCase):
+    def test_original_repair_cannot_drop_or_rename_stable_children(self):
+        from workflows.minecraft_project.planning.proposals import revision_candidate
+        capture = json.loads((ROOT / "test_data/captures/alpha/project-stable-child-rejection.json").read_text(encoding="utf-8"))
+        original = TaskTree.model_validate(capture["tree"])
+        proposal = PlanProposal.model_validate(capture["proposal"])
+        with self.assertRaisesRegex(ValueError, "Retain children.*NavigateToBlock.*MineTargetBlock"):
+            revision_candidate(original, proposal)
+        self.assertEqual(original.model_dump(mode="json"), capture["tree"])
+
+    def test_original_fresh_project_has_no_proof_candidates_before_a_plan(self):
+        capture = json.loads((ROOT / "test_data/captures/alpha/project-before-first-plan.json").read_text(encoding="utf-8"))
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "planning").mkdir()
+            (root / "planning/state.json").write_text(json.dumps(capture["state"]), encoding="utf-8")
+            store = TreeStore(root)
+            self.assertEqual(store.state["revision"], 0)
+            self.assertEqual(store.acceptance_candidates(), [])
+            store.restore_acceptances()
+            self.assertFalse((root / "planning/specs/0000.json").exists())
+
     def test_original_door_reads_require_both_halves(self):
         fixture = json.loads((ROOT / "test_data/captures/alpha/a11-original-door-reads.json").read_text(encoding="utf-8"))
         built = fixture["native_build"]["result"]

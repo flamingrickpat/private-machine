@@ -392,6 +392,30 @@ def _behavior_mapping(state: FullMentalState, attention_bias: tuple[float, float
     return regulation, behavior
 
 
+def _apply_relationship(state: FullMentalState, appraisal: Any, entity_id: int | None) -> dict:
+    """Blend a user's social appraisal into that user's persistent relationship.
+
+    World events supply no partner ID. They cannot blame the user for a game
+    hazard. Unrelated user messages retain the relationship without a reset.
+    """
+    axes = dict(getattr(appraisal, "appraisal", None) or {})
+    social_fields = set(type(state.appraisal_social).model_fields)
+    if entity_id is None or not (social_fields | {"agency_other", "norm_violation"}).intersection(axes):
+        return {}
+    derived, _ = compute_state_delta(state, relationship_entity_id=entity_id)
+    target = derived.state_relationship
+    from pm.records.mental_state import StateRelationship
+    current = state.state_relationship
+    if current is None or current.entity_id != entity_id:
+        current = StateRelationship(entity_id=entity_id)
+    for name, field in StateRelationship.model_fields.items():
+        if name != "entity_id":
+            value = float(getattr(current, name))
+            setattr(current, name, _clamp_value(value + (float(getattr(target, name)) - value) * BASE_APPRAISAL_GAIN, field))
+    state.state_relationship = current
+    return current.model_dump()
+
+
 def project_affect(
     previous_vec: list[float] | None,
     appraisal: Any,
@@ -399,6 +423,7 @@ def project_affect(
     elapsed_seconds: float = 0.0,
     personality: Any = None,
     expectation_error: float = 0.0,
+    relationship_entity_id: int | None = None,
 ) -> AffectProjection:
     """Apply elapsed-time decay, appraisal, and personality to one new state.
 
@@ -407,6 +432,8 @@ def project_affect(
     typed :class:`~workflows.main_cognition.schemas.AppraisalResult` shape or
     any object with the same optional attributes. ``personality`` accepts a
     :class:`PersonalityProfile` or a mapping or vector.
+    ``relationship_entity_id`` names the user who caused a social appraisal.
+    A missing ID retains the relationship and prevents attribution to the user.
     """
     current = FullMentalState.init_from_list(list(previous_vec)) if previous_vec else create_empty_state()
     profile = parse_personality_profile(personality) if personality is not None else current.state_personality
@@ -422,6 +449,7 @@ def project_affect(
 
     changed = _apply_explicit_deltas(working, appraisal)
     expectation_changed = _apply_expectation_error(working, expectation_error, gains)
+    relationship_change = _apply_relationship(working, appraisal, relationship_entity_id)
     working = _clamp_state(working)
 
     bias = compute_attention_bias(working)
@@ -436,6 +464,7 @@ def project_affect(
         "explicit_emotions": {name: round(value, 4) for name, value in changed.items()},
         "expectation_error": round(float(expectation_error or 0.0), 4),
         "expectation_effect": {name: round(value, 4) for name, value in expectation_changed.items()},
+        "relationship_change": relationship_change,
         "regulation": regulation,
         "behavior": behavior,
     }

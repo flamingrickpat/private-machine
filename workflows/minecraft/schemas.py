@@ -27,6 +27,7 @@ class MinecraftRequest(BaseModel):
     persona_context: dict = Field(default_factory=dict)
     acceptance: dict = Field(default_factory=dict)
     task_reference: dict = Field(default_factory=dict)
+    project_intent: dict = Field(default_factory=dict)
     include_image: bool = True
     wait_for_cancel: bool = False
     wait_for_update: bool = False

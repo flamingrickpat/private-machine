@@ -157,13 +157,16 @@ def apply_appraisal(
     return feature, updated
 
 
-def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids):
+def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, appraisal_id=None):
     """Stage one intention with its identity and lifecycle metadata."""
     metadata = {
         "goal_key": key,
         "origin": "main_appraisal",
         "reason": str(getattr(change, "reason", "") or ""),
         "evidence_ids": [int(item) for item in (evidence_ids or [])],
+        "appraisal_id": appraisal_id,
+        "choice_history": [{"change": str(change.change), "reason": str(change.reason),
+                            "evidence_ids": list(evidence_ids or []), "appraisal_id": appraisal_id}],
     }
     if status != "active":
         metadata["proposal"] = status
@@ -179,13 +182,15 @@ def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids):
     ))
 
 
-def apply_goal_changes(batch, view, changes, *, evidence_ids=None) -> list[dict]:
+def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id: int | None = None) -> list[dict]:
     """Stage goal lifecycle changes and return one record per change.
 
     Each record has ``change``, ``goal``, ``key``, and ``result``. Results are
     ``added``, ``completed``, ``reprioritized``, ``deferred``, ``refused``,
     ``retained``, or ``missing``. A missing target never invents a completion,
     but a refusal or deferral of a new request is recorded as durable evidence.
+    Changed intentions retain the accepted appraisal ID and current reason.
+    Existing intention history remains available after refusal or deferral.
     Each record also carries ``intention_id`` and ``created`` so the caller can
     map staged ids to committed ids after one commit.
     """
@@ -202,7 +207,7 @@ def apply_goal_changes(batch, view, changes, *, evidence_ids=None) -> list[dict]
             if existing is None and goal:
                 created = _stage_intention(
                     batch, goal=goal, key=key, status="active",
-                    active=True, change=change, evidence_ids=evidence_ids,
+                    active=True, change=change, evidence_ids=evidence_ids, appraisal_id=appraisal_id,
                 )
                 created_id = int(created.id)
                 result = "added"
@@ -232,7 +237,7 @@ def apply_goal_changes(batch, view, changes, *, evidence_ids=None) -> list[dict]
             elif goal:
                 created = _stage_intention(
                     batch, goal=goal, key=key, status="deferred",
-                    active=False, change=change, evidence_ids=evidence_ids,
+                    active=False, change=change, evidence_ids=evidence_ids, appraisal_id=appraisal_id,
                 )
                 created_id = int(created.id)
                 result = "deferred"
@@ -246,15 +251,24 @@ def apply_goal_changes(batch, view, changes, *, evidence_ids=None) -> list[dict]
             elif goal:
                 created = _stage_intention(
                     batch, goal=goal, key=key, status="refused",
-                    active=False, change=change, evidence_ids=evidence_ids,
+                    active=False, change=change, evidence_ids=evidence_ids, appraisal_id=appraisal_id,
                 )
                 created_id = int(created.id)
                 result = "refused"
         elif kind == "retain":
             result = "retained" if existing is not None else "missing"
+        intention_id = created_id if created_id is not None else (int(existing.id) if existing is not None else None)
+        if created_id is None and intention_id is not None and kind != "retain" and result != "missing":
+            intention = batch.view().get_knoxel_by_id(intention_id)
+            history = list(intention.metadata.get("choice_history", []))
+            history.append({"change": kind, "reason": str(getattr(change, "reason", "") or ""),
+                            "evidence_ids": list(evidence_ids or []), "appraisal_id": appraisal_id})
+            intention.metadata.update(reason=history[-1]["reason"], evidence_ids=list(evidence_ids or []),
+                                      appraisal_id=appraisal_id, choice_history=history)
+            batch.replace(intention)
         records.append({
             "change": kind, "goal": goal, "key": key, "result": result,
-            "intention_id": created_id if created_id is not None else (int(existing.id) if existing is not None else None),
+            "intention_id": intention_id,
             "created": created_id is not None,
         })
     return records

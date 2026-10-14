@@ -11,6 +11,7 @@ Parent: [managed work](managed-work.md).
 Operation: [actor controls](minecraft-actor-controls.md).
 Evidence: [A10 verification](../work_items/verification/a10-minecraft-actor.md).
 Projects: [durable subtasks](minecraft-tasks.md).
+Choices and accepted relationship state: [cooperative survival](cooperative-survival.md).
 
 ## Request and execution
 

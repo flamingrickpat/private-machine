@@ -5,6 +5,7 @@ from collections import Counter
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pm.runs.review import ReviewMode
 
 
 class Contract(BaseModel):
@@ -123,6 +124,8 @@ class ProjectRequest(Contract):
     body_id: str = "body"
     persona_context: dict = Field(default_factory=dict)
     plan_only: bool = False
+    review_mode: ReviewMode = Field(default="flexible", description="Flexible review accepts good enough or equivalent improvements. Explicit requirements and completion evidence still apply.")
+    constraints: list[str] = Field(default_factory=list)
     proposed_tree: TaskTree | None = None
     include_image: bool = False
 
@@ -252,7 +255,7 @@ class RefinementProposal(EvidenceDecision):
 class PlanReview(EvidenceDecision):
     """An independent scope and acceptance review of an exact tree revision."""
 
-    status: Literal["accepted", "refine", "revise", "waiting", "blocked"]
+    status: Literal["accepted", "good_enough", "equivalent_or_better", "refine", "revise", "waiting", "blocked"]
     summary: str
     target_id: str = ""
 
@@ -260,6 +263,6 @@ class PlanReview(EvidenceDecision):
 class VerificationReview(EvidenceDecision):
     """Interpret observed facts without replacing the mechanical evidence gate."""
 
-    status: Literal["accepted", "replan", "waiting", "blocked"]
+    status: Literal["accepted", "good_enough", "equivalent_or_better", "replan", "waiting", "blocked"]
     summary: str
-    criterion_ids: list[str]
+    criterion_ids: list[str] = Field(default_factory=list, description="Optional cited criterion IDs. The backend records complete coverage from its actual checks.")

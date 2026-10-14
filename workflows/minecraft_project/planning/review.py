@@ -4,12 +4,13 @@ from __future__ import annotations
 import json
 
 from pm_workflows.python_role import RoleContext
+from pm.runs.review import ReviewMode, PASSING_REVIEWS, review_passes, review_policy
 
 from workflows.minecraft_project.schemas import PlanReview
 from workflows.minecraft_project.tree_store import TreeStore, validate_tree
 from workflows.minecraft_project.acceptance import observe_conditions
 from workflows.minecraft_project.evidence_selection import accepted_inputs, dependency_scope, review_nodes
-from workflows.minecraft_project.planning.run_context import boundary, identity, scoped_reads
+from workflows.minecraft_project.planning.run_context import boundary, identity, project_intent, request, scoped_reads
 from workflows.minecraft_project.planning.decisions import reason
 from workflows.minecraft_project.history_encoding import gameplay_history
 from workflows.minecraft_project.planning.proposals import survey_conditions
@@ -22,12 +23,13 @@ def review(context: RoleContext, store: TreeStore) -> dict:
     if not boundary(context, store):
         return {"status": "refine", "summary": "Project instructions changed before plan review."}
     tree = store.load()
+    mode = request(context).review_mode
     result = record_plan_constraints(context, store)
     if result is not None:
         if result["errors"]:
             store.state.pop("reviewed_revision", None)
             rejected = PlanReview(status="revise", summary="The configured project contract requires repair: " + " ".join(result["errors"]))
-            record_review(store, rejected)
+            record_review(store, rejected, mode=mode)
             return {"status": rejected.status, "summary": rejected.summary}
         store.save()
     ordered = review_nodes(store)
@@ -45,6 +47,7 @@ def review(context: RoleContext, store: TreeStore) -> dict:
     store.save()
     common = {
         "identity": identity(context, store), "goal": store.state["goal"], "tree": tree.model_dump(mode="json"),
+        "project_intent": project_intent(context, store), "review_policy": review_policy(mode),
         # The reviewer needs the same caller-owned coverage as the planner.
         # Separate publication audits cannot be inferred from static cells.
         "plan_constraints": caller_plan_constraints(store),
@@ -80,27 +83,33 @@ def review(context: RoleContext, store: TreeStore) -> dict:
             return {"status": "refine", "summary": "Project instructions changed during scoped plan review."}
         reviews.append({"node_id": node.id, **result.model_dump(mode="json"),
                         "original_receipt": store.state["decisions"][-1]["path"] + "/output.json"})
-        if result.status != "accepted":
+        if not review_passes(result.status, mode):
+            if result.status in PASSING_REVIEWS:
+                result = PlanReview(status="revise", target_id=node.id,
+                    summary=f"The {mode} review mode requires an accepted judgment. Received {result.status}: {result.summary}")
             if not result.target_id:
                 result.target_id = node.id
             store.state["review_target"] = result.target_id
             break
     if not boundary(context, store):
         return {"status": "refine", "summary": "Project instructions changed during plan review."}
-    record_review(store, result)
-    return {"status": result.status, "summary": result.summary}
+    record_review(store, result, mode=mode)
+    return {"status": "accepted" if review_passes(result.status, mode) else result.status, "summary": result.summary}
 
 
-def record_review(store: TreeStore, result: PlanReview) -> None:
+def record_review(store: TreeStore, result: PlanReview, *, mode: ReviewMode = "flexible") -> None:
     """Keep every review outcome available to later explicit recovery."""
     if result.status == "refine":
+        store.state.pop("reviewed_revision", None)
         if result.target_id not in {node.id for node in store.load().nodes}:
             raise ValueError("The reviewer named an unknown refinement target.")
         store.state.update(feedback=result.summary, refinement_target=result.target_id)
-    elif result.status == "accepted":
-        store.state.update(reviewed_revision=store.state["revision"], feedback="", refinement_target="")
+    elif review_passes(result.status, mode):
+        store.state.update(reviewed_revision=store.state["revision"], feedback="", refinement_target="",
+                           review_judgment=result.status, review_mode=mode)
         store.state.pop("review_target", None)
     else:
+        store.state.pop("reviewed_revision", None)
         store.state.update(feedback=result.summary, refinement_target="")
     store.save()
 

@@ -8,6 +8,7 @@ MemoryStore commits, and the real bus are exercised.
 from __future__ import annotations
 
 import asyncio
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -65,6 +66,69 @@ def _fake_reports(stimulus_id: int, candidate_id: int) -> dict:
 
 
 class MainCogLoopWiringTests(unittest.TestCase):
+    def test_original_game_progress_cannot_start_a_second_run_for_its_active_request(self):
+        from workflows.main_cognition.schemas import ActionDispatch
+        capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/game-progress-duplicate-request.json").read_text(encoding="utf-8"))
+        ghost = _small_ghost()
+        original = capture["started"]["payload"]["receipt"]
+        ghost.managed_runs[original["run_id"]] = original
+        stimulus_id = _store(ghost, "A game task reported current progress.")
+        reports = _fake_reports(stimulus_id, stimulus_id)
+        proposed = capture["duplicate_request"]["payload"]
+        reports["action_selection"]["actions"] = [{"action_type": "ToolCall",
+            "workflow_name": proposed["workflow_name"], "content": proposed["content"],
+            "arguments": proposed["arguments"], "depends_on": []}]
+        progress = capture["progress"]
+        batch = [Envelope(id=progress["id"], source=progress["source"], kind="telemetry",
+            topic=progress["topic"], correlation_id=progress["correlation_id"], payload=progress["payload"])]
+        with TemporaryDirectory() as directory:
+            bus = BusSystem()
+            module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+                working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
+                tools_factory=lambda environment, batch: {"run_stage": lambda name, payload: reports[name]},
+                runtime_root=Path(directory), ghost=ghost)
+            requests, receipts = Recorder(bus, "action.request"), Recorder(bus, "action.receipt")
+            module.handle_batch(batch)
+            self.assertFalse(requests.events)
+            self.assertTrue(any(row.payload["status"] == "rejected" and "already owns" in row.payload["rejection_reason"]
+                                for row in receipts.events))
+            dispatch = ActionDispatch(action_id="new-choice", workflow_name="minecraft_project")
+            self.assertIsNone(module._active_game_request(dispatch, "different-request", batch))
+            direct_update = ActionDispatch(action_id="existing-run-update", action_type="ToolCall",
+                workflow_name="minecraft_project", content="Change the active footprint.",
+                arguments={"run_id": original["run_id"], "instruction": "Use five by seven."})
+            self.assertIsNone(module._active_game_request(direct_update, original["parent_correlation"], batch))
+            user = Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                            correlation_id=original["parent_correlation"], payload={"knoxel_id": stimulus_id})
+            self.assertIsNone(module._active_game_request(dispatch, original["parent_correlation"], [user]))
+            ghost.managed_runs[original["run_id"]] = {**original, "state": "completed"}
+            self.assertIsNone(module._active_game_request(dispatch, original["parent_correlation"], batch))
+
+    def test_mixed_user_failure_releases_the_world_sources_original_correlation(self):
+        from workflows.main_cognition.stage_support import StageOutputError
+        ghost = _small_ghost()
+        user_id = _store(ghost, "What changed in the world?")
+        world = ghost.store_knoxel(Feature(content="A retained world observation changed.",
+            feature_type=FeatureType.WorldEvent, causal=True, override_source="world_events"))
+        def failed_stage(name, payload):
+            raise StageOutputError("The retained model result failed its protocol contract.")
+        with TemporaryDirectory() as directory:
+            bus = BusSystem()
+            module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+                working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
+                tools_factory=lambda environment, batch: {"run_stage": failed_stage},
+                runtime_root=Path(directory), ghost=ghost)
+            receipts = Recorder(bus, "action.receipt")
+            module.handle_batch([
+                Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                         correlation_id="user-request", payload={"knoxel_id": user_id}),
+                Envelope(id=new_id(), source="world_events", kind="data", topic="minecraft.world",
+                         correlation_id="world-observation", payload={"knoxel_id": world.id}),
+            ])
+            rejected = [row for row in receipts.events if row.payload.get("recovery_outcome") == "cycle_rejected"]
+            self.assertEqual([row.correlation_id for row in rejected], ["world-observation"])
+            self.assertTrue(any(row.correlation_id == "user-request" for row in receipts.events))
+
     def test_real_parent_commits_gwt_and_publishes_a_typed_dispatch(self):
         ghost = _small_ghost()
         stimulus_id = _store(ghost, "the kitchen is on fire")

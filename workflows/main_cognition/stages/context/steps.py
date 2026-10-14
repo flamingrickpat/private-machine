@@ -3,9 +3,10 @@
 Entry point: ``run(context)``. Builds the context messages from the request
 and its triage, appraisal, and memory-candidate payloads, validates the model
 JSON into :class:`ContextResult`, checks that every selected candidate id came
-from the supplied candidates, and writes ``outbox/report.yaml``. The message
-builder and the selection check are pure and tested without a kernel, model,
-or MemoryStore.
+from the supplied candidates, and writes ``outbox/report.yaml``. An invalid ID
+gets one repair turn. A failed repair retains only supplied memory sources and
+records the dropped IDs. Current conversation can then continue without false
+memory references. The message builder and selection check are pure.
 """
 from __future__ import annotations
 
@@ -79,6 +80,21 @@ def validate_selection(result: ContextResult, candidates: list) -> None:
             )
 
 
+def retain_valid_selection(result: ContextResult, candidates: list) -> tuple[ContextResult, list[int]]:
+    """Drop unavailable memory IDs after a failed repair, retaining real sources.
+
+    Rebuild memory text from the supplied snapshot. This avoids promoting an
+    unsupported model summary when its reference cannot be resolved. Current
+    stimuli remain in the cycle, so failed recall does not block conversation.
+    Return the repaired result and dropped IDs for the diagnostic receipt.
+    """
+    sources = {_field(item, "knoxel_id"): _field(item, "text", "") for item in candidates}
+    retained = list(dict.fromkeys(key for key in result.candidate_ids if key in sources))
+    dropped = [key for key in result.candidate_ids if key not in sources]
+    return result.model_copy(update={"candidate_ids": retained,
+        "memories": [str(sources[key]) for key in retained]}), dropped
+
+
 def run(context) -> dict:
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
@@ -99,7 +115,15 @@ def run(context) -> dict:
                      + ". IDs in other context fields are not granted. Return an empty selection if none fits."}]
         result = complete_json(context, recovery, ContextResult, temperature=0.1,
                                enable_thinking=False)
-        validate_selection(result, candidates)
+        try:
+            validate_selection(result, candidates)
+        except StageOutputError as repair_error:
+            rejected = result.model_dump(mode="json")
+            result, dropped = retain_valid_selection(result, candidates)
+            context.runtime.environment.write_text("outbox/selection-recovery.json", json.dumps({
+                "error": str(repair_error), "rejected_result": rejected,
+                "dropped_ids": dropped, "retained_ids": result.candidate_ids,
+                "outcome": "continued_with_supplied_memories"}, indent=2))
     write_report(context.runtime.environment, result)
     return {
         "status": "done",
@@ -113,5 +137,6 @@ __all__ = [
     "load_prompts",
     "render_memories",
     "run",
+    "retain_valid_selection",
     "validate_selection",
 ]

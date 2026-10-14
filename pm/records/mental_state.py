@@ -315,6 +315,9 @@ class StateEmotions(LatentMentalState):
     fear: float = Field(0.0, ge=0.0, le=1.0,description="Apprehension or dread in the face of threat and low control. Driven by negative valence, high arousal, and uncertainty.", json_schema_extra={"vector_position": 403})
     disgust: float = Field(0.0, ge=0.0, le=1.0,description="Revulsion toward contamination, violation, or aversive stimuli. Triggered by norm violations, bodily threat, or moral breaches.", json_schema_extra={"vector_position": 404})
     surprise: float = Field(0.0, ge=0.0, le=1.0,description="Reaction to novelty or unexpectedness, neutral in valence. Very high when predictability is low and arousal is sharply raised.", json_schema_extra={"vector_position": 405})
+    resentment: float = Field(0.0, ge=0.0, le=1.0, description="Persistent displeasure about an attributed unfair act. Appraisal supplies its evidence and change.", json_schema_extra={"vector_position": 406})
+    jealousy: float = Field(0.0, ge=0.0, le=1.0, description="Concern about losing a valued relationship or role to another. Appraisal supplies its evidence and change.", json_schema_extra={"vector_position": 407})
+    boredom: float = Field(0.0, ge=0.0, le=1.0, description="Displeasure about repetition or lack of meaningful activity. Appraisal supplies its evidence and change.", json_schema_extra={"vector_position": 408})
 
     tenderness: float = Field(0.0, ge=0.0, le=1.0,description="Gentle, nurturing warmth often linked to social safety, bonding, and compassion. Usually positive valence, low arousal, high social closeness.", json_schema_extra={"vector_position": 420})
     curiosity: float = Field(0.0, ge=0.0, le=1.0,description="Motivated interest in novel, uncertain, or partially predictable stimuli. Often positive-to-neutral valence, moderate arousal, and moderate control.", json_schema_extra={"vector_position": 421})

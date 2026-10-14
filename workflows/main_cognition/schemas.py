@@ -301,6 +301,7 @@ class CognitiveRequest(BaseModel):
     correlation_id: str = ""
     companion_name: str = "Spamuel"
     user_name: str = "Jesse"
+    relationship_entity_id: int | None = None
     state_summary: str = ""
     mental_state_latent_vec: list[float] = Field(default_factory=list)
     mental_state_age_seconds: float = 0.0

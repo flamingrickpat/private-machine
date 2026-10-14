@@ -106,6 +106,29 @@ def stable_action_id(intent: dict, index: int) -> str:
     return "action-" + hashlib.sha1(material.encode("utf-8")).hexdigest()[:12]
 
 
+def action_dispatches(actions: list[dict]) -> list[ActionDispatch]:
+    """Convert executable choices into dispatch proposals without external effects.
+
+    Quiet choices remain in the original stage receipt. They cannot invoke a
+    body or public workflow, even when they carry a valid workflow name.
+    """
+    dispatches = []
+    for index, intent in enumerate(actions):
+        if intent.get("action_type") in {"Ignore", "Idle", "Sleep"}:
+            continue
+        dispatches.append(ActionDispatch(
+            action_id=str(intent.get("action_id") or stable_action_id(intent, index)),
+            workflow_name=str(intent.get("workflow_name", "")),
+            action_type=str(intent.get("action_type", "Reply")),
+            content=str(intent.get("content", "")),
+            arguments=dict(intent.get("arguments", {})),
+            depends_on=list(intent.get("depends_on", [])),
+            requires_completed=list(intent.get("requires_completed", [])),
+            presentation=dict(intent.get("presentation", {})),
+        ))
+    return dispatches
+
+
 def run_cycle(
     request: dict,
     run_stage: Callable[[str, dict], dict],
@@ -142,10 +165,15 @@ def run_cycle(
     # the parent report carries it so the module commits the same state. The
     # projection also maps accepted affect to one regulation mode.
     appraisal_result = _appraisal_from(reports.get("appraisal"))
+    user_ids = {int(item["knoxel_id"]) for item in request.get("stimuli", [])
+                if item.get("source") == "user_input"}
+    partner = (request.get("relationship_entity_id")
+               if appraisal_result is not None and user_ids.intersection(appraisal_result.evidence_ids) else None)
     projection = project_affect(
         request.get("mental_state_latent_vec") or None,
         appraisal_result,
         elapsed_seconds=float(request.get("mental_state_age_seconds", 0.0) or 0.0),
+        relationship_entity_id=partner,
         personality=request.get("personality_vec") or None,
         expectation_error=float(getattr(appraisal_result, "expectation_error", 0.0) or 0.0),
     )
@@ -158,6 +186,8 @@ def run_cycle(
             "salience": round(float(projection.attention_bias[1]), 4),
         },
         "behavior": projection.behavior,
+        "emotions": projection.state.state_emotions.model_dump(),
+        "relationship": projection.state.state_relationship.model_dump() if projection.state.state_relationship else None,
     }
     base["state_summary"] = projection.summary
     base["affect"] = affect_block
@@ -224,18 +254,7 @@ def run_cycle(
             if "preempt" not in reason.lower() else reason
         )
 
-    dispatches: list[ActionDispatch] = []
-    for index, intent in enumerate(reports["action_selection"].get("actions", [])):
-        dispatches.append(ActionDispatch(
-            action_id=str(intent.get("action_id") or stable_action_id(intent, index)),
-            workflow_name=str(intent.get("workflow_name", "")),
-            action_type=str(intent.get("action_type", "Reply")),
-            content=str(intent.get("content", "")),
-            arguments=dict(intent.get("arguments", {})),
-            depends_on=list(intent.get("depends_on", [])),
-            requires_completed=list(intent.get("requires_completed", [])),
-            presentation=dict(intent.get("presentation", {})),
-        ))
+    dispatches = action_dispatches(reports["action_selection"].get("actions", []))
     dispatches = resolve_same_cycle(dispatches)
     dispatches = resolve_prerequisites(dispatches, dict(action_receipts or {}))
 
@@ -283,4 +302,4 @@ def _appraisal_from(report: dict | None) -> AppraisalResult | None:
         return None
 
 
-__all__ = ["DEFAULT_WORKFLOWS", "STAGE_ORDER", "run_cycle", "stable_action_id"]
+__all__ = ["DEFAULT_WORKFLOWS", "STAGE_ORDER", "action_dispatches", "run_cycle", "stable_action_id"]

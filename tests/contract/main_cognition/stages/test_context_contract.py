@@ -84,13 +84,17 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(report.active_goals, ["avoid fires"])
         self.assertEqual(captured["messages"][0]["role"], "system")
 
-    def test_fabricated_candidate_id_raises(self):
+    def test_unavailable_candidate_id_and_unsupported_text_are_discarded(self):
         payload = (
             '{"memories": ["a made up memory"], "active_goals": [],'
             ' "capabilities": [], "candidate_ids": [999]}'
         )
-        with self.assertRaises(StageOutputError):
-            self._run(payload)
+        result, captured = self._run(payload)
+        self.assertEqual(result.status, WorkflowStatus.Completed)
+        report = ContextResult.model_validate(result.report)
+        self.assertEqual(report.candidate_ids, [])
+        self.assertEqual(report.memories, [])
+        self.assertIn("Return an empty selection", captured["messages"][-1]["content"])
 
     def test_invalid_model_output_raises(self):
         with self.assertRaises(StageOutputError):

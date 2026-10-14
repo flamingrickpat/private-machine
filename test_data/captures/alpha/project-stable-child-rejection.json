@@ -1,0 +1,200 @@
+{
+  "provenance": {
+    "tree_source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\20261014-a14-destructive-natural-request\\app\\managed_tasks\\58e5eca3a9a54b6d804fa0b4b0284932\\planning\\specs\\0001.json",
+    "tree_sha256": "5c7063ccdb98b9c456028bc35a600ca09139f95d642f3593aaab246ded89fb6b",
+    "response_source": "C:\\Users\\rick\\.pm\\private-machine\\49c2e810461146a0bd930e4e0d50b7ce.response.json",
+    "response_sha256": "be252566c5c3aadae404f13b3dc36c1bbaf1550dcf7d1208f8edf905176badb3"
+  },
+  "tree": {
+    "schema_version": "pm.minecraft-task-tree.v1",
+    "goal_id": "root_goal",
+    "revision": 1,
+    "nodes": [
+      {
+        "id": "root_goal",
+        "revision": 1,
+        "kind": "goal",
+        "parent": null,
+        "children": [
+          "NavigateToBlock",
+          "MineTargetBlock"
+        ],
+        "depends_on": [],
+        "instruction": "Remove the specific oak-plank block at coordinates x:28, y:104, z:5 as requested by Jesse, while maintaining the character's resentful and theatrical tone in the final response.",
+        "specialist": "builder",
+        "deferred": false,
+        "defer_reason": "",
+        "criteria": [
+          {
+            "id": "target_cleared",
+            "description": "The block at x:28, y:104, z:5 is no longer oak_planks (it is air).",
+            "kind": "block",
+            "node_id": "",
+            "names": [
+              "air"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 28,
+                "y": 104,
+                "z": 5
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      },
+      {
+        "id": "NavigateToBlock",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": "root_goal",
+        "children": [],
+        "depends_on": [],
+        "instruction": "Move close enough to interact with the block at x:28, y:104, z:5.",
+        "specialist": "navigator",
+        "deferred": false,
+        "defer_reason": "",
+        "criteria": [
+          {
+            "id": "near_target",
+            "description": "Player is within reach of the target block.",
+            "kind": "position",
+            "node_id": "",
+            "names": [],
+            "minimum": 1,
+            "position": {
+              "x": 28,
+              "y": 104,
+              "z": 5
+            },
+            "positions": [],
+            "end": null,
+            "radius": 4.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      },
+      {
+        "id": "MineTargetBlock",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": "root_goal",
+        "children": [],
+        "depends_on": [
+          "NavigateToBlock"
+        ],
+        "instruction": "Mine the oak plank block at x:28, y:104, z:5.",
+        "specialist": "miner",
+        "deferred": false,
+        "defer_reason": "",
+        "criteria": [
+          {
+            "id": "block_removed",
+            "description": "The specific block location is now air.",
+            "kind": "block",
+            "node_id": "",
+            "names": [
+              "air"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 28,
+                "y": 104,
+                "z": 5
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      }
+    ]
+  },
+  "proposal": {
+    "status": "planned",
+    "summary": "The previous plan contained a redundant and incorrectly specified 'NavigateToBlock' leaf. The player is already within interaction range of the target block (distance ~2.75 blocks). I have removed this unnecessary step and replaced it with a direct mining action to remove the oak plank at x:28, y:104, z:5.",
+    "updates": [
+      {
+        "id": "root_goal",
+        "kind": "goal",
+        "parent": null,
+        "children": [
+          "MINE_TARGET_BLOCK"
+        ],
+        "depends_on": [],
+        "instruction": "Remove the specific oak-plank block at coordinates x:28, y:104, z:5 as requested by Jesse, while maintaining the character's resentful and theatrical tone in the final response.",
+        "specialist": "builder",
+        "deferred": false,
+        "defer_reason": "",
+        "criteria": [
+          {
+            "id": "target_cleared",
+            "description": "The block at x:28, y:104, z:5 is no longer oak_planks (it is air).",
+            "kind": "block",
+            "names": [
+              "air"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 28,
+                "y": 104,
+                "z": 5
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      },
+      {
+        "id": "MINE_TARGET_BLOCK",
+        "kind": "leaf",
+        "parent": "root_goal",
+        "children": [],
+        "depends_on": [],
+        "instruction": "Mine the oak_planks block at x:28, y:104, z:5 using the held iron_pickaxe.",
+        "specialist": "miner",
+        "deferred": false,
+        "defer_reason": "",
+        "criteria": [
+          {
+            "id": "block_removed",
+            "description": "The block at x:28, y:104, z:5 is air.",
+            "kind": "block",
+            "names": [
+              "air"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 28,
+                "y": 104,
+                "z": 5
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      }
+    ]
+  }
+}

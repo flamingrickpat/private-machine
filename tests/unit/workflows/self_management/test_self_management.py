@@ -6,6 +6,7 @@ workflow. No model endpoint or module thread is required.
 from __future__ import annotations
 
 import threading
+import json
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -132,6 +133,26 @@ class SelfManagementTests(unittest.TestCase):
 
 
 class SelfManagementModuleTests(unittest.TestCase):
+    def test_captured_direct_alias_updates_the_existing_run(self):
+        capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/game-existing-run-alias.json").read_text(encoding="utf-8"))["request"]
+        with TemporaryDirectory() as tmp:
+            ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
+            module = SelfManagement("self_management", BusSystem(), self.fail, time.monotonic, None,
+                working_target=None, workflow=MANIFEST, tools_factory=lambda environment, batch: {},
+                runtime_root=Path(tmp), ghost=ghost)
+            module.managed_workflows = frozenset({"minecraft_project"})
+            payload = capture["payload"]
+            request = Envelope(capture["id"], capture["source"], "data", capture["topic"],
+                capture["correlation_id"], payload, target=payload["workflow_name"])
+            mapped = module.prepare_input([request])
+            self.assertEqual(mapped["operation"], "update")
+            self.assertEqual(mapped["run_id"], payload["arguments"]["run_id"])
+            self.assertEqual(mapped["instructions"], payload["arguments"]["instruction"])
+            self.assertNotIn("run_id", mapped["arguments"])
+            for operation in ("status", "cancel", "resume"):
+                request.payload = {**payload, "arguments": {**payload["arguments"], "operation": operation}}
+                self.assertEqual(module.prepare_input([request])["operation"], operation)
+
     def test_module_maps_action_arguments_to_a_receipt(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

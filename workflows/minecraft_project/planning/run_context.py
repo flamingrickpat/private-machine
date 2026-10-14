@@ -32,6 +32,19 @@ def request(context: RoleContext) -> ProjectRequest:
     return ProjectRequest.model_validate({key: value for key, value in payload.items() if not key.startswith("_public_")})
 
 
+def project_intent(context: RoleContext, store: TreeStore, instruction: str = "") -> dict:
+    """Keep the original request and explicit constraints beside current work.
+
+    A newer instruction overrides its named changes. It does not erase other
+    original requirements. This context describes intent, not completed work.
+    """
+    payload = yaml.safe_load(context.runtime.environment.read_text("inbox/request.yaml"))
+    req = request(context)
+    return {"original_request": payload.get("_public_original_request") or req.goal or req.instruction,
+            "original_goal": req.goal, "constraints": req.constraints,
+            "current_instruction": instruction or store.state.get("goal", req.instruction)}
+
+
 def store_for(context: RoleContext) -> TreeStore:
     """Use the working target's task folder as the sole durable tree owner."""
     return TreeStore(context.runtime.environment._path("."))

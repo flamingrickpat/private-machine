@@ -2,12 +2,16 @@
 
 ## Summary
 
+Context selection repairs an invalid memory ID once. If repair still fails, it drops unavailable IDs and rebuilds memory text from supplied sources.
+The original rejection remains in the stage artifacts. Current conversation can continue without fabricated memory references.
+
 The parent workflow runs eight stages in a fixed order.
 Later stages receive earlier reports.
 The module accepts the resulting attention frame and GWT before it dispatches typed actions.
 
 Parent: [system map](../concepts/architecture.md).
 Entry: [`workflows.main_cognition.pipeline.run_cycle`][].
+Game initiative: [cooperative survival](cooperative-survival.md) and [observed world events](world-events.md).
 
 ## Input, change, and output
 

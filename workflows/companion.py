@@ -91,7 +91,7 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
     for name in sorted(supervisor.workflows):
         descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",
                         "note_task": "Real pm-coder note writer. Exact UTF-8 byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.",
-                        "minecraft": "One sustained survival specialist leaf. Exclusive body lease, many calls, instruction updates, and cancellation.",
+                        "minecraft": "One sustained survival specialist leaf. Standalone completion requires an explicit supported verifier, currently wood_return. Use minecraft_project for other goals that need verified completion.",
                         "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals. Inventory questions use direct Assistant observation."}
         options.append({"name": name, "description": descriptions.get(name, f"Managed workflow {name}.")})
     return options
@@ -176,15 +176,23 @@ def build_app(
     config_path: str | None = None,
     workflow_models: WorkflowModels | None = None,
     record_lifecycle: bool = True,
+    world_poll_seconds: float | None = 120.0,
+    world_quiet_seconds: float = 120.0,
 ) -> Application:
     """Construct an application without service activation.
 
     Real cognition shares its activation owner with lazy workflow classification.
     A custom stage model can supply ``workflow_models`` explicitly. The caller
     owns application execution, shutdown, and its separate checkpoint path.
+    Real cognition polls structured world facts after 120 seconds of silence.
+    ``world_poll_seconds=None`` disables that source. Polling never chooses work.
     """
     if cognition not in {"real", "dummy"}:
         raise ValueError("cognition must be 'real' or 'dummy'.")
+    if world_poll_seconds is not None and world_poll_seconds <= 0:
+        raise ValueError("world_poll_seconds must be positive or None.")
+    if world_quiet_seconds < 0:
+        raise ValueError("world_quiet_seconds must not be negative.")
     if ghost is not None and checkpoint_path is not None:
         raise ValueError("Supply a Ghost or a checkpoint path, not both.")
     resolved_config = config_path or default_config_path()
@@ -296,6 +304,31 @@ def build_app(
         scheduler, status, tool_dialogue,
     ]
     if cognition == "real":
+        if world_poll_seconds is not None:
+            from workflows.minecraft_body.world_events import WorldEvents
+            from workflows.minecraft_body.mcp_client import build_minecraft_tools, DEFAULT_MCP_URL
+            from workflows.minecraft_body.lease import BODY_LEASES
+            import os
+            endpoint = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+            transport = build_minecraft_tools(endpoint, request_timeout_seconds=30)["minecraft_call"]
+
+            def observe_world():
+                # Reads share the command lock with actor calls. They never
+                # claim the mutation lease or bypass an in-flight action.
+                from pm_workflows.runtime import WorkflowTerminated
+                try:
+                    with BODY_LEASES.command(endpoint, cancel=world_events.stop_event):
+                        return transport("minecraft_observe", {"include_image": False})
+                except WorkflowTerminated:
+                    return {"ok": False, "cancelled": True}
+
+            world_events = WorldEvents(
+                "world_events", bus, on_error, clock, world_poll_seconds,
+                ghost=ghost, observe=observe_world,
+                journal=runtime_root / "world-events.jsonl", quiet_seconds=world_quiet_seconds,
+            )
+            modules.append(world_events)
+            app.world_events = world_events
         from workflows.minecraft_body.capabilities import capability_snapshot
         from workflows.public_speech.reply_recovery import ReplyRecovery
         provider = lambda: capability_snapshot(ghost, supervisor.workflows)

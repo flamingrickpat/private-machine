@@ -139,11 +139,25 @@ def apply_node_updates(previous: TaskTree, updates: list[Node]) -> TaskTree:
 
     Omitted nodes remain exact copies. The normal revision validator still
     checks stable IDs, parents, scope, conditions, and prerequisite references.
+    A parent cannot omit a child that still names that parent. Reject these
+    incomplete changes before merging so feedback retains exact stable IDs.
     """
     replacements = {node.id: node for node in updates}
     if not replacements or len(replacements) != len(updates):
         raise ValueError("Node updates need a nonempty list of unique stable IDs.")
-    old_ids = {node.id for node in previous.nodes}
+    originals = {node.id: node for node in previous.nodes}
+    old_ids = set(originals)
+    for original in previous.nodes:
+        replacement = replacements.get(original.id)
+        if replacement is None:
+            continue
+        removed = {key for key in set(original.children) - set(replacement.children)
+                   if replacements.get(key, originals[key]).parent == original.id}
+        if removed:
+            raise ValueError(f"Update for {original.id!r} removed stable children {sorted(removed)!r}. "
+                             f"Retain children {original.children!r} with their exact IDs. "
+                             "Updates cannot delete or rename existing tasks. Repair the selected task's "
+                             "instruction and conditions instead of removing it from its parent.")
     nodes = [replacements.get(node.id, node).model_copy(deep=True) for node in previous.nodes]
     nodes.extend(node.model_copy(deep=True) for node in updates if node.id not in old_ids)
     return previous.model_copy(deep=True, update={"nodes": nodes})

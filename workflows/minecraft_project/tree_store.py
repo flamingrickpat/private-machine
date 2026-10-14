@@ -29,7 +29,11 @@ def validate_tree(tree: TaskTree) -> dict[str, set[str]]:
     """
     nodes = {node.id: node for node in tree.nodes}
     if len(nodes) != len(tree.nodes) or tree.goal_id not in nodes:
-        raise ValueError("The tree needs unique IDs and an existing goal.")
+        roots = [node.id for node in tree.nodes if node.parent is None and node.kind == "goal"]
+        detail = (f" goal_id={tree.goal_id!r} is absent from nodes. Declared root goal IDs: {roots}. "
+                  "Set goal_id to the declared root node ID; do not substitute the task ID."
+                  if tree.goal_id not in nodes else " Duplicate node IDs must be distinct.")
+        raise ValueError("The tree needs unique IDs and an existing goal." + detail)
     roots = [node.id for node in tree.nodes if node.parent is None]
     if roots != [tree.goal_id] or nodes[tree.goal_id].kind != "goal":
         raise ValueError("The tree needs exactly one root goal.")
@@ -189,14 +193,13 @@ class TreeStore:
         """Load the exact accepted specification snapshot."""
         return TaskTree.model_validate(json.loads((self.root / f"planning/specs/{self.state['revision']:04d}.json").read_text(encoding="utf-8")))
 
-    def revise(self, proposed: TaskTree, *, target: str = "") -> TaskTree:
-        """Keep stable IDs and invalidate only changed work and its dependents.
+    def check_revision(self, proposed: TaskTree, *, target: str = "") -> None:
+        """Check a candidate against the current store without writing files.
 
-        Refinement can replace a selected leaf with a story and new descendants.
-        It must preserve the selected acceptance conditions and unrelated nodes.
-        Runtime code assigns revisions; model counters have no authority.
+        Draft sessions use this same boundary before ending a model turn.
+        Invalid structure, stable identities, or refinement raise ValueError.
+        A successful check does not commit a plan or accept any game effect.
         """
-        proposed = proposed.model_copy(deep=True)
         validate_tree(proposed)
         old = {node.id: node for node in self.load().nodes} if self.state["revision"] else {}
         new = {node.id: node for node in proposed.nodes}
@@ -221,14 +224,26 @@ class TreeStore:
                                      "Keep that node's original fields and parent; add new children under the refinement target.")
             if [row.model_dump() for row in selected.criteria] != [row.model_dump() for row in new[target].criteria]:
                 raise ValueError("Refinement must preserve the selected acceptance conditions.")
-        self.archive_acceptances(self.state, "planning/state.json")
         for key, node in new.items():
             if key in old and node.parent != old[key].parent:
                 raise ValueError("A revision cannot move an existing node to another parent.")
+        if self.path_for(f"planning/specs/{self.state['revision'] + 1:04d}.json").exists():
+            raise ValueError("A retained specification snapshot already owns this revision.")
+
+    def revise(self, proposed: TaskTree, *, target: str = "") -> TaskTree:
+        """Commit a checked revision and invalidate changed work and dependents.
+
+        Runtime code assigns revision counters. Complete validation precedes
+        archive writes, so a rejected candidate cannot change retained state.
+        """
+        proposed = proposed.model_copy(deep=True)
+        self.check_revision(proposed, target=target)
+        old = {node.id: node for node in self.load().nodes} if self.state["revision"] else {}
+        new = {node.id: node for node in proposed.nodes}
+        self.archive_acceptances(self.state, "planning/state.json")
+        for key, node in new.items():
             node.revision = old[key].revision + (node_digest(old[key]) != node_digest(node)) if key in old else 1
         proposed.revision = self.state["revision"] + 1
-        if self.path_for(f"planning/specs/{proposed.revision:04d}.json").exists():
-            raise ValueError("A retained specification snapshot already owns this revision.")
         self.write(f"planning/specs/{proposed.revision:04d}.json", proposed.model_dump(mode="json"))
         self.state["revision"] = proposed.revision
         self.state.pop("reviewed_revision", None)
@@ -258,9 +273,15 @@ class TreeStore:
                                       "source": source})
 
     def acceptance_candidates(self) -> list[dict]:
-        """Expose retained proof and exact specifications for native plan repair."""
+        """Expose retained proof and exact specifications for native plan repair.
+
+        A new project has no archive or committed specification. An empty
+        archive returns no candidates without reading a nonexistent first plan.
+        """
         rows = [json.loads(path.read_text(encoding="utf-8")) | {"archive": str(path.relative_to(self.root))}
                 for path in sorted((self.root / "planning/acceptance-archive").glob("*.json"))]
+        if not rows:
+            return []
         needed = {expected for row in rows if not self.valid(row["certificate"]["identity"]["leaf_id"])
                   for expected in row["certificate"]["dependencies"].values()}
         nodes = {node.id: node for node in self.load().nodes}

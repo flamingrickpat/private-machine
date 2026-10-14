@@ -4,16 +4,15 @@ from __future__ import annotations
 import json
 
 from pm_workflows.python_role import RoleContext
-from pydantic import ValidationError
 
 from workflows.minecraft_body.lease import BODY_LEASES
-from workflows.minecraft_project.schemas import Node, PlanProposal, RefinementProposal, RevisionProposal
+from workflows.minecraft_project.schemas import Node
 from workflows.minecraft_project.tree_store import TreeStore, digest, validate_tree
 from workflows.minecraft_project.evidence_selection import dependency_scope, protect_accepted_specifications, scoped_history
-from workflows.minecraft_project.planning.run_context import identity, request, scoped_reads
-from workflows.minecraft_project.planning.decisions import compact_plan_context, reason
+from workflows.minecraft_project.planning.run_context import identity, request, project_intent, scoped_reads, InstructionsChanged
+from workflows.minecraft_project.planning.decisions import compact_plan_context
 from workflows.minecraft_project.history_encoding import gameplay_history
-from workflows.minecraft_project.planning.proposals import initial_candidate, refinement_plan, refinement_scope, rejected_context, restart_review, revision_candidate, scoped_rejection
+from workflows.minecraft_project.planning.proposals import initial_candidate, refinement_scope, rejected_context, restart_review, revision_candidate, scoped_rejection
 from workflows.minecraft_project.planning.retention import retain
 from workflows.minecraft_project.planning.constraints import caller_plan_constraints, project_check_context, record_plan_constraints
 
@@ -55,6 +54,7 @@ def plan(context: RoleContext, store: TreeStore) -> dict:
     previous = store.load().model_dump(mode="json", exclude_defaults=True) if store.state["revision"] else None
     repair_base = initial_candidate(store)
     payload = {"identity": identity(context, store), "goal": goal, "observation": observation["result"],
+               "project_intent": project_intent(context, store, goal),
                "server_rules": server_info["result"].get("server_rules", ""),
                "planning_mode": "initial_candidate_repair" if repair_base else "initial_full_tree" if previous is None else "retained_revision",
                "project_initial_observation": json.loads(store.path_for(store.state["initial_observation"]).read_text(encoding="utf-8")),
@@ -172,29 +172,17 @@ def plan(context: RoleContext, store: TreeStore) -> dict:
         proposed = req.proposed_tree
     else:
         try:
-            contract = RefinementProposal if payload["refinement_target"] else RevisionProposal if previous or repair_base else PlanProposal
             if payload["refinement_target"]:
                 payload["replacement_binding"] = {"id": payload["refinement_target"],
                     "parent": next(node.parent for node in store.load().nodes if node.id == payload["refinement_target"]),
                     "conditions": "Copy this node's original criteria from previous_tree exactly. Keep unrelated nodes omitted."}
-            proposal = reason(context, store, "planner", contract, compact_plan_context(payload))
-        except ValidationError as error:
-            store.state.update(feedback="The proposal violates its JSON contract: " + str(error),
-                               rejected_proposal=store.state["decisions"][-1]["path"] + "/raw.json")
+            from workflows.minecraft_project.planning.native_plan import plan_session
+            proposal = plan_session(context, store, compact_plan_context(payload),
+                scope=selected_scope | ancestors if selected_scope is not None else None)
+        except InstructionsChanged as error:
+            store.state.update(feedback=str(error), rejected_proposal="")
             store.save()
-            return {"status": "invalid", "summary": store.state["feedback"]}
-        if isinstance(proposal, RefinementProposal):
-            try:
-                proposal = refinement_plan(store.load(), payload["refinement_target"], proposal)
-            except ValueError as error:
-                store.state.update(feedback="The refinement violates its target binding: " + str(error),
-                                   rejected_proposal=store.state["decisions"][-1]["path"] + "/raw.json")
-                store.save()
-                return {"status": "invalid", "summary": store.state["feedback"]}
-        elif isinstance(proposal, RevisionProposal):
-            proposal = PlanProposal(status=proposal.status, summary=proposal.summary, updates=proposal.updates,
-                                    restore_nodes=proposal.restore_nodes,
-                                    queries=proposal.queries, recipe_queries=proposal.recipe_queries)
+            return {"status": "invalid", "summary": str(error)}
         if proposal.status == "survey":
             store.state["pending_survey"] = {"instruction_revision": current["revision"],
                                               "queries": [row.model_dump(mode="json") for row in proposal.queries],

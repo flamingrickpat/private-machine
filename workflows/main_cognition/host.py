@@ -209,6 +209,7 @@ class MainCogLoop(CognitiveWorkflow):
     DATA_TOPICS = frozenset({
         "user.input", "thought.created", "task.telemetry", "workflow.question", "workflow.event",
         "system.lifecycle",
+        "minecraft.world",
     })
 
     def __init__(self, *args, workflow_catalogue=None, embedding_config_path=None,
@@ -243,7 +244,14 @@ class MainCogLoop(CognitiveWorkflow):
             if self.stop_event.is_set() or self.run_stop.is_set():
                 return
             outcome = "stale" if isinstance(error, GhostConflict) else "protocol_failed"
-            if not any(envelope.source == "user_input" for envelope in batch):
+            world_inputs = [envelope for envelope in batch if envelope.topic == "minecraft.world"]
+            for envelope in world_inputs:
+                # A mixed user batch can fail before a workspace commit. Each
+                # world source needs its own acknowledgment to release its slot.
+                self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt",
+                    envelope.correlation_id, {"status": outcome, "workflow_name": self.WORKFLOW_NAME,
+                    "rejection_reason": str(error), "recovery_outcome": "cycle_rejected"}, causation_id=envelope.id))
+            if not world_inputs and not any(envelope.source == "user_input" for envelope in batch):
                 # Public resolution can change a source marker while a task
                 # event cycle reads it. Reject that cycle without shutdown.
                 self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt",
@@ -349,6 +357,8 @@ class MainCogLoop(CognitiveWorkflow):
             correlation_id=correlation,
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
+            relationship_entity_id=self.ghost.get_entity_id(self.ghost.get_user_name())
+                if any(item.source == "user_input" for item in stimuli) else None,
             state_summary=_state_summary(self.ghost),
             mental_state_latent_vec=previous_vec,
             mental_state_age_seconds=age_seconds,
@@ -430,7 +440,9 @@ class MainCogLoop(CognitiveWorkflow):
         knoxel = self._input_knoxel(knoxel_id)
         kind = "user.input"
         if knoxel is not None:
-            if knoxel.feature_type in {FeatureType.Thought, FeatureType.InnerMonologue}:
+            if envelope.topic == "minecraft.world":
+                kind = "minecraft.world"
+            elif knoxel.feature_type in {FeatureType.Thought, FeatureType.InnerMonologue}:
                 kind = "thought.created"
             elif knoxel.feature_type == FeatureType.SystemMessage:
                 kind = "system.lifecycle"
@@ -482,6 +494,7 @@ class MainCogLoop(CognitiveWorkflow):
         goal_records = apply_goal_changes(
             changes, view, parsed.goal_changes,
             evidence_ids=[int(item) for item in self._stimulus_ids],
+            appraisal_id=appraisal_feature.id,
         )
         created_goal_ids = [
             int(record["intention_id"]) for record in goal_records
@@ -566,6 +579,12 @@ class MainCogLoop(CognitiveWorkflow):
             if dispatch.status != "dispatched":
                 rejected.append(dispatch)
                 continue
+            active_game = self._active_game_request(dispatch, correlation, batch)
+            if active_game is not None:
+                rejected.append(dispatch.model_copy(update={"status": "rejected", "rejection_reason":
+                    f"Game run {active_game} already owns this request. Use its management controls; "
+                    "task progress cannot start another game run for the same request."}))
+                continue
             existing = self._existing_action_identity(dispatch)
             if existing is not None:
                 duplicates.append((dispatch, existing))
@@ -590,6 +609,9 @@ class MainCogLoop(CognitiveWorkflow):
                     "requires_completed": list(dispatch.requires_completed),
                     "arguments": dict(dispatch.arguments),
                     "affect_summary": parsed.affect_summary,
+                    "appraisal_id": appraisal_feature.id,
+                    "evidence_ids": list(self._stimulus_ids),
+                    "self_origin": not any(item.source == "user_input" for item in batch),
                     "regulation": parsed.regulation,
                     "memory_evidence": [item.model_dump(mode="json") for item in parsed.selected_memories],
                     "memory_trace": parsed.memory_trace,
@@ -676,6 +698,28 @@ class MainCogLoop(CognitiveWorkflow):
             if str(knoxel.metadata.get("action_id", "")) == dispatch.action_id:
                 return int(knoxel.id)
         return None
+
+    def _active_game_request(self, dispatch, correlation: str, batch: list[Envelope]) -> str | None:
+        """Keep progress for an active request from starting another game run.
+
+        Read the current durable run table before committing an action. A new
+        user input permits another request. Updates and cancellation still use
+        the existing management controls. Completed runs release this boundary.
+        """
+        route = dispatch.workflow_name
+        if route in {"minecraft", "minecraft_project"} and (
+                dispatch.arguments.get("operation", "update" if dispatch.arguments.get("run_id") else "start") != "start"):
+            return None
+        if route == "self_management" and dispatch.arguments.get("operation") == "start":
+            route = dispatch.arguments.get("workflow_name")
+        if route not in {"minecraft", "minecraft_project"} or not correlation or any(
+                item.source == "user_input" for item in batch):
+            return None
+        with self.ghost.lock:
+            return next((run["run_id"] for run in self.ghost.managed_runs.values()
+                         if run["workflow_name"] in {"minecraft", "minecraft_project"}
+                         and run["parent_correlation"] == correlation
+                         and run["state"] in {"accepted", "running", "waiting_for_input"}), None)
 
     def _existing_action_identity(self, dispatch) -> int | None:
         """Return the existing non-reply action with this identity, if any.

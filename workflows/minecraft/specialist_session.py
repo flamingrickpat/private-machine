@@ -71,7 +71,7 @@ def leaf_execution_context(request: MinecraftRequest) -> dict:
     claims cannot replace these current criteria or independent verification.
     """
     current = {"identity": request.task_reference, "instruction": request.goal or request.instruction,
-               "criteria": request.acceptance.get("criteria", [])}
+               "criteria": request.acceptance.get("criteria", []), "project_intent": request.project_intent}
     observations = request.acceptance.get("current_criterion_observations")
     if observations:
         current["current_criterion_observations"] = observations

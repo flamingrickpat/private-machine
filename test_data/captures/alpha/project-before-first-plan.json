@@ -1,0 +1,15 @@
+{
+  "origin": ".runtime\\alpha\\20261014-a14-away-current\\app\\managed_tasks\\1b8af481cf034845a23cb10a43865840\\planning\\state.json",
+  "origin_sha256": "c7911c5b66137b3b38e50d1fc233b458035061532468b55c9edd7449910d3a11",
+  "state": {
+    "revision": 0,
+    "acceptances": {},
+    "attempts": [],
+    "decisions": [],
+    "feedback": "",
+    "instruction_revision": -1,
+    "server_rules": "planning/server-rules/0001.json",
+    "planning_observation": "planning/observations/0001.json",
+    "initial_observation": "planning/observations/0001.json"
+  }
+}
