@@ -60,6 +60,8 @@ nav:
       - The private ontology: subsystems/private-ontology.md
       - Context planning: subsystems/context-planning.md
       - Experienced memory: subsystems/experienced-memory.md
+      - Direct agent memory: subsystems/agent-memory.md
+      - Managed memory lifecycle: subsystems/agent-memory-lifecycle.md
       - Experience consolidation: subsystems/memory-consolidation.md
       - Public dialogue: subsystems/public-dialogue.md
       - Public publication and recovery: subsystems/public-publication.md
@@ -109,8 +111,8 @@ nav:
           - Previous PM attempts: work_items/alpha-plan/previous-attempts.md
           - Cognitive architecture: work_items/alpha-plan/cognition.md
           - Private ontology and expression: work_items/alpha-plan/ontology.md
-          - Scoped memory tools (planned): work_items/alpha-plan/memory-tools.md
-          - Memory-tool evidence and lifecycle (planned): work_items/alpha-plan/memory-tool-evidence.md
+          - Scoped memory tools: work_items/alpha-plan/memory-tools.md
+          - Memory-tool evidence and lifecycle: work_items/alpha-plan/memory-tool-evidence.md
           - Second conscious loop: work_items/alpha-plan/private-loop.md
           - Self-model and reflection: work_items/alpha-plan/reflection.md
           - Models and workflow inputs: work_items/alpha-plan/decisions.md
@@ -162,6 +164,7 @@ nav:
           - A09 public dialogue: work_items/verification/a09-public-dialogue.md
           - A09R private ontology: work_items/verification/a09r-private-ontology.md
           - A09R OpenRouter delivery: work_items/verification/a09r-openrouter-delivery.md
+          - A14B agent memory: work_items/verification/a14b-agent-memory.md
           - A10 Minecraft actor: work_items/verification/a10-minecraft-actor.md
           - A11 Minecraft projects: work_items/verification/a11-minecraft-projects.md
           - A12 body recovery: work_items/verification/a12-body-recovery.md

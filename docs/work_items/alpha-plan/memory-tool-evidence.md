@@ -2,10 +2,11 @@
 
 ## Summary
 
-A14B's proposed memory tools retain original evidence through graph queries, snapshots, and managed-agent connections.
+A14B's memory tools retain original evidence through graph queries, snapshots, and managed-agent connections.
 The authoritative memory store remains the state owner.
-This page defines the planned read boundaries and acceptance cases.
-These tools are not enabled.
+This page defines the read boundaries and acceptance cases.
+The [implementation guide](../../subsystems/agent-memory.md) documents the enabled planner connection.
+The [verification record](../verification/a14b-agent-memory.md) separates engineering checks from pending behavioral acceptance.
 
 Parent: [scoped memory tools](memory-tools.md).
 Related: [A14B](work-items/a14b.md) and [experienced memory](../../subsystems/experienced-memory.md).

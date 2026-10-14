@@ -2,6 +2,9 @@
 
 ## Summary
 
+Native agents can also use [direct scoped memory tools](agent-memory.md).
+That path keeps search optional and gives the agent original records for its own judgment.
+
 A08 retrieves original semantic and episodic evidence for live cognition.
 Selection uses a stable permitted snapshot, a causal frontier, and reality/frame scopes.
 The selected records reach action selection and dialogue with their original IDs.
@@ -10,7 +13,7 @@ Imported canon remains attributed background.
 Parent: [cognitive pipeline](cognition.md).
 Related: [accepted state](cognition-state.md), [emotional dynamics](emotional-dynamics.md), and [memory experiments](../workflows/memory.md).
 Children: [consolidation and beliefs](memory-consolidation.md) and [A08 verification](../work_items/verification/a08-experienced-memory.md).
-Planned direct agent access: [A14B memory search and graph tools](../work_items/alpha-plan/memory-tools.md).
+Direct agent access: [A14B memory search and graph tools](agent-memory.md).
 
 ## Entry and execution path
 

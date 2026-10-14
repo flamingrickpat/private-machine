@@ -49,6 +49,8 @@ MEMORY_TYPES = frozenset({
     "WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel",
 })
 
+GRAPH_TYPES = frozenset({"GraphNode", "GraphEdge", "ConceptNode"})
+
 
 def memory_kind(raw: dict) -> str:
     """Return the evidence category without inferring truth from generated prose."""
@@ -79,11 +81,15 @@ def record_text(raw: dict) -> str:
     """
     if memory_kind(raw) == "internal_state":
         return raw["data"].get("metadata", {}).get("affect_summary") or "Accepted internal state; no prepared affect summary."
-    return raw["data"]["content"]
+    data = raw["data"]
+    fields = {"GraphNode": ("name", "content"), "GraphEdge": ("fact_text", "content"),
+              "ConceptNode": ("description", "content")}.get(raw["__type__"], ("content",))
+    return "\n".join(dict.fromkeys(str(data[field]) for field in fields if data.get(field)))
 
 
 def scoped_records(view, *, frontier: tuple[int, int] | None = None,
-                   scopes: set[tuple[int, str]] | None = None) -> tuple[dict, dict]:
+                   scopes: set[tuple[int, str]] | None = None,
+                   record_types=MEMORY_TYPES) -> tuple[dict, dict]:
     """Filter before indexing. A scope contains a reality ID and a frame name.
 
     Linked summaries are eligible only when every original record is visible
@@ -104,7 +110,7 @@ def scoped_records(view, *, frontier: tuple[int, int] | None = None,
             eligible[key] = raw
     records = {}
     for key, raw in eligible.items():
-        if raw["__type__"] not in MEMORY_TYPES or not raw["data"].get("content", "").strip():
+        if raw["__type__"] not in record_types or not record_text(raw).strip():
             continue
         # Legacy references can be incomplete. Such abstractions cannot supply
         # evidence in this invocation, but their visible originals still can.
@@ -171,7 +177,9 @@ def candidate(view, key: int, raw: dict, *, terms=None, score=0.0, reasons=(), p
         if source_id in view.revisions:
             pending.extend(referenced_ids(view.get(source_id)) - source_ids)
     source_ids = sorted(source_ids)
-    stale = bool(metadata.get("stale")) or data.get("active") is False or data.get("status") in {"superseded", "retracted"}
+    stale = (bool(metadata.get("stale")) or data.get("active") is False
+             or data.get("status") in {"superseded", "retracted"}
+             or bool(data.get("invalid_at") and utc_time(data["invalid_at"]) <= datetime.now(timezone.utc)))
     if raw["__type__"] in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:
         stale = True  # A recalled observation never establishes current world state.
     kind = memory_kind(raw)
@@ -237,7 +245,9 @@ def evidence_role(view, raw: dict) -> str:
 
 
 async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=None,
-                   limit: int = 24, cancel=None) -> dict:
+                   limit: int = 24, cancel=None, record_types=MEMORY_TYPES,
+                   method: str = "combined", reserve_context: bool = True,
+                   prepare_limit: int = 64) -> dict:
     """Rank older semantic and episodic evidence within one frozen snapshot.
 
     Cached semantic ranking covers every eligible record. At most 64 missing
@@ -247,8 +257,17 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
     """
     if not 1 <= limit <= 64:
         raise ValueError("The retrieval limit must be between 1 and 64.")
-    records, rejected = scoped_records(view, frontier=frontier, scopes=scopes)
+    if method not in {"lexical", "semantic", "combined"}:
+        raise ValueError("Search method must be lexical, semantic, or combined.")
+    if not 0 <= prepare_limit <= 64:
+        raise ValueError("Embedding preparation must be between 0 and 64 chunks per search.")
+    records, rejected = scoped_records(view, frontier=frontier, scopes=scopes, record_types=record_types)
     terms = distinctive_terms(query)
+    if not reserve_context:
+        # Direct queries need short names such as oak, tea, and API.
+        # The older cognition path retains its broad-context word filter.
+        terms = list(dict.fromkeys(match.group(0).casefold() for match in _WORD.finditer(query)
+                                   if match.group(0).casefold() not in _STOPWORDS))
     texts = {key: record_text(raw) for key, raw in records.items()}
     frequency = Counter(term for term in terms for text in texts.values() if term in text.casefold())
     lexical = {key: sum(math.log(1 + len(texts) / (1 + frequency[term]))
@@ -259,8 +278,10 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
     semantic = {}
     semantic_passages = {}
     semantic_status = {"status": "disabled"}
+    if method != "lexical" and embeddings is None and not reserve_context:
+        semantic_status = {"status": "unavailable", "reason": "embedding_service_not_configured", "fallback": "lexical"}
     coverage = {"indexed": 0, "total": len(texts), "missing": len(texts)}
-    if embeddings is not None and texts:
+    if method != "lexical" and embeddings is not None and texts:
         chunks, owners = index_chunks(records)
         plan = embeddings.inspect_index(chunks)
         missing = set(plan.missing)
@@ -268,7 +289,7 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
         pool_order = {key: index for index, key in enumerate(pool)}
         pending = sorted((key for key in missing if owners[key] in pool_order),
                          key=lambda key: (pool_order[owners[key]],
-                                          -sum(term in chunks[key].casefold() for term in terms), key))[:64]
+                                          -sum(term in chunks[key].casefold() for term in terms), key))[:prepare_limit]
         try:
             await embeddings.prepare_index({key: chunks[key] for key in pending}, cancel=cancel)
             indexed = set(plan.hits) | set(pending)
@@ -283,7 +304,8 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
             indexed = set(embeddings.inspect_index(chunks).hits)
             ranked = []
             semantic_status = {"status": "unavailable", "base_url": embeddings.config.base_url,
-                               "model": embeddings.config.model, "error": str(error), "fallback": "lexical_and_recent"}
+                               "model": embeddings.config.model, "error": str(error),
+                               "fallback": "lexical_and_recent" if reserve_context else "lexical"}
         for chunk_id, score in ranked:
             owner = owners[chunk_id]
             if score > semantic.get(owner, -1.0):
@@ -294,13 +316,19 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
         coverage = {"indexed": len(complete), "total": len(texts), "missing": len(texts) - len(complete),
                     "indexed_chunks": len(indexed), "total_chunks": len(chunks), "missing_chunks": len(chunks) - len(indexed)}
     lex_max = max(lexical.values(), default=1) or 1
-    scores = {key: 0.65 * semantic.get(key, 0) + 0.35 * lexical[key] / lex_max for key in records}
+    semantic_ready = semantic_status["status"] == "ready"
+    scores = {key: (0.65 * semantic.get(key, 0) + 0.35 * lexical[key] / lex_max if reserve_context else
+                    semantic.get(key, 0) if method == "semantic" and semantic_ready else
+                    lexical[key] / lex_max if method == "lexical" or not semantic_ready else
+                    0.65 * semantic.get(key, 0) + 0.35 * lexical[key] / lex_max) for key in records}
     ranked_ids = sorted(records, key=lambda key: (-scores[key], -key))
+    if not reserve_context:
+        ranked_ids = [key for key in ranked_ids if scores[key] > 0]
     # Reserve recent context without allowing it to consume the older pool.
-    reserve = min(4, limit // 4)
+    reserve = min(4, limit // 4) if reserve_context else 0
     # Repeated generated answers can outrank their original reports. Reserve
     # a separate source pool so recall can escape that feedback loop.
-    source_reserve = min(8, limit // 3)
+    source_reserve = min(8, limit // 3) if reserve_context else 0
     archive_ids = [key for key in ranked_ids
                    if (records[key]["data"].get("provenance") or {}).get("source_kind") == "Migration"]
     original_ids = [key for key in archive_ids if evidence_role(view, records[key]) == "user_report"]
@@ -313,7 +341,13 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
         *( ["lexical"] if lexical[key] else []),
         *( ["recent"] if key in recent else []),
     ], passage=semantic_passages.get(key) if not lexical[key] else None) for key in selected]
+    for match in matches:
+        key = match["knoxel_id"]
+        match["score_components"] = {"lexical": round(lexical[key] / lex_max, 6),
+                                     "semantic": semantic.get(key)}
     return {"matches": matches, "trace": {
+        "requested_method": method,
+        "effective_method": method if semantic_ready or method == "lexical" else "lexical",
         "query": query, "frontier": frontier, "scopes": sorted(scopes) if scopes is not None else None,
         "coverage": coverage, "semantic": semantic_status, "selected_ids": selected,
         "rejected_counts": dict(Counter(rejected.values())),

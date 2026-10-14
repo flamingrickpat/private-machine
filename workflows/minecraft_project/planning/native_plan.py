@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 from dataclasses import replace
+import json
 
 from pm.runs.draft_session import run_draft_session
+from pm.memory.agent_tools import MemoryReadSession
 from workflows.minecraft_body.gateway import READ_TOOLS
 from workflows.minecraft_body.lease import BODY_LEASES
 from workflows.minecraft_project.evidence_selection import catalog, read_source
@@ -93,15 +95,34 @@ def plan_session(context, store, payload: dict, *, scope: set[str] | None = None
         "Use plan_check for convenient feedback. When your draft is ready, end the turn with a short explanation. "
         "The backend then checks the actual draft and continues this same conversation if repair is needed. "
         "A valid draft is a plan; it does not establish a completed game task. "
+        "Optional memory tools expose original preferences, prior outcomes, and graph sources. "
+        "This decision group has a fresh memory snapshot. Reinspect earlier evidence that affects this draft. "
+        "Use them when past context can change your decision. Ordinary choices need no search. "
+        "Interpret dates, sources, and corrections yourself. A current explicit request can change an older preference. "
+        "If no preference is available, choose a practical option within the current request. "
+        "Match planning effort to this task's consequences and requested review mode. "
+        "For a small reversible task, prefer one useful executable leaf over speculative future phases. "
         "Current goal: " + payload["goal"])
     session = (nullcontext(runtime.agent_model) if runtime.agent_model is not None else
                runtime.classification_session("Default", False, runtime.stop_event))
-    with session as model:
+    memory = None
+    if "memory_config" in runtime.tools:
+        def trace(row):
+            with store.path_for(name + "/memory.jsonl").open("a", encoding="utf-8") as journal:
+                journal.write(json.dumps(row, ensure_ascii=False) + "\n")
+        memory = MemoryReadSession(replace(runtime.tools["memory_config"](), trace=trace))
+    # Each group receives a fresh grant. Native child processes receive only
+    # its read listener. Cleanup revokes access before another group starts.
+    with (memory if memory is not None else nullcontext()), session as model:
         result = run_draft_session(replace(runtime, agent_model=replace(model, enable_thinking=True)),
-            run_id=context.task_id + "-planner", prompt=prompt, servers={"project_plan": server},
-            validate=draft.validate, artifact_dir=store.path_for(name + "/native"))
+            run_id=context.task_id + "-" + name.replace("/", "-"), prompt=prompt, servers={"project_plan": server},
+            validate=draft.validate, artifact_dir=store.path_for(name + "/native"), memory=memory)
+        revisions = dict(memory.accessed) if memory is not None else {}
     check_current()
     store.write(name + "/output.json", result.value.model_dump(mode="json"))
     store.write(name + "/session.json", {"session_ref": result.session_ref,
         "validation_attempts": result.validation_attempts, "mode": "native_mcp_draft"})
+    store.state["planning_memory_revisions"] = revisions
+    store.write(name + "/memory-revisions.json", {"snapshot_id": memory.snapshot_id if memory is not None else None,
+                                               "revisions": revisions})
     return result.value

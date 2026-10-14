@@ -37,6 +37,8 @@ The revised return-route gate and remaining fresh acceptance cases have no compl
 A09R engineering repairs and real OpenRouter gates are recorded in the [current delivery](../verification/a09r-openrouter-delivery.md).
 Human M2 review and suitable conversation latency remain pending.
 A14 through A20 remain pending.
+A14B supplies [direct memory tools](../../subsystems/agent-memory.md) for native decisions.
+Its [verification](../verification/a14b-agent-memory.md) keeps the larger operator-designed test pending.
 A13's [gate review](../verification/a13/task-gate-review.md) records the pending real acceptance and implemented workflow split.
 
 The LLM is the default for selection, classification, and interpretation.
@@ -127,7 +129,7 @@ After A20, promote the useful ones into proper beta work items.
 | A12 | [Control and recover interrupted body work](work-items/a12.md) — engineering delivery recorded | |
 | A13 | [Replan expected gameplay failures](work-items/a13.md) | M3: finished small house and self-crafted iron pickaxe |
 | A14 | [Play as a cooperative survival partner](work-items/a14.md) | M4: house, expedition, and changed conditions |
-| A14B | [Use editable drafts and scoped memory tools](work-items/a14b.md) — planned follow-up | Measured workflow efficiency, repair, and direct memory access |
+| A14B | [Use editable drafts and scoped memory tools](work-items/a14b.md) — engineering implemented, larger test pending | Measured workflow efficiency, repair, and direct memory access |
 | A15 | [Run selective codelets through the workspace](work-items/a15.md) | |
 | A16 | [Deliver a grounded codelet repertoire](work-items/a16.md) | |
 | A17 | [Run the second conscious loop](work-items/a17.md) | M5: observable private activity with consequences |

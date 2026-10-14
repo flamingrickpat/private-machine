@@ -27,6 +27,7 @@ from pm.llm.workflow_sessions import WorkflowModels
 from pm.host.durable_files import ProcessLock, BodyBusy, atomic_json, read_json
 from pm.runs.run_receipt import ACTIVE_STATES, ManagedRunError, ManagedRunReceipt
 from pm.runs.workflow_spec import WorkflowSpec, scoped_children
+from pm.memory.agent_tools import guard_revisions
 
 
 class ManagedRunSupervisor:
@@ -290,6 +291,9 @@ class ManagedRunSupervisor:
                 receipt.run_id, receipt.execution_epoch)
             tools["managed_milestone"] = lambda key, summary, evidence: self.milestone(
                 receipt.run_id, receipt.execution_epoch, key, summary, evidence)
+            if spec.memory_config_factory is not None:
+                tools["memory_config"] = lambda: spec.memory_config_factory(self.ghost, cancel)
+                tools["memory_guard"] = lambda revisions: guard_revisions(self.ghost, revisions, cancel)
             runtime = WorkflowRuntime(
                 environment=environment,
                 stop_event=cancel,

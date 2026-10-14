@@ -9,6 +9,7 @@ from typing import Any, Callable, Mapping
 from pm_workflows.runtime import WorkflowRuntime
 
 from pm.host.folder_target import FolderEnvironment
+from pm.memory.agent_tools import MemoryToolConfig
 
 
 def scoped_children(runtime: WorkflowRuntime, root: Path) -> WorkflowRuntime:
@@ -45,4 +46,6 @@ class WorkflowSpec:
     resumable: bool = False
     #: Extra request fields, read from the memory store under its lock at each launch.
     request_context: Callable[[Any], Mapping[str, Any]] | None = None
+    #: The workflow selects an accepted memory view at each native decision group.
+    memory_config_factory: Callable[[Any, Any], MemoryToolConfig] | None = None
 

@@ -10,7 +10,7 @@ The model need not serialize a complete result in its final message.
 Parent: [workflow runtime](../runtime.md).
 Current caller: [Minecraft projects](minecraft-tasks.md).
 Planned rollout: [A14B](../work_items/alpha-plan/work-items/a14b.md).
-Planned memory access: [scoped search and graph tools](../work_items/alpha-plan/memory-tools.md).
+Memory access: [direct memory tools](agent-memory.md).
 Judgment policy: [workflow review modes](workflow-reviews.md).
 Evidence and remaining limits: [A14 verification](../work_items/verification/a14-cooperation.md#tool-backed-draft-sessions).
 
@@ -22,6 +22,11 @@ The caller obtains that connection through the normal `pm.llm` configuration pat
 No workflow adapts provider HTTP fields.
 
 The workflow constructs its servers and owns draft meaning, storage, validation, and the eventual commit.
+An optional `memory` session adds scoped search and source inspection on a separate listener.
+The caller owns this session and closes it after agent cleanup.
+Validators return decisions without commits.
+Inspected source conflicts request repair before acceptance.
+The workflow guards those sources again through its local commit.
 [`pm.host.mcp_listeners.serve_services`][] holds OS-assigned local ports for those servers.
 The runtime writes their descriptors to `draft-mcp.json` in the artifact directory.
 It obtains the environment's native agent target, then uses the installed `pm_coder` public session functions.
@@ -74,8 +79,10 @@ Draft validation alone cannot establish house construction or completed mining.
 
 Each successful edit writes the workflow's private `draft.json`.
 It does not commit an accepted plan or gameplay proof.
-The planner's native session ID combines the managed task ID with its planner role.
-Later planning groups retain that conversation while rebuilding editable state from the current accepted specification.
+The planner's native session ID combines the managed task ID with its decision group and planner role.
+Repair turns retain that conversation.
+Later groups start fresh conversations and rebuild editable state from the current accepted specification.
+This boundary avoids replay of accumulated planning chatter and obsolete memory results.
 Unaccepted edits from an interrupted group are not automatically restored.
 Preserve the rejected draft files when diagnosing such an interruption.
 

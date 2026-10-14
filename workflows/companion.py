@@ -41,8 +41,8 @@ REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
 DEFAULT_SEED = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
-def _managed_workflows(stage_model=None) -> dict:
-    from workflows.minecraft.host import build_minecraft_module_tools, persona_context
+def _managed_workflows(stage_model=None, embeddings=None) -> dict:
+    from workflows.minecraft.host import build_minecraft_module_tools, persona_context, project_memory_config
     from workflows.note_task.steps import build_note_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
@@ -72,6 +72,8 @@ def _managed_workflows(stage_model=None) -> dict:
                 stage_model.measure_context if stage_model is not None else None),
             resumable=True,
             request_context=persona_context,
+            memory_config_factory=(lambda store, cancel: project_memory_config(store, cancel, embeddings))
+                if stage_model is not None else None,
         ),
     }
 
@@ -222,10 +224,15 @@ def build_app(
     runtime_root = Path(runtime_root)
 
     consolidator = Consolidator(ghost, clock=clock)
+    context_embeddings = None
+    if cognition == "real":
+        from pm.llm.config import load_config
+        from pm.memory.embeddings import EmbeddingService
+        context_embeddings = EmbeddingService(load_config(resolved_config).embedding)
     supervisor = ManagedRunSupervisor(
         ghost,
         runtime_root=runtime_root,
-        workflows=_managed_workflows(stage_model),
+        workflows=_managed_workflows(stage_model, context_embeddings),
         clock=clock,
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,
@@ -363,9 +370,6 @@ def build_app(
         assistant.capability_provider = provider
         # Context planning for public replies shares one embedding service and
         # its disk cache. Construction makes no network request.
-        from pm.llm.config import load_config
-        from pm.memory.embeddings import EmbeddingService
-        context_embeddings = EmbeddingService(load_config(resolved_config).embedding)
         dialogue.context_embeddings = context_embeddings
         assistant.context_embeddings = context_embeddings
         recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)

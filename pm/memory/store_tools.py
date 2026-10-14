@@ -14,6 +14,7 @@ from copy import deepcopy
 from fastmcp import FastMCP
 
 from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel
+from pm.memory.agent_tools import MemoryReadSession
 
 
 def _read_knoxels(environment, batch) -> dict[int, dict]:
@@ -28,13 +29,16 @@ def _read_gwt(environment, batch) -> dict[int, dict]:
     return environment.visible_gwt
 
 
-def build_tools(environment, batch=None) -> Mapping[str, Callable[..., Any]]:
+def build_tools(environment, batch=None, *, memory: MemoryReadSession | None = None) -> Mapping[str, Callable[..., Any]]:
     """Return the scoped tool functions for one invocation.
 
     ``batch`` is optional. Without it the tools are read-only. With it the
     read tools include the batch's staged records and two proposal tools add
     to that batch. The batch view is resolved on every call, so a proposal
     made earlier in the same run is visible to later reads.
+    Optional ``memory`` adds accepted evidence tools with their own explicit
+    workflow view. The caller owns that read session and its cancellation.
+    Legacy tools retain the environment's existing grant.
     """
 
     def ghost_get(knoxel_id: int) -> dict:
@@ -84,15 +88,21 @@ def build_tools(environment, batch=None) -> Mapping[str, Callable[..., Any]]:
         tools["ghost_propose_create"] = ghost_propose_create
         tools["ghost_propose_replace"] = ghost_propose_replace
 
+    if memory is not None:
+        tools.update(memory.tools())
     return tools
 
 
-def build_mcp(environment, batch=None) -> FastMCP:
-    """Register the scoped tools on a FastMCP server for the same view."""
-    tools = build_tools(environment, batch)
+def build_mcp(environment, batch=None, *, memory: MemoryReadSession | None = None) -> FastMCP:
+    """Register legacy tools and optional accepted evidence tools without network work.
+
+    The caller owns the environment, batch, and optional memory read session.
+    Each tool group retains its explicit grant. This factory commits no state.
+    """
+    tools = build_tools(environment, batch, memory=memory)
     server = FastMCP("ghost")
-    for fn in tools.values():
-        server.add_tool(fn)
+    for name, fn in tools.items():
+        server.tool(name=name)(fn)
     return server
 
 

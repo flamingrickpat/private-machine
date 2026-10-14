@@ -13,6 +13,8 @@ from pm_workflows.runtime import WorkflowRuntime
 
 from pm.host.mcp_listeners import serve_services
 from pm.llm.prompt_log import log_directory
+from pm.memory.agent_tools import MemoryReadSession
+from pm.memory.snapshot import GhostConflict
 
 T = TypeVar("T")
 
@@ -45,12 +47,18 @@ def run_draft_session(
     artifact_dir: Path,
     timeout_seconds: float = 7200,
     enable_write: bool = False,
+    memory: MemoryReadSession | None = None,
 ) -> DraftSessionResult[T]:
     """Run scoped MCP tools and validate each completed native turn.
 
     The workflow owns tools, draft state, validation, and its eventual commit.
     Rejection adds feedback to the same conversation. It does not reset tools
     or replay edits. Native inference retains its normal retry and compaction.
+
+    Optional ``memory`` supplies a stable workflow grant on another listener.
+    The caller owns that read session and closes it after this call. Inspected
+    source conflicts request repair in the same conversation. Validators must
+    return decisions without commits. The owner guards sources again at commit.
 
     The caller must supply an activated model connection. Configuration and
     provider adaptation remain in ``pm.llm``. Cancellation stops inference and
@@ -63,10 +71,27 @@ def run_draft_session(
     artifact_dir = Path(artifact_dir)
     artifact_dir.mkdir(parents=True, exist_ok=True)
     target = runtime.environment.agent_target(artifact_dir)
-    with serve_services(servers) as descriptors:
+    scoped_servers = dict(servers)
+    if memory is not None:
+        if "memory" in scoped_servers:
+            raise ValueError("The memory service name is reserved for scoped read tools.")
+        scoped_servers["memory"] = memory.server()
+    original_validate = validate
+
+    def validate_with_memory(response: str) -> DraftValidation[T]:
+        decision = original_validate(response)
+        if decision.accepted and memory is not None:
+            try:
+                with memory.guard():
+                    pass
+            except GhostConflict as error:
+                return DraftValidation(False, feedback=str(error))
+        return decision
+
+    with serve_services(scoped_servers) as descriptors:
         config = artifact_dir / "draft-mcp.json"
         config.write_text(json.dumps({"mcpServers": descriptors}, indent=2), encoding="utf-8")
-        return asyncio.run(_run(runtime, target, run_id, prompt, validate, config,
+        return asyncio.run(_run(runtime, target, run_id, prompt, validate_with_memory, config,
                                 artifact_dir, timeout_seconds, enable_write))
 
 

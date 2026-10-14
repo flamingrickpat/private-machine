@@ -2,11 +2,14 @@
 
 ## Summary
 
-A14B plans optional memory tools for native pm-coder sessions.
+A14B supplies optional memory tools for native pm-coder sessions.
 The agent can search original records, inspect graph neighbors, and select evidence for its own decision.
 Each workflow defines the available view.
 The runtime shares retrieval and MCP wiring.
-This feature is planned and is not enabled.
+The real managed Minecraft planner enables these tools.
+Other workflows retain their existing paths.
+The [implementation guide](../../subsystems/agent-memory.md) records the current API and limits.
+The design below remains the rationale and rollout contract.
 
 Parent: [A14B](work-items/a14b.md).
 Related: [experienced memory](../../subsystems/experienced-memory.md), [draft sessions](../../subsystems/draft-sessions.md), and [memory consolidation](../../subsystems/memory-consolidation.md).
@@ -20,7 +23,8 @@ These entry points use factory functions rather than an abstract MCP base class.
 
 [`pm.memory.store.MemoryStore.retrieve_experiences`][] provides semantic and lexical retrieval from a stable permitted snapshot.
 [`pm.memory.retrieval.scoped_records`][] applies source, frontier, and reality/frame boundaries before indexing.
-The current retrieval classes exclude `GraphNode`, `GraphEdge`, and `ConceptNode`.
+Default cognition retrieval still excludes `GraphNode`, `GraphEdge`, and `ConceptNode`.
+The optional agent tools explicitly include their useful text.
 
 Graph models, record indexes, reference fields, and checkpoint serialization remain in the current runtime.
 A source inspection on 2026-10-14 loaded the unchanged Spamuel seed through `MemoryStore.from_yaml`.
@@ -34,16 +38,17 @@ The old runtime has not been exercised by this inspection.
 
 ## Runtime option and workflow views
 
-Add optional memory configuration to shared MCP construction.
+Shared MCP construction accepts an optional [`pm.memory.agent_tools.MemoryReadSession`][].
 The configuration selects semantic search, lexical search, graph tools, or a combination, plus one workflow-defined view.
 Disabled memory configuration preserves the existing tools and starts no memory listener or embedding request.
 Enabled configuration requires an explicit view; it does not silently expose the whole store.
 
-Reuse the existing factories and listener helper.
+The implementation reuses the existing factories and listener helper.
 A workflow can mount the shared tools on its task-group server or attach a separate memory server to the same session.
-Choose one common construction path after inspecting both ordinary workflow roles and native draft sessions.
-An inheritance hierarchy is unnecessary unless the implementation establishes a concrete need.
-Exact option and API names remain implementation decisions.
+Native draft sessions attach a separate scoped memory server.
+Ordinary factories can mount the same tools through their optional `memory` argument.
+No new inheritance hierarchy is required.
+The [implementation guide](../../subsystems/agent-memory.md) records exact configuration and API names.
 
 The runtime owns snapshots, search indexes, graph queries, tool registration, cancellation, and source traces.
 Workflow code owns view selection, domain relevance, and decision policy.
@@ -65,11 +70,12 @@ A narrow word filter must not hide paraphrases, corrections, or related evidence
 The agent can browse freely within the declared view.
 Broader access follows an explicit workflow grant rather than automatic graph expansion.
 
-## Proposed direct tools
+## Direct tools
 
-These names describe the intended operations; they are not existing APIs.
+[`pm.memory.agent_tools.MemoryReadSession`][] supplies these operations.
+An optional host selector also supplies `memory_refresh`.
 
-| Proposed tool | Result |
+| Tool | Result |
 | --- | --- |
 | `memory_view` | Available categories, scope, snapshot identity, and query limits |
 | `memory_search` | Ranked excerpts from semantic, lexical, or combined search, with original IDs and score components |

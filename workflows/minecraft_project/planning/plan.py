@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
+from pm.memory.snapshot import GhostConflict
 
 from pm_workflows.python_role import RoleContext
 
@@ -20,6 +22,7 @@ from workflows.minecraft_project.planning.constraints import caller_plan_constra
 def plan(context: RoleContext, store: TreeStore) -> dict:
     """Create or revise a retained tree from fresh observations and feedback."""
     req = request(context)
+    store.state.pop("planning_memory_revisions", None)
     current = context.runtime.tools["managed_instructions"]()
     goal = current["instruction"] or req.goal or req.instruction
     with BODY_LEASES.command(context.runtime.tools["minecraft_endpoint"](), context.runtime.stop_event):
@@ -225,8 +228,23 @@ def plan(context: RoleContext, store: TreeStore) -> dict:
                        and (node.id not in old_nodes or node_digest(node) != node_digest(old_nodes[node.id]))]
             if not changed:
                 raise ValueError("Replanning must add, revise, or defer a concrete leaf. An explanation alone cannot release another attempt.")
-        store.revise(proposed, target=target)
-    except ValueError as error:
+        guard = context.runtime.tools.get("memory_guard")
+        revisions = store.state.get("planning_memory_revisions", {})
+        def commit_plan():
+            # Managed control holds its lock before the memory-owner lock.
+            # This order matches supervisor updates and avoids a lock cycle.
+            with (guard(revisions) if guard is not None else nullcontext()):
+                context.runtime.check_cancelled()
+                store.revise(proposed, target=target)
+        authorize = context.runtime.tools.get("managed_authorize")
+        if authorize is not None:
+            if not authorize(current["revision"], commit_plan):
+                raise InstructionsChanged("Project instructions changed before the plan commit.")
+        else:
+            if context.runtime.tools["managed_instructions"]()["revision"] != current["revision"]:
+                raise InstructionsChanged("Project instructions changed before the plan commit.")
+            commit_plan()
+    except (ValueError, GhostConflict, InstructionsChanged) as error:
         rejection = store.state.get("rejections", 0) + 1
         relative = f"planning/rejected/{rejection:04d}.json"
         store.write(relative, proposed.model_dump(mode="json"))

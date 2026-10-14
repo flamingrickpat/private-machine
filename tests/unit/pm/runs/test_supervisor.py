@@ -30,6 +30,47 @@ def _wait_for(predicate, timeout: float = 15.0):
 
 
 class ManagedRunTests(unittest.TestCase):
+    def test_worker_memory_factory_reads_authoritative_owner_through_mcp(self):
+        import yaml
+        from pm.memory.agent_tools import MemoryToolConfig, MemoryView
+        from pm.records.memory_records import new_feature
+        from pm.records.enums import FeatureType
+
+        source = new_feature(self.ghost, "A copper lantern marks home.", FeatureType.Dialogue, source="Jesse")
+        role = self.root / "memory_role.py"
+        role.write_text(
+            "def run(context):\n"
+            "    import asyncio, yaml\n"
+            "    from fastmcp import Client\n"
+            "    from pm.memory.agent_tools import MemoryReadSession\n"
+            "    from pm.host.mcp_listeners import serve_services\n"
+            "    config = context.runtime.tools['memory_config']()\n"
+            "    with MemoryReadSession(config) as memory:\n"
+            "        async def read(url):\n"
+            "            async with Client(url) as client:\n"
+            "                return (await client.call_tool('memory_search', {'query': 'copper lantern'})).data\n"
+            "        with serve_services({'memory': memory.server()}) as endpoints:\n"
+            "            result = asyncio.run(read(endpoints['memory']['url']))\n"
+            "        with context.runtime.tools['memory_guard'](memory.accessed):\n"
+            "            context.runtime.environment.write_text('outbox/report.yaml', yaml.safe_dump(result))\n"
+            "    return {'status': 'done', 'summary': 'Read the accepted owner.'}\n", encoding="utf-8")
+        manifest = self.root / "memory.workflow.md"
+        manifest.write_text("---\n" + yaml.safe_dump({
+            "name": "memory_probe", "driver": {"kind": "python"}, "human_resolver": {"mode": "forbid"},
+            "roles": {"read": {"skill": str(role), "result_contract": {"schema": {
+                "status": {"enum": ["done"]}, "summary": "string"}}}},
+            "phases": [{"name": "read", "kind": "role", "role": "read", "on_status": {"done": "stop"},
+                        "on_invalid": {"action": "stop"}}]}) + "---\n", encoding="utf-8")
+        self.supervisor.workflows["memory_probe"] = WorkflowSpec(manifest,
+            memory_config_factory=lambda store, cancel: MemoryToolConfig(store,
+                MemoryView(frozenset({source.id}), frozenset({(-1, "in_world")})), cancel=cancel))
+        receipt = self.supervisor.start(action_id="memory-probe", workflow_name="memory_probe",
+                                        instructions="Inspect the original record.")
+        self.assertTrue(_wait_for(lambda: self.supervisor.get(receipt['run_id'])['state'] == 'completed'))
+        report = yaml.safe_load((Path(receipt["artifact_path"]) / "outbox/report.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(report["matches"][0]["record_id"], source.id)
+        self.assertEqual(set(self.ghost.revisions), {source.id})
+
     def setUp(self):
         self._tmp = TemporaryDirectory()
         self.root = Path(self._tmp.name)

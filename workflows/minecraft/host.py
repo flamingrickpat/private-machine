@@ -7,6 +7,7 @@ from typing import Callable
 
 from workflows.minecraft_body.mcp_client import DEFAULT_MCP_URL, build_minecraft_tools
 from workflows.minecraft_body.lease import BODY_LEASES
+from pm.memory.agent_tools import MemoryToolConfig, MemoryView
 
 
 def build_minecraft_module_tools(plan_model=None, context_measure=None) -> Callable[[str, object], dict]:
@@ -27,6 +28,23 @@ def build_minecraft_module_tools(plan_model=None, context_measure=None) -> Calla
 
 
 __all__ = ["build_minecraft_module_tools"]
+
+
+def project_memory_config(store, cancel, embeddings=None) -> MemoryToolConfig:
+    """Grant the project planner accepted in-world history and its sources.
+
+    Query words affect relevance only. Prior preferences, corrections, and
+    project outcomes remain visible. The native child connects to this accepted
+    owner through MCP. It never reopens the owner's writable checkpoint.
+    """
+    def select() -> MemoryView:
+        with store.lock:
+            return MemoryView(record_ids=frozenset(store.revisions),
+                              scopes=frozenset({(-1, "in_world")}),
+                              frontier=(store.current_tick_id, 2**63 - 1))
+
+    return MemoryToolConfig(store, select(), semantic=True, lexical=True, graph=True,
+                            embeddings=embeddings, cancel=cancel, refresh_view=select)
 
 
 def persona_context(store) -> dict:
