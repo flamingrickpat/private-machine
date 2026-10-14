@@ -155,6 +155,7 @@ nav:
               - A20 Integrated alpha trial: work_items/alpha-plan/work-items/a20.md
       - Verification:
           - A02 decisions: work_items/verification/a02-decisions.md
+          - D3 System One comparison: work_items/verification/d3-systemone.md
           - A03 workflow inputs: work_items/verification/a03-workflow-inputs.md
           - A04 classification: work_items/verification/a04-classification.md
           - A05 PM classification: work_items/verification/a05-pm-classification.md

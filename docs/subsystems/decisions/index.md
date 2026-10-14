@@ -10,6 +10,7 @@ Receipts preserve inputs by digest and retain validated provider answers.
 Parent: [model connections](../../models.md).
 Delivery: [A02](../../work_items/alpha-plan/work-items/a02.md).
 Evidence: [A02 verification](../../work_items/verification/a02-decisions.md).
+Follow-up: [D3 and Qwen comparison](../../work_items/verification/d3-systemone.md).
 Measured behavior: [quality and limits](quality.md).
 Operation: [local deployment](operation.md).
 

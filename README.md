@@ -52,6 +52,15 @@ $env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
 `uv run --locked python dev/smoke_demo.py` runs its finite checks without inference.
 Dummy behavior does not establish real companion quality.
 
+## D3 System One experiment
+
+The [D3 comparison](docs/work_items/verification/d3-systemone.md) tests decision fields against local and OpenRouter Qwen routes.
+The [launcher](dev/tools/start_d3_big_systemone.ps1) selects only the RTX 3090 and runs the projector on the CPU.
+The machine copy is `C:/source/ai/start_d3_big_systemone.ps1`.
+Its 8K context uses a physical batch large enough for a complete decision input.
+Short decisions are fast, but longer inputs can favor the Qwen routes.
+PM workflow routing stays unchanged.
+
 ## Managed workflows
 
 `local_task` writes a note. `local_task_question` first asks which artifact to produce.
