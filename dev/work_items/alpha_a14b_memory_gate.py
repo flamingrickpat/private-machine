@@ -54,15 +54,15 @@ CASES = [
     {"id": "paraphrase", "query": "How detailed does Jesse want the A14B pocket note?",
      "history": ["For the A14B pocket note, terse layout is fine. I value speed over presentation polish."],
      "request": "Prepare a small A14B pocket note. Choose its layout using my earlier preference.",
-     "expected": ("compact", "quick")},
+     "expected": [("compact", "quick")]},
     {"id": "new_constraint", "query": "A14B pocket note layout preference",
      "history": ["For the A14B pocket note, compact layout is fine.",
                  "Correction: the A14B pocket note now needs the source wording without any edits."],
      "request": "This A14B pocket note is a critical transcript. Preserve the source wording exactly and use strict review.",
-     "expected": ("verbatim", "strict")},
+     "expected": [("verbatim", "strict")]},
     {"id": "absent_preference", "query": "A14B zinnia note layout preference", "history": [],
      "request": "Make an A14B zinnia note. Either layout is acceptable. Prefer a quick practical choice without more questions.",
-     "expected": ("compact", "quick")},
+     "expected": [("compact", "quick"), ("verbatim", "quick")]},
 ]
 
 
@@ -144,7 +144,7 @@ def trial(case: dict, mode: str, number: int, out: Path, models, embeddings, *, 
                          "tool_calls": sum(row["tokens_used"].get("tool_calls", 0) for row in turns),
                          "tokens": [row["tokens_used"] for row in turns], "repair_turns": result.validation_attempts - 1,
                          "same_session": len({row["session_ref"] for row in turns}) == 1}
-            checks = {"independent_expected_fields": (decision.layout, decision.effort) == case["expected"],
+            checks = {"independent_expected_fields": (decision.layout, decision.effort) in case["expected"],
                       "accepted_memory_unchanged": store.state_dict() == before,
                       "cited_ids_visible": all(key in memory.records for key in decision.evidence_ids)}
             if case["id"] == "paraphrase" and mode == "tools":

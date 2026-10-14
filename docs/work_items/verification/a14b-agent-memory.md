@@ -119,6 +119,7 @@ Human review remains pending.
 
 The aligned repeat passed all 12 trials: two trials per scenario and interface.
 Both interfaces chose the expected layout and effort.
+The absent-preference oracle permits either practical layout with quick effort.
 The native preference trials inspected and cited the original user statement.
 One repaired its draft in the same session.
 Both strict native trials used the sufficient current request without a memory search.
