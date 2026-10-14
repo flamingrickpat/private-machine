@@ -61,7 +61,7 @@ def run(context) -> dict:
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
     messages = build_messages(request, prompts)
-    result = complete_json(context, messages, AppraisalResult, temperature=0.2)
+    result = complete_json(context, messages, AppraisalResult, temperature=0.2, enable_thinking=False)
     write_report(context.runtime.environment, result)
     return {
         "status": "done",

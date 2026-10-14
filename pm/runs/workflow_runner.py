@@ -127,6 +127,11 @@ class WorkflowRunner:
                     runtime=runtime,
                     request_data=request.payload,
                 )
+                if getattr(kernel.driver, "kind", None) == "pm-coder":
+                    from pm.llm.prompt_log import log_directory
+                    # Keep native role and compaction prompts beside direct calls.
+                    # The installed driver still owns the request log format.
+                    kernel.driver.log_root = log_directory() / "agents"
                 summary = kernel.run()
                 break
             except PermissionError:

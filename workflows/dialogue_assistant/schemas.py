@@ -27,11 +27,13 @@ class AssistantMessage(BaseModel):
 
 
 class ToolDescriptor(BaseModel):
+    """A granted tool. Read-only tools cannot change external or managed state."""
     model_config = ConfigDict(extra="forbid")
 
     name: str
     description: str = ""
     parameters: dict = Field(default_factory=dict)
+    read_only: bool = False
 
 
 class ToolReceipt(BaseModel):

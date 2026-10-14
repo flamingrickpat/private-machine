@@ -48,6 +48,19 @@ def run(spec: PlanSpec, focus: Focus, **kwargs):
 
 
 class LaneTests(unittest.TestCase):
+    def test_a_new_plan_observes_changed_vectors(self):
+        spec = PlanSpec(name="fresh", total_tokens=10, lanes=[
+            lane("history", 1.0, order="score", record_types=["MemoryClusterKnoxel"],
+                 weights=LaneWeights(semantic=1.0, lexical=0.0))])
+        vectors = dict(VECTORS)
+        focus = Focus(vectors=[(1.0, [1.0, 0.0])])
+        def plan():
+            return plan_context(records(), spec, focus, vector_of=vectors.get,
+                                tokens_of=lambda key: 10, now=NOW)
+        self.assertEqual(plan().lane("history").ids, [10])
+        vectors[10], vectors[11] = [0.0, 1.0], [1.0, 0.0]
+        self.assertEqual(plan().lane("history").ids, [11])
+
     def test_recent_lane_is_the_newest_contiguous_window_in_time_order(self):
         spec = PlanSpec(name="t", total_tokens=100, lanes=[
             lane("dialogue", 0.3, "recent", record_types=["Feature"], feature_types=["Dialogue", "Thought"])])

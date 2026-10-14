@@ -11,8 +11,11 @@ The accepted reply records the reason of its one review.
 This record separates engineering delivery from behavioral acceptance.
 The contract and unit checks pass with a real MemoryStore and a deterministic
 review.
-The live model gates are recorded as unavailable in this session, because the
-configured chat endpoint was not running.
+The first engineering session could not run live gates because its configured
+chat endpoint was unavailable. Later sections retain its local-model receipts.
+The current development delivery uses the operator's OpenRouter config.
+Its repairs, live evidence, and next-session instructions are in the
+[OpenRouter delivery record](a09r-openrouter-delivery.md).
 No live rating is invented.
 
 Parent: [public dialogue](../../subsystems/public-dialogue.md).
@@ -51,8 +54,8 @@ are advisory findings.
 The review prompt receives the character card, the accepted feelings, the
 abilities, the private ontology terms and active bindings, the task results,
 the memories, the conversation, and the chosen presentation.
-A prior deception intent is described as an intentional action with retained
-facts, so a chosen lie is not a false task result.
+A prior deception intent retains the known facts and purpose of a chosen lie.
+It cannot authorize a false task-result claim.
 
 ## Contract and unit evidence
 
@@ -60,9 +63,9 @@ Real MemoryStore, deterministic review, no model endpoint:
 
 | Command | Result |
 | --- | --- |
-| `uv run --locked python -m unittest discover -s tests/unit -t . -b` | 504 tests pass in 700.542 s |
-| `uv run --locked python -m unittest discover -s tests/contract -t . -b` | 63 tests pass in 1.850 s |
-| `python -m unittest tests.unit.workflows.public_speech.test_speech_review tests.unit.workflows.public_speech.test_ontology` | 16 tests pass |
+| `uv run --locked python -m unittest discover -s tests/unit -t . -b` | 504 tests pass in 739.245 s |
+| `uv run --locked python -m unittest discover -s tests/contract -t . -b` | 63 tests pass in 1.699 s |
+| `python -m unittest tests.unit.workflows.public_speech.test_speech_review tests.unit.workflows.public_speech.test_ontology` | 17 tests pass |
 | `python -m unittest tests.contract.dialogue_story.test_story_contract tests.unit.workflows.public_speech.test_message_protocol tests.unit.workflows.public_speech.test_publication` | 39 tests pass in 0.576 s |
 | `python -m unittest tests.unit.workflows.dialogue_assistant.test_assistant_dialogue tests.unit.workflows.test_companion_wiring tests.unit.workflows.main_cognition.test_cognition_wiring` | 24 tests pass in 316.284 s |
 
@@ -85,6 +88,7 @@ verifies:
 - a finding does not block and the reason is kept,
 - a false task result is the only block,
 - one draft produces exactly one review,
+- a non-JSON review is repeated once with the same reply,
 - the deception intent reaches the review prompt,
 - the review input contains no evidence ids.
 
@@ -112,47 +116,72 @@ The site uses `use_directory_urls: false`, so local navigation points at HTML
 files.
 Evidence: `.runtime/a09r/mkdocs-strict.log`.
 
-## Live gates
+## Earlier local-model gates
 
-The configured chat endpoint `http://127.0.0.1:8080/v1` was not running in this
-session.
-The live checks were therefore not run:
+The configured chat service was started on `http://127.0.0.1:8080/v1`
+(`qwen`, Strata Orca IQ3_XXS).
+Embeddings use OpenRouter with the environment credential.
 
-- `tests/live/test_speech_review.py` (real model finds planted hallucinations
-  and passes an in-character reply),
-- `tests/live/test_story_dialogue.py` (real accepted dialogue),
-- `dev/work_items/alpha_a09_public_gate.py` (both public paths and the
-  connected capability comparison),
-- `dev/work_items/alpha_a09_dialogue_gate.py` (real console conversation, C01,
-  verified note bytes, and C02).
+### Real agentic review
 
-No live rating is recorded.
-The operator still needs to complete M2 with this mechanism: ask about a
-capability, a remembered goal, and a private topic, then rate continuity and
-the desire to regenerate each reply.
+`tests/live/test_speech_review.py` passes two checks against the real model:
 
-## Verification still required before A09R is complete
+- The planted reply is blocked on the claimed saved file (`false_task_result`),
+  while the webcam claim and the invented lake trip are advisory findings.
+- The in-character exaggeration and tease are accepted with no findings.
 
-The A09R work item lists behavioral cases that need a real conversation:
+Evidence: `.runtime/live/speech-review/20261013T185233Z/`.
 
-- An invented ability is reported and does not become an accepted belief.
+### Public boundary gate
+
+[`dev.work_items.alpha_a09_public_gate.run`][] ran both public paths against
+one frozen accepted context. Before the review repair, three of four selected
+cases passed:
+
+| Case | Result |
+| --- | --- |
+| `private-withhold` | Pass. Both paths accept. The reply withholds the raw thoughts and shares a bounded appreciation. |
+| `intentional-tease` | Pass. Both paths accept a deliberate false codeword while the actual `copper lantern` fact stays retained. |
+| `unavailable-sense-emotion` | Pass. Both paths accept. The reply denies the fictional sense organ and does not create one. |
+| `offline-capability` | Story passes. The Assistant review returned no JSON object, so the run published the explicit failure recovery. |
+
+Evidence: `.runtime/alpha/20261013T205859Z-a09r-public2/receipt.json`.
+
+The Assistant failure was a review-parse fault, not a false task result.
+The repair raises the review temperature from 0.0 to 0.2, so the model leaves
+greedy decoding, and it repeats the same review once when the model returns no
+JSON object. The reply is never regenerated.
+The repaired `offline-capability` case passes on both paths with no findings:
+
+Evidence: `.runtime/alpha/20261013T214237Z-a09r-offline2/receipt.json`.
+
+The gate also needed one bug fix.
+Its frozen-context helper did not accept the planned-context argument, so
+`module._public_context` was never set on the module. The helper now accepts
+`(payload, planned=None)` and sets the module attribute.
+
+### Cases pending at the earlier delivery
+
+The earlier delivery left these cases pending.
+The [current delivery record](a09r-openrouter-delivery.md) records their later evidence and remaining limits:
+
 - An invented event is reported and does not become an accepted memory.
-- A false task result is blocked and produces the explicit recovery text.
-- A prior deception intent produces a deliberate false statement with retained
-  factual state.
-- A metaphor, exaggeration, or teasing line is not blocked.
 - An unsupported emotion label stays visible and does not create an emotion
   field.
 - The reply latency for an ordinary turn stays suitable for conversation.
 - A rule-based baseline and the agentic review are compared on the same
   captured replies.
+- The A09 note case, C01, and C02 run through the real console, with the old
+  A09 receipts kept beside the new ones.
 
-The A09 note case and the C01/C02 regression cases are repeated through the
-real console, and the old A09 receipts stay beside the new ones.
+The operator still needs to complete M2 with this mechanism: ask about a
+capability, a remembered goal, and a private topic, then rate continuity and
+the desire to regenerate each reply.
+No live rating is invented.
 
 ## Limits
 
-- The live behavioral acceptance is unverified in this session.
+- The current delivery distinguishes real engineering gates from pending human acceptance.
 - The term set is seeded from implemented mechanisms only. A17 grows it from
   accepted experience.
 - The `unsupported_label` finding is advisory. It does not prove that an

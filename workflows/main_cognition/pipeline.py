@@ -74,10 +74,17 @@ def _candidates(request: dict, reports: dict) -> list[dict]:
 
 def _candidate_texts(request: dict) -> list[dict]:
     items = [dict(item) for item in request.get("memory_candidates", [])]
+    # Attention can select an active goal without retrieving it as a memory.
+    # Workspace must receive the same goal records before it validates focus.
+    seen = {int(item["knoxel_id"]) for item in items}
+    for goal in request.get("active_goal_records", []):
+        if int(goal["knoxel_id"]) not in seen:
+            items.append(dict(goal))
+            seen.add(int(goal["knoxel_id"]))
     for stimulus in request.get("stimuli", []):
         items.append({"knoxel_id": int(stimulus["knoxel_id"]),
                       "text": str(stimulus.get("text", ""))})
-    return items
+    return list({int(item["knoxel_id"]): item for item in items}.values())
 
 
 def stable_action_id(intent: dict, index: int) -> str:
@@ -193,6 +200,7 @@ def run_cycle(
         "current_goals": request.get("active_goals", []),
     })
     call("workspace", {
+        "public_context": None,
         "attention": reports["attention"],
         "goals": reports["goals"],
         "candidate_texts": _candidate_texts(request),

@@ -91,7 +91,7 @@ def reason_once(context: RoleContext, store: TreeStore, role: str, contract: typ
     messages = [{"role": "system", "content": system},
                 {"role": "user", "content": json.dumps(payload, ensure_ascii=False, separators=(",", ":"))}]
     name = f"decisions/{len(store.state['decisions']) + 1:04d}-{role}"
-    generation = {"chat_template_kwargs": {"enable_thinking": False}, "temperature": 0.1,
+    generation = {"enable_thinking": False, "temperature": 0.1,
                   "response_format": {"type": "json_schema", "json_schema": {
                       "name": contract.__name__, "strict": True, "schema": schema}}}
     # The caller owns provider controls. Keep model routing and the result

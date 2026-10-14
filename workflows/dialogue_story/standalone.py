@@ -130,7 +130,7 @@ async def evaluate_candidate(
             {"role": "system", "content": evaluator_prompt["system_prompt"]},
             {"role": "user", "content": user},
         ],
-        temperature=0.0,
+        temperature=0.2,
     )
     text = result.choices[0].message.content or ""
     return StoryQualityScore.model_validate(extract_json(text))

@@ -55,15 +55,27 @@ def resolve_same_cycle(dispatches: list[ActionDispatch]) -> list[ActionDispatch]
     """Resolve dispatch ordering between actions proposed in one selection.
 
     An action with no ordering dependency is released. An action is released
-    only when every ``depends_on`` names an earlier action in this same list
-    that was itself released. An unknown or rejected ordering dependency
+    only when every ``depends_on`` names an earlier action ID or a unique
+    earlier workflow name that was released. An unknown or ambiguous dependency
     rejects the action explicitly. This function does not confirm success.
     """
     released: dict[str, bool] = {}
+    workflows: dict[str, list[str]] = {}
     resolved: list[ActionDispatch] = []
     for dispatch in dispatches:
         bad: list[str] = []
+        dependencies: list[str] = []
         for dependency in dispatch.depends_on:
+            # The model names workflows before the parent assigns durable IDs.
+            # An explicit ID wins. Repeated workflow names need an explicit ID.
+            if dependency not in released:
+                matches = workflows.get(dependency, [])
+                if len(matches) == 1:
+                    dependency = matches[0]
+                elif len(matches) > 1:
+                    bad.append(f"{dependency}:ambiguous")
+                    continue
+            dependencies.append(dependency)
             if dependency not in released:
                 bad.append(f"{dependency}:unknown")
             elif not released[dependency]:
@@ -73,10 +85,12 @@ def resolve_same_cycle(dispatches: list[ActionDispatch]) -> list[ActionDispatch]
             resolved.append(dispatch.model_copy(update={
                 "status": "rejected",
                 "rejection_reason": "dependency not released: " + ", ".join(bad),
+                "depends_on": dependencies,
             }))
         else:
             released[dispatch.action_id] = True
-            resolved.append(dispatch.model_copy(update={"status": "dispatched"}))
+            resolved.append(dispatch.model_copy(update={"status": "dispatched", "depends_on": dependencies}))
+        workflows.setdefault(dispatch.workflow_name, []).append(dispatch.action_id)
     return resolved
 
 

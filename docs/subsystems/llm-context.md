@@ -35,7 +35,7 @@ Long-file classification uses scoped agent reads and preserves required conclusi
 ## Direct project decisions use token percentages
 
 [`pm.llm.context_window.measure_context`][] measures the selected connection before each Minecraft project decision.
-The serving window comes from configured `context_window` or the endpoint's current `/props` response.
+The serving window comes from configured `context_window`, OpenRouter's selected model catalog entry, or a compatible endpoint's current `/props` response.
 Training-context metadata cannot establish the serving window.
 `context_input_fraction` defaults to `0.8` and accepts a number strictly between zero and one.
 The input budget equals that fraction of the serving window, in tokens.
@@ -45,7 +45,8 @@ Compatible servers apply their actual chat template and tokenize the resulting p
 Receipts label this exact measurement `server.chat_template_and_tokenizer`.
 Servers without the template route use a labelled tiktoken estimate.
 Their serving capacity still comes from `/props` when available.
-Providers without that discovery route require configured `context_window`.
+Other providers without that discovery route require configured `context_window`.
+OpenRouter uses its model catalog and a labelled estimate without requests to local tokenizer routes.
 The estimate includes chat framing but cannot promise the provider's exact token count.
 The provider remains authoritative if its tokenizer differs.
 Transport errors, invalid measurement responses, and cancellation retain explicit failure boundaries.
@@ -62,11 +63,16 @@ The previous llama.cpp server tokenized that retained, templated request as 50,1
 It advertised 131,072 serving tokens, so the old character limit caused an unnecessary rejection.
 Older context-size receipts remain historical evidence of that application defect.
 
-The current local chat server uses Strata and Qwen3.8-Flash-Next-Uncensored.
+The earlier local chat deployment used Strata and Qwen3.8-Flash-Next-Uncensored.
 It advertises 262,144 serving tokens through `/props`.
 It does not expose `/apply-template`, so direct project receipts label their token counts as estimates.
 The default input budget is 209,715 tokens.
 Strata reports actual prompt tokens through `/status`; those observations can differ from the application estimate.
+
+Development now selects `config.alpha.openrouter.yaml` explicitly.
+The workflows receive the same model interface for every endpoint.
+Only `pm.llm` translates provider fields and discovers provider context limits.
+The [live prompt logs](prompt-log.md) expose the actual requests and provider token usage.
 
 ## Verified direct Python calls
 

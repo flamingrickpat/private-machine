@@ -25,12 +25,16 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from workflows.main_cognition.stage_support import extract_json
+from workflows.main_cognition.stage_support import StageOutputError, extract_json
 from workflows.public_speech.public_context import (
     DialogueTurn, PublicContext, ability_lines, memory_lines, task_lines,
 )
 
 REVIEW_FILE = Path(__file__).resolve().parent / "speech_review.yaml"
+
+# The previous local gate returned empty review text at zero temperature.
+# Retain the tested setting. Transport repair never regenerates the reply.
+REVIEW_TEMPERATURE = 0.2
 
 
 class ReviewFinding(BaseModel):
@@ -87,7 +91,7 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: dict,
         presentation_text = (f"{context.companion_name} chose to deceive on purpose. "
                              f"Purpose: {presentation.purpose or 'unstated'}. "
                              f"Known facts kept: {presentation.known_fact_ids or 'none listed'}. "
-                             "The false words are an intentional action, not a false task result.")
+                             "The chosen presentation does not authorize a false task result.")
     elif presentation.mode == "withhold":
         presentation_text = (f"{context.companion_name} chose to withhold something private. "
                              f"At most they may share: {presentation.shareable_summary or 'nothing'}.")
@@ -103,7 +107,7 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: dict,
         memories="\n".join(memory_lines(context)) or "- (none)",
         conversation="\n".join(lines) or "- (none)",
         presentation=presentation_text,
-        reply=candidate.replace('"', "'"),
+        reply=candidate,
         **names,
     )
     return [{"role": "system", "content": prompts["system_prompt"].format(**names).strip()},
@@ -111,22 +115,29 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: dict,
 
 
 def parse_review(payload: dict, raw: str = "") -> SpeechReview:
-    """Read the model payload into a review. Only the explicit flag blocks."""
+    """Read one review with an explicit boolean flag and a nonempty reason.
+
+    Invalid fields raise ValueError. In particular, the string ``false``
+    cannot become True through Python truth conversion.
+    """
     if not isinstance(payload, dict):
         raise ValueError("The review model returned JSON that is not an object.")
+    false_task_result = payload.get("false_task_result")
+    reason = payload.get("reason")
+    if type(false_task_result) is not bool or not isinstance(reason, str) or not reason.strip():
+        raise ValueError("A speech review requires a boolean false_task_result and a nonempty reason.")
     findings = []
     for item in payload.get("findings", []) or []:
         if isinstance(item, dict):
             findings.append(ReviewFinding.model_validate(item))
         elif isinstance(item, str) and item.strip():
             findings.append(ReviewFinding(kind=item.strip()))
-    false_task_result = bool(payload.get("false_task_result", False))
     judgment = str(payload.get("judgment", "") or "").strip().lower()
     if not judgment:
         judgment = "block" if false_task_result else "accept"
     return SpeechReview(
         judgment=judgment,
-        reason=str(payload.get("reason", "") or "").strip(),
+        reason=reason.strip(),
         false_task_result=false_task_result,
         findings=findings,
         raw=raw,
@@ -157,16 +168,25 @@ def finding_summary(review: SpeechReview) -> str:
 async def review_speech(complete, candidate: str, context: PublicContext, *,
                         conversation: list[DialogueTurn] = (),
                         receipts: list[dict] | None = None,
-                        prompts: dict | None = None) -> SpeechReview:
-    """Review one reply with one model call.
+                        prompts: dict | None = None, attempts: int = 2) -> SpeechReview:
+    """Review one reply, with one retry for an invalid review object.
 
-    Raises ``StageOutputError`` when the model returns no JSON object.
-    Model transport errors propagate from ``complete``.
+    The reply is never changed or generated again. A retry repeats the same
+    review when the model returns invalid JSON or invalid required fields.
+    Raises ValueError or StageOutputError after the last attempt. Model
+    transport errors and cancellation propagate from ``complete``.
     """
     prompts = prompts or load_prompts()
     messages = build_review_messages(candidate, context, prompts, conversation=conversation, receipts=receipts)
-    raw = await complete(messages, temperature=0.0, chat_template_kwargs={"enable_thinking": False})
-    return parse_review(extract_json(raw), raw=raw)
+    last_error: ValueError | StageOutputError | None = None
+    for _ in range(max(1, int(attempts))):
+        raw = await complete(messages, temperature=REVIEW_TEMPERATURE,
+                             enable_thinking=False)
+        try:
+            return parse_review(extract_json(raw), raw=raw)
+        except (StageOutputError, ValueError) as error:
+            last_error = error
+    raise last_error
 
 
 __all__ = [

@@ -334,7 +334,10 @@ class ManagedRunSupervisor:
                     self._emit(receipt.run_id, "publication_interrupted", error=str(exc))
             except BaseException:
                 pass
-            if self.on_error is not None and not cancelled:
+            from pm.runs.errors import TaskServiceError
+            # Service loss ends this task, so other work can continue. Logic
+            # faults still reach the application's error handler.
+            if self.on_error is not None and not cancelled and not isinstance(exc, TaskServiceError):
                 self.on_error(exc)
             self._notify_terminal(receipt.run_id)
         finally:

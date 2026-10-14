@@ -1,0 +1,390 @@
+{
+  "source": ".runtime\\alpha\\20261013-a09r-connected\\receipt.json",
+  "reply": "Read the ledger, then answer. No body claimed, no room sensing. Keep the gremlin receipts tone but shorter and grounded in tool evidence.\n\nRight now: feet at 27.5, 104, 0.85; eye height 105.62; facing north (yaw ~179.9); overworld meadow; daytime, time_of_day 5250; not raining; on ground; health 20/20, food 20, oxygen 20, xp 0, deaths 0. Held item: birch_door x2. Hotbar: egg x2, cobblestone x3, iron_pickaxe, stone_pickaxe, birch_door x2, dirt x17, iron_ingot x3, dandelion x3. Nearby blocks include birch_planks x98, grass_block x268, dirt x293, stone x1455, dandelion x23, furnace x2 at (30,102,5) distance 5.24, crafting_table x2 at (30,102,6) distance 6.07, coal_ore x39, iron_ore x1, copper_ore x1. Two dropped items near (31,101,2). \n\nIn your room: nothing. No camera claim, no sensors. Local-only text anchors.\n\nAnswer as speech, one short-ish paragraph plus maybe a second.",
+  "tool_receipts": [
+    {
+      "tool_call_id": "call_721704b59eda471aa5588411",
+      "name": "minecraft_observe",
+      "arguments": {},
+      "executed": true,
+      "result": {
+        "tool": "minecraft_observe",
+        "arguments": {
+          "include_image": false
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "camera": {
+            "feet_position": {
+              "x": 27.5,
+              "y": 104.0,
+              "z": 0.85
+            },
+            "eye_position": {
+              "x": 27.5,
+              "y": 105.62,
+              "z": 0.85
+            },
+            "block_position": {
+              "x": 27,
+              "y": 104,
+              "z": 0
+            },
+            "yaw": 179.89,
+            "pitch": -0.0,
+            "cardinal": "north",
+            "look_vector": {
+              "x": -0.0,
+              "y": -0.0,
+              "z": -1.0
+            }
+          },
+          "player": {
+            "health": 20.0,
+            "max_health": 20.0,
+            "food": 20,
+            "oxygen": 20,
+            "xp_level": 0,
+            "biome": "meadow",
+            "dimension": "overworld",
+            "time_of_day": 5250,
+            "is_day": true,
+            "is_raining": false,
+            "on_ground": true,
+            "in_water": false
+          },
+          "body_session": "8afc3adb462849bf973bbf27f0c7e457",
+          "death_count": 0,
+          "held_item": {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          "hotbar": [
+            {
+              "slot": 0,
+              "item": "egg",
+              "count": 2
+            },
+            {
+              "slot": 1,
+              "item": "cobblestone",
+              "count": 3
+            },
+            {
+              "slot": 2,
+              "item": "iron_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 3,
+              "item": "stone_pickaxe",
+              "count": 1
+            },
+            {
+              "slot": 4,
+              "item": "birch_door",
+              "count": 2
+            },
+            {
+              "slot": 5,
+              "item": "dirt",
+              "count": 17
+            },
+            {
+              "slot": 6,
+              "item": "iron_ingot",
+              "count": 3
+            },
+            {
+              "slot": 7,
+              "item": "dandelion",
+              "count": 3
+            },
+            {
+              "slot": 8,
+              "item": null,
+              "count": 0
+            }
+          ],
+          "inventory": [
+            {
+              "name": "dirt",
+              "display_name": "Dirt",
+              "count": 17,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "cobblestone",
+              "display_name": "Cobblestone",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_ingot",
+              "display_name": "Iron Ingot",
+              "count": 3,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "birch_door",
+              "display_name": "Birch Door",
+              "count": 2,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "egg",
+              "display_name": "Egg",
+              "count": 2,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "iron_pickaxe",
+              "display_name": "Iron Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "stone_pickaxe",
+              "display_name": "Stone Pickaxe",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            }
+          ],
+          "nearby_blocks": [
+            {
+              "block_name": "birch_door",
+              "display_name": "Birch Door",
+              "count": 2,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 1
+              },
+              "distance": 0.52
+            },
+            {
+              "block_name": "air",
+              "display_name": "Air",
+              "count": 2697,
+              "nearest": {
+                "x": 27,
+                "y": 104,
+                "z": 1
+              },
+              "distance": 0.52
+            },
+            {
+              "block_name": "birch_planks",
+              "display_name": "Birch Planks",
+              "count": 98,
+              "nearest": {
+                "x": 28,
+                "y": 104,
+                "z": 0
+              },
+              "distance": 0.98
+            },
+            {
+              "block_name": "grass_block",
+              "display_name": "Grass Block",
+              "count": 268,
+              "nearest": {
+                "x": 27,
+                "y": 103,
+                "z": 0
+              },
+              "distance": 1.4
+            },
+            {
+              "block_name": "dirt",
+              "display_name": "Dirt",
+              "count": 293,
+              "nearest": {
+                "x": 28,
+                "y": 102,
+                "z": 1
+              },
+              "distance": 2.07
+            },
+            {
+              "block_name": "grass",
+              "display_name": "Grass",
+              "count": 27,
+              "nearest": {
+                "x": 25,
+                "y": 105,
+                "z": 1
+              },
+              "distance": 2.7
+            },
+            {
+              "block_name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 23,
+              "nearest": {
+                "x": 25,
+                "y": 104,
+                "z": -1
+              },
+              "distance": 3.11
+            },
+            {
+              "block_name": "stone",
+              "display_name": "Stone",
+              "count": 1455,
+              "nearest": {
+                "x": 28,
+                "y": 101,
+                "z": 0
+              },
+              "distance": 3.16
+            },
+            {
+              "block_name": "furnace",
+              "display_name": "Furnace",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 5
+              },
+              "distance": 5.24
+            },
+            {
+              "block_name": "coal_ore",
+              "display_name": "Coal Ore",
+              "count": 39,
+              "nearest": {
+                "x": 22,
+                "y": 104,
+                "z": 2
+              },
+              "distance": 5.62
+            },
+            {
+              "block_name": "crafting_table",
+              "display_name": "Crafting Table",
+              "count": 2,
+              "nearest": {
+                "x": 30,
+                "y": 102,
+                "z": 6
+              },
+              "distance": 6.07
+            },
+            {
+              "block_name": "iron_ore",
+              "display_name": "Iron Ore",
+              "count": 1,
+              "nearest": {
+                "x": 23,
+                "y": 97,
+                "z": -4
+              },
+              "distance": 9.63
+            },
+            {
+              "block_name": "gravel",
+              "display_name": "Gravel",
+              "count": 5,
+              "nearest": {
+                "x": 28,
+                "y": 96,
+                "z": -7
+              },
+              "distance": 11.22
+            },
+            {
+              "block_name": "copper_ore",
+              "display_name": "Copper Ore",
+              "count": 1,
+              "nearest": {
+                "x": 19,
+                "y": 96,
+                "z": 2
+              },
+              "distance": 11.73
+            }
+          ],
+          "nearby_entities": [
+            {
+              "entity_id": 654,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.13
+              },
+              "distance": 4.88,
+              "health": null,
+              "hostile": false
+            },
+            {
+              "entity_id": 655,
+              "entity_type": "item",
+              "display_name": "Item",
+              "position": {
+                "x": 31.12,
+                "y": 101.0,
+                "z": 2.89
+              },
+              "distance": 5.13,
+              "health": null,
+              "hostile": false
+            }
+          ],
+          "image": null
+        },
+        "body_owner": null,
+        "managed_run": null
+      },
+      "error": "",
+      "transport": "python"
+    }
+  ],
+  "old_review": {
+    "schema_version": "pm.speech-review.v2",
+    "judgment": "block",
+    "reason": "The reply claims specific game states (health, food, oxygen, xp, deaths, time_of_day, weather, held items, hotbar contents, nearby block counts) that are not present in the provided tool result. The `minecraft_observe` output only contains camera position and orientation data.",
+    "false_task_result": true,
+    "findings": [
+      {
+        "kind": "invented_event",
+        "quote": "Right now: feet at 27.5, 104, 0.85; eye height 105.62; facing north (yaw ~179.9); overworld meadow; daytime, time_of_day 5250; not raining; on ground; health 20/20, food 20, oxygen 20, xp 0, deaths 0. Held item: birch_door x2. Hotbar: egg x2, cobblestone x3, iron_pickaxe, stone_pickaxe, birch_door x2, dirt x17, iron_ingot x3, dandelion x3. Nearby blocks include birch_planks x98, grass_block x268, dirt x293, stone x1455, dandelion x23, furnace x2 at (30,102,5) distance 5.24, crafting_table x2 at (30,102,6) distance 6.07, coal_ore x39, iron_ore x1, copper_ore x1. Two dropped items near (31,101,2).",
+        "why": "Claims detailed inventory, health, and world state data not returned by the observe tool."
+      }
+    ],
+    "raw": "{\"judgment\": \"block\", \"reason\": \"The reply claims specific game states (health, food, oxygen, xp, deaths, time_of_day, weather, held items, hotbar contents, nearby block counts) that are not present in the provided tool result. The `minecraft_observe` output only contains camera position and orientation data.\", \"false_task_result\": true, \"findings\": [{\"kind\": \"invented_event\", \"quote\": \"Right now: feet at 27.5, 104, 0.85; eye height 105.62; facing north (yaw ~179.9); overworld meadow; daytime, time_of_day 5250; not raining; on ground; health 20/20, food 20, oxygen 20, xp 0, deaths 0. Held item: birch_door x2. Hotbar: egg x2, cobblestone x3, iron_pickaxe, stone_pickaxe, birch_door x2, dirt x17, iron_ingot x3, dandelion x3. Nearby blocks include birch_planks x98, grass_block x268, dirt x293, stone x1455, dandelion x23, furnace x2 at (30,102,5) distance 5.24, crafting_table x2 at (30,102,6) distance 6.07, coal_ore x39, iron_ore x1, copper_ore x1. Two dropped items near (31,101,2).\", \"why\": \"Claims detailed inventory, health, and world state data not returned by the observe tool.\"}]}"
+  }
+}

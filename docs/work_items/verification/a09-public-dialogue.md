@@ -49,6 +49,7 @@ Use `--scenario resume-followups --source-checkpoint PATH` to continue conversat
 Use `--scenario disclosure` for uncertainty, privacy, teasing, and a restart.
 Use `--scenario uncertainty` for a focused real coffee-advice exchange.
 Use `--scenario c02 --source-checkpoint PATH` for one recall exchange after starting the preserved checkpoint.
+Use `--scenario c01 --source-checkpoint PATH` for the control-only request and its terminal public reply.
 The interruption case waits for a real managed-run start, then sends the console's actual cancel operation.
 Its terminal receipt and correlated reply remain in the transcript.
 Use a fresh output directory and a free console port for each run.

@@ -10,6 +10,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 from pm_workflows.drivers import PmCoderDriver
 from pm_workflows.inputs import relative_path
+from pm.llm.prompt_log import log_directory
 
 
 class NoteSpec(BaseModel):
@@ -47,7 +48,7 @@ def _write_note(context) -> dict:
         raise ValueError("A note task requires the configured model session.")
     with runtime.classification_session("Default", True, runtime.stop_event) as model:
         agent_runtime = replace(runtime, agent_model=model, mcp_servers={})
-        driver = PmCoderDriver(log_root=context.kernel_data / "note-agent", timeout_seconds=900)
+        driver = PmCoderDriver(log_root=log_directory() / "agents", timeout_seconds=900)
         result = driver.run_session(
             run_id=context.task_id + "-note", attempt=1,
             skill=str(Path(__file__).with_name("note.md")),
@@ -66,7 +67,7 @@ def _write_note(context) -> dict:
               "note_spec": spec.model_dump(), "expected_hex": expected.hex(),
               "actual_hex": actual.hex() if actual is not None else None,
               "sha256": hashlib.sha256(actual).hexdigest() if actual is not None else None,
-              "verified": verified, "agent_session": result.session_ref,
+              "verified": verified, "agent_session": result.session_ref, "agent_log_root": str(driver.log_root),
               "original_request": original, "original_request_id": request.get("_public_original_request_id"),
               "agent_result": result.result_json}
     runtime.check_cancelled()
@@ -107,7 +108,7 @@ def build_note_tools(model):
                  "set requested false and text empty. Otherwise extract the exact requested text and path; "
                  "default path is outbox/note.txt. Do not add a newline or change the requested text."},
                 {"role": "user", "content": instruction},
-            ], temperature=0.1, chat_template_kwargs={"enable_thinking": False})
+            ], temperature=0.1, enable_thinking=False)
             return extract_json(raw)
         return {"note_spec": note_spec}
     return factory

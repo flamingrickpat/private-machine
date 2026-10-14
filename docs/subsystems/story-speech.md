@@ -55,7 +55,7 @@ A live check on 2026-10-13 confirmed that `qwen/qwen3.8-flash` on OpenRouter con
 | Time | The current time and the gap since the last prior turn, in words ("about 4 months ago, on 30 May 2026, 21:03"). |
 | Memories | One section per plan lane, from [`memory_sections`][workflows.public_speech.public_context.memory_sections]: dated plain lines, oldest first, without IDs or machine labels. Dialogue reads "Jesse said: …". Internal-state records with numbers do not render. |
 | Goals | The active goals. |
-| Task and tool results | The durable task receipt, in words. |
+| Task and tool results | Worker state, effect verification, and the full durable task receipt. |
 | Inside the companion | Feelings in words from [`feelings_in_words`][workflows.public_speech.public_context.feelings_in_words], the regulation mode, the workspace experience, the chosen intent, and the presentation (candid, withhold, or deceive). |
 
 ### Context plan
@@ -67,8 +67,15 @@ The other lanes fill the user turn as titled sections: earlier times, how the co
 
 ## Agentic review
 
-[`review_speech`][workflows.public_speech.speech_review.review_speech] makes one model call with thinking off and temperature 0.
+[`review_speech`][workflows.public_speech.speech_review.review_speech] makes one model call with thinking off and temperature 0.2.
+The previous local gate returned empty text at zero temperature. The tested setting stays in use.
+A retry repeats the same review when JSON or required fields are invalid. The reply is never regenerated.
 The model receives the character card, the accepted feelings, the abilities, the private ontology terms and active bindings, the task results, the memories, the recent conversation, the chosen presentation, and the draft.
+Tool results reach review in full. A 400-character excerpt previously removed valid inventory and world facts from a Minecraft observation.
+The generator and the reviewer now receive the same tool result.
+Assistant review also receives its prior spoken turns and current user message.
+Task context retains the full durable receipt, including the original request and artifacts.
+Worker completion and verified external effects remain separate facts.
 It returns:
 
 ```json
@@ -83,7 +90,13 @@ Only `false_task_result` is a hard block.
 [`is_blocked`][workflows.public_speech.speech_review.is_blocked] reads the model's explicit `false_task_result` flag.
 An invented kind cannot reject a reply.
 The review prompt lists what is never a problem: exaggeration, a chosen lie or tease, a metaphor, a guess, an opinion, a plan, an accepted feeling, a repeated user statement, and a small paraphrase.
-When the presentation describes a prior deception intent, the false words are an intentional action, not a false task result.
+A prior deception intent explains a chosen false statement.
+It cannot authorize a false task result. Actual task and tool receipts remain authoritative.
+The parser requires a boolean `false_task_result` and a nonempty reason before it accepts the review object.
+
+Ordinary cognitive stages also request `enable_thinking: false` through the shared LLM interface.
+Native specialist sessions choose their own reasoning setting.
+The [prompt logs](prompt-log.md) show the actual request settings and provider usage.
 
 ## One generation
 
@@ -95,6 +108,8 @@ The report keeps the draft, its review, its reason, and its blocked flag.
 
 Assistant replies use the same review once, with their tool receipts and no regeneration loop.
 The Assistant prompt uses the same readable context sections from its own context plan, as ordinary chat messages followed by tool calls.
+Derived context has its own user turn. The final user turn carries the current message verbatim.
+An earlier drink question previously displaced a task request that appeared only inside the derived context.
 A second tool run could change the world. Only a false task result rejects an Assistant reply.
 The durable management-claim guard still rejects an operation claim with no executed receipt.
 
@@ -126,4 +141,4 @@ It expects the in-character exaggeration and tease to pass.
 - The stale and failed paths still publish fixed recovery texts. They mean a changed snapshot or a failed model call, not a rejected reply.
 - Private thoughts in the transcript differ from the A09 rule that no raw thought enters a public prompt. They guide the voice and are never published; the review flags a thought transcript in a reply as a `private_leak` finding.
 - The private ontology is implemented as durable state in [the private ontology](private-ontology.md). It is advisory and grows only from implemented mechanisms.
-- The live evidence ran at OpenRouter precision. The Q3 build on the home computer is not verified.
+- Current development uses the operator's OpenRouter config. Receipts retain the configured model and the actual provider response.

@@ -61,11 +61,11 @@ class MessageTests(unittest.TestCase):
         messages = steps.build_messages(example_request(), steps.load_prompts())
         self.assertEqual(
             [message.role for message in messages],
-            ["system", "user", "assistant", "user"],
+            ["system", "user", "assistant", "user", "user"],
         )
         self.assertIn("Spamuel", messages[0].content)
         self.assertIn("Cannot see", messages[0].content)
-        self.assertIn("did you start that task?", messages[-1].content)
+        self.assertEqual("did you start that task?", messages[-1].content)
 
     def test_tool_schemas_are_function_shaped(self):
         schemas = steps.tool_schemas(example_request())

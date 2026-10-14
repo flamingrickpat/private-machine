@@ -75,6 +75,7 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("triage", payloads["appraisal"])
         self.assertIn("appraisal", payloads["attention"])
         self.assertIn("attention", payloads["workspace"])
+        self.assertIsNone(payloads["workspace"]["public_context"])
         self.assertEqual(len(report.receipts), 8)
         expected_ids = [
             intent.get("action_id") or stable_action_id(intent, index)

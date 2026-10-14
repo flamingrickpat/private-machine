@@ -11,10 +11,33 @@ live server; the workflow contract is identical.
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Any, Callable
+
+import httpx
+from pm.runs.errors import TaskServiceError
 
 DEFAULT_MCP_URL = "http://127.0.0.1:6767/mcp"
 MCP_REQUEST_TIMEOUT_SECONDS = 660
+
+
+@asynccontextmanager
+async def _client(mcp_url: str, *, timeout: int = MCP_REQUEST_TIMEOUT_SECONDS):
+    """Translate transport failure without hiding cancellation or logic errors.
+
+    FastMCP wraps connection errors in RuntimeError. Keep the upstream cause
+    for diagnostics. A lost response cannot establish the command's outcome.
+    """
+    from fastmcp import Client
+    try:
+        async with Client(mcp_url, timeout=timeout) as client:
+            yield client
+    except (httpx.TransportError, TimeoutError) as error:
+        raise TaskServiceError("Minecraft transport failed. The task outcome is unverified.") from error
+    except RuntimeError as error:
+        if not isinstance(error.__cause__, (httpx.TransportError, TimeoutError)):
+            raise
+        raise TaskServiceError("Minecraft connection failed. The task outcome is unverified.") from error
 
 
 def _extract_images(content: list) -> list[dict]:
@@ -37,9 +60,7 @@ def build_minecraft_tools(
     """Return the Minecraft tools for one managed run."""
 
     async def _call(name: str, arguments: dict, token: dict | None = None) -> dict:
-        from fastmcp import Client
-
-        async with Client(mcp_url, timeout=MCP_REQUEST_TIMEOUT_SECONDS) as client:
+        async with _client(mcp_url) as client:
             dispatch_name, dispatch_arguments = name, arguments or {}
             if token is not None:
                 dispatch_name = "minecraft_body_call"
@@ -72,15 +93,13 @@ def build_minecraft_tools(
 
     def minecraft_list_tools() -> list[str]:
         async def _list() -> list[str]:
-            from fastmcp import Client
-            async with Client(mcp_url) as client:
+            async with _client(mcp_url) as client:
                 return [tool.name for tool in await client.list_tools()]
         return asyncio.run(_list())
 
     def minecraft_tool_schemas() -> list[dict]:
         async def _list() -> list[dict]:
-            from fastmcp import Client
-            async with Client(mcp_url) as client:
+            async with _client(mcp_url) as client:
                 return [{"name": tool.name, "description": tool.description,
                          "parameters": tool.inputSchema} for tool in await client.list_tools()
                         if not tool.name.startswith("minecraft_body_")]

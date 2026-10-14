@@ -8,6 +8,7 @@ live speech check does that.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import unittest
 
@@ -16,6 +17,7 @@ from workflows.dialogue_story.steps import generate_reviewed, load_prompts, revi
 from workflows.public_speech.public_context import PublicContext
 from workflows.public_speech.speech_review import (
     build_review_messages, is_blocked, load_prompts as load_review_prompts, parse_review,
+    review_speech,
 )
 
 REPLY = "Oh, fantastic. Four months of silence and you open with a guilt trip?"
@@ -41,9 +43,30 @@ class ParseReviewTests(unittest.TestCase):
         self.assertTrue(is_blocked(review))
 
     def test_a_string_finding_is_accepted_as_an_advisory_note(self):
-        review = parse_review({"why": "unsupported label", "findings": ["unsupported_label"]})
+        review = parse_review({"reason": "unsupported label", "false_task_result": False,
+                               "findings": ["unsupported_label"]})
         self.assertFalse(is_blocked(review))
         self.assertEqual(review.findings[0].kind, "unsupported_label")
+
+    def test_a_non_json_review_is_repeated_once_without_changing_the_reply(self):
+        calls: list[str] = []
+
+        async def complete(messages, **generation):
+            calls.append(messages[1]["content"])
+            return "this is not json" if len(calls) == 1 else '{"judgment": "accept", "reason": "ok", "false_task_result": false}'
+
+        context = PublicContext(companion_name="Spamuel", user_name="Jesse")
+        review = asyncio.run(review_speech(complete, "hello", context,
+                                           prompts=load_review_prompts(), attempts=2))
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0], calls[1])
+        self.assertEqual(review.reason, "ok")
+
+    def test_string_boolean_and_missing_reason_are_invalid(self):
+        for payload in ({"reason": "ok", "false_task_result": "false"},
+                        {"reason": "", "false_task_result": False}, {}):
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                parse_review(payload)
 
 
 class ReviewMessageTests(unittest.TestCase):
@@ -92,7 +115,7 @@ class StorySingleGenerationTests(unittest.TestCase):
 
         async def review(messages, **generation):
             review_calls.append(messages)
-            return json.dumps(review_payload)
+            return json.dumps({"false_task_result": False, **review_payload})
 
         attempts, chosen = generate_reviewed(self.request(), load_prompts(), generate, review,
                                              review_prompts=load_review_prompts())

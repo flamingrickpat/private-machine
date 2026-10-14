@@ -15,7 +15,7 @@ from pm.runs.management_api import build_management_tools, management_mcp
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_assistant.schemas import AssistantMessage, AssistantReport, AssistantRequest
 from workflows.dialogue_assistant.steps import load_prompts, unsupported_management_claims
-from workflows.dialogue_assistant.tools import TOOL_DESCRIPTORS, TOOL_NAMES
+from workflows.dialogue_assistant.tools import reply_tools
 from workflows.public_speech.public_context import ability_lines, time_lines
 from workflows.public_speech.public_dialogue import PublicDialogue, _clip
 
@@ -88,6 +88,9 @@ class AssistantDialogue(PublicDialogue):
         # memory lanes from the cycle's workspace (context_plans.yaml).
         planned = self.plan_context(payload, "assistant")
         public = self.public_context(payload, planned)
+        # A terminal receipt requests a report of existing work. It does not
+        # authorize another execution of the original user instruction.
+        tools = reply_tools(terminal_receipt=bool(payload.get("task_receipt")))
         names = {"companion_name": self.ghost.get_companion_name(), "user_name": self.ghost.get_user_name()}
         request = AssistantRequest(
             companion_name=self.ghost.get_companion_name(),
@@ -100,8 +103,8 @@ class AssistantDialogue(PublicDialogue):
             current_user_message=current or intent or "(no message)",
             memories=public.memories,
             workspace=public.workspace,
-            tools=list(TOOL_DESCRIPTORS),
-            tool_grant=list(TOOL_NAMES),
+            tools=tools,
+            tool_grant=[tool.name for tool in tools],
             selected_action=intent,
             public_context=public,
             minecraft_read=payload.get("arguments", {}).get("minecraft_read", ""),

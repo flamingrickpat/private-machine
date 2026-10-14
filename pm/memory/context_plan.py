@@ -35,13 +35,14 @@ by their lexical and importance terms only.
 from __future__ import annotations
 
 import math
+from array import array
 from collections import Counter
 from datetime import datetime
 from typing import Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm.memory.embeddings import cosine_similarity
+from pm.memory.embeddings import valid_vector
 from pm.memory.retrieval import distinctive_terms, record_text, utc_time
 
 
@@ -170,6 +171,11 @@ class _Scorer:
         self.records = records
         self.focus = focus
         self.vector_of = vector_of
+        # One plan owns a frozen record view. Keep vectors and semantic scores
+        # across its lanes and budget rounds. A new plan gets fresh caches.
+        self._vectors: dict[int, array | None] = {}
+        self._semantic: dict[int, float] = {}
+        self._queries = [(weight, self._normalized(vector)) for weight, vector in focus.vectors]
         self.now = now
         self.terms = [(weight, term) for weight, text in focus.texts for term in distinctive_terms(text)]
         texts = {key: record_text(raw).casefold() for key, raw in records.items()}
@@ -178,6 +184,20 @@ class _Scorer:
         self.idf = {term: math.log(1 + len(texts) / (1 + frequency[term])) for _, term in self.terms}
         self.lexical_max = max((self._lexical_raw(key) for key in texts), default=1.0) or 1.0
 
+    @staticmethod
+    def _normalized(vector: list[float]) -> array:
+        """Validate once and retain a compact unit vector for dot products."""
+        valid_vector(vector, len(vector))
+        norm = math.hypot(*vector)
+        return array("d", (value / norm for value in vector))
+
+    def _vector(self, key: int) -> array | None:
+        """Read each record vector once during this frozen plan."""
+        if key not in self._vectors:
+            vector = self.vector_of(key)
+            self._vectors[key] = self._normalized(vector) if vector is not None else None
+        return self._vectors[key]
+
     def _lexical_raw(self, key: int) -> float:
         text = self.texts.get(key, "")
         return sum(weight * self.idf[term] for weight, term in self.terms if term in text)
@@ -185,21 +205,22 @@ class _Scorer:
     def similar(self, key: int, chosen: list[int], threshold: float) -> bool:
         """Return True when ``key`` nearly repeats a chosen record."""
         text = self.texts.get(key, "")
-        vector = self.vector_of(key)
+        vector = self._vector(key)
         for other in chosen:
             if text and text == self.texts.get(other, ""):
                 return True
-            other_vector = self.vector_of(other)
-            if vector is not None and other_vector is not None and cosine_similarity(vector, other_vector) >= threshold:
+            other_vector = self._vector(other)
+            if vector is not None and other_vector is not None and math.sumprod(vector, other_vector) >= threshold:
                 return True
         return False
 
     def score(self, key: int, weights: LaneWeights) -> float:
-        semantic = 0.0
-        vector = self.vector_of(key)
-        if vector is not None and self.focus.vectors:
-            total = sum(weight for weight, _ in self.focus.vectors) or 1.0
-            semantic = sum(weight * cosine_similarity(vector, query) for weight, query in self.focus.vectors) / total
+        if key not in self._semantic:
+            vector = self._vector(key)
+            total = sum(weight for weight, _ in self._queries) or 1.0
+            self._semantic[key] = (sum(weight * math.sumprod(vector, query) for weight, query in self._queries) / total
+                                   if vector is not None and self._queries else 0.0)
+        semantic = self._semantic[key]
         lexical = self._lexical_raw(key) / self.lexical_max
         importance = float(self.records[key]["data"].get("importance", 0.0) or 0.0)
         value = weights.semantic * semantic + weights.lexical * lexical + weights.importance * importance
@@ -268,6 +289,8 @@ def plan_context(records: dict[int, dict], spec: PlanSpec, focus: Focus, *,
     cached embedding or None. ``tokens_of`` returns the rendered token cost of
     one record. Raises ``ValueError`` for a lane name that appears twice or
     an unknown lane in ``priority`` or ``before_lane``.
+    Vectors must remain fixed during this call. Each call owns its caches,
+    including missing vectors. A later call reads newly available vectors.
     """
     names = [lane.name for lane in spec.lanes]
     if len(set(names)) != len(names):

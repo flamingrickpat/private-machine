@@ -21,20 +21,31 @@ from pm_workflows.inputs import InputError
 from pm_workflows.runtime import AgentModel, WorkflowRuntime, WorkflowTerminated
 
 from pm.llm.activation import ModelActivation
-from pm.llm.http_client import ModelError, cancellable
+from pm.llm.http_client import JsonClient, ModelError, cancellable
 from pm.llm.config import Connection, LlmPreset, ModelConfig, resolve_connection
 
 
 async def serving_context(connection: Connection, cancel: Event) -> tuple[int, str]:
     """Read a configured bound or llama.cpp's actual serving context.
 
-    A remote endpoint needs ``context_window`` when it has no compatible
-    ``/props`` route. Training context metadata cannot establish serving limits.
+    OpenRouter supplies its catalog bound. Other remote endpoints need
+    ``context_window`` when they have no compatible ``/props`` route.
+    Local training context metadata cannot establish serving limits.
     Cancellation closes the discovery request. No source context is clipped.
     """
     if connection.context_window is not None:
         return connection.context_window, "configuration"
     parts = urlsplit(connection.base_url)
+    if parts.hostname == "openrouter.ai":
+        # OpenRouter owns provider routing. Its catalog supplies the context
+        # bound when the operator does not configure a smaller bound.
+        result = await JsonClient(connection, live_test=True).request("GET", "models", cancel=cancel)
+        entries = result.get("data", [])
+        selected = next((item for item in entries if item.get("id") == connection.model), None)
+        value = selected.get("context_length") if selected else None
+        if type(value) is not int or value <= 0:
+            raise ModelError("OpenRouter has no context bound for the configured model.")
+        return value, "openrouter.models.context_length"
     props_url = urlunsplit((parts.scheme, parts.netloc, parts.path.removesuffix("/v1") + "/props", "", ""))
     key = connection.api_key.get_secret_value()
     headers = {"Authorization": "Bearer " + key} if key else {}

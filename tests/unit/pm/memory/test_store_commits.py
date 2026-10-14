@@ -135,6 +135,27 @@ class GhostCommitTests(unittest.TestCase):
         self.assertEqual(reopened.managed_runs["running-job"]["state"], "interrupted")
         self.assertEqual(reopened.managed_runs["done-job"]["state"], "completed")
 
+    def test_receipt_commit_preserves_records_and_checkpoint_failure_is_atomic(self):
+        record = self.ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="retained"))
+        before = self.ghost.state_dict()
+        batch = self.ghost.begin_batch("run-only")
+        batch.set_run_receipt("job", {"state": "completed", "workflow": "local"})
+        self.ghost.commit(batch)
+        reopened = MemoryStore.from_checkpoint(self.path)
+        self.assertEqual(reopened.state_dict(), before)
+        self.assertEqual(reopened.managed_runs["job"]["state"], "completed")
+        self.assertEqual(self.ghost.get_knoxel_by_id(record.id).content, "retained")
+        blocked = Path(self.directory.name) / "blocked-receipt"
+        blocked.mkdir()
+        (blocked / "keep").write_text("keep", encoding="utf-8")
+        self.ghost.checkpoint = blocked
+        batch = self.ghost.begin_batch("failed-run-only")
+        batch.set_run_receipt("job", {"state": "failed", "workflow": "local"})
+        with self.assertRaises(OSError):
+            self.ghost.commit(batch)
+        self.assertEqual(self.ghost.managed_runs["job"]["state"], "completed")
+        self.assertNotIn("failed-run-only", self.ghost.applied_commits)
+
     def test_narrow_batch_view_hides_revisions_and_attention_frame(self):
         batch = self.ghost.begin_batch("frame", new_tick=True)
         frame = batch.create(AttentionFrameRecord(content="hidden"))

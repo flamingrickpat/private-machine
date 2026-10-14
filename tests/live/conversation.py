@@ -403,7 +403,7 @@ async def _evaluate_once(
                     {"role": "system", "content": prompt["system_prompt"]},
                     {"role": "user", "content": user},
                 ],
-                temperature=0.0,
+                temperature=0.2,
             )
             text = result.choices[0].message.content or ""
             score = _extract_json(text)

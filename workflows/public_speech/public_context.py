@@ -6,6 +6,7 @@ but does not grant disclosure or establish an external event.
 from __future__ import annotations
 
 import re
+import json
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -344,25 +345,37 @@ def ability_lines(context: PublicContext) -> list[str]:
     if not capabilities.get("human_body", False):
         lines.append(f"- {context.companion_name} has no human body and no human senses.")
     minecraft = capabilities.get("minecraft") or {}
+    lines.append(f"- Minecraft connection right now: {minecraft.get('status', 'unknown')}.")
     if minecraft.get("status") == "connected":
         lines.append(f"- {context.companion_name} can act inside Minecraft through connected game tools.")
+        lines.append("- The tools are reachable now. Connection alone does not establish an observation or completed action.")
+    if minecraft and not minecraft.get("visual_interpretation", False):
+        lines.append("- Minecraft observations are structured text. Screenshot pixels have no interpretation support in this session.")
     return lines
 
 
 def task_lines(context: PublicContext, receipts: list[dict] | None = None) -> list[str]:
-    """Render the durable task receipt and tool receipts in plain words."""
+    """Render task and tool results without removing their verification facts.
+
+    The review receives the same result as the generator. A clipped result
+    cannot establish whether a claimed file or world fact was returned.
+    """
     lines = []
     task = context.task_receipt or {}
     if task:
         verified = "verified" if task.get("task_verified") else "not verified"
-        lines.append(f"- Task {task.get('workflow_name', 'task')}: state {task.get('state', 'unknown')}, result {verified}.")
+        identity = f" (run {task['run_id']})" if task.get("run_id") else ""
+        lines.append(f"- Task {task.get('workflow_name', 'task')}{identity}: worker state {task.get('state', 'unknown')}, requested effect {verified}.")
+        # Worker completion and verified external effects are separate facts.
+        # Keep the receipt's original request and artifacts for both readers.
+        lines.append("  Receipt: " + json.dumps(task, ensure_ascii=False, default=str))
     for receipt in receipts or []:
         result = receipt.get("result")
         failed = (not receipt.get("executed", True) or receipt.get("error")
                   or (isinstance(result, dict) and result.get("ok") is False))
         outcome = "failed" if failed else "succeeded"
-        detail = receipt.get("error") or str(result)
-        lines.append(f"- Tool {receipt.get('name', 'tool')} {outcome}: {detail[:400]}")
+        detail = receipt.get("error") or json.dumps(result, ensure_ascii=False, default=str)
+        lines.append(f"- Tool {receipt.get('name', 'tool')} {outcome}: {detail}")
     return lines
 
 

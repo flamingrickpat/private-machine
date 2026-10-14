@@ -132,6 +132,7 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         goals=render_block(request.get("goals")),
         candidates=render_candidates(request.get("candidate_texts", [])),
     )
+    user += "\nAllowed focus ids: " + json.dumps(sorted(allowed_focus_ids(request)))
     return [
         {"role": "system", "content": system.strip()},
         {"role": "user", "content": user.strip()},
@@ -142,8 +143,22 @@ def run(context) -> dict:
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
     messages = build_messages(request, prompts)
-    result = complete_json(context, messages, WorkspaceResult, temperature=0.7)
-    ensure_valid_result(result, allowed_focus_ids(request))
+    allowed = allowed_focus_ids(request)
+    # No invalid frame reaches commit. Offer one correction for a model that
+    # selected an ID outside the accepted attention boundary.
+    for attempt in range(2):
+        result = complete_json(context, messages, WorkspaceResult, temperature=0.7, enable_thinking=False)
+        try:
+            ensure_valid_result(result, allowed)
+            break
+        except StageOutputError:
+            if attempt == 1:
+                raise
+            messages.extend([
+                {"role": "assistant", "content": result.model_dump_json()},
+                {"role": "user", "content": "This frame uses an invalid focus ID or control mode. "
+                 f"Use only focus IDs from {sorted(allowed)} and control modes from {CONTROL_MODES}."},
+            ])
     write_report(context.runtime.environment, result)
     return {
         "status": "done",

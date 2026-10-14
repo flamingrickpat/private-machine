@@ -162,7 +162,7 @@ def run(context) -> dict:
     # Earlier stages already supply appraisal and the selected workspace.
     # Hidden reasoning exhausted a real completion during a teasing choice.
     result = complete_json(context, messages, ActionSelectionResult, temperature=0.2,
-                           chat_template_kwargs={"enable_thinking": False})
+                           enable_thinking=False)
     validate_actions(result, list(request.get("available_workflows") or []))
     check_capabilities(result, list(request.get("capabilities") or []), request.get("public_context"))
     write_report(context.runtime.environment, result)

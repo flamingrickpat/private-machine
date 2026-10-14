@@ -259,7 +259,8 @@ def run_specialist_session(context) -> dict:
                 config = context.kernel_data / "actor-mcp.json"
                 config.write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
                 agent_runtime = replace(runtime, agent_model=model, mcp_servers=servers)
-                driver = PmCoderDriver(log_root=context.kernel_data / "actor-agent")
+                from pm.llm.prompt_log import log_directory
+                driver = PmCoderDriver(log_root=log_directory() / "agents")
                 result = driver.run_session(run_id=context.task_id + "-actor", attempt=1,
                     skill=str(skill_path), prompt="Execute the Minecraft leaf in inbox/request.yaml. "
                     "Current leaf operands, which take precedence over retained notes: "
@@ -303,7 +304,8 @@ def run_specialist_session(context) -> dict:
                       "outcome": outcome.model_dump(), "verification": verification,
                       "acceptance": request.acceptance, "verified": accepted,
                       "task_reference": request.task_reference,
-                      "agent_session": result.session_ref, "instruction_revision": gateway.revision,
+                      "agent_session": result.session_ref, "agent_log_root": str(driver.log_root),
+                      "instruction_revision": gateway.revision,
                       "call_count": len(gateway.receipts), "visual_interpretation": False,
                       "initial_observation": baseline, "final_observation": final["result"],
                       "execution_epoch": gateway.token["epoch"], "reconciliation": reconciliation,

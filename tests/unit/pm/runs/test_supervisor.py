@@ -95,6 +95,33 @@ class ManagedRunTests(unittest.TestCase):
         self.assertEqual(second["instructions"], "one")
         self.assertEqual(len(self.ghost.managed_runs), 1)
 
+    def test_real_task_service_loss_keeps_the_supervisor_available(self):
+        from workflows.minecraft_body.mcp_client import build_minecraft_tools
+        errors = []
+        self.supervisor.on_error = errors.append
+        def unavailable_tools(run_id, environment):
+            build_minecraft_tools("http://127.0.0.1:1/mcp")["minecraft_call"]("minecraft_observe", {})
+        self.supervisor.workflows["unavailable_service"] = WorkflowSpec(
+            LOCAL_TASK / "local_task.workflow.md", tools_factory=unavailable_tools)
+        receipt = self.supervisor.start(action_id="offline-service", workflow_name="unavailable_service")
+        self.assertTrue(_wait_for(lambda: self.supervisor.status(receipt["run_id"])["state"] == "failed"))
+        self.supervisor.join_all(timeout=10)
+        self.assertEqual(errors, [])
+        self.assertIn("TaskServiceError", self.supervisor.status(receipt["run_id"])["latest_event"])
+        next_run = self.supervisor.start(action_id="after-service-loss", workflow_name="local_task", instructions="still available")
+        self.assertTrue(_wait_for(lambda: self.supervisor.status(next_run["run_id"])["state"] == "completed"))
+        self.assertTrue((Path(next_run["artifact_path"]) / "outbox/report.yaml").is_file())
+
+    def test_a_missing_manifest_still_reaches_the_application_error_handler(self):
+        errors = []
+        self.supervisor.on_error = errors.append
+        self.supervisor.workflows["bad_manifest"] = WorkflowSpec(self.root / "missing.workflow.md")
+        receipt = self.supervisor.start(action_id="manifest-fault", workflow_name="bad_manifest")
+        self.assertTrue(_wait_for(lambda: self.supervisor.status(receipt["run_id"])["state"] == "failed"))
+        self.supervisor.join_all(timeout=10)
+        self.assertEqual(len(errors), 1)
+        self.assertIsInstance(errors[0], FileNotFoundError)
+
     def test_unavailable_workflow_is_an_explicit_failure(self):
         receipt = self.supervisor.start(
             action_id="action-9", workflow_name="minecraft",

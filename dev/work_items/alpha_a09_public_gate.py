@@ -85,7 +85,10 @@ def run(args):
         for module in (app.dialogue, app.assistant):
             module.capability_provider = lambda: capabilities
             original_context = module.public_context
-            def frozen_context(payload, module=module):
+            # Both roles call public_context(payload, planned). Accept the
+            # planned argument so the frozen context is set on the module
+            # itself, not on the planned object.
+            def frozen_context(payload, planned=None, module=module):
                 module._public_context = shared_context
                 return shared_context
             module.public_context = frozen_context
@@ -104,6 +107,8 @@ def run(args):
                 module.publish_output = original_publish
                 module.reject_reply = original_reject
                 module.public_context = original_context
+            if module._public_context is None:
+                module._public_context = shared_context
             if len(reports) + len(failures) != 1:
                 raise AssertionError("A real public workflow did not return one report or explicit failure.")
             row["paths"][module.module_id] = {"report": reports[0] if reports else None,

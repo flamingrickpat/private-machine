@@ -64,8 +64,14 @@ Never report dummy execution as a replacement pass.
 
 ## Known local deployment
 
+Current development selects `config.alpha.openrouter.yaml` explicitly.
+Chat, evaluation, managed agents, and embeddings use OpenRouter for this procedure.
+Do not start Strata or another local model for development gates.
+The LLM wrapper owns provider discovery, reasoning fields, and transport behavior.
+Workflow code uses the same model interface for every endpoint.
+
 The local deployment uses the following locations and endpoints.
-Verify the active identities before each live run.
+The table preserves the earlier local deployment. Verify the selected config before each live run.
 
 | Component | Real location or endpoint | Identity |
 | --- | --- | --- |

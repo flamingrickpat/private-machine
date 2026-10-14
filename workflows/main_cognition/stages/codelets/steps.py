@@ -206,7 +206,7 @@ def run_llm_codelet(context, request: dict, definition: CodeletDefinition, promp
     messages = build_messages(request, definition, prompts)
     started = time.perf_counter()
     answer = complete_json(context, messages, CodeletAnswer, temperature=0.4,
-                           chat_template_kwargs={"enable_thinking": False})
+                           enable_thinking=False)
     input_tokens, _ = estimate_tokens("", messages)
     output_tokens, _ = estimate_tokens("", [{"content": answer.model_dump_json()}])
     cost = {"calls": 1, "input_tokens_estimate": input_tokens, "output_tokens_estimate": output_tokens,

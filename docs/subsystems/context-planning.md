@@ -86,6 +86,12 @@ Without a vector, a record still competes lexically and by importance.
 After the first pass, at most `max_new_embeddings` (32) uncached records near each score lane's cut are embedded, and the plan runs again.
 If the embedding service fails, the plan scores lexically and records `semantic.status: unavailable`. The reply continues.
 
+Each planner invocation reads a record vector once and normalizes it into a compact array.
+It reuses those vectors and semantic scores across lanes and redistribution rounds.
+The cache belongs to that frozen invocation. A later invocation reads fresh vectors, including records that previously lacked a vector.
+Duplicate comparisons use dot products of the unit vectors.
+The lane rules, weights, budgets, and rounded scores remain the same.
+
 Run the index tool once per seed so that every candidate has a vector:
 
 ```powershell

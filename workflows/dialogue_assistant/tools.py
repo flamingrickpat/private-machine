@@ -9,11 +9,12 @@ from __future__ import annotations
 from workflows.dialogue_assistant.schemas import ToolDescriptor
 
 TOOL_DESCRIPTORS: list[ToolDescriptor] = [
-    ToolDescriptor(name="minecraft_observe",
+    ToolDescriptor(name="minecraft_observe", read_only=True,
         description="Read current Minecraft inventory, position, and vitals. Starts no managed task. Numeric evidence only.",
         parameters={"type": "object", "properties": {"include_image": {"type": "boolean", "default": False}}}),
     ToolDescriptor(
         name="ghost_get",
+        read_only=True,
         description="Read one Ghost knoxel by id from the scoped view.",
         parameters={
             "type": "object",
@@ -23,6 +24,7 @@ TOOL_DESCRIPTORS: list[ToolDescriptor] = [
     ),
     ToolDescriptor(
         name="ghost_search",
+        read_only=True,
         description="Search the scoped Ghost view for text.",
         parameters={
             "type": "object",
@@ -32,6 +34,7 @@ TOOL_DESCRIPTORS: list[ToolDescriptor] = [
     ),
     ToolDescriptor(
         name="ghost_gwt",
+        read_only=True,
         description="Read one committed GWT turn by tick id.",
         parameters={
             "type": "object",
@@ -57,6 +60,7 @@ TOOL_DESCRIPTORS: list[ToolDescriptor] = [
     ),
     ToolDescriptor(
         name="managed_status",
+        read_only=True,
         description="Read the durable receipt for one managed run.",
         parameters={
             "type": "object",
@@ -66,6 +70,7 @@ TOOL_DESCRIPTORS: list[ToolDescriptor] = [
     ),
     ToolDescriptor(
         name="managed_list",
+        read_only=True,
         description="List every receipt in the managed-run table.",
         parameters={"type": "object", "properties": {}},
     ),
@@ -108,4 +113,14 @@ TOOL_DESCRIPTORS: list[ToolDescriptor] = [
 
 TOOL_NAMES: list[str] = [tool.name for tool in TOOL_DESCRIPTORS]
 
-__all__ = ["TOOL_DESCRIPTORS", "TOOL_NAMES"]
+
+def reply_tools(*, terminal_receipt: bool = False) -> list[ToolDescriptor]:
+    """Grant inspection for terminal replies and the full set for new actions.
+
+    A terminal receipt owns a report of existing work. A new action owns any
+    further execution. Tools declare their read-only capability explicitly.
+    """
+    return [tool for tool in TOOL_DESCRIPTORS if not terminal_receipt or tool.read_only]
+
+
+__all__ = ["TOOL_DESCRIPTORS", "TOOL_NAMES", "reply_tools"]

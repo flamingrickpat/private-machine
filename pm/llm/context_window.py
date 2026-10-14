@@ -1,6 +1,7 @@
 """Measure direct chat inputs against the selected serving context."""
 from __future__ import annotations
 
+import asyncio
 from threading import Event
 from urllib.parse import urlsplit, urlunsplit
 
@@ -20,15 +21,26 @@ async def measure_context(connection: Connection, messages: list[dict], cancel: 
     configured serving capacity. Cancellation closes every discovery request.
     Transport and invalid protocol errors raise ModelError without prompt text.
     """
+    if cancel.is_set():
+        raise asyncio.CancelledError
     context, source = await serving_context(connection, cancel)
     parts = urlsplit(connection.base_url)
     root = urlunsplit((parts.scheme, parts.netloc, parts.path.removesuffix("/v1"), "", ""))
     key = connection.api_key.get_secret_value()
     headers = {"Authorization": "Bearer " + key} if key else {}
     payload = {"messages": messages, "add_generation_prompt": True}
+    from pm.llm.activation import provider_generation
+    generation = provider_generation(connection, generation)
     for field in ("chat_template_kwargs", "tools"):
         if field in generation:
             payload[field] = generation[field]
+    if parts.hostname == "openrouter.ai":
+        # OpenRouter has no llama.cpp template or tokenizer routes. Provider
+        # usage after inference is authoritative. This count is an estimate.
+        count, measurement = estimate_tokens(connection.model, messages)
+        return {"context_window": context, "context_source": source, "input_tokens": count,
+                "measurement": measurement, "input_fraction": connection.context_input_fraction,
+                "input_budget_tokens": int(context * connection.context_input_fraction)}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             template = await cancellable(client.post(root + "/apply-template", headers=headers, json=payload), cancel)

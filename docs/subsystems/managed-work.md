@@ -50,6 +50,10 @@ Projects publish one [gameplay milestone](gameplay-evidence.md#meaningful-progre
 Cancellation is cooperative.
 A completed external effect remains complete after cancellation.
 MCP transport success alone does not establish tool success.
+The Minecraft adapter raises [`TaskServiceError`][pm.runs.errors.TaskServiceError] for a failed connection or transport.
+The supervisor retains a failed receipt and lets other work continue.
+A lost response leaves external effects uncertain. The supervisor does not repeat the command.
+Cancellation still propagates. Unexpected logic errors still reach the application's error handler.
 
 ## Go deeper
 

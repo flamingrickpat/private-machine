@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import time
 from threading import Event
 
 import httpx
@@ -59,6 +60,32 @@ class JsonClient:
         self.live_test = live_test
         self.request_count = 0
 
+    async def _send(self, client, method: str, route: str, headers: dict,
+                    payload: dict | None, cancel: Event | None):
+        """Log each inference attempt before dispatch, including retries.
+
+        Cancellation leaves the prompt and an error receipt. Logging failures
+        cannot change the HTTP result. Readiness requests have no prompt log.
+        """
+        from pm.llm.prompt_log import start_prompt_log, finish_prompt_log
+        started = time.monotonic()
+        path = start_prompt_log(connection=self.connection, payload=payload, route=route,
+                                request_count=self.request_count) if method == "POST" else None
+        try:
+            response = await cancellable(client.request(
+                method, f"{self.connection.base_url}/{route}", headers=headers, json=payload,
+            ), cancel)
+        except BaseException as error:
+            finish_prompt_log(path, error=error, elapsed=time.monotonic() - started)
+            raise
+        try:
+            data = response.json()
+        except ValueError:
+            data = None
+        error = None if response.is_success else ModelError(f"HTTP {response.status_code}")
+        finish_prompt_log(path, response=data, error=error, elapsed=time.monotonic() - started)
+        return response
+
     async def request(self, method: str, route: str, *, payload: dict | None = None, cancel: Event | None = None) -> dict:
         headers = {}
         key = self.connection.api_key.get_secret_value()
@@ -72,9 +99,7 @@ class JsonClient:
                 self.request_count += 1
                 failure = None
                 try:
-                    response = await cancellable(client.request(
-                        method, f"{self.connection.base_url}/{route}", headers=headers, json=payload,
-                    ), cancel)
+                    response = await self._send(client, method, route, headers, payload, cancel)
                 except httpx.TransportError:
                     failure = "Model connection failed. Check the endpoint."
                 else:

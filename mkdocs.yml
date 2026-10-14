@@ -77,6 +77,7 @@ nav:
       - Models:
           - Connections and embeddings: models.md
           - Python chat and agent context: subsystems/llm-context.md
+          - Prompt log: subsystems/prompt-log.md
       - Optional typed decisions:
           - Client boundary: subsystems/decisions/index.md
           - Local deployment: subsystems/decisions/operation.md
@@ -153,6 +154,7 @@ nav:
           - A08 experienced memory: work_items/verification/a08-experienced-memory.md
           - A09 public dialogue: work_items/verification/a09-public-dialogue.md
           - A09R private ontology: work_items/verification/a09r-private-ontology.md
+          - A09R OpenRouter delivery: work_items/verification/a09r-openrouter-delivery.md
           - A10 Minecraft actor: work_items/verification/a10-minecraft-actor.md
           - A11 Minecraft projects: work_items/verification/a11-minecraft-projects.md
           - A12 body recovery: work_items/verification/a12-body-recovery.md

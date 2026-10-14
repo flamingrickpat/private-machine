@@ -200,7 +200,9 @@ def run(args):
             gate.save(f"models-{label}.json", identity)
         gate.deploy(args.config, args.persona, args.source_checkpoint)
         before = gate.snapshot("initial.json")
-        if args.scenario == "interruption":
+        if args.scenario == "c01":
+            gate.exchange("c01-control", "Run only local_task with instruction: write a note containing exactly copper lantern. Tell me what its actual receipt verifies. Do not start note_task for this request.")
+        elif args.scenario == "interruption":
             gate.exchange("interrupted-note", "Start note_task to write outbox/interrupted.txt containing exactly copper lantern, with no newline. Wait for its terminal receipt before replying; I will interrupt this run.", interrupt=True)
         elif args.scenario == "uncertainty":
             gate.exchange("uncertainty", "A neighbor says the plant needs coffee. I am unsure. What do you actually know about that claim?")
@@ -302,12 +304,15 @@ def run(args):
 
 
 if __name__ == "__main__":
+    # Redirected Windows output can use a legacy encoding. Receipts contain
+    # exact model text, so a Unicode character must not abort a completed gate.
+    sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True)
     parser.add_argument("--config", default="config.alpha.example.yaml")
     parser.add_argument("--port", type=int, default=8095)
     parser.add_argument("--timeout", type=float, default=600)
     parser.add_argument("--persona", choices=("spamuel", "cheerful"), default="spamuel")
-    parser.add_argument("--scenario", choices=("full", "recall", "tasks", "resume-tasks", "resume-full", "resume-conversation", "resume-followups", "failed-method", "conversation", "privacy", "disclosure", "interruption", "uncertainty", "c02"), default="full")
+    parser.add_argument("--scenario", choices=("full", "recall", "tasks", "resume-tasks", "resume-full", "resume-conversation", "resume-followups", "failed-method", "conversation", "privacy", "disclosure", "interruption", "uncertainty", "c01", "c02"), default="full")
     parser.add_argument("--source-checkpoint", type=Path)
     run(parser.parse_args())

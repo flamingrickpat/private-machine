@@ -42,6 +42,12 @@ Two replacements of the same revision produce one winner and one `GhostConflict`
 A failed save preserves accepted memory and the previous checkpoint.
 The error reaches the direct caller or the application error handler.
 
+A receipt-only commit can reuse the already validated record maps.
+This path requires unchanged records, an unchanged tick, no new workspace or cycle, and empty record embeddings.
+The commit prepares detached receipt tables before checkpoint I/O.
+It installs those tables only after the same atomic checkpoint replacement succeeds.
+It preserves record revisions and the canonical state bytes.
+
 A repeated commit ID returns its original receipt without duplicate memories.
 Callers use the receipt's IDs, not IDs from a repeated attempt.
 Cancellation before checkpoint replacement rejects the batch.

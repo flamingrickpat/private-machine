@@ -265,11 +265,29 @@ class MemoryStore(RecordIndex):
                 managed_runs={**self.managed_runs, **batch._runs},
                 consolidations={**self.consolidations, **batch._consolidations},
             )
-            candidate = self._restore(data, self.checkpoint)
+            # Run receipts can change without changing any record or tick.
+            # Reuse validated records for that boundary. Rebuilding the entire
+            # persona for every run event delays both control and public replies.
+            metadata_only = (not batch._new and not batch._replacements
+                             and batch._cycle is None and batch._gwt is None
+                             and batch.tick_id == self.current_tick_id
+                             and all(not record.embedding for record in self._all_knoxels.values()))
+            if metadata_only:
+                metadata = {"managed_runs": deepcopy(data.managed_runs),
+                            "consolidations": deepcopy(data.consolidations),
+                            "applied_commits": dict(data.applied_commits)}
+                candidate = None
+            else:
+                candidate = self._restore(data, self.checkpoint)
             batch.check_cancelled()
             if self.checkpoint is not None:
                 write_checkpoint(self.checkpoint, data, batch.check_cancelled)
             # All validation and I/O precede canonical installation.
+            if metadata_only:
+                for name, value in metadata.items():
+                    setattr(self, name, value)
+                batch._closed = True
+                return receipt
             for name in ("ghost_config", "states", "_all_knoxels", "_knoxels_by_type", "_knoxels_by_subtype", "_knoxels_by_class",
                          "current_knoxel_id", "current_tick_id", "_reserved_tick_id", "revisions", "gwt_turns",
                          "applied_commits", "managed_runs", "consolidations", "previous_emb_model"):

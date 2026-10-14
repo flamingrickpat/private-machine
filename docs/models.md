@@ -33,7 +33,7 @@ Use the environment variable on one machine and the `.env` file on another.
 
 ### Current models
 
-The current deployment uses `qwen3.8-flash-next` for chat and
+Development selects `config.alpha.openrouter.yaml` and uses `qwen/qwen3.8-flash` for chat and
 `perplexity/pplx-embed-v1-0.6b` for embeddings.
 OpenRouter returns `pplx-embed-v1-0.6b` in its response.
 The explicit `response_model` field permits that alias. Another model name fails validation.
@@ -63,17 +63,19 @@ Config parsing and connection resolution make no network requests.
 
 ### Endpoint behavior and context window
 
-A hosted endpoint may have no `/props` route.
-Set `context_window` in the preset for such an endpoint.
+A hosted endpoint can have no `/props` route.
+OpenRouter supplies its selected model's `context_length` through the model catalog.
+For another endpoint without compatible discovery, set `context_window` in the preset.
 Context measurement then uses the labelled `tiktoken` estimate.
 The serving model must offer at least 128,000 tokens of context.
 Read the [model policy](work_items/alpha-plan/model-policy.md) for the capability requirement.
 
-Workflows switch thinking off with `chat_template_kwargs: {enable_thinking: false}`.
-A local llama.cpp server honors this field.
-For the exact `openrouter.ai` host, [`provider_generation`][pm.llm.activation.provider_generation] adds the equivalent `reasoning: {enabled: false}`.
+Workflows switch thinking off with the neutral `enable_thinking: false` option.
+[`provider_generation`][pm.llm.activation.provider_generation] translates that option inside the LLM wrapper.
+Compatible local endpoints receive `chat_template_kwargs: {enable_thinking: false}`.
+OpenRouter receives `reasoning: {enabled: false}` without the local template field.
 An explicit `reasoning` field from the caller always wins.
-Other hosts receive the request unchanged.
+Other generation fields retain their caller-supplied values.
 
 A measured `qwen/qwen3.8-flash` request on 2026-10-13 returned 24 reasoning tokens with only `chat_template_kwargs`.
 The same request with `reasoning.enabled: false` returned 0 reasoning tokens.

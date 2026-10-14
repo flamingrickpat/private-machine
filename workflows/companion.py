@@ -315,7 +315,7 @@ def build_app(
                  "preference, name, or plan; use utterance when recalling what someone previously said. "
                  "Return only JSON with query and evidence_use."},
                 {"role": "user", "content": text},
-            ], temperature=0.1, chat_template_kwargs={"enable_thinking": False})
+            ], temperature=0.1, enable_thinking=False)
             try:
                 result = extract_json(raw)
             except StageOutputError:

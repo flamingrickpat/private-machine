@@ -75,6 +75,12 @@ Story uses three messages: a story-writer system message, a user message with al
 Earlier generated speech cannot independently establish its described event.
 
 Assistant preserves normal user, assistant, and tool messages.
+Its derived context has a separate turn. The final user turn contains the current message verbatim.
+The review receives that message and the same spoken history as generation.
+An automatic terminal reply reports existing work and receives only tools marked `read_only`.
+It can inspect status or fresh game state, but it cannot repeat the original task through a new management call.
+New user actions retain the full management grant.
+[`reply_tools`][workflows.dialogue_assistant.tools.reply_tools] selects that grant before generation.
 Its tool loop retains execution results, denied calls, errors, and transport attribution.
 The common context supplies the selected action and accepted emotional state beside those receipts.
 The [direct Minecraft inventory route](minecraft-actor-controls.md#direct-inventory-dialogue) uses one coordinated observation and starts no managed task.

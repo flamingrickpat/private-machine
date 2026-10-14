@@ -123,21 +123,24 @@ OPENROUTER_HOST = "openrouter.ai"
 
 
 def provider_generation(connection: Connection, generation: dict) -> dict:
-    """Translate the thinking switch for a hosted OpenRouter connection.
+    """Translate the neutral thinking option at the provider boundary.
 
-    Workflows request a non-thinking call with the llama.cpp field
-    ``chat_template_kwargs.enable_thinking``. A local llama.cpp server honors
-    it. OpenRouter ignores it and keeps reasoning on, so the same call costs
-    reasoning tokens and time, and it behaves differently from the local
-    deployment. For the exact ``openrouter.ai`` host, this function adds the
-    equivalent ``reasoning.enabled`` field. An explicit ``reasoning`` field
-    from the caller always wins. Other hosts receive the payload unchanged.
+    Workflows pass ``enable_thinking`` without knowing the endpoint. OpenRouter
+    receives ``reasoning.enabled``. Compatible local endpoints receive
+    ``chat_template_kwargs.enable_thinking``. Explicit provider fields win.
+    Legacy callers can still supply the local template option.
     """
     host = (urlsplit(connection.base_url).hostname or "").lower()
-    thinking = (generation.get("chat_template_kwargs") or {}).get("enable_thinking")
-    if host != OPENROUTER_HOST or not isinstance(thinking, bool) or "reasoning" in generation:
-        return generation
-    return {**generation, "reasoning": {"enabled": thinking}}
+    result = dict(generation)
+    thinking = result.pop("enable_thinking", (result.get("chat_template_kwargs") or {}).get("enable_thinking"))
+    if not isinstance(thinking, bool):
+        return result
+    if host == OPENROUTER_HOST:
+        result.setdefault("reasoning", {"enabled": thinking})
+        result.pop("chat_template_kwargs", None)
+    else:
+        result["chat_template_kwargs"] = {"enable_thinking": thinking, **result.get("chat_template_kwargs", {})}
+    return result
 
 
 class ChatClient:

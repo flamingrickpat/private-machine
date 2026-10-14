@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from workflows.public_speech.public_context import memory_sections, task_lines
+from workflows.public_speech.public_context import DialogueTurn, memory_sections, task_lines
 from workflows.public_speech.speech_review import (
     block_reason, is_blocked, load_prompts as load_review_prompts, review_speech,
 )
@@ -56,9 +56,10 @@ def render_memories(request: AssistantRequest, prompts: dict) -> str:
 def build_messages(request: AssistantRequest, prompts: dict) -> list[AssistantMessage]:
     """Return the system message, the preserved prior transcript, then input.
 
-    The user turn holds the derived context in plain sections (no JSON), the
-    task results, and the current message. Tool calls and their results then
-    follow as normal chat messages.
+    A context turn holds the derived sections and task receipts. The final
+    user turn holds the current message verbatim. Tool calls and their results
+    follow as normal chat messages. An older quoted request cannot replace
+    the final user turn.
     """
     system = prompts["system_prompt"].format(
         companion_name=request.companion_name,
@@ -81,6 +82,7 @@ def build_messages(request: AssistantRequest, prompts: dict) -> list[AssistantMe
     messages = [AssistantMessage(role="system", content=system)]
     messages.extend(request.prior_dialogue)
     messages.append(AssistantMessage(role="user", content=user))
+    messages.append(AssistantMessage(role="user", content=request.current_user_message))
     return messages
 
 
@@ -102,10 +104,8 @@ def tool_schemas(request: AssistantRequest) -> list[dict]:
 def wire_message(message: AssistantMessage) -> dict:
     """Return one OpenAI-compatible message for a request body.
 
-    Dropping empty optional fields keeps strict providers happy. Alibaba rejects
-    an empty ``tool_calls`` array with HTTP 400, but the local server tolerated
-    it. Always keep ``role`` and ``content`` because a tool-call turn may carry
-    empty text.
+    Omit empty optional fields from the message contract. Always keep ``role``
+    and ``content`` because a tool-call turn can carry empty text.
     """
     data = message.model_dump(mode="json")
     if not data.get("tool_calls"):
@@ -244,6 +244,20 @@ def validate_public_speech(text: str) -> None:
         raise ValueError("The model returned tool protocol instead of public speech.")
 
 
+def review_conversation(request: AssistantRequest) -> list[DialogueTurn]:
+    """Give the reviewer the same spoken history and current request as generation.
+
+    Tool results travel separately as receipts. Earlier task instructions stay
+    attributed to their own turn instead of becoming current instructions.
+    """
+    turns = [DialogueTurn(speaker=request.user_name if message.role == "user" else request.companion_name,
+                          text=message.content)
+             for message in request.prior_dialogue if message.role in {"user", "assistant"} and message.content.strip()]
+    if request.current_user_message.strip():
+        turns.append(DialogueTurn(speaker=request.user_name, text=request.current_user_message))
+    return turns
+
+
 def run(context) -> dict:
     environment = context.runtime.environment
     request = AssistantRequest.model_validate(
@@ -308,6 +322,7 @@ def run(context) -> dict:
         review_prompts = load_review_prompts()
         review = asyncio.run(review_speech(context.runtime.tools["public_complete"], final_text,
                                            request.public_context, prompts=review_prompts,
+                                           conversation=review_conversation(request),
                                            receipts=[item.model_dump(mode="json") for item in receipts]))
         accepted = accepted and not is_blocked(review)
     report = AssistantReport(
@@ -339,6 +354,7 @@ __all__ = [
     "load_prompts",
     "parse_completion",
     "render_memories",
+    "review_conversation",
     "run",
     "tool_schemas",
     "unsupported_management_claims",

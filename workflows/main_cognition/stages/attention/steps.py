@@ -90,7 +90,7 @@ def score_batch(context, request: dict, prompts: dict, batch: list[CodeletPropos
     wanted = {item.nomination_id for item in batch}
     messages = build_messages(request, prompts, batch)
     result = complete_json(context, messages, NominationScores, temperature=0.1,
-                           chat_template_kwargs={"enable_thinking": False})
+                           enable_thinking=False)
     scores = {item.id: item.model_dump() for item in result.scores if item.id in wanted}
     missing = [item for item in batch if item.nomination_id not in scores]
     if missing:
@@ -99,7 +99,7 @@ def score_batch(context, request: dict, prompts: dict, batch: list[CodeletPropos
                       missing=", ".join(item.nomination_id for item in missing),
                       items=render_items(missing, prompts))}]
         retry = complete_json(context, repair, NominationScores, temperature=0.1,
-                              chat_template_kwargs={"enable_thinking": False})
+                              enable_thinking=False)
         for item in retry.scores:
             if item.id in wanted and item.id not in scores:
                 scores[item.id] = item.model_dump()
