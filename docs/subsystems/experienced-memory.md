@@ -10,6 +10,7 @@ Imported canon remains attributed background.
 Parent: [cognitive pipeline](cognition.md).
 Related: [accepted state](cognition-state.md), [emotional dynamics](emotional-dynamics.md), and [memory experiments](../workflows/memory.md).
 Children: [consolidation and beliefs](memory-consolidation.md) and [A08 verification](../work_items/verification/a08-experienced-memory.md).
+Planned direct agent access: [A14B memory search and graph tools](../work_items/alpha-plan/memory-tools.md).
 
 ## Entry and execution path
 

@@ -10,6 +10,7 @@ The model need not serialize a complete result in its final message.
 Parent: [workflow runtime](../runtime.md).
 Current caller: [Minecraft projects](minecraft-tasks.md).
 Planned rollout: [A14B](../work_items/alpha-plan/work-items/a14b.md).
+Planned memory access: [scoped search and graph tools](../work_items/alpha-plan/memory-tools.md).
 Judgment policy: [workflow review modes](workflow-reviews.md).
 Evidence and remaining limits: [A14 verification](../work_items/verification/a14-cooperation.md#tool-backed-draft-sessions).
 

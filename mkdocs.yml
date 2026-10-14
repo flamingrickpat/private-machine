@@ -109,6 +109,8 @@ nav:
           - Previous PM attempts: work_items/alpha-plan/previous-attempts.md
           - Cognitive architecture: work_items/alpha-plan/cognition.md
           - Private ontology and expression: work_items/alpha-plan/ontology.md
+          - Scoped memory tools (planned): work_items/alpha-plan/memory-tools.md
+          - Memory-tool evidence and lifecycle (planned): work_items/alpha-plan/memory-tool-evidence.md
           - Second conscious loop: work_items/alpha-plan/private-loop.md
           - Self-model and reflection: work_items/alpha-plan/reflection.md
           - Models and workflow inputs: work_items/alpha-plan/decisions.md
@@ -142,7 +144,7 @@ nav:
               - A12 Interruption and recovery: work_items/alpha-plan/work-items/a12.md
               - A13 Adaptive replanning: work_items/alpha-plan/work-items/a13.md
               - A14 Cooperative play and initiative: work_items/alpha-plan/work-items/a14.md
-              - A14B Editable drafts for costly output: work_items/alpha-plan/work-items/a14b.md
+              - A14B Editable drafts and scoped memory: work_items/alpha-plan/work-items/a14b.md
               - A15 Codelet engine: work_items/alpha-plan/work-items/a15.md
               - A16 Codelet repertoire: work_items/alpha-plan/work-items/a16.md
               - A17 Second conscious loop: work_items/alpha-plan/work-items/a17.md
