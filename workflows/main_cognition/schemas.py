@@ -109,7 +109,22 @@ PROPOSAL_ORIGINS = ("outside", "thought", "memory", "state")
 # What the proposal content claims about reality. Workspace and dialogue read
 # this label; "imagined" content is a possibility, never an executed event.
 REALITY_LABELS = ("observed", "remembered", "internal", "inferred", "imagined")
-PROPOSAL_KINDS = ("attention", "memory_access", "appraisal", "simulation", "regulation", "action_tendency")
+PROPOSAL_KINDS = ("attention", "memory_access", "appraisal", "simulation", "regulation", "action_tendency", "belief")
+
+# A16 proposal-consumer map. A typed nomination without a consumer does not
+# establish a cognitive effect, so every kind names its downstream owner and
+# the durable effect that owner produces. The host commits one
+# AttentionRecord per proposal whatever happens; the consumer column is what
+# turns an *accepted* (selected, not stale) proposal into behavior.
+PROPOSAL_CONSUMERS = {
+    "attention": "Workspace frame; the dialogue workflow then plans its memory context from the winning texts and target ids.",
+    "memory_access": "Context planning for public speech: winning target ids become required records for the reply.",
+    "appraisal": "Workspace frame and the goals stage: the interpretation informs the frame and can justify a goal change through the goals commit boundary.",
+    "simulation": "Workspace frame and action selection: a possibility can steer a choice while its imagined reality label keeps it distinguishable from events.",
+    "regulation": "Workspace frame and action selection: a way to stay steady can change the chosen action without changing the appraisal itself.",
+    "action_tendency": "Goals stage and action selection: a motive can become a durable Intention change or a concrete choice, at the owner's discretion.",
+    "belief": "The belief owner in the main module stages a revisable subjective BeliefRecord; an interpretation never rewrites the observed records it cites.",
+}
 
 
 class CodeletProposal(BaseModel):
@@ -134,6 +149,7 @@ class CodeletProposal(BaseModel):
     activation: float = 0.0
     source_revisions: dict[str, int] = Field(default_factory=dict)
     dropped_target_ids: list[int] = Field(default_factory=list)
+    topic: str = Field(default="", description="Stable topic key of a belief proposal. Other kinds leave it empty.")
 
 
 class CodeletRun(BaseModel):
@@ -173,6 +189,9 @@ class CodeletsResult(BaseModel):
     loop: str = "main"
     policy: dict = Field(default_factory=dict)
     signals: dict[str, float] = Field(default_factory=dict)
+    # Pathway activation values without the ``pathway.`` prefix, so a trace
+    # shows which accepted precursors drove this cycle.
+    pathway_signals: dict[str, float] = Field(default_factory=dict)
     cost: dict = Field(default_factory=dict)
 
 
@@ -202,6 +221,7 @@ class AttentionNomination(BaseModel):
     cause: list[str] = Field(default_factory=list)
     activation: float = 0.0
     source_revisions: dict[str, int] = Field(default_factory=dict)
+    topic: str = ""
     status: str = ""
     reason: str = ""
 
@@ -233,10 +253,15 @@ class NominationScores(BaseModel):
 
 
 class CodeletAnswer(BaseModel):
-    """The small answer that one LLM codelet returns."""
+    """The small answer that one LLM codelet returns.
+
+    ``topic`` is the stable belief label that a ``belief``-kind codelet
+    supplies. Every other codelet leaves it empty.
+    """
 
     fires: bool
     text: str = ""
+    topic: str = ""
     target_ids: list[int] = Field(default_factory=list)
 
 
@@ -322,6 +347,14 @@ class CognitiveRequest(BaseModel):
     codelet_catalogue: str = ""
     # Selects the catalogue's attention policy. A17 sets "inner".
     attention_loop: str = "main"
+    # Accepted precursor proposals from recent committed cycles. The codelets
+    # stage turns them into pathway.<name> activation signals. The main
+    # module derives them fresh from committed AttentionRecords, so a restart
+    # keeps them and no cycle can reuse stale pathway state.
+    pathway_precursors: list[dict] = Field(default_factory=list)
+    # The newest committed attention tick. Tick age is measured from it, not
+    # from the newest precursor, so an old precursor keeps its true age.
+    pathway_latest_tick: int = 0
 
 
 class CognitiveReport(BaseModel):
@@ -366,6 +399,7 @@ __all__ = [
     "CodeletRun",
     "CodeletsResult",
     "CognitiveRequest",
+    "PROPOSAL_CONSUMERS",
     "ContextResult",
     "GoalChange",
     "GoalsResult",

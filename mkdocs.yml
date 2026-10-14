@@ -56,6 +56,7 @@ nav:
       - Cooperative survival: subsystems/cooperative-survival.md
       - Observed world events: subsystems/world-events.md
       - Codelets and attention: subsystems/codelets.md
+      - Codelet pathways: subsystems/codelet-pathways.md
       - Story speech: subsystems/story-speech.md
       - The private ontology: subsystems/private-ontology.md
       - Context planning: subsystems/context-planning.md
@@ -191,6 +192,7 @@ nav:
                   - Engineering checks: work_items/verification/a13/history/engineering-checks.md
           - A14 cooperation: work_items/verification/a14-cooperation.md
           - A15 codelets: work_items/verification/a15-codelets.md
+          - A16 codelet repertoire: work_items/verification/a16-codelets.md
           - Console: work_items/verification/console.md
       - Next experiments: work_items/experiments.md
       - Beta idea items:

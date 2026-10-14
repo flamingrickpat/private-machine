@@ -50,6 +50,23 @@ class MessageTests(unittest.TestCase):
         self.assertIn("I can communicate via text.", messages[1]["content"])
         self.assertIn("the kitchen is on fire", messages[1]["content"])
 
+    def test_accepted_inner_proposals_render_with_their_reality_labels(self):
+        payload = example_request()
+        payload["inner_proposals"] = [
+            {"kind": "regulation", "reality": "internal",
+             "text": "I will take my time before I answer.", "target_ids": []},
+            {"kind": "simulation", "reality": "imagined",
+             "text": "Maybe he pulls away if I ask.", "target_ids": [11]},
+        ]
+        user = steps.build_messages(payload, steps.load_prompts())[1]["content"]
+        self.assertIn("proposals, not commands", user)
+        self.assertIn("(regulation; internal) I will take my time", user)
+        self.assertIn("(simulation; imagined) Maybe he pulls away", user)
+
+    def test_missing_inner_proposals_render_as_none(self):
+        user = steps.build_messages(example_request(), steps.load_prompts())[1]["content"]
+        self.assertIn("(none)", user)
+
 
 class ValidationGuardTests(unittest.TestCase):
     def test_unavailable_workflow_name_is_rejected(self):

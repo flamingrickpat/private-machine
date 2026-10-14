@@ -33,9 +33,11 @@ The comparison concerns what the work achieves.
 
 ## Order and dependency boundary
 
-The next implementation sequence is A16, A17, A18, A19, then companion acceptance in A20.
+The next implementation sequence is A17, A18, A19, then companion acceptance in A20.
 A15 already supplies the selective scheduler and attention competition.
 Its remaining live checks retain their existing status.
+A16 supplies the codelet repertoire, the pathways, and the proposal consumers.
+Its remaining review and live checks retain their existing status.
 
 A14 supplies implemented world-event and cooperation mechanisms.
 A14B supplies optional direct memory tools and native draft sessions.

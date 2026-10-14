@@ -62,6 +62,20 @@ def render_capabilities(capabilities: list[str]) -> str:
     return "\n".join(f"- {capability}" for capability in capabilities) or "(none)"
 
 
+def render_inner_proposals(proposals: list[dict]) -> str:
+    """Render accepted want, imagination, and steady-yourself proposals.
+
+    They come from the companion's own attention competition. Each line keeps
+    its reality label, so an imagined outcome never reads as an event.
+    """
+    lines = []
+    for item in proposals or []:
+        if not str(item.get("text", "")).strip():
+            continue
+        lines.append(f"- ({item.get('kind', '')}; {item.get('reality', '')}) {item['text']}")
+    return "\n".join(lines) or "(none)"
+
+
 def render_block(value) -> str:
     if value is None:
         return "(none)"
@@ -86,6 +100,7 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         managed_runs=render_block(request.get("managed_runs", [])),
         available_workflows=render_workflows(available_workflows),
         capabilities=render_capabilities(list(request.get("capabilities", []))),
+        inner_proposals=render_inner_proposals(request.get("inner_proposals", [])),
     )
     return [
         {"role": "system", "content": system.strip()},
@@ -182,6 +197,7 @@ __all__ = [
     "load_prompts",
     "render_block",
     "render_capabilities",
+    "render_inner_proposals",
     "render_workflows",
     "run",
     "validate_actions",

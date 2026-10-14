@@ -92,9 +92,22 @@ ACCEPTED_LABELS = {
     "imagined": "possibility",
 }
 
+# A16: every proposal kind names its own voice in the frame. The workspace
+# model sees which inner part each accepted note came from, without seeing
+# machinery like scores or codelet names.
+KIND_LABELS = {
+    "attention": "noticed",
+    "memory_access": "remembered",
+    "appraisal": "interpretation",
+    "simulation": "imagination",
+    "regulation": "way to stay steady",
+    "action_tendency": "want",
+    "belief": "belief about myself",
+}
+
 
 def render_accepted(attention: dict | None) -> str:
-    """List the winning nominations with their reality labels.
+    """List the winning nominations with their reality and kind labels.
 
     Older attention reports have no status field; they render as ``(none)``.
     """
@@ -103,17 +116,19 @@ def render_accepted(attention: dict | None) -> str:
         if item.get("status") != "selected" or not str(item.get("text", "")).strip():
             continue
         label = ACCEPTED_LABELS.get(str(item.get("reality", "")), str(item.get("reality", "")))
-        lines.append(f"- ({label}) {item['text']}")
+        kind = KIND_LABELS.get(str(item.get("attention_kind", "")), "")
+        prefix = f"{label}; {kind}" if kind else label
+        lines.append(f"- ({prefix}) {item['text']}")
     return "\n".join(lines) or "(none)"
 
 
 def compact_attention(attention: dict | None) -> dict:
-    """Keep the workspace prompt short: ids, status, and scores only."""
+    """Keep the workspace prompt short: ids, status, kinds, and scores only."""
     attention = attention or {}
     return {
         "selected_ids": attention.get("selected_ids", []),
         "nominations": [{key: item.get(key) for key in
-                         ("nomination_id", "target_ids", "status", "score", "reality")}
+                         ("nomination_id", "target_ids", "status", "score", "reality", "attention_kind")}
                         for item in attention.get("nominations", [])],
     }
 
@@ -172,6 +187,7 @@ def run(context) -> dict:
 __all__ = [
     "ACCEPTED_LABELS",
     "CONTROL_MODES",
+    "KIND_LABELS",
     "compact_attention",
     "render_accepted",
     "allowed_focus_ids",

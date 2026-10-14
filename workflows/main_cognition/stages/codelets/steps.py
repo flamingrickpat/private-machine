@@ -24,6 +24,7 @@ from pm.llm.context_window import estimate_tokens
 from workflows.main_cognition.codelet_schedule import (
     CodeletDefinition, load_catalogue, request_signals, schedule,
 )
+from workflows.main_cognition.pathways import PATHWAY_SIGNAL_PREFIX, pathway_signals
 from workflows.main_cognition.schemas import CodeletAnswer, CodeletProposal, CodeletRun, CodeletsResult
 from workflows.main_cognition.stage_support import (
     StageOutputError, complete_json, load_yaml, read_request, write_report,
@@ -142,11 +143,40 @@ def goal_reminder(request: dict, definition: CodeletDefinition, signals: dict) -
 
 def lingering_feeling(request: dict, definition: CodeletDefinition, signals: dict) -> list[dict]:
     emotions = {key.removeprefix("emotion."): value for key, value in signals.items()
-                if key.startswith("emotion.") and key != "emotion.strongest"}
+                if key.startswith("emotion.") and key not in {"emotion.strongest", "emotion.negative_strongest"}}
     if not emotions:
         return []
     name, value = max(emotions.items(), key=lambda item: item[1])
     return [{"text": f"A {_intensity(value)} feeling of {name} is still with me.", "target_ids": []}]
+
+
+def novelty_spotlight(request: dict, definition: CodeletDefinition, signals: dict) -> list[dict]:
+    """Nominate the first stimulus again, labelled as new.
+
+    The appraisal's novelty axis decides whether this codelet runs. The
+    nomination adds a second, interpreted view of the same event; it never
+    invents an event of its own.
+    """
+    user = request.get("user_name", "Jesse")
+    for stimulus in request.get("stimuli", []):
+        label, origin, reality = stimulus_label(stimulus, user)
+        return [{"text": f"Something new is happening: {_clip(stimulus.get('text', ''))}",
+                 "target_ids": [int(stimulus["knoxel_id"])], "origin": origin, "reality": reality}]
+    return []
+
+
+def connection_lack(request: dict, definition: CodeletDefinition, signals: dict) -> list[dict]:
+    """Name the low connection level.
+
+    Loneliness has no dedicated emotion field, so this implemented need
+    carries it instead of an invented label. The scheduler gate keeps this
+    quiet unless the accepted connection level is genuinely low.
+    """
+    level = float(signals.get("needs.connection", 1.0))
+    if level > 0.35:
+        return []
+    return [{"text": "There has been too little real back-and-forth. I miss the contact.",
+             "target_ids": [], "origin": "state", "reality": "internal"}]
 
 
 PURE_CODELETS = {
@@ -155,6 +185,8 @@ PURE_CODELETS = {
     "absence_return": absence_return,
     "goal_reminder": goal_reminder,
     "lingering_feeling": lingering_feeling,
+    "novelty_spotlight": novelty_spotlight,
+    "connection_lack": connection_lack,
 }
 
 
@@ -215,7 +247,8 @@ def run_llm_codelet(context, request: dict, definition: CodeletDefinition, promp
             "seconds": round(time.perf_counter() - started, 3)}
     if not answer.fires or not answer.text.strip():
         return [], cost
-    return [{"text": _clip(answer.text), "target_ids": list(answer.target_ids)}], cost
+    return [{"text": _clip(answer.text), "topic": str(answer.topic or "").strip(),
+             "target_ids": list(answer.target_ids)}], cost
 
 
 # ---- role ----------------------------------------------------------------
@@ -234,6 +267,11 @@ def _proposal(item: dict, decision, nomination_id: str, *, allowed: set[int],
     origin = item.get("origin") or definition.origin
     if thought_only and origin in {"outside", "state"}:
         origin = "thought"
+    topic = str(item.get("topic", "") or "").strip()
+    if definition.proposal != "belief":
+        # Only a belief proposal carries a topic. A model that answers a
+        # different codelet with a topic cannot smuggle a belief key in.
+        topic = ""
     return CodeletProposal(
         nomination_id=nomination_id, codelet=definition.name, family=definition.family,
         proposal_kind=definition.proposal, origin=origin,
@@ -241,6 +279,7 @@ def _proposal(item: dict, decision, nomination_id: str, *, allowed: set[int],
         target_ids=kept, cause=list(decision.cause), activation=decision.activation,
         source_revisions={str(key): revisions[key] for key in kept if key in revisions},
         dropped_target_ids=[key for key in targets if key not in allowed],
+        topic=topic,
     )
 
 
@@ -257,7 +296,15 @@ def collect(context, request: dict, prompts: dict) -> CodeletsResult:
     if missing:
         raise StageOutputError(f"Pure codelets without a Python function: {', '.join(missing)}.")
     loop = str(request.get("attention_loop") or "main")
-    signals = {**request_signals(request), **(request.get("state_signals") or {})}
+    pathways = loaded.catalogue.pathway_map()
+    precursors = list(request.get("pathway_precursors") or [])
+    latest_tick = int(request.get("pathway_latest_tick") or 0) or max(
+        (int(item.get("tick_id", 0)) for item in precursors), default=0)
+    # Pathway activation comes from committed precursor records, derived fresh
+    # by the main module on every cycle. A pathway without a fresh precursor
+    # stays at 0, which closes every gate and boost on its signal.
+    pathway = pathway_signals(precursors, pathways, latest_tick=latest_tick)
+    signals = {**request_signals(request), **(request.get("state_signals") or {}), **pathway}
     decisions, policy = schedule(loaded, signals, request.get("codelet_history") or {}, loop=loop)
     allowed = allowed_targets(request)
     revisions = source_revisions(request)
@@ -300,7 +347,9 @@ def collect(context, request: dict, prompts: dict) -> CodeletsResult:
     }
     return CodeletsResult(proposals=proposals, runs=runs, catalogue_version=loaded.catalogue.version,
                           catalogue_digest=loaded.digest, loop=loop, policy=policy.model_dump(mode="json"),
-                          signals=signals, cost=cost)
+                          signals=signals, cost=cost,
+                          pathway_signals={key.removeprefix(PATHWAY_SIGNAL_PREFIX): value
+                                           for key, value in pathway.items()})
 
 
 def run(context) -> dict:

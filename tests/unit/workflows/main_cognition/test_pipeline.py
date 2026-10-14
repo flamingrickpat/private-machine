@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 import unittest
 
-from workflows.main_cognition.pipeline import _candidate_texts
-from workflows.main_cognition.pipeline import stable_action_id
+from workflows.main_cognition.pipeline import ACTION_KINDS, GOAL_KINDS, _candidate_texts
+from workflows.main_cognition.pipeline import inner_proposals, proposal_consumers, stable_action_id
 from workflows.main_cognition.dispatch import resolve_same_cycle
 from workflows.main_cognition.schemas import ActionDispatch, WorkspaceResult
 from workflows.main_cognition.stages.workspace.steps import allowed_focus_ids, ensure_valid_result
@@ -19,6 +19,43 @@ class WorkspaceGoalTests(unittest.TestCase):
         ensure_valid_result(result, allowed_focus_ids(workspace))
         self.assertIn(11205, allowed_focus_ids(workspace))
         self.assertEqual(len(workspace["candidate_texts"]), len({item["knoxel_id"] for item in workspace["candidate_texts"]}))
+
+
+class InnerProposalTests(unittest.TestCase):
+    @staticmethod
+    def _attention() -> dict:
+        return {"nominations": [
+            {"nomination_id": "n1", "status": "selected", "attention_kind": "action_tendency",
+             "reality": "inferred", "text": "I want to set a limit.", "target_ids": [11]},
+            {"nomination_id": "n2", "status": "deferred", "attention_kind": "action_tendency",
+             "reality": "inferred", "text": "I want to hide.", "target_ids": []},
+            {"nomination_id": "n3", "status": "selected", "attention_kind": "belief",
+             "reality": "inferred", "text": "I keep letting Jesse down.", "target_ids": [4]},
+            {"nomination_id": "n4", "status": "selected", "attention_kind": "regulation",
+             "reality": "internal", "text": "I will take my time.", "target_ids": []},
+            {"nomination_id": "n5", "status": "selected", "attention_kind": "attention",
+             "reality": "observed", "text": "Jesse said something.", "target_ids": [11]},
+            {"nomination_id": "n6", "status": "selected", "attention_kind": "simulation",
+             "reality": "imagined", "text": "Maybe he pulls away.", "target_ids": [4]},
+        ]}
+
+    def test_goals_reads_only_wants_and_beliefs(self):
+        proposals = inner_proposals(self._attention(), GOAL_KINDS)
+        self.assertEqual([item["kind"] for item in proposals], ["action_tendency", "belief"])
+        self.assertTrue(all(item["text"] for item in proposals))
+
+    def test_action_selection_reads_wants_imagination_and_steadiness(self):
+        proposals = inner_proposals(self._attention(), ACTION_KINDS)
+        self.assertEqual([item["kind"] for item in proposals],
+                         ["action_tendency", "regulation", "simulation"])
+
+    def test_every_kind_names_its_consumer(self):
+        self.assertEqual(proposal_consumers("attention"), ["workspace"])
+        self.assertEqual(proposal_consumers("action_tendency"),
+                         ["workspace", "goals", "action_selection"])
+        self.assertEqual(proposal_consumers("belief"), ["workspace", "goals", "belief_owner"])
+        self.assertEqual(proposal_consumers("regulation"), ["workspace", "action_selection"])
+        self.assertEqual(proposal_consumers("memory_access"), ["workspace"])
 
 
 class ActionDependencyTests(unittest.TestCase):

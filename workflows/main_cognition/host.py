@@ -23,7 +23,8 @@ from pm.records.cognitive_records import AttentionFrameRecord, AttentionRecord
 from pm.records.mental_state import FullMentalState, create_empty_state
 from workflows.main_cognition.experience import consolidate_cycle, update_beliefs
 from pm.bus.envelopes import Envelope, new_id
-from workflows.main_cognition.pipeline import DEFAULT_WORKFLOWS
+from workflows.main_cognition.codelet_schedule import load_catalogue
+from workflows.main_cognition.pipeline import DEFAULT_WORKFLOWS, proposal_consumers
 from workflows.main_cognition.schemas import (
     CognitiveReport,
     CognitiveRequest,
@@ -31,7 +32,9 @@ from workflows.main_cognition.schemas import (
     Stimulus,
     WorkflowOption,
 )
-from workflows.main_cognition.stage_commits import active_goal_texts, active_intentions, apply_appraisal, apply_goal_changes
+from workflows.main_cognition.stage_commits import (
+    active_goal_texts, active_intentions, apply_appraisal, apply_belief_proposals, apply_goal_changes,
+)
 from workflows.public_speech.public_context import build_public_context
 from workflows.public_speech.publication import commit_public_reply, publish_reply
 from pm.bus.envelopes import new_envelope
@@ -133,6 +136,53 @@ def codelet_history(ghost) -> dict[str, dict]:
             record["cycles_since"] = latest_tick - int(frame.tick_id)
             record["seconds_since"] = max(0.0, (now - frame.timestamp_creation).total_seconds())
     return history
+
+
+def pathway_precursors(ghost, loaded) -> tuple[list[dict], int]:
+    """Derive fresh pathway precursor evidence from committed attention.
+
+    A precursor is a committed ``AttentionRecord`` that attention accepted
+    (``selected``) from a codelet that belongs to a pathway. The records are
+    re-read from the MemoryStore on every cycle, so a restart keeps the
+    pathway state and no cycle can reuse stale pathway state. Each precursor
+    carries the record's revision at read time; the trace keeps it visible.
+
+    Returns ``(precursors, latest_tick)`` where ``latest_tick`` is the newest
+    committed attention tick. The codelets stage measures tick age from it,
+    not from the newest precursor, so an old precursor keeps its true age.
+    """
+    pathways = loaded.catalogue.pathway_map()
+    membership: dict[str, list[str]] = {}
+    window = 1
+    for name, pathway in pathways.items():
+        window = max(window, int(pathway.window_ticks))
+        for codelet in pathway.members:
+            membership.setdefault(codelet, []).append(name)
+    records = [record for record in ghost.all_attention_knoxels if record.selected]
+    if not records or not membership:
+        return [], 0
+    latest_tick = max(int(record.tick_id) for record in records)
+    precursors = []
+    with ghost.lock:
+        for record in records:
+            codelet = str(record.from_codelet)
+            if codelet not in membership:
+                continue
+            tick = int(record.tick_id)
+            if latest_tick - tick >= window:
+                continue
+            precursors.append({
+                "codelet": codelet,
+                "record_id": int(record.id),
+                "tick_id": tick,
+                "attention_kind": str(record.attention_kind),
+                "reality": str(record.metadata.get("reality", "")),
+                "family": str(record.metadata.get("family", "")),
+                "pathways": list(membership[codelet]),
+                "selected": True,
+                "revision": int(ghost.revisions.get(int(record.id), 1)),
+            })
+    return precursors, latest_tick
 
 
 def seconds_since_user_input(ghost, exclude_ids) -> float | None:
@@ -386,6 +436,13 @@ class MainCogLoop(CognitiveWorkflow):
             seconds_since_user_input=seconds_since_user_input(self.ghost, self._stimulus_ids),
             codelet_catalogue=self.codelet_catalogue,
         )
+        # The pathway catalogue is the same file the codelets stage reads. A
+        # broken catalogue stops the cycle here, exactly as it would in the
+        # stage, rather than silently running without pathways.
+        loaded = load_catalogue(self.codelet_catalogue or None)
+        precursors, latest_tick = pathway_precursors(self.ghost, loaded)
+        request.pathway_precursors = precursors
+        request.pathway_latest_tick = latest_tick
         return request.model_dump(mode="json")
 
     def _stimulus_from(self, envelope: Envelope):
@@ -510,6 +567,16 @@ class MainCogLoop(CognitiveWorkflow):
         # marked stale and cannot win. The cycle itself continues: one stale
         # proposal must not cost the user a reply.
         stale = stale_nominations(parsed.nominations, view.revisions)
+        # The belief owner consumes accepted belief proposals through the same
+        # batch. A repeat of the same interpretation retains the prior record;
+        # a changed one supersedes it and keeps its history. Nothing here
+        # rewrites the observed records that the interpretation cites.
+        codelet_beliefs = apply_belief_proposals(
+            changes, parsed.nominations,
+            companion_name=self.ghost.get_companion_name(),
+            stale_ids=stale,
+            catalogue_version=str((parsed.codelet_trace or {}).get("catalogue_version", "")),
+        )
         # The winning nominations are the workspace focus that the public
         # workflows plan their memory context from. Stale ones never win.
         attention_focus = [{"text": item.text, "target_ids": list(item.target_ids), "reality": item.reality}
@@ -538,6 +605,8 @@ class MainCogLoop(CognitiveWorkflow):
                     "origin": nomination.origin, "reality": nomination.reality, "family": nomination.family,
                     "cause": list(nomination.cause), "activation": nomination.activation,
                     "source_revisions": dict(nomination.source_revisions), "why": nomination.reasoning,
+                    "topic": nomination.topic,
+                    "consumers": proposal_consumers(str(nomination.attention_kind)) if status == "selected" else [],
                     "loop": trace.get("loop", "main"),
                     "catalogue_version": trace.get("catalogue_version", ""),
                     "catalogue_digest": trace.get("catalogue_digest", ""),
@@ -564,10 +633,13 @@ class MainCogLoop(CognitiveWorkflow):
                 "catalogue_digest": trace.get("catalogue_digest", ""),
                 "stale_nominations": sorted(stale),
                 "attention_record_ids": attention_ids,
+                "belief_proposals": codelet_beliefs,
+                "pathway_signals": dict(trace.get("pathway_signals") or {}),
             },
         ))
         created_order: list[int] = [frame.id, appraisal_feature.id, *created_goal_ids, *experience_ids,
-                                    *belief_receipt["accepted_ids"], *winning_ids]
+                                    *belief_receipt["accepted_ids"], *codelet_beliefs["accepted_ids"],
+                                    *winning_ids]
         published: list[tuple] = []
         rejected = []
         queued = []

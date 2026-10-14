@@ -116,6 +116,7 @@ def nominations_from(proposals: list[CodeletProposal], scores: dict[str, dict]) 
             nomination_id=proposal.nomination_id, codelet=proposal.codelet, family=proposal.family,
             origin=proposal.origin, reality=proposal.reality, text=proposal.text, cause=list(proposal.cause),
             activation=proposal.activation, source_revisions=dict(proposal.source_revisions),
+            topic=proposal.topic,
         )
         if score is None:
             nomination.status, nomination.reason, nomination.score = "rejected", "unscored", 0.0

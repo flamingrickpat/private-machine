@@ -66,7 +66,9 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(llm[0].target_ids, [42])
         self.assertEqual(llm[0].dropped_target_ids, [999])
         self.assertEqual(llm[0].source_revisions, {"42": 3})
-        self.assertLessEqual(report.cost["llm_calls"], 3)
+        # The bound is the catalogue policy, not a fixed number: A16 raised
+        # the LLM budget when the repertoire grew.
+        self.assertLessEqual(report.cost["llm_calls"], report.policy["max_llm_codelets"])
         self.assertEqual(report.cost["llm_calls"], len(calls))
         self.assertTrue(report.catalogue_digest)
 
@@ -97,6 +99,39 @@ class KernelTests(unittest.TestCase):
         self.assertEqual(statuses["direct_stimulus"], "ran")
         self.assertEqual(statuses["thought_echo"], "skipped")
         self.assertIn("silent", statuses.values())
+
+    def test_only_belief_proposals_carry_a_topic(self):
+        answer = json.dumps({"fires": True, "text": "I doubt myself here.",
+                             "topic": "my_reliability", "target_ids": [42]})
+        # Mild hurt with shame and guilt: the belief codelet consistency_check
+        # clears the threshold while calmer interpretations wait their turn.
+        report, _ = self._run(request(state_signals={
+            "core.negative_valence": 0.16, "emotion.sadness": 0.36, "emotion.strongest": 0.5,
+            "emotion.shame": 0.5, "emotion.guilt": 0.5,
+        }), answer)
+        beliefs = [item for item in report.proposals if item.proposal_kind == "belief"]
+        self.assertTrue(beliefs)
+        self.assertTrue(all(item.topic == "my_reliability" for item in beliefs))
+        others = [item for item in report.proposals if item.proposal_kind != "belief"]
+        self.assertTrue(others)
+        # A model that answers a different codelet with a topic cannot smuggle
+        # a belief key into a non-belief proposal.
+        self.assertTrue(all(item.topic == "" for item in others))
+
+    def test_precursor_records_raise_pathway_signals(self):
+        payload = request()
+        payload["pathway_precursors"] = [{
+            "codelet": "curiosity_probe", "tick_id": 5, "selected": True,
+            "record_id": 900, "attention_kind": "simulation", "reality": "imagined",
+            "family": "imagination", "pathways": ["curiosity"], "revision": 1,
+        }]
+        payload["pathway_latest_tick"] = 6
+        report, _ = self._run(payload, json.dumps({"fires": False, "text": "", "target_ids": []}))
+        # One accepted precursor, one cycle old, at decay 0.6.
+        self.assertAlmostEqual(report.signals["pathway.curiosity"], 0.6)
+        self.assertEqual(report.pathway_signals, {"curiosity": 0.6})
+        causes = [cause for item in report.runs for cause in item.cause if "pathway.curiosity" in cause]
+        self.assertTrue(causes, "no scheduled codelet read the pathway signal")
 
 
 if __name__ == "__main__":

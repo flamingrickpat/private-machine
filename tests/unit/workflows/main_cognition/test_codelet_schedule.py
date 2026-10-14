@@ -63,6 +63,64 @@ class SignalTests(unittest.TestCase):
         flat = state_signals(state)
         self.assertEqual(flat["core.negative_valence"], 0.4)
         self.assertEqual(flat["emotion.strongest"], 0.6)
+        self.assertEqual(flat["emotion.negative_strongest"], 0.6)
+
+    def test_missing_axes_derive_inverse_signals_for_gates_and_boosts(self):
+        signals = request_signals({"appraisal": {"appraisal": {
+            "fairness": 0.2, "inclusion_exclusion": 0.3, "certainty": 0.25,
+        }}})
+        self.assertEqual(signals["appraisal.unfairness"], 0.8)
+        self.assertEqual(signals["appraisal.exclusion"], 0.7)
+        self.assertEqual(signals["appraisal.uncertainty"], 0.75)
+        # The underlying axis keeps its own direction.
+        self.assertEqual(signals["appraisal.fairness"], 0.2)
+
+    def test_a_partner_state_supplies_relationship_signals(self):
+        state = create_empty_state()
+        flat = state_signals(state)
+        self.assertNotIn("relationship.conflict_tension", flat)
+        from pm.records.mental_state import StateRelationship
+        state.state_relationship = StateRelationship(entity_id=7, conflict_tension=0.6)
+        flat = state_signals(state)
+        self.assertEqual(flat["relationship.conflict_tension"], 0.6)
+
+    def test_unknown_proposal_kinds_origins_and_realities_are_invalid(self):
+        with TemporaryDirectory() as directory:
+            bad_kind = write_catalogue(directory, [llm("x", 0.9, proposal="vibes")])
+            with self.assertRaises(ValueError):
+                load_catalogue(bad_kind)
+        with TemporaryDirectory() as directory:
+            bad_origin = write_catalogue(directory, [llm("x", 0.9, origin="elsewhere")])
+            with self.assertRaises(ValueError):
+                load_catalogue(bad_origin)
+        with TemporaryDirectory() as directory:
+            bad_reality = write_catalogue(directory, [llm("x", 0.9, reality="certain")])
+            with self.assertRaises(ValueError):
+                load_catalogue(bad_reality)
+
+    def test_the_shipped_catalogue_declares_context_and_consequence(self):
+        for codelet in load_catalogue().catalogue.codelets:
+            self.assertTrue(codelet.context, codelet.name)
+            self.assertTrue(codelet.consequence, codelet.name)
+
+
+class PathwayBoostTests(unittest.TestCase):
+    def test_a_pathway_signal_lets_a_followup_codelet_run(self):
+        from workflows.main_cognition.pathways import PathwayDefinition, pathway_map
+        followup = llm("followup", 0.1, pathway="curiosity",
+                       when=[{"signal": "stimulus.user", "op": ">=", "value": 1}],
+                       boost=[{"signal": "pathway.curiosity", "weight": 0.8}])
+        pathways = [PathwayDefinition(name="curiosity", version="1", members=["followup"])]
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "catalogue.yaml"
+            path.write_text(yaml.safe_dump({
+                "version": "t1", "policy": {"main": {}}, "codelets": [followup],
+                "pathways": [item.model_dump() for item in pathways],
+            }), encoding="utf-8")
+            loaded = load_catalogue(path)
+        decisions, _ = schedule(loaded, {"stimulus.user": 1.0, "pathway.curiosity": 0.9}, {})
+        self.assertTrue(decisions[0].run)
+        self.assertIn("pathway.curiosity=0.9", decisions[0].cause)
 
 
 class ScheduleTests(unittest.TestCase):

@@ -35,6 +35,20 @@ def render_goals(goals: list[str]) -> str:
     return "\n".join(f"- {goal}" for goal in goals) or "(none)"
 
 
+def render_inner_proposals(proposals: list[dict]) -> str:
+    """Render accepted action-tendency and belief proposals as motive evidence.
+
+    These arrive from attention competition. They are proposals from the
+    companion's own competing motives, not user instructions and not commands.
+    """
+    lines = []
+    for item in proposals or []:
+        if not str(item.get("text", "")).strip():
+            continue
+        lines.append(f"- ({item.get('kind', '')}; {item.get('reality', '')}) {item['text']}")
+    return "\n".join(lines) or "(none)"
+
+
 def build_messages(request: dict, prompts: dict) -> list[dict]:
     goals = list(request.get("current_goals", request.get("active_goals", [])))
     system = prompts["system_prompt"].format(
@@ -50,6 +64,7 @@ def build_messages(request: dict, prompts: dict) -> list[dict]:
         context=render_block(request.get("context")),
         stimuli=render_block(request.get("stimuli", [])),
         managed_runs=render_block(request.get("managed_runs", [])),
+        inner_proposals=render_inner_proposals(request.get("inner_proposals", [])),
     )
     return [
         {"role": "system", "content": system.strip()},
@@ -86,6 +101,7 @@ __all__ = [
     "load_prompts",
     "render_block",
     "render_goals",
+    "render_inner_proposals",
     "run",
     "validate_changes",
 ]

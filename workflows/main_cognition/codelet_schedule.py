@@ -39,6 +39,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pm.records.mental_state import FullMentalState
 from workflows.main_cognition.affect_dynamics import THREAT_APPRAISAL_THRESHOLD
+from workflows.main_cognition.pathways import PathwayDefinition, pathway_map
+from workflows.main_cognition.schemas import PROPOSAL_KINDS, PROPOSAL_ORIGINS, REALITY_LABELS
 
 DEFAULT_CATALOGUE = Path(__file__).resolve().parent / "stages" / "codelets" / "catalogue.yaml"
 
@@ -95,6 +97,12 @@ class CodeletDefinition(BaseModel):
     ``kind: pure`` codelets name a Python function in the codelets stage.
     ``kind: llm`` codelets carry ``instructions`` for one short model call.
     ``reality`` is the default reality label of the proposal content.
+
+    A16 declarations: ``pathway`` names the codelet's primary pathway (empty
+    when it serves all of them), ``context`` lists the state fields, source
+    categories, and temporal scope it requires, and ``consequence`` states
+    the expected accepted consequence. Missing evidence stays visible: a
+    declaration names what the codelet reads, never what it may invent.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -106,6 +114,9 @@ class CodeletDefinition(BaseModel):
     origin: str = "state"
     reality: str
     description: str = ""
+    pathway: str = ""
+    context: list[str] = Field(default_factory=list)
+    consequence: str = ""
     base_activation: float = Field(default=0.5, ge=0.0, le=1.0)
     when: list[Condition] = Field(default_factory=list)
     boost: list[Boost] = Field(default_factory=list)
@@ -119,6 +130,12 @@ class CodeletDefinition(BaseModel):
             raise ValueError(f"Codelet {self.name}: kind must be pure or llm.")
         if self.kind == "llm" and not self.instructions.strip():
             raise ValueError(f"Codelet {self.name}: an llm codelet needs instructions.")
+        if self.proposal not in PROPOSAL_KINDS:
+            raise ValueError(f"Codelet {self.name}: unknown proposal kind {self.proposal!r}.")
+        if self.origin not in PROPOSAL_ORIGINS:
+            raise ValueError(f"Codelet {self.name}: unknown origin {self.origin!r}.")
+        if self.reality not in REALITY_LABELS:
+            raise ValueError(f"Codelet {self.name}: unknown reality label {self.reality!r}.")
         return self
 
 
@@ -149,6 +166,7 @@ class Catalogue(BaseModel):
     version: str
     policy: dict[str, AttentionPolicy]
     codelets: list[CodeletDefinition]
+    pathways: list[PathwayDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def unique_names(self):
@@ -156,7 +174,19 @@ class Catalogue(BaseModel):
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise ValueError(f"Duplicate codelet names: {', '.join(duplicates)}.")
+        pathways = pathway_map(self.pathways)
+        known = set(names)
+        for definition in self.codelets:
+            if definition.pathway and definition.pathway not in pathways:
+                raise ValueError(f"Codelet {definition.name} names unknown pathway {definition.pathway!r}.")
+        for pathway in self.pathways:
+            missing = sorted(set(pathway.members) - known)
+            if missing:
+                raise ValueError(f"Pathway {pathway.name} lists unknown codelets: {', '.join(missing)}.")
         return self
+
+    def pathway_map(self) -> dict[str, PathwayDefinition]:
+        return pathway_map(self.pathways)
 
 
 @dataclass(frozen=True)
@@ -181,18 +211,29 @@ def load_catalogue(path: str | Path | None = None) -> LoadedCatalogue:
     return LoadedCatalogue(catalogue, str(resolved), hashlib.sha256(raw).hexdigest()[:16])
 
 
+NEGATIVE_EMOTIONS = (
+    "sadness", "anger", "fear", "disgust", "resentment", "jealousy",
+    "boredom", "shame", "guilt",
+)
+
+
 def state_signals(state: FullMentalState | None) -> dict[str, float]:
     """Flatten the accepted mental state into named scheduler signals.
 
-    Names are ``emotion.<field>``, ``core.<field>``, and ``needs.<field>``.
+    Names are ``emotion.<field>``, ``core.<field>``, ``needs.<field>``, and
+    ``relationship.<field>`` when a partner state exists.
     ``core.negative_valence`` is ``max(0, -valence)``, because a gate needs a
     positive number for "how bad does it feel".
+    ``emotion.negative_strongest`` is the strongest unpleasant emotion, so a
+    gate can ask "is something wrong" without listing every emotion.
     """
     if state is None:
         return {}
     signals: dict[str, float] = {}
     for prefix, container in (("emotion", state.state_emotions), ("core", state.state_core),
-                              ("needs", state.state_needs)):
+                              ("needs", state.state_needs), ("relationship", state.state_relationship)):
+        if container is None:
+            continue
         for name in type(container).model_fields:
             value = getattr(container, name)
             if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -202,6 +243,8 @@ def state_signals(state: FullMentalState | None) -> dict[str, float]:
     signals["core.positive_valence"] = round(max(0.0, valence), 4)
     emotions = {key: value for key, value in signals.items() if key.startswith("emotion.")}
     signals["emotion.strongest"] = max(emotions.values(), default=0.0)
+    signals["emotion.negative_strongest"] = max(
+        (signals.get(f"emotion.{name}", 0.0) for name in NEGATIVE_EMOTIONS), default=0.0)
     return signals
 
 
@@ -231,9 +274,18 @@ def request_signals(request: dict) -> dict[str, float]:
     error = float(appraisal.get("expectation_error", 0.0) or 0.0)
     signals["appraisal.disappointment"] = round(max(0.0, -error), 4)
     signals["appraisal.pleasant_surprise"] = round(max(0.0, error), 4)
-    for axis, value in (appraisal.get("appraisal") or {}).items():
-        if isinstance(value, (int, float)):
-            signals[f"appraisal.{axis}"] = float(value)
+    axes = {axis: float(value) for axis, value in (appraisal.get("appraisal") or {}).items()
+            if isinstance(value, (int, float))}
+    signals.update({f"appraisal.{axis}": value for axis, value in axes.items()})
+    # Inverted axes. The underlying appraisal fields stay as they are; these
+    # derived signals let a boost or gate rise when something is missing, such
+    # as unfairness or exclusion, because activation math only adds.
+    if "fairness" in axes:
+        signals["appraisal.unfairness"] = round(1.0 - axes["fairness"], 4)
+    if "inclusion_exclusion" in axes:
+        signals["appraisal.exclusion"] = round(1.0 - axes["inclusion_exclusion"], 4)
+    if "certainty" in axes:
+        signals["appraisal.uncertainty"] = round(1.0 - axes["certainty"], 4)
     return signals
 
 
@@ -329,6 +381,7 @@ __all__ = [
     "DEFAULT_CATALOGUE",
     "Decision",
     "LoadedCatalogue",
+    "NEGATIVE_EMOTIONS",
     "in_danger",
     "load_catalogue",
     "request_signals",

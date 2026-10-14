@@ -12,7 +12,7 @@ Earlier delivery: [W0–W8 plan](../plan.md).
 ## Current development priority
 
 The owner prioritizes companion quality over conversation latency during development.
-The next sequence is A16, A17, A18, A19, then companion acceptance in A20.
+The next sequence is A17, A18, A19, then companion acceptance in A20.
 Large Minecraft acceptance remains deferred.
 Each item still verifies the actual interfaces it uses.
 Read [companion development priorities](companion-development.md) before implementation.
@@ -50,7 +50,9 @@ A14's cooperation mechanisms are implemented, with incomplete behavioral accepta
 Its [evidence](../verification/a14-cooperation.md) retains successful away activity and failed or unverified gameplay cases.
 A15's codelet scheduler and attention competition are implemented.
 Its [verification](../verification/a15-codelets.md) retains remaining checks.
-A16 through A19 remain planned.
+A16's grounded codelet repertoire, pathways, and proposal consumers are implemented.
+Its [verification](../verification/a16-codelets.md) retains the human review and remaining live checks.
+A17 through A19 remain planned.
 A20 will verify the revised companion scope while retaining deferred gameplay status.
 A14B supplies [direct memory tools](../../subsystems/agent-memory.md) for native decisions.
 Its [verification](../verification/a14b-agent-memory.md) keeps the larger operator-designed test pending.
@@ -149,7 +151,7 @@ After A20, promote the useful ones into proper beta work items.
 | A14 | [Play as a cooperative survival partner](work-items/a14.md) | M4: house, expedition, and changed conditions |
 | A14B | [Use editable drafts and scoped memory tools](work-items/a14b.md) — engineering implemented, larger test pending | Measured workflow efficiency, repair, and direct memory access |
 | A15 | [Run selective codelets through the workspace](work-items/a15.md) — engineering implemented, remaining checks recorded | |
-| A16 | [Deliver a grounded codelet repertoire](work-items/a16.md) | |
+| A16 | [Deliver a grounded codelet repertoire](work-items/a16.md) — engineering delivery recorded | |
 | A17 | [Run the second conscious loop](work-items/a17.md) | M5: observable private activity with consequences |
 | A18 | [Inspect the implementation and update the self-model](work-items/a18.md) | |
 | A19 | [Reflect, test hypotheses, and revise behavior](work-items/a19.md) | M6: source-grounded self-reflection |

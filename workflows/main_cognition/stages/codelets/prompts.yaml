@@ -23,6 +23,9 @@ system_prompt: |
   4. Put the id numbers of the events, memories, or goals that your note is
      about into "target_ids". Use only id numbers that appear in the lists
      below. If no listed item fits, use an empty list [].
+  5. Only if your job asks for a "topic": put a short stable label of the
+     belief or story topic into "topic", for example "my_reliability".
+     Otherwise leave "topic" empty.
 
   Important rules:
   - Do not invent events, people, or facts. Use only what is in the lists.
@@ -38,7 +41,7 @@ system_prompt: |
     Describe feelings as feelings and thoughts, not as body sensations.
 
   Answer with only this JSON object and nothing else:
-  {{"fires": true, "text": "your private note", "target_ids": [1, 2]}}
+  {{"fires": true, "text": "your private note", "topic": "", "target_ids": [1, 2]}}
 
 reality_rules:
   observed: "Your note is about something that is happening now. Say only what the events show."

@@ -72,6 +72,56 @@ def _candidates(request: dict, reports: dict) -> list[dict]:
     return candidates
 
 
+# Accepted proposal kinds each downstream owner consumes. A typed nomination
+# without a consumer does not establish a cognitive effect, so each owner
+# names the kinds it reads. Every kind's consumer is documented in
+# schemas.PROPOSAL_CONSUMERS.
+GOAL_KINDS = frozenset({"action_tendency", "belief"})
+ACTION_KINDS = frozenset({"action_tendency", "regulation", "simulation"})
+
+
+def proposal_consumers(kind: str) -> list[str]:
+    """Return the owners that consume an accepted proposal of this kind.
+
+    The map is the executable form of ``PROPOSAL_CONSUMERS``: every selected,
+    non-stale nomination is always framed by the workspace; the goals stage
+    reads motives and self-beliefs; action selection reads wants,
+    imagination, and ways to stay steady; the belief owner stages subjective
+    beliefs. The host records the list on each committed AttentionRecord, so
+    a consumer claim is inspectable per nomination.
+    """
+    consumers = ["workspace"]
+    if kind in GOAL_KINDS:
+        consumers.append("goals")
+    if kind in ACTION_KINDS:
+        consumers.append("action_selection")
+    if kind == "belief":
+        consumers.append("belief_owner")
+    return consumers
+
+
+def inner_proposals(attention: dict, kinds: frozenset[str]) -> list[dict]:
+    """Return the accepted nominations of the given kinds, kind-labeled.
+
+    Only selected, non-empty nominations enter a downstream prompt. Stale
+    marking happens later at commit, so the stage treats every winner as a
+    proposal, never as a command. Consumers state that in their prompts.
+    """
+    items = []
+    for nomination in (attention or {}).get("nominations", []):
+        if nomination.get("status") != "selected" or not str(nomination.get("text", "")).strip():
+            continue
+        if str(nomination.get("attention_kind", "")) not in kinds:
+            continue
+        items.append({
+            "kind": str(nomination.get("attention_kind", "")),
+            "reality": str(nomination.get("reality", "")),
+            "text": str(nomination.get("text", "")),
+            "target_ids": [int(key) for key in nomination.get("target_ids", [])],
+        })
+    return items
+
+
 def _candidate_texts(request: dict) -> list[dict]:
     items = [dict(item) for item in request.get("memory_candidates", [])]
     # Attention can select an active goal without retrieving it as a memory.
@@ -228,6 +278,7 @@ def run_cycle(
         "appraisal": reports["appraisal"],
         "context": reports["context"],
         "current_goals": request.get("active_goals", []),
+        "inner_proposals": inner_proposals(reports["attention"], GOAL_KINDS),
     })
     call("workspace", {
         "public_context": None,
@@ -241,6 +292,7 @@ def run_cycle(
         "context": reports["context"],
         "capabilities": request.get("capabilities", []),
         "available_workflows": request.get("available_workflows") or DEFAULT_WORKFLOWS,
+        "inner_proposals": inner_proposals(reports["attention"], ACTION_KINDS),
     })
 
     # Game danger preempts slow regulation. The workspace stage validates its
@@ -302,4 +354,5 @@ def _appraisal_from(report: dict | None) -> AppraisalResult | None:
         return None
 
 
-__all__ = ["DEFAULT_WORKFLOWS", "STAGE_ORDER", "action_dispatches", "run_cycle", "stable_action_id"]
+__all__ = ["ACTION_KINDS", "DEFAULT_WORKFLOWS", "GOAL_KINDS", "STAGE_ORDER", "action_dispatches",
+           "inner_proposals", "proposal_consumers", "run_cycle", "stable_action_id"]
