@@ -59,10 +59,10 @@ The full foundation suites pass: 664 unit tests and 74 contract tests.
 The gate ran this command and finished with `ok: true` in 27 minutes:
 
 ```powershell
-uv run --locked python dev/work_items/alpha_a17_private_loop_gate.py --config config.alpha.openrouter.yaml --out .runtime/alpha/20261015-044548-a17
+uv run --locked python dev/work_items/alpha_a17_private_loop_gate.py --config config.alpha.openrouter.yaml --out .runtime/alpha/20261015-045957-a17
 ```
 
-The evidence lives in `.runtime/alpha/20261015-044548-a17/`: `receipt.json`,
+The evidence lives in `.runtime/alpha/20261015-045957-a17/`: `receipt.json`,
 the incremental `facts.json`, the checkpoint, and the runtime artifacts.
 
 ### Mechanical results
