@@ -1,0 +1,75 @@
+{
+  "schema": "pm.dev-review.register.v1",
+  "bundles": [
+    {
+      "id": "20261015-110410-a18-persona-comparison-retry-personas",
+      "title": "A18 - dramatic vs cheerful, matched evidence",
+      "work_item": "A18",
+      "created_at": "2026-10-15T09:14:49.653619+00:00",
+      "path": ".runtime/dev-review/bundles/20261015-110410-a18-persona-comparison-retry-personas.json",
+      "sha256": "c2df34bbc0d222333213b7e673dd6a1aa867eded9b0527b4173e0d816d680d78",
+      "items": 6,
+      "reviewable": 6
+    },
+    {
+      "id": "20261015-110410-a18-conversation-review",
+      "title": "A18 · self-model, original failed run",
+      "work_item": "A18",
+      "created_at": "2026-10-15T09:32:37.126836+00:00",
+      "path": ".runtime/dev-review/bundles/20261015-110410-a18-conversation-review.json",
+      "sha256": "32f4f7129974447cb2e304bfbba73696b72f583f499588cd72a7683b3bc08636",
+      "items": 5,
+      "reviewable": 3
+    },
+    {
+      "id": "20261015-045957-a17-conversation-review",
+      "title": "A17 · private thought and emotional continuity",
+      "work_item": "A17",
+      "created_at": "2026-10-15T03:26:59.462623+00:00",
+      "path": ".runtime/dev-review/bundles/20261015-045957-a17-conversation-review.json",
+      "sha256": "a981d65ff5fe3de8f13fafcf88b8c0a3694e76ba4e72bed86900ebe0d9cab7f9",
+      "items": 5,
+      "reviewable": 5
+    },
+    {
+      "id": "20261013-a09r-console-delivery-conversation-review",
+      "title": "A09R · console conversation and task receipts",
+      "work_item": "A09R",
+      "created_at": "2026-10-13T21:26:37.083577+00:00",
+      "path": ".runtime/dev-review/bundles/20261013-a09r-console-delivery-conversation-review.json",
+      "sha256": "c80ed44f886056fdeb327b844eed80fa6c7047f2c45dc7de8f0ce85b8754bfda",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "20261014-a09r-c01-focus-repair-conversation-review",
+      "title": "A09R - repaired control-worker reply",
+      "work_item": "A09R",
+      "created_at": "2026-10-13T22:32:17.345252+00:00",
+      "path": ".runtime/dev-review/bundles/20261014-a09r-c01-focus-repair-conversation-review.json",
+      "sha256": "b1048d67ec7eee2e0cfd7581a8e47bd13f448b4f3373fac2c169d5d57b80e4e3",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "20261014-a09r-followups-repair-conversation-review",
+      "title": "A09R - continuity, privacy, teasing and repair",
+      "work_item": "A09R",
+      "created_at": "2026-10-13T23:05:27.999643+00:00",
+      "path": ".runtime/dev-review/bundles/20261014-a09r-followups-repair-conversation-review.json",
+      "sha256": "f4520e99d5df13dc116343622f31083f7bfedd1be759af1869bd82cb93d11df6",
+      "items": 9,
+      "reviewable": 9
+    },
+    {
+      "id": "20261015-171416-a18-rerun-conversation-v2-review",
+      "title": "A18 - rerun after closing editors",
+      "work_item": "A18",
+      "created_at": "2026-10-15T15:39:10.836408+00:00",
+      "path": ".runtime/dev-review/bundles/20261015-171416-a18-rerun-conversation-v2-review.json",
+      "sha256": "d37bf838adc566bb6abc44748f0cb89cf316840533caaacceecd9c156748fe58",
+      "items": 5,
+      "reviewable": 5
+    }
+  ]
+}
