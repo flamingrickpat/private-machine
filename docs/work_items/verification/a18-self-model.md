@@ -59,6 +59,35 @@ Ran 75 tests. OK
 | `tests/unit/workflows/inner_thought/test_inspection.py` | the `capability_doubt` trigger, prompt rendering, capability belief commit, and no commit for another operation |
 | `tests/contract/inner_thought/stages/test_inner_stages_contract.py` | inspection evidence reaches the thought prompt through the real kernel |
 
+## Smoke run with real inference
+
+A bounded smoke ran the real application path with the complete Spamuel seed,
+a fresh checkpoint, and the real OpenRouter chat model (`qwen/qwen3.8-flash`).
+It submitted one capability-discovery turn and waited for a reply.
+
+```powershell
+uv run --locked python .runtime/a18-smoke.py
+```
+
+The smoke is not the full gate.
+It does not assert restart, concurrency, or the inspector questions.
+It checks that the mechanism works on the real path.
+
+Observed result:
+
+- The private loop chose the `capability_inspection` operation by itself,
+  driven by the `capability_doubt` trigger.
+- It committed five capability beliefs with distinct states: `public_dialogue`,
+  `private_thought`, `memory_tools`, and `source_inspection` were `enabled`;
+  `minecraft_body` was `implemented`.
+- The committed thought carried `reality=inferred` and a `capability_states`
+  map beside its evidence.
+- The public reply explained a capability limit in character: "What I cannot
+  do is magically fix that wrong-file ..."
+
+The local checkpoint is `.runtime/a18-smoke/ghost.json` (ignored).
+The run shut down cleanly with no module error.
+
 ## Pending live gate
 
 The live gate must run the real application path with real inference and the
