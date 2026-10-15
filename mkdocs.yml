@@ -196,7 +196,11 @@ nav:
           - A15 codelets: work_items/verification/a15-codelets.md
           - A16 codelet repertoire: work_items/verification/a16-codelets.md
           - A17 private loop: work_items/verification/a17-private-loop.md
-          - A18 self-model: work_items/verification/a18-self-model.md
+          - A18 self-model:
+              - Verification: work_items/verification/a18-self-model.md
+              - Live evidence: work_items/verification/a18/live-evidence-20261015.md
+              - Persona comparison: work_items/verification/a18/persona-comparison.md
+              - Engineering baseline: work_items/verification/a18/engineering-baseline.md
           - Console: work_items/verification/console.md
       - Next experiments: work_items/experiments.md
       - Beta idea items:

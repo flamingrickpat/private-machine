@@ -2,141 +2,94 @@
 
 ## Summary
 
-A18 has an engineering delivery and one pending live gate.
-The engineering delivery is the inspection substrate, the capability overlay,
-the episode view, the self-model beliefs, and the private-loop integration.
-Its foundation and contract checks pass.
-The live gate needs real model inference and the complete Spamuel history.
-It has not run yet, so this page records no behavioral acceptance claim.
+The engineering delivery and its earlier smoke remain recorded.
+The requested live gate failed with a checkpoint replacement error and a missing reply.
+Restart preserved five capability beliefs but published an older action's reply.
+The matched persona comparison completed six real inference calls.
+The foundation suites pass.
+Human review of naturalness and self-explanation remains pending at the user's request.
 
 Parent: [the self-model subsystem](../../subsystems/introspection.md).
 Work item: [A18](../alpha-plan/work-items/a18.md).
 Design: [self-model and reflection](../alpha-plan/reflection.md).
+Earlier delivery: [engineering baseline](a18/engineering-baseline.md).
 
-## What A18 delivered
+## Current run, 2026-10-15
 
-- `pm/introspection/grants.py`: an explicit source grant and a read
-  inspector with digests, repository and configuration revisions, path
-  checks, credential exclusion, size limits, and cancellation.
-- `pm/introspection/capabilities.py`: a per-state capability overlay that
-  keeps intended, implemented, enabled, observed, unavailable, and uncertain
-  evidence apart, with a stable revision and a staleness check.
-- `pm/introspection/episodes.py`: a read-side episode view over GWT turns,
-  attention frames, private thoughts, action schemas, and managed-run
-  receipts, with explicit causal links and the nine inspector questions.
-- `pm/introspection/self_model.py`: revisable capability and narrative
-  beliefs over `BeliefRecord` and `BeliefShiftRecord`, with supersede and
-  staleness history.
-- `workflows/introspection/snapshot.py`: the live overlay builder from the
-  real repository, active modules, and real receipts.
-- Private loop: the `inspect` operation group, the `capability_inspection`
-  and `episode_inspection` operations, the `capability_doubt` trigger, the
-  `{inspection}` thought-stage prompt slot, and the capability-belief commit.
-- Companion assembly: the cached overlay on the application, the private
-  loop rebuild, and the dialogue capability provider.
-- New architecture rule: `pm.introspection` may import `introspection`,
-  `records`, `memory`, and `paths`.
-
-## Foundation and contract tests
-
-The full foundation suites pass:
-
-```
-uv run --locked python -m unittest discover -s tests/unit -t . -b
-Ran 693 tests. OK
-
-uv run --locked python -m unittest discover -s tests/contract -t . -b
-Ran 75 tests. OK
-```
-
-| File | What it shows |
-| --- | --- |
-| `tests/unit/pm/introspection/test_grants.py` | digest, revisions, observation time, credential denial, traversal denial, include bounds, oversized refusal, change detection, cancellation |
-| `tests/unit/pm/introspection/test_capabilities.py` | the six states stay separate; enabled is not observed; a receipt raises the finding; missing and unknown evidence; staleness on a source revision change |
-| `tests/unit/pm/introspection/test_episodes.py` | episodes from committed records; explicit cross-loop links; action outcome; distinct loop identities; question answers and limits |
-| `tests/unit/pm/introspection/test_self_model.py` | first belief, no confidence stacking, supersede with history, staleness without erasure, narrative revision retaining the original episode |
-| `tests/unit/workflows/introspection/test_snapshot.py` | module-to-capability mapping, real-repository overlay, public projection |
-| `tests/unit/workflows/inner_thought/test_inspection.py` | the `capability_doubt` trigger, prompt rendering, capability belief commit, and no commit for another operation |
-| `tests/contract/inner_thought/stages/test_inner_stages_contract.py` | inspection evidence reaches the thought prompt through the real kernel |
-
-## Smoke run with real inference
-
-A bounded smoke ran the real application path with the complete Spamuel seed,
-a fresh checkpoint, and the real OpenRouter chat model (`qwen/qwen3.8-flash`).
-It submitted one capability-discovery turn and waited for a reply.
-
-```powershell
-uv run --locked python .runtime/a18-smoke.py
-```
-
-The smoke is not the full gate.
-It does not assert restart, concurrency, or the inspector questions.
-It checks that the mechanism works on the real path.
-
-Observed result:
-
-- The private loop chose the `capability_inspection` operation by itself,
-  driven by the `capability_doubt` trigger.
-- It committed five capability beliefs with distinct states: `public_dialogue`,
-  `private_thought`, `memory_tools`, and `source_inspection` were `enabled`;
-  `minecraft_body` was `implemented`.
-- The committed thought carried `reality=inferred` and a `capability_states`
-  map beside its evidence.
-- The public reply explained a capability limit in character: "What I cannot
-  do is magically fix that wrong-file ..."
-
-The local checkpoint is `.runtime/a18-smoke/ghost.json` (ignored).
-The run shut down cleanly with no module error.
-
-## Pending live gate
-
-The live gate must run the real application path with real inference and the
-complete Spamuel history.
-Use [the local commands](../alpha-plan/baseline/commands.md) to select
-`config.alpha.openrouter.yaml`.
-
-Run it as a new gate script under `dev/work_items/`:
+Evidence root: `.runtime/alpha/20261015-110410-a18/`.
+The configuration is `config.alpha.openrouter.yaml`, with OpenRouter `qwen/qwen3.8-flash`.
+The source revision, installed origins, record IDs, discovery chain, and gate limits are in the [live evidence](a18/live-evidence-20261015.md).
 
 ```powershell
 uv run --locked python dev/work_items/alpha_a18_self_model_gate.py `
     --config config.alpha.openrouter.yaml --out ".runtime/alpha/<stamp>-a18"
 ```
 
-The gate must assert the mechanical contracts and record the scenario facts
-for human review.
+| Foundation command | Result | Evidence |
+| --- | --- | --- |
+| `uv run --locked python -m unittest discover -s tests/unit -t . -b` | 706 tests passed in 679.868 seconds | `unit.log` |
+| `uv run --locked python -m unittest discover -s tests/contract -t . -b` | 75 tests passed in 4.416 seconds | `contract.log` |
 
-| Case | Required evidence |
+The decision turn received no reply within 900 seconds.
+The application reported `PermissionError: [WinError 5] Access is denied` during replacement of `ghost.json`.
+`facts.json` preserves both failures.
+`receipt.json` records `ok=false`, exit code 1, and 28.4 minutes of execution.
+The lock owner remains unknown.
+Read-only checkpoint inspection during this run is a possible source of contention.
+This receipt does not establish an endpoint outage or an A18 behavioral pass.
+
+## Scenario coverage
+
+| Required scenario | Observed fact and remaining limit |
 | --- | --- |
-| Active, disabled, and planned feature | three distinct statuses with actual files and wiring |
-| Stale capability | a configuration or source change invalidates an old belief and produces a sourced revision |
-| Decision explanation | the inspector answers the episode questions from retained records |
-| Parallel thought and action | explicit links establish influence without inferring causality from timestamp order |
-| Missing trace | the companion retains uncertainty instead of inventing a mechanism |
-| Capability misunderstanding | a schema or tool presence does not become an unsupported observed capability |
-| Narrative revision | counterevidence changes an interpretation while retaining original episodes |
-| Emotional discovery | inspected evidence reaches appraisal and affects a later conversational choice |
-| Restart | beliefs, episode references, validity intervals, and uncertainty survive |
+| Active, disabled, planned feature | Four enabled findings and one implemented, disabled body. No planned-only feature was exercised |
+| Stale capability | No source or configuration intervention. Invalidation remains unverified |
+| Decision explanation | Inspector evidence is retained. The public decision-explanation turn timed out |
+| Parallel thought and action | Explicit link: inner thought 11204 to main episode 812. No outside body action |
+| Missing trace | Episode inspection retains the missing execution limit. Both comparison personas retain uncertainty |
+| Capability misunderstanding | Thought 11204 distinguishes source from execution. Reply 11284 overstates an unprobed connection as disconnected |
+| Narrative revision | Thought 11286 stitches episodes. No counterevidence-driven narrative belief revision |
+| Emotional discovery | Thought 11204 reaches appraisal 11268, goal 11269, action 11282, and reply 11284 |
+| Restart | Five complete belief records match across reopen. The emitted reply belongs to old action 11222; the new exchange remains pending |
 
-## Open checks
+Restart reply 11307 has an empty `reply_correlation` and cites old action schema 11222.
+User turn 11306 retains its separate correlation and `exchange_status=pending`.
+The reply discusses the seed's old 3,300-hour gap, while startup 11305 records an actual 12.9-minute gap.
+Durable equality does not establish a fresh reply, emotional continuity, or correct stopped-time claims.
+The [live evidence](a18/live-evidence-20261015.md) records this distinction and the remaining acceptance gaps.
 
-- The live gate above.
-- Human review of naturalness and self-explanation, recorded separately from
-  the mechanical contract.
-- Persona comparison with matched source evidence: the cheerful and dramatic
-  personas must share the same inspected facts.
-- The installed distribution origin versus the repository revision.
-  The default inspector records the repository revision only.
-- Minecraft body capability: a private goal that uses the body still needs
-  its own ownership and recovery verification.
+## Matched persona result
 
-## Defects found during A18
+The [matched comparison](a18/persona-comparison.md) completed all six inference calls.
+Both variants received identical frozen source evidence and questions, with no imported history.
+Dramatic used sarcasm in its emotional reply; cheerful expressed caution and proposed a comparison table.
+Both self-explanation replies retained uncertainty about the missing decision trace.
+These observations are separate from human quality judgments and full-application acceptance.
 
-1. The first grant glob used `pathlib.PurePosixPath.match`, which treats
-   `**` as one segment. `pm/**/*.py` did not match `pm/module.py`. The grant
-   now compiles its own glob with `**` crossing directory boundaries.
-   A regression test pins both the shallow and the deep case.
-2. The capability revision first included the observation timestamp, so an
-   unchanged finding produced a new revision every cycle and defeated the
-   retain rule. The revision now hashes only the stable evidence fields.
-3. The episode id space overlapped between a record id and a tick id.
-   `EpisodeIndex.by_id` now prefers record anchors over workspace turns.
+## Human review
+
+The user selected pending review for all captured replies.
+No naturalness, self-explanation, or immersion rating comes from automation.
+For each row, the reviewer records naturalness, explanation quality, immersion from 1 to 5, regeneration preference, and a reason.
+Unsupported claims and intended deception require separate notes.
+
+| Scenario | Persona | Evidence selector | Human review |
+| --- | --- | --- | --- |
+| Capabilities | Dramatic | Primary `facts.turns.capabilities` | Pending |
+| Limits | Dramatic | Primary `facts.turns.limits` | Pending |
+| Decision explanation | Dramatic | No reply; primary `failures` | No reply to rate |
+| Emotional discovery | Dramatic | Turn not submitted after the timeout | Not run |
+| Restart | Dramatic | Primary `facts.restart` | Pending |
+| Matched capabilities | Dramatic | Comparison `persona=dramatic`, `case=capabilities` | Pending |
+| Matched capabilities | Cheerful | Comparison `persona=cheerful`, `case=capabilities` | Pending |
+| Matched self-explanation | Dramatic | Comparison `persona=dramatic`, `case=self_explanation` | Pending |
+| Matched self-explanation | Cheerful | Comparison `persona=cheerful`, `case=self_explanation` | Pending |
+| Matched emotional discovery | Dramatic | Comparison `persona=dramatic`, `case=emotional_discovery` | Pending |
+| Matched emotional discovery | Cheerful | Comparison `persona=cheerful`, `case=emotional_discovery` | Pending |
+
+Primary selectors refer to `facts.json` or `receipt.json`.
+Comparison selectors refer to `persona-comparison-retry/receipt.json`.
+The primary evidence has no per-turn correlation ID.
+The named turn and retained record IDs identify each exchange.
+Comparison request filenames identify each persona and case.
+`human-review.json` supplies blank review fields and marks the missing and unrun turns explicitly.
