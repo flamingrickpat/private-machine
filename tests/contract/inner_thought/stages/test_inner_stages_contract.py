@@ -100,6 +100,28 @@ class TriggerContractTests(unittest.TestCase):
 
 
 class ThoughtContractTests(unittest.TestCase):
+    def test_inspection_evidence_reaches_the_prompt(self):
+        payload = {**example_request(),
+                   "inspection": {
+                       "status": "ok",
+                       "capability_overlay": {"available": True, "stale": [], "capabilities": [
+                           {"name": "private_thought", "state": "observed",
+                            "summary": "Run the inner loop.", "revision": "r1"}]},
+                       "episodes": [{"episode_id": 7, "loop": "inner", "operation": "memory_search",
+                                     "outcome": "committed", "summary": "a private recollection"}],
+                       "newest_episode_answers": {}},
+                   "trigger": {"trigger": "capability_doubt", "operation": "capability_inspection",
+                               "temporal_focus": "present", "candidate_ids": [], "urgency": 0.4,
+                               "reason": "the evidence is partial"},
+                   "operation": {"name": "capability_inspection", "group": "inspect",
+                                 "mode": "discriminatory", "temporal_focus": "present",
+                                 "description": "Read the active capability evidence."}}
+        messages = thought_steps.build_messages(payload, thought_steps.load_prompts())
+        user_text = messages[1].content.text
+        self.assertIn("Selected implementation evidence", user_text)
+        self.assertIn("capability=private_thought", user_text)
+        self.assertIn("episode=7", user_text)
+
     def test_kernel_returns_a_valid_thought_result(self):
         payload = {**example_request(),
                    "trigger": {"trigger": "unresolved_commitment", "operation": "commitment_review",

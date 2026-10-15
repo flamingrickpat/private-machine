@@ -132,6 +132,10 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             operations=[{"name": line} for line in operation_lines()],
         )
         request.trigger_candidates = evaluate_triggers(request)
+        request.inspection = self._build_inspection()
+        # Re-evaluate so a fresh capability doubt can fire with the evidence.
+        if request.inspection:
+            request.trigger_candidates = evaluate_triggers(request)
         # The felt channels of the last accepted cycle give the model context.
         # The new sample is computed at commit time from this frozen view.
         channels, _ = previous_cycle_sample(states)
@@ -195,6 +199,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 "focus_intention": parsed.noticing,
                 "disclosure": parsed.disclosure.model_dump(mode="json"),
                 "summary": parsed.summary,
+                "capability_states": self._capability_states(),
             },
         )
 
@@ -202,6 +207,17 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         # keys, and history stay identical across both loops.
         apply_goal_changes(changes, view, parsed.goal_changes,
                            evidence_ids=[thought.id], appraisal_id=None, origin="private_loop")
+
+        # A capability inspection commits a revisable capability belief in the
+        # same batch. The belief cites the inspected evidence revision, so a
+        # later source change can mark it stale.
+        if parsed.operation == "capability_inspection" and getattr(self, "_overlay", None) is not None:
+            from pm.introspection.self_model import record_capability_beliefs
+            record_capability_beliefs(
+                changes, self._overlay, companion_name=ghost.get_companion_name(),
+                source_revision=str(getattr(self, "_overlay", None).built_at.isoformat()),
+                stale_names=getattr(self, "_overlay", None).stale_names(),
+            )
 
         if parsed.expectation.action == "open":
             open_expectation(
@@ -284,6 +300,43 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     # ------------------------------------------------------------------
     # Deterministic gathering helpers. All read committed state under the
     # caller's lock.
+
+    def _build_inspection(self) -> dict:
+        """Freeze the selected implementation evidence for this cycle.
+
+        The provider owns the source grant and the real records. When no
+        provider is configured, the cycle carries no inspection evidence and
+        the inspector questions report an explicit limit. A provider failure
+        becomes a reported limit; it never stops the private cycle.
+        """
+        self._overlay = None
+        provider = getattr(self, "inspector_provider", None)
+        if provider is None:
+            return {}
+        try:
+            overlay = provider()
+        except Exception as error:  # A failed inspection is an evidence limit.
+            return {"status": "unavailable", "reason": f"{type(error).__name__}: {error}"}
+        self._overlay = overlay
+        from workflows.introspection.snapshot import overlay_public
+        from pm.introspection.episodes import EpisodeIndex, answer_questions
+        index = EpisodeIndex(self.ghost)
+        recent = index.recent(limit=5)
+        answers = answer_questions(self.ghost, recent[0], overlay=overlay) if recent else {}
+        return {
+            "status": "ok",
+            "capability_overlay": overlay_public(overlay),
+            "episodes": [item.to_dict() for item in recent],
+            "newest_episode_answers": answers,
+            "observed_at": overlay.built_at.isoformat(),
+        }
+
+    def _capability_states(self) -> dict:
+        """Return the strongest inspected state per capability, if available."""
+        overlay = getattr(self, "_overlay", None)
+        if overlay is None:
+            return {}
+        return {name: finding.strongest.value for name, finding in overlay.findings.items()}
 
     def _recent_private_thoughts(self) -> list[dict]:
         thoughts = []

@@ -35,6 +35,32 @@ def _render_candidates(request: InnerRequest, chosen: set[int]) -> str:
     return "\n".join(lines) or "(none)"
 
 
+def _render_inspection(request: InnerRequest) -> str:
+    """Render the selected implementation evidence as compact text.
+
+    The host supplies this evidence from a real source grant and real records.
+    A missing or failed inspection becomes an explicit limit, never a guess.
+    """
+    if not request.inspection:
+        return "(no implementation evidence was supplied for this cycle)"
+    if request.inspection.get("status") != "ok":
+        return f"(inspection unavailable: {request.inspection.get('reason', 'unknown')})"
+    lines: list[str] = []
+    overlay = request.inspection.get("capability_overlay") or {}
+    for item in overlay.get("capabilities", []):
+        lines.append(f"- capability={item.get('name')} state={item.get('state')} "
+                     f"summary={item.get('summary', '')!r}")
+    for episode in request.inspection.get("episodes", [])[:3]:
+        lines.append(f"- episode={episode.get('episode_id')} loop={episode.get('loop')} "
+                     f"operation={episode.get('operation')} outcome={episode.get('outcome')} "
+                     f"summary={str(episode.get('summary', ''))[:140]!r}")
+    answers = request.inspection.get("newest_episode_answers") or {}
+    if answers:
+        rendered = "; ".join(f"{key}: {value.get('answer', '')}" for key, value in answers.items())
+        lines.append(f"- newest episode answers: {rendered}")
+    return "\n".join(lines) or "(no implementation evidence was supplied for this cycle)"
+
+
 def build_messages(request: dict, prompts: dict) -> list[Turn]:
     """Build typed turns for one thought operation."""
     parsed = InnerRequest.model_validate(request)
@@ -55,6 +81,7 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         goals="\n".join(f"- {item['text']}" for item in parsed.active_goal_records) or "(none)",
         expectations="\n".join(f"- {item.get('content', '')}" for item in parsed.pending_expectations) or "(none)",
         thoughts="\n".join(f"- {item.get('text', '')!r}" for item in parsed.recent_thoughts[-6:]) or "(none)",
+        inspection=_render_inspection(parsed),
     )
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 

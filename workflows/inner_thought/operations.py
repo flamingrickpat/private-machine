@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-GROUPS = ("remember", "imagine", "evaluate", "plan", "interpret", "notice")
+GROUPS = ("remember", "imagine", "evaluate", "plan", "interpret", "notice", "inspect")
 
 
 @dataclass(frozen=True)
@@ -75,6 +75,14 @@ OPERATIONS: dict[str, Operation] = {
     "expectation_review": Operation(
         "expectation_review", "notice", "discriminatory", "present",
         "Compare a pending expectation with what was actually observed and propose its resolution."),
+    "capability_inspection": Operation(
+        "capability_inspection", "inspect", "discriminatory", "present",
+        "Read the active capability evidence and state what is enabled, observed, only planned, "
+        "missing, or uncertain. Do not treat a schema or a tool name as an observed capability."),
+    "episode_inspection": Operation(
+        "episode_inspection", "inspect", "discriminatory", "past",
+        "Inspect one retained cognitive episode and answer what information was available, which "
+        "alternatives competed, and what changed. Name an evidence limit when a trace is missing."),
 }
 
 #: The mapping from every historical thought type to its successor. A value of

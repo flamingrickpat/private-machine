@@ -35,6 +35,10 @@ for path in sorted(paths):
 with mkdocs_gen_files.open("reference/pm/context_render.md", "w") as stream:
     stream.write("# pm.context_render\n\n::: pm.context_render\n")
 nav[("pm", "context_render")] = "pm/context_render.md"
+# The A18 self-model API lives in its package initializer too.
+with mkdocs_gen_files.open("reference/pm/introspection.md", "w") as stream:
+    stream.write("# pm.introspection\n\n::: pm.introspection\n")
+nav[("pm", "introspection")] = "pm/introspection.md"
 # Render the installed dependency so the manual matches the consuming lock.
 with mkdocs_gen_files.open("reference/pm_decision.md", "w") as stream:
     stream.write("# pm_decision\n\n::: pm_decision\n    options:\n        inherited_members: [__init__]\n        show_if_no_docstring: true\n")

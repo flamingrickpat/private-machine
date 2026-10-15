@@ -113,7 +113,36 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
                 reason="An offline gap is an attributed absence, not invented activity.",
             ))
 
+    doubt = _capability_doubt(request)
+    if doubt is not None:
+        candidates.append(doubt)
+
     return [item for item in candidates if item.operations]
+
+
+def _capability_doubt(request) -> TriggerCandidate | None:
+    """Fire when the inspected capability evidence is stale or unobserved.
+
+    The trigger reads the public overlay the host already built. It never
+    reads a file itself and never treats a missing plan as a live capability.
+    """
+    overlay = (request.inspection or {}).get("capability_overlay") or {}
+    capabilities = overlay.get("capabilities") or []
+    stale = set(overlay.get("stale") or [])
+    concerns = sorted(
+        str(item.get("name")) for item in capabilities
+        if str(item.get("name")) in stale
+        or item.get("state") in {"intended", "implemented", "unavailable", "uncertain"}
+    )
+    if not concerns:
+        return None
+    return TriggerCandidate(
+        name="capability_doubt",
+        cause="inspected capability evidence is stale, planned, or unobserved: " + ", ".join(concerns[:4]),
+        urgency=0.4,
+        operations=["capability_inspection", "episode_inspection", "memory_gap_probe"],
+        reason="A capability belief that outruns its evidence is worth a private check.",
+    )
 
 
 def _repeated_source(recent_thoughts) -> int | str | None:

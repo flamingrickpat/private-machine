@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCAL_ROOTS = {"pm", "workflows", "runtime", "pm_core", "main", "modules", "tests", "dev"}
-EVERYTHING_IN_PM = {"records", "llm", "context_render", "memory", "bus", "host", "runs", "app", "console", "paths"}
+EVERYTHING_IN_PM = {"records", "llm", "context_render", "memory", "bus", "host", "runs", "app", "console", "paths", "introspection"}
 
 #: Runtime package -> runtime packages it may import.
 ALLOWED_IN_PM: dict[str, set[str]] = {
@@ -20,6 +20,7 @@ ALLOWED_IN_PM: dict[str, set[str]] = {
     "llm": {"llm", "context_render", "records", "paths"},
     "context_render": {"context_render", "records", "paths"},
     "memory": {"memory", "records", "llm", "paths"},
+    "introspection": {"introspection", "records", "memory", "paths"},
     "bus": {"bus", "paths"},
     "host": {"host", "bus", "memory", "records", "paths"},
     "runs": {"runs", "host", "memory", "llm", "records", "bus", "paths"},

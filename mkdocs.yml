@@ -58,6 +58,7 @@ nav:
       - Codelets and attention: subsystems/codelets.md
       - Codelet pathways: subsystems/codelet-pathways.md
       - The private thought loop: subsystems/private-loop.md
+      - Implementation inspection and the self-model: subsystems/introspection.md
       - Story speech: subsystems/story-speech.md
       - The private ontology: subsystems/private-ontology.md
       - Context planning: subsystems/context-planning.md
@@ -195,6 +196,7 @@ nav:
           - A15 codelets: work_items/verification/a15-codelets.md
           - A16 codelet repertoire: work_items/verification/a16-codelets.md
           - A17 private loop: work_items/verification/a17-private-loop.md
+          - A18 self-model: work_items/verification/a18-self-model.md
           - Console: work_items/verification/console.md
       - Next experiments: work_items/experiments.md
       - Beta idea items:

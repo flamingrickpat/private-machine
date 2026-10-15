@@ -145,6 +145,10 @@ class InnerRequest(BaseModel):
     trigger_candidates: list[TriggerCandidate] = Field(default_factory=list)
     channels: dict = Field(default_factory=dict)
     operations: list[dict] = Field(default_factory=list)
+    #: Selected implementation evidence for a capability or episode inspection.
+    #: The host builds it from the real source grant and the real records, so
+    #: the model reads a bounded view instead of scanning the repository.
+    inspection: dict = Field(default_factory=dict)
 
 
 class InnerReport(BaseModel):

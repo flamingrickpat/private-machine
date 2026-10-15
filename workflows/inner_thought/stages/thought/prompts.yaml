@@ -54,4 +54,7 @@ user_template: |
   Recent private thoughts:
   {thoughts}
 
+  Selected implementation evidence (inspected, with explicit limits):
+  {inspection}
+
   Perform the operation.

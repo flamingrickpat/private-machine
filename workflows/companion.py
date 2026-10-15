@@ -353,8 +353,16 @@ def build_app(
             modules.append(world_events)
             app.world_events = world_events
         from workflows.minecraft_body.capabilities import capability_snapshot
+        from workflows.introspection.snapshot import build_capability_overlay, overlay_public
         from workflows.public_speech.reply_recovery import ReplyRecovery
-        provider = lambda: capability_snapshot(ghost, supervisor.workflows)
+
+        def provider():
+            # The overlay is rebuilt by the private loop and cached on the app.
+            # A public reply reads the cache, so no repository scan delays speech.
+            snapshot = capability_snapshot(ghost, supervisor.workflows)
+            snapshot["self_model"] = overlay_public(getattr(app, "capability_overlay", None))
+            return snapshot
+
         main_cog.capability_provider = provider
         def retrieval_query(text):
             from workflows.main_cognition.stage_support import StageOutputError, extract_json
@@ -420,6 +428,29 @@ def build_app(
     app.consolidator = consolidator
     app.steward = steward
     app.workflow_models = workflow_models
+
+    # A18: give the private loop a source grant and a fresh capability overlay.
+    # The dialogue modules read the cached public projection; the loop rebuilds
+    # it each cycle, so a source or configuration change becomes visible.
+    if cognition == "real":
+        from workflows.introspection.snapshot import build_capability_overlay
+
+        active_module_ids = frozenset(module.module_id for module in modules)
+
+        def rebuild_overlay():
+            previous = getattr(app, "capability_overlay", None)
+            overlay = build_capability_overlay(
+                ghost=ghost, active_modules=active_module_ids, config_path=resolved_config)
+            # Keep the prior overlay as history so a changed source or
+            # configuration revision marks its dependent belief stale.
+            overlay.previous = previous
+            app.capability_overlay = overlay
+            return overlay
+
+        app.rebuild_capability_overlay = rebuild_overlay
+        rebuild_overlay()
+        if inner_thought is not None:
+            inner_thought.inspector_provider = rebuild_overlay
 
     # Durable lifecycle evidence. The boot event feeds the first main cycle so
     # the companion can appraise a real offline gap. Only real cognition runs
