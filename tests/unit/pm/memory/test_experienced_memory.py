@@ -62,12 +62,12 @@ class ExperiencedMemoryTests(unittest.TestCase):
         # The selected intent is derived context and lives in the user turn.
         # The original report is a recent Jesse line: the context plan puts it
         # verbatim into the assistant transcript, not into the memories.
-        context, story = messages[1]["content"], messages[2]["content"]
+        context, story = messages[1].content.text, messages[2].content.text
         self.assertIn(action.content, context)
         self.assertIn(f'Jesse says: "{original.content}"', story)
         self.assertNotIn(original.content, context)
         self.assertNotIn("evidence=", context)
-        self.assertEqual([m["role"] for m in messages], ["system", "user", "assistant"])
+        self.assertEqual([m.role.value for m in messages], ["system", "user", "assistant"])
 
     def test_older_original_survives_distractors_and_restart(self):
         with TemporaryDirectory() as tmp:

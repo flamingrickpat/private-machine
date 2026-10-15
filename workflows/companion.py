@@ -101,7 +101,7 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
 
 def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
                       runtime_root, workflow_paths, stage_model, config_path,
-                      supervisor):
+                      supervisor, codelet_catalogue=None):
     """Return the (main_cog, story, assistant, self_management) modules."""
     if cognition == "real":
         from workflows.dialogue_story.host import build_story_tools
@@ -125,6 +125,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             ghost=ghost,
             workflow_catalogue=_cognition_workflow_options(supervisor),
             embedding_config_path=config_path,
+            codelet_catalogue=codelet_catalogue,
         )
         story = StoryDialogue(
             "dialogue", bus, on_error, clock, None,
@@ -180,6 +181,7 @@ def build_app(
     record_lifecycle: bool = True,
     world_poll_seconds: float | None = 120.0,
     world_quiet_seconds: float = 120.0,
+    codelet_catalogue: str | None = None,
 ) -> Application:
     """Construct an application without service activation.
 
@@ -188,6 +190,8 @@ def build_app(
     owns application execution, shutdown, and its separate checkpoint path.
     Real cognition polls structured world facts after 120 seconds of silence.
     ``world_poll_seconds=None`` disables that source. Polling never chooses work.
+    ``codelet_catalogue`` names a codelet catalogue file for real cognition;
+    ``None`` uses the shipped default catalogue.
     """
     if cognition not in {"real", "dummy"}:
         raise ValueError("cognition must be 'real' or 'dummy'.")
@@ -277,6 +281,7 @@ def build_app(
         cognition, ghost=ghost, target=target, bus=bus, on_error=on_error,
         clock=clock, runtime_root=runtime_root, workflow_paths=workflow_paths,
         stage_model=stage_model, config_path=resolved_config, supervisor=supervisor,
+        codelet_catalogue=codelet_catalogue,
     )
     inner_thought = InnerThoughtLoop(
         "inner_thought", bus, on_error, clock, thought_period if cognition == "dummy" else None,

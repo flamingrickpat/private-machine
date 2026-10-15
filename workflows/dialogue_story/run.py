@@ -24,6 +24,7 @@ from pm.memory.embeddings import EmbeddingService
 from pm.memory.store import MemoryStore
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import LlmPreset, load_config, resolve_connection
+from pm.llm.prompt_encoding import OpenAIChatEncoder
 from workflows.dialogue_story import standalone as engine
 from workflows.dialogue_story.context import plan_story_request
 from workflows.dialogue_story.schemas import StoryQualityScore, StoryReport
@@ -57,8 +58,8 @@ def command_show(args) -> int:
     request = _plan_request(ghost, embedding, engine.read_yaml(args.situation))
     prompts = load_prompts()
     for index, message in enumerate(build_story_messages(request, prompts), start=1):
-        print(f"===== message {index}: {message['role']} =====")
-        print(message["content"])
+        print(f"===== message {index}: {message.role.value} =====")
+        print(message.content.text)
         print()
     return 0
 
@@ -78,9 +79,12 @@ def command_accept(args) -> int:
     prompts = load_prompts()
 
     engine.save_json(run_root / "request.json", request.model_dump(mode="json"))
+    # The neutral turns cannot enter JSON directly. Encode them into the
+    # OpenAI-compatible wire form so the saved evidence shows the exact
+    # request payload that a provider would receive.
     engine.save_json(
         run_root / "messages.json",
-        build_story_messages(request, prompts),
+        OpenAIChatEncoder().encode(build_story_messages(request, prompts))["messages"],
     )
 
     run_id = f"w4-accept-{uuid4().hex[:8]}"

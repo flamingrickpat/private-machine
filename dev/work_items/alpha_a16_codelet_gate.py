@@ -194,11 +194,18 @@ def turn_evidence(app, name: str, replies: list[str], started: int, seconds: flo
     }
 
 
-def run_turns(root: Path, config: str, turns, seed: str = str(SEED)) -> dict:
-    """Run the turns on one fresh checkpoint, reopening it for ``reopen``."""
+def run_turns(root: Path, config: str, turns, seed: str = str(SEED),
+             catalogue: str | None = None) -> dict:
+    """Run the turns on one fresh checkpoint, reopening it for ``reopen``.
+
+    ``catalogue`` names a codelet catalogue file for the run. ``None`` selects
+    the shipped default. The variant run names its changed catalogue so a
+    different configuration shows a different selected frame.
+    """
     replies: list[str] = []
     app = build_app(seed_path=seed, runtime_root=root / "runtime", checkpoint_path=root / "ghost.json",
-                    emit_reply=replies.append, cognition="real", config_path=config)
+                    emit_reply=replies.append, cognition="real", config_path=config,
+                    codelet_catalogue=catalogue)
     loaded = load_catalogue(app.main_cog.codelet_catalogue or None)
     evidence = {"boot_work": pump(app), "turns": []}
 
@@ -230,7 +237,8 @@ def run_turns(root: Path, config: str, turns, seed: str = str(SEED)) -> dict:
         record_shutdown(app.ghost)
         app = build_app(seed_path=seed, runtime_root=root / "runtime",
                         checkpoint_path=root / "ghost.json", emit_reply=replies.append,
-                        cognition="real", config_path=config)
+                        cognition="real", config_path=config,
+                        codelet_catalogue=catalogue)
         evidence["reopen_boot_work"] = pump(app)
         name, kind, text = reopen_turn
         started = len(replies)
@@ -254,11 +262,21 @@ def run_turns(root: Path, config: str, turns, seed: str = str(SEED)) -> dict:
 
 
 def variant_catalogue(path: Path) -> Path:
-    """Write a changed catalogue: no refusal edge, a louder curiosity, fewer places."""
+    """Write a changed catalogue: no refusal edge, a louder curiosity, fewer places.
+
+    A removed codelet must also leave every pathway member list. The catalogue
+    validation rejects a pathway that names an unknown codelet, and a stale
+    member would keep boosting the removed definition's name.
+    """
     data = yaml.safe_load(DEFAULT_CATALOGUE.read_text(encoding="utf-8"))
     data["version"] = f"{data['version']}-variant-quiet"
     data["policy"]["main"]["capacity"] = 3
     data["codelets"] = [item for item in data["codelets"] if item["name"] != "refusal_edge"]
+    remaining = {item["name"] for item in data["codelets"]}
+    data["pathways"] = [pathway for pathway in data.get("pathways", [])
+                        if any(member in remaining for member in pathway.get("members", []))]
+    for pathway in data["pathways"]:
+        pathway["members"] = [member for member in pathway["members"] if member in remaining]
     for item in data["codelets"]:
         if item["name"] == "curiosity_probe":
             item["base_activation"] = 0.9
@@ -436,12 +454,16 @@ def evaluate(primary: dict, variant: dict | None, cheerful: dict | None) -> tupl
 
 
 def _pathway_expired(primary: dict, name: str, reopen_tick: int) -> bool:
-    """True when every precursor of the pathway is older than the window."""
+    """True when every precursor of the pathway is older than the window.
+
+    A turn's attention records share the turn's tick, so the turn supplies
+    the time of each selection instead of the record itself.
+    """
     loaded = load_catalogue()
     pathway = loaded.catalogue.pathway_map().get(name)
     if pathway is None:
         return True
-    ticks = [item["tick"] for turn in primary["turns"] for item in turn["attention_records"]
+    ticks = [turn["tick"] for turn in primary["turns"] for item in turn["attention_records"]
              if item["selected"] and item["codelet"] in pathway.member_set()]
     if not ticks:
         return True
@@ -463,7 +485,7 @@ def main(argv=None) -> int:
     variant = None
     if not args.skip_variant:
         path = variant_catalogue(root / "variant-catalogue.yaml")
-        variant = run_turns(root / "variant", args.config, TURNS[:1])
+        variant = run_turns(root / "variant", args.config, TURNS[:1], catalogue=str(path))
         save_json(root / "variant.json", variant)
     cheerful = None
     if not args.skip_cheerful:
