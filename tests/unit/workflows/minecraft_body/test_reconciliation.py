@@ -99,13 +99,38 @@ class ReconciliationTests(unittest.TestCase):
             tools_factory=factory, resumable=True, request_context=persona_context,
         ))
 
-    def test_real_mode_has_no_periodic_dummy_thought(self):
+    def test_real_mode_private_loop_ticks_and_idle_commits_nothing(self):
+        # A17 replaced the dummy thought timer with the real private loop. The
+        # loop ticks on the configured period, and an idle cycle (the model
+        # chooses no operation) commits nothing and changes no state. A stub
+        # stage model keeps this boundary offline.
+        class IdleStageModel:
+            def complete(self, messages, **generation):
+                return '{"trigger": "idle_opportunity", "operation": "none", ' \
+                       '"temporal_focus": "present", "candidate_ids": [], ' \
+                       '"urgency": 0.0, "reason": "test idle"}'
+
+            def measure_context(self, messages, **generation):
+                raise AssertionError("idle ticks must not measure inference")
+
+            def build_async_tool(self):
+                async def complete_async(messages, **generation):
+                    return "{}"
+                return complete_async
+
+            def build_tool_completion(self):
+                async def complete_tool(messages, tools=None, **generation):
+                    return {"choices": [{"message": {"content": "{}"}}]}
+                return complete_tool
+
         clock = ManualClock()
-        app = build_app(None, self.root, ghost=self.ghost, cognition="real", clock=clock)
+        app = build_app(None, self.root, ghost=self.ghost, cognition="real", clock=clock,
+                        stage_model=IdleStageModel())
         before = self.ghost.state_dict()
         clock.advance(300)
-        self.assertFalse(app.inner_thought.step())
+        self.assertTrue(app.inner_thought.step())
         self.assertEqual(before, self.ghost.state_dict())
+        self.assertEqual(type(app.inner_thought).__name__, "PrivateThoughtLoop")
 
     def test_managed_target_reaches_management_through_bus(self):
         app = build_app(None, self.root, ghost=self.ghost, cognition="real")

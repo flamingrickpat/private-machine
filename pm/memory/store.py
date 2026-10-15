@@ -189,6 +189,18 @@ class MemoryStore(RecordIndex):
                 "matches": [{"id": key, "score": score, "record": records[key],
                              "revision": view.revisions[key]} for key, score in results[:max(1, min(limit, 250))]]}
 
+    def gwt_shard(self, slot_id: str, limit: int = 8) -> list[GwtTurnRecord]:
+        """Return the newest published turns of one GWT slot.
+
+        Both conscious loops publish into the same keyed tick map. A loop's
+        own workspace stream is the subsequence that carries its slot id, so
+        one loop can read the other's latest frame without a second store.
+        """
+        with self.lock:
+            turns = [record for record in self.gwt_turns.values() if record.slot_id == slot_id]
+        turns.sort(key=lambda record: record.tick_id, reverse=True)
+        return turns[:max(1, limit)]
+
     def begin_batch(self, commit_id: str, *, visible_ids=None, new_tick: bool = False, cancel: Event | None = None) -> WriteBatch:
         """Capture a stable view. A new tick reserves an ID without accepting memory."""
         with self.lock:

@@ -147,6 +147,47 @@ class BeliefRecord(RecordBase):
     superseded_by_id: Optional[int] = Field(default=None, description="If replaced, points at the newer belief knoxel.")
 
 
+class ExpectationRecord(RecordBase):
+    """A recorded anticipation before its outcome is observed.
+
+    A17 records an expectation when anticipation affects a choice, so a later
+    observed outcome can be compared against it. The record keeps its source
+    evidence separate from the anticipated reaction. An unobserved outcome
+    never proves rejection: the status stays ``pending`` until evidence
+    resolves it.
+
+    content
+        The anticipated outcome in one short sentence.
+
+    status
+        ``pending`` before resolution, then ``supported``, ``contradicted``
+        or ``unmet`` once an observation resolves it.
+
+    expected_valence
+        The expected feeling if the outcome occurs, on the -1..1 scale.
+
+    evidence_ids
+        The accepted records that motivated the anticipation.
+
+    observation_ids
+        The accepted records that resolved it. Empty while pending.
+    """
+
+    anticipation: str = Field(default="", description="What was anticipated, in the observer's words.")
+    expected_outcome: str = Field(default="", description="The anticipated outcome this record will be compared against.")
+    status: str = Field(default="pending", description="pending, supported, contradicted, or unmet.")
+    expected_valence: float = Field(default=0.0, ge=-1.0, le=1.0, description="Expected feeling if the outcome occurs.")
+    uncertainty: float = Field(default=0.5, ge=0.0, le=1.0, description="How unsure the expectation was when recorded.")
+    goal_ids: List[int] = Field(default_factory=list, description="Intention ids this expectation is attached to.")
+    created_from_action_id: Optional[int] = Field(default=None, description="ActionSchemaRecord id that created this expectation, when an action motivated it.")
+    evidence_ids: List[int] = Field(default_factory=list, description="Accepted records that motivated the anticipation.")
+    observation_ids: List[int] = Field(default_factory=list, description="Accepted records that resolved the expectation.")
+    resolved_tick_id: Optional[int] = Field(default=None, description="The tick whose observation resolved this expectation.")
+
+    def get_story_element(self) -> str:
+        return f"[Expectation:{self.status}] {self.content}"
+
+
 class BeliefShiftRecord(RecordBase):
     """
     Proposed or recorded change to belief state.

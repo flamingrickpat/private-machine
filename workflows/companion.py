@@ -101,13 +101,14 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
 
 def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
                       runtime_root, workflow_paths, stage_model, config_path,
-                      supervisor, codelet_catalogue=None):
+                      supervisor, codelet_catalogue=None, thought_period=30.0):
     """Return the (main_cog, story, assistant, self_management) modules."""
     if cognition == "real":
         from workflows.dialogue_story.host import build_story_tools
         from workflows.dialogue_assistant.host import build_assistant_tools
         from workflows.main_cognition.host import build_main_cognition_tools
         from workflows.self_management.host import build_self_management_tools
+        from workflows.inner_thought.host import PrivateThoughtLoop, build_inner_thought_tools
 
         if stage_model is None:
             from pm.llm.stage_model import LazyStageModel
@@ -152,7 +153,17 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             ghost=ghost,
         )
         self_management.managed_workflows = frozenset(supervisor.workflows)
-        return main_cog, story, assistant, self_management
+        # The private loop owns its timer in real mode. Its triggers decide
+        # whether a tick produces a thought; an idle tick costs no model call.
+        inner_thought = PrivateThoughtLoop(
+            "inner_thought", bus, on_error, clock, thought_period,
+            working_target=target,
+            workflow=PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md",
+            tools_factory=build_inner_thought_tools(ghost, runtime_root, stage_model.complete),
+            runtime_root=runtime_root,
+            ghost=ghost,
+        )
+        return main_cog, story, assistant, self_management, inner_thought
     main_cog = DummyMainCogLoop(
         "main_cog", bus, on_error, clock, None,
         **workflow_paths("main_cognition"),
@@ -161,7 +172,11 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
         "dialogue", bus, on_error, clock, None,
         **workflow_paths("dialogue"),
     )
-    return main_cog, dialogue, None, None
+    inner_thought = InnerThoughtLoop(
+        "inner_thought", bus, on_error, clock, thought_period,
+        **workflow_paths("inner_thought"),
+    )
+    return main_cog, dialogue, None, None, inner_thought
 
 
 def build_app(
@@ -277,15 +292,11 @@ def build_app(
         }
 
     user_input = UserInputProxy("user_input", bus, on_error, clock, ghost, emit_reply)
-    main_cog, dialogue, assistant, self_management = _cognition_modules(
+    main_cog, dialogue, assistant, self_management, inner_thought = _cognition_modules(
         cognition, ghost=ghost, target=target, bus=bus, on_error=on_error,
         clock=clock, runtime_root=runtime_root, workflow_paths=workflow_paths,
         stage_model=stage_model, config_path=resolved_config, supervisor=supervisor,
-        codelet_catalogue=codelet_catalogue,
-    )
-    inner_thought = InnerThoughtLoop(
-        "inner_thought", bus, on_error, clock, thought_period if cognition == "dummy" else None,
-        **workflow_paths("inner_thought"),
+        codelet_catalogue=codelet_catalogue, thought_period=thought_period,
     )
     scheduler = ScheduleSubprocesses(
         "scheduler", bus, on_error, clock, task_period,

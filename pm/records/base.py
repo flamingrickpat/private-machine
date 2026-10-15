@@ -42,6 +42,7 @@ PERSISTED_TYPE_NAMES: dict[str, str] = {
     "OntologyBindingRecord": "OntologyBindingKnoxel",
     "OntologyTermRecord": "OntologyTermKnoxel",
     "QualeRecord": "QualeKnoxel",
+    "ExpectationRecord": "ExpectationKnoxel",
     "RealityRecord": "RealityKnoxel",
     "RecordBase": "KnoxelBase",
     "SemanticRecord": "SemanticRecordKnoxel",
@@ -111,6 +112,7 @@ class RecordKind(StrEnum):
     OntologyTermRecord = "OntologyTermKnoxel"
     OntologyBindingRecord = "OntologyBindingKnoxel"
     QualeRecord = "QualeKnoxel"
+    ExpectationRecord = "ExpectationKnoxel"
     CoversTicksEventsRecord = "CoversTicksEventsKnoxel"
     Narrative = "Narrative"
     Feature = "Feature"

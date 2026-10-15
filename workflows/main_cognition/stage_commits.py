@@ -167,11 +167,12 @@ def apply_appraisal(
     return feature, updated
 
 
-def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, appraisal_id=None):
+def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, appraisal_id=None,
+                     origin="main_appraisal"):
     """Stage one intention with its identity and lifecycle metadata."""
     metadata = {
         "goal_key": key,
-        "origin": "main_appraisal",
+        "origin": origin,
         "reason": str(getattr(change, "reason", "") or ""),
         "evidence_ids": [int(item) for item in (evidence_ids or [])],
         "appraisal_id": appraisal_id,
@@ -192,7 +193,8 @@ def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, 
     ))
 
 
-def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id: int | None = None) -> list[dict]:
+def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id: int | None = None,
+                       origin="main_appraisal") -> list[dict]:
     """Stage goal lifecycle changes and return one record per change.
 
     Each record has ``change``, ``goal``, ``key``, and ``result``. Results are
@@ -218,6 +220,7 @@ def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id:
                 created = _stage_intention(
                     batch, goal=goal, key=key, status="active",
                     active=True, change=change, evidence_ids=evidence_ids, appraisal_id=appraisal_id,
+                    origin=origin,
                 )
                 created_id = int(created.id)
                 result = "added"
@@ -248,6 +251,7 @@ def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id:
                 created = _stage_intention(
                     batch, goal=goal, key=key, status="deferred",
                     active=False, change=change, evidence_ids=evidence_ids, appraisal_id=appraisal_id,
+                    origin=origin,
                 )
                 created_id = int(created.id)
                 result = "deferred"
@@ -262,6 +266,7 @@ def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id:
                 created = _stage_intention(
                     batch, goal=goal, key=key, status="refused",
                     active=False, change=change, evidence_ids=evidence_ids, appraisal_id=appraisal_id,
+                    origin=origin,
                 )
                 created_id = int(created.id)
                 result = "refused"

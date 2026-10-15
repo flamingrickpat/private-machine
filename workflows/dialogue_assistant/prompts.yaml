@@ -79,6 +79,8 @@ memory_lanes:
     title: "## What you know"
   - lane: focus
     title: "## What comes back to you right now"
+  - lane: private_state
+    title: "## What you privately noticed and chose to share"
 
 generation:
   temperature: 0.8

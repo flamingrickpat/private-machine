@@ -10,9 +10,9 @@ The companion chooses which results become public actions.
 Parent: [cognitive architecture](cognition.md).
 Related: [self-model and reflection](reflection.md) and [A17](work-items/a17.md).
 
-This page describes planned behavior.
-The real private loop is not yet delivered.
-[A17](work-items/a17.md) contains the required operation groups, ownership boundaries, and acceptance cases.
+This page describes the delivered design.
+A17 delivered the real private loop.
+Its implementation is recorded in [the private thought loop](../../subsystems/private-loop.md), and its evidence in the [A17 verification](../verification/a17-private-loop.md).
 Large A14 gameplay scenarios are not dependencies under the [current priorities](companion-development.md).
 
 ## The second conscious loop

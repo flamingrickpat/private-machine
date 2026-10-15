@@ -194,6 +194,12 @@ class WorkflowModule(BusModule):
         if result.status is WorkflowStatus.Failed:
             self._discard(proposal_batch)
             self._pending = None
+            if self.run_stop.is_set():
+                # A stop cancels in-flight model work, and that cancellation
+                # can surface as a role failure. The run's outcome is
+                # discarded either way, so a stop-time failure is not an app
+                # error. A failure before any stop still raises below.
+                return
             raise RuntimeError(
                 f"workflow {self.module_id} ended unsuccessfully: {result.kernel_summary}"
             )

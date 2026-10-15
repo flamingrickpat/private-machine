@@ -163,6 +163,28 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
             if key in lanes:
                 original["lane"] = lanes[key]
             originals.append(original)
+    # A17 disclosure: private state enters public context only through the
+    # private loop's explicit choice. A reportable felt state names accepted
+    # drivers, and a candid thought carries a disclosure recorded before any
+    # dialogue generation. Withheld material never reaches this evidence.
+    private_state: list[dict] = []
+    for key, raw in sorted(records.items(),
+                          key=lambda item: item[1]["data"].get("tick_id", -1), reverse=True):
+        if len(private_state) >= 5:
+            break
+        metadata = raw["data"].get("metadata", {}) or {}
+        is_reportable_quale = raw["__type__"] == "QualeKnoxel" and bool(raw["data"].get("reportable"))
+        is_candid_thought = (raw["__type__"] == "Feature"
+                             and raw["data"].get("feature_type") == "InnerMonologue"
+                             and metadata.get("loop") == "inner"
+                             and (metadata.get("disclosure") or {}).get("mode") == "candid")
+        if not (is_reportable_quale or is_candid_thought):
+            continue
+        item = candidate(view, key, records[key])
+        item["lane"] = "private_state"
+        private_state.append(item)
+        ids.add(key)
+    originals.extend(private_state)
     states = ghost.states
     state = states[-1] if states else None
     affect = metadata.get("affect_summary") or payload.get("affect", "")

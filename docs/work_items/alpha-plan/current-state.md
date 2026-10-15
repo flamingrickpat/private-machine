@@ -38,7 +38,7 @@ The cognitive parent contract is [`workflows.main_cognition.schemas.CognitiveRep
 | Event identity | `workflows.main_cognition.host.MainCogLoop._stimulus_from` labels ordinary knoxel inputs as `user.input`. Task events lose detailed progress. | Private thoughts and world evidence can receive the wrong interpretation. | A06 |
 | Active goals | `prepare_input` takes intention text without resolving active lifecycle state. | Completed or stale intentions can continue steering work. | A06 |
 | Memory | `workflows.main_cognition.host._memory_candidates` selects recent dialogue, important facts, and recent narratives. | Relevant older experiences often remain outside cognition. | A08 |
-| Internal thought | Real-mode scheduling disables `InnerThoughtLoop`; its compatibility role emits a fixed thought. | There is no real independent thought process. | A17 |
+| Internal thought | A17 delivered the real private loop (`workflows/inner_thought/`) with its own GWT shard, trigger policy, and disclosure choice. | Remaining: deliberation depth and noticing effects stay under human review. | A17 |
 | Public voice | Story prompts use story-writer framing, third-person speech, and thoughts as feelings. | The voice does not reliably express durable affect. | A09 |
 | Capabilities | Static text-only descriptions and global physical-verb restrictions coexist with Minecraft tools. | Legitimate game experience and invented embodiment are difficult to distinguish. | A09 |
 | Dependencies | `resolve_same_cycle` releases dependencies based on earlier dispatch, rather than task success. | Work can start before its prerequisite actually finishes. | A06, A11 |

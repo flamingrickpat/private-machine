@@ -7,12 +7,13 @@ The channels describe internal change without creating another state authority.
 Reportable snapshots cite their actual drivers.
 The private ontology connects recurring patterns to stable terms.
 Public expression remains agentic.
-This page defines planned behavior, not current execution.
+This page defines the design contract behind the delivered behavior.
 
 Parent: [cognitive architecture](cognition.md).
 Owner item: [A17](work-items/a17.md).
 Related: [private loop](private-loop.md), [private ontology](ontology.md), and [source selection](cognitive-sources.md).
 Current schemas: [`pm.records.qualia_records.QualeChannelState`][] and [`pm.records.qualia_records.QualeRecord`][].
+A17 delivered the channel projections in `workflows.inner_thought.felt_state`; see [the private thought loop](../../subsystems/private-loop.md#felt-state-channels) and the [A17 verification](../verification/a17-private-loop.md).
 
 ## Content, introspection, and expression
 

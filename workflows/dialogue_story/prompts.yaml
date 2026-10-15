@@ -134,6 +134,8 @@ memory_lanes:
     title: "## What {companion_name} knows"
   - lane: focus
     title: "## What comes back to {companion_name} right now"
+  - lane: private_state
+    title: "## What {companion_name} privately noticed and chose to share"
 memories_note: |
   These memories happened before this moment. Older ones may be out of date.
   Use them naturally and loosely, the way a person remembers.

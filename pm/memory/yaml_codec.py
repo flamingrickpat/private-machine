@@ -13,7 +13,9 @@ from pm.records.codelet_records import ModuleOutput
 from pm.records.world_records import BodyEpisodeRecord, ExecutableSkillRecord, WorldObjectRecord, WorldPlaceRecord
 from pm.records.graph_records import ConceptNode, GraphEdge, GraphNode
 from pm.records.qualia_records import QualeRecord
-from pm.records.cognitive_records import AttentionFrameRecord, AttentionRecord, BeliefRecord, BeliefShiftRecord, Intention, OntologyBindingRecord, OntologyTermRecord
+from pm.records.cognitive_records import (AttentionFrameRecord, AttentionRecord, BeliefRecord,
+                                           BeliefShiftRecord, ExpectationRecord, Intention,
+                                           OntologyBindingRecord, OntologyTermRecord)
 
 KNOXEL_TYPE_REGISTRY: Dict[str, Type[RecordBase]] = {
     persisted_type_name(cls): cls
@@ -32,6 +34,7 @@ KNOXEL_TYPE_REGISTRY: Dict[str, Type[RecordBase]] = {
         DeclarativeFactRecord,
         Entity,
         ExecutableSkillRecord,
+        ExpectationRecord,
         Feature,
         GraphEdge,
         GraphNode,
