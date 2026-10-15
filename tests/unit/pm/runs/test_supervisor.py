@@ -30,6 +30,39 @@ def _wait_for(predicate, timeout: float = 15.0):
 
 
 class ManagedRunTests(unittest.TestCase):
+    def test_application_shutdown_cancels_and_joins_owned_workers(self):
+        from pm.bus.bus import BusSystem
+        from pm.host.application import Application
+        app = Application(BusSystem(), [])
+        app.stop_workers = self.supervisor.stop
+        app.join_workers = self.supervisor.shutdown
+        receipt = self.supervisor.start(action_id="shutdown-held-run", workflow_name="local_task",
+            instructions="Wait for cancellation.", arguments={"wait_for_cancel": True})
+        run_id = receipt["run_id"]
+        self.assertTrue(_wait_for(lambda: self.supervisor.get(run_id)["state"] == "running"))
+        app.shutdown()
+        app.join()
+        self.assertEqual(self.supervisor.get(run_id)["state"], "cancelled")
+        self.assertFalse(self.supervisor._threads[run_id].is_alive())
+        self.assertTrue(Path(receipt["artifact_path"]).is_dir())
+        later = self.supervisor.start(action_id="after-stop", workflow_name="local_task", instructions="Do not launch.")
+        self.assertEqual(self.supervisor.get(later["run_id"])["state"], "cancelled")
+        self.assertNotIn(later["run_id"], self.supervisor._threads)
+
+    def test_terminal_hook_failure_keeps_the_outcome_and_reaches_the_owner(self):
+        errors = []
+        self.supervisor.on_error = errors.append
+
+        def broken_hook(receipt):
+            raise RuntimeError("terminal consolidation failed")
+
+        self.supervisor.on_terminal = broken_hook
+        receipt = self.supervisor.start(action_id="hook-failure", workflow_name="local_task", instructions="Complete this control task.")
+        self.supervisor.join(receipt["run_id"], timeout=10)
+        self.assertEqual(self.supervisor.get(receipt["run_id"])["state"], "completed")
+        self.assertEqual(len(errors), 1)
+        self.assertIn("terminal consolidation", str(errors[0]))
+
     def test_worker_memory_factory_reads_authoritative_owner_through_mcp(self):
         import yaml
         from pm.memory.agent_tools import MemoryToolConfig, MemoryView

@@ -14,6 +14,8 @@ Artifacts are written to a real task folder and preserved after cancellation.
 from __future__ import annotations
 
 import threading
+import asyncio
+from concurrent.futures import CancelledError as FutureCancelledError
 from copy import deepcopy
 import uuid
 from pathlib import Path
@@ -62,6 +64,7 @@ class ManagedRunSupervisor:
         self.worker_tools = worker_tools
         self.workflow_models = workflow_models
         self._lock = threading.RLock()
+        self._stopping = threading.Event()
         self._updates = threading.Condition(self._lock)
         self._cancels: dict[str, threading.Event] = {}
         self._threads: dict[str, threading.Thread] = {}
@@ -244,6 +247,9 @@ class ManagedRunSupervisor:
             return persisted
 
     def _launch(self, receipt: ManagedRunReceipt, *, resume: bool, payload: dict | None) -> None:
+        if self._stopping.is_set():
+            self._transition(receipt.run_id, state="cancelled", latest_event="application stopping")
+            return
         if receipt.run_id not in self._worker_locks:
             try:
                 self._worker_locks[receipt.run_id] = ProcessLock(Path(receipt.artifact_path) / "worker.lock").acquire()
@@ -323,7 +329,9 @@ class ManagedRunSupervisor:
             )
             self._finish(receipt.run_id, result, environment)
         except BaseException as exc:  # a worker crash must become a failed receipt
-            cancelled = cancel.is_set()
+            from pm.memory.snapshot import GhostCancelled
+            cancelled = cancel.is_set() and isinstance(exc, (GhostCancelled, asyncio.CancelledError, FutureCancelledError))
+            recording_failed = False
             try:
                 current = self.get(receipt.run_id)
                 if current["state"] in ACTIVE_STATES:
@@ -336,12 +344,15 @@ class ManagedRunSupervisor:
                     # Publication can fail after a terminal receipt commits.
                     # Keep that actual outcome and identify the delivery error.
                     self._emit(receipt.run_id, "publication_interrupted", error=str(exc))
-            except BaseException:
-                pass
+            except BaseException as recording_error:
+                recording_failed = True
+                exc.add_note(f"Recording the worker failure also failed: {type(recording_error).__name__}: {recording_error}")
             from pm.runs.errors import TaskServiceError
             # Service loss ends this task, so other work can continue. Logic
             # faults still reach the application's error handler.
-            if self.on_error is not None and not cancelled and not isinstance(exc, TaskServiceError):
+            if recording_failed or (not cancelled and not isinstance(exc, TaskServiceError)):
+                if self.on_error is None:
+                    raise
                 self.on_error(exc)
             self._notify_terminal(receipt.run_id)
         finally:
@@ -358,9 +369,11 @@ class ManagedRunSupervisor:
             return
         try:
             self.on_terminal(self.get(run_id))
-        except Exception:
-            # Consolidation is not allowed to corrupt the run receipt.
-            pass
+        except Exception as error:
+            # Keep the task outcome intact and expose the separate hook failure.
+            if self.on_error is None:
+                raise
+            self.on_error(error)
 
     def _environment(self, receipt: ManagedRunReceipt) -> Any:
         spec = self.workflows[receipt.workflow_name]
@@ -696,4 +709,30 @@ class ManagedRunSupervisor:
     def join_all(self, timeout: float | None = None) -> None:
         for run_id in list(self._threads):
             self.join(run_id, timeout)
+
+    def stop(self) -> None:
+        """Fence new workers and signal cancellation without waiting for I/O.
+
+        The application can call this method from its error thread. Shutdown
+        joins module threads first, then records waiting-run cancellation and
+        joins managed workers through shutdown().
+        """
+        self._stopping.set()
+        with self._lock:
+            for cancel in self._cancels.values():
+                cancel.set()
+            self._updates.notify_all()
+
+    def shutdown(self) -> None:
+        """Cancel active runs and wait for worker cleanup before services stop.
+
+        Call after the application joins its bus modules. Waiting runs also
+        receive durable cancellation. External effects remain in their journals.
+        Repeated calls retain terminal outcomes and do not restart work.
+        """
+        self.stop()
+        for run_id, receipt in self.receipts().items():
+            if receipt["state"] in ACTIVE_STATES:
+                self.terminate(run_id)
+        self.join_all()
 

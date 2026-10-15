@@ -29,7 +29,7 @@ class StoryRequest(BaseModel):
     # since the last prior turn in plain words.
     now: str = ""
     prior_dialogue: list[DialogueTurn] = Field(default_factory=list)
-    current_user_message: str = Field(min_length=1)
+    current_user_message: str
     current_message_id: int | None = None
     # Accepted feelings in words, for example "strong fear and mild guilt".
     feelings: str = ""

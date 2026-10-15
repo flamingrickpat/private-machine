@@ -304,15 +304,15 @@ class AssistantModuleTests(unittest.TestCase):
                 {"action_id": "action-0", "content": "chat", "arguments": {}},
                 target="dialogue_assistant",
             ))
-            self.assertTrue(module.step())
+            with self.assertRaisesRegex(RuntimeError, "unsupported management claim"):
+                module.step()
             self.assertEqual(len(receipts.events), 1)
             self.assertEqual(receipts.events[0].payload["status"], "rejected")
             self.assertIn("unsupported management claim", receipts.events[0].payload["rejection_reason"])
-            # The rejected candidate stays out of memory. Recovery is public.
+            # Rejection records telemetry and leaves companion speech untouched.
             import pm.records.enums as enums
             dialogue = [k for k in ghost.all_features if k.feature_type == enums.FeatureType.Dialogue]
-            self.assertEqual(len(dialogue), 1)
-            self.assertEqual(dialogue[0].metadata["recovery_outcome"], "rejected")
+            self.assertEqual(len(dialogue), 0)
             supervisor.join_all(timeout=10)
 
 

@@ -203,8 +203,9 @@ from accepted state:
 Position is a pure projection.
 Velocity is the position change over the elapsed seconds since the previous
 sample; acceleration is the velocity change over the same interval.
-Timestamps are compared on one naive local clock, because `CycleState`
-timestamps are naive and older seeds can mix in zone-aware times.
+New cycle and record timestamps use naive UTC. The felt-state calculation
+normalizes aware input timestamps before comparison. Old checkpoint timestamps
+remain preserved; they do not establish new stopped-time execution.
 A nonpositive interval reports zero derivatives, never a measured stillness.
 The first sample initializes with zero derivatives, which is not an absence
 of movement.
@@ -245,9 +246,10 @@ Deliberate misrepresentation is not decided here: it stays the main loop's
 - Cancellation boundaries: the module's `run_stop` cancels the kernel between
   role calls; the store re-checks the stop event before the atomic checkpoint
   replacement, so a late thought commit cannot land after a stop.
-- A stop can surface an in-flight model cancellation as a role failure.
-  `WorkflowModule` discards such a failure silently when its run was stopped,
-  exactly like the cancelled path.
+- An explicit stop permits cancellation exceptions to end the run without a late commit.
+  Unexpected cancellation and other failures still reach the application.
+  Source inspection converts filesystem access failures into evidence limits.
+  Provider logic errors stop the runtime with their traceback.
 - On restart, the checkpoint keeps both shards, the felt-channel history, and
   every accepted record. `record_startup` measures the offline gap, and the
   gap contains no invented executed activity.

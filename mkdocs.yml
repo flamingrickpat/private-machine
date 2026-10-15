@@ -68,6 +68,7 @@ nav:
       - Experience consolidation: subsystems/memory-consolidation.md
       - Public dialogue: subsystems/public-dialogue.md
       - Public publication and recovery: subsystems/public-publication.md
+      - Asynchronous conversation review: subsystems/async-conversation-review.md
       - Sustained Minecraft actor: subsystems/minecraft-actor.md
       - Minecraft actor controls: subsystems/minecraft-actor-controls.md
       - Native gameplay provider protocol: subsystems/gameplay-provider-protocol.md

@@ -87,7 +87,7 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
     """
     options = [
         {"name": "dialogue_story", "description": "Generate one in-character Story reply."},
-        {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools. Inventory questions use arguments.minecraft_read=inventory for one live read and no task."},
+        {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools. Inventory questions use arguments.minecraft_read=inventory; position, health, and surroundings use minecraft_read=state. Both make one live read without a managed task."},
         {"name": "self_management", "description": "Start, status, update, terminate, or explicitly resume an interrupted body run."},
     ]
     for name in sorted(supervisor.workflows):
@@ -425,6 +425,16 @@ def build_app(
     app.bus = bus
     app.tasks = tasks
     app.supervisor = supervisor
+    app.stop_workers = supervisor.stop
+
+    def finish_workers():
+        """Join all owned work before recording a successful clean stop."""
+        supervisor.shutdown()
+        if record_lifecycle and app.error is None:
+            from pm.app.lifecycle_records import record_shutdown
+            record_shutdown(ghost, boot_id=app.lifecycle_boot["boot_id"])
+
+    app.join_workers = finish_workers
     app.consolidator = consolidator
     app.steward = steward
     app.workflow_models = workflow_models

@@ -138,7 +138,12 @@ class BusModule(ABC):
 
 
 class Application:
-    """Owns modules, an error queue, and a shared shutdown event."""
+    """Own modules, the first error, and optional worker lifecycle hooks.
+
+    The assembly supplies idempotent worker hooks. Shutdown signals workers;
+    join waits for them after the module threads finish. Hook failures raise
+    to the caller. External services must remain available until join returns.
+    """
 
     def __init__(self, bus: BusSystem, modules: list[BusModule]) -> None:
         self.bus = bus
@@ -146,6 +151,8 @@ class Application:
         self.shutdown_event = threading.Event()
         self.error: BaseException | None = None
         self._error_lock = threading.Lock()
+        self.stop_workers: Callable[[], None] | None = None
+        self.join_workers: Callable[[], None] | None = None
 
     def on_error(self, exc: BaseException) -> None:
         with self._error_lock:
@@ -154,17 +161,23 @@ class Application:
         self.shutdown()
 
     def shutdown(self) -> None:
+        """Signal every module and owned worker without joining their threads."""
         self.shutdown_event.set()
         for module in self.modules:
             module.stop()
+        if self.stop_workers is not None:
+            self.stop_workers()
 
     def run(self) -> None:
         for module in self.modules:
             module.run()
 
     def join(self) -> None:
+        """Wait for module and worker cleanup. Propagate worker-hook failures."""
         for module in self.modules:
             module.join()
+        if self.join_workers is not None:
+            self.join_workers()
 
     def raise_if_error(self) -> None:
         if self.error is not None:

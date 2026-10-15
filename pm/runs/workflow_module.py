@@ -13,6 +13,8 @@ publishes a question and resumes when a correlated answer arrives.
 from __future__ import annotations
 
 import threading
+import asyncio
+from concurrent.futures import CancelledError as FutureCancelledError
 import uuid
 from abc import abstractmethod
 from pathlib import Path
@@ -126,6 +128,19 @@ class WorkflowModule(BusModule):
     # ------------------------------------------------------------ execution
 
     def handle_batch(self, batch: list[Envelope]) -> None:
+        from pm.memory.snapshot import GhostCancelled
+        try:
+            self._handle_batch(batch)
+        except (asyncio.CancelledError, FutureCancelledError, GhostCancelled):
+            # Only an explicit cancellation signal makes cancellation expected.
+            # Logic and transport errors still reach the application during stop.
+            if not (self.stop_event.is_set() or self.run_stop.is_set()):
+                raise
+
+    def _handle_batch(self, batch: list[Envelope]) -> None:
+        """Start or resume a run unless the module already stopped."""
+        if self.stop_event.is_set():
+            return
         if self._pending is not None:
             answer = self._answer_for(batch)
             if answer is None:
@@ -138,6 +153,11 @@ class WorkflowModule(BusModule):
         invocation_id = uuid.uuid4().hex
         self.invocation_id = invocation_id
         self.run_stop = threading.Event()
+        # A stop can race with replacement of the previous run's signal.
+        # Recheck the module signal after installing the new run signal.
+        if self.stop_event.is_set():
+            self.run_stop.set()
+            return
         self.last_kernel_summary = None
         self.last_result = None
         self.last_proposal_batch = None
@@ -194,12 +214,6 @@ class WorkflowModule(BusModule):
         if result.status is WorkflowStatus.Failed:
             self._discard(proposal_batch)
             self._pending = None
-            if self.run_stop.is_set():
-                # A stop cancels in-flight model work, and that cancellation
-                # can surface as a role failure. The run's outcome is
-                # discarded either way, so a stop-time failure is not an app
-                # error. A failure before any stop still raises below.
-                return
             raise RuntimeError(
                 f"workflow {self.module_id} ended unsuccessfully: {result.kernel_summary}"
             )

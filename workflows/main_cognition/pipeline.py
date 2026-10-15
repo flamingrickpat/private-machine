@@ -348,10 +348,7 @@ def _appraisal_from(report: dict | None) -> AppraisalResult | None:
     """Return a typed appraisal from a stage report, or None when absent."""
     if not report:
         return None
-    try:
-        return AppraisalResult.model_validate(report)
-    except Exception:
-        return None
+    return AppraisalResult.model_validate(report)
 
 
 __all__ = ["ACTION_KINDS", "DEFAULT_WORKFLOWS", "GOAL_KINDS", "STAGE_ORDER", "action_dispatches",

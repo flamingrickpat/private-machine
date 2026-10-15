@@ -65,7 +65,7 @@ class AssistantRequest(BaseModel):
     # Accepted feelings in words.
     feelings: str = ""
     prior_dialogue: list[AssistantMessage] = Field(default_factory=list)
-    current_user_message: str = Field(min_length=1)
+    current_user_message: str
     memories: list[str] = Field(default_factory=list)
     workspace: str = ""
     tools: list[ToolDescriptor] = Field(default_factory=list)
@@ -73,7 +73,7 @@ class AssistantRequest(BaseModel):
     max_tool_turns: int = 8
     selected_action: str = ""
     public_context: PublicContext | None = None
-    minecraft_read: Literal["", "inventory"] = ""
+    minecraft_read: Literal["", "inventory", "state"] = ""
 
 
 class AssistantReport(BaseModel):

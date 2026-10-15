@@ -15,8 +15,8 @@ lie or a metaphor, must not become a false task result. Python decides the
 block from the model's explicit ``false_task_result`` flag, so an invented
 kind cannot reject a reply.
 
-The caller records ``review.reason`` beside every accepted reply. The one
-review never rewrites the reply.
+The caller records ``review.reason`` beside every accepted reply. The review
+can select a verbatim speech span when narration surrounds it.
 """
 from __future__ import annotations
 
@@ -63,8 +63,24 @@ class SpeechReview(BaseModel):
     judgment: str = "accept"
     reason: str = ""
     false_task_result: bool = False
+    spoken_text: str | None = None
     findings: list[ReviewFinding] = Field(default_factory=list)
     raw: str = ""
+
+
+def select_spoken_text(candidate: str, review: SpeechReview) -> str:
+    """Keep a verbatim speech span, or the complete draft when none is selected.
+
+    The review can remove narrator text at the edges. It cannot invent words,
+    paraphrase speech, or supply an empty replacement. Invalid extraction raises
+    ValueError and keeps both the draft and review available for diagnosis.
+    """
+    if review.spoken_text is None:
+        return candidate
+    text = review.spoken_text.strip()
+    if not text or text not in candidate:
+        raise ValueError("The reviewed speech must be a nonempty verbatim span of the draft.")
+    return text
 
 
 def load_prompts(path: Path | None = None) -> dict:
@@ -140,6 +156,7 @@ def parse_review(payload: dict, raw: str = "") -> SpeechReview:
         judgment=judgment,
         reason=reason.strip(),
         false_task_result=false_task_result,
+        spoken_text=payload.get("spoken_text"),
         findings=findings,
         raw=raw,
     )

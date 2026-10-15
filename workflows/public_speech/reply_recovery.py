@@ -97,11 +97,26 @@ class ReplyRecovery(BusModule):
                                        + envelope.payload.get("summary", "No task execution was verified."))
 
     def fail_exchange(self, correlation: str, text: str):
-        """Close a failed task exchange without asserting unverified effects."""
-        reply_id = commit_public_reply(self.ghost, text, correlation,
-                                      commit_id=f"task-recovery:{correlation}", recovery="task_evidence_failed")
-        if reply_id is not None:
-            publish_reply(self.bus, self.module_id, correlation, reply_id, recovery_outcome="task_evidence_failed")
+        """Request an agent-written explanation of an expected task rejection.
+
+        The supplied text is evidence, not companion speech. Broken internal
+        evidence still raises in reply_to_task before any request reaches here.
+        """
+        exchange = exchange_record(self.ghost, correlation)
+        if exchange is None:
+            raise ValueError(f"Task rejection has no user source: {correlation}")
+        identity = f"task-rejection:{correlation}"
+        changes = self.ghost.begin_batch(identity)
+        action = changes.create(ActionSchemaRecord(action_type=ActionType.Reply,
+            content="Explain the rejected task using its actual receipt, in your own voice.",
+            metadata={"action_id": identity, "workflow_name": "dialogue_assistant"}))
+        receipt = self.ghost.commit(changes)
+        self.bus.put(Envelope(id=new_id(), source=self.module_id, kind="data", topic="action.request",
+            correlation_id=correlation, target="dialogue_assistant",
+            payload={"knoxel_id": receipt.added_ids[0], "action_id": identity,
+                "stimuli": [{"knoxel_id": exchange.id, "text": str(exchange.content)}],
+                "task_receipt": {"workflow_name": "self_management", "state": "rejected",
+                                 "task_verified": False, "summary": text}}))
 
     def reply_to_task(self, receipt):
         """Retain the original selected action as the cause of a receipt-based reply."""
@@ -110,19 +125,11 @@ class ReplyRecovery(BusModule):
         source_id = arguments.get("_public_action_schema_id")
         source = self.ghost.get_knoxel_by_id(source_id)
         exchange = exchange_record(self.ghost, correlation)
-        if (exchange is None or exchange.metadata.get("exchange_status") != "pending"
-                or not arguments.get("_public_reply_requested")):
+        if exchange is None or not arguments.get("_public_reply_requested"):
             return
         if not isinstance(source, ActionSchemaRecord) or source.action_type != ActionType.ToolCallAndReply:
-            self.fail_exchange(correlation, f"The {receipt['workflow_name']} worker is {receipt['state']}. "
-                               "Its selected reply intent is unavailable; no further task effect was verified.")
-            return
-        try:
-            evidence = task_evidence(receipt)
-        except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError) as error:
-            self.fail_exchange(correlation, f"The {receipt['workflow_name']} worker is {receipt['state']}. "
-                               f"Its task evidence could not be verified ({type(error).__name__}).")
-            return
+            raise ValueError(f"Task reply lost its selected action: {source_id}")
+        evidence = task_evidence(receipt)
         identity = f"task-reply:{receipt['run_id']}:{receipt['revision']}:{source.id}"
         with self.ghost.lock:
             prior = next((item for item in self.ghost.all_knoxels.values()

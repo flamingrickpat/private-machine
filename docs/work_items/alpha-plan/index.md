@@ -54,7 +54,7 @@ A16's grounded codelet repertoire, pathways, and proposal consumers are implemen
 Its [verification](../verification/a16-codelets.md) retains the human review and remaining live checks.
 A17 is delivered.
 A18 has an engineering delivery recorded, with its live gate pending.
-A19 remains planned.
+A19 remains planned and on hold during [A17/A18 hardening](../verification/a17-a18-hardening.md).
 A20 will verify the revised companion scope while retaining deferred gameplay status.
 A14B supplies [direct memory tools](../../subsystems/agent-memory.md) for native decisions.
 Its [verification](../verification/a14b-agent-memory.md) keeps the larger operator-designed test pending.

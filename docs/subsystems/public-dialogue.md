@@ -5,7 +5,7 @@
 Story and Assistant share one accepted identity, affect, goals, evidence, and disclosure contract.
 Each candidate receives time interpretation and evidence review before publication.
 The Ghost commits public speech and exchange resolution together.
-Rejected, stale, or failed work produces an observable recovery outcome.
+Rejected or failed work retains its evidence and reaches application error handling.
 
 Parent: [cognition](cognition.md).
 Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), [the private ontology](private-ontology.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
@@ -47,7 +47,7 @@ The [context planner](context-planning.md) selects the verbatim dialogue window 
 The canonical records remain complete.
 This bound gives original evidence space beside conversational voice examples.
 Current input IDs are excluded from that prior transcript.
-The current message appears once, rather than inventing a repeated user turn.
+Only actual user dialogue appears as the current user message. Private and system events keep their attribution.
 Both builders repeat original reports at the answer boundary after the voice context.
 The block includes each record's timestamp and the actual current clock.
 Selected reports form a partial snapshot, rather than an exhaustive record of every event.

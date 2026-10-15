@@ -38,7 +38,6 @@ from workflows.main_cognition.stage_commits import (
     active_goal_texts, active_intentions, apply_appraisal, apply_belief_proposals, apply_goal_changes,
 )
 from workflows.public_speech.public_context import build_public_context
-from workflows.public_speech.publication import commit_public_reply, publish_reply
 from pm.bus.envelopes import new_envelope
 from pm.records.memory_records import new_feature
 from workflows.public_speech.public_dialogue import _clip, _recency
@@ -283,49 +282,26 @@ class MainCogLoop(CognitiveWorkflow):
         return super().accepts(envelope)
 
     def handle_batch(self, batch: list[Envelope]) -> None:
-        """Close a user exchange after a model protocol failure.
+        """Retry revision conflicts without speech. Other failures reach the app.
 
-        Logic errors still reach application shutdown. Invalid model output
-        retains its workflow artifacts and receives an explicit public receipt.
+        A concurrent commit can invalidate the cycle's proposal. Each retry
+        opens a new view and keeps the original causes. Three failed attempts
+        raise the conflict, so contention cannot silently discard user input.
         """
-        from pm.llm.http_client import ModelError
         from pm.memory.snapshot import GhostConflict
-        from workflows.main_cognition.stage_support import StageOutputError
-        try:
-            super().handle_batch(batch)
-        except (ModelError, StageOutputError, GhostConflict) as error:
-            if self.stop_event.is_set() or self.run_stop.is_set():
+        self._event_stimuli = {}
+        for attempt in range(3):
+            try:
+                super().handle_batch(batch)
                 return
-            outcome = "stale" if isinstance(error, GhostConflict) else "protocol_failed"
-            world_inputs = [envelope for envelope in batch if envelope.topic == "minecraft.world"]
-            for envelope in world_inputs:
-                # A mixed user batch can fail before a workspace commit. Each
-                # world source needs its own acknowledgment to release its slot.
-                self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt",
-                    envelope.correlation_id, {"status": outcome, "workflow_name": self.WORKFLOW_NAME,
-                    "rejection_reason": str(error), "recovery_outcome": "cycle_rejected"}, causation_id=envelope.id))
-            if not world_inputs and not any(envelope.source == "user_input" for envelope in batch):
-                # Public resolution can change a source marker while a task
-                # event cycle reads it. Reject that cycle without shutdown.
-                self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt",
-                    batch[0].correlation_id if batch else "", {"status": outcome,
-                    "workflow_name": self.WORKFLOW_NAME, "rejection_reason": str(error),
-                    "recovery_outcome": "cycle_rejected"}))
-            for envelope in batch:
-                if envelope.source != "user_input":
-                    continue
-                reply_id = commit_public_reply(self.ghost,
-                    "I could not complete the decision for that request. No task result was verified.",
-                    envelope.correlation_id, commit_id="cognitive-recovery:" + envelope.id,
-                    recovery=outcome, cancel=self.stop_event)
-                self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
-                    {"status": "failed", "workflow_name": self.WORKFLOW_NAME,
-                     "rejection_reason": f"{type(error).__name__}: {error}",
-                     "recovery_outcome": "published" if reply_id else "already_resolved",
-                     "public_reply_id": reply_id}, causation_id=envelope.id))
-                if reply_id is not None:
-                    publish_reply(self.bus, self.module_id, envelope.correlation_id, reply_id,
-                                  cause=envelope.id, recovery_outcome=outcome)
+            except GhostConflict as error:
+                self.bus.put(new_envelope(self.module_id, "telemetry", "cycle.conflict",
+                    batch[0].correlation_id if batch else "",
+                    {"attempt": attempt + 1, "reason": str(error)}))
+                if self.stop_event.is_set() or self.run_stop.is_set():
+                    return
+                if attempt == 2:
+                    raise
 
     def prepare_input(self, batch: list[Envelope]) -> dict:
         stimuli: list[Stimulus] = []
@@ -342,7 +318,7 @@ class MainCogLoop(CognitiveWorkflow):
                 correlation_id=envelope.correlation_id, kind=kind,
             ))
             self._stimulus_ids.append(knoxel_id)
-            self._stimulus_records.append({"knoxel_id": knoxel_id, "text": text})
+            self._stimulus_records.append(stimuli[-1].model_dump(mode="json"))
             frozen = getattr(self.last_environment, "ghost_view", None)
             if frozen is not None and knoxel_id in frozen.revisions:
                 self._stimulus_revisions[knoxel_id] = frozen.revisions[knoxel_id]
@@ -449,6 +425,11 @@ class MainCogLoop(CognitiveWorkflow):
         return request.model_dump(mode="json")
 
     def _stimulus_from(self, envelope: Envelope):
+        # Retrying a rejected cycle must reuse its materialized event records.
+        # The cache belongs to one handled batch and does not survive restart.
+        cached = getattr(self, "_event_stimuli", {})
+        if envelope.id in cached:
+            return cached[envelope.id]
         payload = envelope.payload
         if envelope.topic == "workflow.question" and envelope.kind == "telemetry":
             question = str(payload.get("question", "")).strip()
@@ -460,7 +441,9 @@ class MainCogLoop(CognitiveWorkflow):
                 source_kind=SourceKind.Workflow,
                 metadata={"origin": "workflow.question", "correlation_id": envelope.correlation_id},
             )
-            return feature.id, question, "workflow.question"
+            result = feature.id, question, "workflow.question"
+            self._event_stimuli = {**cached, envelope.id: result}
+            return result
         if envelope.topic == "workflow.event" and envelope.kind == "telemetry":
             run_id = str(payload.get("run_id", "")).strip()
             state = str(payload.get("event", "")).strip()
@@ -487,7 +470,9 @@ class MainCogLoop(CognitiveWorkflow):
                     "executed_at": payload.get("executed_at") or datetime.utcnow().isoformat(),
                 },
             )
-            return feature.id, text, "workflow.event"
+            result = feature.id, text, "workflow.event"
+            self._event_stimuli = {**cached, envelope.id: result}
+            return result
         if envelope.topic == "system.lifecycle":
             knoxel_id = payload.get("knoxel_id")
             if knoxel_id is None:
@@ -673,7 +658,7 @@ class MainCogLoop(CognitiveWorkflow):
                 raise ValueError("The proposed deception lacks retained factual context.")
             action = changes.create(ActionSchemaRecord(
                 content=dispatch.content,
-                action_type=ACTION_BY_NAME.get(dispatch.action_type, ActionType.Reply),
+                action_type=ACTION_BY_NAME[dispatch.action_type],
                 attention_frame_id=frame.id,
                 intention_ids=list(goal_ids),
                 metadata={
@@ -802,7 +787,7 @@ class MainCogLoop(CognitiveWorkflow):
         Replies may repeat their content. A tool or start action keeps its
         durable identity, so a repeated request does not start another task.
         """
-        if ACTION_BY_NAME.get(dispatch.action_type, ActionType.Reply) == ActionType.Reply:
+        if ACTION_BY_NAME[dispatch.action_type] == ActionType.Reply:
             return None
         for knoxel in self.ghost.all_knoxels.values():
             if not isinstance(knoxel, ActionSchemaRecord):
@@ -825,16 +810,6 @@ class MainCogLoop(CognitiveWorkflow):
             self.module_id, "telemetry", "action.receipt", correlation, payload,
             causation_id=cause,
         ))
-
-    def on_terminate(self) -> None:
-        """Record a clean shutdown once the module stops normally.
-
-        An abrupt process exit never reaches this hook, so its next startup
-        records an uncertain end interval instead of a clean timestamp.
-        """
-        from pm.app.lifecycle_records import record_shutdown
-        record_shutdown(self.ghost)
-
 
 class InnerThoughtLoop(CognitiveWorkflow):
     DATA_TOPICS = frozenset()

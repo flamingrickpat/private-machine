@@ -109,8 +109,9 @@ def record_startup(ghost, *, boot_id: str | None = None, now: datetime | None = 
     else:
         end_kind = UNCERTAIN_END
         text = (
-            f"I started again, but the last stop was not clean, so the end is "
-            f"uncertain. At least {gap_text} passed since my last known activity."
+            f"I started again. I have no record of a clean shutdown, so the "
+            f"previous ending is uncertain. At least {gap_text} "
+            f"passed since my last known activity."
         )
     feature = _system_feature(
         text, event="startup", boot_id=boot_id,

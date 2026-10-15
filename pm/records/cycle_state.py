@@ -31,7 +31,8 @@ class CycleState(BaseModel):
     """
     tick_id: int
     previous_tick_id: int = -1
-    timestamp: datetime = Field(default_factory=datetime.now)
+    # Match record timestamps. Local wall time corrupts restart-gap comparisons.
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
     rating: int = Field(default=0)
 
     mental_state_latent_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="current latent state, for quick access")

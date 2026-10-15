@@ -178,6 +178,7 @@ def phase_restart(root: Path, config: str, replies: list, stopped_at: datetime,
     reopened_store = MemoryStore.from_checkpoint(root / "ghost.json")
     before = [(record.belief_key, record.metadata.get("evidence_revision"))
               for record in capability_beliefs(reopened_store)]
+    reopened_at = utcnow()
     app = run_app(root, config, replies)
     try:
         ghost = app.ghost
@@ -197,7 +198,7 @@ def phase_restart(root: Path, config: str, replies: list, stopped_at: datetime,
             "inner_frames": len(inner_frames(ghost)),
         }
         invented = [cycle.tick_id for cycle in ghost.states
-                    if stopped_at < cycle.timestamp < utcnow()]
+                    if stopped_at < cycle.timestamp < reopened_at]
         if invented:
             failures.append(f"restart: the offline gap contains invented cycles: {invented}")
     finally:

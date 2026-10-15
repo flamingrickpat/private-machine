@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import json
+import hashlib
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -68,11 +69,28 @@ class PublicContext(BaseModel):
     presentation: Presentation = Field(default_factory=Presentation)
     action_schema_id: int | None = None
     revisions: dict[int, int] = Field(default_factory=dict)
+    source_fingerprints: dict[int, str] = Field(default_factory=dict)
     user_frontier: int | None = None
+    stimulus_user_ids: list[int] = Field(default_factory=list)
     task_receipt: dict = Field(default_factory=dict)
     state_tick: int | None = None
     # The context plan trace (lanes, budgets, semantic status) when planned.
     plan: dict = Field(default_factory=dict)
+
+
+def source_fingerprint(record) -> str:
+    """Hash accepted content without delivery and exchange bookkeeping.
+
+    Acknowledgment changes metadata while another utterance reads the same
+    source. Those changes do not invalidate its meaning. All other fields,
+    including attribution and scope, remain part of the comparison.
+    """
+    data = record.model_dump(mode="json", exclude={"embedding"})
+    metadata = data.get("metadata", {}).copy()
+    for key in ("exchange_status", "public_reply_id", "publication_status", "recovery_outcome", "dispatch_status"):
+        metadata.pop(key, None)
+    data["metadata"] = metadata
+    return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 @render_context.register(PublicContext)
@@ -172,12 +190,12 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
                           key=lambda item: item[1]["data"].get("tick_id", -1), reverse=True):
         if len(private_state) >= 5:
             break
-        metadata = raw["data"].get("metadata", {}) or {}
+        private_metadata = raw["data"].get("metadata", {}) or {}
         is_reportable_quale = raw["__type__"] == "QualeKnoxel" and bool(raw["data"].get("reportable"))
         is_candid_thought = (raw["__type__"] == "Feature"
                              and raw["data"].get("feature_type") == "InnerMonologue"
-                             and metadata.get("loop") == "inner"
-                             and (metadata.get("disclosure") or {}).get("mode") == "candid")
+                             and private_metadata.get("loop") == "inner"
+                             and (private_metadata.get("disclosure") or {}).get("mode") == "candid")
         if not (is_reportable_quale or is_candid_thought):
             continue
         item = candidate(view, key, records[key])
@@ -242,7 +260,9 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
         capabilities=domain_capabilities, ontology=ontology, presentation=presentation,
         action_schema_id=action.id if isinstance(action, ActionSchemaRecord) else None,
         revisions={key: view.revisions[key] for key in ids if key in view.revisions},
+        source_fingerprints={key: source_fingerprint(view.get(key)) for key in ids if key in view.revisions},
         user_frontier=max(users, default=None), task_receipt=dict(payload.get("task_receipt", {})),
+        stimulus_user_ids=[key for key in stimulus_ids if key in users],
         state_tick=state.tick_id if state is not None else None,
         plan=dict(planned.trace) if planned is not None else {},
     )

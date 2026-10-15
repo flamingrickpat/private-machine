@@ -83,7 +83,7 @@ class AssistantDialogue(PublicDialogue):
         payload = batch[0].payload
         action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
         intent = str(action.content) if action is not None else str(payload.get("content", ""))
-        current = str(payload.get("stimuli", [{}])[-1].get("text", "")) if payload.get("stimuli") else intent
+        current = "\n".join(item["text"] for item in self.user_stimuli(payload))
         # The "assistant" context plan picks the prior chat window and the
         # memory lanes from the cycle's workspace (context_plans.yaml).
         planned = self.plan_context(payload, "assistant")
@@ -100,7 +100,7 @@ class AssistantDialogue(PublicDialogue):
             time="\n".join(time_lines(datetime.utcnow().isoformat(), planned.dialogue, load_prompts(), names)),
             feelings=public.feelings,
             prior_dialogue=self._prior_dialogue(current, planned.dialogue),
-            current_user_message=current or intent or "(no message)",
+            current_user_message=current,
             memories=public.memories,
             workspace=public.workspace,
             tools=tools,

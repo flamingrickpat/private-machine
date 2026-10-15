@@ -119,15 +119,14 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 tools_factory=lambda environment, batch: {"run_stage": failed_stage},
                 runtime_root=Path(directory), ghost=ghost)
             receipts = Recorder(bus, "action.receipt")
-            module.handle_batch([
-                Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
-                         correlation_id="user-request", payload={"knoxel_id": user_id}),
-                Envelope(id=new_id(), source="world_events", kind="data", topic="minecraft.world",
-                         correlation_id="world-observation", payload={"knoxel_id": world.id}),
-            ])
-            rejected = [row for row in receipts.events if row.payload.get("recovery_outcome") == "cycle_rejected"]
-            self.assertEqual([row.correlation_id for row in rejected], ["world-observation"])
-            self.assertTrue(any(row.correlation_id == "user-request" for row in receipts.events))
+            with self.assertRaisesRegex(StageOutputError, "protocol contract"):
+                module.handle_batch([
+                    Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                             correlation_id="user-request", payload={"knoxel_id": user_id}),
+                    Envelope(id=new_id(), source="world_events", kind="data", topic="minecraft.world",
+                             correlation_id="world-observation", payload={"knoxel_id": world.id}),
+                ])
+            self.assertEqual(receipts.events, [])
 
     def test_real_parent_commits_gwt_and_publishes_a_typed_dispatch(self):
         ghost = _small_ghost()
@@ -281,14 +280,14 @@ class StoryDialogueWiringTests(unittest.TestCase):
         bus.subscribe(module.module_id, module.accepts, module.deliver)
         return module
 
-    def _action(self, correlation_id: str):
+    def _action(self, correlation_id: str, stimulus_id: int):
         return Envelope(
             id=new_id(), source="main_cog", kind="data", topic="action.request",
             correlation_id=correlation_id, target="dialogue_story",
             payload={
                 "action_id": "action-0",
                 "content": "answer Jesse",
-                "stimuli": [{"knoxel_id": 0, "text": "the kitchen is on fire"}],
+                "stimuli": [{"knoxel_id": stimulus_id, "text": "the kitchen is on fire"}],
                 "memories": ["Jesse owns a fire extinguisher."],
                 "workspace": "loud and urgent",
             },
@@ -304,7 +303,7 @@ class StoryDialogueWiringTests(unittest.TestCase):
                 'Spamuel says: "That sounds like a mess, Jesse."',
             )
             replies = Recorder(bus, "dialogue.reply")
-            bus.put(self._action("corr-story"))
+            bus.put(self._action("corr-story", _store(ghost, "the kitchen is on fire")))
             self.assertTrue(module.step(block=False))
 
             self.assertEqual(errors, [])
@@ -326,14 +325,12 @@ class StoryDialogueWiringTests(unittest.TestCase):
             )
             replies = Recorder(bus, "dialogue.reply")
             receipts = Recorder(bus, "action.receipt")
-            bus.put(self._action("corr-bad"))
-            self.assertTrue(module.step(block=False))
+            bus.put(self._action("corr-bad", _store(ghost, "the kitchen is on fire")))
+            with self.assertRaisesRegex(RuntimeError, "Public reply rejected"):
+                module.step(block=False)
 
             self.assertEqual(errors, [])
-            self.assertEqual(len(replies.events), 1)
-            recovery = ghost.get_knoxel_by_id(replies.events[0].payload["knoxel_id"])
-            self.assertNotIn("I saved the note", recovery.content)
-            self.assertEqual(recovery.metadata["recovery_outcome"], "rejected")
+            self.assertEqual(replies.events, [])
             self.assertEqual(len(receipts.events), 1)
             self.assertEqual(receipts.events[0].payload["status"], "rejected")
 

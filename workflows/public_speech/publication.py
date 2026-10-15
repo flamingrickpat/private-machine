@@ -30,18 +30,21 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
                         cancel=None) -> int | None:
     """Commit speech and exchange resolution together, or reject stale input.
 
-    Completed exchanges return no new utterance. A revision conflict or newer
-    user stimulus raises GhostConflict before any speech enters memory.
+    Completed exchanges return no new utterance. Changed evidence raises
+    GhostConflict. New messages and later feelings do not cancel earlier speech.
     """
     with ghost.lock:
         exchange = exchange_record(ghost, correlation) if correlation else None
-        if exchange is not None and exchange.metadata.get("exchange_status") == "resolved":
+        action = ghost.snapshot({action_id}).get(action_id) if action_id is not None else None
+        if action is not None and action.metadata.get("public_reply_id") is not None:
+            return None
+        if action_id is None and exchange is not None and exchange.metadata.get("exchange_status") == "resolved":
             return None
         batch = ghost.begin_batch(commit_id, cancel=cancel)
         if context is not None:
             validate_public_context(ghost, context)
             for key, revision in context.revisions.items():
-                batch.expect_revision(key, revision)
+                batch.expect_revision(key, ghost.revisions[key])
         reply = batch.create(Feature(
             content=text, feature_type=FeatureType.Dialogue, interlocus=InterlocusType.Public,
             causal=True, override_source=ghost.get_companion_name(),
@@ -50,16 +53,26 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
                       "reply_correlation": correlation, "publication_status": "pending",
                       "recovery_outcome": recovery, "review_reason": review_reason,
                       "review_judgment": review_judgment,
+                      "generation_user_frontier": context.user_frontier if context is not None else None,
+                      "generation_state_tick": context.state_tick if context is not None else None,
+                      "generation_source_revisions": dict(context.revisions) if context is not None else {},
+                      "responding_to_ids": list(context.stimulus_user_ids) if context is not None else [],
                       "executed_at": datetime.now(timezone.utc).isoformat()},
         ))
+        resolved_ids = set(context.stimulus_user_ids) if context is not None else set()
         if exchange is not None:
-            exchange.metadata.update(exchange_status="resolved", public_reply_id=reply.id, recovery_outcome=recovery)
-            batch.replace(exchange)
+            resolved_ids.add(exchange.id)
+        for key in resolved_ids:
+            source = ghost.snapshot({key}).get(key)
+            if source.metadata.get("exchange_status") == "pending":
+                source.metadata.update(exchange_status="resolved", public_reply_id=reply.id, recovery_outcome=recovery)
+                batch.replace(source)
         if action_id is not None and action_id in ghost.revisions:
             action = ghost.snapshot({action_id}).get(action_id)
             if action.metadata.get("dispatch_status") == "pending":
                 action.metadata["dispatch_status"] = "admitted"
-                batch.replace(action)
+            action.metadata["public_reply_id"] = reply.id
+            batch.replace(action)
         receipt = ghost.commit(batch)
         return receipt.added_ids[0]
 
@@ -72,14 +85,11 @@ def validate_public_context(ghost, context) -> None:
     """
     for key, revision in context.revisions.items():
         if ghost.revisions.get(key) != revision:
-            raise GhostConflict("Public evidence changed during generation.")
-    users = [item.id for item in ghost.all_features if item.feature_type == FeatureType.Dialogue
-             and item.override_source == ghost.get_user_name()]
-    if max(users, default=None) != context.user_frontier:
-        raise GhostConflict("A newer user stimulus superseded this reply.")
-    state_tick = ghost.states[-1].tick_id if ghost.states else None
-    if state_tick != context.state_tick:
-        raise GhostConflict("Accepted internal state changed during public generation.")
+            from workflows.public_speech.public_context import source_fingerprint
+            current = ghost.get_knoxel_by_id(key)
+            if (current is None or key not in context.source_fingerprints
+                    or source_fingerprint(current) != context.source_fingerprints[key]):
+                raise GhostConflict(f"Public evidence {key} changed during generation.")
 
 
 def publish_reply(bus, source: str, correlation: str, reply_id: int, *, cause=None, **fields):

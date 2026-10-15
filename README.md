@@ -188,3 +188,18 @@ Memory and quality checks cover different contracts. Passing foundation tests do
 Workflow manifests are executable Markdown under `workflows/`.
 Historical plans, handoffs, audits, and delivery notes remain in Git history.
 The current guides describe supported behavior and verification commands.
+
+## Review Helper
+
+```
+uv run --locked python dev/review/server.py serve
+```
+
+It opens http://127.0.0.1:8765 with context and output on the left, ratings and comments on the right.
+
+- Preloaded 7 runs, 30 captured replies from A17, A18, and A09R.
+- Supports drafts, reviewed/unreviewed filters, references, and saved feedback history.
+- Feedback stays in .runtime/dev-review/feedback/.
+- Existing runtime and documentation sources remain unchanged.
+
+Save your reviews, then tell me “check my feedback.” Future result registration is explained in the README (dev/review/README.md)

@@ -49,11 +49,12 @@ class ExperiencedMemoryTests(unittest.TestCase):
         ))
         module = StoryDialogue.__new__(StoryDialogue)
         module.ghost = self.ghost
+        current = self.say("Recall a past failed method.")
         memory = self.retrieve("wrong attachment", limit=1)["matches"][0]["text"]
         self.assertIn(original.metadata["executed_at"], memory)
         request = StoryRequest.model_validate(module.prepare_input([new_envelope(
             "main_cog", "data", "action.request", "recall-test",
-            {"knoxel_id": action.id, "stimuli": [{"text": "Recall a past failed method."}],
+            {"knoxel_id": action.id, "stimuli": [{"knoxel_id": current.id, "text": str(current.content)}],
              "memories": [memory]},
         )]))
         messages = build_story_messages(request, load_prompts())

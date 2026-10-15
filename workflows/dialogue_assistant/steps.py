@@ -21,9 +21,12 @@ from pm.llm.prompt_encoding import OpenAIChatEncoder, normalize_turns
 from pm.context_render.turns import Turn
 
 import yaml
+import httpx
 from workflows.public_speech.public_context import DialogueTurn, memory_sections, task_lines
+from workflows.public_speech.speech_text import strip_narrator_setup
 from workflows.public_speech.speech_review import (
     block_reason, is_blocked, load_prompts as load_review_prompts, review_speech,
+    select_spoken_text,
 )
 
 from workflows.dialogue_assistant.schemas import (
@@ -34,6 +37,10 @@ from workflows.dialogue_assistant.schemas import (
 )
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
+
+
+class ToolExecutionError(RuntimeError):
+    """A remote tool reports failure after the request reaches its transport."""
 
 
 def load_prompts(path: Path | None = None) -> dict:
@@ -86,7 +93,8 @@ def build_messages(request: AssistantRequest, prompts: dict) -> list[AssistantMe
     messages = [AssistantMessage(role="system", content=system)]
     messages.extend(request.prior_dialogue)
     messages.append(AssistantMessage(role="user", content=user))
-    messages.append(AssistantMessage(role="user", content=request.current_user_message))
+    if request.current_user_message:
+        messages.append(AssistantMessage(role="user", content=request.current_user_message))
     return messages
 
 
@@ -202,7 +210,7 @@ async def _call_mcp(servers: dict, name: str, arguments: dict) -> Any:
                 continue
             result = await client.call_tool(name, arguments)
             if result.is_error:
-                raise RuntimeError(f"Tool {name!r} raised: {result}")
+                raise ToolExecutionError(f"Tool {name!r} raised: {result}")
             return result.data if result.data is not None else result.structured_content
     raise KeyError(name)
 
@@ -244,7 +252,9 @@ async def execute_tool_calls(
             receipt.executed = True
             receipt.result = result
             content = json.dumps(result, ensure_ascii=False, default=str)
-        except BaseException as error:  # a denied or failed tool is data, not a crash
+        except (PermissionError, OSError, httpx.HTTPError, ToolExecutionError) as error:
+            # Denials and transport failures become receipts. Programming errors
+            # and cancellation retain their traceback and reach the caller.
             receipt.error = f"{type(error).__name__}: {error}"
             content = json.dumps({"error": receipt.error})
         receipts.append(receipt)
@@ -287,9 +297,9 @@ def run(context) -> dict:
 
     receipts: list[ToolReceipt] = []
     final_text = ""
-    if request.minecraft_read == "inventory":
-        # A direct inventory question needs one fresh observation, then speech.
-        call = {"tool_calls": [{"id": "inventory-observation", "type": "function", "function": {
+    if request.minecraft_read in {"inventory", "state"}:
+        # A body-state question needs one fresh observation, then speech.
+        call = {"tool_calls": [{"id": "body-observation", "type": "function", "function": {
             "name": "minecraft_observe", "arguments": json.dumps({"include_image": False})}}]}
         messages.append(AssistantMessage(role="assistant", tool_calls=call["tool_calls"]))
         observed, tool_messages = asyncio.run(execute_tool_calls(context, call, request, servers))
@@ -331,6 +341,7 @@ def run(context) -> dict:
         messages.append(AssistantMessage(role="assistant", content=final_text))
 
     validate_public_speech(final_text)
+    final_text = strip_narrator_setup(final_text, request.user_name)
     accepted = bool(final_text)
     review = None
     if request.public_context is not None and final_text:
@@ -343,6 +354,7 @@ def run(context) -> dict:
                                            conversation=review_conversation(request),
                                            receipts=[item.model_dump(mode="json") for item in receipts]))
         accepted = accepted and not is_blocked(review)
+        final_text = select_spoken_text(final_text, review)
     report = AssistantReport(
         companion_name=request.companion_name,
         message_roles=[message.role for message in messages],

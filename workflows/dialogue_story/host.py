@@ -42,11 +42,8 @@ class StoryDialogue(PublicDialogue):
         payload = batch[0].payload
         action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
         intent = str(action.content) if action is not None else str(payload.get("content", ""))
-        stimuli = [
-            item for item in payload.get("stimuli", [])
-            if str(item.get("text", "")).strip()
-        ]
-        current = str(stimuli[-1]["text"]) if stimuli else intent
+        stimuli = self.user_stimuli(payload)
+        current = "\n".join(item["text"] for item in stimuli)
         # The context plan picks the verbatim dialogue window and the memory
         # lanes from the cycle's workspace (context_plans.yaml: story).
         planned = self.plan_context(payload, "story")
@@ -61,7 +58,7 @@ class StoryDialogue(PublicDialogue):
             capability_notes=[str(item) for item in self.ghost.ghost_config.capability_notes],
             now=datetime.utcnow().isoformat(),
             prior_dialogue=planned.dialogue,
-            current_user_message=current or intent or "(no message)",
+            current_user_message=current,
             current_message_id=current_ids[-1] if current_ids else None,
             feelings=public.feelings,
             regulation=public.regulation,

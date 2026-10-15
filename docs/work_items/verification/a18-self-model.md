@@ -7,7 +7,8 @@ The requested live gate failed with a checkpoint replacement error and a missing
 Restart preserved five capability beliefs but published an older action's reply.
 The matched persona comparison completed six real inference calls.
 The foundation suites pass.
-Human review of naturalness and self-explanation remains pending at the user's request.
+The owner completed human review and identified blocking defects.
+The [A17/A18 hardening record](a17-a18-hardening.md) preserves that feedback and the repairs.
 
 Parent: [the self-model subsystem](../../subsystems/introspection.md).
 Work item: [A18](../alpha-plan/work-items/a18.md).

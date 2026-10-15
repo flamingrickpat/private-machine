@@ -107,6 +107,9 @@ class ManagementWiringTests(unittest.TestCase):
                 stage_model=StubStageModel(completions), clock=time.monotonic,
             )
             replies = Recorder(app.bus, "dialogue.reply")
+            from pm.records.memory_records import new_feature
+            from pm.records.enums import FeatureType
+            stimulus = new_feature(ghost, "say hello", FeatureType.Dialogue, source=ghost.get_user_name())
             app.assistant.mailbox.put(Envelope(
                 "req", "test", "data", "action.request", "corr-assistant",
                 {
@@ -114,7 +117,7 @@ class ManagementWiringTests(unittest.TestCase):
                     "workflow_name": "dialogue_assistant",
                     "content": "say hello",
                     "arguments": {},
-                    "stimuli": [{"knoxel_id": 0, "text": "say hello"}],
+                    "stimuli": [{"knoxel_id": stimulus.id, "text": "say hello"}],
                 },
                 target="dialogue_assistant",
             ))

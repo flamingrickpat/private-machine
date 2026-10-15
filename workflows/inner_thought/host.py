@@ -81,7 +81,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
 
         previous_cycle = states[-1] if states else None
         mental_vec = list(previous_cycle.mental_state_latent_vec) if previous_cycle is not None else []
-        age_seconds = max(0.0, (datetime.now() - previous_cycle.timestamp).total_seconds()) \
+        age_seconds = max(0.0, (datetime.utcnow() - previous_cycle.timestamp).total_seconds()) \
             if previous_cycle is not None else 0.0
 
         main_frame: dict = {}
@@ -259,7 +259,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         drivers = [int(item) for item in parsed.evidence_ids]
         sample = project_channels(state, active_goals=active_intentions(view),
                                   previous=channels, previous_time=previous_time,
-                                  now=datetime.now(), driver_ids=drivers)
+                                  now=datetime.utcnow(), driver_ids=drivers)
         gate_ids = {int(item) for item in parsed.evidence_ids} | {thought.id}
         quale_ids: list[int] = []
         for channel_id in notable_channels(sample):
@@ -306,8 +306,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
 
         The provider owns the source grant and the real records. When no
         provider is configured, the cycle carries no inspection evidence and
-        the inspector questions report an explicit limit. A provider failure
-        becomes a reported limit; it never stops the private cycle.
+        the inspector questions report an explicit limit. Filesystem access
+        failures become evidence limits. Provider logic errors stop the runtime.
         """
         self._overlay = None
         provider = getattr(self, "inspector_provider", None)
@@ -315,7 +315,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             return {}
         try:
             overlay = provider()
-        except Exception as error:  # A failed inspection is an evidence limit.
+        except OSError as error:
             return {"status": "unavailable", "reason": f"{type(error).__name__}: {error}"}
         self._overlay = overlay
         from workflows.introspection.snapshot import overlay_public

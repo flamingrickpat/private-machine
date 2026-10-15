@@ -45,12 +45,14 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse(any(item.content == "Unsupported stale candidate." for item in self.ghost.all_features))
         self.assertEqual(exchange_record(self.ghost, correlation).metadata["exchange_status"], "pending")
 
-    def test_new_input_supersedes_frozen_reply(self):
+    def test_new_input_does_not_cancel_frozen_reply(self):
         correlation = self.proxy.submit("First request.")
         context = build_public_context(self.ghost, {})
         self.proxy.submit("Second request.")
-        with self.assertRaises(GhostConflict):
-            commit_public_reply(self.ghost, "Old reply.", correlation, commit_id="old", context=context)
+        reply_id = commit_public_reply(self.ghost, "Old reply.", correlation, commit_id="old", context=context)
+        reply = self.ghost.get_knoxel_by_id(reply_id)
+        self.assertEqual(reply.content, "Old reply.")
+        self.assertEqual(reply.metadata["generation_user_frontier"], context.user_frontier)
 
     def test_source_conflict_prevents_semantic_and_protocol_recovery(self):
         from workflows.dialogue_story.host import StoryDialogue
@@ -71,12 +73,11 @@ class PublicationTests(unittest.TestCase):
                 source.content = "Changed while the generation was running."
                 changes.replace(source)
                 self.ghost.commit(changes)
-                module.reject_reply([Envelope(id="failure-" + status, source="operator", kind="data",
-                    topic="action.request", correlation_id=correlation, payload={})], "Invalid generation.", status=status)
-                exchange = exchange_record(self.ghost, correlation)
-                reply = self.ghost.get_knoxel_by_id(exchange.metadata["public_reply_id"])
-                self.assertEqual(reply.metadata["recovery_outcome"], "stale")
-                self.assertEqual(exchange.metadata["exchange_status"], "resolved")
+                with self.assertRaisesRegex(RuntimeError, "Invalid generation"):
+                    module.reject_reply([Envelope(id="failure-" + status, source="operator", kind="data",
+                        topic="action.request", correlation_id=correlation, payload={})], "Invalid generation.", status=status)
+                self.assertEqual(exchange_record(self.ghost, correlation).metadata["exchange_status"], "pending")
+                self.assertFalse(any(item.source == "Spamuel" for item in self.ghost.all_features))
 
     def test_protocol_failure_cannot_become_an_invented_user_report(self):
         from workflows.dialogue_story.host import StoryDialogue
@@ -91,15 +92,12 @@ class PublicationTests(unittest.TestCase):
                 tools_factory=lambda environment, batch: {}, runtime_root=Path(tmp), ghost=self.ghost)
             module._public_context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": source.id}]})
             module.invocation_id = "protocol-failure"
-            module.reject_reply([Envelope(id="protocol-failure", source="operator", kind="data",
-                topic="action.request", correlation_id=correlation, payload={})],
-                "HTTP 404 from the original request.", status="failed")
-            exchange = exchange_record(self.ghost, correlation)
-            reply = self.ghost.get_knoxel_by_id(exchange.metadata["public_reply_id"])
-            self.assertEqual(exchange.metadata["exchange_status"], "resolved")
-            self.assertEqual(reply.metadata["recovery_outcome"], "failed")
-            self.assertFalse(reply.metadata["factual_promotion"])
-            self.assertNotIn("reported", reply.content)
+            with self.assertRaisesRegex(RuntimeError, "HTTP 404"):
+                module.reject_reply([Envelope(id="protocol-failure", source="operator", kind="data",
+                    topic="action.request", correlation_id=correlation, payload={})],
+                    "HTTP 404 from the original request.", status="failed")
+            self.assertEqual(exchange_record(self.ghost, correlation).metadata["exchange_status"], "pending")
+            self.assertEqual(len(self.ghost.all_features), 1)
 
     def test_resolution_and_replay_survive_checkpoint(self):
         with TemporaryDirectory() as tmp:
@@ -160,16 +158,20 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(inputs.events[0].payload["knoxel_id"], source.id)
         self.assertEqual(len(self.ghost.all_features), 1)
 
-    def test_rejected_task_request_closes_its_exchange(self):
+    def test_rejected_task_request_asks_for_agent_written_speech(self):
         correlation = self.proxy.submit("An unavailable task request.")
         recovery = ReplyRecovery("reply_recovery", self.bus, self.fail, lambda: 0, None,
                                  ghost=self.ghost, supervisor=self.supervisor(self.ghost))
+        from tests.support import Recorder
+        actions = Recorder(self.bus, "action.request")
         recovery.handle_batch([Envelope(id="rejected-task", source="self_management", kind="telemetry",
             topic="action.receipt", correlation_id=correlation, payload={"workflow_name": "self_management",
                 "public_reply_requested": True, "status": "rejected", "summary": "The workflow is unavailable."})])
         source = exchange_record(self.ghost, correlation)
-        self.assertEqual(source.metadata["exchange_status"], "resolved")
-        self.assertIn("unavailable", self.ghost.get_knoxel_by_id(source.metadata["public_reply_id"]).content)
+        self.assertEqual(source.metadata["exchange_status"], "pending")
+        self.assertEqual(actions.events[0].target, "dialogue_assistant")
+        self.assertIn("unavailable", actions.events[0].payload["task_receipt"]["summary"])
+        self.assertEqual(len(self.ghost.all_features), 1)
 
 
 if __name__ == "__main__":

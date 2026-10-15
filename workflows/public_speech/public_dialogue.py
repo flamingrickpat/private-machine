@@ -1,9 +1,8 @@
 """``PublicDialogue``: the shared bus module of Story and Assistant replies.
 
-It guards stale replies and commits each reply before publication. Story
-and Assistant subclass it. The one agentic review happens inside each
-workflow role (``speech_review``), so a rejected reply here is rare: it means
-a stale snapshot, a failed run, or a false task result.
+It validates evidence and commits each utterance before publication. Story
+and Assistant subclass it. Each workflow reviews its draft once. Errors reach
+the application; host failure strings never become companion speech.
 """
 from __future__ import annotations
 
@@ -11,7 +10,7 @@ import yaml
 
 from pm.bus.envelopes import Envelope, new_id
 from workflows.public_speech.public_context import build_public_context
-from workflows.public_speech.publication import commit_public_reply, exchange_record, publish_reply
+from workflows.public_speech.publication import commit_public_reply, publish_reply
 from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
 
@@ -28,13 +27,33 @@ def _clip(text: str, limit: int = 500) -> str:
 
 
 class PublicDialogue(CognitiveWorkflow):
-    """Shared stale guards and observable recovery for public workflows."""
+    """Shared evidence guards and visible failures for public workflows."""
 
     capability_provider = None
 
     # Shared embedding service for context planning. The assembly sets it;
     # without it, planning scores lexically.
     context_embeddings = None
+
+    def user_stimuli(self, payload: dict) -> list[dict]:
+        """Return actual user dialogue from the action's stimuli.
+
+        Resolve attribution from accepted records. Old pending actions can lack
+        the source fields added to newer dispatches. Private and system events
+        never become user speech, even when their text resembles dialogue.
+        """
+        from pm.records.enums import FeatureType, SourceKind
+        result = []
+        with self.ghost.lock:
+            for item in payload.get("stimuli", []):
+                record = self.ghost.get_knoxel_by_id(int(item["knoxel_id"]))
+                if record is None:
+                    raise KeyError(f"Public stimulus does not exist: {item['knoxel_id']}")
+                if (record.feature_type == FeatureType.Dialogue
+                        and record.provenance is not None
+                        and record.provenance.source_kind == SourceKind.User):
+                    result.append({**item, "text": str(record.content)})
+        return result
 
     def public_context(self, payload, planned=None):
         # Refresh the durable private ontology before the snapshot. The review
@@ -60,13 +79,14 @@ class PublicDialogue(CognitiveWorkflow):
         from workflows.main_cognition.stage_commits import active_goal_texts
         from workflows.public_speech.context_planning import FocusInput, plan_reply_context
         stimuli = [item for item in payload.get("stimuli", []) if "knoxel_id" in item]
+        users = self.user_stimuli(payload)
         attention = list(payload.get("attention", []))
         with self.ghost.lock:
             view = self.ghost.snapshot()
             goals = active_goal_texts(self.ghost)[:6]
         focus = FocusInput(
             workspace=str(payload.get("workspace", "")),
-            current_message=str(stimuli[-1].get("text", "")) if stimuli else str(payload.get("content", "")),
+            current_message="\n".join(item["text"] for item in users),
             attention_texts=[str(item.get("text", "")) for item in attention],
             goals=goals,
             required_ids=[int(key) for item in attention for key in item.get("target_ids", [])]
@@ -80,58 +100,31 @@ class PublicDialogue(CognitiveWorkflow):
         # Each public action owns one report and one exchange resolution.
         # A second envelope must not disappear inside a merged mailbox batch.
         for envelope in batch:
-            exchange = exchange_record(self.ghost, envelope.correlation_id)
-            if exchange is not None and exchange.metadata.get("exchange_status") == "resolved":
+            action_id = envelope.payload.get("knoxel_id")
+            action = self.ghost.get_knoxel_by_id(action_id) if action_id is not None else None
+            if action is not None and action.metadata.get("public_reply_id") is not None:
                 continue
             # Preparation can fail before a new snapshot exists. A prior task
             # receipt must never become the recovery evidence for this action.
             self._public_context = None
-            try:
-                super().handle_batch([envelope])
-            except Exception as error:
-                if self.stop_event.is_set() or self.run_stop.is_set():
-                    return
-                self.reject_reply([envelope], f"{type(error).__name__}: {error}", status="failed")
+            super().handle_batch([envelope])
 
     def reject_reply(self, batch, reason: str, *, status: str = "rejected") -> None:
-        """Retain a failed receipt and close the exchange with explicit recovery."""
+        """Retain a rejection and stop execution without invented speech.
+
+        The workflow artifacts retain the rejected draft. The application owns
+        the error and shutdown. The user request remains pending for recovery.
+        """
         envelope = batch[0]
-        stale = status == "stale"
-        text = ("That reply became stale before I could send it. Please ask again."
-                if stale else "That reply failed before I could send it. Please ask again."
-                if status == "failed" else "I could not ground that reply in the available evidence. Please ask again.")
-        context = getattr(self, "_public_context", None)
-        if status in {"rejected", "failed"} and context is not None:
-            from pm.memory.snapshot import GhostConflict
-            from workflows.public_speech.publication import validate_public_context
-            try:
-                with self.ghost.lock:
-                    validate_public_context(self.ghost, context)
-            except GhostConflict as error:
-                status, stale, reason = "stale", True, str(error)
-                text = "That reply became stale before I could send it. Please ask again."
-        if context is not None and context.task_receipt:
-            task = context.task_receipt
-            if task.get("task_verified"):
-                spec = task["report"]["note_spec"]
-                text = f"The note passed exact byte verification at {spec['path']}: {spec['text']!r}. My conversational reply failed validation."
-            else:
-                text = (f"The {task['workflow_name']} worker is {task['state']}. "
-                        "Its receipt does not verify the requested note. My conversational reply failed validation.")
-        reply_id = commit_public_reply(self.ghost, text, envelope.correlation_id,
-                                      commit_id=f"public-recovery:{envelope.id}", recovery=status,
-                                      cancel=self.stop_event)
         self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
                                {"status": status, "workflow_name": self.WORKFLOW_NAME,
-                                "rejection_reason": reason, "recovery_outcome": "published" if reply_id else "already_resolved",
-                                "public_reply_id": reply_id}, causation_id=envelope.id))
-        if reply_id is not None:
-            publish_reply(self.bus, self.module_id, envelope.correlation_id, reply_id,
-                          cause=envelope.id, recovery_outcome=status)
+                                "rejection_reason": reason, "recovery_outcome": "not_published"},
+                               causation_id=envelope.id))
+        raise RuntimeError(f"Public reply {status} in {self.module_id}: {reason}")
 
     def accept_reply(self, text: str, batch, *, tool_receipts=None, recovery_outcome="",
                      review_reason="", review_judgment="") -> None:
-        """Commit an evidence-guarded reply, or expose its stale recovery result.
+        """Commit an evidence-guarded reply, or raise with its rejection evidence.
 
         ``review_reason`` records why the agentic review accepted this reply.
         """

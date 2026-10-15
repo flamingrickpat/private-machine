@@ -68,8 +68,8 @@ IDLE_TIMEOUT = 600.0
 
 
 def utcnow() -> datetime:
-    # Cycle timestamps are naive local times; keep comparisons comparable.
-    return datetime.now()
+    # Cycle and record timestamps both use naive UTC in saved state.
+    return datetime.utcnow()
 
 
 def wait_until(predicate, timeout: float, description: str):

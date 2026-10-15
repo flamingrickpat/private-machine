@@ -6,6 +6,21 @@ import os
 import socket
 from datetime import datetime, timezone
 
+import anyio
+import httpx
+from mcp.shared.exceptions import McpError
+
+
+def _transport_failure(error: BaseException) -> bool:
+    """Recognize client transport failures without hiding programming errors."""
+    if isinstance(error, BaseExceptionGroup):
+        return all(_transport_failure(item) for item in error.exceptions)
+    if isinstance(error, (OSError, TimeoutError, httpx.HTTPError, McpError,
+                          anyio.ClosedResourceError, anyio.BrokenResourceError, anyio.EndOfStream)):
+        return True
+    # FastMCP wraps closed sessions and initialization timeouts in RuntimeError.
+    return isinstance(error, RuntimeError) and error.__cause__ is not None and _transport_failure(error.__cause__)
+
 
 def capability_snapshot(ghost, workflow_names) -> dict:
     """Discover MCP tools and game transport. No world action runs here.
@@ -31,10 +46,9 @@ def capability_snapshot(ghost, workflow_names) -> dict:
                                        int(values.get("PM_MINECRAFT_PORT", "12345"))), timeout=2):
             pass
         result["status"] = "connected"
-    except (OSError, TimeoutError, ExceptionGroup) as error:
-        result["error_type"] = type(error).__name__
     except Exception as error:
-        # MCP exposes transport faults through several client exception types.
+        if not _transport_failure(error):
+            raise
         result["error_type"] = type(error).__name__
     config = ghost.ghost_config
     return {"text": True, "persistent_memory": True, "human_senses": [], "human_body": False,

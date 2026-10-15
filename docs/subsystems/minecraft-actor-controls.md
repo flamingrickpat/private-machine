@@ -81,11 +81,14 @@ The external Minecraft and MCP services remain owned by their operator or live h
 
 Action selection uses the normal LLM.
 A clear inventory question selects `dialogue_assistant` with `arguments.minecraft_read: inventory`.
+A current position, health, or surroundings question uses `arguments.minecraft_read: state`.
+Both values select the same structured observation boundary.
 It does not select the managed `minecraft` workflow or require Laya.
 [`workflows.dialogue_assistant.host.AssistantDialogue.prepare_input`][] retains that argument in the typed request.
 
 [`workflows.dialogue_assistant.steps.run`][] performs exactly one `minecraft_observe` call for this route.
 It uses `include_image: false`, appends the actual receipt, and generates a public answer with no further tools.
+The result can establish current structured world facts. It does not establish pixel interpretation or completed gameplay.
 Claim review receives the executed receipt beside the accepted public context.
 The observation receipt also retains the actual body owner and its managed-run receipt.
 This evidence supports a statement that the wood task remains active.

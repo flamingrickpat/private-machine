@@ -79,7 +79,7 @@ Worker completion and verified external effects remain separate facts.
 It returns:
 
 ```json
-{"judgment": "accept", "reason": "short reason", "false_task_result": false,
+{"judgment": "accept", "reason": "short reason", "false_task_result": false, "spoken_text": null,
  "findings": [{"kind": "invented_ability", "quote": "exact words", "why": "few words"}]}
 ```
 
@@ -103,7 +103,7 @@ The [prompt logs](prompt-log.md) show the actual request settings and provider u
 [`generate_reviewed`][workflows.dialogue_story.steps.generate_reviewed] generates one draft and reviews it once.
 It returns one attempt. There is no threshold, no note, and no second generation.
 The accepted draft is published unless it holds a false task result.
-A blocked draft goes to the host's rejection path. That path publishes the explicit recovery text and keeps the receipt.
+A blocked draft reaches the host's rejection path. The host retains rejection telemetry and raises without public speech.
 The report keeps the draft, its review, its reason, and its blocked flag.
 
 Assistant replies use the same review once, with their tool receipts and no regeneration loop.
@@ -138,7 +138,22 @@ It expects the in-character exaggeration and tease to pass.
 
 ## Limits
 
-- The stale and failed paths still publish fixed recovery texts. They mean a changed snapshot or a failed model call, not a rejected reply.
+- Changed evidence and failed model calls stop with a visible error. They never publish fixed recovery text.
 - Private thoughts in the transcript differ from the A09 rule that no raw thought enters a public prompt. They guide the voice and are never published; the review flags a thought transcript in a reply as a `private_leak` finding.
 - The private ontology is implemented as durable state in [the private ontology](private-ontology.md). It is advisory and grows only from implemented mechanisms.
 - Current development uses the operator's OpenRouter config. Receipts retain the configured model and the actual provider response.
+
+## Attribution and narration boundaries
+
+The host resolves current speakers from accepted stimulus records.
+Only user-origin dialogue enters the current user line.
+Private thoughts, lifecycle events, and action intent remain context.
+A proactive speaking action can have no current user line.
+Several user messages in one batch retain their order.
+
+The existing review can select `spoken_text` when explicit narration surrounds actual speech.
+The selected text must be a nonempty contiguous span of the draft.
+[`workflows.public_speech.speech_review.select_spoken_text`][] rejects invented or paraphrased replacements.
+The raw completion, review, and advisory finding remain in the report.
+This selection adds no generation call or tool execution.
+The review remains model-dependent; inspect retained findings during human review.

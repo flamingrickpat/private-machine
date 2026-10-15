@@ -41,8 +41,10 @@ from workflows.public_speech.public_context import (
     ability_lines, memory_sections, plain_memory_text, task_lines, time_lines,
 )
 from workflows.public_speech.public_context import PublicContext
+from workflows.public_speech.speech_text import strip_narrator_setup
 from workflows.public_speech.speech_review import (
     finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
+    select_spoken_text,
 )
 
 from workflows.dialogue_story.schemas import (
@@ -54,6 +56,7 @@ from workflows.dialogue_story.schemas import (
 )
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
+
 
 
 def load_prompts(path: Path | None = None) -> dict:
@@ -164,7 +167,8 @@ def build_story_messages(request: StoryRequest, prompts: dict, *, avoid: str = "
     """Return the three contract messages: system, derived context, verbatim story."""
     names = {"companion_name": request.companion_name, "user_name": request.user_name}
     transcript = render_prior_dialogue(request.prior_dialogue, prompts)
-    current = prompts["speaker_line"].format(speaker=request.user_name, text=request.current_user_message)
+    current = (prompts["speaker_line"].format(speaker=request.user_name, text=request.current_user_message)
+               if request.current_user_message else "")
     story = "\n".join(part for part in [transcript, current, prompts["reply_prefix"].format(**names)] if part)
     return [
         Turn(Role.System, prompts["system_prompt"].strip()),
@@ -226,7 +230,7 @@ def clean_reply(raw: str, companion_name: str, user_name: str) -> str:
         reply = reply[1:-1].strip()
     elif reply.endswith('"') and reply.count('"') % 2 == 1:
         reply = reply[:-1].rstrip()
-    return reply
+    return strip_narrator_setup(reply, user_name)
 
 
 def review_context(request: StoryRequest) -> PublicContext:
@@ -248,7 +252,8 @@ def review_context(request: StoryRequest) -> PublicContext:
 def review_conversation(request: StoryRequest) -> list[DialogueTurn]:
     """Return the recent speech plus the current user line for the review."""
     recent = [turn for turn in request.prior_dialogue if turn.kind == "speech"][-6:]
-    return [*recent, DialogueTurn(speaker=request.user_name, text=request.current_user_message)]
+    return [*recent, *([DialogueTurn(speaker=request.user_name, text=request.current_user_message)]
+                      if request.current_user_message else [])]
 
 
 def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextCompletion, review_complete: AsyncTextCompletion,
@@ -270,6 +275,7 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextC
     candidate = clean_reply(raw, request.companion_name, request.user_name)
     review = asyncio.run(review_speech(review_complete, candidate, context, conversation=conversation,
                                        prompts=review_prompts))
+    candidate = select_spoken_text(candidate, review)
     attempt = StoryAttempt(raw_completion=raw, candidate=candidate, review=review,
                            blocked=is_blocked(review))
     return [attempt], attempt
