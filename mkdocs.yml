@@ -51,6 +51,7 @@ nav:
       - Naming rules: concepts/naming.md
   - Subsystems:
       - Cognition: subsystems/cognition.md
+      - Inference settings and parallel calls: subsystems/inference-settings.md
       - Accepted cognition state: subsystems/cognition-state.md
       - Emotional dynamics: subsystems/emotional-dynamics.md
       - Cooperative survival: subsystems/cooperative-survival.md
@@ -197,6 +198,8 @@ nav:
           - A15 codelets: work_items/verification/a15-codelets.md
           - A16 codelet repertoire: work_items/verification/a16-codelets.md
           - A17 private loop: work_items/verification/a17-private-loop.md
+          - A17/A18 hardening: work_items/verification/a17-a18-hardening.md
+          - Inference speed: work_items/verification/inference-speed.md
           - A18 self-model:
               - Verification: work_items/verification/a18-self-model.md
               - Live evidence: work_items/verification/a18/live-evidence-20261015.md

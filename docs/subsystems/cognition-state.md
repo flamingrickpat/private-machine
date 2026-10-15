@@ -102,8 +102,9 @@ The Feature records the boot identity, the last known activity, and the gap.
 When a clean shutdown exists, the gap text says so.
 When no clean shutdown exists, the gap is uncertain.
 [`pm.app.lifecycle_records.record_shutdown`][] writes the clean shutdown event.
-[`workflows.main_cognition.host.MainCogLoop.on_terminate`][] calls it on a normal stop.
-An abrupt exit never reaches that hook.
+The worker-join callback in [`workflows.companion.build_app`][] calls it after all owned workers stop.
+[`pm.host.application.Application.join`][] waits for that callback.
+An application error or abrupt exit leaves no clean shutdown marker.
 The next startup then reports an uncertain end interval.
 A repeated boot identity or shutdown identity reuses the accepted event.
 
@@ -136,7 +137,7 @@ A queued prerequisite is not retried inside this item.
 A12 owns publication recovery and requeue.
 The current model still returns `DEFAULT_WORKFLOWS` when no configuration
 catalogue is supplied.
-Only a normal module stop records a clean shutdown.
+Only a successful application join records a clean shutdown.
 A hard process kill leaves the interval uncertain by design.
 
 ## Go deeper

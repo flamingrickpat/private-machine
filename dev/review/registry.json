@@ -80,6 +80,26 @@
       "sha256": "e435a5d333dca1e5086d97f62d00efecaa9905878ce2b4927ff2aa8ee938ad01",
       "items": 1,
       "reviewable": 1
+    },
+    {
+      "id": "20261015-211528-hardening-recent-01",
+      "title": "Async conversation · recent · 20261015-211528-hardening-recent-01",
+      "work_item": "A17/A18 hardening",
+      "created_at": "2026-10-15T19:40:24.368038+00:00",
+      "path": ".runtime/dev-review/bundles/20261015-211528-hardening-recent-01.json",
+      "sha256": "aac60864b602efeea4269c37e52bea9645d46346f054409e912a2ac98b3e1276",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "20261015-220900-speed-recent-02",
+      "title": "Async conversation · recent · 20261015-220900-speed-recent-02",
+      "work_item": "A17/A18 hardening",
+      "created_at": "2026-10-15T20:11:58.750487+00:00",
+      "path": ".runtime/dev-review/bundles/20261015-220900-speed-recent-02.json",
+      "sha256": "30062bce76ad7023888ec864f6d47463f7085e5f5608748ae7bc2f87468f7a12",
+      "items": 1,
+      "reviewable": 0
     }
   ]
 }

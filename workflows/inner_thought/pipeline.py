@@ -27,6 +27,10 @@ from workflows.inner_thought.schemas import (
 STAGE_ORDER = ("trigger", "thought", "integrate")
 
 
+class IntegrationError(ValueError):
+    """A model proposal violates the expectation evidence contract."""
+
+
 def citable_ids(request: InnerRequest) -> set[int]:
     """Return every id the model may cite, all read with a revision."""
     known: set[int] = set()
@@ -79,7 +83,7 @@ def run_cycle(request: InnerRequest, run_stage) -> InnerReport:
         **base, "trigger": trigger.model_dump(mode="json"), "thought": thought.model_dump(mode="json"),
         "operation": {"name": operation.name, "group": operation.group},
     }))
-    _validate_integration(integration, known, request)
+    validate_integration(integration, known, request)
 
     return InnerReport(
         run_id=request.run_id,
@@ -106,23 +110,23 @@ def run_cycle(request: InnerRequest, run_stage) -> InnerReport:
     )
 
 
-def _validate_integration(integration: IntegrationResult, known: set[int], request: InnerRequest) -> None:
-    """Enforce the expectation lifecycle rules on the model's proposal."""
+def validate_integration(integration: IntegrationResult, known: set[int], request: InnerRequest) -> None:
+    """Reject unsupported expectation proposals with IntegrationError. Accept no state."""
     update = integration.expectation
     if update.action == "open":
         if not (update.anticipation.strip() or update.expected_outcome.strip()):
-            raise ValueError("an open expectation needs an anticipation or an expected outcome")
+            raise IntegrationError("an open expectation needs an anticipation or an expected outcome")
     elif update.action == "resolve":
         pending = {int(item["knoxel_id"]) for item in request.pending_expectations}
         if update.expectation_id is None or int(update.expectation_id) not in pending:
-            raise ValueError("a resolution must name a pending expectation from the frozen view")
+            raise IntegrationError("a resolution must name a pending expectation from the frozen view")
         invalid = [int(item) for item in update.observation_ids if int(item) not in known]
         if invalid:
-            raise ValueError(f"a resolution cited ids outside the frozen view: {invalid}")
+            raise IntegrationError(f"a resolution cited ids outside the frozen view: {invalid}")
         if not update.observation_ids:
-            raise ValueError("a resolution without observations would invent an outcome")
+            raise IntegrationError("a resolution without observations would invent an outcome")
         if update.status not in {"supported", "contradicted", "unmet"}:
-            raise ValueError(f"unknown resolution status: {update.status}")
+            raise IntegrationError(f"unknown resolution status: {update.status}")
 
 
-__all__ = ["STAGE_ORDER", "citable_ids", "run_cycle"]
+__all__ = ["STAGE_ORDER", "IntegrationError", "citable_ids", "run_cycle", "validate_integration"]

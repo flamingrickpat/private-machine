@@ -42,13 +42,14 @@ from workflows.inner_thought.triggers import evaluate_triggers
 RECENT_THOUGHT_LIMIT = 8
 
 
-def build_inner_thought_tools(ghost, runtime_root, llm_complete):
+def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provider=None):
     """Bind the parent manifest's ``run_stage`` tool to the shared store."""
     from pathlib import Path
 
     def factory(environment, batch):
         return {"run_stage": build_inner_stage_runner(
-            ghost, llm_complete, Path(runtime_root), read_environment=environment)}
+            ghost, llm_complete, Path(runtime_root), read_environment=environment,
+            cancel=cancel_provider() if cancel_provider is not None else None)}
 
     return factory
 

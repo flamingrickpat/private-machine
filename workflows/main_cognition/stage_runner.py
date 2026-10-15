@@ -26,6 +26,7 @@ from pm.llm.activation import ChatClient
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.main_cognition.pipeline import STAGE_ORDER
 from workflows.main_cognition.schemas import CognitiveReport, CognitiveRequest
+from workflows.inference_settings import REASONING
 from pm.memory.bash_view import MemoryBashEnvironment
 
 PACKAGE_DIR = Path(__file__).resolve().parent
@@ -64,6 +65,7 @@ def build_stage_runner(
     run_id: str | None = None,
     read_environment=None,
     generation_overrides: Mapping[str, Mapping[str, object]] | None = None,
+    cancel: threading.Event | None = None,
 ) -> Callable[[str, dict], dict]:
     """Return ``run_stage(name, payload)`` bound to one run's model tool.
 
@@ -73,7 +75,11 @@ def build_stage_runner(
     Generation overrides select per-stage options, such as enable_thinking.
     They cannot change routing or the result schema. Current stage affect
     takes precedence over the earlier public-context snapshot.
+    Child calls share the invocation's cancellation signal. A failed parallel
+    call stops siblings before the parent can accept their results.
     """
+
+    stop = cancel if cancel is not None else threading.Event()
 
     def run_stage(name: str, payload: dict) -> dict:
         stage_run_id = f"{run_id}-{name}" if run_id else f"{name}-{uuid4().hex[:12]}"
@@ -84,6 +90,9 @@ def build_stage_runner(
             if overrides.keys() & {"model", "messages", "stream", "response_format"}:
                 raise ValueError("Stage generation overrides cannot change routing or the result contract.")
             generation.update(overrides)
+            if not overrides.keys() & {"enable_thinking", "reasoning", "reasoning_budget",
+                                       "reasoning_tokens", "reasoning_effort", "reasoning_budget_tokens", "chat_template_kwargs"}:
+                generation["reasoning_budget"] = REASONING["off"]
             turns = normalize_turns(messages)
             boundary = payload.get("public_context")
             if boundary:
@@ -102,10 +111,10 @@ def build_stage_runner(
                 # Context is data. Keep it outside the instruction turn, and
                 # place current stage input last so it remains authoritative.
                 turns.insert(1, Turn(Role.User, fragment))
-            return llm_complete(turns, **generation)
+            return llm_complete(turns, cancel=stop, **generation)
         runtime = WorkflowRuntime(
             environment=environment,
-            stop_event=threading.Event(),
+            stop_event=stop,
             tools={"llm_complete": grounded_complete},
             propagate_python_errors=True,
         )

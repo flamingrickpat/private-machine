@@ -7,10 +7,12 @@ builder is pure and tested without a kernel, model, or MemoryStore.
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.inner_thought.schemas import InnerRequest, IntegrationResult, ThoughtResult, TriggerChoice
+from workflows.inner_thought.pipeline import IntegrationError, citable_ids, validate_integration
 from workflows.main_cognition.stage_support import complete_json, load_yaml, read_request, write_report
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
@@ -39,6 +41,8 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         expectations="\n".join(f"- id={item['knoxel_id']} {item.get('content', '')}"
                                f" (pending since tick {item.get('tick_id', 0)})"
                                for item in parsed.pending_expectations) or "(none)",
+        evidence="\n".join(f"- id={item.knoxel_id} kind={item.kind}: {item.text}" for item in parsed.candidates) or "(none)",
+        evidence_ids=json.dumps(thought.evidence_ids),
     )
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 
@@ -47,7 +51,22 @@ def run(context) -> dict:
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
     messages = build_messages(request, prompts)
-    result = complete_json(context, messages, IntegrationResult, temperature=0.2, enable_thinking=False)
+    parsed = InnerRequest.model_validate(request)
+    known = citable_ids(parsed)
+    for attempt in range(2):
+        result = complete_json(context, messages, IntegrationResult, temperature=0.2, enable_thinking=False)
+        try:
+            validate_integration(result, known, parsed)
+            break
+        except IntegrationError as error:
+            # Keep the invalid model proposal. Only the model can correct it.
+            (context.kernel_data / f"integration-rejection-{attempt + 1}.json").write_text(
+                json.dumps({"error": str(error), "proposal": result.model_dump(mode="json")}, indent=2), encoding="utf-8")
+            if attempt:
+                raise
+            messages.extend([Turn(Role.Assistant, result.model_dump_json()),
+                Turn(Role.User, f"This proposal was rejected: {error}. Correct it using only the supplied evidence. "
+                     "Leave expectation.action as none when no observed outcome is available. Return the complete JSON object.")])
     write_report(context.runtime.environment, result)
     return {
         "status": "done",

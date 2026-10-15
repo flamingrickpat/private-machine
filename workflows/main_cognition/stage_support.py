@@ -48,22 +48,27 @@ def extract_json(text: str) -> dict:
 
 
 def complete_json(context, messages: Sequence[TurnInput], schema: type[BaseModel], **generation: object):
-    """Call the injected model tool and validate its JSON into ``schema``. Tries it 10 times."""
+    """Validate model JSON with at most ten schema attempts.
+
+    Schema repair preserves the rejected answer and validator feedback.
+    Transport failures, invalid JSON and tool type errors propagate.
+    """
     temp_list = normalize_turns(messages)
-    error = None
+    last_error = None
     for _ in range(10):
         tool = context.runtime.tools["llm_complete"]
         raw = tool(temp_list, **generation)
         if not isinstance(raw, str):
-            raise StageOutputError("llm_complete must return the completion text as a string.")
+            raise TypeError("llm_complete must return the completion text as a string.")
         payload = extract_json(raw)
         try:
             return schema.model_validate(payload)
         except ValidationError as error:
+            last_error = error
             temp_list.append(Turn(Role.Assistant, raw))
             temp_list.append(Turn(Role.User, f"This is invalid JSON, '{error}'. "
                                           "Try again and and ONLY output the JSON string."))
-    raise StageOutputError(f"The stage model output failed validation: {error}") from None
+    raise StageOutputError(f"The stage model output failed validation: {last_error}") from None
 
 
 def write_report(environment, report: BaseModel) -> None:

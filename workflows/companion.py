@@ -116,12 +116,14 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             from pm.llm.config import load_config, resolve_connection
 
             config = load_config(config_path)
-            stage_model = LazyStageModel(resolve_connection(config), ModelActivation())
+            from workflows.inference_settings import CHAT_CONCURRENCY
+            stage_model = LazyStageModel(resolve_connection(config), ModelActivation(), max_concurrency=CHAT_CONCURRENCY)
         main_cog = MainCogLoop(
             "main_cog", bus, on_error, clock, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md",
-            tools_factory=build_main_cognition_tools(ghost, runtime_root, stage_model.complete),
+            tools_factory=build_main_cognition_tools(ghost, runtime_root, stage_model.complete,
+                                                   cancel_provider=lambda: main_cog.run_stop),
             runtime_root=runtime_root,
             ghost=ghost,
             workflow_catalogue=_cognition_workflow_options(supervisor),
@@ -132,7 +134,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             "dialogue", bus, on_error, clock, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "dialogue_story" / "dialogue_story.workflow.md",
-            tools_factory=build_story_tools(stage_model),
+            tools_factory=build_story_tools(stage_model, cancel_provider=lambda: story.run_stop),
             runtime_root=runtime_root,
             ghost=ghost,
         )
@@ -140,7 +142,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             "assistant", bus, on_error, clock, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "dialogue_assistant" / "dialogue_assistant.workflow.md",
-            tools_factory=build_assistant_tools(stage_model, supervisor),
+            tools_factory=build_assistant_tools(stage_model, supervisor, cancel_provider=lambda: assistant.run_stop),
             runtime_root=runtime_root,
             ghost=ghost,
         )
@@ -159,7 +161,8 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             "inner_thought", bus, on_error, clock, thought_period,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md",
-            tools_factory=build_inner_thought_tools(ghost, runtime_root, stage_model.complete),
+            tools_factory=build_inner_thought_tools(ghost, runtime_root, stage_model.complete,
+                                                  cancel_provider=lambda: inner_thought.run_stop),
             runtime_root=runtime_root,
             ghost=ghost,
         )
@@ -224,7 +227,8 @@ def build_app(
 
         model_config = load_config(resolved_config)
         model_owner = ModelActivation()
-        stage_model = LazyStageModel(resolve_connection(model_config), model_owner)
+        from workflows.inference_settings import CHAT_CONCURRENCY
+        stage_model = LazyStageModel(resolve_connection(model_config), model_owner, max_concurrency=CHAT_CONCURRENCY)
         if workflow_models is None:
             workflow_models = WorkflowModels(model_config, model_owner)
 

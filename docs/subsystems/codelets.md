@@ -34,6 +34,9 @@ Thus an emotion that the current event caused can already activate a codelet.
 The codelets and attention calls omit the public grounding block.
 Each call is one small question for a small model.
 The workspace and all later stages still receive the grounding block before any text can reach public speech.
+Independent codelets and disjoint attention batches now use bounded parallel calls.
+Their results merge in the original order before nomination IDs and competition.
+Read [inference settings](inference-settings.md) for shared prefixes, worker limits and cancellation ownership.
 
 ## The catalogue
 

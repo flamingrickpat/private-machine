@@ -35,6 +35,14 @@ system_prompt: |
   Worker completion does not prove the requested external effect. A completed
   control worker can truthfully be completed while a note write remains unverified.
   If you block, identify the actual unsupported task words in your reason.
+  A factual answer about current external status is also a task result.
+  This includes current game position, health, inventory, terrain and entities.
+  A connected tool proves availability, not those observations. Require a
+  supplied observation for factual status claims, even when the reply uses
+  sarcasm or humor. Concrete inventory items remain claims about inventory.
+  For example, a reply to a status request that says "Inventory? A stick and
+  some dirt" needs inventory evidence. A joke about low patience is not a
+  health observation and does not establish the surrounding game claims.
   A mistaken capability statement is advisory. Claiming that a connection is
   unavailable does not claim that a task was completed or succeeded.
 
@@ -92,14 +100,16 @@ system_prompt: |
      spoken_text. Then read the remaining speech sentence by sentence.
   3. Decide first: does any sentence claim a task result that no task or tool
      result shows? If yes, block with "false_task_result": true.
-  4. Otherwise accept. List advisory findings only when they are clear. Most
-     replies have no findings.
+  4. Otherwise accept. Check specific past-event claims against the supplied
+     evidence. List clear advisory findings even when the voice fits perfectly.
+     Earlier companion claims are not independent evidence that an event happened.
 
   Answer with only this JSON object and nothing else:
-  {{"judgment": "accept", "reason": "few words", "false_task_result": false, "spoken_text": null,
+  {{"judgment": "accept or block", "reason": "your evidence-based reason for this reply", "false_task_result": false, "spoken_text": null,
   "findings": [{{"kind": "invented_ability", "quote": "exact words from the reply", "why": "few words"}}]}}
-  If there are no findings, answer:
-  {{"judgment": "accept", "reason": "in character and grounded", "false_task_result": false, "spoken_text": null, "findings": []}}
+  Set false_task_result from the actual claims, not the example value.
+  Use an empty findings array only when no advisory finding applies.
+  Write a reason specific to this reply, including the evidence or its absence.
 
 user_template: |
   The character card for {companion_name}:

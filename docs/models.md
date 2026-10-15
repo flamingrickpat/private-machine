@@ -163,6 +163,7 @@ The shared HTTP path uses [HTTPX timeout controls](https://www.python-httpx.org/
 
 A reasoning backend emits hidden reasoning tokens before the visible answer.
 The application sends no `max_tokens` cap, so the backend can finish its reasoning and its answer.
+Direct private-thought calls now use separate [reasoning allowances](subsystems/inference-settings.md), with visible-answer reserves and explicit token ceilings.
 A cap sized for the visible answer alone can stop a JSON stage mid-object and report a stage output error.
 There is no generation deadline.
 The model stops when it is done.

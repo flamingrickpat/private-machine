@@ -49,12 +49,14 @@ def build_main_cognition_tools(
     runtime_root: Path,
     llm_complete: TextCompletion,
     *, generation_overrides: Mapping[str, Mapping[str, object]] | None = None,
+    cancel_provider: Callable | None = None,
 ) -> Callable[[object, object], dict]:
     """Return the ``tools_factory(environment, batch)`` for the parent module."""
 
     def factory(environment, batch) -> dict:
         return {"run_stage": build_stage_runner(ghost, llm_complete, Path(runtime_root),
-                                               read_environment=environment, generation_overrides=generation_overrides)}
+                                               read_environment=environment, generation_overrides=generation_overrides,
+                                               cancel=cancel_provider() if cancel_provider is not None else None)}
 
     return factory
 
@@ -377,7 +379,8 @@ class MainCogLoop(CognitiveWorkflow):
         previous_vec = list(previous.mental_state_latent_vec) if previous is not None else []
         age_seconds = 0.0
         if previous is not None:
-            age_seconds = max(0.0, (datetime.now() - previous.timestamp).total_seconds())
+            from pm.memory.retrieval import utc_time
+            age_seconds = max(0.0, (utc_time(datetime.utcnow()) - utc_time(previous.timestamp)).total_seconds())
         provider = getattr(self, "capability_provider", None)
         public = build_public_context(self.ghost, {"stimuli": [item.model_dump(mode="json") for item in stimuli]},
                                       capabilities=provider() if provider else None)

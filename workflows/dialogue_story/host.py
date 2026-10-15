@@ -9,16 +9,19 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Callable
+from functools import partial
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_story.schemas import StoryReport, StoryRequest
 from workflows.public_speech.public_dialogue import PublicDialogue
 
 
-def build_story_tools(model) -> Callable[[object, object], dict]:
+def build_story_tools(model, *, cancel_provider=None) -> Callable[[object, object], dict]:
     """Return the ``tools_factory(environment, batch)`` for Story dialogue."""
 
     def factory(environment, batch) -> dict:
         complete = model.build_async_tool()
+        if cancel_provider is not None:
+            complete = partial(complete, cancel=cancel_provider())
         return {"story_complete": complete, "public_complete": complete}
 
     return factory

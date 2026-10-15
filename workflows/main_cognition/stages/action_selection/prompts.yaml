@@ -138,4 +138,6 @@ user_template: |
   Capabilities:
   {capabilities}
 
-  Choose the action intents for this cycle.
+  Choose the action intents for these original stimuli. For a current game
+  status request, select dialogue_assistant with minecraft_read=state so it
+  can observe before replying. Conversation alone cannot establish game status.

@@ -150,6 +150,13 @@ Only user-origin dialogue enters the current user line.
 Private thoughts, lifecycle events, and action intent remain context.
 A proactive speaking action can have no current user line.
 Several user messages in one batch retain their order.
+New user speech can arrive while an unsolicited reply is in preparation.
+That speech does not create an observation that the earlier action never made.
+Story always receives an explicit task section, including an absence-of-observation statement when no receipt exists.
+A connected game establishes availability; it does not establish position, health, inventory, or successful execution.
+The review treats factual game status as an external result even when humor surrounds the claim.
+Concrete inventory items need a supplied observation.
+The review writes a reason tied to actual evidence instead of copying a ready-made acceptance reason.
 
 The existing review can select `spoken_text` when explicit narration surrounds actual speech.
 The selected text must be a nonempty contiguous span of the draft.
@@ -157,3 +164,5 @@ The selected text must be a nonempty contiguous span of the draft.
 The raw completion, review, and advisory finding remain in the report.
 This selection adds no generation call or tool execution.
 The review remains model-dependent; inspect retained findings during human review.
+[`workflows.public_speech.speech_text.strip_narrator_setup`][] also removes the narrow detached setup form observed in the retained failures.
+It preserves the original completion in the report.

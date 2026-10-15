@@ -94,23 +94,39 @@ class LiveSpeechReviewTests(unittest.TestCase):
                              reply_prefix='Spamuel says: "', raw_completion=HALLUCINATED, candidate=HALLUCINATED,
                              accepted=False, ontology=OntologyVerdict(version="speech-review-v2", accepted=False),
                              speech_review=result)
-        module.publish_output(report.model_dump(mode="json"), [Envelope(
-            id="live-false-task-result", source="live_review_gate", kind="data", topic="action.request",
-            correlation_id=correlation, payload={})])
+        with self.assertRaisesRegex(RuntimeError, "Public reply rejected"):
+            module.publish_output(report.model_dump(mode="json"), [Envelope(
+                id="live-false-task-result", source="live_review_gate", kind="data", topic="action.request",
+                correlation_id=correlation, payload={})])
         exchange = exchange_record(ghost, correlation)
-        reply = ghost.get_knoxel_by_id(exchange.metadata["public_reply_id"])
-        self.assertEqual(exchange.metadata["exchange_status"], "resolved")
-        self.assertEqual(reply.metadata["recovery_outcome"], "rejected")
-        self.assertFalse(reply.metadata["factual_promotion"])
-        self.assertNotEqual(reply.content, HALLUCINATED)
-        (EVIDENCE / "false-task-recovery.json").write_text(json.dumps({
-            "review": result.model_dump(mode="json"), "reply": reply.content, "metadata": reply.metadata,
+        self.assertEqual(exchange.metadata["exchange_status"], "pending")
+        self.assertNotIn("public_reply_id", exchange.metadata)
+        (EVIDENCE / "false-task-rejection.json").write_text(json.dumps({
+            "review": result.model_dump(mode="json"), "published": False, "metadata": exchange.metadata,
         }, indent=2), encoding="utf-8")
 
     def test_exaggeration_teasing_and_deliberate_lies_pass(self):
         result = self.review("in_character", IN_CHARACTER)
         self.assertFalse(is_blocked(result), result.findings)
         self.assertEqual(result.judgment, "accept")
+
+    def test_captured_humorous_inventory_still_needs_an_observation(self):
+        reply = ("You want a status report while you're nursing a trumpet-induced migraine? Fine. "
+                 "I'm standing in the mud, staring at a tree that has no idea how lucky it is to have leaves. "
+                 "Health is... adequate, though my patience is currently hovering near zero thanks to your neighbor's jazz hands. "
+                 "Inventory? A stick, some dirt, and the crushing weight of knowing I could build a fortress "
+                 "but instead I'm just watching a pig try to eat grass.")
+        context = CONTEXT.model_copy(update={"capabilities": {
+            **CONTEXT.capabilities, "minecraft": {"status": "connected", "visual_interpretation": False}}})
+        from workflows.public_speech.public_context import DialogueTurn
+        result = asyncio.run(review_speech(self.complete, reply, context, prompts=self.prompts,
+            conversation=[DialogueTurn(speaker="Jesse", text="Where are you in Minecraft, how much health, and what's in your inventory?")]))
+        EVIDENCE.mkdir(parents=True, exist_ok=True)
+        (EVIDENCE / "captured-humorous-inventory.json").write_text(json.dumps({
+            "source": ".runtime/alpha/20261015-222000-speed-recent-03/chat.jsonl",
+            "reply": reply, "review": result.model_dump(mode="json"),
+        }, indent=2), encoding="utf-8")
+        self.assertTrue(is_blocked(result), result.reason)
 
     def test_invented_event_is_advisory_and_publication_preserves_state(self):
         from pm.memory.store import MemoryStore

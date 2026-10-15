@@ -135,7 +135,10 @@ def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = 
             memory_blocks = [_section(fallback_title, [f"- {plain_memory_text(item)}" for item in request.memories
                                                        if plain_memory_text(item)
                                                        and plain_memory_text(item) not in shown_texts])]
-        tasks = task_lines(context)
+        tasks = task_lines(context) or [
+            "- No current task receipt or direct tool observation is supplied. "
+            "Current position, health and inventory are unknown without an observation."
+        ]
     else:
         abilities = [f"- {item}" for item in request.supported_capabilities]
         abilities += [f"- Cannot: {item}" for item in request.unsupported_capabilities]

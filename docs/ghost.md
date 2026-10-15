@@ -95,6 +95,9 @@ Loading a corrupt checkpoint raises an error. It never silently starts a new mem
 Construction starts no threads and makes no model requests.
 
 The checkpoint format is JSON with schema `pm.ghost-snapshot.v1`.
+[`pm.memory.checkpoint.CheckpointSerializer`][] separates encoding from atomic file replacement.
+The default [`pm.memory.checkpoint.JsonCheckpointSerializer`][] retains that schema and writes one encoded buffer.
+Read [inference settings and checkpoint serialization](subsystems/inference-settings.md#checkpoint-serialization) for the boundary and measured encoding cost.
 It wraps the existing Ghost serialization with GWT records, counters, revisions, commit receipts, and managed-run receipts.
 Semantic `embedding` fields remain empty. Their vectors belong in the shared embedding cache.
 Mental-state arrays remain unchanged.

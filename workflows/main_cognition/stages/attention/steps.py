@@ -17,6 +17,9 @@ here repeats that check at the stage boundary.
 """
 from __future__ import annotations
 
+from pm.llm.concurrency import ordered_parallel_map
+from workflows.inference_settings import ATTENTION_WORKERS
+
 from pathlib import Path
 from pm.context_render.turns import Role, Turn, format_content
 
@@ -135,8 +138,12 @@ def run(context) -> dict:
     proposals = proposals_from(request)
     policy = AttentionPolicy.model_validate((request.get("codelets") or {}).get("policy") or {})
     scores: dict[str, dict] = {}
-    for start in range(0, len(proposals), policy.score_batch_size):
-        scores.update(score_batch(context, request, prompts, proposals[start:start + policy.score_batch_size]))
+    batches = [proposals[start:start + policy.score_batch_size]
+               for start in range(0, len(proposals), policy.score_batch_size)]
+    results = ordered_parallel_map(lambda batch: score_batch(context, request, prompts, batch), batches,
+                                   workers=ATTENTION_WORKERS, cancel=context.runtime.stop_event)
+    for result in results:
+        scores.update(result)
     danger = in_danger((request.get("codelets") or {}).get("signals") or {})
     result = compete(nominations_from(proposals, scores), policy, danger=danger)
     result.competition["scoring_calls"] = -(-len(proposals) // policy.score_batch_size) if proposals else 0

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Callable
+from functools import partial
 
 from pm.memory.store_tools import build_mcp, build_tools
 from pm.runs.management_api import build_management_tools, management_mcp
@@ -20,12 +21,16 @@ from workflows.public_speech.public_context import ability_lines, time_lines
 from workflows.public_speech.public_dialogue import PublicDialogue, _clip
 
 
-def build_assistant_tools(model, supervisor) -> Callable[[object, object], dict]:
+def build_assistant_tools(model, supervisor, *, cancel_provider=None) -> Callable[[object, object], dict]:
     """Return ``tools_factory(environment, batch)`` for Assistant dialogue."""
 
     def factory(environment, batch) -> dict:
         tools = {"assistant_complete": model.build_tool_completion()}
         tools["public_complete"] = model.build_async_tool()
+        if cancel_provider is not None:
+            cancel = cancel_provider()
+            tools["assistant_complete"] = partial(tools["assistant_complete"], cancel=cancel)
+            tools["public_complete"] = partial(tools["public_complete"], cancel=cancel)
         tools.update(build_management_tools(supervisor))
         tools.update(build_tools(environment, batch))
         from workflows.minecraft_body.mcp_client import build_minecraft_tools, DEFAULT_MCP_URL

@@ -31,6 +31,11 @@ Spamuel can object when Jesse returns after months and immediately asks a techni
 That reaction alone does not establish a routing or persona defect.
 Knowledge of elapsed time remains separate from a claim of execution during shutdown.
 
+The owner also reviewed `20261015-hardening-long-gap-02` and accepted the conversation without regeneration.
+The saved ratings are naturalness 5, self-explanation 5, immersion 4, usefulness 5, and groundedness 5.
+The owner noted three dandelion references and accepted that repetition for now.
+Evidence: `.runtime/dev-review/feedback/20261015-hardening-long-gap-02.json`.
+
 ## Repairs
 
 | Boundary | Change |
@@ -92,3 +97,19 @@ The initial foundation attempt also overlapped source edits.
 Its imported modules and newly loaded workflow skills used different source versions.
 Its failures remain in `.runtime/hardening-unit-first.log`.
 They do not replace a stable-source foundation result.
+
+The completed hardening foundation suite passed 715 unit tests and 75 contract tests.
+Evidence: `.runtime/hardening-unit-delivery.log` and `.runtime/hardening-contract-delivery.log`.
+The narrator probes retained two failures before the third probe passed generation and review.
+Their evidence remains under `.runtime/alpha/20261015-hardening-narration-probe*`.
+
+The first recent-history conversation later failed on an expectation resolution with no observation IDs.
+The integrator now receives candidate IDs and their text, then validates its proposal before acceptance.
+One explicit model repair can correct a rejected proposal; the runtime never invents its replacement.
+The speed-development recent run then exposed an unsupported Minecraft-status claim in an unsolicited startup reply.
+The reviewer blocked it correctly; no public message escaped.
+Story now receives explicit absence-of-observation context and instructions for concurrent incoming speech.
+The captured failed input passed a new real generation and review.
+Failed receipts remain in `20261015-211528-hardening-recent-01` and `20261015-220900-speed-recent-02` under `.runtime/alpha/`.
+Read [inference settings](../../subsystems/inference-settings.md) for the speed changes and their separate evidence.
+The [speed verification record](inference-speed.md) retains the later inventory-review failure and its repaired real check.

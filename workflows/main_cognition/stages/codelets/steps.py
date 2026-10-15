@@ -17,6 +17,9 @@ needs the same model.
 """
 from __future__ import annotations
 
+from pm.llm.concurrency import ordered_parallel_map
+from workflows.inference_settings import CODELET_WORKERS
+
 import time
 from pathlib import Path
 from pm.context_render.turns import Role, Turn, format_content
@@ -220,17 +223,17 @@ def build_messages(request: dict, definition: CodeletDefinition, prompts: dict) 
     companion = request.get("companion_name", "Spamuel")
     user = request.get("user_name", "Jesse")
     instructions = definition.instructions.strip().format(companion_name=companion, user_name=user)
-    system = prompts["system_prompt"].format(
-        companion_name=companion, user_name=user, codelet_name=definition.name,
-        instructions=instructions, reality_rule=prompts["reality_rules"][definition.reality],
-    )
+    system = prompts["system_prompt"].format(companion_name=companion, user_name=user)
     affect = request.get("affect") or {}
     user_message = format_content(prompts["user_template"],
         companion_name=companion, user_name=user, codelet_name=definition.name,
         affect=affect.get("summary") or request.get("state_summary") or "(calm, nothing strong)",
         events=render_events(request), memories=render_memories(request), goals=render_goals(request),
     )
-    return [Turn(Role.System, system.strip()), Turn(Role.User, user_message.strip())]
+    job = prompts["job_template"].format(codelet_name=definition.name, instructions=instructions,
+                                         reality_rule=prompts["reality_rules"][definition.reality])
+    # Every codelet shares the exact prefix before its concrete job.
+    return [Turn(Role.System, system.strip()), Turn(Role.User, user_message.strip()), Turn(Role.User, job.strip())]
 
 
 def run_llm_codelet(context, request: dict, definition: CodeletDefinition, prompts: dict) -> tuple[list[dict], dict]:
@@ -313,6 +316,19 @@ def collect(context, request: dict, prompts: dict) -> CodeletsResult:
         signals.get("stimulus.user") or signals.get("stimulus.workflow") or signals.get("stimulus.system"))
     proposals: list[CodeletProposal] = []
     runs: list[CodeletRun] = []
+
+    def execute(decision):
+        definition = decision.definition
+        try:
+            if definition.kind == "pure":
+                return PURE_CODELETS[definition.name](request, definition, signals), {}, ""
+            items, cost = run_llm_codelet(context, request, definition, prompts)
+            return items, cost, ""
+        except StageOutputError as error:
+            return [], {}, str(error)[:300]
+
+    results = iter(ordered_parallel_map(execute, [item for item in decisions if item.run],
+                                       workers=CODELET_WORKERS, cancel=context.runtime.stop_event))
     for decision in decisions:
         definition = decision.definition
         run = CodeletRun(codelet=definition.name, kind=definition.kind, family=definition.family,
@@ -321,14 +337,10 @@ def collect(context, request: dict, prompts: dict) -> CodeletsResult:
         runs.append(run)
         if not decision.run:
             continue
-        cost = {}
-        try:
-            if definition.kind == "pure":
-                items = PURE_CODELETS[definition.name](request, definition, signals)
-            else:
-                items, cost = run_llm_codelet(context, request, definition, prompts)
-        except StageOutputError as error:
-            run.status, run.reason = "failed", str(error)[:300]
+        # Assign IDs only after joining results in catalogue order.
+        items, cost, error = next(results)
+        if error:
+            run.status, run.reason = "failed", error
             continue
         for key, value in cost.items():
             setattr(run, key, value)

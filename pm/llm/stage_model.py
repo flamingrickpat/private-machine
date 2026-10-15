@@ -6,16 +6,16 @@ activates the configured connection on the calling module thread; later
 completions reuse it. Activation is therefore explicit and observable, and no
 model switch can happen while another completion is in flight.
 
-No completion sends a ``max_tokens`` cap. A reasoning backend emits hidden
-reasoning tokens before the visible answer; any cap sized for the visible
-answer alone can stop the completion mid-object. The backend stops when it is
-finished. There is no generation deadline and no endless reprompt loop. An
-empty response is retried at most once.
+Visible completions have no automatic ``max_tokens`` cap. Workflows can budget
+hidden reasoning separately. The application shares admission slots across
+module threads. Cancellation releases a slot after the request finishes
+cleanup. An empty response is retried at most once.
 """
 from __future__ import annotations
 
 import asyncio
-from threading import Lock
+from threading import BoundedSemaphore, Lock
+from contextlib import asynccontextmanager
 from collections.abc import Sequence
 
 from pm.llm.activation import ChatClient, ModelActivation, OpenAICompletionBackend
@@ -53,12 +53,32 @@ class LazyStageModel:
         owner: ModelActivation,
         *,
         live_test: bool = False,
+        max_concurrency: int = 4,
     ) -> None:
         self.connection = connection
         self.owner = owner
         self.live_test = live_test
         self._lock = Lock()
         self._client: ChatClient | None = None
+        self._slots = BoundedSemaphore(max_concurrency)
+
+    @asynccontextmanager
+    async def slot(self, cancel=None):
+        """Admit one request across module threads. Waiting consumes no worker thread."""
+        while not self._slots.acquire(blocking=False):
+            if cancel is not None and cancel.is_set():
+                raise asyncio.CancelledError
+            await asyncio.sleep(0.05)
+        try:
+            if cancel is not None and cancel.is_set():
+                raise asyncio.CancelledError
+            yield
+        finally:
+            self._slots.release()
+
+    async def _complete(self, messages, generation):
+        async with self.slot(generation.get("cancel")):
+            return await complete_with_retry(self.ensure_client(), messages, generation)
 
     @property
     def activated(self) -> bool:
@@ -88,8 +108,8 @@ class LazyStageModel:
 
     def complete(self, messages: Sequence[TurnInput], **generation: object) -> str:
         """Synchronous completion for Python-role stages."""
-        client = self.ensure_client()
-        return asyncio.run(complete_with_retry(client, messages, generation))
+        self.ensure_client()
+        return asyncio.run(self._complete(messages, generation))
 
     def complete_result(self, messages: Sequence[TurnInput], **generation: object) -> Completion:
         """Return final content and reasoning separately for an explicit caller.
@@ -97,7 +117,13 @@ class LazyStageModel:
         Activation and provider errors retain their existing boundaries.
         This method does not substitute reasoning for a missing final answer.
         """
-        return asyncio.run(OpenAICompletionBackend(self.ensure_client()).complete(messages, **generation))
+        client = self.ensure_client()
+
+        async def complete():
+            async with self.slot(generation.get("cancel")):
+                return await OpenAICompletionBackend(client).complete(messages, **generation)
+
+        return asyncio.run(complete())
 
     def measure_context(self, messages: Sequence[TurnInput], *, cancel=None, **generation: object) -> dict:
         """Measure tokens using the same activated connection as inference."""
@@ -113,10 +139,10 @@ class LazyStageModel:
         Activation happens now, when the tool is built on the module thread,
         so the tool body only awaits an already-activated client.
         """
-        client = self.ensure_client()
+        self.ensure_client()
 
         async def complete_async(messages: Sequence[TurnInput], **generation: object) -> str:
-            return await complete_with_retry(client, messages, generation)
+            return await self._complete(messages, generation)
 
         return complete_async
 
@@ -134,7 +160,8 @@ class LazyStageModel:
             last: ModelError | None = None
             for attempt in range(3):
                 try:
-                    result = await client.complete(messages, **generation)
+                    async with self.slot(generation.get("cancel")):
+                        result = await client.complete(messages, **generation)
                     return result.completion()
                 except ModelError as error:
                     last = error

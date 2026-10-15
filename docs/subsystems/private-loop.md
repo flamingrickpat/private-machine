@@ -18,6 +18,11 @@ Work item: [A17](../work_items/alpha-plan/work-items/a17.md).
 Evidence: [A17 verification](../work_items/verification/a17-private-loop.md).
 Runtime: [`workflows.inner_thought.host.PrivateThoughtLoop`][].
 
+The [shared inference settings](inference-settings.md) bound reasoning by private operation group.
+Integration receives candidate IDs beside their source text and the thought's cited IDs.
+An invalid expectation proposal receives one explicit model correction attempt.
+Both rejected proposals and repeated failure remain visible; the host never invents the missing outcome.
+
 ## Where the loop runs
 
 The application assembles both loops beside each other on one bus, one memory

@@ -19,6 +19,7 @@ from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunne
 
 from workflows.main_cognition.stage_runner import make_environment
 from workflows.inner_thought.pipeline import STAGE_ORDER
+from workflows.inference_settings import REASONING
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 PARENT_MANIFEST = PACKAGE_DIR / "inner_thought.workflow.md"
@@ -32,8 +33,10 @@ def stage_manifest(name: str) -> Path:
 
 
 def build_inner_stage_runner(ghost, llm_complete: Callable, runtime_root: Path,
-                             read_environment=None) -> Callable[[str, dict], dict]:
+                             read_environment=None, *, cancel: threading.Event | None = None) -> Callable[[str, dict], dict]:
     """Return ``run_stage(name, payload)`` bound to one run's model tool."""
+
+    stop = cancel if cancel is not None else threading.Event()
 
     def run_stage(name: str, payload: dict) -> dict:
         stage_run_id = f"{name}-{uuid4().hex[:12]}"
@@ -41,10 +44,14 @@ def build_inner_stage_runner(ghost, llm_complete: Callable, runtime_root: Path,
         # stage cannot read records the main loop accepted meanwhile.
         environment = (MemoryBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
                        if read_environment is not None else make_environment(ghost))
+        def complete(messages, **generation):
+            profile = payload["operation"]["group"] if name == "thought" else "off"
+            return llm_complete(messages, cancel=stop, reasoning_budget=REASONING[profile], **generation)
+
         runtime = WorkflowRuntime(
             environment=environment,
-            stop_event=threading.Event(),
-            tools={"llm_complete": llm_complete},
+            stop_event=stop,
+            tools={"llm_complete": complete},
             propagate_python_errors=True,
         )
         runner = WorkflowRunner(stage_manifest(name), Path(runtime_root) / name,

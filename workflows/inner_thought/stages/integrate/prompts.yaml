@@ -51,6 +51,11 @@ user_template: |
   Its evidence summary:
   {evidence_summary}
 
+  Evidence IDs cited by this thought: {evidence_ids}
+
+  Available evidence (a goal, thought, or expectation is not an observed outcome):
+  {evidence}
+
   Its interpretation:
   {interpretation}
 
