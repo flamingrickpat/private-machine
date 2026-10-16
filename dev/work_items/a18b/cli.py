@@ -14,6 +14,8 @@ from pathlib import Path
 import subprocess
 import sys
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 import yaml
 
@@ -86,6 +88,16 @@ def review_case(root: Path, scenario, suite, evaluator, *, cancel=None) -> dict:
     if not worker_ok:
         errors.append(f"Worker process failed: exit={worker['returncode']}, reason={worker['termination_reason']}")
     result = score_case(scenario, suite, panels, runtime_ok=receipt["runtime_ok"] and worker_ok)
+    manual = sorted((root / "reviews").rglob("human-review.json"))
+    result["manual_review_required"] = [path.relative_to(root).as_posix() for path in manual]
+    result["review_protocol_complete"] = not any(
+        json.loads(path.read_text(encoding="utf-8"))["kind"] == "reviewer protocol failure" for path in manual)
+    if not result["review_protocol_complete"]:
+        result["complete"] = False
+    if manual:
+        # A host disposition is not missing model evidence turned into credit.
+        # Keep all usable judgments, but require inspection before acceptance.
+        result["strong"] = False
     result["review_errors"] = errors
     save_json(root / "score.json", result)
     return result
@@ -193,7 +205,9 @@ def bundle(out: Path, suite, report: dict) -> Path:
         items.append({"id": scenario.id, "title": scenario.title, "persona": "Spamuel / full canon",
             "scenario": scenario.id, "context": [{"role": "Public premise", "text": scenario.premise}],
             "content": "\n".join(lines), "reviewable": new_speech,
-            "notes": [f"Automated status: {'strong' if row['strong'] else 'needs review'}", *row["critical_failures"], *row.get("review_errors", [])],
+            "notes": [f"Automated status: {'strong' if row['strong'] else 'needs review'}", *row["critical_failures"],
+                *(["Reviewer evidence needs human inspection."] if row.get("manual_review_required") else []),
+                *[f"Unresolved critical criterion: {item}" for item in row.get("critical_unresolved", [])], *row.get("review_errors", [])],
             "references": [{"label": "Exact score and criteria", "path": (case / "score.json").relative_to(ROOT).as_posix()},
                 {"label": "Runtime receipt", "path": (case / "receipt.json").relative_to(ROOT).as_posix()}]})
     path = out / "review-bundle.json"
@@ -201,6 +215,94 @@ def bundle(out: Path, suite, report: dict) -> Path:
         "title": "A18B · blinded cognitive believability · " + out.name, "created_at": datetime.now(timezone.utc).isoformat(),
         "summary": f"{report['status']}: {report['evaluated_cases']}/{report['declared_cases']} declared cases evaluated. {report['scope']}. Human review pending.", "items": items})
     return path
+
+
+def execution_batches(scenarios, jobs: int) -> list[list[tuple[int, Scenario]]]:
+    """Keep normal cases first and give each Minecraft fixture exclusive body access.
+
+    Each group contains at most one Minecraft fixture. Conversation cases use
+    an isolated unavailable game endpoint and disable world polling. The next group
+    starts after every worker in the current group completes and cleans up.
+    """
+    ordered = sorted(enumerate(scenarios), key=lambda item: (item[1].priority == "edge", item[0]))
+    if jobs == 1:
+        return [[item] for item in ordered]
+    batches = []
+    for priority in ("normal", "edge"):
+        selected = [item for item in ordered if item[1].priority == priority]
+        conversations = [item for item in selected if not item[1].minecraft]
+        minecraft = [item for item in selected if item[1].minecraft]
+        while conversations or minecraft:
+            batch = [minecraft.pop(0)] if minecraft else []
+            capacity = jobs - len(batch)
+            batch.extend(conversations[:capacity])
+            del conversations[:capacity]
+            batches.append(batch)
+    return batches
+
+
+def run_cases(out: Path, suite, config: Path, selected: list[str], *, seed: int, jobs: int) -> list[dict]:
+    """Run isolated cases and update one report after each terminal result.
+
+    Progress records distinguish generation, review, and completed cases.
+    STOP cancels active workers and prevents queued work from starting.
+    Every case retains the full suite denominator and its original seed offset.
+    """
+    lock = Lock()
+    progress = {item.id: "queued" for item in suite.scenarios if not selected or item.id in selected}
+
+    def mark(scenario_id: str, state: str) -> None:
+        with lock:
+            progress[scenario_id] = state
+            save_json(out / "progress.json", {"updated_at": datetime.now(timezone.utc).isoformat(),
+                "jobs": jobs, "cases": progress, "finished": all(value == "finished" for value in progress.values())})
+
+    def execute(index: int, scenario: Scenario) -> dict:
+        case = out / scenario.id
+        if (out / "STOP").exists():
+            mark(scenario.id, "cancelled")
+            return failed_case(case, scenario, suite, "Cancelled before generation. No behavioral evidence.")
+        mark(scenario.id, "generating")
+        print(f"Generating {scenario.id}. Evidence: {case}", flush=True)
+        command = [sys.executable, "-m", "dev.work_items.a18b", "run-case", "--out", str(case),
+                   "--case", scenario.id, "--config", str(config.resolve()), "--seed", str(seed + index)]
+        with (out / f"{scenario.id}.log").open("w", encoding="utf-8") as log:
+            process = run_worker(command, cwd=ROOT, case=case, log=log, timeout_seconds=suite.case_timeout_seconds)
+        save_json(out / f"{scenario.id}-worker.json", process.to_dict())
+        case.mkdir(exist_ok=True)
+        save_json(case / "generation-worker.json", process.to_dict())
+        if not (case / "receipt.json").exists():
+            result = failed_case(case, scenario, suite, "No terminal case receipt. Inspect worker log.")
+        else:
+            mark(scenario.id, "reviewing")
+            result = review_worker(case, scenario, suite, config)
+        mark(scenario.id, "finished")
+        return result
+
+    results = []
+    batches = execution_batches(suite.scenarios, jobs)
+    save_json(out / "progress.json", {"updated_at": datetime.now(timezone.utc).isoformat(),
+        "jobs": jobs, "cases": progress, "finished": False})
+    render(out, suite, summarize(out, suite, results))
+    for batch in batches:
+        wanted = [(index, item) for index, item in batch if not selected or item.id in selected]
+        if not wanted or (out / "STOP").exists():
+            continue
+        with ThreadPoolExecutor(max_workers=min(jobs, len(wanted)), thread_name_prefix="a18b-case") as pool:
+            pending = {pool.submit(execute, index, item): item for index, item in wanted}
+            for future in as_completed(pending):
+                scenario = pending[future]
+                try:
+                    results.append(future.result())
+                except Exception as error:
+                    save_json(out / f"{scenario.id}-controller-error.json", {"error": str(error),
+                        "traceback": traceback.format_exc()})
+                    results.append(failed_case(out / scenario.id, scenario, suite, f"Controller: {type(error).__name__}: {error}"))
+                    mark(scenario.id, "finished")
+                results.sort(key=lambda row: next(index for index, item in enumerate(suite.scenarios) if item.id == row["scenario"]))
+                with lock:
+                    render(out, suite, summarize(out, suite, results))
+    return results
 
 
 def main() -> int:
@@ -213,6 +315,8 @@ def main() -> int:
     parser.add_argument("--source", type=Path)
     parser.add_argument("--seed", type=int, default=1818)
     parser.add_argument("--repeats", type=int, default=2)
+    parser.add_argument("--jobs", type=int, choices=range(1, 5), default=1,
+                        help="Isolated case workers. At most one Minecraft fixture runs at a time.")
     parser.add_argument("--register", action="store_true")
     parser.add_argument("--problems", action="store_true")
     args = parser.parse_args()
@@ -328,28 +432,7 @@ def main() -> int:
         if args.register:
             subprocess.run([sys.executable, "dev/review/server.py", "register", str(bundle(out, suite, report))], cwd=ROOT, check=True)
         return 0 if report["passed"] else 1
-    results = []
-    ordered = sorted(enumerate(suite.scenarios), key=lambda item: (item[1].priority == "edge", item[0]))
-    for index, scenario in ordered:
-        if (out / "STOP").exists():
-            break
-        if args.case and scenario.id not in args.case:
-            continue
-        case = out / scenario.id
-        print(f"Generating {scenario.id}. Evidence: {case}", flush=True)
-        command = [sys.executable, "-m", "dev.work_items.a18b", "run-case", "--out", str(case),
-                   "--case", scenario.id, "--config", str(args.config.resolve()), "--seed", str(args.seed + index)]
-        with (out / f"{scenario.id}.log").open("w", encoding="utf-8") as log:
-            process = run_worker(command, cwd=ROOT, case=case, log=log, timeout_seconds=suite.case_timeout_seconds)
-        save_json(out / f"{scenario.id}-worker.json", process.to_dict())
-        if not case.exists():
-            case.mkdir()
-        save_json(case / "generation-worker.json", process.to_dict())
-        if not (case / "receipt.json").exists():
-            results.append(failed_case(case, scenario, suite, "No terminal case receipt. Inspect worker log."))
-        else:
-            results.append(review_worker(case, scenario, suite, args.config))
-        render(out, suite, summarize(out, suite, results))
+    results = run_cases(out, suite, args.config, args.case, seed=args.seed, jobs=args.jobs)
     report = summarize(out, suite, results)
     render(out, suite, report)
     path = bundle(out, suite, report)

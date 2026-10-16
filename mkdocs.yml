@@ -73,6 +73,7 @@ nav:
       - Cognitive evaluation:
           - Run and inspect: subsystems/cognitive-evaluation.md
           - Blinded review boundaries: subsystems/cognitive-review-boundaries.md
+          - Output recovery: subsystems/cognitive-output-recovery.md
           - Add scenarios: subsystems/cognitive-evaluation-authoring.md
       - Sustained Minecraft actor: subsystems/minecraft-actor.md
       - Minecraft actor controls: subsystems/minecraft-actor-controls.md

@@ -3,7 +3,7 @@
 ## Summary
 
 This record separates evaluation mechanisms, reviewer calibration, and companion behavior.
-The current v3 repertoire declares 16 cases, including four Minecraft cases.
+The current v4 repertoire declares 16 cases, including four Minecraft cases.
 Fourteen cases use normal back-and-forth. Two lower-priority cases explicitly exercise overlap.
 No complete 16-case behavioral acceptance is claimed.
 Failed and incomplete real receipts remain available under ignored runtime paths.
@@ -223,3 +223,71 @@ That unrelated local text check now disables its game capability provider.
 The production stale-capability check remains unchanged. The failed receipt is not relabeled as a pass.
 Full fresh, saved-review, restart, silence, and Minecraft outcomes must be reported from their own terminal receipts.
 Human judgments remain separate from model judgments.
+
+## Recovery and fresh verification, 2026-10-16
+
+The final normal-v3 receipt completed after the earlier handoff.
+It failed after 1,488.906 seconds, with five new companion messages and incomplete scene coverage.
+The private thought output contained an unescaped quotation inside `evidence_summary`.
+JSON extraction occurred outside the existing schema repair loop, so its first syntax error stopped the application.
+That receipt remains failed.
+
+The grounding review also supplied an invented quotation from an implementation fact.
+The proofreader correctly returned no matching span, but the host discarded the remaining panel work.
+Its judgment also treated emotional battery language as a literal implemented mechanism.
+The captured projections and original source digests are in `test_data/captures/alpha/cognitive-format-recovery.json`.
+
+The owner requested an artifact cleanup and fresh verification.
+All earlier runtime artifacts remain intact under `C:/temp/pm-next-v2-archive-20261016-030600/.runtime/`.
+The old review register, human feedback, session transcript, obsolete bytecode folders, and previous generated HTML also remain in that backup.
+`.runtime/archive.json` records the mapping from the original paths.
+The active review register now contains only newly registered runs.
+Fresh evidence uses `.runtime/a18b-current/`.
+
+The [output recovery guide](../../subsystems/cognitive-output-recovery.md) describes the repair and rejection contracts.
+Stage syntax and schema errors share ten repair attempts without accumulated rejected context.
+The main loop retains its input batch after format exhaustion; the private loop discards only that cycle.
+Neither path publishes a fixed recovery reply or accepts invented state.
+Reviewer format repair permits three attempts.
+An unverifiable citation leaves its original judgment visible and requires human inspection instead of erasing the other criteria.
+Critical failures and unresolved critical evidence have separate fields; both still prevent automatic acceptance.
+
+The real recovery gate passed all three checks in 59.192 seconds.
+It regenerated the captured malformed thought, accepted the captured metaphor in two independent reviews, and rejected the invented quotation.
+Evidence: `.runtime/a18b-current/checks/real-recovery-20261016T011240Z-fea74961/` and `checks/real-recovery.log`.
+These are focused real-inference checks, not full companion acceptance.
+The full contract suite passed 80 checks in 4.815 seconds under `checks/contract.log`.
+Foundation, calibration, documentation, and fresh conversation outcomes remain separate until their own terminal receipts exist.
+
+The full foundation repeat passed 820 unit checks in 533.803 seconds under `checks/unit-release.log`.
+The final contract repeat passed 80 checks in 5.217 seconds under `checks/contract-release.log`.
+The final 75-check development suite passed in 7.499 seconds under `checks/reviewer-acceptance-final.log`.
+That targeted suite includes the later guard against hiding unresolved reviewer evidence inside the suite's weaker-case allowance.
+An earlier development repeat failed the missing-field check; its unchanged receipt remains in `checks/development.log`.
+A middle foundation repeat was deliberately stopped after discovering the parallel-cancellation edge.
+`checks/unit-final-source-note.json` records that interruption; it is not a native-exit anomaly.
+
+The revised reviewer passed all 24 calibration judgments.
+The native test passed in 308.891 seconds under `checks/calibration.log`.
+Its complete evidence is now under `checks/calibration/calibrate/`; `checks/calibration/relocation.json` preserves the original location.
+The captured invalid review also completed its separate real-proofreader replay under `checks/captured-review-recovery/`.
+It retained the original failed judgment and produced an uncertain host disposition for human inspection.
+Neither that replay nor calibration executes the full companion.
+
+The real-server preflight started the actual Minecraft server and MCP, obtained a successful observation, and stopped its owned services.
+It did not reset the world or establish companion gameplay behavior.
+Evidence: `checks/minecraft-preflight/receipt.json` and `checks/minecraft-preflight.log`.
+The first strict HTML build and local browser inspection passed.
+Delivery rebuild and browser receipts use `checks/docs-release.log` and `checks/html/receipt.json`.
+
+Manifest `a18b.v4` retains all 16 cases, normal cadence, evidence boundaries, and numerical thresholds.
+The overnight command uses four isolated workers and permits at most one real Minecraft fixture at a time:
+
+```powershell
+uv run --locked python -m dev.work_items.a18b run --jobs 4 `
+  --config config.alpha.openrouter.yaml --out .runtime/a18b-current/fresh --register
+```
+
+`fresh/report.html` is the current inspection page.
+`fresh/progress.json` records the active phases; `fresh/suite-score.json` retains the complete denominator.
+Complete but unresolved results require human review and do not establish A19 readiness.

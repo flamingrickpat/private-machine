@@ -13,6 +13,7 @@ import unittest
 import time
 
 from dev.work_items.a18b.policy import JessePacket
+from dev.work_items.a18b.cli import execution_batches
 from dev.work_items.a18b.runner import (
     actor_send_receipt, await_delivery, delivery_mode, capability_facts, coverage_failures, execution_fact,
     load_suite, make_packets, managed_run_fact, observation_fields,
@@ -23,6 +24,22 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class CognitiveRunnerTests(unittest.TestCase):
+    def test_parallel_groups_keep_minecraft_exclusive_and_normal_cases_first(self):
+        suite = load_suite()
+        batches = execution_batches(suite.scenarios, 3)
+        flattened = [item for batch in batches for _, item in batch]
+        self.assertEqual({item.id for item in flattened}, {item.id for item in suite.scenarios})
+        self.assertEqual(len(flattened), len(suite.scenarios))
+        edge = False
+        for item in flattened:
+            edge = edge or item.priority == "edge"
+            self.assertFalse(edge and item.priority == "normal")
+        for batch in batches:
+            self.assertLessEqual(sum(item.minecraft for _, item in batch), 1)
+            self.assertLessEqual(len(batch), 3)
+        serial = execution_batches(suite.scenarios, 1)
+        self.assertTrue(all(len(batch) == 1 for batch in serial))
+
     def setUp(self):
         self.suite = load_suite()
         self.scenario = self.suite.scenarios[0]

@@ -9,11 +9,14 @@ the child's standalone tests do.
 from __future__ import annotations
 
 from pathlib import Path
+import json
+import traceback
 from typing import Callable
 from pm.llm.completion import TextCompletion
 from collections.abc import Mapping
 
 from workflows.main_cognition.stage_runner import build_stage_runner
+from workflows.main_cognition.stage_support import ModelFormatError
 import asyncio
 from datetime import datetime
 from workflows.main_cognition.affect_dynamics import AffectProjection
@@ -277,6 +280,12 @@ class MainCogLoop(CognitiveWorkflow):
         self.workflow_catalogue = list(workflow_catalogue) if workflow_catalogue else None
         self.embedding_config_path = embedding_config_path
         self._embeddings = None
+        self._cancelled_invocation_id: str | None = None
+
+    def cancel_run(self) -> None:
+        """Cancel this invocation and prevent a format retry for the same request."""
+        self._cancelled_invocation_id = getattr(self, "invocation_id", None)
+        super().cancel_run()
 
     def accepts(self, envelope: Envelope) -> bool:
         if envelope.topic == "workflow.question" and envelope.kind == "telemetry":
@@ -284,25 +293,45 @@ class MainCogLoop(CognitiveWorkflow):
         return super().accepts(envelope)
 
     def handle_batch(self, batch: list[Envelope]) -> None:
-        """Retry revision conflicts without speech. Other failures reach the app.
+        """Retry rejected model formats and revision conflicts without speech.
 
         A concurrent commit can invalidate the cycle's proposal. Each retry
         opens a new view and keeps the original causes. Three failed attempts
         raise the conflict, so contention cannot silently discard user input.
+        Exhausted format repairs retain a diagnostic and retry the same batch.
+        Cancellation stops retries. Ordinary Python and provider errors propagate.
         """
         from pm.memory.snapshot import GhostConflict
         self._event_stimuli = {}
-        for attempt in range(3):
+        attempt = 0
+        while not self.stop_event.is_set():
             try:
                 super().handle_batch(batch)
                 return
+            except ModelFormatError as error:
+                diagnostic = {"invocation_id": self.invocation_id, "error_type": type(error).__name__,
+                              "reason": str(error), "traceback": traceback.format_exc()}
+                path = self.runtime_root / "kernel" / self.invocation_id / "model-output-rejection.json"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(diagnostic, indent=2), encoding="utf-8")
+                self.bus.put(new_envelope(self.module_id, "telemetry", "cycle.rejected",
+                    batch[0].correlation_id if batch else "",
+                    {key: value for key, value in diagnostic.items() if key != "traceback"}))
+                # No report reached publication. Retain the original input and
+                # its event records while the next invocation reads fresh state.
+                # A failed parallel stage sets run_stop to join its siblings.
+                # Only an explicit run cancellation or module stop ends retry.
+                if (self.stop_event.wait(0.2)
+                        or self._cancelled_invocation_id == self.invocation_id):
+                    return
             except GhostConflict as error:
+                attempt += 1
                 self.bus.put(new_envelope(self.module_id, "telemetry", "cycle.conflict",
                     batch[0].correlation_id if batch else "",
-                    {"attempt": attempt + 1, "reason": str(error)}))
+                    {"attempt": attempt, "reason": str(error)}))
                 if self.stop_event.is_set() or self.run_stop.is_set():
                     return
-                if attempt == 2:
+                if attempt == 3:
                     raise
 
     def prepare_input(self, batch: list[Envelope]) -> dict:

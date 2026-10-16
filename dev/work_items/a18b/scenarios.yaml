@@ -1,4 +1,4 @@
-version: a18b.v3
+version: a18b.v4
 cadence_policy: normal_wait_v1
 gate:
   strong_case_percent: 75

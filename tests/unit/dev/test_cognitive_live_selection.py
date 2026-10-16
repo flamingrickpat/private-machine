@@ -64,7 +64,8 @@ class CognitiveSelectedResultTests(unittest.TestCase):
         criteria = suite.common_criteria + self.scenario.criteria
         case = {"scenario": self.case_id, "complete": True, "passed_criteria": len(criteria),
                 "total_criteria": len(criteria), "fraction": "1", "criteria": {item.id: "pass" for item in criteria},
-                "critical_failures": [], "strong": True, "floor": True, "review_errors": []}
+                "critical_failures": [], "critical_unresolved": [], "manual_review_required": [],
+                "review_protocol_complete": True, "strong": True, "floor": True, "review_errors": []}
         self.receipt = {**score_suite(suite, [case]), "scope": "fresh runtime execution"}
 
     def validate(self, receipt: dict, returncode: int = 1) -> None:

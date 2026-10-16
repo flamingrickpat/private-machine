@@ -20,7 +20,10 @@ def is_problem(score: dict) -> bool:
 def render(root: Path, suite, report: dict, *, problems: bool = False) -> Path:
     """Write a local report. Filtering changes its initial view, not its score."""
     rows = {item["scenario"]: item for item in report["cases"]}
+    progress_path = root / "progress.json"
+    progress = json.loads(progress_path.read_text(encoding="utf-8")) if progress_path.exists() else {}
     parts = ["<!doctype html><html lang='en'><meta charset='utf-8'><title>A18B review</title>",
+        "<meta http-equiv='refresh' content='60'>" if progress and not progress.get("finished") else "",
         "<style>body{font:16px system-ui;max-width:1050px;margin:3rem auto;padding:1rem;background:#f6f5ef;color:#172b2b}"
         "article{background:white;border:1px solid #cbd8cf;padding:1rem;margin:1rem 0}summary{cursor:pointer}"
         "pre{white-space:pre-wrap}button{padding:.5rem;margin:.3rem}blockquote{border-left:3px solid #739b8b;padding-left:1rem}"
@@ -36,6 +39,8 @@ def render(root: Path, suite, report: dict, *, problems: bool = False) -> Path:
         score = rows.get(scenario.id)
         problem = score is None or is_problem(score)
         parts.append(f"<article data-problem='{str(problem).lower()}'><h2>{escape(scenario.title)}</h2>")
+        if scenario.id in progress.get("cases", {}):
+            parts.append("<p>Run phase: " + escape(progress["cases"][scenario.id]) + ".</p>")
         if score is None:
             parts.append("<p>No terminal score. This case remains in the suite denominator.</p>")
             failure = root / f"{scenario.id}-worker-error.json"
@@ -44,6 +49,11 @@ def render(root: Path, suite, report: dict, *, problems: bool = False) -> Path:
             parts.append("</article>")
             continue
         parts.append(f"<p>{score['passed_criteria']}/{score['total_criteria']} criteria; complete: {score['complete']}.</p>")
+        if score.get("manual_review_required"):
+            parts.append("<p><strong>Human review required:</strong> unresolved reviewer evidence prevents automatic acceptance.</p>")
+        if score.get("critical_unresolved"):
+            parts.append("<p><strong>Human review required:</strong> unresolved critical criteria: "
+                         + escape(", ".join(score["critical_unresolved"])) + ". No automatic pass.</p>")
         try:
             receipt = json.loads((root / scenario.id / "receipt.json").read_text(encoding="utf-8"))
             failures = receipt["failures"]

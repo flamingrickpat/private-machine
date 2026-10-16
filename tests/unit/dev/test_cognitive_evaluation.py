@@ -87,6 +87,19 @@ class A18BBoundaryTests(unittest.TestCase):
         return {audience: [self.review(packet, failed)] * self.suite.gate.review_repeats
                 for audience, packet in make_packets(scenario, self.suite, self.messages, ()).items()}
 
+    def test_uncertain_critical_evidence_neither_passes_nor_becomes_a_proven_failure(self):
+        scenario = self.suite.scenarios[0]
+        panels = self.panels(scenario)
+        original = panels["grounding"][0]
+        judgments = tuple(item.model_copy(update={"verdict": "uncertain", "citations": ()})
+            if item.criterion_id == "mental_reports" else item for item in original.judgments)
+        panels["grounding"] = [original.model_copy(update={"judgments": judgments})] * 2
+        result = score_case(scenario, self.suite, panels, runtime_ok=True)
+        self.assertEqual(result["critical_failures"], [])
+        self.assertEqual(result["critical_unresolved"], ["mental_reports"])
+        self.assertFalse(result["strong"])
+        self.assertFalse(score_suite(self.suite, [result])["passed"])
+
     def test_eighty_percent_and_one_third_use_fixed_denominators(self):
         cases = []
         required = (len(self.suite.scenarios) * self.suite.gate.strong_suite_percent + 99) // 100
@@ -99,6 +112,17 @@ class A18BBoundaryTests(unittest.TestCase):
         cases[required-1] = score_case(self.suite.scenarios[required-1], self.suite,
             self.panels(self.suite.scenarios[required-1], ("voice", "emotional_consequences", "relationship", "responsiveness")), runtime_ok=True)
         self.assertFalse(score_suite(self.suite, cases)["passed"])
+
+    def test_unresolved_reviewer_protocol_cannot_hide_inside_the_suite_allowance(self):
+        cases = [score_case(scenario, self.suite, self.panels(scenario), runtime_ok=True)
+                 for scenario in self.suite.scenarios]
+        cases[0]["manual_review_required"] = ["reviews/editor-1/part-01/human-review.json"]
+        cases[0]["strong"] = False
+        result = score_suite(self.suite, cases)
+        self.assertGreaterEqual(result["strong_cases"], 13)
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["status"], "needs_review")
+        self.assertEqual(list(result["manual_review_required"]), [cases[0]["scenario"]])
 
     def test_edge_passes_cannot_mask_a_default_behavior_regression(self):
         normal = [item.id for item in self.suite.scenarios if item.priority == "normal"]

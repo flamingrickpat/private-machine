@@ -165,12 +165,14 @@ A cancellation discards the cycle silently; the store guarantees no late
 commit after the stop event.
 
 An explicit semantic model rejection raises [`workflows.inner_thought.pipeline.ModelProposalError`][].
-[`workflows.inner_thought.host.PrivateThoughtLoop.handle_batch`][] catches only that type before the commit.
+[`workflows.inner_thought.host.PrivateThoughtLoop.handle_batch`][] catches that type and exhausted model format repairs before the commit.
 It emits `thought.rejected` with `invocation_id`, `error_type`, `reason`, and `diagnostic_path`.
 The diagnostic and traceback stay in `runtime_root/kernel/INVOCATION/model-proposal-rejection.json`.
 No thought, state, public reply, or action commits from that rejected cycle.
 The next scheduled cycle can run. Rejection is not an idle success.
-Schema errors, unknown operations, ordinary `ValueError`, and other Python errors still reach the application.
+Syntax and stage-schema errors receive ten repair attempts before the private cycle is discarded.
+Unknown operations, ordinary `ValueError`, and other Python errors still reach the application.
+The [output recovery guide](cognitive-output-recovery.md) describes the main loop's retained-input retry and the private rejection boundary.
 
 Inspection episode identifiers can name workspace ticks rather than records.
 They do not enter the record citation allowlist merely because the model saw them.

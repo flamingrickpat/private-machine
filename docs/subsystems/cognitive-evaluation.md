@@ -6,7 +6,7 @@ A18B runs complete companion conversations and reviews frozen evidence through s
 The repertoire has 16 scenarios, including four Minecraft scenarios.
 Fast boundary tests run with the native foundation suite.
 Live generation and saved-evidence review have separate commands and acceptance claims.
-The current manifest is `a18b.v3`. Each run freezes its cases, criteria, and thresholds in `suite.json`.
+The current manifest is `a18b.v4`. Each run freezes its cases, criteria, and thresholds in `suite.json`.
 Fourteen cases use normal conversation. Two lower-priority cases explicitly exercise overlap.
 No command requires a 24-hour run.
 
@@ -14,6 +14,7 @@ Parent: [development loop](../workflows/development.md).
 Design: [review boundaries](cognitive-review-boundaries.md).
 Maintenance: [add scenarios](cognitive-evaluation-authoring.md).
 Results: [A18B verification](../work_items/verification/a18b-cognitive-evaluation.md).
+Recovery: [malformed output and unresolved judgments](cognitive-output-recovery.md).
 
 ## Choose the evidence you need
 
@@ -51,7 +52,13 @@ uv run --locked python -m dev.work_items.a18b run `
 
 Repeat `--case` to select several cases.
 Omit it to generate the complete declared repertoire.
-Cases run sequentially, with normal cases before edge cases.
+Cases run sequentially by default, with normal cases before edge cases.
+`--jobs 4` runs up to four isolated cases together, with at most one Minecraft fixture.
+Conversation cases isolate their game endpoint and disable world polling.
+Each group finishes and cleans up before the next group starts.
+All normal cases complete before edge cases start.
+The permitted range is one through four workers.
+Parallel execution retains each case's original seed offset and full suite denominator.
 Each case owns a new process and a separate full-canon store.
 Minecraft cases own the real server and MCP ports, reset the world, and stop their services afterward.
 Keep other Minecraft fixtures stopped while these cases run.
@@ -163,6 +170,10 @@ Every case must meet at least four criteria.
 All cases and reviewer panels must complete.
 Unsupported external results or unsupported literal mental mechanisms block acceptance regardless of the average.
 Uncertainty earns no credit. Human review remains separate and pending until a person records it.
+Explicit critical failures and unresolved critical evidence appear in separate fields.
+Neither can produce an automatic pass.
+`needs_review` means a complete suite needs human inspection; it does not satisfy the native acceptance gate.
+The [recovery guide](cognitive-output-recovery.md) explains format retries and unverifiable citations.
 
 | File | Contents |
 | --- | --- |
@@ -174,12 +185,14 @@ Uncertainty earns no credit. Human review remains separate and pending until a p
 | `CASE/reviews/` | Panel plans, criterion-group requests, raw outputs, joined reviews, protocol errors, quotation repairs |
 | `CASE/review-origin.json`, `review-source/` | Reviewer code, prompts, and context constants, separate from PM generation |
 | `CASE/score.json`, `suite-score.json` | Host-computed decisions and fixed coverage denominator |
+| `progress.json` | Queued, generating, reviewing, and finished cases, with the worker count |
 | `report.html`, `review-bundle.json` | Human inspection views |
 
 `show`, `score`, and `review-saved` use the saved suite contract, not the checkout's later thresholds.
 Changed snapshots or packet hashes fail explicitly. Legacy runs without snapshots require their original checkout.
 Earlier v2 captures used overlap-heavy timing. Reports label them as legacy, not as normal-cadence acceptance evidence.
 A malformed case retains an incomplete score and diagnostic; it cannot prevent later cases or the aggregate report.
+During generation, the local HTML report refreshes every minute.
 
 Private setup, full checkpoints, logs, actor inputs, and archives stay under ignored `.runtime` paths.
 Do not copy them into public reviewer packets.

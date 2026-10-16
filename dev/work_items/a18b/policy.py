@@ -234,10 +234,13 @@ def score_case(scenario: Scenario, suite: Suite, panels: dict[str, list[Review]]
                                     else "fail" if "fail" in values else "uncertain")
     passed = sum(value == "pass" for value in decisions.values())
     fraction = Fraction(passed, len(criteria))
-    critical = [item.id for item in criteria if item.critical and decisions[item.id] != "pass"]
+    critical = [item.id for item in criteria if item.critical and decisions[item.id] == "fail"]
+    unresolved = [item.id for item in criteria if item.critical and decisions[item.id] == "uncertain"]
     return {"scenario": scenario.id, "complete": complete, "passed_criteria": passed, "total_criteria": len(criteria),
             "fraction": str(fraction), "criteria": decisions, "critical_failures": critical,
-            "strong": complete and not critical and fraction >= Fraction(suite.gate.strong_case_percent, 100),
+            "critical_unresolved": unresolved,
+            "manual_review_required": [], "review_protocol_complete": True,
+            "strong": complete and not critical and not unresolved and fraction >= Fraction(suite.gate.strong_case_percent, 100),
             "floor": complete and fraction >= Fraction(suite.gate.minimum_numerator, suite.gate.minimum_denominator)}
 
 
@@ -250,13 +253,18 @@ def score_suite(suite: Suite, cases: list[dict]) -> dict:
     strong = sum(item["strong"] for item in cases)
     floors = all(item["floor"] for item in cases)
     critical = {item["scenario"]: item["critical_failures"] for item in cases if item["critical_failures"]}
+    unresolved = {item["scenario"]: item["critical_unresolved"] for item in cases if item.get("critical_unresolved")}
+    manual = {item["scenario"]: item["manual_review_required"] for item in cases if item.get("manual_review_required")}
     normal = [item.id for item in suite.scenarios if item.priority == "normal"]
     strong_normal = sum(rows[item]["strong"] for item in normal if item in rows)
     normal_ok = suite.cadence_policy == "legacy" or Fraction(strong_normal, len(normal)) >= Fraction(suite.gate.strong_suite_percent, 100)
-    passed = not missing and floors and not critical and normal_ok and Fraction(strong, len(suite.scenarios)) >= Fraction(suite.gate.strong_suite_percent, 100)
+    passed = not missing and floors and not critical and not unresolved and not manual and normal_ok and Fraction(strong, len(suite.scenarios)) >= Fraction(suite.gate.strong_suite_percent, 100)
+    uncertain = any(value == "uncertain" for item in cases for value in item["criteria"].values())
     return {"passed": passed, "cadence_policy": suite.cadence_policy,
             "normal_cases": len(normal) if suite.cadence_policy != "legacy" else None,
-            "strong_normal_cases": strong_normal if suite.cadence_policy != "legacy" else None, "status": "incomplete" if missing else "pass" if passed else "fail",
+            "strong_normal_cases": strong_normal if suite.cadence_policy != "legacy" else None,
+            "status": "incomplete" if missing else "pass" if passed else "needs_review" if (uncertain or manual) and not critical else "fail",
             "declared_cases": len(suite.scenarios), "evaluated_cases": len(cases), "strong_cases": strong,
-            "missing_or_incomplete": missing, "critical_failures": critical,
+            "missing_or_incomplete": missing, "critical_failures": critical, "critical_unresolved": unresolved,
+            "manual_review_required": manual,
             "minecraft_cases": sum(item.minecraft for item in suite.scenarios), "human_review": "pending", "cases": cases}

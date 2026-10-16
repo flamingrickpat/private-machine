@@ -26,6 +26,10 @@ class StageOutputError(RuntimeError):
     """The model did not return a valid JSON object for this stage."""
 
 
+class ModelFormatError(StageOutputError):
+    """Repeated model output failed syntax or schema validation before any commit."""
+
+
 def load_yaml(path: str | Path) -> dict:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
@@ -48,27 +52,37 @@ def extract_json(text: str) -> dict:
 
 
 def complete_json(context, messages: Sequence[TurnInput], schema: type[BaseModel], **generation: object):
-    """Validate model JSON with at most ten schema attempts.
+    """Validate model JSON with at most ten syntax or schema attempts.
 
-    Schema repair preserves the rejected answer and validator feedback.
-    Transport failures, invalid JSON and tool type errors propagate.
+    Each repair keeps the original task and only the latest rejected answer.
+    Rejected answers and errors remain in the stage's scratch directory.
+    Exhaustion raises ModelFormatError without a report or a state change.
+    Cancellation, transport failures, and tool errors propagate unchanged.
     """
-    temp_list = normalize_turns(messages)
+    original = normalize_turns(messages)
+    turns = original
     last_error = None
-    for _ in range(10):
+    for attempt in range(1, 11):
         tool = context.runtime.tools["llm_complete"]
-        raw = tool(temp_list, **generation)
+        raw = tool(turns, **generation)
         if not isinstance(raw, str):
             raise TypeError("llm_complete must return the completion text as a string.")
-        payload = extract_json(raw)
         try:
-            return schema.model_validate(payload)
-        except ValidationError as error:
+            return schema.model_validate(extract_json(raw))
+        except (StageOutputError, ValidationError) as error:
             last_error = error
-            temp_list.append(Turn(Role.Assistant, raw))
-            temp_list.append(Turn(Role.User, f"This is invalid JSON, '{error}'. "
-                                          "Try again and and ONLY output the JSON string."))
-    raise StageOutputError(f"The stage model output failed validation: {last_error}") from None
+            context.runtime.environment.write_text(
+                f"scratch/model-output-rejection-{attempt:02}.json",
+                json.dumps({"attempt": attempt, "schema": schema.__name__, "raw": raw,
+                            "error_type": type(error).__name__, "error": str(error)}, ensure_ascii=False),
+            )
+            # These roles propose data only. Repair repeats no accepted action.
+            # Keep the full task without accumulating ten rejected answers.
+            turns = [*original, Turn(Role.Assistant, raw), Turn(Role.User,
+                f"The answer failed validation: {error}\n"
+                "Return one corrected JSON object only. Preserve the task facts and source IDs. "
+                "Use short prose fields. Escape quotation marks inside strings. Do not use Markdown fences.")]
+    raise ModelFormatError(f"The stage model output failed validation after ten attempts: {last_error}") from None
 
 
 def write_report(environment, report: BaseModel) -> None:
@@ -81,6 +95,7 @@ def write_report(environment, report: BaseModel) -> None:
 
 __all__ = [
     "StageOutputError",
+    "ModelFormatError",
     "complete_json",
     "extract_json",
     "load_yaml",

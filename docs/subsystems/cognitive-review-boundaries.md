@@ -75,15 +75,19 @@ The retained span always restores the original source case and characters.
 Ambiguous matches remain unresolved. The retained citation always contains an exact original span.
 `citation-normalization.json` records this operation beside the untouched raw judgment.
 
-A narrow proofreader can repair unresolved quotations once.
+A narrow proofreader receives one unresolved quotation and its original source.
 It receives no verdict, reason, score, or hidden scenario facts.
-The host preserves the original verdict, reason, source ID, and summary.
-It changes only the quotation text, then validates it against the same source.
+The raw review preserves the original verdict, reason, source ID, and summary.
+It returns one exact quotation or null when the quotation cannot be found.
 Both the original output and repair remain visible.
-Unknown sources, missing criteria, wrong-target pass citations, and invalid JSON remain protocol failures.
+An unverifiable quotation produces uncertainty and a separate `human-review.json` with the original judgment.
+The remaining independent criterion calls continue.
+Unknown sources, missing criteria, and wrong-target pass citations remain protocol failures.
+Malformed JSON receives at most three format attempts before that criterion requires human inspection.
 The host checks source and target contracts before quotation repair.
 Neither quotation repair nor normalization can turn Jesse's behavior into evidence of Spamuel's behavior.
 There is no reroll because a valid score is low.
+See [output recovery](cognitive-output-recovery.md) for the retained files and result distinctions.
 The terminal runtime receipt stores each packet's hash. Review rejects a changed packet before any model call.
 
 [`dev.work_items.a18b.constants`][] holds the shared 30,000-token test input limit and the review group size, currently one criterion.

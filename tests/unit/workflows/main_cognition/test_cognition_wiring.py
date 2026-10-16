@@ -128,6 +128,63 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 ])
             self.assertEqual(receipts.events, [])
 
+    def test_exhausted_format_repair_keeps_the_user_cause_for_the_next_invocation(self):
+        from workflows.main_cognition.stage_support import ModelFormatError
+        ghost = _small_ghost()
+        stimulus_id = _store(ghost, "the kitchen is on fire")
+        candidate_id = _store(ghost, "Jesse owns a fire extinguisher")
+        reports = _fake_reports(stimulus_id, candidate_id)
+        calls = []
+
+        def run_stage(name, payload):
+            calls.append(name)
+            if len(calls) == 1:
+                module.run_stop.set()
+                raise ModelFormatError("Captured model syntax stayed invalid.")
+            return dict(reports[name])
+
+        with TemporaryDirectory() as tmp:
+            bus = BusSystem()
+            errors = []
+            module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
+                working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
+                tools_factory=lambda environment, batch: {"run_stage": run_stage},
+                runtime_root=Path(tmp), ghost=ghost)
+            rejected = Recorder(bus, "cycle.rejected")
+            requests = Recorder(bus, "action.request")
+            module.handle_batch([Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                correlation_id="retained-user", payload={"knoxel_id": stimulus_id})])
+            self.assertEqual(len(rejected.events), 1)
+            self.assertEqual(rejected.events[0].correlation_id, "retained-user")
+            self.assertEqual(len(requests.events), 1)
+            self.assertEqual(requests.events[0].correlation_id, "retained-user")
+            self.assertEqual(len(list(Path(tmp).rglob("model-output-rejection.json"))), 1)
+            self.assertEqual(errors, [])
+
+    def test_explicit_run_cancellation_prevents_a_format_retry(self):
+        from workflows.main_cognition.stage_support import ModelFormatError
+        ghost = _small_ghost()
+        stimulus_id = _store(ghost, "the kitchen is on fire")
+        calls = []
+
+        def run_stage(name, payload):
+            calls.append(name)
+            module.cancel_run()
+            raise ModelFormatError("Captured model syntax stayed invalid.")
+
+        with TemporaryDirectory() as tmp:
+            bus = BusSystem()
+            module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+                working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
+                tools_factory=lambda environment, batch: {"run_stage": run_stage},
+                runtime_root=Path(tmp), ghost=ghost)
+            requests = Recorder(bus, "action.request")
+            module.handle_batch([Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                correlation_id="cancelled-user", payload={"knoxel_id": stimulus_id})])
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(requests.events, [])
+            self.assertEqual(ghost.gwt_shard("main"), [])
+
     def test_real_parent_commits_gwt_and_publishes_a_typed_dispatch(self):
         ghost = _small_ghost()
         stimulus_id = _store(ghost, "the kitchen is on fire")

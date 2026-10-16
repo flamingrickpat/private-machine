@@ -126,7 +126,7 @@ class KernelTests(unittest.TestCase):
 
     def test_invalid_model_output_raises_instead_of_a_successful_empty_answer(self):
         with self.assertRaises(StageOutputError):
-            self._run("this is not json at all")
+            self._run(*(["this is not json at all"] * 10))
 
 
 if __name__ == "__main__":

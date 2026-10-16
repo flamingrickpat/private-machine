@@ -30,6 +30,7 @@ from pm.records.qualia_records import QualeRecord
 from pm.runs.workflow_module import CognitiveWorkflow
 
 from workflows.main_cognition.host import seconds_since_user_input
+from workflows.main_cognition.stage_support import ModelFormatError
 from workflows.main_cognition.stage_commits import active_intentions, apply_goal_changes
 from workflows.inner_thought.expectations import open_expectation, pending_expectations, resolve_expectation
 from workflows.inner_thought.felt_state import (
@@ -74,7 +75,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         """
         try:
             super().handle_batch(batch)
-        except ModelProposalError as error:
+        except (ModelProposalError, ModelFormatError) as error:
             diagnostic = {
                 "invocation_id": self.invocation_id,
                 "error_type": type(error).__name__,

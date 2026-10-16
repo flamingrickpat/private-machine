@@ -14,9 +14,10 @@ from functools import cache
 from pathlib import Path
 
 import yaml
+from pydantic import ValidationError
 
 from dev.work_items.a18b.constants import MAX_TEST_INPUT_TOKENS, REVIEW_CRITERIA_PER_CALL, REVIEW_REASONING_TOKENS
-from dev.work_items.a18b.policy import CitationError, Closed, JessePacket, Review, ReviewPacket, validate_review
+from dev.work_items.a18b.policy import CitationError, Closed, JessePacket, Judgment, Review, ReviewPacket, validate_review
 from dev.work_items.shared.evidence import save_json
 from pm.context_render.turns import Role, Turn
 from pm.llm.context_window import estimate_tokens
@@ -25,17 +26,14 @@ from pm.llm.reasoning import ReasoningOptions
 HERE = Path(__file__).resolve().parent
 
 
-class RepairedSpan(Closed):
-    """Supply an exact span for one existing quotation, without a new verdict."""
-
-    index: int
-    quote: str
-
-
 class CitationRepair(Closed):
-    """The proofreader can repair quotations only, never judgments or scores."""
+    """Copy one source span, or return null when the source cannot support it."""
 
-    spans: tuple[RepairedSpan, ...]
+    quote: str | None
+
+
+class ReviewProtocolError(ValueError):
+    """A reviewer supplied no valid judgment. The case needs human inspection."""
 
 
 @cache
@@ -96,6 +94,8 @@ def review_schema(packet: ReviewPacket | None = None) -> dict:
          "properties": {**properties, "verdict": {"const": "uncertain"}}, "required": required},
     ]}
     if packet is not None:
+        schema["$defs"]["Citation"]["properties"]["source_id"] = {
+            "enum": [item.id for item in (*packet.conversation, *packet.facts)]}
         count = len(packet.criteria)
         schema["properties"]["judgments"].update(minItems=count, maxItems=count)
         wanted = [item.id for item in packet.criteria]
@@ -117,8 +117,18 @@ def evaluate_panel(model, packet: ReviewPacket, out: Path, *, cancel=None) -> Re
     save_json(out / "panel-plan.json", {"max_input_tokens": MAX_TEST_INPUT_TOKENS,
         "criteria_per_call": REVIEW_CRITERIA_PER_CALL,
         "groups": [[item.id for item in part.criteria] for part in parts]})
-    reviews = [evaluate(model, part, out / f"part-{index:02}", cancel=cancel)
-               for index, part in enumerate(parts, start=1)]
+    reviews = []
+    for index, part in enumerate(parts, start=1):
+        target = out / f"part-{index:02}"
+        try:
+            reviews.append(evaluate(model, part, target, cancel=cancel))
+        except ReviewProtocolError as error:
+            # Invalid model output cannot erase the other independent calls.
+            # This host disposition earns no credit and is not a model verdict.
+            save_json(target / "human-review.json", {"kind": "reviewer protocol failure", "error": str(error)})
+            reviews.append(Review(judgments=tuple(Judgment(criterion_id=item.id, verdict="uncertain",
+                reason=f"Reviewer output was invalid. Human review required: {error}") for item in part.criteria),
+                summary="Reviewer protocol failure. Human review is required."))
     result = Review(judgments=tuple(item for review in reviews for item in review.judgments),
                     summary="\n".join(f"Group {index}: {review.summary}" for index, review in enumerate(reviews, start=1)))
     validate_review(result, packet)
@@ -151,7 +161,12 @@ def exact_quote_span(source: str, attempted: str) -> str | None:
 
 
 def evaluate(model, packet: ReviewPacket, out: Path, *, cancel=None) -> Review:
-    """Persist input and raw output. Invalid reviews raise; cancellation stops I/O."""
+    """Review frozen evidence and retain unresolved citations for human inspection.
+
+    Syntax repair never rerolls a valid judgment. Citation repair sees one source
+    without its verdict. An unsupported citation earns uncertainty, not a pass.
+    Cancellation and ordinary Python or provider errors propagate unchanged.
+    """
     out.mkdir(parents=True, exist_ok=False)
     encoded = packet.model_dump_json().encode("utf-8")
     (out / "packet.json").write_bytes(encoded)
@@ -160,64 +175,88 @@ def evaluate(model, packet: ReviewPacket, out: Path, *, cancel=None) -> Review:
     tokens, measurement = input_budget(model.connection.model, turns, schema=schema)
     save_json(out / "request.json", {"messages": [{"role": row.role.value, "content": row.content.text} for row in turns],
         "packet_sha256": hashlib.sha256(encoded).hexdigest(), "estimated_input_tokens": tokens, "measurement": measurement,
-        "model": model.connection.model, "prompt_version": "a18b.review.v7",
+        "model": model.connection.model, "prompt_version": "a18b.review.v8",
         "max_input_tokens": MAX_TEST_INPUT_TOKENS, "estimate_includes_response_schema": True,
         "system_prompt_sha256": hashlib.sha256(turns[0].content.text.encode("utf-8")).hexdigest()})
-    started = time.monotonic()
-    completion = model.complete_result(turns, temperature=0.2, reasoning=ReasoningOptions(max_tokens=REVIEW_REASONING_TOKENS), cancel=cancel,
-        response_format={"type": "json_schema", "json_schema": {
-            "name": "a18b_review_v6", "strict": True, "schema": schema}})
-    save_json(out / "raw.json", {"text": completion.text, "usage": completion.usage, "model": completion.model,
-        "elapsed_seconds": round(time.monotonic() - started, 3)})
-    validate_provider_budget(completion.usage)
-    review = Review.model_validate(json.loads(completion.text))
+    review = complete_structured(model, turns, Review, schema, out, cancel=cancel)
     try:
         validate_review(review, packet)
     except CitationError:
         texts = {item.id: item.text for item in (*packet.conversation, *packet.facts)}
         bad = [(judgment_index, citation_index, citation) for judgment_index, judgment in enumerate(review.judgments)
                for citation_index, citation in enumerate(judgment.citations) if citation.quote not in texts[citation.source_id]]
-        repair_input = [{"index": index, "source": texts[citation.source_id], "attempted_quote": citation.quote}
-                        for index, (_, _, citation) in enumerate(bad)]
-        normalized = [RepairedSpan(index=item["index"], quote=span) for item in repair_input
-                      if (span := exact_quote_span(item["source"], item["attempted_quote"])) is not None]
-        save_json(out / "citation-normalization.json", {"policy": "unique word span; restore original source typography and case",
-            "spans": [item.model_dump() for item in normalized]})
-        unresolved = [item for item in repair_input if item["index"] not in {span.index for span in normalized}]
-        repaired_spans = list(normalized)
-        for item in unresolved:
-            # Each proofreader sees one source and one rejected quotation.
-            # It receives no other source, verdict, score, reason or case fact.
-            repair_input = [{**item, "index": 0}]
-            repair_turns = [Turn(Role.System, prompts()["citation_repair"]), Turn(Role.User, json.dumps(repair_input, ensure_ascii=False))]
-            repair_schema = CitationRepair.model_json_schema()
-            input_budget(model.connection.model, repair_turns, schema=repair_schema)
-            repair_root = out / f"citation-repair-{item['index']:02}"
-            save_json(repair_root / "input.json", repair_input)
-            repaired = model.complete_result(repair_turns, temperature=0, reasoning=ReasoningOptions(enabled=False), cancel=cancel,
-                response_format={"type": "json_schema", "json_schema": {"name": "a18b_citations", "strict": True,
-                    "schema": repair_schema}})
-            save_json(repair_root / "raw.json", {"text": repaired.text, "usage": repaired.usage})
-            validate_provider_budget(repaired.usage)
-            spans = CitationRepair.model_validate(json.loads(repaired.text)).spans
-            if len(spans) != 1 or spans[0].index != 0:
-                raise ValueError("The proofreader must repair only its supplied quotation.")
-            # The private global index stays with the host. The single-source
-            # proofreader always works on local index zero.
-            repaired_spans.append(RepairedSpan(index=item["index"], quote=spans[0].quote))
-        correction = CitationRepair(spans=tuple(repaired_spans))
-        if len(correction.spans) != len(bad) or {item.index for item in correction.spans} != set(range(len(bad))):
-            raise ValueError("The citation repair did not cover each rejected quotation exactly once.")
         data = review.model_dump(mode="json")
-        for span in correction.spans:
-            judgment_index, citation_index, citation = bad[span.index]
-            if not span.quote or span.quote not in texts[citation.source_id]:
-                raise ValueError("The citation repair still does not match its original source.")
-            data["judgments"][judgment_index]["citations"][citation_index]["quote"] = span.quote
+        unresolved = set()
+        normalization = []
+        for index, (judgment_index, citation_index, citation) in enumerate(bad):
+            source = texts[citation.source_id]
+            span = exact_quote_span(source, citation.quote)
+            if span is not None:
+                normalization.append({"index": index, "quote": span})
+            else:
+                repair_input = {"source": source, "attempted_quote": citation.quote}
+                repair_turns = [Turn(Role.System, prompts()["citation_repair"]),
+                                Turn(Role.User, json.dumps(repair_input, ensure_ascii=False))]
+                repair_root = out / f"citation-repair-{index:02}"
+                save_json(repair_root / "input.json", repair_input)
+                try:
+                    repair = complete_structured(model, repair_turns, CitationRepair,
+                        CitationRepair.model_json_schema(), repair_root, cancel=cancel, reasoning=False)
+                    span = exact_quote_span(source, repair.quote or "")
+                except ReviewProtocolError:
+                    span = None
+            if span is None:
+                unresolved.add(judgment_index)
+            else:
+                data["judgments"][judgment_index]["citations"][citation_index]["quote"] = span
+        save_json(out / "citation-normalization.json", {"policy": "unique word span; restore original source typography and case",
+            "spans": normalization})
+        if unresolved:
+            save_json(out / "human-review.json", {"kind": "unverifiable reviewer citation",
+                "original_judgments": [review.judgments[index].model_dump(mode="json") for index in sorted(unresolved)]})
+            for index in unresolved:
+                judgment = data["judgments"][index]
+                judgment["verdict"] = "uncertain"
+                judgment["reason"] = "A reviewer citation could not be verified. Human review required. " + judgment["reason"]
+                judgment["citations"] = [item for item in judgment["citations"] if item["quote"] in texts[item["source_id"]]]
         review = Review.model_validate(data)
         validate_review(review, packet)
+    except ValueError as error:
+        raise ReviewProtocolError(str(error)) from error
     save_json(out / "review.json", review.model_dump(mode="json"))
     return review
+
+
+def complete_structured(model, turns: list[Turn], result_type: type[Closed], schema: dict,
+                        out: Path, *, cancel=None, reasoning: bool = True):
+    """Repair malformed reviewer JSON up to three times, without score-based retries.
+
+    Each attempt retains its exact request and output. Repairs keep the original
+    evidence and the latest rejected answer. Provider and logic errors propagate.
+    """
+    current = turns
+    for attempt in range(1, 4):
+        target = out if attempt == 1 else out / f"format-repair-{attempt:02}"
+        tokens, measurement = input_budget(model.connection.model, current, schema=schema)
+        save_json(target / "wire-request.json", {"messages": [{"role": row.role.value, "content": row.content.text} for row in current],
+            "schema": schema, "estimated_input_tokens": tokens, "measurement": measurement})
+        started = time.monotonic()
+        completion = model.complete_result(current, temperature=0.2 if reasoning else 0,
+            reasoning=ReasoningOptions(max_tokens=REVIEW_REASONING_TOKENS) if reasoning else ReasoningOptions(enabled=False),
+            cancel=cancel, response_format={"type": "json_schema", "json_schema": {
+                "name": "a18b_" + result_type.__name__.lower(), "strict": True, "schema": schema}})
+        save_json(target / "raw.json", {"text": completion.text, "usage": completion.usage, "model": completion.model,
+            "elapsed_seconds": round(time.monotonic() - started, 3)})
+        validate_provider_budget(completion.usage)
+        try:
+            return result_type.model_validate(json.loads(completion.text))
+        except (json.JSONDecodeError, ValidationError) as error:
+            save_json(target / "format-error.json", {"error": str(error)})
+            current = [*turns, Turn(Role.Assistant, completion.text), Turn(Role.User,
+                f"The output failed format validation: {error}\n"
+                "Correct the JSON format only. Preserve the original judgment and evidence. "
+                "Return the required object without Markdown fences.")]
+    raise ReviewProtocolError("The reviewer returned malformed JSON after three attempts.")
 
 
 def compose(model, packet: JessePacket, *, cancel=None) -> str:

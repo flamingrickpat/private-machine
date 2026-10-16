@@ -75,6 +75,10 @@ def validate_selected_result(returncode: int, receipt: dict, scenario_id: str,
         raise ValueError("The suite score must mark exactly the unselected cases as missing.")
     if receipt.get("critical_failures") != {}:
         raise ValueError("The suite score contains critical failures or lacks that field.")
+    if receipt.get("critical_unresolved") != {}:
+        raise ValueError("The suite score contains unresolved critical evidence or lacks that field.")
+    if receipt.get("manual_review_required") != {}:
+        raise ValueError("The suite score requires human inspection or lacks that field.")
     cases = receipt.get("cases")
     if not isinstance(cases, list) or len(cases) != 1 or not isinstance(cases[0], dict):
         raise ValueError("The suite score must contain exactly the requested scored case.")
@@ -83,8 +87,10 @@ def validate_selected_result(returncode: int, receipt: dict, scenario_id: str,
         raise ValueError("The scored case does not match the requested scenario.")
     if any(case.get(field) is not True for field in ("complete", "strong", "floor")):
         raise ValueError("The selected case must be complete, strong, and above the minimum floor.")
-    if case.get("critical_failures") != [] or case.get("review_errors") != []:
+    if case.get("critical_failures") != [] or case.get("critical_unresolved") != [] or case.get("review_errors") != []:
         raise ValueError("The selected case contains critical failures or review errors, or lacks those fields.")
+    if case.get("manual_review_required") != [] or case.get("review_protocol_complete") is not True:
+        raise ValueError("The selected case requires human inspection or lacks complete reviewer evidence.")
 
 
 def invoke(command: str, *extra: str) -> tuple[subprocess.CompletedProcess, Path]:

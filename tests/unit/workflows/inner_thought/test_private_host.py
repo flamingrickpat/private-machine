@@ -23,6 +23,7 @@ from pm.runs.workflow_module import PROJECT_ROOT
 from tests.support import ManualClock, Recorder
 from workflows.inner_thought.host import PrivateThoughtLoop
 from workflows.inner_thought.schemas import InnerReport
+from workflows.main_cognition.stage_support import ModelFormatError
 
 MANIFEST = PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md"
 
@@ -272,6 +273,21 @@ class RejectionTests(unittest.TestCase):
             self.assertEqual(rejected.events, [])
             self.assertEqual(created.events, [])
             self.assertEqual(ghost.gwt_shard("inner"), [])
+            self.assertEqual(errors, [])
+
+
+    def test_exhausted_format_repairs_discard_only_the_private_cycle(self):
+        with TemporaryDirectory() as tmp:
+            ghost = small_ghost()
+            module, bus, errors = _module(ghost, _reports(), tmp,
+                stage_error=ModelFormatError("Captured JSON stayed malformed after ten attempts."))
+            events = Recorder(bus)
+            before = ghost.state_dict()
+            module.handle_batch([])
+            self.assertEqual(ghost.state_dict(), before)
+            self.assertEqual([item.topic for item in events.events], ["thought.rejected"])
+            self.assertEqual(events.events[0].payload["error_type"], "ModelFormatError")
+            self.assertFalse(module.stop_event.is_set())
             self.assertEqual(errors, [])
 
 
