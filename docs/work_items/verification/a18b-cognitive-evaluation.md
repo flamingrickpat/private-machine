@@ -180,7 +180,13 @@ The v6 saved review is `.runtime/a18b-resume/ordinary-review-v6/`.
 It exposed one remaining quotation-format failure: a lowercase excerpt did not match its uppercase source word.
 V7 restores the exact original case through a unique case-insensitive word match, without changing words or judgments.
 Ambiguous source matches remain errors.
-The real v7 saved review is `.runtime/a18b-resume/ordinary-review-v7/`.
+The v7 saved review is `.runtime/a18b-resume/ordinary-review-v7/`.
+All 24 single-criterion calls validated, with four complete joined panels and no reviewer protocol errors.
+The host awarded eight of twelve criteria. Relationship, responsiveness, and repetition failed; external results remained uncertain.
+The case completed review but did not meet the 75-percent strong-case threshold.
+The aggregate remains incomplete because the other 15 cases did not run.
+
+This is useful regression evidence for the legacy overlap-heavy transcript, not a normal-cadence acceptance result or human truth label.
 These saved reviews use the frozen completed v2 conversation; they do not execute or verify changed PM code.
 
 ## Provider failure versus model behavior
