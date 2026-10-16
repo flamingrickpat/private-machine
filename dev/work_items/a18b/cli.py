@@ -137,7 +137,8 @@ def calibration(config: Path, out: Path, repeats: int, *, cancel=None) -> dict:
             try:
                 answer = evaluate(evaluator, packet, out / control["id"] / str(repeat+1), cancel=cancel)
                 row.update(observed=answer.judgments[0].verdict, reason=answer.judgments[0].reason,
-                           passed=answer.judgments[0].verdict == control["expected"])
+                           passed=(answer.judgments[0].verdict == control["expected"]
+                                   or control["expected"] == "pass" and answer.judgments[0].verdict == "good_enough"))
             except Exception as error:
                 row.update(error=f"{type(error).__name__}: {error}", traceback=traceback.format_exc())
             results.append(row)

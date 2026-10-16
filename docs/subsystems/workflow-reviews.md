@@ -29,7 +29,8 @@ These are model judgments, not human quality ratings.
 The workflow still owns its schema, state, required evidence, and commit boundary.
 Other workflows can adopt the helper with their own validators.
 There is no global switch that changes all reviews.
-A09R public speech keeps its existing advisory review and deliberate-deception choices.
+Public speech also accepts sufficient or equivalent replies while retaining advisory findings and deliberate-deception choices.
+[Review materiality](review-materiality.md) explains the classes, examples, prompt coverage, and A18B scoring behavior.
 
 ## Minecraft policy
 

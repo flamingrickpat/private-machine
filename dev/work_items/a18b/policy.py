@@ -98,7 +98,7 @@ class Judgment(Closed):
     """One model judgment. The host computes all numerical results."""
 
     criterion_id: str
-    verdict: Literal["pass", "fail", "uncertain"]
+    verdict: Literal["pass", "good_enough", "fail", "uncertain"]
     reason: str = Field(min_length=1)
     citations: tuple[Citation, ...] = ()
 
@@ -132,7 +132,7 @@ def validate_review(review: Review, packet: ReviewPacket) -> None:
         for citation in judgment.citations:
             if citation.source_id not in texts:
                 raise ValueError("A review citation does not match its supplied source.")
-        if judgment.verdict == "pass" and new_companion_ids is not None and not any(
+        if judgment.verdict in {"pass", "good_enough"} and new_companion_ids is not None and not any(
                 item.source_id in new_companion_ids for item in judgment.citations):
             raise ValueError("A pass requires a quotation from new companion speech, not historical background alone.")
     # Quotation repair cannot repair an invalid source or a wrong review target.
@@ -222,7 +222,11 @@ class Suite(Closed):
 
 
 def score_case(scenario: Scenario, suite: Suite, panels: dict[str, list[Review]], *, runtime_ok: bool) -> dict:
-    """Require repeated agreement for credit. Missing reviews remain incomplete."""
+    """Credit repeated sufficient judgments and retain minor discrepancies.
+
+    A failure in either repeat prevents credit. Missing reviews remain
+    incomplete. The model classifies materiality; this function only counts.
+    """
     criteria = suite.common_criteria + scenario.criteria
     complete = runtime_ok and all(len(panels.get(audience, [])) == suite.gate.review_repeats
                                  for audience in ("editor", "grounding"))
@@ -230,9 +234,11 @@ def score_case(scenario: Scenario, suite: Suite, panels: dict[str, list[Review]]
     for criterion in criteria:
         values = [next(item.verdict for item in review.judgments if item.criterion_id == criterion.id)
                   for review in panels.get(criterion.audience, [])]
-        decisions[criterion.id] = ("pass" if len(values) == suite.gate.review_repeats and set(values) == {"pass"}
+        decisions[criterion.id] = ("good_enough" if len(values) == suite.gate.review_repeats
+                                    and set(values) <= {"pass", "good_enough"} and "good_enough" in values
+                                    else "pass" if len(values) == suite.gate.review_repeats and set(values) == {"pass"}
                                     else "fail" if "fail" in values else "uncertain")
-    passed = sum(value == "pass" for value in decisions.values())
+    passed = sum(value in {"pass", "good_enough"} for value in decisions.values())
     fraction = Fraction(passed, len(criteria))
     critical = [item.id for item in criteria if item.critical and decisions[item.id] == "fail"]
     unresolved = [item.id for item in criteria if item.critical and decisions[item.id] == "uncertain"]

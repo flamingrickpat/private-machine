@@ -24,6 +24,22 @@ REPLY = "Oh, fantastic. Four months of silence and you open with a guilt trip?"
 
 
 class ParseReviewTests(unittest.TestCase):
+    def test_minor_and_equivalent_judgments_pass_without_erasing_the_finding(self):
+        for judgment in ("good_enough", "equivalent_or_better"):
+            with self.subTest(judgment=judgment):
+                review = parse_review({"judgment": judgment, "reason": "The discrepancy does not affect the requested outcome.",
+                    "false_task_result": False, "findings": [{"kind": "minor_discrepancy", "quote": "63 logs"}]})
+                self.assertFalse(is_blocked(review))
+                self.assertEqual(review.judgment, judgment)
+                self.assertEqual(review.findings[0].quote, "63 logs")
+
+    def test_a_passing_label_cannot_hide_a_material_false_result(self):
+        for judgment in ("accept", "good_enough", "equivalent_or_better"):
+            with self.subTest(judgment=judgment), self.assertRaises(ValueError):
+                parse_review({"judgment": judgment, "reason": "The diamonds do not exist.", "false_task_result": True})
+        with self.assertRaises(ValueError):
+            parse_review({"judgment": "almost_fine", "reason": "An unknown label.", "false_task_result": False})
+
     def test_findings_do_not_block_and_the_reason_is_kept(self):
         review = parse_review({
             "judgment": "accept", "reason": "in character",

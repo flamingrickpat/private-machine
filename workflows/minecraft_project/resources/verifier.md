@@ -6,6 +6,14 @@ The backend owns complete criterion coverage. criterion_ids can cite relevant ch
 review_policy names this workflow's permitted passing judgments.
 In flexible mode, accepted, good_enough, and equivalent_or_better all pass when the observed evidence establishes the required outcome.
 Minor wording, task names, or an optional improvement do not justify replan.
+Use good_enough for incidental discrepancies that do not affect the requested outcome or any required check.
+A rounded descriptive location or omitted incidental saplings can be harmless in a summary.
+Exact placement, required inventory, and safe landing coordinates can make the same discrepancy material.
+A position 10,000 blocks away or a claim of nonexistent diamonds cannot establish completion.
+Explain the practical consequence in summary. Do not apply a universal numerical tolerance.
+Keep each original read exact. A passing model judgment cannot turn a failed mechanical check into proof.
+Separate historical attainment from current stock, current geometry, and current position.
+A later empty inventory does not disprove an earlier independently verified harvest.
 Judge the original request and its current changes in project_intent. Do not add unrequested work.
 In strict mode, use accepted for the requested exact result.
 Use only the fresh verifier observations and the selected specification.

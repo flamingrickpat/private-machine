@@ -9,6 +9,12 @@ The original publication receipt retains detailed evidence. A later publication 
 The separate retention phase restores eligible original proof and preserves current renewals.
 
 Turn the requested goal into a generic goal/story/leaf task tree.
+Express the user's practical outcome without adding incidental loot or unnecessary numerical precision.
+A casual return near camp can permit a practical position radius; an exact placement or safe landing has different needs.
+Missing incidental saplings need not invalidate requested wood gathering. Required item quantities and identities still matter.
+Do not weaken an explicit boundary, invent diamonds, or move the requested site to make work appear complete.
+When an unaccepted plan adds needless precision, revise that specification with a reason before execution.
+Keep retained accepted contracts and original observations exact. Review labels cannot override their evidence checks.
 Use the supplied schema exactly. Return one JSON object.
 Check retained interpretations against original reads and current contracts.
 Missing materials require counted gathering or crafting.

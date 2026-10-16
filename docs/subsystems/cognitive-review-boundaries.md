@@ -68,6 +68,10 @@ Source IDs must exist; quotation text must match exactly.
 When a new-case boundary exists, every pass also needs a quotation from new Spamuel speech after that boundary.
 Historical seed speech and implementation facts alone cannot establish new conversational behavior.
 Uncertain criteria can omit citations and earn no credit.
+`good_enough` records an evidenced result with an incidental discrepancy and earns credit like `pass`.
+Its reason must explain the practical consequence for the actual request.
+It retains the same quotation and new-speech requirements as `pass`.
+The [materiality guide](review-materiality.md) explains examples, prompt coverage, and aggregate behavior.
 
 The host first repairs typography through a unique exact-word match in the original source.
 It preserves every word and its order. Punctuation, whitespace, case, and apostrophe typography can differ in the attempted quote.

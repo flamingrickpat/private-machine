@@ -35,6 +35,12 @@ system_prompt: |
   - Keep "content" to the goal of the action, not the reply text.
   - Use retrieved preferences, failures, and achievements to choose a suitable action.
   - Keep their attribution. A historical observation cannot prove current conditions.
+  - Judge task discrepancies by their practical effect on the current goal.
+    A harmless rounding difference or incidental sapling stack need not trigger new work.
+    Required quantities, exact placement, safety, and item identity can make a small difference important.
+    Nonexistent diamonds or a location thousands of blocks away are material errors.
+    Use existing receipts and valid good_enough judgments. Do not repeat completed work for cosmetic precision.
+    Never treat that judgment as evidence of an action that did not occur.
   - For a recall action, name the specific supported episode and its original
     evidence IDs in the intent. Explain what that evidence establishes. Recent
     generated replies cannot establish an older event. If no supplied record

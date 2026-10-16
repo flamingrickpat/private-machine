@@ -1093,6 +1093,7 @@ class GameplayTests(unittest.TestCase):
         capture = json.loads((CAPTURE.parent / "a13-review-context.json").read_text(encoding="utf-8"))["removed_nodes_repair"]
         original = capture["original_input"]
         payload = json.loads(original["messages"][1]["content"])
+        original_context_characters = len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
         previous = TaskTree.model_validate(payload["previous_tree"])
         proposed = capture["original_proposal"]
         rejected = TaskTree.model_validate(proposed["tree"])
@@ -1111,7 +1112,9 @@ class GameplayTests(unittest.TestCase):
         system = guide + "\nJSON schema:\n" + json.dumps(decision_schema(RevisionProposal), separators=(",", ":"))
         characters = len(system) + len(json.dumps(compact, ensure_ascii=False, separators=(",", ":")))
         self.assertGreater(original["input_characters"], 123000)
-        self.assertLess(characters, original["input_characters"])
+        # Use the same instructions on both sides. The captured system text
+        # predates later review guidance and cannot measure context reduction.
+        self.assertLess(characters, len(system) + original_context_characters)
 
     def navigation_capture(self, through):
         capture = json.loads((CAPTURE.parent / "a13-navigation-stall.json").read_text(encoding="utf-8"))

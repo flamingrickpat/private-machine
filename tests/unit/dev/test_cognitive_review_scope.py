@@ -54,7 +54,7 @@ class CognitiveReviewScopeTests(unittest.TestCase):
 
     def test_wire_schema_requires_citations_for_pass_and_fail(self):
         validator = Draft202012Validator(review_schema())
-        for verdict in ("pass", "fail"):
+        for verdict in ("pass", "good_enough", "fail"):
             with self.subTest(verdict=verdict):
                 judgment = {"criterion_id": "voice", "verdict": verdict, "reason": "Schema boundary input."}
                 payload = {"judgments": [judgment], "summary": "Schema check only."}

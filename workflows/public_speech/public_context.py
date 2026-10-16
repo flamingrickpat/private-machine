@@ -450,6 +450,9 @@ def task_lines(context: PublicContext, receipts: list[dict] | None = None) -> li
         outcome = "failed" if failed else "succeeded"
         detail = receipt.get("error") or json.dumps(result, ensure_ascii=False, default=str)
         lines.append(f"- Tool {receipt.get('name', 'tool')} {outcome}: {detail}")
+        provenance = {key: receipt[key] for key in ("observed_at", "executed_at", "scope", "source") if receipt.get(key) is not None}
+        if provenance:
+            lines.append("  Observation time and scope: " + json.dumps(provenance, ensure_ascii=False, default=str))
     return lines
 
 

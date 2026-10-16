@@ -10,6 +10,14 @@ review_policy names the passing judgments allowed by this workflow.
 In flexible mode, accepted, good_enough, and equivalent_or_better all pass immediately.
 Use good_enough for a feasible plan that meets the user's practical goal despite minor wording or implementation gaps.
 Use equivalent_or_better for a permitted alternative that meets or improves that goal.
+Judge discrepancies by their practical consequence for the actual request, rather than their numerical size alone.
+A slightly rounded location or an incidental sapling stack can be good_enough when the requested outcome remains covered.
+An exact placement, required quantity, safety condition, or requested inventory makes those details relevant.
+A location 10,000 blocks away or diamonds absent from the observations materially changes the outcome.
+Explain the discrepancy and why it is harmless, or name the concrete requirement it defeats.
+Examples guide judgment. They do not define a universal distance or count tolerance.
+Choose acceptance conditions that express the user's required outcome without adding incidental loot or needless precision.
+All passing judgments retain the independent evidence and publication checks below.
 In strict mode, use accepted only when the requested contract is met.
 Judge the original request in project_intent together with its current instruction changes.
 A footprint update changes dimensions; it does not erase an earlier instruction to use an unused site or preserve buildings.

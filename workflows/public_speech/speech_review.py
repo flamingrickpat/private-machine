@@ -9,7 +9,7 @@ An advisory ``finding`` records something that looks unsupported, such as an
 invented ability or an invented event. A finding stays in the receipt for
 review. It never blocks a reply and never triggers regeneration.
 
-Only ``false_task_result`` is a hard block. A false task result can change the
+Only a material ``false_task_result`` is a hard block. A false task result can change the
 user's actions on a real object. A persona-driven reply, including a chosen
 lie or a metaphor, must not become a false task result. Python decides the
 block from the model's explicit ``false_task_result`` flag, so an invented
@@ -21,6 +21,7 @@ can select a verbatim speech span when narration surrounds it.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 from pm.context_render.turns import Role, Turn
 from pm.llm.completion import AsyncTextCompletion
 
@@ -52,7 +53,9 @@ class ReviewFinding(BaseModel):
 class SpeechReview(BaseModel):
     """The result of one agentic review.
 
-    ``judgment`` is the model's short verdict; ``blocked`` is the runtime's
+    ``judgment`` distinguishes supported, sufficient, equivalent, and blocked
+    replies. Minor discrepancies retain their findings and permit publication.
+    ``blocked`` is the runtime's
     decision and depends only on ``false_task_result``. ``findings`` are
     advisory and stay visible for human review.
     """
@@ -60,7 +63,7 @@ class SpeechReview(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: str = "pm.speech-review.v2"
-    judgment: str = "accept"
+    judgment: Literal["accept", "good_enough", "equivalent_or_better", "block"] = "accept"
     reason: str = ""
     false_task_result: bool = False
     spoken_text: str | None = None
@@ -134,8 +137,9 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: dict,
 def parse_review(payload: dict, raw: str = "") -> SpeechReview:
     """Read one review with an explicit boolean flag and a nonempty reason.
 
-    Invalid fields raise ValueError. In particular, the string ``false``
-    cannot become True through Python truth conversion.
+    Invalid fields or contradictory judgments raise ValueError. In particular,
+    a passing label cannot hide a material false task result. The string
+    ``false`` cannot become True through Python truth conversion.
     """
     if not isinstance(payload, dict):
         raise ValueError("The review model returned JSON that is not an object.")
@@ -152,6 +156,8 @@ def parse_review(payload: dict, raw: str = "") -> SpeechReview:
     judgment = str(payload.get("judgment", "") or "").strip().lower()
     if not judgment:
         judgment = "block" if false_task_result else "accept"
+    if (judgment == "block") != false_task_result:
+        raise ValueError("A blocking judgment requires a material false task result; passing judgments cannot contain one.")
     return SpeechReview(
         judgment=judgment,
         reason=reason.strip(),

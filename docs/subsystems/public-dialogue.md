@@ -145,10 +145,13 @@ Both public paths review a draft once with [`workflows.public_speech.speech_revi
 The review is one model call with a persona-aware prompt.
 It judges the draft against the accepted state, the character card, the abilities, the private ontology, and the task results.
 It returns a short `judgment`, a `reason`, and advisory `findings`.
+Its passing judgments are `accept`, `good_enough`, and `equivalent_or_better`.
+An incidental discrepancy can pass with its reason and finding intact.
+[Review materiality](review-materiality.md) explains practical examples and the evidence boundary.
 Findings name an invented ability, an invented event, an unsupported label, or a private leak.
 A finding stays in the receipt for review. It never blocks a reply and never triggers regeneration.
 
-Only a false task result is a hard block.
+Only a material false task result is a hard block.
 A false task result can change what the user does with a real object.
 Python decides the block from the model's explicit `false_task_result` flag, so an invented kind cannot reject a reply.
 A chosen lie, a tease, an exaggeration, or a metaphor is not a false task result.

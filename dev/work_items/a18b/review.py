@@ -76,7 +76,7 @@ def review_parts(packet: ReviewPacket) -> tuple[ReviewPacket, ...]:
 def review_schema(packet: ReviewPacket | None = None) -> dict:
     """Make the provider schema enforce citations for decided judgments.
 
-    An uncertain judgment can omit citations. A pass or fail cannot. This
+    An uncertain judgment can omit citations. Every decided judgment needs them. This
     matches the host validator instead of asking for a looser wire format.
     """
     schema = Review.model_json_schema()
@@ -87,7 +87,7 @@ def review_schema(packet: ReviewPacket | None = None) -> dict:
     # the surrounding required fields when a branch contains only refinements.
     schema["$defs"]["Judgment"] = {"title": "Judgment", "anyOf": [
         {"type": "object", "additionalProperties": False,
-         "properties": {**properties, "verdict": {"enum": ["pass", "fail"]},
+         "properties": {**properties, "verdict": {"enum": ["pass", "good_enough", "fail"]},
                         "citations": {**properties["citations"], "minItems": 1}},
          "required": [*required, "citations"]},
         {"type": "object", "additionalProperties": False,

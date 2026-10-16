@@ -7,6 +7,18 @@ from workflows.public_speech.public_context import PublicContext, task_lines, ab
 
 
 class ToolEvidenceTests(unittest.TestCase):
+    def test_tool_observation_retains_its_historical_time_and_source_scope(self):
+        capture = json.loads(Path("test_data/captures/alpha/a18b-materiality-evidence.json").read_text(encoding="utf-8"))
+        row = capture["harvest"]
+        receipt = {"name": row["tool"], "result": row["result"], "observed_at": row["time"],
+                   "scope": "Historical harvest; it does not establish current inventory.",
+                   "source": capture["sources"][0]}
+        text = "\n".join(task_lines(PublicContext(companion_name="Spamuel", user_name="Jesse"), [receipt]))
+        self.assertIn(str(row["time"]), text)
+        self.assertIn("Historical harvest", text)
+        self.assertIn(capture["sources"][0]["sha256"], text)
+        self.assertIn('"logs_collected": 16', text)
+
     def test_control_receipt_keeps_the_original_request_and_real_artifacts(self):
         capture = json.loads(Path("test_data/captures/alpha/control-task-receipt.json").read_text(encoding="utf-8"))
         text = "\n".join(task_lines(PublicContext(companion_name="Spamuel", user_name="Jesse",

@@ -100,6 +100,7 @@ nav:
           - Invocation and grants: runtime.md
           - Tool-backed draft sessions: subsystems/draft-sessions.md
           - Workflow review modes: subsystems/workflow-reviews.md
+          - Review materiality: subsystems/review-materiality.md
           - Scoped inputs: subsystems/workflow-inputs/index.md
           - Binding syntax: subsystems/workflow-inputs/bindings.md
           - Versions and replay: subsystems/workflow-inputs/versions.md
@@ -207,6 +208,7 @@ nav:
           - A17/A18 hardening: work_items/verification/a17-a18-hardening.md
           - Inference speed: work_items/verification/inference-speed.md
           - A18B cognitive evaluation: work_items/verification/a18b-cognitive-evaluation.md
+          - A18B review materiality: work_items/verification/a18b-review-materiality.md
           - A18B error analysis:
               - Overview: work_items/verification/a18b-errors-20261016.md
               - Missing reply: work_items/verification/a18b-errors/stall.md

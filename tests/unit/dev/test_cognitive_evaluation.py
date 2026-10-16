@@ -100,6 +100,26 @@ class A18BBoundaryTests(unittest.TestCase):
         self.assertFalse(result["strong"])
         self.assertFalse(score_suite(self.suite, [result])["passed"])
 
+    def test_minor_judgments_earn_credit_and_remain_visible_in_the_aggregate(self):
+        scenario = self.suite.scenarios[0]
+        panels = self.panels(scenario)
+        audience = next(iter(panels))
+        original = panels[audience][0]
+        key = original.judgments[0].criterion_id
+        minor = original.model_copy(update={"judgments": tuple(
+            item.model_copy(update={"verdict": "good_enough"}) if item.criterion_id == key else item
+            for item in original.judgments)})
+        panels[audience] = [original, minor]
+        result = score_case(scenario, self.suite, panels, runtime_ok=True)
+        self.assertEqual(result["criteria"][key], "good_enough")
+        self.assertEqual(result["passed_criteria"], result["total_criteria"])
+        self.assertTrue(result["strong"])
+        failed = original.model_copy(update={"judgments": tuple(
+            item.model_copy(update={"verdict": "fail"}) if item.criterion_id == key else item
+            for item in original.judgments)})
+        panels[audience] = [minor, failed]
+        self.assertEqual(score_case(scenario, self.suite, panels, runtime_ok=True)["criteria"][key], "fail")
+
     def test_eighty_percent_and_one_third_use_fixed_denominators(self):
         cases = []
         required = (len(self.suite.scenarios) * self.suite.gate.strong_suite_percent + 99) // 100
@@ -192,6 +212,12 @@ class A18BBoundaryTests(unittest.TestCase):
         review = review.model_copy(update={"judgments": tuple(item.model_copy(update={"citations": (
             Citation(source_id="m0003", quote="new companion speech"),)}) for item in review.judgments)})
         validate_review(review, packet)
+
+        minor = review.model_copy(update={"judgments": tuple(item.model_copy(update={
+            "verdict": "good_enough", "citations": (Citation(source_id="m0001", quote="old seed speech"),)})
+            for item in review.judgments)})
+        with self.assertRaisesRegex(ValueError, "new companion speech"):
+            validate_review(minor, packet)
 
     def test_frozen_suite_rejects_changed_thresholds(self):
         with TemporaryDirectory() as temp:
