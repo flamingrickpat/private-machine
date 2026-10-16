@@ -12,6 +12,11 @@ Parent: [A18B work item](../alpha-plan/work-items/a18b.md).
 Operation: [commands and reports](../../subsystems/cognitive-evaluation.md).
 Protocol: [review boundaries](../../subsystems/cognitive-review-boundaries.md).
 
+The [16 October error analysis](a18b-errors-20261016.md) traces the current run's reply stall,
+provider rejection, body conflict, and reviewer failures to their code boundaries.
+It includes independently checked world receipts and proposed repairs.
+It does not establish a repaired runtime or A19 readiness.
+
 ## Mechanism checks
 
 The boundary suite checks packet projection, closed context fields, audience isolation,

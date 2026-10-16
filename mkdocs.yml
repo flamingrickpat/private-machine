@@ -207,6 +207,13 @@ nav:
           - A17/A18 hardening: work_items/verification/a17-a18-hardening.md
           - Inference speed: work_items/verification/inference-speed.md
           - A18B cognitive evaluation: work_items/verification/a18b-cognitive-evaluation.md
+          - A18B error analysis:
+              - Overview: work_items/verification/a18b-errors-20261016.md
+              - Missing reply: work_items/verification/a18b-errors/stall.md
+              - Provider rejection: work_items/verification/a18b-errors/provider.md
+              - Body conflict: work_items/verification/a18b-errors/body-conflict.md
+              - Speech review: work_items/verification/a18b-errors/reviewers.md
+              - Evaluation review: work_items/verification/a18b-errors/evaluation-review.md
           - A18 self-model:
               - Verification: work_items/verification/a18-self-model.md
               - Live evidence: work_items/verification/a18/live-evidence-20261015.md
