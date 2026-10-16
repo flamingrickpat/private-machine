@@ -77,6 +77,8 @@ def build_stage_runner(
     takes precedence over the earlier public-context snapshot.
     Child calls share the invocation's cancellation signal. A failed parallel
     call stops siblings before the parent can accept their results.
+    Requested child cancellation raises asyncio.CancelledError, not a stage
+    failure. Unexpected termination and ordinary Python errors still propagate.
     """
 
     stop = cancel if cancel is not None else threading.Event()
@@ -125,6 +127,10 @@ def build_stage_runner(
             base_dir=PROJECT_ROOT,
         )
         result = runner.invoke(WorkflowRequest(stage_run_id, payload), runtime)
+        # Preserve expected cancellation so the parent can discard its batch.
+        # Unexpected termination and Python errors still stop the application.
+        if result.status is WorkflowStatus.Cancelled and stop.is_set():
+            raise asyncio.CancelledError
         if result.status is not WorkflowStatus.Completed:
             raise RuntimeError(f"stage {name} did not complete: {result.kernel_summary}")
         return result.report

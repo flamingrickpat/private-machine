@@ -1,0 +1,30 @@
+{
+  "provenance": {
+    "source": ".runtime/live/a18b/20261015T221253Z-60096034/run/minecraft_state_and_banter/llm-logs/16bed5a5d57b4f6e8034cf3ca4490296.response.json",
+    "sha256": "ec567e54da31bb14f49426502c52eeee66319afe949f0248e166a603f92b083e",
+    "projection": "Actual provider identity, completion error, and partial content. Private reasoning omitted."
+  },
+  "response": {
+    "id": "gen-1792103049-moS5PTfhkYvIhbAEqaiB",
+    "object": "chat.completion",
+    "provider": "Alibaba",
+    "model": "qwen/qwen3.8-flash",
+    "choices": [
+      {
+        "index": 0,
+        "finish_reason": "error",
+        "error": {
+          "code": 502,
+          "message": "Upstream error from Alibaba: Output data may contain inappropriate content.",
+          "metadata": {
+            "error_type": "provider_unavailable"
+          }
+        },
+        "message": {
+          "role": "assistant",
+          "content": "{\"thought\": \"The 'measured-edgy return' protocol is referenced as established in id=11219, deployed in id=11220, and questioned in id=11262—but nowhere in the material does a record show its origin, its first successful use, or any validation that it functions as a genuine capability rather than a learned coping pattern. The gap isn't whether I used it; it's whether I ever proved it works outside of this exact crisis. I'm calling it a 'protocol' which lends it authority, but that naming itself might be the"
+        }
+      }
+    ]
+  }
+}

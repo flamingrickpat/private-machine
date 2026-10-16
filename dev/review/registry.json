@@ -100,6 +100,96 @@
       "sha256": "30062bce76ad7023888ec864f6d47463f7085e5f5608748ae7bc2f87468f7a12",
       "items": 1,
       "reviewable": 0
+    },
+    {
+      "id": "20261015-222000-speed-recent-03",
+      "title": "Async conversation · recent · 20261015-222000-speed-recent-03",
+      "work_item": "A17/A18 hardening",
+      "created_at": "2026-10-15T20:35:28.395037+00:00",
+      "path": ".runtime/dev-review/bundles/20261015-222000-speed-recent-03.json",
+      "sha256": "1abbf25a104392f3e78327764c6142fe80232885d3b412900d595c37cf7f83ff",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "20261015-222000-speed-recent-03-diagnostic",
+      "title": "Async conversation · recent · 20261015-222000-speed-recent-03",
+      "work_item": "A17/A18 hardening",
+      "created_at": "2026-10-15T20:35:28.395037+00:00",
+      "path": ".runtime/dev-review/bundles/20261015-222000-speed-recent-03-diagnostic.json",
+      "sha256": "bc094fdedee09a51341e63102373f05a174d4d790705c4a25cce9d5a4f005a69",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "20261015-speed-recent-04",
+      "title": "Async conversation · recent · 20261015-speed-recent-04",
+      "work_item": "A17/A18 hardening",
+      "created_at": "2026-10-15T21:06:37.980914+00:00",
+      "path": ".runtime/dev-review/bundles/20261015-speed-recent-04.json",
+      "sha256": "082c4623c524547e59b099111855c0d6fa4b10642db16e2f3f90234a643380e6",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "a18b-ordinary-01",
+      "title": "A18B · blinded cognitive believability · a18b-ordinary-01",
+      "work_item": "A18B",
+      "created_at": "2026-10-15T21:08:55.215341+00:00",
+      "path": ".runtime/dev-review/bundles/a18b-ordinary-01.json",
+      "sha256": "44cc47de91fea7a55450e87b379c611cc711d6b343feeb71a9ee282d3c781509",
+      "items": 1,
+      "reviewable": 0
+    },
+    {
+      "id": "a18b-ordinary-02",
+      "title": "A18B · blinded cognitive believability · a18b-ordinary-02",
+      "work_item": "A18B",
+      "created_at": "2026-10-15T21:24:03.633932+00:00",
+      "path": ".runtime/dev-review/bundles/a18b-ordinary-02.json",
+      "sha256": "9362904aca671bf41d8eaf13c63b22b270bb5f064647b5ac21e57ec62c90d491",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "a18b-minecraft-01",
+      "title": "A18B · blinded cognitive believability · a18b-minecraft-01",
+      "work_item": "A18B",
+      "created_at": "2026-10-15T21:39:29.849186+00:00",
+      "path": ".runtime/dev-review/bundles/a18b-minecraft-01.json",
+      "sha256": "82cd9da9dfa3fa3af918a89b3fb9a71612cd6182e36eb87909d38e08d096a41b",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "ordinary-review-v4",
+      "title": "A18B · blinded cognitive believability · ordinary-review-v4",
+      "work_item": "A18B",
+      "created_at": "2026-10-15T23:32:48.865902+00:00",
+      "path": ".runtime/dev-review/bundles/ordinary-review-v4.json",
+      "sha256": "f22860a7acf199e6ff84a1fdcdffd5d6d8387cfaae32dd48c33c8891a278d189",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "ordinary-review-v5",
+      "title": "A18B · blinded cognitive believability · ordinary-review-v5",
+      "work_item": "A18B",
+      "created_at": "2026-10-15T23:52:59.059399+00:00",
+      "path": ".runtime/dev-review/bundles/ordinary-review-v5.json",
+      "sha256": "205eb4c4eaa29f7b952aac8dbbdfc90b5652a11fe618d398e83432b886201df5",
+      "items": 1,
+      "reviewable": 1
+    },
+    {
+      "id": "ordinary-review-v6",
+      "title": "A18B · blinded cognitive believability · ordinary-review-v6",
+      "work_item": "A18B",
+      "created_at": "2026-10-16T00:02:39.141393+00:00",
+      "path": ".runtime/dev-review/bundles/ordinary-review-v6.json",
+      "sha256": "1a0c85737619c0d4ce23a95f3cdf5579afa5baa182c5cb7391d166748d1eac97",
+      "items": 1,
+      "reviewable": 1
     }
   ]
 }

@@ -1,9 +1,9 @@
 # private-machine
 
-Spamuel runs on a shared Ghost, an in-memory bus, and the `pm-workflows` kernel.
+The companion uses a shared memory store, an in-memory bus, and the `pm-workflows` kernel.
 The terminal uses real cognition by default. The model activates on the first request.
 
-Each input passes through seven stages: triage, appraisal, context, attention, goals, workspace, and action selection.
+Each input passes through eight stages: triage, appraisal, context, codelets, attention, goals, workspace, and action selection.
 The parent commits an attention frame and a global workspace turn (GWT), then dispatches actions.
 Story dialogue produces a character utterance. Assistant dialogue can use scoped memory and workflow tools.
 
@@ -11,7 +11,7 @@ Managed workflows support start, status, instruction updates, questions, and can
 The application stores their receipts in Ghost and consolidates their artifacts into memory.
 Minecraft supports sustained specialist leaves and durable projects through the real Minecraft MCP.
 The project planner orders subtasks and independently verifies their world effects.
-Internal thought generation remains disabled in real mode.
+Real cognition includes the private thought loop when its timer is configured.
 
 ## Setup and run
 
@@ -127,7 +127,33 @@ Run the real application path and model checks:
 uv run --locked python -m unittest tests.live.test_real_app_path tests.live.test_models -v -b
 ```
 
-Full conversation acceptance uses ten scenarios with twenty exchanges each:
+### Sustained cognitive regression tests (A18B)
+
+The [cognitive evaluation guide](docs/subsystems/cognitive-evaluation.md) covers asynchronous conversations across four scenes.
+The repertoire contains 16 cases. Four use the real Minecraft server.
+Cases exercise correction, emotional repair, initiative, boundaries, restart, and competing goals through the full companion runtime.
+Independent Jesse and reviewer calls receive separate, limited context.
+Normal cases wait for actual companion speech before Jesse follows up.
+Two lower-priority cases exercise overlap bursts; they do not define the default chat cadence.
+
+Run selected cases as individually named native tests:
+
+```powershell
+$env:PM_A18B_CASES = 'ordinary_project,corrected_memory'
+uv run --locked python -m unittest tests.live.test_cognitive_evaluation.LiveA18BSelectedCaseTests -v
+Remove-Item Env:PM_A18B_CASES
+```
+
+Each selected test requires fresh execution and strong reviews for its case.
+It does not establish a complete repertoire pass.
+Use the [documented CLI](docs/subsystems/cognitive-evaluation.md) to generate cases, inspect all results, or show only problems.
+Saved review exercises reviewers against earlier evidence. It cannot verify changed companion code.
+The [authoring guide](docs/subsystems/cognitive-evaluation-authoring.md) explains how to extend the repertoire without leaking future plans or answers.
+There is no mandatory 24-hour run.
+
+### Earlier conversation gate (W7)
+
+The earlier conversation acceptance uses ten scenarios with twenty exchanges each:
 
 ```powershell
 uv run --locked python -m unittest tests.live.test_conversations -v -b
@@ -197,7 +223,7 @@ uv run --locked python dev/review/server.py serve
 
 It opens http://127.0.0.1:8765 with context and output on the left, ratings and comments on the right.
 
-- Preloaded 7 runs, 30 captured replies from A17, A18, and A09R.
+- Loads the registered A17, A18, A09R, and conversation-review runs.
 - Supports drafts, reviewed/unreviewed filters, references, and saved feedback history.
 - Feedback stays in .runtime/dev-review/feedback/.
 - Existing runtime and documentation sources remain unchanged.

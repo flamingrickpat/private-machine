@@ -8,6 +8,7 @@ host publishes an accepted self-origin event.
 """
 from __future__ import annotations
 
+import asyncio
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -34,7 +35,12 @@ def stage_manifest(name: str) -> Path:
 
 def build_inner_stage_runner(ghost, llm_complete: Callable, runtime_root: Path,
                              read_environment=None, *, cancel: threading.Event | None = None) -> Callable[[str, dict], dict]:
-    """Return ``run_stage(name, payload)`` bound to one run's model tool."""
+    """Bind private child stages to one model and cancellation signal.
+
+    Requested child cancellation raises asyncio.CancelledError so the parent
+    can discard its proposal. Unexpected termination still raises RuntimeError.
+    Kernel artifacts remain under runtime_root; cancellation returns no report.
+    """
 
     stop = cancel if cancel is not None else threading.Event()
 
@@ -57,6 +63,9 @@ def build_inner_stage_runner(ghost, llm_complete: Callable, runtime_root: Path,
         runner = WorkflowRunner(stage_manifest(name), Path(runtime_root) / name,
                                 namespace=name, base_dir=PROJECT_ROOT)
         result = runner.invoke(WorkflowRequest(stage_run_id, payload), runtime)
+        # A requested stop is cancellation, not a failed private stage.
+        if result.status is WorkflowStatus.Cancelled and stop.is_set():
+            raise asyncio.CancelledError
         if result.status is not WorkflowStatus.Completed:
             raise RuntimeError(f"stage {name} did not complete: {result.kernel_summary}")
         return result.report

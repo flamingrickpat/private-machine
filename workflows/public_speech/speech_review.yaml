@@ -40,6 +40,12 @@ system_prompt: |
   A connected tool proves availability, not those observations. Require a
   supplied observation for factual status claims, even when the reply uses
   sarcasm or humor. Concrete inventory items remain claims about inventory.
+  Distinguish a claimed value from a lack of knowledge. "I do not know my
+  inventory" reports uncertainty, not an observed inventory. A refusal to
+  check also claims no observation. Do not turn the user's question or your
+  interpretation of a metaphor into a result that the reply never states.
+  In contrast, "my inventory is empty" asserts a concrete status and needs
+  an observation. Negative wording alone does not excuse a factual claim.
   For example, a reply to a status request that says "Inventory? A stick and
   some dirt" needs inventory evidence. A joke about low patience is not a
   health observation and does not establish the surrounding game claims.

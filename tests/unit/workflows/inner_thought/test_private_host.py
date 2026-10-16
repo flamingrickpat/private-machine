@@ -5,6 +5,7 @@ stands in for the kernel, exactly as the main cognition state tests do.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -56,10 +57,12 @@ def _reports(*, operation="curiosity_spark", expectation=None):
     }
 
 
-def _module(ghost, reports, tmp, stage_called=None):
+def _module(ghost, reports, tmp, stage_called=None, *, stage_error=None):
     def run_stage(name, payload):
         if stage_called is not None:
             stage_called.append(name)
+        if name == "thought" and stage_error is not None:
+            raise stage_error
         return dict(reports[name])
 
     bus = BusSystem()
@@ -167,6 +170,69 @@ class AcceptedCycleTests(unittest.TestCase):
 
 
 class RejectionTests(unittest.TestCase):
+    def test_rejected_model_proposal_changes_no_state_and_next_cycle_succeeds(self):
+        for invalid in ({"evidence_ids": [812, 11295]}, {"reality": "unsupported"}):
+            with self.subTest(invalid=invalid), TemporaryDirectory() as tmp:
+                ghost = small_ghost()
+                ghost.checkpoint = Path(tmp) / "ghost.json"
+                ghost.commit(ghost.begin_batch("initial-checkpoint"))
+                reports = _reports()
+                valid_thought = dict(reports["thought"])
+                reports["thought"].update(invalid)
+                calls = []
+                module, bus, errors = _module(ghost, reports, tmp, calls)
+                events = Recorder(bus)
+                before = ghost.state_dict()
+                checkpoint = ghost.checkpoint.read_bytes()
+
+                module.handle_batch([])
+
+                self.assertEqual(calls, ["trigger", "thought"])
+                self.assertEqual(ghost.state_dict(), before)
+                self.assertEqual(ghost.checkpoint.read_bytes(), checkpoint)
+                self.assertEqual(ghost.gwt_shard("inner"), [])
+                self.assertEqual([(item.kind, item.topic) for item in events.events],
+                                 [("telemetry", "thought.rejected")])
+                rejection = events.events[0].payload
+                failed_invocation = module.invocation_id
+                self.assertEqual(rejection["invocation_id"], failed_invocation)
+                self.assertEqual(rejection["error_type"], "ModelProposalError")
+                path = module.runtime_root / "kernel" / failed_invocation / "model-proposal-rejection.json"
+                self.assertEqual(Path(rejection["diagnostic_path"]), path)
+                diagnostic = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(diagnostic["reason"], rejection["reason"])
+                self.assertEqual(diagnostic["invocation_id"], failed_invocation)
+                self.assertEqual(diagnostic["error_type"], "ModelProposalError")
+                self.assertIn("ModelProposalError", diagnostic["traceback"])
+                self.assertIsNone(module.last_result)
+                self.assertFalse(module.stop_event.is_set())
+                self.assertEqual(errors, [])
+
+                reports["thought"] = valid_thought
+                module.handle_batch([])
+
+                self.assertNotEqual(module.invocation_id, failed_invocation)
+                self.assertEqual(len(ghost.gwt_shard("inner")), 1)
+                self.assertEqual([item.topic for item in events.events],
+                                 ["thought.rejected", "thought.created", "gwt.updated"])
+                self.assertEqual(errors, [])
+                self.assertTrue(path.is_file())
+
+    def test_plain_value_error_with_same_wording_and_type_error_propagate(self):
+        reason = "the thought stage cited ids outside the frozen view: [812, 11295]"
+        for error in (ValueError(reason), TypeError("broken stage tool")):
+            with self.subTest(error=type(error).__name__), TemporaryDirectory() as tmp:
+                ghost = small_ghost()
+                module, bus, errors = _module(ghost, _reports(), tmp, stage_error=error)
+                events = Recorder(bus)
+                before = ghost.state_dict()
+                with self.assertRaises(type(error)) as raised:
+                    module.handle_batch([])
+                self.assertIs(raised.exception, error)
+                self.assertEqual(events.events, [])
+                self.assertEqual(ghost.state_dict(), before)
+                self.assertEqual(list(module.runtime_root.rglob("model-proposal-rejection.json")), [])
+
     def test_stale_source_rejects_the_cycle_with_a_diagnostic(self):
         ghost = small_ghost()
         # A user message gives the loop a citable candidate, so its revision

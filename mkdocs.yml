@@ -70,6 +70,10 @@ nav:
       - Public dialogue: subsystems/public-dialogue.md
       - Public publication and recovery: subsystems/public-publication.md
       - Asynchronous conversation review: subsystems/async-conversation-review.md
+      - Cognitive evaluation:
+          - Run and inspect: subsystems/cognitive-evaluation.md
+          - Blinded review boundaries: subsystems/cognitive-review-boundaries.md
+          - Add scenarios: subsystems/cognitive-evaluation-authoring.md
       - Sustained Minecraft actor: subsystems/minecraft-actor.md
       - Minecraft actor controls: subsystems/minecraft-actor-controls.md
       - Native gameplay provider protocol: subsystems/gameplay-provider-protocol.md
@@ -159,6 +163,7 @@ nav:
               - A16 Codelet repertoire: work_items/alpha-plan/work-items/a16.md
               - A17 Second conscious loop: work_items/alpha-plan/work-items/a17.md
               - A18 Source-grounded self-model: work_items/alpha-plan/work-items/a18.md
+              - A18B Cognitive evaluation: work_items/alpha-plan/work-items/a18b.md
               - A19 Effective reflection: work_items/alpha-plan/work-items/a19.md
               - A20 Integrated alpha trial: work_items/alpha-plan/work-items/a20.md
       - Verification:
@@ -200,6 +205,7 @@ nav:
           - A17 private loop: work_items/verification/a17-private-loop.md
           - A17/A18 hardening: work_items/verification/a17-a18-hardening.md
           - Inference speed: work_items/verification/inference-speed.md
+          - A18B cognitive evaluation: work_items/verification/a18b-cognitive-evaluation.md
           - A18 self-model:
               - Verification: work_items/verification/a18-self-model.md
               - Live evidence: work_items/verification/a18/live-evidence-20261015.md

@@ -61,6 +61,23 @@ A replacement must match or beat the rule-based behavior on the same cases.
 This policy turns "explicit logic" into a deliberate, test-backed alpha stage.
 Read the [generalization ladder](index.md#generalization-ladder) for the method.
 
+## Prompt scope and decomposition
+
+Quality takes priority over the number of model calls.
+No task must use a single prompt merely because its current implementation does so.
+This rule applies to cognition, codelets, dialogue, managed agents, Jesse, and evaluation.
+Hard reasoning and review can use smaller, focused calls followed by explicit integration.
+
+Each call needs the evidence required for its own decision, not every available field.
+Cross-call handoffs must retain relevant facts, source identifiers, time boundaries, and uncertainty.
+Do not replace required evidence with an unsupported summary or silently truncate it.
+A narrow call cannot claim to evaluate an entire trajectory that it did not receive.
+
+The cognitive evaluation harness uses a shared 30,000-token input limit for its independent test agents.
+It partitions rubric criteria into small groups rather than asking one reviewer to judge every criterion at once.
+Longer trajectories need explicit scene windows and coverage rules, not a larger arbitrary context dump.
+PM's own context selection remains a separate mechanism. This test limit does not remove required companion memory.
+
 ## Optional decision classifier
 
 The decision classifier was planned as a frequent fast path.

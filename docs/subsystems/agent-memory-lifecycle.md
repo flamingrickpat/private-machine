@@ -47,7 +47,8 @@ The caller then revokes the read session.
 During retrieval, the search detects a closed session, cancels its provider task, and awaits cleanup.
 It does not set the enclosing run's cancellation signal.
 Completed embedding cache entries can remain.
-Transport retries use the shared embedding client's normal policy until cancellation.
+Transport retries use the shared embedding client's bounded policy: five retries, with 30-second pauses.
+Cancellation interrupts retry waits and request I/O.
 Lexical queries perform no network work.
 
 Restart creates a fresh snapshot and listener.

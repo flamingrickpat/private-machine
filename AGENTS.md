@@ -43,6 +43,22 @@ Separate a completed workflow receipt from verified execution of the requested t
 Inspect actual file contents or world effects before claiming task success.
 Record human review status without inventing ratings or treating a model's answer as a truth label.
 
+## Prompt scope and quality
+
+Quality takes priority over minimizing model calls.
+Do not force a reasoning or review task into one prompt.
+Use smaller, focused calls when they improve quality.
+Preserve required facts, source identifiers, chronology, and uncertainty across those calls.
+Use the applicable context limits. Do not silently remove necessary evidence to fit a prompt.
+This rule applies to all prompts, not only test agents or reviewers.
+
+## Default behavior and edge cases
+
+Keep expected default behavior as the primary path.
+Treat a new "what about this?" situation as an additional edge case unless the owner explicitly changes the default.
+Do not replace the main behavior with the edge case.
+Exercise edge cases separately and give them lower priority than normal use.
+
 ## Comments and docstrings for human maintainers
 
 Use the simple-english skill for all new or revised explanatory code prose.

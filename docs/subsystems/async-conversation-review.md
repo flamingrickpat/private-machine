@@ -9,6 +9,7 @@ Separate records retain the causes and the context visible during composition.
 
 Parent: [public publication](public-publication.md).
 Related: [private loop](private-loop.md), [Minecraft](minecraft-actor-controls.md), and [development review](../workflows/development.md).
+For the larger scenario repertoire and automated blinded review, use [A18B cognitive evaluation](cognitive-evaluation.md).
 
 ## Run a conversation
 

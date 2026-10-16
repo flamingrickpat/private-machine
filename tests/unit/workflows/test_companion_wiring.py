@@ -106,6 +106,9 @@ class ManagementWiringTests(unittest.TestCase):
                 None, root, ghost=ghost, cognition="real",
                 stage_model=StubStageModel(completions), clock=time.monotonic,
             )
+            # This local text-wiring check has no game evidence. Do not let
+            # an independent live fixture change its capability input mid-run.
+            app.assistant.capability_provider = None
             replies = Recorder(app.bus, "dialogue.reply")
             from pm.records.memory_records import new_feature
             from pm.records.enums import FeatureType

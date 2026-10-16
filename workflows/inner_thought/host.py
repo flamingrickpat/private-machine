@@ -15,6 +15,8 @@ mental state directly: only the main appraisal path does that.
 from __future__ import annotations
 
 from datetime import datetime
+import json
+import traceback
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.memory.snapshot import GhostCancelled, GhostConflict
@@ -34,6 +36,7 @@ from workflows.inner_thought.felt_state import (
     is_reportable, notable_channels, previous_cycle_sample, project_channels,
 )
 from workflows.inner_thought.operations import operation_lines
+from workflows.inner_thought.pipeline import ModelProposalError
 from workflows.inner_thought.schemas import InnerReport, InnerRequest, ThoughtCandidate
 from workflows.inner_thought.stage_runner import build_inner_stage_runner
 from workflows.inner_thought.triggers import evaluate_triggers
@@ -61,6 +64,28 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     # The loop is timer-driven. It never reacts to bus traffic, so a main
     # cycle cannot cascade into an inner cycle into another main cycle.
     DATA_TOPICS = frozenset()
+
+    def handle_batch(self, batch: list[Envelope]) -> None:
+        """Run one cycle and discard an explicitly rejected model proposal.
+
+        The rejected proposal changes no committed private state. A rejection
+        retains its diagnostic beside the parent kernel artifacts and emits
+        telemetry only. It is not an idle cycle. Other errors propagate.
+        """
+        try:
+            super().handle_batch(batch)
+        except ModelProposalError as error:
+            diagnostic = {
+                "invocation_id": self.invocation_id,
+                "error_type": type(error).__name__,
+                "reason": str(error),
+            }
+            path = self.runtime_root / "kernel" / self.invocation_id / "model-proposal-rejection.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({**diagnostic, "traceback": traceback.format_exc()}, indent=2),
+                            encoding="utf-8")
+            self.bus.put(new_envelope(self.module_id, "telemetry", "thought.rejected", "",
+                                      {**diagnostic, "diagnostic_path": str(path)}))
 
     def prepare_input(self, batch: list[Envelope]) -> dict:
         """Freeze one private request from committed state.

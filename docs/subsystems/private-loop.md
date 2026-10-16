@@ -164,6 +164,18 @@ cycle with a `thought.rejected` telemetry envelope.
 A cancellation discards the cycle silently; the store guarantees no late
 commit after the stop event.
 
+An explicit semantic model rejection raises [`workflows.inner_thought.pipeline.ModelProposalError`][].
+[`workflows.inner_thought.host.PrivateThoughtLoop.handle_batch`][] catches only that type before the commit.
+It emits `thought.rejected` with `invocation_id`, `error_type`, `reason`, and `diagnostic_path`.
+The diagnostic and traceback stay in `runtime_root/kernel/INVOCATION/model-proposal-rejection.json`.
+No thought, state, public reply, or action commits from that rejected cycle.
+The next scheduled cycle can run. Rejection is not an idle success.
+Schema errors, unknown operations, ordinary `ValueError`, and other Python errors still reach the application.
+
+Inspection episode identifiers can name workspace ticks rather than records.
+They do not enter the record citation allowlist merely because the model saw them.
+The thought prompt states that boundary. The host never removes invalid citations and accepts the remaining prose.
+
 ## Self-origin events
 
 The main loop already accepts the `thought.created` topic.
@@ -255,6 +267,9 @@ Deliberate misrepresentation is not decided here: it stays the main loop's
   Unexpected cancellation and other failures still reach the application.
   Source inspection converts filesystem access failures into evidence limits.
   Provider logic errors stop the runtime with their traceback.
+- Main and private child stages preserve requested cancellation as `asyncio.CancelledError`.
+  The parent discards its proposal instead of reporting a failed stage during normal shutdown.
+  Unexpected child termination and ordinary Python errors still reach the application.
 - On restart, the checkpoint keeps both shards, the felt-channel history, and
   every accepted record. `record_startup` measures the offline gap, and the
   gap contains no invented executed activity.
@@ -265,8 +280,9 @@ Deliberate misrepresentation is not decided here: it stays the main loop's
 | --- | --- |
 | No trigger fires | the tick commits nothing and emits `thought.idle` |
 | A read record changed mid-flight | the cycle is rejected with `thought.rejected`; no commit |
-| The model cites an unknown id or operation | the pipeline raises before any commit |
-| A resolution without observations | the pipeline raises before any commit |
+| The model cites an unknown record id or reality label | reject the private proposal, retain a diagnostic, and continue without a commit |
+| The model names an unknown operation | fail through the module error path |
+| An invalid expectation resolution survives its bounded repair | reject the private proposal without a commit |
 | A broken catalogue or stage manifest | the cycle fails loudly into the module error path |
 | A stop during generation | the run discards without publishing |
 

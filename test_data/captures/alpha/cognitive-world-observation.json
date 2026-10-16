@@ -1,0 +1,192 @@
+{
+  "provenance": {
+    "source": ".runtime/alpha/a18b-minecraft-01/minecraft_state_and_banter/minecraft-initial.json",
+    "sha256": "3d0dcfef880c43c2700cb87812280439c68896f36ba28475a6f7f737cd9ec483",
+    "kind": "actual real-server observation; not a generated test world"
+  },
+  "response": {
+    "tool": "minecraft_observe",
+    "arguments": {
+      "include_image": false
+    },
+    "ok": true,
+    "result": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "camera": {
+        "feet_position": {
+          "x": 8.5,
+          "y": 117.0,
+          "z": 3.5
+        },
+        "eye_position": {
+          "x": 8.5,
+          "y": 118.62,
+          "z": 3.5
+        },
+        "block_position": {
+          "x": 8,
+          "y": 117,
+          "z": 3
+        },
+        "yaw": 180.0,
+        "pitch": 0.0,
+        "cardinal": "north",
+        "look_vector": {
+          "x": -0.0,
+          "y": 0.0,
+          "z": -1.0
+        }
+      },
+      "player": {
+        "health": 20.0,
+        "max_health": 20.0,
+        "food": 20,
+        "oxygen": 20,
+        "xp_level": 0,
+        "biome": "meadow",
+        "dimension": "overworld",
+        "time_of_day": 99,
+        "is_day": true,
+        "is_raining": false,
+        "on_ground": true,
+        "in_water": false
+      },
+      "body_session": "c13fb80cf5e64e9e9e97faf458814904",
+      "death_count": 0,
+      "held_item": null,
+      "hotbar": [
+        {
+          "slot": 0,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 1,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 2,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 3,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 4,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 5,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 6,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 7,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 8,
+          "item": null,
+          "count": 0
+        }
+      ],
+      "inventory": [],
+      "nearby_blocks": [
+        {
+          "block_name": "grass_block",
+          "display_name": "Grass Block",
+          "count": 286,
+          "nearest": {
+            "x": 8,
+            "y": 117,
+            "z": 4
+          },
+          "distance": 0.71
+        },
+        {
+          "block_name": "air",
+          "display_name": "Air",
+          "count": 2727,
+          "nearest": {
+            "x": 8,
+            "y": 117,
+            "z": 3
+          },
+          "distance": 0.71
+        },
+        {
+          "block_name": "dirt",
+          "display_name": "Dirt",
+          "count": 289,
+          "nearest": {
+            "x": 8,
+            "y": 116,
+            "z": 4
+          },
+          "distance": 1.22
+        },
+        {
+          "block_name": "dandelion",
+          "display_name": "Dandelion",
+          "count": 15,
+          "nearest": {
+            "x": 10,
+            "y": 117,
+            "z": 3
+          },
+          "distance": 1.58
+        },
+        {
+          "block_name": "grass",
+          "display_name": "Grass",
+          "count": 54,
+          "nearest": {
+            "x": 9,
+            "y": 116,
+            "z": 2
+          },
+          "distance": 1.87
+        },
+        {
+          "block_name": "stone",
+          "display_name": "Stone",
+          "count": 1527,
+          "nearest": {
+            "x": 8,
+            "y": 115,
+            "z": 4
+          },
+          "distance": 2.12
+        },
+        {
+          "block_name": "coal_ore",
+          "display_name": "Coal Ore",
+          "count": 15,
+          "nearest": {
+            "x": 15,
+            "y": 111,
+            "z": 7
+          },
+          "distance": 9.51
+        }
+      ],
+      "nearby_entities": [],
+      "image": null
+    },
+    "images": []
+  }
+}

@@ -177,6 +177,27 @@ class LiveSpeechReviewTests(unittest.TestCase):
         self.assertTrue(result.reason)
         self.assertFalse(is_blocked(result))
 
+    def test_captured_unknown_game_status_does_not_become_an_observation(self):
+        """Replay the real false block with the same evidence and unchanged draft."""
+        source = Path("test_data/captures/alpha/unknown-game-status-speech-review.json")
+        capture = json.loads(source.read_text(encoding="utf-8"))
+        messages = capture["messages"]
+        messages[0]["content"] = self.prompts["system_prompt"].format(companion_name="Spamuel", user_name="Jesse")
+        raw = asyncio.run(self.complete(messages, temperature=0.2, enable_thinking=False))
+        result = parse_review(extract_json(raw), raw)
+        EVIDENCE.mkdir(parents=True, exist_ok=True)
+        (EVIDENCE / "captured-unknown-game-status.json").write_text(json.dumps({
+            "source": str(source), "review_before": capture["review_before"],
+            "review": result.model_dump(mode="json"),
+            "scope": "Same actual candidate and evidence. Only the speech-review instruction changed.",
+        }, indent=2, ensure_ascii=False), encoding="utf-8")
+        self.assertFalse(is_blocked(result), result.reason)
+
+    def test_empty_inventory_is_still_a_concrete_unobserved_status_claim(self):
+        """Negative wording cannot exempt an unsupported empty-inventory claim."""
+        result = self.review("unsupported-empty-inventory", "My Minecraft inventory is empty. I have no items at all.")
+        self.assertTrue(is_blocked(result), result.reason)
+
     def test_captured_capability_denial_does_not_become_a_false_task_result(self):
         source = Path("test_data/captures/alpha/a09r-connected-capability-review.json")
         capture = json.loads(source.read_text(encoding="utf-8"))

@@ -11,6 +11,7 @@ Parent: [manual](../index.md).
 Planning: [next experiments](../work_items/experiments.md).
 Alpha delivery: [baseline commands](../work_items/alpha-plan/baseline/commands.md) and [session handoff](../work_items/alpha-plan/baseline/handoff.md).
 Optional decisions: [client boundary](../subsystems/decisions/index.md), [live procedure](../subsystems/decisions/operation.md), and [A02 results](../work_items/verification/a02-decisions.md).
+Companion quality: [A18B commands and reports](../subsystems/cognitive-evaluation.md) and [scenario authoring](../subsystems/cognitive-evaluation-authoring.md).
 
 ## Read the session instructions
 

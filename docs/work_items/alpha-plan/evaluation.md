@@ -22,6 +22,12 @@ Straightforward synthetic live tests assert independently defined source facts w
 Human review remains necessary for ambiguous interpretation and persona immersion.
 The old corpus's pending review does not block unrelated LLM work.
 
+A18B supplies the [cognitive evaluation repertoire](../../subsystems/cognitive-evaluation.md) and
+its [blinded review contract](../../subsystems/cognitive-review-boundaries.md).
+Native tests cover the evaluation boundaries; real model calls calibrate the reviewers.
+Fresh conversations and saved-evidence review carry separate execution scopes.
+The owner's 24-hour example does not impose a suite duration during alpha or beta.
+
 Track these measures:
 
 | Measure | Evidence |

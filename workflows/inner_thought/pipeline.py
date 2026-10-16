@@ -27,7 +27,15 @@ from workflows.inner_thought.schemas import (
 STAGE_ORDER = ("trigger", "thought", "integrate")
 
 
-class IntegrationError(ValueError):
+class ModelProposalError(ValueError):
+    """A model proposal violates an explicit semantic evidence rule.
+
+    The host discards this cycle without a commit. Schema and Python errors
+    remain separate and propagate to the application.
+    """
+
+
+class IntegrationError(ModelProposalError):
     """A model proposal violates the expectation evidence contract."""
 
 
@@ -73,10 +81,10 @@ def run_cycle(request: InnerRequest, run_stage) -> InnerReport:
                       "temporal_focus": operation.temporal_focus, "description": operation.description},
     }))
     if thought.reality not in REALITY_LABELS:
-        raise ValueError(f"the thought stage returned an unknown reality label: {thought.reality}")
+        raise ModelProposalError(f"the thought stage returned an unknown reality label: {thought.reality}")
     invalid = [int(item) for item in thought.evidence_ids if int(item) not in known]
     if invalid:
-        raise ValueError(f"the thought stage cited ids outside the frozen view: {invalid}")
+        raise ModelProposalError(f"the thought stage cited ids outside the frozen view: {invalid}")
     focus = operation.temporal_focus if trigger.temporal_focus not in {"past", "present", "future"} else trigger.temporal_focus
 
     integration = IntegrationResult.model_validate(run_stage("integrate", {
@@ -129,4 +137,4 @@ def validate_integration(integration: IntegrationResult, known: set[int], reques
             raise IntegrationError(f"unknown resolution status: {update.status}")
 
 
-__all__ = ["STAGE_ORDER", "IntegrationError", "citable_ids", "run_cycle", "validate_integration"]
+__all__ = ["STAGE_ORDER", "ModelProposalError", "IntegrationError", "citable_ids", "run_cycle", "validate_integration"]

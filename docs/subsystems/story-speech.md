@@ -155,7 +155,10 @@ That speech does not create an observation that the earlier action never made.
 Story always receives an explicit task section, including an absence-of-observation statement when no receipt exists.
 A connected game establishes availability; it does not establish position, health, inventory, or successful execution.
 The review treats factual game status as an external result even when humor surrounds the claim.
-Concrete inventory items need a supplied observation.
+Concrete inventory items need a supplied observation. A claim that inventory is empty also needs one.
+An admission that inventory is unknown claims no particular game state and does not establish a task result.
+Questions, refusals, and metaphors must not become invented observations through the reviewer's interpretation.
+The [A18B verification](../work_items/verification/a18b-cognitive-evaluation.md) retains a real false block and its paired live regression.
 The review writes a reason tied to actual evidence instead of copying a ready-made acceptance reason.
 
 The existing review can select `spoken_text` when explicit narration surrounds actual speech.

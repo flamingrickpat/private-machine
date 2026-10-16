@@ -33,7 +33,8 @@ The comparison concerns what the work achieves.
 
 ## Order and dependency boundary
 
-The next implementation sequence is A17, A18, A19, then companion acceptance in A20.
+The next implementation sequence is A17, A18, A18B, A19, then companion acceptance in A20.
+A18B adds [cognitive evaluation](../../subsystems/cognitive-evaluation.md) while A19 remains on hold for hardening.
 A15 already supplies the selective scheduler and attention competition.
 Its remaining live checks retain their existing status.
 A16 supplies the codelet repertoire, the pathways, and the proposal consumers.

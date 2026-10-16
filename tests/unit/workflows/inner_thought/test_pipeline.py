@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from workflows.inner_thought.pipeline import citable_ids, run_cycle
+from workflows.inner_thought.pipeline import IntegrationError, ModelProposalError, citable_ids, run_cycle
 from workflows.inner_thought.schemas import InnerRequest, TriggerCandidate
 
 
@@ -88,11 +88,43 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             run_cycle(request(), lambda name, payload: reports[name])
 
-    def test_evidence_outside_the_frozen_view_is_rejected(self):
+    def test_unsupported_and_inspection_only_ids_reject_before_integration(self):
+        parsed = request(inspection={"status": "ok", "episodes": [
+            {"episode_id": 812, "loop": "main", "operation": "frame:blended"},
+            {"episode_id": 11295, "loop": "main", "operation": "action:Proposed"},
+        ]})
+        self.assertEqual(citable_ids(parsed), {3, 5, 7})
+        for record_id in (999, 812, 11295):
+            with self.subTest(record_id=record_id):
+                reports = stage_reports()
+                reports["thought"]["evidence_ids"] = [5, record_id]
+                calls = []
+
+                def run_stage(name, payload):
+                    calls.append(name)
+                    return reports[name]
+
+                with self.assertRaisesRegex(ModelProposalError, "outside the frozen view"):
+                    run_cycle(parsed, run_stage)
+                self.assertEqual(calls, ["trigger", "thought"])
+                self.assertEqual(reports["thought"]["evidence_ids"], [5, record_id])
+
+    def test_unknown_reality_rejects_before_integration(self):
         reports = stage_reports()
-        reports["thought"] = {**reports["thought"], "evidence_ids": [999]}
-        with self.assertRaisesRegex(ValueError, "outside the frozen view"):
-            run_cycle(request(), lambda name, payload: reports[name])
+        reports["thought"]["reality"] = "invented-observation"
+        calls = []
+
+        def run_stage(name, payload):
+            calls.append(name)
+            return reports[name]
+
+        with self.assertRaisesRegex(ModelProposalError, "unknown reality label"):
+            run_cycle(request(), run_stage)
+        self.assertEqual(calls, ["trigger", "thought"])
+
+    def test_integration_error_is_a_model_proposal_error_and_value_error(self):
+        self.assertTrue(issubclass(IntegrationError, ModelProposalError))
+        self.assertTrue(issubclass(ModelProposalError, ValueError))
 
     def test_trigger_none_short_circuits_before_the_thought_stage(self):
         calls = []

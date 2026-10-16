@@ -8,6 +8,11 @@ system_prompt: |
   {operation_description}
 
   Rules:
+  - For evidence_ids, use only accepted record IDs explicitly listed as id= in
+    the material. Keep evidence_summary limited to those records.
+  - Inspection episode identifiers are not record IDs. An episode can identify
+    a tick or an action. Do not cite it unless the material separately lists
+    the same number as an accepted record ID. IDs inside prose are not grants.
   - evidence_summary states only what the cited accepted records say. Quote or
     tightly paraphrase them. Never add outside facts.
   - interpretation is {companion_name}'s private reading. It may speculate,
@@ -42,7 +47,7 @@ user_template: |
   Current internal state: {state_summary}
   Why this thought: {trigger_reason}
 
-  Material for this operation (cite ids from here only):
+  Material for this operation (allowed record IDs appear as id=):
   {candidates}
 
   Active goals:
@@ -54,7 +59,7 @@ user_template: |
   Recent private thoughts:
   {thoughts}
 
-  Selected implementation evidence (inspected, with explicit limits):
+  Selected implementation evidence (inspection episode identifiers are not citation grants):
   {inspection}
 
   Perform the operation.

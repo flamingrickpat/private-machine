@@ -106,7 +106,8 @@ A permanent provider error switches retrieval to scoped lexical and recent evide
 It also identifies the configured endpoint and request model.
 This fallback preserves dialogue while semantic ranking remains unavailable.
 Local cache errors and cancellation still propagate.
-Production transport errors retry until cancellation.
+Production retries transient transport errors five times, with a 30-second pause before each retry.
+Cancellation interrupts requests and retry pauses.
 Explicit live-test clients fail immediately for service diagnosis.
 
 ## Prepare and inspect the index

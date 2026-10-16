@@ -78,7 +78,7 @@ class LazyStageModel:
 
     async def _complete(self, messages, generation):
         async with self.slot(generation.get("cancel")):
-            return await complete_with_retry(self.ensure_client(), messages, generation)
+            return await complete_with_retry(self.ensure_client(cancel=generation.get("cancel")), messages, generation)
 
     @property
     def activated(self) -> bool:
@@ -95,20 +95,20 @@ class LazyStageModel:
             client = self._client
         return client.client.request_count if client is not None else 0
 
-    def ensure_client(self) -> ChatClient:
-        """Activate and cache the client. Safe to call from a module thread."""
+    def ensure_client(self, *, cancel=None) -> ChatClient:
+        """Activate and cache the client. Cancellation also stops readiness waits."""
         with self._lock:
             # Classification can already own this same ready connection.
             # Reuse it so the first cognitive call does not request a switch.
             if not self.owner.is_ready(self.connection):
-                asyncio.run(self.owner.activate(self.connection, live_test=self.live_test))
+                asyncio.run(self.owner.activate(self.connection, cancel=cancel, live_test=self.live_test))
             if self._client is None:
                 self._client = ChatClient(self.connection, self.owner, live_test=self.live_test)
             return self._client
 
     def complete(self, messages: Sequence[TurnInput], **generation: object) -> str:
         """Synchronous completion for Python-role stages."""
-        self.ensure_client()
+        self.ensure_client(cancel=generation.get("cancel"))
         return asyncio.run(self._complete(messages, generation))
 
     def complete_result(self, messages: Sequence[TurnInput], **generation: object) -> Completion:
@@ -117,7 +117,7 @@ class LazyStageModel:
         Activation and provider errors retain their existing boundaries.
         This method does not substitute reasoning for a missing final answer.
         """
-        client = self.ensure_client()
+        client = self.ensure_client(cancel=generation.get("cancel"))
 
         async def complete():
             async with self.slot(generation.get("cancel")):
@@ -129,7 +129,7 @@ class LazyStageModel:
         """Measure tokens using the same activated connection as inference."""
         from threading import Event
         from pm.llm.context_window import measure_context
-        self.ensure_client()
+        self.ensure_client(cancel=cancel)
         with self.owner.use(self.connection):
             return asyncio.run(measure_context(self.connection, messages, cancel if cancel is not None else Event(), **generation))
 

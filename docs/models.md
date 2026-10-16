@@ -157,8 +157,20 @@ Windows startup processes use hidden windows.
 
 Generation has no response deadline or automatic output cap.
 The HTTP client has a connection-establishment timeout, not an inference timeout.
-Production transport errors retry until cancellation. `live_test=True` reports them immediately.
+Production waits through connection failures, HTTP 429, and HTTP 5xx, with a 30-second pause before each retry.
+There is no production retry quota. Temporary unavailability must not become a cognitive failure.
+Cancellation interrupts request I/O, readiness, and retry pauses.
+Diagnostics can set an explicit `transient_retries` bound. Exhaustion then raises `ModelError` and preserves the failed attempts.
+`live_test=True` selects immediate failure for endpoint boundary tests.
+The A18B evaluator and Jesse actor use the normal production wait policy.
+A separate test deadline can stop a run as incomplete evidence; it does not establish a negative model judgment.
+Retries repeat inference, so a lost response can cause duplicate provider work or charges.
+They do not repeat tool execution or regenerate a valid low-scoring review.
 Permanent HTTP errors and invalid responses fail with credential-free messages.
+A provider can also return HTTP 200 with `finish_reason=error`, `content_filter`, or an embedded completion error.
+[`pm.llm.http_client.ProviderCompletionError`][] rejects that partial content before a stage parser or public reply can use it.
+Provider-filtered output is not a quota wait and is not retried to obtain another answer.
+An ordinary completed refusal remains a valid model response.
 The shared HTTP path uses [HTTPX timeout controls](https://www.python-httpx.org/advanced/timeouts/).
 
 A reasoning backend emits hidden reasoning tokens before the visible answer.
@@ -173,6 +185,8 @@ The model stops when it is done.
 Laya's decision-head budget does not apply to chat or pm-coder.
 Direct Python chat sends one supplied message list, while pm-coder owns accumulated execution history and automatic compaction.
 Read [Python chat and agent context](subsystems/llm-context.md) for the actual paths, live commands, and verified input boundaries.
+Quality takes priority over minimizing calls. Hard reasoning and review can use smaller, focused calls with explicit integration.
+This [prompt-scope rule](work_items/alpha-plan/model-policy.md#prompt-scope-and-decomposition) applies to all prompts, not only reviewers.
 
 ## Embeddings and scoped retrieval
 

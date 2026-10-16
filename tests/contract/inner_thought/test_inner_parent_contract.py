@@ -7,15 +7,21 @@ contracts are exercised exactly as the application runs them offline.
 """
 from __future__ import annotations
 
+import json
 import threading
+from tempfile import TemporaryDirectory
 import unittest
 from pathlib import Path
 
 from pm_workflows.runtime import WorkflowRuntime
-from pm.memory.bash_view import MemoryBashEnvironment
+from pm.bus.bus import BusSystem
+from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 
-from workflows.inner_thought.pipeline import run_cycle
+from tests.support import ManualClock, Recorder
+from tests.unit.test_design_contracts import small_ghost
+from workflows.inner_thought.host import PrivateThoughtLoop, build_inner_thought_tools
+from workflows.inner_thought.pipeline import citable_ids
 from workflows.inner_thought.schemas import InnerReport, InnerRequest
 
 ROOT = Path(".runtime/a17-parent-contract")
@@ -89,6 +95,103 @@ class FullCycleTests(unittest.TestCase):
         self.assertEqual(report.disclosure.mode, "withhold")
         self.assertEqual(report.goal_changes[0].goal, "sketch the next chapter")
         self.assertEqual(completions, [], "every stage must consume exactly one completion")
+
+
+class ModelProposalBoundaryTests(unittest.TestCase):
+    def _module(self, root, payload, llm_complete):
+        class FrozenInputLoop(PrivateThoughtLoop):
+            def prepare_input(self, batch):
+                # Keep the host's commit context. Replace only the model input
+                # with the captured boundary projection, not a live receipt.
+                super().prepare_input(batch)
+                return {**payload, "run_id": self.invocation_id}
+
+        ghost = small_ghost()
+        bus = BusSystem()
+        errors = []
+        runtime_root = Path(root) / "runtime"
+        module = FrozenInputLoop(
+            "inner_thought", bus, errors.append, ManualClock(), None,
+            working_target=MemoryBashTarget(ghost, "read"), workflow=MANIFEST,
+            tools_factory=build_inner_thought_tools(ghost, runtime_root, llm_complete),
+            runtime_root=runtime_root, ghost=ghost,
+        )
+        return module, ghost, Recorder(bus), errors
+
+    def test_captured_inspection_citation_rejection_crosses_parent_and_child_kernels(self):
+        capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/private-thought-citation-rejection.json").read_text(encoding="utf-8"))
+        payload = InnerRequest(
+            candidates=capture["candidates"], inspection=capture["inspection"],
+            trigger_candidates=[{"name": "new_main_frame", "cause": "constructed routing for the captured proposal",
+                                 "operations": ["narrative_stitching"]}],
+        ).model_dump(mode="json")
+        known = citable_ids(InnerRequest.model_validate(payload))
+        self.assertEqual([item for item in capture["thought"]["evidence_ids"] if item not in known],
+                         [812, 11295])
+        completions = [json.dumps({"trigger": "new_main_frame", "operation": "narrative_stitching"}),
+                       json.dumps(capture["thought"])]
+        with TemporaryDirectory() as tmp:
+            module, ghost, events, errors = self._module(tmp, payload, deterministic_llm(completions))
+            before = ghost.state_dict()
+            module.handle_batch([])
+            self.assertEqual(completions, [])
+            self.assertEqual(ghost.state_dict(), before)
+            self.assertEqual(errors, [])
+            self.assertIsNone(module.last_result)
+            self.assertEqual([(item.kind, item.topic) for item in events.events],
+                             [("telemetry", "thought.rejected")])
+            rejection = events.events[0].payload
+            self.assertEqual(rejection["error_type"], "ModelProposalError")
+            self.assertEqual(rejection["invocation_id"], module.invocation_id)
+            self.assertEqual(rejection["reason"],
+                             "the thought stage cited ids outside the frozen view: [812, 11295]")
+            diagnostic = json.loads(Path(rejection["diagnostic_path"]).read_text(encoding="utf-8"))
+            self.assertIn("python_driver", diagnostic["traceback"])
+            self.assertIn("run_cycle", diagnostic["traceback"])
+            self.assertEqual(len(list((module.runtime_root / "thought" / "kernel").glob("*/results/*.json"))), 1)
+            self.assertFalse((module.runtime_root / "integrate").exists())
+
+    def test_untyped_errors_from_a_child_kernel_still_propagate(self):
+        reason = "the thought stage cited ids outside the frozen view: [812, 11295]"
+        for error in (ValueError(reason), TypeError("broken completion tool")):
+            with self.subTest(error=type(error).__name__), TemporaryDirectory() as tmp:
+                calls = []
+
+                def llm_complete(messages, **generation):
+                    calls.append(messages)
+                    if len(calls) == 1:
+                        return '{"operation": "curiosity_spark"}'
+                    raise error
+
+                module, ghost, events, errors = self._module(tmp, request().model_dump(mode="json"), llm_complete)
+                before = ghost.state_dict()
+                with self.assertRaises(type(error)) as raised:
+                    module.handle_batch([])
+                self.assertIs(raised.exception, error)
+                self.assertEqual(len(calls), 2)
+                self.assertEqual(ghost.state_dict(), before)
+                self.assertEqual(events.events, [])
+                self.assertEqual(list(module.runtime_root.rglob("model-proposal-rejection.json")), [])
+
+    def test_integration_keeps_one_repair_then_rejects_the_cycle(self):
+        completions = [
+            '{"operation": "curiosity_spark"}',
+            '{"thought": "I want to reread the draft.", "reality": "internal", "evidence_ids": [5]}',
+            '{"expectation": {"action": "resolve", "expectation_id": 999, "observation_ids": [5]}}',
+            '{"expectation": {"action": "resolve", "expectation_id": 999, "observation_ids": [5]}}',
+        ]
+        with TemporaryDirectory() as tmp:
+            module, ghost, events, errors = self._module(
+                tmp, request().model_dump(mode="json"), deterministic_llm(completions))
+            before = ghost.state_dict()
+            module.handle_batch([])
+            self.assertEqual(completions, [])
+            self.assertEqual(ghost.state_dict(), before)
+            self.assertEqual([(item.kind, item.topic) for item in events.events],
+                             [("telemetry", "thought.rejected")])
+            self.assertEqual(events.events[0].payload["error_type"], "IntegrationError")
+            self.assertEqual(len(list(module.runtime_root.rglob("integration-rejection-*.json"))), 2)
+            self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

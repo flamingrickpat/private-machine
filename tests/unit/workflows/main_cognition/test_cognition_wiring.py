@@ -373,7 +373,7 @@ class LazyModelTests(unittest.TestCase):
             def is_ready(self, connection):
                 return self.activations > 0
 
-            async def activate(self, connection, *, live_test=False):
+            async def activate(self, connection, *, cancel=None, live_test=False):
                 self.activations += 1
 
             @contextmanager
