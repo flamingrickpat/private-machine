@@ -291,3 +291,33 @@ uv run --locked python -m dev.work_items.a18b run --jobs 4 `
 `fresh/report.html` is the current inspection page.
 `fresh/progress.json` records the active phases; `fresh/suite-score.json` retains the complete denominator.
 Complete but unresolved results require human review and do not establish A19 readiness.
+
+## First overnight attempt and cache repair
+
+The first four-worker launch used revision `37ef802537e5e616ce39549c045e1fad2277c8a2`.
+All four cases imported the full 11,202-record history.
+The hurt-and-repair case failed after 85.953 seconds, before any companion speech.
+Concurrent cases shared `.runtime/embeddings/`; a Windows reader prevented replacement of a newly published cache entry.
+The controller received STOP, cleaned up its workers and real Minecraft services, and exited with an incomplete suite.
+That attempt remains failed under `.runtime/a18b-current/attempt-01-shared-cache/`.
+Its register, receipts, traces, shared cache, and terminal handoff remain beside the failed report.
+
+Each case now receives an effective configuration with its own writable cache.
+Model presets, credentials, dimensions, and the read-only legacy cache remain the same.
+The original and effective hashes are retained separately.
+The cache writer also keeps an existing valid entry when a concurrent writer already published that content.
+Other filesystem failures still propagate.
+The real-file tests cover eight concurrent publishers and a reader that holds the target open.
+The 26 focused cache and case-runner checks passed in 1.195 seconds under `checks/cache-isolation.log`.
+The repeated contract suite passed 80 checks in 5.039 seconds under `checks/contract-cache-release.log`.
+The new full foundation receipt is `checks/unit-cache-release.log`.
+The replacement fresh run must establish its own behavior; the failed attempt cannot become a pass.
+
+The first 824-check foundation repeat exposed a second Windows race in the duplicate-publication check.
+Its unchanged failure is `checks/unit-cache-release.log`.
+New entries now publish once through an atomic hard link instead of replacing another writer's valid file.
+The cache filesystem must support hard links; the local workspace passed that real operation.
+One hundred repetitions of the eight-publisher test passed in 8.463 seconds under `checks/cache-publication-stress.log`.
+An additional real-file probe confirmed that an open published reader permits removal of the temporary hard link.
+All 76 development checks passed in 7.354 seconds under `checks/development-cache-release.log`.
+The final foundation and HTML receipts use `checks/unit-cache-final.log` and `checks/docs-cache-final.log`.

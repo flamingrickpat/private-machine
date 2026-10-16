@@ -14,6 +14,7 @@ import time
 
 from dev.work_items.a18b.policy import JessePacket
 from dev.work_items.a18b.cli import execution_batches
+from dev.work_items.a18b.runner import case_config
 from dev.work_items.a18b.runner import (
     actor_send_receipt, await_delivery, delivery_mode, capability_facts, coverage_failures, execution_fact,
     load_suite, make_packets, managed_run_fact, observation_fields,
@@ -24,6 +25,24 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 class CognitiveRunnerTests(unittest.TestCase):
+    def test_cases_keep_model_settings_but_own_separate_embedding_caches(self):
+        from pm.llm.config import load_config
+        source = ROOT / "config.alpha.openrouter.yaml"
+        original = load_config(source)
+        with TemporaryDirectory() as temporary:
+            paths = []
+            for name in ("one", "two"):
+                root = Path(temporary) / name
+                root.mkdir()
+                configured = load_config(case_config(source, root))
+                self.assertEqual(configured.chat, original.chat)
+                self.assertEqual(configured.embedding.legacy_cache_dir, original.embedding.legacy_cache_dir)
+                self.assertEqual(configured.embedding.model, original.embedding.model)
+                self.assertEqual(configured.embedding.dimensions, original.embedding.dimensions)
+                self.assertEqual(configured.embedding.cache_dir, root / "embedding-cache")
+                paths.append(configured.embedding.cache_dir)
+            self.assertNotEqual(*paths)
+
     def test_parallel_groups_keep_minecraft_exclusive_and_normal_cases_first(self):
         suite = load_suite()
         batches = execution_batches(suite.scenarios, 3)

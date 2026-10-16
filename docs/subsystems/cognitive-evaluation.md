@@ -60,6 +60,11 @@ All normal cases complete before edge cases start.
 The permitted range is one through four workers.
 Parallel execution retains each case's original seed offset and full suite denominator.
 Each case owns a new process and a separate full-canon store.
+Each case also owns its writable embedding cache under `CASE/embedding-cache/`.
+`CASE/model-config.yaml` preserves model settings and credential references while selecting that cache.
+Source-relative startup scripts and the read-only legacy cache keep their original resolved paths.
+`CASE/effective-config-origin.json` records the original and effective configuration hashes.
+[`dev.work_items.a18b.runner.case_config`][] owns this configuration projection.
 Minecraft cases own the real server and MCP ports, reset the world, and stop their services afterward.
 Keep other Minecraft fixtures stopped while these cases run.
 

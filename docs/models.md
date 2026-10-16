@@ -193,7 +193,13 @@ This [prompt-scope rule](work_items/alpha-plan/model-policy.md#prompt-scope-and-
 The old cache remains read-only at `~/.pm/embeddings` by default.
 New entries use `.runtime/embeddings/v1/<model-hash>/`.
 Each new JSON entry contains its format version, request model, exact input, dimensions, and vector.
-Atomic replacement publishes each complete new entry.
+An atomic hard link publishes each complete new entry without overwriting an existing file.
+Atomic replacement repairs an incompatible old entry.
+The writable cache filesystem must support hard links.
+Valid cache entries remain immutable for the same input and model.
+Concurrent writers retain an existing valid publication instead of replacing an open Windows file.
+An unrelated filesystem error still propagates.
+[`pm.memory.embeddings.EmbeddingCache.put`][] owns this publication boundary.
 
 Cache hits require the exact text, model, dimensions, and valid vector values.
 The adapter preserves whitespace and reads the old little-endian float64 binary format.

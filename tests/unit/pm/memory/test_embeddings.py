@@ -5,6 +5,8 @@ import math
 import struct
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from pathlib import Path
 
 from pm.memory.embeddings import EmbeddingCache, EmbeddingService, cosine_similarity, parse_embedding_response
@@ -70,6 +72,33 @@ class EmbeddingTests(unittest.IsolatedAsyncioTestCase):
     def test_cache_cannot_write_inside_legacy_directory(self):
         with self.assertRaises(ValueError):
             EmbeddingCache(self.config.model_copy(update={"cache_dir": self.legacy / "new"}))
+
+    def test_parallel_cache_publishers_keep_one_valid_entry(self):
+        vector = [3.0, 4.0] + [0.0] * 1022
+        barrier = Barrier(8)
+
+        def publish(index):
+            cache = EmbeddingCache(self.config)
+            barrier.wait()
+            cache.put("shared model input", vector)
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(publish, range(8)))
+        self.assertEqual(self.service.cache.get("shared model input"), vector)
+        self.assertEqual(list(self.service.cache.directory.glob("*.tmp")), [])
+
+    def test_open_cache_reader_does_not_require_replacement(self):
+        vector = [3.0, 4.0] + [0.0] * 1022
+        self.service.cache.put("shared model input", vector)
+        target = self.service.cache.directory / f"emb_hash_{EmbeddingCache.content_key('shared model input')}.json"
+        before = target.read_bytes()
+        timestamp = target.stat().st_mtime_ns
+        with target.open("r", encoding="utf-8") as reader:
+            self.service.cache.put("shared model input", [4.0, 3.0] + [0.0] * 1022)
+            self.assertEqual(json.loads(reader.read())["vector"], vector)
+        self.assertEqual(target.read_bytes(), before)
+        self.assertEqual(target.stat().st_mtime_ns, timestamp)
+        self.assertEqual(list(self.service.cache.directory.glob("*.tmp")), [])
 
     def test_cosine_uses_both_norms(self):
         self.assertAlmostEqual(cosine_similarity([3, 4], [30, 40]), 1)

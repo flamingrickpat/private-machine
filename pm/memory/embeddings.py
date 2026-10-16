@@ -105,7 +105,17 @@ class EmbeddingCache:
         return None
 
     def put(self, text: str, vector: list[float]) -> None:
+        """Publish a validated cache entry, or keep another valid writer's entry.
+
+        A model and input identify immutable cached content. An atomic hard link
+        publishes new content once without replacing an open Windows file.
+        A concurrent valid publication wins. Invalid old entries can be replaced.
+        The cache filesystem must support hard links within one directory.
+        Other filesystem errors propagate. This method sends no model request.
+        """
         valid_vector(vector, self.dimensions)
+        if self._read(text, legacy=False) is not None:
+            return
         payload = {
             "schema_version": 1, "model": self.model, "input": text,
             "dimensions": self.dimensions, "vector": vector,
@@ -118,7 +128,17 @@ class EmbeddingCache:
                 json.dump(payload, stream, ensure_ascii=False, allow_nan=False)
                 stream.flush()
                 os.fsync(stream.fileno())
-            os.replace(temporary, self.directory / f"emb_hash_{self.content_key(text)}.json")
+            try:
+                target = self.directory / f"emb_hash_{self.content_key(text)}.json"
+                os.link(temporary, target)
+            except FileExistsError:
+                if self._read(text, legacy=False) is None:
+                    os.replace(temporary, target)
+            except PermissionError:
+                # Another writer can publish after the initial cache miss.
+                # Keep its complete entry instead of replacing an open file.
+                if self._read(text, legacy=False) is None:
+                    raise
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
