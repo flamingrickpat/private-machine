@@ -25,6 +25,40 @@ The [structural refactor](docs/work_items/refactor/index.md) is in progress. Fol
 Product code must not import `dev/` or `tests/`. `pm/` must not import `workflows/`.
 `tests/unit/test_architecture.py` checks these import directions.
 
+## Base references
+
+The research PDFs and their converted TXT files are base references for companion architecture and behavior.
+Use the relevant texts when designing or changing cognition, memory, appraisal, codelets, introspection, or reflection.
+The local text collection is `.runtime/research/a18c-20261017-013806/`.
+Its `index.json` identifies the original PDF filenames and page counts.
+The original PDFs are under `C:/source/pm/pm_next/documents/pdfs/`.
+Use the [curated source guide](docs/work_items/alpha-plan/cognitive-sources.md) to locate relevant mechanisms and passages.
+Read the source text when its details affect a design decision; summaries do not replace the base references.
+Consult the original PDF when diagrams, page references, or extraction gaps matter.
+Current user instructions and accepted work-item requirements determine scope.
+References inform design; real execution evidence establishes runtime behavior.
+
+## Preferred owner review
+
+Use runtime record packages and the browser review desk as the preferred path for owner review.
+Follow the [record-package guide](docs/subsystems/record-packages.md) and [review desk instructions](dev/review/README.md).
+Use `pm.introspection.record_packages` to capture named collections from a frozen snapshot.
+Include actual chat from the user's perspective (Jesse in Spamuel tests), relevant GWT ticks, and private thoughts.
+Include appraisals, codelet output, and the memory contents supplied to later decisions.
+Show recorded links from the inspected knoxels through attention to the later routing choice and public reply.
+Preserve record text, chronology, revisions, provenance, uncertainty, and useful metadata.
+Keep embeddings hidden. Let the reader show useful metadata on hover and all captured fields on expansion.
+
+Register the completed package files with `dev/review/server.py register-package` and provide the direct browser review URL.
+Keep ratings beside the captured content and save feedback separately from immutable evidence.
+Never invent human ratings or replace them with model scores.
+When the owner asks to check feedback, read it with `uv run --locked python dev/review/server.py feedback`.
+
+Fix engineering failures before asking the owner to review companion quality.
+Retain failed receipts as development evidence outside the ready review package.
+Do not substitute loosely connected Markdown reports, hashes, timing statistics, or stack traces for the owner's review.
+Keep final handoffs concise and lead with the review URL when human review is the next step.
+
 ## Evidence and dependency discipline
 
 Read the [baseline evidence](docs/work_items/alpha-plan/baseline/receipts.md) and the selected item's recorded gates before changing behavior.
