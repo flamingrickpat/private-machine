@@ -30,6 +30,7 @@ from pm.memory.bash_view import MemoryBashTarget
 from pm.runs.workflow_module import PROJECT_ROOT, WorkflowModule
 from pm.app.operator_config import default_config_path
 from pm.paths import REPO_ROOT
+from workflows.cognitive_control.schemas import ControlConfig
 
 
 BANNER = "DUMMY COGNITION \u2014 no LLM calls\n"
@@ -91,6 +92,7 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
         {"name": "dialogue_story", "description": "Generate one in-character Story reply."},
         {"name": "dialogue_assistant", "description": "Assistant reply with scoped tools. Inventory questions use arguments.minecraft_read=inventory; position, health, and surroundings use minecraft_read=state. Both make one live read without a managed task."},
         {"name": "self_management", "description": "Start, status, update, terminate, or explicitly resume an interrupted body run."},
+        {"name": "focus_management", "description": "Private deliberate mental work: scoped recall of preferences, conversations, or goals, and a temporary focus or goal proposal. Set arguments.instruction to the mental task. Advice returns through ordinary appraisal. It commits no emotion or memory change directly."},
     ]
     for name in sorted(supervisor.workflows):
         descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",
@@ -108,8 +110,9 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
 
 def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
                       runtime_root, workflow_paths, stage_model, config_path,
-                      supervisor, codelet_catalogue=None, thought_period=30.0):
-    """Return the (main_cog, story, assistant, self_management) modules."""
+                      supervisor, codelet_catalogue=None, thought_period=30.0, embeddings=None,
+                      workflow_models=None):
+    """Return the (main_cog, story, assistant, self_management, inner, mental) modules."""
     if cognition == "real":
         from workflows.dialogue_story.host import build_story_tools
         from workflows.dialogue_assistant.host import build_assistant_tools
@@ -169,11 +172,22 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md",
             tools_factory=build_inner_thought_tools(ghost, runtime_root, stage_model.complete,
-                                                  cancel_provider=lambda: inner_thought.run_stop),
+                                                  cancel_provider=lambda: inner_thought.run_stop,
+                                                  embeddings=embeddings),
             runtime_root=runtime_root,
             ghost=ghost,
         )
-        return main_cog, story, assistant, self_management, inner_thought
+        # The deliberate mental-work agent runs one scoped pm-coder session and
+        # returns advice. Main appraisal still owns every accepted change.
+        from workflows.focus_management.host import FocusManagement
+        focus_management = FocusManagement(
+            "focus_management", bus, on_error, clock, 1.0,
+            working_target=target,
+            workflow=PROJECT_ROOT / "workflows" / "focus_management" / "focus_management.workflow.md",
+            runtime_root=runtime_root, ghost=ghost, embeddings=embeddings,
+            workflow_models=workflow_models,
+        )
+        return main_cog, story, assistant, self_management, inner_thought, focus_management
     main_cog = DummyMainCogLoop(
         "main_cog", bus, on_error, clock, None,
         **workflow_paths("main_cognition"),
@@ -186,7 +200,7 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
         "inner_thought", bus, on_error, clock, thought_period,
         **workflow_paths("inner_thought"),
     )
-    return main_cog, dialogue, None, None, inner_thought
+    return main_cog, dialogue, None, None, inner_thought, None
 
 
 def build_app(
@@ -207,6 +221,7 @@ def build_app(
     world_poll_seconds: float | None = 120.0,
     world_quiet_seconds: float = 120.0,
     codelet_catalogue: str | None = None,
+    cognitive_control_config: ControlConfig | dict | None = None,
 ) -> Application:
     """Construct an application without service activation.
 
@@ -217,6 +232,8 @@ def build_app(
     ``world_poll_seconds=None`` disables that source. Polling never chooses work.
     ``codelet_catalogue`` names a codelet catalogue file for real cognition;
     ``None`` uses the shipped default catalogue.
+    ``cognitive_control_config`` supplies wait, focus, mental-session, and
+    private-episode limits. A one-second scheduler checks waits without inference.
     """
     if cognition not in {"real", "dummy"}:
         raise ValueError("cognition must be 'real' or 'dummy'.")
@@ -303,11 +320,12 @@ def build_app(
         }
 
     user_input = UserInputProxy("user_input", bus, on_error, clock, ghost, emit_reply)
-    main_cog, dialogue, assistant, self_management, inner_thought = _cognition_modules(
+    main_cog, dialogue, assistant, self_management, inner_thought, focus_management = _cognition_modules(
         cognition, ghost=ghost, target=target, bus=bus, on_error=on_error,
         clock=clock, runtime_root=runtime_root, workflow_paths=workflow_paths,
         stage_model=stage_model, config_path=resolved_config, supervisor=supervisor,
         codelet_catalogue=codelet_catalogue, thought_period=thought_period,
+        embeddings=context_embeddings, workflow_models=workflow_models,
     )
     scheduler = ScheduleSubprocesses(
         "scheduler", bus, on_error, clock, task_period,
@@ -338,6 +356,27 @@ def build_app(
         scheduler, status, tool_dialogue,
     ]
     if cognition == "real":
+        from workflows.cognitive_control.host import CognitiveControl
+
+        control = CognitiveControl(
+            "cognitive_control", bus, on_error, clock, 1.0, ghost=ghost,
+            config=ControlConfig.model_validate(cognitive_control_config or {}),
+        )
+        control.cancel_private = inner_thought.cancel_run
+        main_cog.cognitive_control = control
+        inner_thought.cognitive_control = control
+        def release_private_results(envelopes):
+            """Release unpublished private results after a discarded main cycle."""
+            inner_thought.release_results(envelopes)
+            if focus_management is not None:
+                focus_management.release_results(envelopes)
+        main_cog.release_private_results = release_private_results
+        if focus_management is not None:
+            focus_management.cognitive_control = control
+            modules.append(focus_management)
+            app.focus_management = focus_management
+        modules.append(control)
+        app.cognitive_control = control
         if world_poll_seconds is not None:
             from workflows.minecraft_body.world_events import WorldEvents
             from workflows.minecraft_body.mcp_client import build_minecraft_tools, DEFAULT_MCP_URL
@@ -408,6 +447,7 @@ def build_app(
         dialogue.context_embeddings = context_embeddings
         assistant.context_embeddings = context_embeddings
         recovery = ReplyRecovery("reply_recovery", bus, on_error, clock, None, ghost=ghost, supervisor=supervisor)
+        recovery.paused_source_ids = control.paused_source_ids
         modules.append(recovery)
         app.reply_recovery = recovery
     if assistant is not None:
@@ -484,6 +524,9 @@ def build_app(
         # startup can retrieve that request and execute it without its cause,
         # while asynchronous recovery dispatches it again in another cycle.
         recovery.resume()
+        inner_thought.resume()
+        if focus_management is not None:
+            focus_management.resume()
     if cognition == "real" and boot is not None:
         bus.put(Envelope(
             id=new_id(), source="system", kind="data", topic="system.lifecycle",

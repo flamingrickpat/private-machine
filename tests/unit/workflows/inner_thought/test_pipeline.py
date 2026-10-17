@@ -42,7 +42,8 @@ def stage_reports(operation="commitment_review"):
                     "reality": "internal",
                     "alternatives": [{"text": "ask Jesse to co-write", "disposition": "chosen",
                                       "reason": "it shares the effort"}],
-                    "continuation": "continue", "continuation_reason": "the plan needs a next step"},
+                    "continuation": "continue", "continuation_reason": "the plan needs a next step",
+                    "next_operation": "plan_next_step"},
         "integrate": {"goal_changes": [{"change": "add", "goal": "invite Jesse to co-write",
                                         "goal_key": "co-write", "reason": "sharing helps",
                                         "priority": 0.6}],
@@ -162,6 +163,52 @@ class PipelineTests(unittest.TestCase):
                                                 "observation_ids": [], "reason": ""}}
         with self.assertRaisesRegex(ValueError, "observations"):
             run_cycle(request(), lambda name, payload: reports[name])
+
+    def test_unknown_continuation_is_rejected_before_integration(self):
+        reports = stage_reports()
+        reports["thought"] = {**reports["thought"], "continuation": "ponder"}
+        calls = []
+
+        def run_stage(name, payload):
+            calls.append(name)
+            return reports[name]
+
+        with self.assertRaisesRegex(ModelProposalError, "unknown continuation"):
+            run_cycle(request(), run_stage)
+        self.assertEqual(calls, ["trigger", "thought"])
+
+    def test_continuation_needs_a_next_operation(self):
+        reports = stage_reports()
+        reports["thought"] = {**reports["thought"], "next_operation": ""}
+        with self.assertRaisesRegex(ModelProposalError, "next operation"):
+            run_cycle(request(), lambda name, payload: reports[name])
+
+    def test_unknown_next_operation_is_rejected(self):
+        reports = stage_reports()
+        reports["thought"] = {**reports["thought"], "next_operation": "invented_operation"}
+        with self.assertRaisesRegex(ModelProposalError, "unknown next operation"):
+            run_cycle(request(), lambda name, payload: reports[name])
+
+    def test_unknown_progress_kind_is_rejected(self):
+        reports = stage_reports()
+        reports["integrate"] = {**reports["integrate"], "progress": "vibes"}
+        with self.assertRaisesRegex(IntegrationError, "unknown progress kind"):
+            run_cycle(request(), lambda name, payload: reports[name])
+
+    def test_rephrased_evidence_downgrades_to_none(self):
+        reports = stage_reports()
+        reports["integrate"] = {**reports["integrate"], "progress": "new_evidence"}
+        report = run_cycle(request(episode={"evidence_ids": [5]}),
+                           lambda name, payload: reports[name])
+        self.assertEqual(report.progress, "none")
+        self.assertIn("no concrete difference", report.progress_reason)
+
+    def test_new_evidence_kept_when_the_id_is_unseen(self):
+        reports = stage_reports()
+        reports["integrate"] = {**reports["integrate"], "progress": "new_evidence"}
+        report = run_cycle(request(episode={"evidence_ids": []}),
+                           lambda name, payload: reports[name])
+        self.assertEqual(report.progress, "new_evidence")
 
     def test_citable_ids_cover_goals_expectations_thoughts_and_frame(self):
         parsed = request(recent_thoughts=[{"knoxel_id": 9, "text": "x", "tick_id": 99,

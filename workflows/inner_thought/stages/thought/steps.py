@@ -83,6 +83,11 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         thoughts="\n".join(f"- {item.get('text', '')!r}" for item in parsed.recent_thoughts[-6:]) or "(none)",
         inspection=_render_inspection(parsed),
     )
+    import json
+    user = user + "\nPrivate episode:\n" + json.dumps(parsed.episode)
+    # The next operation must come from the invocation's catalogue. The
+    # selected operation alone gives no names for a valid continuation.
+    user = user + "\nAvailable next operations:\n" + "\n".join(item["name"] for item in parsed.operations)
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 
 

@@ -12,7 +12,7 @@ Earlier delivery: [W0–W8 plan](../plan.md).
 ## Current development priority
 
 The owner prioritizes companion quality over conversation latency during development.
-The next sequence is A17, A18, A18B, A19, then companion acceptance in A20.
+The next sequence is A17, A18, A18B, A18C, A19, then companion acceptance in A20.
 Large Minecraft acceptance remains deferred.
 Each item still verifies the actual interfaces it uses.
 Read [companion development priorities](companion-development.md) before implementation.
@@ -56,6 +56,12 @@ A17 is delivered.
 A18 has an engineering delivery recorded, with its live gate pending.
 A19 remains planned and on hold during [A17/A18 hardening](../verification/a17-a18-hardening.md).
 A18B adds [blinded cognitive evaluation](../../subsystems/cognitive-evaluation.md) before further architecture expansion.
+A18C delivers [deliberate mental control](work-items/a18c.md), including a real [inference wait](../../subsystems/inference-wait.md).
+Its mental-work agent has real full-canon recall and scoped failure-recovery receipts.
+Bounded private episodes and focus receipts are implemented with focused tests.
+Focused full-canon checks now cover recall, attention, episodes, parking, and failure recovery.
+The owner accepted A18C for alpha on 17 October 2026 after review of the verification record.
+This acceptance does not establish a complete A18B evaluation pass or detailed human quality ratings.
 A20 will verify the revised companion scope while retaining deferred gameplay status.
 A14B supplies [direct memory tools](../../subsystems/agent-memory.md) for native decisions.
 Its [verification](../verification/a14b-agent-memory.md) keeps the larger operator-designed test pending.
@@ -158,6 +164,7 @@ After A20, promote the useful ones into proper beta work items.
 | A17 | [Run the second conscious loop](work-items/a17.md) | M5: observable private activity with consequences |
 | A18 | [Inspect the implementation and update the self-model](work-items/a18.md) — engineering delivery recorded, live gate pending | |
 | A18B | [Build cognitive believability evaluation](work-items/a18b.md) | Automated review with separate human inspection |
+| A18C | [Deliberate attention and control of private thought](work-items/a18c.md) — accepted for alpha | Real waits, deliberate recall, and bounded private episodes |
 | A19 | [Reflect, test hypotheses, and revise behavior](work-items/a19.md) | M6: source-grounded self-reflection |
 | A20 | [Verify the integrated alpha in sustained use](work-items/a20.md) | M7: a mixed-session alpha trial |
 

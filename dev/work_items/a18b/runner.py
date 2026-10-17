@@ -131,6 +131,46 @@ def check_case_control(root: Path, elapsed_seconds: float, timeout_seconds: floa
         raise TimeoutError("The case exceeded its declared deadline.")
 
 
+class AcceptedPause(Exception):
+    """End generation after a committed wait for the current exchange.
+
+    The pause is a valid runtime outcome. Unseen scenes remain incomplete.
+    The harness sends no further message and invents no public reply.
+    """
+
+    def __init__(self, receipt: dict):
+        super().__init__("The companion accepted a wait for this exchange.")
+        self.receipt = receipt
+
+
+def accepted_pause(ghost, correlation: str) -> dict | None:
+    """Read a committed wait tied to this pending user source.
+
+    Idle cycles, expired waits, and waits for other exchanges do not qualify.
+    This host receipt never enters actor or reviewer packets as public speech.
+    """
+    with ghost.lock:
+        source = next((item for item in reversed(list(ghost.all_features))
+                       if item.metadata.get("exchange_correlation") == correlation
+                       and item.metadata.get("exchange_status") == "pending"), None)
+        if source is None:
+            return None
+        record = next((item for item in reversed(list(ghost.all_features))
+                       if item.metadata.get("control_kind") == "inference_wait"), None)
+        if (record is None or record.metadata.get("status") != "waiting"
+                or source.id not in record.metadata.get("source_event_ids", [])):
+            return None
+        deadline = datetime.fromisoformat(record.metadata["wake_at"])
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) >= deadline:
+            return None
+        return {"outcome": "accepted_pause", "wait_id": record.id,
+                "source_id": source.id, "correlation": correlation,
+                "started_at": record.metadata["started_at"], "wake_at": record.metadata["wake_at"],
+                "reason": record.metadata.get("reason", "")}
+
+
 def wait_case(seconds: float | None, root: Path, started: float, timeout_seconds: float, cancel: Event,
               *, app=None, observed: Callable[[], bool] | None = None) -> None:
     """Wait with live control checks. An offline interval needs no application.
@@ -313,6 +353,7 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
     started = time.monotonic()
     rng = random.Random(seed)
     receipt = {"scenario": scenario.id, "suite_version": suite.version, "cadence_policy": suite.cadence_policy,
+               "runtime_protocol": "a18c.pause.v1",
                "priority": scenario.priority, "runtime_ok": False, "human_review": "pending",
                "started_at": datetime.now(timezone.utc).isoformat(), "failures": [], "episodes": []}
     captures, rows, pending_facts = [], [], []
@@ -330,13 +371,20 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
         wait_case(seconds, root, started, suite.case_timeout_seconds, actor_stop,
                   app=app, observed=observed if companion_count is not None else None)
 
-    def wait_for_companion(companion_count):
-        # A response allowance is not permission to send another unanswered
-        # message. Normal use waits for actual speech, subject to STOP/deadline.
+    def wait_for_companion(companion_count, correlation):
+        # Speech remains the normal cadence. A durable pause ends generation
+        # before the actor can send another message into the pending exchange.
+        pause = None
         def observed():
+            nonlocal pause
             with row_lock:
-                return sum(item["speaker"] == "Spamuel" for item in rows) > companion_count
+                if sum(item["speaker"] == "Spamuel" for item in rows) > companion_count:
+                    return True
+            pause = accepted_pause(app.ghost, correlation)
+            return pause is not None
         wait_case(None, root, started, suite.case_timeout_seconds, actor_stop, app=app, observed=observed)
+        if pause is not None:
+            raise AcceptedPause(pause)
 
     def observe_world(label):
         from workflows.minecraft_body.mcp_client import build_minecraft_tools
@@ -526,7 +574,7 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
                         # Observing new speech sets the pace. It does not assign
                         # a causal reply to this particular human message.
                         if await_delivery(scene, number):
-                            wait_for_companion(before)
+                            wait_for_companion(before, correlation)
                     wait(scene.quiet_seconds)
                     if index == len(scenario.scenes):
                         wait(suite.settle_seconds)
@@ -545,6 +593,9 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
         wait(0)
         receipt["failures"].extend(coverage_failures(scenario, receipt["episodes"], postrestarts))
         receipt["runtime_ok"] = not receipt["failures"]
+    except AcceptedPause as pause:
+        receipt.update(outcome="accepted_pause", accepted_pause=pause.receipt, coverage="incomplete")
+        save_json(root / "accepted-pause.json", pause.receipt)
     except Exception as error:
         receipt["failures"].append(f"{type(error).__name__}: {error}")
         (root / "failure.txt").write_text(traceback.format_exc(), encoding="utf-8")

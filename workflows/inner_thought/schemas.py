@@ -52,6 +52,7 @@ class TriggerChoice(BaseModel):
     candidate_ids: list[int] = Field(default_factory=list)
     urgency: float = 0.0
     reason: str = ""
+    retrieval_query: str = ""
 
 
 class ThoughtAlternative(BaseModel):
@@ -74,6 +75,8 @@ class ThoughtResult(BaseModel):
     alternatives: list[ThoughtAlternative] = Field(default_factory=list)
     continuation: str = "summarize"
     continuation_reason: str = ""
+    next_operation: str = ""
+    topic_hints: list[str] = Field(default_factory=list)
 
 
 class ExpectationUpdate(BaseModel):
@@ -118,6 +121,8 @@ class IntegrationResult(BaseModel):
     noticing: str = ""
     disclosure: DisclosureChoice = Field(default_factory=DisclosureChoice)
     summary: str = ""
+    progress: str = "none"
+    progress_reason: str = ""
 
 
 class InnerRequest(BaseModel):
@@ -149,6 +154,7 @@ class InnerRequest(BaseModel):
     #: The host builds it from the real source grant and the real records, so
     #: the model reads a bounded view instead of scanning the repository.
     inspection: dict = Field(default_factory=dict)
+    episode: dict = Field(default_factory=dict)
 
 
 class InnerReport(BaseModel):
@@ -175,6 +181,11 @@ class InnerReport(BaseModel):
     disclosure: DisclosureChoice = Field(default_factory=DisclosureChoice)
     channels: dict = Field(default_factory=dict)
     summary: str = ""
+    next_operation: str = ""
+    topic_hints: list[str] = Field(default_factory=list)
+    progress: str = "none"
+    progress_reason: str = ""
+    retrieved_memories: list[dict] = Field(default_factory=list)
 
 
 __all__ = [

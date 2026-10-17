@@ -141,6 +141,15 @@ class ThoughtContractTests(unittest.TestCase):
         self.assertEqual(parsed.reality, "internal")
         self.assertEqual(parsed.evidence_ids, [5])
 
+    def test_thought_receives_the_next_operation_catalogue(self):
+        payload = {**example_request(),
+                   "trigger": {"trigger": "idle_opportunity", "operation": "curiosity_spark"},
+                   "operation": {"name": "curiosity_spark"},
+                   "operations": [{"name": "- plan_next_step (plan, future): Develop a concrete next step."}]}
+        messages = thought_steps.build_messages(payload, thought_steps.load_prompts())
+        self.assertIn("Available next operations:", messages[1].content.text)
+        self.assertIn("plan_next_step", messages[1].content.text)
+
 
 class IntegrateContractTests(unittest.TestCase):
     def test_kernel_returns_a_valid_integration(self):

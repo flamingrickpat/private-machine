@@ -19,6 +19,7 @@ REFERENCE_FIELDS = frozenset({
     "structure_ids", "predecessor_id", "produced_structure_ids", "primary_structure_id",
     "control_knoxel_id", "predecessor_output_ids", "last_driver_ids", "driver_ids",
     "knoxel_ids", "stimuli_ids",
+    "parent_record_ids",
 })
 
 

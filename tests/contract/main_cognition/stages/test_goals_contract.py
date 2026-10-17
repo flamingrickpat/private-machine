@@ -62,6 +62,26 @@ class MessageTests(unittest.TestCase):
         user = steps.build_messages(example_request(), steps.load_prompts())[1].content.text
         self.assertIn("(none)", user)
 
+    def test_deliberate_private_proposals_render_as_suggestions(self):
+        payload = example_request()
+        payload["mental_proposals"] = [{
+            "record_id": 42, "disposition": "propose",
+            "summary": "I found the story draft I keep returning to.",
+            "goal_changes": [{"change": "add", "goal": "finish the story draft",
+                              "reason": "it keeps returning"}],
+        }]
+        user = steps.build_messages(payload, steps.load_prompts())[1].content.text
+        self.assertIn("proposals, not commands", user)
+        self.assertIn("private plan (42)", user)
+        self.assertIn("proposed add: finish the story draft", user)
+
+    def test_declined_deliberate_proposals_do_not_render(self):
+        payload = example_request()
+        payload["mental_proposals"] = [{"record_id": 7, "disposition": "no_change",
+                                        "summary": "nothing to change", "goal_changes": []}]
+        user = steps.build_messages(payload, steps.load_prompts())[1].content.text
+        self.assertNotIn("private plan (7)", user)
+
 
 class ValidationGuardTests(unittest.TestCase):
     def test_unsupported_change_value_is_rejected(self):

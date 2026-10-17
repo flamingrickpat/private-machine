@@ -6,6 +6,9 @@
 The runtime completed 1,079 model calls after that message, but it published no further reply.
 The failure was conversational progress, rather than one three-hour HTTP request.
 The harness eventually stopped the case at its global deadline.
+The absence of another reply does not establish a persona failure.
+Jesse requested silence earlier, and the later `Ignore` choices targeted private thoughts.
+The codelet evidence below supports deliberate quiet as a plausible interpretation.
 
 Parent: [A18B error analysis](../a18b-errors-20261016.md).
 Related: [private loop](../../../subsystems/private-loop.md),
@@ -81,6 +84,12 @@ The separate `generation-worker.json` retains the accurate reason: `case deadlin
 The controller allowed cleanup and did not force-kill this worker.
 
 ## Repair boundary
+
+`direct_stimulus` selected Jesse's final message. `correction_reading` and `agency_reading` interpreted it as criticism of over-analysis.
+The three later `Ignore` calls received only `inner_thought` stimuli.
+Selected proposals from `effort_check`, `self_regulation`, and `boredom_probe` recommended refusing repeated internal commentary.
+Those choices can fit the conversation. A human review must assess their immersion.
+The stronger defects are repeated private processing and a harness that cannot advance after deliberate quiet.
 
 A reply deadline must produce an explicit incomplete diagnostic rather than send another unanswered message.
 A product progress policy also needs to distinguish deliberate quiet, active external work, and repeated private cycles without progress.

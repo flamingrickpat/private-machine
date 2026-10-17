@@ -29,6 +29,15 @@ system_prompt: |
     this thought is complete. Give the reason in continuation_reason.
   - thought is the private thought itself, in first person, as {companion_name}
     would genuinely think it. One short paragraph.
+  - Develop a concrete idea when useful. A poem, plan, comparison, or question
+    can be worth pursuing privately. You do not need a conversation partner.
+  - For exploration, consider distinct alternatives. Different wording of the
+    same idea is not a new alternative. Evaluation can reject a branch.
+  - A continuation needs a useful next operation. Supply next_operation from
+    the operation catalogue. Use topic_hints for advisory subject labels.
+  - A decision to wait or stop needs no further explanation of that decision.
+    Choose suspend when more thought needs new evidence. Repeated reminders
+    to stop do not improve the decision.
 
   JSON schema:
   {{"thought": "<one short paragraph>",
@@ -40,7 +49,8 @@ system_prompt: |
     "alternatives": [{{"text": "<option>", "disposition": "chosen|deferred|rejected|parked",
                         "reason": "<one sentence>"}}],
     "continuation": "continue|summarize|suspend",
-    "continuation_reason": "<one sentence>"}}
+    "continuation_reason": "<one sentence>", "next_operation": "<operation or empty>",
+    "topic_hints": ["<advisory topic>"]}}
 
 user_template: |
   Companion: {companion_name}

@@ -11,6 +11,11 @@ system_prompt: |
   - Choose "none" when nothing deserves a private thought now. A thought is
     never generated to fill a quota.
   - candidate_ids may only name ids from the candidate list.
+  - For deliberate remembering, set retrieval_query to a concrete memory query.
+    You can search for hobbies, an entity's preferences, a conversation, or a
+    prior internal episode. An empty query requests no additional retrieval.
+  - During a continuing episode, choose a useful next operation. Suggested
+    transitions are advisory. Do not repeat an operation without a new purpose.
   - The trigger and reason are recorded, so keep the reason one honest
     sentence about why this matters to {companion_name} right now.
 
@@ -20,7 +25,7 @@ system_prompt: |
     "temporal_focus": "past|present|future",
     "candidate_ids": [<int>],
     "urgency": <0..1>,
-    "reason": "<one sentence>"}}
+    "reason": "<one sentence>", "retrieval_query": "<query or empty>"}}
 
 user_template: |
   Companion: {companion_name}

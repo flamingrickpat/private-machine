@@ -170,9 +170,11 @@ class ReplyRecovery(BusModule):
         waiting = {receipt.get("parent_correlation") for receipt in receipts.values()
                    if receipt.get("arguments", {}).get("_public_reply_requested")}
         waiting.update(handled)
+        paused = getattr(self, "paused_source_ids", lambda: set())()
         for item in self.ghost.all_features:
             correlation = item.metadata.get("exchange_correlation")
-            if (correlation and item.metadata.get("exchange_status") == "pending" and correlation not in waiting):
+            if (correlation and item.metadata.get("exchange_status") == "pending"
+                    and correlation not in waiting and item.id not in paused):
                 self.bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                                      correlation_id=correlation, payload={"knoxel_id": item.id, "recovery_outcome": "redispatched"}))
 

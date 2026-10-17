@@ -24,6 +24,7 @@ from pathlib import Path
 from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.main_cognition.attention_competition import compete
+from workflows.cognitive_control.attention import attention_bias, resolve_focus
 from workflows.main_cognition.codelet_schedule import AttentionPolicy, in_danger
 from workflows.main_cognition.schemas import (
     AttentionNomination, AttentionResult, CodeletProposal, NominationScores,
@@ -145,7 +146,11 @@ def run(context) -> dict:
     for result in results:
         scores.update(result)
     danger = in_danger((request.get("codelets") or {}).get("signals") or {})
-    result = compete(nominations_from(proposals, scores), policy, danger=danger)
+    focus = resolve_focus(context, request)
+    nominations = nominations_from(proposals, scores)
+    result = compete(nominations, policy, danger=danger,
+                     biases=attention_bias(nominations, focus, danger=danger))
+    result.competition["focus"] = focus
     result.competition["scoring_calls"] = -(-len(proposals) // policy.score_batch_size) if proposals else 0
     allowed = candidate_ids(list(request.get("candidates", [])))
     allowed |= {int(goal["knoxel_id"]) for goal in request.get("active_goal_records", [])}

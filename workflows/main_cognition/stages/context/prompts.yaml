@@ -8,6 +8,8 @@ system_prompt: |
   - Return an empty memories list. The host fills it with the exact selected source text.
   - ``candidate_ids`` must be exactly the knoxel_ids of the memories you
     selected. Every id must come from the supplied candidates.
+  - Select each id once. Write each selected id as a complete JSON integer.
+  - Never abbreviate a list with ellipses, partial numbers, or placeholders.
   - Include only active goals that are relevant to the current situation.
   - Include only capability facts that are relevant to the current situation.
   - If nothing is relevant, return empty lists.

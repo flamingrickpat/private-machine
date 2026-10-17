@@ -32,7 +32,9 @@ A dramatic persona might appraise it as a loss or threat to identity.
 Both personas retain the same factual evidence.
 Their emotional response evolves through ordinary appraisal and regulation.
 
-A19 develops monitor–assess–guide work inside the second conscious loop, inspired by [MIDCA](https://ojs.aaai.org/index.php/AAAI/article/view/9886).
+[A18C](work-items/a18c.md) supplies immediate mental actions and their execution controls.
+It preserves the ordinary appraisal and codelet path for deliberate proposals.
+A19 develops longitudinal monitor–assess–guide work inside the second conscious loop, inspired by [MIDCA](https://ojs.aaai.org/index.php/AAAI/article/view/9886).
 It detects a concrete mismatch, forms a hypothesis, chooses an experiment, and compares the result.
 It then revises a belief, goal, attention rule, or permitted workflow configuration.
 

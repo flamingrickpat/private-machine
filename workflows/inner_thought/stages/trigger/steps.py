@@ -61,6 +61,8 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         triggers=_render_triggers(parsed),
         candidates=_render_candidates(parsed),
     )
+    import json
+    user = user + "\nPrivate episode and operation suggestions:\n" + json.dumps(parsed.episode)
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 
 

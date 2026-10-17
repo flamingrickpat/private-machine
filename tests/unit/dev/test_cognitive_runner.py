@@ -19,12 +19,38 @@ from dev.work_items.a18b.runner import (
     actor_send_receipt, await_delivery, delivery_mode, capability_facts, coverage_failures, execution_fact,
     load_suite, make_packets, managed_run_fact, observation_fields,
     public_messages, scene_coverage, wait_case,
+    accepted_pause,
 )
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
 class CognitiveRunnerTests(unittest.TestCase):
+    def test_pause_requires_a_committed_wait_for_the_pending_exchange(self):
+        from pm.bus.bus import BusSystem
+        from pm.records.enums import FeatureType
+        from pm.records.memory_records import new_feature
+        from tests.support import ManualClock
+        from tests.unit.test_design_contracts import small_ghost
+        from workflows.cognitive_control.host import CognitiveControl
+        from workflows.cognitive_control.schemas import WaitRequest
+        ghost = small_ghost()
+        source = new_feature(ghost, "please leave it quiet", FeatureType.Dialogue,
+            source=ghost.get_user_name(), metadata={"exchange_correlation": "pause-current",
+                                                   "exchange_status": "pending"})
+        control = CognitiveControl("control", BusSystem(), lambda error: None, ManualClock(), None, ghost=ghost)
+        self.assertIsNone(accepted_pause(ghost, "pause-current"))
+        control.commit(ghost.begin_batch("accepted-pause"), WaitRequest(seconds=60),
+                       control.generation, source_ids=[source.id])
+        outcome = accepted_pause(ghost, "pause-current")
+        self.assertEqual(outcome["source_id"], source.id)
+        self.assertEqual(outcome["outcome"], "accepted_pause")
+        self.assertIsNone(accepted_pause(ghost, "another-exchange"))
+        from datetime import timedelta
+        control.now = lambda: datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=120)
+        control.handle_batch([])
+        self.assertIsNone(accepted_pause(ghost, "pause-current"))
+
     def test_cases_keep_model_settings_but_own_separate_embedding_caches(self):
         from pm.llm.config import load_config
         source = ROOT / "config.alpha.openrouter.yaml"

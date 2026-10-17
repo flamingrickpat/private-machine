@@ -21,6 +21,7 @@ from typing import (
 from pydantic import BaseModel, Field, PrivateAttr
 
 from pm.records.enums import FrameEnum, RecordSubtypeBase, NoSubtype, SourceKind
+from pm.records.lineage import RecordLineage
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,7 @@ class RecordBase(BaseModel):
     timestamp_world_end: datetime = Field(default_factory=get_causal_datetime)
     last_accessed: datetime = Field(default_factory=datetime.utcnow)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    lineage: RecordLineage | None = None
     scope: RecordScope = Field(default_factory=RecordScope, description="Reality + frame scoping; default real/in_world.")
     provenance: Optional[Provenance] = Field(default=None, description="Who/what created this knoxel.")
 

@@ -29,7 +29,8 @@ The module applies those proposals inside one Ghost write batch.
 | Appraisal report | New latent state and one appraisal Feature | Feature in accepted memory |
 | Goal change list | New or changed `Intention` knoxel | Durable goal lifecycle |
 | Action selection | Stable action IDs and prerequisite records | `action.request` or `action.receipt` |
-| Startup gap | One system lifecycle Feature | First-cycle stimulus |
+| Startup gap | One system lifecycle Feature | First-cycle stimulus, unless an accepted wait suppresses routine cognition |
+| `Sleep` | Wait and cognitive result commit together | Routine inference pauses; outside evidence or timeout ends the pause |
 
 ## Appraisal to affect
 
@@ -123,6 +124,8 @@ It commits once.
 A failure before the commit leaves accepted state unchanged.
 A stale revision raises `GhostConflict`, so no partial update lands.
 The checkpoint write precedes action publication.
+The [wait controller](inference-wait.md) can accept a pause in that same commit.
+Its generation fence prevents a late sleep decision from hiding newer input.
 
 [`workflows.main_cognition.host.MainCogLoop`][] reads active goals from accepted memory.
 It writes intentions and Features through the Ghost batch.

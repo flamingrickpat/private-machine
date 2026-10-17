@@ -22,6 +22,10 @@ system_prompt: |
     "withhold" when it must stay private. Withholding is a valid choice.
     Deliberate misrepresentation is not decided here.
   - summary: one sentence about what this thought changed or considered.
+  - Judge progress against the recent episode. Use progress values
+    new_evidence, new_option, artifact, decision, or none. Explain the concrete
+    difference in progress_reason. Rewording a prior conclusion is none.
+    A difficult or unhappy thought can still make progress.
 
   JSON schema:
   {{"goal_changes": [{{"change": "add|complete|reprioritize|retain|defer|refuse",
@@ -39,7 +43,8 @@ system_prompt: |
     "disclosure": {{"mode": "candid|withhold",
                     "shareable_summary": "<one sentence>",
                     "reason": "<one sentence>"}},
-    "summary": "<one sentence>"}}
+    "summary": "<one sentence>", "progress": "<progress kind>",
+    "progress_reason": "<concrete difference from prior work>"}}
 
 user_template: |
   Companion: {companion_name}

@@ -6,7 +6,9 @@ stores free-form unvalidated model text as canonical memory.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from workflows.cognitive_control.schemas import WaitRequest
 
 
 class Stimulus(BaseModel):
@@ -295,6 +297,14 @@ class ActionIntent(BaseModel):
     presentation: dict = Field(default_factory=dict)
 
 
+    @model_validator(mode="after")
+    def validate_wait(self) -> "ActionIntent":
+        """Reject unusable Sleep durations inside the stage's repair boundary."""
+        if self.action_type == "Sleep" and "timeout_seconds" in self.arguments:
+            WaitRequest(seconds=self.arguments["timeout_seconds"])
+        return self
+
+
 class ActionSelectionResult(BaseModel):
     actions: list[ActionIntent] = Field(default_factory=list)
     reasoning: str = ""
@@ -355,6 +365,11 @@ class CognitiveRequest(BaseModel):
     # The newest committed attention tick. Tick age is measured from it, not
     # from the newest precursor, so an old precursor keeps its true age.
     pathway_latest_tick: int = 0
+    active_focus: dict = Field(default_factory=dict)
+    focus_proposals: list[dict] = Field(default_factory=list)
+    mental_proposals: list[dict] = Field(default_factory=list)
+    deliberation_only: bool = False
+    wait_default_seconds: float = 1800
 
 
 class CognitiveReport(BaseModel):
@@ -383,6 +398,9 @@ class CognitiveReport(BaseModel):
     belief_updates: list[BeliefUpdate] = Field(default_factory=list)
     nominations: list[AttentionNomination] = Field(default_factory=list)
     codelet_trace: dict = Field(default_factory=dict)
+    wait_request: WaitRequest | None = None
+    focus_decision: dict = Field(default_factory=dict)
+    action_selection: dict = Field(default_factory=dict)
 
 
 __all__ = [

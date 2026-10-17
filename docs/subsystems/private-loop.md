@@ -46,6 +46,8 @@ into another main cycle.
 The timer period is the `thought_period` construction argument of
 [`workflows.companion.build_app`][], 30 seconds by default.
 An idle tick costs no model call.
+An accepted [inference wait](inference-wait.md) also prevents routine private work before snapshot construction.
+A18C also runs bounded private episodes on this timer.
 
 ## Shards and cross-loop reads
 
@@ -100,6 +102,7 @@ A trigger fires on committed state only:
 | `idle_opportunity` | no user input, or none within 300 seconds | curiosity, noticing, memory gaps |
 | `repeated_concern` | one source recurs in 3 recent private thoughts | rumination notice, drift notice, debrief |
 | `startup_gap` | the application was stopped for at least an hour | debrief, narrative stitching, perspective shift |
+| `episode_continuation` | main appraisal acknowledged an open episode | the previous step's suggested operation |
 
 The trigger stage may pick one fired trigger or decline with operation `none`.
 The loop never generates a thought to satisfy a quota.
@@ -134,21 +137,25 @@ The candidates are active goals, pending expectations, the newest appraisal,
 the newest main frame, recent private thoughts, and the latest outside
 message, each with its read revision.
 Inner material outranks outside material.
-The model can narrow the candidate list, never widen it: a cited id outside
-the frozen list fails the pipeline before commit.
+The trigger can narrow the candidates or request a concrete retrieval query.
+The host's `retrieve_memory` tool returns at most eight attributed matches from the frozen invocation snapshot.
+The thought stage can cite these additional originals.
+It cannot expand the invocation's visibility grant.
+The host guards each retrieved record and its source revisions before commit.
+A citation outside the supplied and retrieved records still fails before acceptance.
 
 ## The commit boundary
 
 `publish_output` owns the commit:
 
-1. `begin_batch(new_tick=True, cancel=stop_event)` reserves a fresh tick.
+1. `begin_batch(new_tick=True, cancel=run_stop)` reserves a fresh tick.
 2. Every read record is guarded with `expect_revision`.
 3. The thought commits as an `InnerMonologue` feature with metadata: loop,
    operation, trigger, reality, uncertainty, evidence ids, alternatives with
    dispositions, continuation, focus intention, and the disclosure choice.
-4. Goal changes go through the shared owner
-   `apply_goal_changes(..., origin="private_loop")`, so lifecycle evidence,
-   keys, and history stay identical across both loops.
+4. Goal changes remain suggestions in the thought's `mental_plan` metadata.
+   Main appraisal and its goals stage own acceptance.
+   [Deliberate mental work](deliberate-mental-work.md) uses the same proposal boundary.
 5. An expectation opens or resolves through the lifecycle helpers.
 6. One `AttentionFrameRecord` with `control_mode="reflective"` commits with
    the frame's own tick.
@@ -161,8 +168,9 @@ the frozen list fails the pipeline before commit.
 
 A `GhostConflict` (the main loop replaced a read record first) rejects the
 cycle with a `thought.rejected` telemetry envelope.
-A cancellation discards the cycle silently; the store guarantees no late
-commit after the stop event.
+A cancellation discards the cycle silently.
+The store checks the run cancellation signal before checkpoint replacement.
+The wait controller also fences private acceptance after newer outside input or an accepted wait.
 
 An explicit semantic model rejection raises [`workflows.inner_thought.pipeline.ModelProposalError`][].
 [`workflows.inner_thought.host.PrivateThoughtLoop.handle_batch`][] catches that type and exhausted model format repairs before the commit.
@@ -187,6 +195,19 @@ personal meaning.
 A sad speculation can therefore raise actual sadness in the simulated state
 while the thought itself keeps the `imagined` or `inferred` label.
 The private loop never publishes speech and never commands the body.
+An older queued thought cannot wake an accepted wait.
+An episode's continuation metadata now enforces bounded, acknowledged execution.
+The thought metadata carries the episode identity, sequence, operation history, and evidence frontier.
+A continuing step waits until a main cycle appraises the previous thought.
+[`workflows.inner_thought.host.PrivateThoughtLoop.resume`][] replays accepted thoughts whose ids have no main acknowledgment.
+A wait delays replay, and a newer generation discards superseded thoughts.
+A discarded main cycle releases its queued publication claim for another attempt.
+Step, elapsed-time, and stalled-progress limits close the episode explicitly.
+A suspension or a stall parks its sources for a bounded review time.
+The next request retains parked sources even after the episode closes.
+Accepted cycles retain the control generation, so restart preserves valid continuation.
+Expired and superseded episodes receive a durable terminal state before a new snapshot opens.
+The [A18C design](../work_items/alpha-plan/deliberate-control.md) describes the limits.
 
 ## Expectations
 

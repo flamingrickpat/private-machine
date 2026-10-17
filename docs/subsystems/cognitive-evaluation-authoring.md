@@ -48,6 +48,10 @@ A window-level pass cannot establish an unseen cross-scene consequence.
 
 Use a setup, complication, response, and later consequence.
 Keep normal back-and-forth as the default. Jesse waits for actual companion speech before composing another message.
+Runtime protocol `a18c.pause.v1` also recognizes a committed wait for the current pending exchange.
+An accepted pause ends generation without another message or an invented reply.
+The receipt records `accepted_pause`; unfinished scenes retain incomplete coverage and earn no aggregate acceptance.
+The pause receipt stays outside actor and reviewer packets.
 Declare `priority: edge` and an explicit scene `burst_size` only when overlap serves the question.
 Edge cases run after normal cases. They must not replace the primary path.
 The current repertoire has 14 normal cases and two overlap cases, near the owner's approximate 15-percent edge-case frequency.

@@ -13,6 +13,7 @@ from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.records.base import RecordBase
+from pm.records.lineage import RecordLineage
 from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel
 from pm.memory.snapshot import GhostCancelled, Snapshot
 
@@ -82,6 +83,22 @@ class WriteBatch:
         # A retrieved revision can predate this write batch. Keep its earlier
         # read guard even when a later proposal also replaces the record.
         self._expected.setdefault(knoxel.id, self._snapshot.revisions[knoxel.id])
+
+    @property
+    def created_ids(self) -> frozenset[int]:
+        """Return IDs created in this batch, excluding replacements of old sources."""
+        return frozenset(self._new)
+
+    def annotate_lineage(self, record_id: int, lineage: RecordLineage) -> None:
+        """Attach causal episode links to a new record in this batch only.
+
+        Existing sources cannot acquire a new history through this API.
+        Reference validation still occurs at the atomic commit boundary.
+        """
+        self.check_cancelled()
+        if record_id not in self._new:
+            raise ValueError("Lineage annotation requires a record created in this batch.")
+        self._new[record_id]["data"]["lineage"] = lineage.model_dump(mode="json")
 
     def expect_revision(self, record_id: int, revision: int) -> None:
         """Reject the whole commit if retrieved evidence changed after its read."""

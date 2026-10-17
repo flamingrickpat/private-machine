@@ -36,7 +36,7 @@ def weighted_score(nomination: AttentionNomination, policy: AttentionPolicy, *, 
 
 
 def compete(nominations: list[AttentionNomination], policy: AttentionPolicy, *,
-            danger: bool = False) -> AttentionResult:
+            danger: bool = False, biases: dict[str, float] | None = None) -> AttentionResult:
     """Choose winners and give every nomination a status and a reason.
 
     The input nominations already carry their 0..1 axis scores. The result's
@@ -47,7 +47,8 @@ def compete(nominations: list[AttentionNomination], policy: AttentionPolicy, *,
     for index, nomination in enumerate(nominations):
         if nomination.status == "rejected":
             continue
-        raw = weighted_score(nomination, policy, danger=danger)
+        raw = max(0.0, weighted_score(nomination, policy, danger=danger)
+                  + float((biases or {}).get(nomination.nomination_id, 0)))
         # AttentionRecord stores score in 0..1. The raw score stays in the trace.
         nomination.score = min(1.0, raw)
         scored.append((raw, index, nomination))
@@ -77,6 +78,7 @@ def compete(nominations: list[AttentionNomination], policy: AttentionPolicy, *,
     trace = {
         "policy": policy.model_dump(mode="json"),
         "danger": danger,
+        "deliberate_bias": dict(biases or {}),
         "ranking": [{"nomination_id": item.nomination_id, "codelet": item.codelet, "score": raw,
                      "status": item.status, "reason": item.reason} for raw, _, item in order],
         "rejected": [{"nomination_id": item.nomination_id, "codelet": item.codelet, "reason": item.reason}

@@ -51,6 +51,25 @@ def render_inner_proposals(proposals: list[dict]) -> str:
     return "\n".join(lines) or "(none)"
 
 
+def render_deliberate_proposals(proposals: list[dict]) -> str:
+    """Render deliberate mental-work proposals for ordinary goal appraisal.
+
+    A mental agent contributes a private plan. Its goal changes are suggestions
+    that this stage may accept, change, or decline. They never apply directly.
+    """
+    lines = []
+    for item in proposals or []:
+        if str(item.get("disposition", "propose")) != "propose":
+            continue
+        summary = str(item.get("summary", "")).strip()
+        if summary:
+            lines.append(f"- private plan ({item.get('record_id', '?')}): {summary}")
+        for change in item.get("goal_changes", []) or []:
+            lines.append(f"    proposed {change.get('change', '')}: {change.get('goal', '')}"
+                         f" ({change.get('reason', '')})")
+    return "\n".join(lines) or "(none)"
+
+
 def build_messages(request: dict, prompts: dict) -> list[Turn]:
     """Build typed stage turns from selected request data and prompt text."""
     goals = list(request.get("current_goals", request.get("active_goals", [])))
@@ -68,6 +87,7 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         stimuli=render_block(request.get("stimuli", [])),
         managed_runs=render_block(request.get("managed_runs", [])),
         inner_proposals=render_inner_proposals(request.get("inner_proposals", [])),
+        deliberate_proposals=render_deliberate_proposals(request.get("mental_proposals", [])),
     )
     return [
         Turn(Role.System, system.strip()),
@@ -103,6 +123,7 @@ __all__ = [
     "build_messages",
     "load_prompts",
     "render_block",
+    "render_deliberate_proposals",
     "render_goals",
     "render_inner_proposals",
     "run",

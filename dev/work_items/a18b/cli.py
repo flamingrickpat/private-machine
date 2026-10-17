@@ -360,7 +360,7 @@ def main() -> int:
         if frozen != suite:
             raise ValueError("The worker checkout differs from the controller's frozen suite.")
         result = run_case(choices[args.case[0]], suite, args.config.resolve(), args.out.resolve(), args.seed)
-        return 0 if result["runtime_ok"] else 1
+        return 0 if result["runtime_ok"] or result.get("outcome") == "accepted_pause" else 1
     if args.command == "review-case":
         if len(args.case) != 1:
             parser.error("review-case requires exactly one --case.")

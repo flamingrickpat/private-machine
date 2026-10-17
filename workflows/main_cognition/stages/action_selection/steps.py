@@ -89,6 +89,7 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
     available_workflows = list(request.get("available_workflows", []))
     system = prompts["system_prompt"].format(
         companion_name=request.get("companion_name", "Spamuel"),
+        wait_default_seconds=request.get("wait_default_seconds", 1800),
     )
     user = format_content(prompts["user_template"],
         companion_name=request.get("companion_name", "Spamuel"),

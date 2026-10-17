@@ -72,9 +72,13 @@ _GhostStateYamlDumper.add_representer(list, _represent_list)
 
 
 def _serialize_knoxel(knoxel: RecordBase) -> Dict[str, Any]:
+    data = knoxel.model_dump(mode="json", serialize_as_any=True)
+    # Keep legacy records unchanged until an owner adds actual episode links.
+    if data.get("lineage") is None:
+        data.pop("lineage", None)
     return {
         "__type__": persisted_type_name(type(knoxel)),
-        "data": knoxel.model_dump(mode="json", serialize_as_any=True),
+        "data": data,
     }
 
 

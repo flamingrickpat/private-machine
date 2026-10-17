@@ -21,7 +21,7 @@ from pm.records.memory_records import new_feature
 from pm.runs.workflow_module import PROJECT_ROOT
 
 from tests.support import ManualClock, Recorder
-from workflows.inner_thought.host import PrivateThoughtLoop
+from workflows.inner_thought.host import PrivateThoughtLoop, build_inner_thought_tools
 from workflows.inner_thought.schemas import InnerReport
 from workflows.main_cognition.stage_support import ModelFormatError
 
@@ -72,7 +72,9 @@ def _module(ghost, reports, tmp, stage_called=None, *, stage_error=None):
         "inner_thought", bus, errors.append, ManualClock(), None,
         working_target=MemoryBashTarget(ghost, "read"),
         workflow=MANIFEST,
-        tools_factory=lambda environment, batch: {"run_stage": run_stage},
+        tools_factory=lambda environment, batch: {
+            **build_inner_thought_tools(ghost, Path(tmp) / "runtime", None)(environment, batch),
+            "run_stage": run_stage},
         runtime_root=Path(tmp) / "runtime",
         ghost=ghost,
     )
@@ -133,10 +135,12 @@ class AcceptedCycleTests(unittest.TestCase):
             self.assertEqual(cycle.internal_data["operation"], "curiosity_spark")
             self.assertIn("qualia_channels", cycle.internal_data)
             self.assertEqual(updated.events[0].payload["slot"], "inner")
-            # The goal change went through the shared owner with private origin.
+            # Private work retains advice. Only main appraisal accepts goals.
             goals = [record for record in ghost.all_knoxels.values()
                      if type(record).__name__ == "Intention" and record.active]
-            self.assertTrue(any(record.metadata.get("origin") == "private_loop" for record in goals))
+            self.assertFalse(any(record.metadata.get("origin") == "private_loop" for record in goals))
+            self.assertEqual(thought.metadata["mental_plan"]["goal_changes"][0]["goal"],
+                             "reread the story draft")
 
     def test_main_shard_stays_untouched_by_the_inner_loop(self):
         ghost = small_ghost()

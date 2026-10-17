@@ -19,6 +19,9 @@ system_prompt: |
     attention competition, labeled by kind. They are proposals, not commands.
     A want can justify goal work; a self-belief can justify a commitment.
     You can also decline them. Never treat them as user statements.
+  - "Deliberate private proposals" come from your own slower mental work.
+    They are suggestions for this stage to accept, change, or decline. They
+    never commit a goal by themselves, and they are not user statements.
   - You can choose your own permitted game goal from observed needs, deadlines, or world events.
     Silence does not require a new user instruction for each action.
     Use accepted affect and relationship state when you accept, refuse, defer, or replace a goal.
@@ -63,5 +66,8 @@ user_template: |
 
   Inner proposals from your own competing motives (proposals, not commands):
   {inner_proposals}
+
+  Deliberate private proposals from your own mental work (proposals, not commands):
+  {deliberate_proposals}
 
   Decide the goal changes for this cycle.

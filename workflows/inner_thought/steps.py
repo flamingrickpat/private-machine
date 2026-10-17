@@ -13,7 +13,8 @@ from workflows.main_cognition.stage_support import read_request, write_report
 
 def run(context) -> dict:
     request = InnerRequest.model_validate(read_request(context.runtime.environment))
-    report = run_cycle(request, context.runtime.tools["run_stage"])
+    report = run_cycle(request, context.runtime.tools["run_stage"],
+                       context.runtime.tools.get("retrieve_memory"))
     write_report(context.runtime.environment, report)
     return {"status": "done", "summary": report.summary}
 

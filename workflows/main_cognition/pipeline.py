@@ -279,6 +279,7 @@ def run_cycle(
         "context": reports["context"],
         "current_goals": request.get("active_goals", []),
         "inner_proposals": inner_proposals(reports["attention"], GOAL_KINDS),
+        "mental_proposals": request.get("mental_proposals", []),
     })
     call("workspace", {
         "public_context": None,
@@ -286,6 +287,8 @@ def run_cycle(
         "goals": reports["goals"],
         "candidate_texts": _candidate_texts(request),
     })
+    # Every accepted thought currently yields to action selection. Bounded
+    # continuation must own the next step before this stage can be deferred.
     call("action_selection", {
         "workspace": reports["workspace"],
         "goals": reports["goals"],
@@ -341,6 +344,13 @@ def run_cycle(
         nominations=[dict(item) for item in attention.get("nominations", [])],
         codelet_trace={key: value for key, value in reports["codelets"].items() if key != "proposals"}
         | {"competition": attention.get("competition", {})},
+        focus_decision=attention.get("competition", {}).get("focus", {}),
+        action_selection=dict(reports["action_selection"]),
+        wait_request=next(({"seconds": item.get("arguments", {}).get("timeout_seconds",
+                                request.get("wait_default_seconds", 1800)),
+                            "reason": item.get("content") or "Wait for a new stimulus."}
+                          for item in reports["action_selection"].get("actions", [])
+                          if item.get("action_type") == "Sleep"), None),
     )
 
 

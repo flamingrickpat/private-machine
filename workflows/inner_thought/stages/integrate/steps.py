@@ -44,6 +44,8 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         evidence="\n".join(f"- id={item.knoxel_id} kind={item.kind}: {item.text}" for item in parsed.candidates) or "(none)",
         evidence_ids=json.dumps(thought.evidence_ids),
     )
+    user = user + "\nRecent private episode for progress comparison:\n" + json.dumps({
+        "episode": parsed.episode, "recent_thoughts": parsed.recent_thoughts})
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 
 

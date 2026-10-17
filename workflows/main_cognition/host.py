@@ -18,7 +18,7 @@ from collections.abc import Mapping
 from workflows.main_cognition.stage_runner import build_stage_runner
 from workflows.main_cognition.stage_support import ModelFormatError
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from workflows.main_cognition.affect_dynamics import AffectProjection
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
@@ -45,6 +45,7 @@ from pm.bus.envelopes import new_envelope
 from pm.records.memory_records import new_feature
 from workflows.public_speech.public_dialogue import _clip, _recency
 from pm.runs.workflow_module import CognitiveWorkflow
+from pm.memory.snapshot import GhostCancelled
 
 
 def build_main_cognition_tools(
@@ -267,6 +268,7 @@ class MainCogLoop(CognitiveWorkflow):
         "user.input", "thought.created", "task.telemetry", "workflow.question", "workflow.event",
         "system.lifecycle",
         "minecraft.world",
+        "cognition.wake",
     })
 
     def __init__(self, *args, workflow_catalogue=None, embedding_config_path=None,
@@ -292,7 +294,40 @@ class MainCogLoop(CognitiveWorkflow):
             return envelope.target in {None, self.module_id}
         return super().accepts(envelope)
 
+    def deliver(self, envelope: Envelope) -> None:
+        """Record external wake causes before queueing the next cognition cycle."""
+        control = getattr(self, "cognitive_control", None)
+        if control is not None:
+            control.observe(envelope)
+        super().deliver(envelope)
+
     def handle_batch(self, batch: list[Envelope]) -> None:
+        """Honor a wait and reject obsolete private stimuli before inference."""
+        control = getattr(self, "cognitive_control", None)
+        original = batch
+        if control is not None:
+            batch, self._control_generation = control.admit(batch)
+            if not batch:
+                control.release_wakes(original)
+                release = getattr(self, "release_private_results", None)
+                if release is not None:
+                    release(original)
+                return
+        self._private_only = bool(batch) and all(item.topic == "thought.created" for item in batch)
+        try:
+            self._handle_awake_batch(batch)
+        except GhostCancelled:
+            if not (control is not None and self._private_only
+                    and self._control_generation != control.generation):
+                raise
+        finally:
+            if control is not None:
+                control.release_wakes(original)
+            release = getattr(self, "release_private_results", None)
+            if release is not None:
+                release(original)
+
+    def _handle_awake_batch(self, batch: list[Envelope]) -> None:
         """Retry rejected model formats and revision conflicts without speech.
 
         A concurrent commit can invalidate the cycle's proposal. Each retry
@@ -403,6 +438,42 @@ class MainCogLoop(CognitiveWorkflow):
             retrieval["matches"] = [item for item in retrieval["matches"] if item["knoxel_id"] not in rejected_ids]
             retrieval["trace"]["speech_only_excluded_ids"] = sorted(rejected_ids)
         self._memory_view = memory_view
+        from workflows.cognitive_control.attention import active_focus
+        control = getattr(self, "cognitive_control", None)
+        maximum_focus_bias = control.config.maximum_focus_bias if control is not None else None
+        focus = active_focus(self.ghost, maximum_strength=maximum_focus_bias)
+        mental_proposals, focus_proposals = [], []
+        for source in sources:
+            plan = source.metadata.get("mental_plan")
+            if plan and plan.get("disposition") == "propose":
+                mental_proposals.append({"record_id": source.id, **plan})
+                if plan.get("focus"):
+                    advice = dict(plan["focus"])
+                    if maximum_focus_bias is not None:
+                        advice["strength"] = min(advice.get("strength", 0.3), maximum_focus_bias)
+                    focus_proposals.append({"record_id": source.id, "focus": advice})
+        # Deliberate recall can introduce sources that a literal stimulus
+        # query missed. They remain original, revisioned memory candidates.
+        focus_ids = set(focus.get("promote_ids", []) + focus.get("reduce_ids", []))
+        for item in mental_proposals:
+            focus_ids.update(item.get("evidence_ids", []))
+        for item in focus_proposals:
+            focus_ids.update(item["focus"].get("promote_ids", []) + item["focus"].get("reduce_ids", []))
+        self._focus_source_revisions = {}
+        present = {item["knoxel_id"] for item in retrieval["matches"]}
+        from pm.memory.retrieval import evidence_role, memory_kind
+        records = memory_view.serialize_knoxels() if focus_ids else {}
+        for key in sorted(focus_ids):
+            if key not in memory_view.revisions:
+                continue
+            record = memory_view.get(key)
+            self._focus_source_revisions[key] = memory_view.revisions[key]
+            if key not in present:
+                raw = records[key]
+                retrieval["matches"].append({"knoxel_id": key, "text": record.content,
+                    "revision": memory_view.revisions[key], "source_ids": [key],
+                    "memory_kind": memory_kind(raw), "evidence_role": evidence_role(memory_view, raw),
+                    "reasons": ["deliberate mental recall"]})
         self._memory_candidates = retrieval["matches"]
         previous = self.ghost.states[-1] if self.ghost.states else None
         previous_vec = list(previous.mental_state_latent_vec) if previous is not None else []
@@ -428,6 +499,14 @@ class MainCogLoop(CognitiveWorkflow):
             stimuli=stimuli,
             memory_candidates=[MemoryCandidate(**item) for item in retrieval["matches"]],
             memory_trace=retrieval["trace"],
+            active_focus=focus,
+            focus_proposals=focus_proposals,
+            mental_proposals=mental_proposals,
+            # Continuation cannot skip action selection until a bounded
+            # episode executor owns the next step and its acknowledgment.
+            deliberation_only=False,
+            wait_default_seconds=getattr(getattr(self, "cognitive_control", None), "config", None).wait_seconds
+                if getattr(self, "cognitive_control", None) is not None else 1800,
             capabilities=_capabilities(self.ghost),
             available_workflows=[
                 WorkflowOption(**workflow)
@@ -505,6 +584,10 @@ class MainCogLoop(CognitiveWorkflow):
             result = feature.id, text, "workflow.event"
             self._event_stimuli = {**cached, envelope.id: result}
             return result
+        if envelope.topic == "cognition.wake":
+            knoxel_id = int(payload["knoxel_id"])
+            knoxel = self._input_knoxel(knoxel_id)
+            return knoxel_id, str(knoxel.content), "cognition.wake"
         if envelope.topic == "system.lifecycle":
             knoxel_id = payload.get("knoxel_id")
             if knoxel_id is None:
@@ -537,15 +620,19 @@ class MainCogLoop(CognitiveWorkflow):
         return self.ghost.get_knoxel_by_id(knoxel_id)
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+        if self.stop_event.is_set() or self.run_stop.is_set():
+            return
         parsed = CognitiveReport.model_validate(report)
         correlation = self._batch_correlation or (batch[0].correlation_id if batch else "")
         cause = batch[0].id if batch else None
         changes = self.ghost.begin_batch(
-            self.invocation_id or new_id(), new_tick=True, cancel=self.stop_event,
+            self.invocation_id or new_id(), new_tick=True, cancel=self.run_stop,
         )
         tick = changes.tick_id
         view = changes.view()
         for source_id, revision in self._stimulus_revisions.items():
+            changes.expect_revision(source_id, revision)
+        for source_id, revision in getattr(self, "_focus_source_revisions", {}).items():
             changes.expect_revision(source_id, revision)
         for memory in parsed.selected_memories:
             changes.expect_revision(memory.knoxel_id, memory.revision)
@@ -660,6 +747,31 @@ class MainCogLoop(CognitiveWorkflow):
         created_order: list[int] = [frame.id, appraisal_feature.id, *created_goal_ids, *experience_ids,
                                     *belief_receipt["accepted_ids"], *codelet_beliefs["accepted_ids"],
                                     *winning_ids]
+        from pm.records.lineage import RecordLineage
+        parent = next((view.get(key) for key in self._stimulus_ids if view.get(key).lineage is not None), None)
+        lineage = RecordLineage(
+            episode_id=parent.lineage.episode_id if parent is not None else changes.commit_id,
+            sequence=parent.lineage.sequence + 1 if parent is not None else 0,
+            operation="main_appraisal", parent_record_ids=list(self._stimulus_ids),
+            source_event_ids=list(self._stimulus_ids), intention_ids=goal_ids,
+            topic_hints=list(parent.lineage.topic_hints) if parent is not None else [])
+        for key in set([*created_order, *attention_ids]) & changes.created_ids:
+            changes.annotate_lineage(key, lineage)
+        selection = new_feature(self.ghost, str(parsed.action_selection.get("reasoning") or parsed.summary),
+            FeatureType.StateUpdate, source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
+            changes=changes, metadata={"operation": "action_selection", "selection": parsed.action_selection},
+            lineage=lineage.model_copy(update={"operation": "action_selection", "parent_record_ids": [frame.id]}))
+        created_order.append(selection.id)
+        focus = parsed.focus_decision
+        if focus.get("fresh") and focus.get("accept"):
+            from workflows.cognitive_control.schemas import FocusProposal
+            advice = FocusProposal.model_validate(focus)
+            accepted_focus = new_feature(self.ghost, advice.instruction, FeatureType.StateUpdate,
+                source=self.ghost.get_companion_name(), source_kind=SourceKind.Self, changes=changes,
+                metadata={"control_kind": "attention_focus", "focus": focus,
+                          "expires_at": (datetime.utcnow() + timedelta(seconds=advice.seconds)).isoformat()},
+                lineage=lineage.model_copy(update={"operation": "focus_acceptance"}))
+            created_order.append(accepted_focus.id)
         published: list[tuple] = []
         rejected = []
         queued = []
@@ -693,6 +805,8 @@ class MainCogLoop(CognitiveWorkflow):
                 action_type=ACTION_BY_NAME[dispatch.action_type],
                 attention_frame_id=frame.id,
                 intention_ids=list(goal_ids),
+                lineage=lineage.model_copy(update={"operation": "action_dispatch",
+                                                  "parent_record_ids": [selection.id]}),
                 metadata={
                     "action_id": dispatch.action_id,
                     "route": dispatch.workflow_name,
@@ -738,9 +852,22 @@ class MainCogLoop(CognitiveWorkflow):
                 tick_id=tick, attention_frame_id=frame.id, published_slots=["main"],
                 stimuli_ids=list(self._stimulus_ids),
                 mental_state_latent_vec=mental_state.to_list(),
+                internal_data={"control_generation": getattr(self, "_control_generation", 0)},
             ),
         )
-        receipt = self.ghost.commit(changes)
+        control = getattr(self, "cognitive_control", None)
+        if control is None:
+            receipt = self.ghost.commit(changes)
+        else:
+            from workflows.cognitive_control.schemas import WaitRequest
+            receipt = control.commit(changes,
+                WaitRequest.model_validate(parsed.wait_request) if parsed.wait_request is not None else None,
+                getattr(self, "_control_generation", control.generation),
+                envelope_ids={item.id for item in batch},
+                wake_ids=[int(item.payload["knoxel_id"]) for item in batch if item.topic == "cognition.wake"],
+                private_generation=getattr(self, "_control_generation", control.generation)
+                    if getattr(self, "_private_only", False) else None,
+                source_ids=list(self._stimulus_ids))
         tick = receipt.tick_id
 
         memory_texts = [item.text for item in parsed.selected_memories]
@@ -779,6 +906,9 @@ class MainCogLoop(CognitiveWorkflow):
                 correlation, dispatch, "duplicate", cause,
                 detail=f"active action {existing_id} has identity {dispatch.action_id}",
             )
+        acknowledge = getattr(self, "private_acknowledge", None)
+        if acknowledge is not None:
+            acknowledge(list(self._stimulus_ids))
 
     def _committed_action_id(self, dispatch, tick: int) -> int | None:
         """Return the accepted action id for this identity and tick, if any."""

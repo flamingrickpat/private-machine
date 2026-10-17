@@ -59,6 +59,9 @@ def render(root: Path, suite, report: dict, *, problems: bool = False) -> Path:
             failures = receipt["failures"]
             if receipt.get("cadence_policy"):
                 parts.append(f"<p>Cadence: {escape(receipt['cadence_policy'])}; priority: {escape(receipt['priority'])}.</p>")
+            if receipt.get("outcome") == "accepted_pause":
+                parts.append("<p><strong>Accepted pause:</strong> the companion committed a wait for this exchange. "
+                             "Generation ended without another human message. Remaining scene coverage is incomplete.</p>")
         except (OSError, ValueError, KeyError) as error:
             failures = [f"Runtime receipt unavailable: {type(error).__name__}: {error}"]
         for failure in [*failures, *score.get("review_errors", [])]:

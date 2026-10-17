@@ -11,6 +11,7 @@ from pm.records.taxonomy import EpistemicStatus, MemoryTaxonomy, MemoryVolatilit
 from pm.records.mental_state import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
 from datetime import datetime
 from pm.records.base import Provenance
+from pm.records.lineage import RecordLineage
 from pm.records.enums import FeatureType, SourceKind
 
 QUOTE_START = '"'
@@ -500,12 +501,18 @@ class Feature(RecordBase):
 
 
 def new_feature(ghost, content, feature_type, *, source, interlocus=None, causal=True, changes=None,
-             source_kind=None, metadata=None):
+             source_kind=None, metadata=None, lineage: RecordLineage | None = None):
+    """Create an attributed feature, optionally inside the caller's write batch.
+
+    Lineage preserves original episode links. With a batch, the caller owns
+    the commit and cancellation boundary. Without one, the store commits it.
+    """
     kwargs = {
         "content": content,
         "feature_type": feature_type,
         "causal": causal,
         "override_source": source,
+        "lineage": lineage,
     }
     if interlocus is not None:
         kwargs["interlocus"] = interlocus

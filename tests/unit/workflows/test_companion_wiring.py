@@ -55,6 +55,22 @@ class StubStageModel:
 
 
 class ManagementWiringTests(unittest.TestCase):
+    def test_focus_management_is_advertised_and_subscribed(self):
+        with TemporaryDirectory() as tmp:
+            ghost = fresh_ghost(load_seed_state())
+            app = build_app(
+                None, Path(tmp), ghost=ghost, cognition="real",
+                stage_model=StubStageModel(), clock=time.monotonic,
+            )
+            names = {item["name"] for item in app.main_cog.workflow_catalogue}
+            self.assertIn("focus_management", names)
+            self.assertIsNotNone(app.focus_management)
+            self.assertTrue(any(module is app.focus_management for module in app.modules))
+            request = Envelope("req", "test", "data", "action.request", "corr-focus",
+                               {"workflow_name": "focus_management"},
+                               target="focus_management")
+            self.assertTrue(app.focus_management.accepts(request))
+
     def test_self_management_action_starts_a_consolidated_run(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -82,9 +82,10 @@ class FullCycleTests(unittest.TestCase):
             ' "summary": "a private sketch plan formed"}',
         ]
         run_stage = build_inner_stage_runner(ghost, deterministic_llm(completions), ROOT)
-        environment = MemoryBashEnvironment({}, {}, "read")
+        environment = MemoryBashTarget(ghost, "read").open("parent-contract")
+        tools = build_inner_thought_tools(ghost, ROOT, None)(environment, None)
         runtime = WorkflowRuntime(environment=environment, stop_event=threading.Event(),
-                                  tools={"run_stage": run_stage}, propagate_python_errors=True)
+                                  tools={**tools, "run_stage": run_stage}, propagate_python_errors=True)
         runner = WorkflowRunner(MANIFEST, ROOT / "parent", namespace="inner_thought",
                                 base_dir=PROJECT_ROOT)
         result = runner.invoke(WorkflowRequest("parent-contract", request().model_dump(mode="json")),

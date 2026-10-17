@@ -6,7 +6,7 @@ state_policy: {mutation_model: append_only}
 roles:
   work:
     skill: workflows/inner_thought/steps.py
-    tools: [run_stage]
+    tools: [run_stage, retrieve_memory]
     result_contract:
       type: json
       schema:

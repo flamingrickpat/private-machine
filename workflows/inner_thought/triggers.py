@@ -41,8 +41,19 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
     """
     candidates: list[TriggerCandidate] = []
     tick = int(request.tick_id or 0)
+    # A parked concern stays quiet until its review time or new outside evidence.
+    suppressed = {int(item) for item in (getattr(request, "episode", {}) or {}).get("suppressed_source_ids", [])}
+    episode = getattr(request, "episode", {}) or {}
+    if (episode.get("episode_id") and not episode.get("closed")
+            and not episode.get("awaiting_acknowledgment") and episode.get("next_operation")):
+        candidates.append(TriggerCandidate(
+            name="episode_continuation", cause=f"main appraisal acknowledged episode {episode['episode_id']}",
+            urgency=0.45, operations=[episode["next_operation"]],
+            reason="The previous private step requested more work after main appraisal."))
 
     for goal in request.active_goal_records:
+        if int(goal.get("knoxel_id")) in suppressed:
+            continue
         age = tick - int(goal.get("tick_id", tick) or tick)
         fulfilment = _as_float(goal.get("fulfilment"), 0.0)
         if age >= UNRESOLVED_GOAL_TICKS and fulfilment < 0.5:
@@ -55,6 +66,8 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
             break
 
     for expectation in request.pending_expectations:
+        if int(expectation.get("knoxel_id")) in suppressed:
+            continue
         age = tick - int(expectation.get("tick_id", tick) or tick)
         if age >= EXPECTATION_REVIEW_TICKS:
             candidates.append(TriggerCandidate(
@@ -74,7 +87,8 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
             reason="A surprising outcome deserves a private interpretation.",
         ))
 
-    if int(request.main_frame_age_ticks or 0) == 0 and (request.main_frame or {}).get("summary"):
+    if (int(request.main_frame_age_ticks or 0) == 0 and (request.main_frame or {}).get("summary")
+            and not request.main_frame.get("self_feedback")):
         candidates.append(TriggerCandidate(
             name="fresh_main_frame", cause="the main loop published a new workspace frame",
             urgency=0.3,
@@ -92,6 +106,8 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
         ))
 
     repeated = _repeated_source(request.recent_thoughts)
+    if repeated is not None and int(repeated) in suppressed:
+        repeated = None
     if repeated is not None:
         candidates.append(TriggerCandidate(
             name="repeated_concern", cause=f"the source {repeated} recurs in recent thoughts",

@@ -72,6 +72,9 @@ Recovery republishes the same utterance ID.
 The consumer acknowledges delivery without creating another turn.
 Terminal task replies use retained evidence and the original selected public-reply intent.
 Pending input without an accepted intent can still re-enter cognition through its original user record.
+An accepted [inference wait](inference-wait.md) excludes its handled sources from that redispatch.
+Those user records remain pending public exchanges, not fresh outside input.
+Timer wakes use a separate `wake_status` outbox and cannot enter public utterance recovery.
 
 The bus provides at-least-once recovery.
 A crash after delivery and before acknowledgment can repeat an envelope.
