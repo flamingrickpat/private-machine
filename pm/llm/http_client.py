@@ -4,17 +4,74 @@ Production waits through transient transport and server errors, with a
 30-second pause until cancellation. Tests can select a bounded or fail-fast
 policy. Permanent HTTP errors and invalid responses fail explicitly. Programming errors retain their tracebacks.
 Neither response bodies nor credentials appear in transport error messages.
+
+Every chat completion carries a process seed and is replayed from a local
+completion cache. The cache is a development shortcut: it makes a repeated
+run cheap, and it is not evidence that the endpoint still answers.
 """
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import sys
 import time
-from threading import Event
+from pathlib import Path
+from threading import Event, Lock
 
 import httpx
 
 from pm.llm.config import Connection
+from pm.llm.prompt_log import log_directory, DEFAULT_DIR
+
+_SEED_LOCK = Lock()
+_SEED = 0
+
+
+def next_seed() -> int:
+    """Return the seed for the next chat completion.
+
+    The first completion in a process uses 1, the next uses 2, and so on.
+    The sequence repeats in a later process, so a repeated run of the same
+    completion order reads the same cache files.
+    """
+    global _SEED
+    with _SEED_LOCK:
+        _SEED += 1
+        return _SEED
+
+
+def replay_path(payload: dict) -> Path:
+    """Return the cache file for this exact payload.
+
+    The key covers the model, the prompt, the generation settings, and the
+    seed, so a matching file belongs to the same completion. The cache shares
+    the prompt-log directory, which tests redirect to a temporary folder.
+    """
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+    return DEFAULT_DIR / f"comp_hash_{digest}.json"
+
+
+def replay_response(payload: dict) -> httpx.Response | None:
+    """Return the stored wire response for this payload, or None when absent."""
+    try:
+        content = replay_path(payload).read_bytes()
+    except FileNotFoundError:
+        return None
+    return httpx.Response(200, content=content)
+
+
+def store_response(payload: dict, content: bytes) -> None:
+    """Keep one exact wire response so a matching completion skips the endpoint.
+
+    A write failure warns on stderr. It cannot change the completion result.
+    """
+    path = replay_path(payload)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    except OSError as error:
+        print(f"Completion cache write failed: {type(error).__name__}: {error}", file=sys.stderr)
 
 
 class ModelError(RuntimeError):
@@ -93,23 +150,34 @@ class JsonClient:
         self.request_count = 0
 
     async def _send(self, client, method: str, route: str, headers: dict,
-                    payload: dict | None, cancel: Event | None):
+                    payload: dict | None, cancel: Event | None, seed: int | None = None):
         """Log each inference attempt before dispatch, including retries.
 
+        A chat payload receives the caller's seed, or the next process seed.
+        A stored response for the same payload replaces the HTTP request, so a
+        replayed completion still writes its receipt but reaches no endpoint.
         Cancellation leaves the prompt and an error receipt. Logging failures
         cannot change the HTTP result. Readiness requests have no prompt log.
         """
         from pm.llm.prompt_log import start_prompt_log, finish_prompt_log
         started = time.monotonic()
+        replayed = None
+        if method == "POST":
+            payload = {**(payload or {}), "seed": next_seed() if seed is None else seed}
+            replayed = replay_response(payload)
         path = start_prompt_log(connection=self.connection, payload=payload, route=route,
                                 request_count=self.request_count) if method == "POST" else None
-        try:
-            response = await cancellable(client.request(
-                method, f"{self.connection.base_url}/{route}", headers=headers, json=payload,
-            ), cancel)
-        except BaseException as error:
-            finish_prompt_log(path, error=error, elapsed=time.monotonic() - started)
-            raise
+        if replayed is not None:
+            response = replayed
+        else:
+            try:
+                response = await cancellable(client.request(
+                    method, f"{self.connection.base_url}/{route}", headers=headers, json=payload,
+                ), cancel)
+            except BaseException as error:
+                finish_prompt_log(path, error=error, elapsed=time.monotonic() - started)
+                raise
+            self._store(payload, response)
         try:
             data = response.json()
         except ValueError:
@@ -117,6 +185,18 @@ class JsonClient:
         error = completion_error(data) if response.is_success else ModelError(f"HTTP {response.status_code}")
         finish_prompt_log(path, response=data, error=error, elapsed=time.monotonic() - started)
         return response
+
+    @staticmethod
+    def _store(payload: dict | None, response: httpx.Response) -> None:
+        """Store a successful chat response. Errors and partial results are not replayable."""
+        if payload is None or not response.is_success:
+            return
+        try:
+            data = response.json()
+        except ValueError:
+            return
+        if isinstance(data, dict) and completion_error(data) is None:
+            store_response(payload, response.content)
 
     async def request(self, method: str, route: str, *, payload: dict | None = None, cancel: Event | None = None) -> dict:
         """Wait through temporary failures until recovery or cancellation.
@@ -130,6 +210,9 @@ class JsonClient:
         key = self.connection.api_key.get_secret_value()
         if key:
             headers["Authorization"] = f"Bearer {key}"
+        # One completion keeps one seed across retries, so a retried request
+        # cannot shift the seeds of later completions.
+        seed = next_seed() if method == "POST" else None
         # Connecting can fail. Once connected, inference has no speed deadline.
         async with httpx.AsyncClient(timeout=httpx.Timeout(None, connect=10.0)) as client:
             retries = 0
@@ -139,7 +222,7 @@ class JsonClient:
                 self.request_count += 1
                 failure = None
                 try:
-                    response = await self._send(client, method, route, headers, payload, cancel)
+                    response = await self._send(client, method, route, headers, payload, cancel, seed)
                 except httpx.TransportError:
                     failure = "Model connection failed. Check the endpoint."
                 else:

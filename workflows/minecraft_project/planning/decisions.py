@@ -6,6 +6,7 @@ import json
 
 from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel
+from pm.constants import Sampler
 from pm.context_render import render_context
 from pm.context_render.turns import Role, Turn
 from pm.llm.prompt_encoding import OpenAIChatEncoder
@@ -103,7 +104,7 @@ def reason_once(context: RoleContext, store: TreeStore, role: str, contract: typ
               + "\nThe response_format defines the output schema.")
     messages = [Turn(Role.System, system),
                 Turn(Role.User, render_context(payload, schema_path=RESOURCES / "llm_context.json"))]
-    generation = {"enable_thinking": False, "temperature": 0.1,
+    generation = {"enable_thinking": False, "temperature": Sampler.TempInstruct,
                   "response_format": {"type": "json_schema", "json_schema": {
                       "name": contract.__name__, "strict": True, "schema": schema}}}
     # The caller owns provider controls. Keep model routing and the result

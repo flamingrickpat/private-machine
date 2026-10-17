@@ -164,8 +164,8 @@ def accepted_actor_matches(store: TreeStore, node: Node, report: dict) -> bool:
             or actor["spec_revision"] != identity["spec_revision"]
             or actor["tree_revision"] != identity["tree_revision"]):
         return False
-    import yaml
-    outcome = yaml.safe_load(store.path_for(actor["report"]).read_text(encoding="utf-8"))
+    from pm.utils import yaml_util
+    outcome = yaml_util.safe_load(store.path_for(actor["report"]).read_text(encoding="utf-8"))
     rows = [json.loads(line) for line in store.path_for(actor["journal"]).read_text(encoding="utf-8").splitlines()]
     dispatches = {row["seq"]: row for row in rows if row["event"] == "dispatch"}
     results = [row for row in rows if row["event"] == "result"]

@@ -25,7 +25,7 @@ from datetime import datetime
 from pathlib import Path
 
 import tiktoken
-import yaml
+from pm.utils import yaml_util
 
 from pm.llm.http_client import ModelError
 from pm.memory.context_plan import ContextPlan, Focus, PlanSpec, plan_context
@@ -60,7 +60,7 @@ class PlannedContext:
 
 def load_plan(name: str, path: Path | None = None) -> tuple[PlanSpec, int]:
     """Return one named plan and the new-embedding bound."""
-    data = yaml.safe_load((path or PLANS_FILE).read_text(encoding="utf-8"))
+    data = yaml_util.safe_load((path or PLANS_FILE).read_text(encoding="utf-8"))
     return PlanSpec.model_validate({"name": name, **data[name]}), int(data.get("max_new_embeddings", 32))
 
 

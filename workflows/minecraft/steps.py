@@ -15,7 +15,7 @@ import base64
 import json
 from pathlib import Path
 
-import yaml
+from pm.utils import yaml_util
 
 from workflows.minecraft.schemas import MinecraftReport, MinecraftRequest
 
@@ -23,7 +23,7 @@ WORKFLOW_DIR = Path(__file__).resolve().parent
 
 
 def load_prompts(path: Path | None = None) -> dict:
-    return yaml.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8"))
+    return yaml_util.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8"))
 
 
 def summarize(call_result: dict) -> str:
@@ -147,7 +147,7 @@ def build_world(
 
 def _run_boundary_check(context) -> dict:
     environment = context.runtime.environment
-    payload = yaml.safe_load(environment.read_text("inbox/request.yaml"))
+    payload = yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     request = MinecraftRequest.model_validate({key: value for key, value in payload.items()
                                              if not key.startswith("_public_")})
     prompts = load_prompts()
@@ -168,7 +168,7 @@ def _run_boundary_check(context) -> dict:
     # Publish the observation before the optional instruction wait. Cancellation
     # retains this evidence even when no action has started.
     image_paths = write_images(environment, images)
-    environment.write_text("outbox/world.yaml", yaml.safe_dump(
+    environment.write_text("outbox/world.yaml", yaml_util.safe_dump(
         build_world(request, observation, None, image_paths), sort_keys=False,
     ))
     environment.write_text("scratch/observations.md", observations[0] + "\n")
@@ -218,7 +218,7 @@ def _run_boundary_check(context) -> dict:
         f"Goal: {request.goal}\nRevision: {revision['revision']}\n\n"
         + "\n".join(f"- {line}" for line in observations) + "\n",
     )
-    environment.write_text("outbox/world.yaml", yaml.safe_dump(world, sort_keys=False, allow_unicode=True))
+    environment.write_text("outbox/world.yaml", yaml_util.safe_dump(world, sort_keys=False, allow_unicode=True))
     # Image bytes belong only in image files and evidence metadata.
     report_action = {key: value for key, value in action.items() if key != "images"} if action else None
     report = MinecraftReport(
@@ -227,7 +227,7 @@ def _run_boundary_check(context) -> dict:
         world=world, accepted=accepted,
         rejection_reason="" if accepted else "the Minecraft tool reported a failure",
     )
-    environment.write_text("scratch/report.yaml", yaml.safe_dump(
+    environment.write_text("scratch/report.yaml", yaml_util.safe_dump(
         report.model_dump(mode="json"), sort_keys=False, allow_unicode=True,
     ))
     environment.move("scratch/report.yaml", "outbox/report.yaml")
@@ -239,7 +239,7 @@ def _run_boundary_check(context) -> dict:
 
 def run(context) -> dict:
     """Select sustained work or the retained explicit W8 boundary check."""
-    payload = yaml.safe_load(context.runtime.environment.read_text("inbox/request.yaml"))
+    payload = yaml_util.safe_load(context.runtime.environment.read_text("inbox/request.yaml"))
     # Existing explicit actions and wait fixtures retain their narrow contract.
     narrow = payload.get("mode") == "boundary_check" or payload.get("action_tool") or payload.get("wait_for_cancel") or payload.get("wait_for_update")
     if narrow:

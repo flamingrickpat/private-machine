@@ -9,6 +9,7 @@ import threading
 import unittest
 from pathlib import Path
 
+from pm.constants import Sampler
 from pm_workflows.runtime import WorkflowRuntime
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 from workflows.main_cognition.schemas import AppraisalResult
@@ -94,7 +95,7 @@ class KernelTests(unittest.TestCase):
         self.assertAlmostEqual(report.need_delta["connection"], 0.3)
         self.assertEqual(report.evidence_ids, [11])
         self.assertEqual(captured["messages"][0].role.value, "system")
-        self.assertAlmostEqual(captured["generation"]["temperature"], 0.2)
+        self.assertEqual(captured["generation"]["temperature"], Sampler.TempInstruct)
 
     def test_invalid_model_output_raises_instead_of_a_successful_empty_answer(self):
         with self.assertRaises(StageOutputError):

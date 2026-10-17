@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-import yaml
+from pm.utils import yaml_util
 from pm_workflows.python_role import RoleContext
 from pm.runs.review import PASSING_REVIEWS, review_passes, review_policy
 
@@ -35,7 +35,7 @@ def verify_node(context: RoleContext, store: TreeStore, node: Node, actor_attemp
     files = []
     if node.kind == "leaf":
         attempt = next(row for row in store.state["attempts"] if row["id"] == actor_attempt)
-        actor = yaml.safe_load((store.root / attempt["report"]).read_text(encoding="utf-8"))
+        actor = yaml_util.safe_load((store.root / attempt["report"]).read_text(encoding="utf-8"))
         journal = [json.loads(line) for line in (store.root / attempt["journal"]).read_text(encoding="utf-8").splitlines()]
         dispatches = {row["seq"]: row for row in journal if row["event"] == "dispatch"}
         results = [row for row in journal if row["event"] == "result"]

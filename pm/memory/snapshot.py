@@ -5,6 +5,7 @@ proposals that a write batch has not committed.
 """
 from __future__ import annotations
 
+import pickle
 from copy import deepcopy
 from types import MappingProxyType
 
@@ -31,7 +32,7 @@ class Snapshot:
         return {record_id: self.get(record_id) for record_id in self._records}
 
     def get(self, record_id: int) -> RecordBase:
-        record = _deserialize_knoxel(deepcopy(self._records[record_id]))
+        record = _deserialize_knoxel(pickle.loads(pickle.dumps(self._records[record_id], -1)))
         record._owner = self
         return record
 
@@ -42,8 +43,8 @@ class Snapshot:
         return self.get(entity_id).content
 
     def serialize_knoxels(self) -> dict[int, dict]:
-        return deepcopy(self._records)
+        return pickle.loads(pickle.dumps(self._records, -1)) #deepcopy(self._records)
 
     def serialize_gwt(self) -> dict[int, dict]:
-        return deepcopy(self._gwt)
+        return pickle.loads(pickle.dumps(self._records, -1)) #deepcopy(self._gwt)
 

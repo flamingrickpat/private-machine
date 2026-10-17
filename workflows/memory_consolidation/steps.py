@@ -5,7 +5,7 @@ through the injected tool. Repeated requests reuse the recorded receipt.
 """
 from __future__ import annotations
 
-import yaml
+from pm.utils import yaml_util
 
 from workflows.memory_consolidation.schemas import ConsolidationReport, ConsolidationRequest
 
@@ -13,7 +13,7 @@ from workflows.memory_consolidation.schemas import ConsolidationReport, Consolid
 def run(context) -> dict:
     environment = context.runtime.environment
     request = ConsolidationRequest.model_validate(
-        yaml.safe_load(environment.read_text("inbox/request.yaml"))
+        yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     )
     tools = context.runtime.tools
     if request.operation == "list":
@@ -35,7 +35,7 @@ def run(context) -> dict:
         )
     environment.write_text(
         "scratch/report.yaml",
-        yaml.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
+        yaml_util.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
     )
     environment.move("scratch/report.yaml", "outbox/report.yaml")
     return {"status": "done", "summary": report.summary}

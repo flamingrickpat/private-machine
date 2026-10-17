@@ -199,9 +199,9 @@ def _event(path: Path, event: dict) -> None:
         with (path.parent / f"usage-{os.getpid()}.jsonl").open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
     usage = row.get("usage") or {}
-    print(f"[llm] {row['event']} {path.stem} {row.get('model', '')} "
-          f"input={usage.get('prompt_tokens', 'unknown')} "
-          f"output={usage.get('completion_tokens', 'unknown')} log={path}", file=sys.stderr)
+    #print(f"[llm] {row['event']} {path.stem} {row.get('model', '')} "
+    #      f"input={usage.get('prompt_tokens', 'unknown')} "
+    #      f"output={usage.get('completion_tokens', 'unknown')} log={path}", file=sys.stderr)
 
 
 def start_prompt_log(*, connection, payload: dict | None, route: str,

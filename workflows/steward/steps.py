@@ -6,7 +6,7 @@ report, never an invented success.
 """
 from __future__ import annotations
 
-import yaml
+from pm.utils import yaml_util
 
 from workflows.steward.schemas import StewardReport, StewardRequest
 
@@ -14,7 +14,7 @@ from workflows.steward.schemas import StewardReport, StewardRequest
 def run(context) -> dict:
     environment = context.runtime.environment
     request = StewardRequest.model_validate(
-        yaml.safe_load(environment.read_text("inbox/request.yaml"))
+        yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     )
     result = _dispatch(request, context.runtime.tools)
     report = StewardReport(
@@ -25,7 +25,7 @@ def run(context) -> dict:
     )
     environment.write_text(
         "scratch/report.yaml",
-        yaml.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
+        yaml_util.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
     )
     environment.move("scratch/report.yaml", "outbox/report.yaml")
     return {"status": "done", "summary": report.summary}

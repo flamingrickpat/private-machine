@@ -13,7 +13,7 @@ import json
 import re
 from pathlib import Path
 
-import yaml
+from pm.utils import yaml_util
 from pydantic import BaseModel, ValidationError
 from collections.abc import Sequence
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
@@ -31,11 +31,11 @@ class ModelFormatError(StageOutputError):
 
 
 def load_yaml(path: str | Path) -> dict:
-    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return yaml_util.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
 def read_request(environment) -> dict:
-    return yaml.safe_load(environment.read_text("inbox/request.yaml"))
+    return yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
 
 
 def extract_json(text: str) -> dict:
@@ -88,7 +88,7 @@ def complete_json(context, messages: Sequence[TurnInput], schema: type[BaseModel
 def write_report(environment, report: BaseModel) -> None:
     environment.write_text(
         "scratch/report.yaml",
-        yaml.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
+        yaml_util.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
     )
     environment.move("scratch/report.yaml", "outbox/report.yaml")
 

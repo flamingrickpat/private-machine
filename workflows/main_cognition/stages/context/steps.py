@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from pm.constants import Sampler
 from pm.context_render import render_context
 from pm.context_render.turns import Role, Turn, format_content
 
@@ -104,7 +105,7 @@ def run(context) -> dict:
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
     messages = build_messages(request, prompts)
-    result = complete_json(context, messages, ContextResult, temperature=0.1, enable_thinking=False)
+    result = complete_json(context, messages, ContextResult, temperature=Sampler.TempInstruct, enable_thinking=False)
     candidates = request.get("memory_candidates", [])
     try:
         validate_selection(result, candidates)
@@ -118,7 +119,7 @@ def run(context) -> dict:
                     {"role": "user", "content": str(error) + " Select only from these candidate IDs: "
                      + str([_field(item, "knoxel_id") for item in candidates])
                      + ". IDs in other context fields are not granted. Return an empty selection if none fits."}]
-        result = complete_json(context, recovery, ContextResult, temperature=0.1,
+        result = complete_json(context, recovery, ContextResult, temperature=Sampler.TempInstruct,
                                enable_thinking=False)
         try:
             validate_selection(result, candidates)

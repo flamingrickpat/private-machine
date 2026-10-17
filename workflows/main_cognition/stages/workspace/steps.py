@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from pm.constants import Sampler
 from pm.context_render import render_context
 from pm.context_render.turns import Content, Role, Turn, format_content
 
@@ -165,7 +166,7 @@ def run(context) -> dict:
     # No invalid frame reaches commit. Offer one correction for a model that
     # selected an ID outside the accepted attention boundary.
     for attempt in range(2):
-        result = complete_json(context, messages, WorkspaceResult, temperature=0.7, enable_thinking=False)
+        result = complete_json(context, messages, WorkspaceResult, temperature=Sampler.TempInstruct, enable_thinking=False)
         try:
             ensure_valid_result(result, allowed)
             break

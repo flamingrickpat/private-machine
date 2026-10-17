@@ -9,6 +9,7 @@ tested without a kernel, model, or MemoryStore.
 from __future__ import annotations
 
 from pathlib import Path
+from pm.constants import Sampler
 from pm.context_render import render_context
 from pm.context_render.turns import Content, Role, Turn, format_content
 
@@ -109,7 +110,7 @@ def run(context) -> dict:
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
     messages = build_messages(request, prompts)
-    result = complete_json(context, messages, GoalsResult, temperature=0.3, enable_thinking=False)
+    result = complete_json(context, messages, GoalsResult, temperature=Sampler.TempInstruct, enable_thinking=False)
     validate_changes(result)
     write_report(context.runtime.environment, result)
     return {

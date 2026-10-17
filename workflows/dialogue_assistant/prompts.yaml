@@ -90,6 +90,7 @@ memory_lanes:
     title: "## What you privately noticed and chose to share"
 
 generation:
-  temperature: 0.8
+  # Matches Sampler.TempInstruct: thinking is off for this reply.
+  temperature: 0.7
   top_p: 0.9
   enable_thinking: false

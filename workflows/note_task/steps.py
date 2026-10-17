@@ -6,7 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 
-import yaml
+from pm.constants import Sampler
+from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field
 from pm_workflows.drivers import PmCoderDriver
 from pm_workflows.inputs import relative_path
@@ -29,7 +30,7 @@ def _write_note(context) -> dict:
     """
     runtime = context.runtime
     environment = runtime.environment
-    request = yaml.safe_load(environment.read_text("inbox/request.yaml"))
+    request = yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     original = request.get("_public_original_request")
     spec_data = None if original else request.get("note_spec")
     if spec_data is None:
@@ -42,7 +43,7 @@ def _write_note(context) -> dict:
         raise ValueError("A note path must remain inside the task outbox.")
     environment.check_file_boundary(path, "outbox")
     request["note_spec"] = spec.model_dump()
-    environment.write_text("inbox/request.yaml", yaml.safe_dump(request, allow_unicode=True))
+    environment.write_text("inbox/request.yaml", yaml_util.safe_dump(request, allow_unicode=True))
     runtime.check_cancelled()
     if runtime.classification_session is None:
         raise ValueError("A note task requires the configured model session.")
@@ -52,7 +53,7 @@ def _write_note(context) -> dict:
         result = driver.run_session(
             run_id=context.task_id + "-note", attempt=1,
             skill=str(Path(__file__).with_name("note.md")),
-            prompt="Write the note specified in inbox/request.yaml. Return only the requested JSON result.",
+            prompt="Write the note specified in inbox/request.yaml_util. Return only the requested JSON result.",
             work_dir=context.workspace, runtime=agent_runtime,
             trace_file=context.kernel_data / "note-agent-trace.jsonl",
         )
@@ -71,7 +72,7 @@ def _write_note(context) -> dict:
               "original_request": original, "original_request_id": request.get("_public_original_request_id"),
               "agent_result": result.result_json}
     runtime.check_cancelled()
-    environment.write_text("outbox/report.yaml", yaml.safe_dump(report, allow_unicode=True, sort_keys=False))
+    environment.write_text("outbox/report.yaml", yaml_util.safe_dump(report, allow_unicode=True, sort_keys=False))
     return {"status": "done", "summary": report["summary"]}
 
 
@@ -91,7 +92,7 @@ def run(context) -> dict:
                   "summary": "The requested note was not verified.",
                   "error": f"{type(error).__name__}: {error}"}
         context.runtime.environment.write_text("outbox/report.yaml",
-            yaml.safe_dump(report, allow_unicode=True, sort_keys=False))
+            yaml_util.safe_dump(report, allow_unicode=True, sort_keys=False))
         return {"status": "done", "summary": report["summary"]}
 
 
@@ -108,7 +109,7 @@ def build_note_tools(model):
                  "set requested false and text empty. Otherwise extract the exact requested text and path; "
                  "default path is outbox/note.txt. Do not add a newline or change the requested text."},
                 {"role": "user", "content": instruction},
-            ], temperature=0.1, enable_thinking=False)
+            ], temperature=Sampler.TempInstruct, enable_thinking=False)
             return extract_json(raw)
         return {"note_spec": note_spec}
     return factory

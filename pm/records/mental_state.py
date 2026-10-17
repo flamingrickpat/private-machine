@@ -973,7 +973,7 @@ class FeatureStateRecord:
     Minimal mental-state view over either a Feature knoxel or raw Python data.
 
     The state math below should not care whether callers pass full knoxel models,
-    SimpleNamespace objects, pydantic objects, or plain dicts loaded from YAML.
+    SimpleNamespace objects, pydantic objects, or plain dicts loaded from yaml_util.
     """
     raw: Any
     timestamp_creation: datetime.datetime

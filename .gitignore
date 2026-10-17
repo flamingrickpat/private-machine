@@ -16,3 +16,4 @@ hs_err_pid*.log
 # Workflow output accidentally written to the repo root
 /artifacts/
 /scratch/
+/test_data/situations/story_continuation/recorded/llm-logs

@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 from pydantic import BaseModel
 
+from pm.constants import Sampler
 from workflows.cognitive_control.schemas import FocusProposal
 from workflows.main_cognition.stage_support import complete_json
 
@@ -39,7 +40,7 @@ def resolve_focus(context, request: dict) -> dict:
             {"role": "user", "content": json.dumps({"proposal": proposal.model_dump(),
                 "appraisal": request.get("appraisal"), "codelets": request.get("codelets"),
                 "goals": request.get("active_goals"), "stimuli": request.get("stimuli")}, ensure_ascii=False)},
-        ], FocusDecision, temperature=0.2, enable_thinking=False)
+        ], FocusDecision, temperature=Sampler.TempInstruct, enable_thinking=False)
         if result.accept:
             effective = {**proposal.model_dump(), "proposal_id": item["record_id"],
                          "accept": True, "decision_reason": result.reason, "fresh": True}

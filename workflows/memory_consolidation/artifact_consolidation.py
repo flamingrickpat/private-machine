@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-import yaml
+from pm.utils import yaml_util
 
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance
@@ -198,8 +198,8 @@ class Consolidator:
         data = {}
         if world is not None:
             try:
-                data = yaml.safe_load(world["text"]) or {}
-            except yaml.YAMLError:
+                data = yaml_util.safe_load(world["text"]) or {}
+            except yaml_util.YAMLError:
                 data = {}
         if not isinstance(data, dict):
             data = {}
@@ -279,8 +279,8 @@ class Consolidator:
     @staticmethod
     def _report_summary(text: str) -> str:
         try:
-            data = yaml.safe_load(text)
-        except yaml.YAMLError:
+            data = yaml_util.safe_load(text)
+        except yaml_util.YAMLError:
             return Consolidator._clip(text)
         if isinstance(data, dict):
             for key in ("summary", "result", "outcome"):

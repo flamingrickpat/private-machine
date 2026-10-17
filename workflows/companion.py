@@ -9,6 +9,7 @@ from datetime import datetime
 import time
 from pathlib import Path
 
+from pm.constants import Sampler
 from pm.memory.store import MemoryStore
 from pm.memory.store_tools import build_tools
 from workflows.dialogue_assistant.host import AssistantDialogue
@@ -429,7 +430,7 @@ def build_app(
                  "preference, name, or plan; use utterance when recalling what someone previously said. "
                  "Return only JSON with query and evidence_use."},
                 {"role": "user", "content": text},
-            ], temperature=0.1, enable_thinking=False)
+            ], temperature=Sampler.TempInstruct, enable_thinking=False)
             try:
                 result = extract_json(raw)
             except StageOutputError:

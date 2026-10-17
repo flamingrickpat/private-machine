@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from pm.constants import Sampler
 from pm.context_render import render_context
 from pm.context_render.turns import Content, Role, Turn, format_content
 
@@ -182,7 +183,7 @@ def run(context) -> dict:
     messages = build_messages(request, prompts)
     # Earlier stages already supply appraisal and the selected workspace.
     # Hidden reasoning exhausted a real completion during a teasing choice.
-    result = complete_json(context, messages, ActionSelectionResult, temperature=0.2,
+    result = complete_json(context, messages, ActionSelectionResult, temperature=Sampler.TempInstruct,
                            enable_thinking=False)
     validate_actions(result, list(request.get("available_workflows") or []))
     check_capabilities(result, list(request.get("capabilities") or []), request.get("public_context"))

@@ -19,7 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
+from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.records.base import RecordScope, Provenance
@@ -48,11 +48,11 @@ class GwtTurnRecord(BaseModel):
 
     def to_yaml(self) -> str:
         data = self.model_dump(mode="json", by_alias=True)
-        return yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
+        return yaml_util.safe_dump(data, sort_keys=False, allow_unicode=True)
 
     @classmethod
     def from_yaml(cls, text: str) -> "GwtTurnRecord":
-        data = yaml.safe_load(text)
+        data = yaml_util.safe_load(text)
         if not isinstance(data, dict):
             raise ValueError("GWT turn record must be a YAML mapping")
         return cls.model_validate(data)

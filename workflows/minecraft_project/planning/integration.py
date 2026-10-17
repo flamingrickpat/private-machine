@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-import yaml
+from pm.utils import yaml_util
 from pm_workflows.python_role import RoleContext
 
 from workflows.minecraft_body.lease import BODY_LEASES
@@ -64,11 +64,11 @@ def finish(context: RoleContext, store: TreeStore) -> dict:
         world["verification"] = evidence
         world["episodes"][0]["source_attempts"] = [row["id"] for row in store.state["attempts"]]
         world["episodes"][0]["gameplay"] = gameplay_history(store)
-        context.runtime.environment.write_text("outbox/world.yaml", yaml.safe_dump(world, allow_unicode=True, sort_keys=False))
+        context.runtime.environment.write_text("outbox/world.yaml", yaml_util.safe_dump(world, allow_unicode=True, sort_keys=False))
     report = {"schema": "pm.minecraft-project-report.v1", "accepted": True, "verified": evidence["verified"],
               "summary": "Reviewed plan retained without execution." if req.plan_only else "The project passed independent world verification.",
               "goal": store.state["goal"], "tree_revision": store.state["revision"], "verification": evidence,
               "plan_only": req.plan_only, "attempts": store.state["attempts"], "body_id": req.body_id}
-    context.runtime.environment.write_text("outbox/report.yaml", yaml.safe_dump(report, allow_unicode=True, sort_keys=False))
+    context.runtime.environment.write_text("outbox/report.yaml", yaml_util.safe_dump(report, allow_unicode=True, sort_keys=False))
     return {"status": "done", "summary": report["summary"]}
 

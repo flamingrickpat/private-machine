@@ -11,7 +11,7 @@ import posixpath
 import shlex
 from pathlib import Path
 
-import yaml
+from pm.utils import yaml_util
 
 from pm_bash_machine import Access, BashMachine
 from pm_workflows.working_target import AgentTarget, CommandResult, WorkingEnvironment, WorkingTarget
@@ -26,7 +26,7 @@ class _LazyRecordFile:
 
     def content(self) -> str:
         if self._rendered is None:
-            self._rendered = yaml.safe_dump(
+            self._rendered = yaml_util.safe_dump(
                 self._data, sort_keys=False, allow_unicode=True,
             )
         return self._rendered

@@ -4,7 +4,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 
-import yaml
+from pm.utils import yaml_util
 
 from fastmcp import FastMCP
 from pm_workflows.drivers import PmCoderDriver
@@ -36,7 +36,7 @@ def run(context) -> dict:
 
 def write_mapping(environment, report: dict) -> None:
     """Write a role report mapping through the working target's outbox."""
-    environment.write_text("scratch/report.yaml", yaml.safe_dump(report, sort_keys=False, allow_unicode=True))
+    environment.write_text("scratch/report.yaml", yaml_util.safe_dump(report, sort_keys=False, allow_unicode=True))
     environment.move("scratch/report.yaml", "outbox/report.yaml")
 
 

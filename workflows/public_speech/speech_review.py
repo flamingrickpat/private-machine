@@ -22,10 +22,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Literal
+from pm.constants import Sampler
 from pm.context_render.turns import Role, Turn
 from pm.llm.completion import AsyncTextCompletion
 
-import yaml
+from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field
 
 from workflows.main_cognition.stage_support import StageOutputError, extract_json
@@ -36,8 +37,9 @@ from workflows.public_speech.public_context import (
 REVIEW_FILE = Path(__file__).resolve().parent / "speech_review.yaml"
 
 # The previous local gate returned empty review text at zero temperature.
-# Retain the tested setting. Transport repair never regenerates the reply.
-REVIEW_TEMPERATURE = 0.2
+# The shared instruct sampler replaces that tested setting.
+# Transport repair never regenerates the reply.
+REVIEW_TEMPERATURE = Sampler.TempInstruct
 
 
 class ReviewFinding(BaseModel):
@@ -88,7 +90,7 @@ def select_spoken_text(candidate: str, review: SpeechReview) -> str:
 
 def load_prompts(path: Path | None = None) -> dict:
     """Load the review prompt file. It holds prose only, never weights."""
-    return yaml.safe_load((path or REVIEW_FILE).read_text(encoding="utf-8"))
+    return yaml_util.safe_load((path or REVIEW_FILE).read_text(encoding="utf-8"))
 
 
 def _ontology_lines(context: PublicContext) -> list[str]:

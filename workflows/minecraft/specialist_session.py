@@ -6,7 +6,7 @@ import json
 import math
 from pathlib import Path
 
-import yaml
+from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict
 from typing import Literal
 from pm_workflows.drivers import PmCoderDriver
@@ -91,7 +91,7 @@ def run_specialist_session(context) -> dict:
     automatic compaction. The actor never sends a public companion reply.
     """
     runtime, environment = context.runtime, context.runtime.environment
-    payload = yaml.safe_load(environment.read_text("inbox/request.yaml"))
+    payload = yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     request = MinecraftRequest.model_validate({key: value for key, value in payload.items()
                                              if not key.startswith("_public_")})
     endpoint = runtime.tools["minecraft_endpoint"]()
@@ -145,11 +145,11 @@ def run_specialist_session(context) -> dict:
                         "is_solid describes collision bounds; plants with empty bounds can still be dug. "
                         "Observe the resulting cell and preserve required support below it.")
             environment.write_text("inbox/tool-schemas.json", json.dumps(schemas, ensure_ascii=False, indent=2))
-            environment.write_text("inbox/persona.yaml", yaml.safe_dump(request.persona_context, allow_unicode=True))
+            environment.write_text("inbox/persona.yaml", yaml_util.safe_dump(request.persona_context, allow_unicode=True))
             resources = [RESOURCES / "shared.md", RESOURCES / "navigator.md", RESOURCES / f"{request.specialist}.md"]
             skill = "\n\n".join(path.read_text(encoding="utf-8") for path in dict.fromkeys(resources))
             skill += ("\n\nYou are a private specialist of the same companion. Do not address the user. "
-                      "Read inbox/persona.yaml and inbox/request.yaml. Tools use the live MCP schemas. "
+                      "Read inbox/persona.yaml and inbox/request.yaml_util. Tools use the live MCP schemas. "
                       "Read inbox/server-rules.json before choosing recovery. It contains current server rules, not assumed vanilla mechanics. "
                       "If natural regeneration is off, full food and waiting cannot heal damage. Check enabled nutrition effects. "
                       "Ordinary food and saturation do not heal with natural regeneration off. Nutrition penalties are not healing effects. "
@@ -268,7 +268,7 @@ def run_specialist_session(context) -> dict:
                 from pm.llm.prompt_log import log_directory
                 driver = PmCoderDriver(log_root=log_directory() / "agents")
                 result = driver.run_session(run_id=context.task_id + "-actor", attempt=1,
-                    skill=str(skill_path), prompt="Execute the Minecraft leaf in inbox/request.yaml. "
+                    skill=str(skill_path), prompt="Execute the Minecraft leaf in inbox/request.yaml_util. "
                     "Current leaf operands, which take precedence over retained notes: "
                     + json.dumps(current_leaf, ensure_ascii=False, separators=(",", ":")) + "\n"
                     "Unresolved world effects from retained actors; reconcile these before replacing missing resources: "
@@ -324,8 +324,8 @@ def run_specialist_session(context) -> dict:
             handoff_path = environment._path("outbox/handoff.md")
             if not handoff_path.is_file() or not handoff_path.read_text(encoding="utf-8").strip():
                 environment.write_text("outbox/handoff.md", outcome.summary + "\n\n" + outcome.handoff + "\n")
-            environment.write_text("outbox/world.yaml", yaml.safe_dump(world, allow_unicode=True, sort_keys=False))
-            environment.write_text("outbox/report.yaml", yaml.safe_dump(report, allow_unicode=True, sort_keys=False))
+            environment.write_text("outbox/world.yaml", yaml_util.safe_dump(world, allow_unicode=True, sort_keys=False))
+            environment.write_text("outbox/report.yaml", yaml_util.safe_dump(report, allow_unicode=True, sort_keys=False))
             return {"status": "done", "summary": report["summary"]}
         finally:
             gateway.wait_idle()

@@ -34,7 +34,7 @@ import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
+from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pm.records.mental_state import FullMentalState
@@ -207,7 +207,7 @@ def load_catalogue(path: str | Path | None = None) -> LoadedCatalogue:
     """
     resolved = Path(path) if path else DEFAULT_CATALOGUE
     raw = resolved.read_bytes()
-    catalogue = Catalogue.model_validate(yaml.safe_load(raw.decode("utf-8")))
+    catalogue = Catalogue.model_validate(yaml_util.safe_load(raw.decode("utf-8")))
     return LoadedCatalogue(catalogue, str(resolved), hashlib.sha256(raw).hexdigest()[:16])
 
 

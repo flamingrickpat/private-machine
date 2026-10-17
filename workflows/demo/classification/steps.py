@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-import yaml
+from pm.utils import yaml_util
 from pm_workflows.python_role import RoleContext
 
 
@@ -32,5 +32,5 @@ def run(context: RoleContext) -> dict:
                                  "invalid_code": entry["result"]["receipt"].get("invalid_code")}
                                 for entry in decisions]}
     context.runtime.check_cancelled()
-    context.runtime.environment.write_text("outbox/report.yaml", yaml.safe_dump(report, sort_keys=False, allow_unicode=True))
+    context.runtime.environment.write_text("outbox/report.yaml", yaml_util.safe_dump(report, sort_keys=False, allow_unicode=True))
     return {"status": "done", "summary": f"Published classification {report['classification']}."}

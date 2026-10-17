@@ -13,7 +13,7 @@ import time
 from typing import Any
 from pm.llm.workflow_sessions import WorkflowModels
 
-import yaml
+from pm.utils import yaml_util
 from pm_workflows.kernel import Kernel
 from pm_workflows.runtime import WorkflowRuntime
 from pm.paths import REPO_ROOT
@@ -102,7 +102,7 @@ class WorkflowRunner:
         if not runtime.stop_event.is_set():
             environment.write_text(
                 "inbox/request.yaml",
-                yaml.safe_dump(request.payload, sort_keys=False, allow_unicode=True),
+                yaml_util.safe_dump(request.payload, sort_keys=False, allow_unicode=True),
             )
         allowed_mcp = (
             set(runtime.mcp_servers) if runtime.mcp_servers is not None else None
@@ -142,7 +142,7 @@ class WorkflowRunner:
         report = None
         question = question_id = resume_phase = None
         if status is WorkflowStatus.Completed:
-            report = yaml.safe_load(environment.read_text("outbox/report.yaml"))
+            report = yaml_util.safe_load(environment.read_text("outbox/report.yaml"))
             if not isinstance(report, dict):
                 raise ValueError("The workflow report must be a YAML mapping.")
             if runtime.stop_event.is_set():
@@ -180,7 +180,7 @@ class WorkflowRunner:
         root = self._answers_root(run_id)
         root.mkdir(parents=True, exist_ok=True)
         path = root / f"{question_id.replace(':', '_')}.yaml"
-        path.write_text(yaml.safe_dump({
+        path.write_text(yaml_util.safe_dump({
             "schema": "pm.answer-receipt.v1",
             "id": question_id,
             "resume_phase": resume_phase,

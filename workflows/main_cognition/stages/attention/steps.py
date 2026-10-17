@@ -17,6 +17,7 @@ here repeats that check at the stage boundary.
 """
 from __future__ import annotations
 
+from pm.constants import Sampler
 from pm.llm.concurrency import ordered_parallel_map
 from workflows.inference_settings import ATTENTION_WORKERS
 
@@ -94,7 +95,7 @@ def score_batch(context, request: dict, prompts: dict, batch: list[CodeletPropos
     """
     wanted = {item.nomination_id for item in batch}
     messages = build_messages(request, prompts, batch)
-    result = complete_json(context, messages, NominationScores, temperature=0.1,
+    result = complete_json(context, messages, NominationScores, temperature=Sampler.TempInstruct,
                            enable_thinking=False)
     scores = {item.id: item.model_dump() for item in result.scores if item.id in wanted}
     missing = [item for item in batch if item.nomination_id not in scores]
@@ -103,7 +104,7 @@ def score_batch(context, request: dict, prompts: dict, batch: list[CodeletPropos
                   {"role": "user", "content": prompts["repair_template"].format(
                       missing=", ".join(item.nomination_id for item in missing),
                       items=render_items(missing, prompts))}]
-        retry = complete_json(context, repair, NominationScores, temperature=0.1,
+        retry = complete_json(context, repair, NominationScores, temperature=Sampler.TempInstruct,
                               enable_thinking=False)
         for item in retry.scores:
             if item.id in wanted and item.id not in scores:

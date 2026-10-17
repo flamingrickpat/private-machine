@@ -7,7 +7,7 @@ import sys
 import threading
 import time
 import traceback
-import yaml
+from pm.utils import yaml_util
 from pathlib import Path
 from uuid import uuid4
 
@@ -41,7 +41,7 @@ def run(settings: dict, root: Path) -> None:
                   "parent_node": previous["node"] if previous else None,
                   "correlation_id": request.payload.get("correlation_id") or getattr(context, "correlation", "")}
         manifest = runner.workflow.read_text(encoding="utf-8").split("---", 2)
-        definition = yaml.safe_load(manifest[1]) if len(manifest) == 3 else {}
+        definition = yaml_util.safe_load(manifest[1]) if len(manifest) == 3 else {}
         context.workflow = fields
         emit("workflow.start", **fields, definition=definition)
         try:

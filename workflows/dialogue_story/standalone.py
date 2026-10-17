@@ -17,7 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
+from pm.constants import Sampler
+from pm.utils import yaml_util
 from pm_workflows.runtime import WorkflowRuntime
 
 from pm.records.memory_records import Feature
@@ -36,7 +37,7 @@ PROJECT_ROOT = WORKFLOW_DIR.parent.parent
 
 
 def read_yaml(path: str | Path) -> dict:
-    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return yaml_util.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
 def build_story_tools(client: ChatClient) -> dict[str, AsyncTextCompletion]:
@@ -133,7 +134,7 @@ async def evaluate_candidate(
             {"role": "system", "content": evaluator_prompt["system_prompt"]},
             {"role": "user", "content": user},
         ],
-        temperature=0.2,
+        temperature=Sampler.TempReasoning,
     )
     text = result.choices[0].message.content or ""
     return StoryQualityScore.model_validate(extract_json(text))

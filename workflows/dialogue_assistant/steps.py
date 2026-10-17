@@ -20,7 +20,7 @@ from pm.llm.completion import Completion
 from pm.llm.prompt_encoding import OpenAIChatEncoder, normalize_turns
 from pm.context_render.turns import Turn
 
-import yaml
+from pm.utils import yaml_util
 import httpx
 from workflows.public_speech.public_context import DialogueTurn, memory_sections, task_lines
 from workflows.public_speech.speech_text import strip_narrator_setup
@@ -44,7 +44,7 @@ class ToolExecutionError(RuntimeError):
 
 
 def load_prompts(path: Path | None = None) -> dict:
-    return yaml.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8"))
+    return yaml_util.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8"))
 
 
 def _bullets(items: list[str]) -> str:
@@ -287,7 +287,7 @@ def review_conversation(request: AssistantRequest) -> list[DialogueTurn]:
 def run(context) -> dict:
     environment = context.runtime.environment
     request = AssistantRequest.model_validate(
-        yaml.safe_load(environment.read_text("inbox/request.yaml"))
+        yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     )
     prompts = load_prompts()
     messages = build_messages(request, prompts)
@@ -369,7 +369,7 @@ def run(context) -> dict:
     )
     environment.write_text(
         "scratch/report.yaml",
-        yaml.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
+        yaml_util.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
     )
     environment.move("scratch/report.yaml", "outbox/report.yaml")
     return {

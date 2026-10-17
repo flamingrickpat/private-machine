@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TypeVar
 
-import yaml
+from pm.utils import yaml_util
 from pm_workflows.python_role import RoleContext
 from pydantic import BaseModel
 
@@ -28,7 +28,7 @@ class InstructionsChanged(RuntimeError):
 
 def request(context: RoleContext) -> ProjectRequest:
     """Read a scoped project request without public transport metadata."""
-    payload = yaml.safe_load(context.runtime.environment.read_text("inbox/request.yaml"))
+    payload = yaml_util.safe_load(context.runtime.environment.read_text("inbox/request.yaml"))
     return ProjectRequest.model_validate({key: value for key, value in payload.items() if not key.startswith("_public_")})
 
 
@@ -38,7 +38,7 @@ def project_intent(context: RoleContext, store: TreeStore, instruction: str = ""
     A newer instruction overrides its named changes. It does not erase other
     original requirements. This context describes intent, not completed work.
     """
-    payload = yaml.safe_load(context.runtime.environment.read_text("inbox/request.yaml"))
+    payload = yaml_util.safe_load(context.runtime.environment.read_text("inbox/request.yaml"))
     req = request(context)
     return {"original_request": payload.get("_public_original_request") or req.goal or req.instruction,
             "original_goal": req.goal, "constraints": req.constraints,

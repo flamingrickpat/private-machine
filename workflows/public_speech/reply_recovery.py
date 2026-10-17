@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
-import yaml
+from pm.utils import yaml_util
 
 from pm.bus.envelopes import Envelope, new_id
 from pm.records.memory_records import ActionSchemaRecord
@@ -24,7 +24,7 @@ def task_evidence(receipt: dict) -> dict:
     root = Path(receipt["artifact_path"]).resolve()
     report_path = root / "outbox" / "report.yaml"
     if report_path.is_file():
-        report = yaml.safe_load(report_path.read_text(encoding="utf-8"))
+        report = yaml_util.safe_load(report_path.read_text(encoding="utf-8"))
         if isinstance(report, dict):
             result["report"] = report
             if report.get("schema") == "pm.minecraft-project-report.v1" and report.get("verified") is True:

@@ -6,7 +6,7 @@ object. The fixed output is the prototype behavior, not evidence of LLM wiring.
 """
 from __future__ import annotations
 
-import yaml
+from pm.utils import yaml_util
 
 
 def _environment(context):
@@ -14,12 +14,12 @@ def _environment(context):
 
 
 def _read_request(context) -> dict:
-    return yaml.safe_load(_environment(context).read_text("inbox/request.yaml"))
+    return yaml_util.safe_load(_environment(context).read_text("inbox/request.yaml"))
 
 
 def _write_report(context, report: dict) -> None:
     env = _environment(context)
-    env.write_text("scratch/report.yaml", yaml.safe_dump(report, sort_keys=False))
+    env.write_text("scratch/report.yaml", yaml_util.safe_dump(report, sort_keys=False))
     env.move("scratch/report.yaml", "outbox/report.yaml")
 
 

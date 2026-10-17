@@ -6,6 +6,7 @@ No role writes accepted memory or performs an external intervention.
 """
 import json
 
+from pm.constants import Sampler
 from workflows.main_cognition.stage_support import complete_json, read_request, write_report
 from workflows.reflection.schemas import Assessment, MonitorResult, ReflectionDecision
 from workflows.reflection.experiments import validate_decision
@@ -25,7 +26,7 @@ def _call(context, task: str, schema, evidence: dict):
     return complete_json(context, [
         {"role": "system", "content": RULES + "\n" + task + "\nSchema:\n" + json.dumps(schema.model_json_schema())},
         {"role": "user", "content": json.dumps(evidence, ensure_ascii=False)},
-    ], schema, temperature=0.2)
+    ], schema, temperature=Sampler.TempReasoning)
 
 
 def run(context) -> dict:

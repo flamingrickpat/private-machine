@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pm.constants import Sampler
 from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.inner_thought.operations import validate_operation
@@ -95,7 +96,7 @@ def run(context) -> dict:
     request = read_request(context.runtime.environment)
     prompts = load_prompts()
     messages = build_messages(request, prompts)
-    result = complete_json(context, messages, ThoughtResult, temperature=0.4)
+    result = complete_json(context, messages, ThoughtResult, temperature=Sampler.TempReasoning)
     write_report(context.runtime.environment, result)
     return {
         "status": "done",

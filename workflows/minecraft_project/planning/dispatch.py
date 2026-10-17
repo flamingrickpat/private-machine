@@ -5,7 +5,7 @@ from dataclasses import replace
 import json
 import time
 
-import yaml
+from pm.utils import yaml_util
 from pm_workflows.python_role import RoleContext
 from pydantic import ValidationError
 
@@ -84,7 +84,7 @@ def act(context: RoleContext, store: TreeStore) -> dict:
         prerequisite_context[key] = {**certificate, "specification": nodes[key].model_dump(mode="json"),
                                      "identity": verified["identity"], "checks": verified["checks"]}
         source_actor = next(row for row in store.state["attempts"] if row["id"] == verified["identity"]["actor_attempt"])
-        source_report = yaml.safe_load(store.path_for(source_actor["report"]).read_text(encoding="utf-8"))
+        source_report = yaml_util.safe_load(store.path_for(source_actor["report"]).read_text(encoding="utf-8"))
         prerequisite_context[key]["actor_summary"] = source_report["summary"]
     ancestors, cursor = [], node.parent
     while cursor is not None:
@@ -150,7 +150,7 @@ def act(context: RoleContext, store: TreeStore) -> dict:
     world["outcome"] = "progress"
     world["episodes"][0].update(goal=node.instruction, outcome="unverified", source_attempt=attempt_id)
     world["episodes"][0]["gameplay"] = report.get("gameplay", {})
-    context.runtime.environment.write_text("outbox/world.yaml", yaml.safe_dump(world, allow_unicode=True, sort_keys=False))
+    context.runtime.environment.write_text("outbox/world.yaml", yaml_util.safe_dump(world, allow_unicode=True, sort_keys=False))
     publish = context.runtime.tools.get("managed_milestone")
     if publish is not None:
         publish(attempt_id, report["summary"], attempt["journal"])

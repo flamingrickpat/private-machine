@@ -17,6 +17,7 @@ needs the same model.
 """
 from __future__ import annotations
 
+from pm.constants import Sampler
 from pm.llm.concurrency import ordered_parallel_map
 from workflows.inference_settings import CODELET_WORKERS
 
@@ -243,7 +244,7 @@ def run_llm_codelet(context, request: dict, definition: CodeletDefinition, promp
     """
     messages = build_messages(request, definition, prompts)
     started = time.perf_counter()
-    answer = complete_json(context, messages, CodeletAnswer, temperature=0.4,
+    answer = complete_json(context, messages, CodeletAnswer, temperature=Sampler.TempInstruct,
                            enable_thinking=False)
     input_tokens, _ = estimate_tokens("", messages)
     output_tokens, _ = estimate_tokens("", [Turn(Role.Assistant, answer.model_dump_json())])

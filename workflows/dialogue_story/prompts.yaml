@@ -188,6 +188,7 @@ day_marker: '*({date})*'
 reply_prefix: '{companion_name} says: "'
 
 generation:
-  temperature: 0.8
+  # Matches Sampler.TempInstruct: thinking is off for this line.
+  temperature: 0.7
   top_p: 0.9
   enable_thinking: false

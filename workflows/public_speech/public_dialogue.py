@@ -6,7 +6,7 @@ the application; host failure strings never become companion speech.
 """
 from __future__ import annotations
 
-import yaml
+from pm.utils import yaml_util
 
 from pm.bus.envelopes import Envelope, new_id
 from workflows.public_speech.public_context import build_public_context
@@ -140,7 +140,7 @@ class PublicDialogue(CognitiveWorkflow):
                 from workflows.public_speech.reply_recovery import task_evidence
                 try:
                     current_task = task_evidence(self._public_context.task_receipt)
-                except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError) as error:
+                except (OSError, ValueError, KeyError, TypeError, yaml_util.YAMLError) as error:
                     self._public_context.task_receipt = {**self._public_context.task_receipt,
                         "task_verified": False, "verification_error": type(error).__name__}
                     raise GhostConflict("Task evidence became unreadable during public generation.") from error

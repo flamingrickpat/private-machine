@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
+from pm.constants import Sampler
 from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.inner_thought.schemas import InnerRequest, IntegrationResult, ThoughtResult, TriggerChoice
@@ -56,7 +57,7 @@ def run(context) -> dict:
     parsed = InnerRequest.model_validate(request)
     known = citable_ids(parsed)
     for attempt in range(2):
-        result = complete_json(context, messages, IntegrationResult, temperature=0.2, enable_thinking=False)
+        result = complete_json(context, messages, IntegrationResult, temperature=Sampler.TempInstruct, enable_thinking=False)
         try:
             validate_integration(result, known, parsed)
             break

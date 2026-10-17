@@ -6,7 +6,7 @@ refused operation becomes a typed rejected report, never an invented success.
 """
 from __future__ import annotations
 
-import yaml
+from pm.utils import yaml_util
 
 from pm.runs.run_receipt import ManagedRunError
 from workflows.self_management.schemas import SelfManagementReport, SelfManagementRequest
@@ -15,7 +15,7 @@ from workflows.self_management.schemas import SelfManagementReport, SelfManageme
 def run(context) -> dict:
     environment = context.runtime.environment
     request = SelfManagementRequest.model_validate(
-        yaml.safe_load(environment.read_text("inbox/request.yaml"))
+        yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     )
     tools = context.runtime.tools
     try:
@@ -28,7 +28,7 @@ def run(context) -> dict:
         )
     environment.write_text(
         "scratch/report.yaml",
-        yaml.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
+        yaml_util.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
     )
     environment.move("scratch/report.yaml", "outbox/report.yaml")
     return {

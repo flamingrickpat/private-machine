@@ -35,7 +35,7 @@ from pathlib import Path
 from pm.context_render.turns import Role, Turn
 from pm.llm.completion import AsyncTextCompletion
 
-import yaml
+from pm.utils import yaml_util
 from pm.memory.retrieval import utc_time
 from workflows.public_speech.public_context import (
     ability_lines, memory_sections, plain_memory_text, task_lines, time_lines,
@@ -60,7 +60,7 @@ WORKFLOW_DIR = Path(__file__).resolve().parent
 
 
 def load_prompts(path: Path | None = None) -> dict:
-    return yaml.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8"))
+    return yaml_util.safe_load((path or WORKFLOW_DIR / "prompts.yaml").read_text(encoding="utf-8"))
 
 
 def render_prior_dialogue(turns: list[DialogueTurn], prompts: dict | None = None) -> str:
@@ -288,7 +288,7 @@ def run(context) -> dict:
     """Kernel entry point. Runs synchronously on the calling thread."""
     environment = context.runtime.environment
     request = StoryRequest.model_validate(
-        yaml.safe_load(environment.read_text("inbox/request.yaml"))
+        yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
     )
     prompts = load_prompts()
     tools = context.runtime.tools
@@ -316,7 +316,7 @@ def run(context) -> dict:
     )
     environment.write_text(
         "scratch/report.yaml",
-        yaml.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
+        yaml_util.safe_dump(report.model_dump(mode="json"), sort_keys=False, allow_unicode=True),
     )
     environment.move("scratch/report.yaml", "outbox/report.yaml")
     return {
