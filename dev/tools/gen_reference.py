@@ -25,6 +25,8 @@ paths += [Path("dev/work_items/alpha_a14_dialogue_gate.py")]
 paths += list(Path("dev/work_items/a18b").glob("*.py"))
 paths += [Path("dev/work_items/alpha_a18c_wait_gate.py")]
 paths += [Path("dev/work_items/alpha_a19_reflection_gate.py")]
+paths += [Path("dev/work_items/alpha_a19_review.py"), Path("dev/review/cognitive_trace.py")]
+paths += [Path("dev/review/record_format.py")]
 for path in sorted(paths):
     if "tests" in path.parts or any(part.startswith("_") for part in path.parts):
         continue

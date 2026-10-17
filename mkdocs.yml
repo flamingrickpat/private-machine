@@ -74,6 +74,7 @@ nav:
       - Public dialogue: subsystems/public-dialogue.md
       - Public publication and recovery: subsystems/public-publication.md
       - Asynchronous conversation review: subsystems/async-conversation-review.md
+      - Runtime record packages: subsystems/record-packages.md
       - Cognitive evaluation:
           - Run and inspect: subsystems/cognitive-evaluation.md
           - Blinded review boundaries: subsystems/cognitive-review-boundaries.md

@@ -76,6 +76,21 @@ The [live-evidence page](a19/live-evidence.md#repeat-the-live-boundary) gives th
 
 ## Remaining acceptance
 
+The browser review bundle is `a19-record-packages`, registered in `dev/review/registry.json`.
+Its ready conversation capture is `.runtime/alpha/20261017-a19-review-01`.
+It continues the accepted reflection checkpoint through the real application and resolves all five pending or new user exchanges.
+Two later inputs share one public response. The displayed transcript preserves actual delivery order instead of inventing reply pairs.
+The bundle contains ten messages, including the supplied correction and prior requests, eight cognitive cycles, and 781 linked knoxels.
+Speech context sources remain available in a separate expandable group. The main links identify answered messages and selected public actions.
+The browser exposes actual private thoughts, appraisals, selected and unselected codelet output, focus contents, and routing reasons.
+The introduced mistaken belief is marked as setup. Its model revision retains that origin without mislabeling its new content.
+Playwright checked all three views, source links, knoxel search, and a rating draft save and reload in an isolated store.
+No human rating was supplied. The browser check is `.runtime/alpha/a19-review-browser/receipt.json`.
+The package format now comes from `pm.introspection.record_packages`.
+Its chat collection retains observed delivery order. Its GWT collections retain exact ordered turn membership.
+The browser formatter reads serialized records, with full metadata available and embeddings omitted.
+The [record-package guide](../../subsystems/record-packages.md) describes direct runtime capture and import.
+
 The full A19 table still needs real comparisons for missed preferences, mistaken interpretations, fixation, failed anticipation, successful repair, and misleading diagnosis.
 Durable improvement needs multiple relevant later observations and a comparable baseline with unchanged scenario facts.
 The controlled trait comparison must use the same history and evidence.

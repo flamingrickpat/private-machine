@@ -315,7 +315,7 @@
       }
       .grid {
         display: grid;
-        grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
+        grid-template-columns: minmax(0, 1fr) 330px;
         gap: 22px;
         margin-top: 23px;
         align-items: start;
@@ -365,6 +365,23 @@
         white-space: pre-wrap;
         overflow-wrap: anywhere;
       }
+      .reading-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+      .reading-tabs button[aria-pressed="true"] { background: var(--green); color: white; }
+      .chat-message { border-left: 3px solid #d3ddd0; padding: 12px 16px; margin-bottom: 16px; }
+      .chat-message.companion { background: #edf3ea; border-color: var(--green); border-radius: 0 9px 9px 0; }
+      .chat-message .text { font-size: 15px; line-height: 1.8; }
+      .trace-episode { border: 1px solid var(--line); border-radius: 9px; padding: 15px; margin: 16px 0; }
+      .trace-episode > summary { font-size: 15px; color: var(--ink); }
+      .trace-card { margin: 15px 0; padding: 14px; background: #f5f6ef; border-radius: 7px; color: var(--ink); }
+      .trace-card .speaker { margin-bottom: 9px; }
+      .trace-card .text { font-size: 14px; line-height: 1.75; }
+      .trace-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .trace-links button { text-align: left; }
+      .trace-path { color: var(--green); margin: 14px 0; font-weight: 650; }
+      .trace-card pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+      .knoxel-search { width: 100%; padding: 9px; border: 1px solid var(--line); border-radius: 6px; }
+      #knoxel-dialog { width: min(900px, 94vw); max-height: 90vh; border: 1px solid var(--line); border-radius: 12px; }
+      #knoxel-dialog header { display: flex; justify-content: space-between; gap: 15px; align-items: center; }
       .reply {
         font-size: 15px;
         line-height: 1.85;
@@ -842,8 +859,10 @@
               </details>
             </div>
             <div class="section">
-              <h3>Captured reply</h3>
+              <h3 id="content-heading">Captured reply</h3>
+              <div class="reading-tabs hidden" id="reading-tabs" role="group" aria-label="Read captured activity"></div>
               <div class="text reply" id="content"></div>
+              <div id="cognitive-content" class="hidden"></div>
             </div>
             <div class="section">
               <h3>What to keep in mind</h3>
@@ -960,6 +979,10 @@
         ><button class="btn" id="close-dialog">Close</button>
       </div>
       <pre id="reference-content"></pre>
+    </dialog>
+    <dialog id="knoxel-dialog">
+      <header><h2 id="knoxel-title">Knoxel</h2><button class="btn" id="close-knoxel">Close</button></header>
+      <div id="knoxel-content"></div>
     </dialog>
     <script>
       "use strict";
@@ -1090,7 +1113,9 @@
               " " +
               item.content +
               " " +
-              item.context.map((x) => x.text).join(" ")
+              item.context.map((x) => x.text).join(" ") +
+              " " + (item.conversation || []).map((x) => x.text).join(" ") +
+              " " + Object.values(item.cognition?.records || {}).map((x) => x.text).join(" ")
             )
               .toLowerCase()
               .includes(query),
@@ -1112,7 +1137,7 @@
             element(
               "span",
               "",
-              `${row.reviewed}/${row.reviewable} replies reviewed`,
+              `${row.reviewed}/${row.reviewable} items reviewed`,
             ),
           );
           if (!row.available)
@@ -1133,12 +1158,14 @@
       async function refresh() {
         try {
           error("");
-          catalog = (await api("/api/catalog")).bundles;
+          const registered = (await api("/api/catalog")).bundles;
+          catalog = registered.filter((row) => !row.superseded_by);
           renderCatalog();
           if (bundle) {
-            await openBundle(bundle.id, current?.id);
+            await openBundle(registered.find((row) => row.id === bundle.id)?.superseded_by || bundle.id, current?.id);
           } else if (catalog.length) {
-            const requested = new URL(location.href).searchParams.get("bundle");
+            let requested = new URL(location.href).searchParams.get("bundle");
+            requested = registered.find((row) => row.id === requested)?.superseded_by || requested;
             await openBundle(
               catalog.some((x) => x.id === requested)
                 ? requested
@@ -1208,7 +1235,7 @@
         $("empty-message").textContent =
           "No cases match this filter. Try All cases or clear the search.";
         $("progress").textContent =
-          `${bundle.items.filter((x) => status(x) === "reviewed").length} / ${bundle.items.filter((x) => x.reviewable).length} replies reviewed`;
+          `${bundle.items.filter((x) => status(x) === "reviewed").length} / ${bundle.items.filter((x) => x.reviewable).length} items reviewed`;
         if (rows.length) {
           select.value = rows.some((x) => x.id === preferred)
             ? preferred
@@ -1222,6 +1249,208 @@
           $("previous").disabled = true;
           $("next").disabled = true;
         }
+      }
+      function linkedRecords(card) {
+        const links = element("div", "trace-links");
+        const context = element("details");
+        context.append(element("summary", "", "Other speech context sources"));
+        const older = element("div", "trace-links");
+        for (const link of card.links) {
+          const target = current.cognition.records[String(link.id)];
+          const button = element("button", "ref", `${link.relation} · #${link.id}`);
+          button.title = target?.text || "Source not captured";
+          button.disabled = !target;
+          button.onclick = () => openKnoxel(link.id);
+          (link.relation === "speech context source" ? older : links).append(button);
+        }
+        if (older.children.length) {
+          context.append(older);
+          links.append(context);
+        }
+        return links;
+      }
+      function cognitiveCard(card) {
+        const block = element("div", "trace-card");
+        const label = [card.role, `#${card.id}`, card.codelet, card.route,
+          card.role === "Reflection experiment" ? `final ledger state: ${card.status}` : "",
+          card.selected === true ? "selected" : card.selected === false ? "not selected" : "",
+          card.fixture ? (card.links.some((link) => link.relation === "previous belief")
+            ? "model revision of supplied setup" : "supplied setup") : ""].filter(Boolean).join(" · ");
+        block.append(element("div", "speaker", label), element("div", "text", card.text));
+        if (card.record) {
+          const metadata = element("details");
+          const heading = element("summary", "", "Record metadata");
+          heading.title = metadataPreview(card);
+          metadata.append(heading);
+          metadata.ontoggle = () => {
+            if (metadata.open && metadata.children.length === 1)
+              metadata.append(element("pre", "", JSON.stringify(card.record, null, 2)));
+          };
+          block.append(metadata);
+          block.firstChild.title = metadataPreview(card);
+        }
+        if (card.details.why) block.append(element("p", "", card.details.why));
+        block.append(linkedRecords(card));
+        if (Object.keys(card.details).length) {
+          const raw = element("details");
+          raw.append(element("summary", "", "Recorded explanation and raw output"),
+            element("pre", "", JSON.stringify(card.details, null, 2)));
+          block.append(raw);
+        }
+        return block;
+      }
+      function metadataPreview(card) {
+        const data = card?.record || {};
+        const metadata = data.metadata || {};
+        return JSON.stringify({
+          type: card?.kind, revision: card?.revision, tick: data.tick_id,
+          created: data.timestamp_creation, world_time: data.timestamp_world_begin,
+          source: data.provenance, codelet: data.from_codelet,
+          selected: data.selected, status: metadata.status,
+          why: metadata.why, appraisal: metadata.affect_summary,
+          emotion_delta: metadata.emotion_delta, evidence: metadata.evidence_ids,
+        }, null, 2);
+      }
+      function openKnoxel(id) {
+        const card = current.cognition?.records[String(id)];
+        if (!card) return;
+        $("knoxel-title").textContent = `${card.role} · #${card.id}`;
+        const target = $("knoxel-content");
+        target.replaceChildren(cognitiveCard(card));
+        const consumers = Object.values(current.cognition.records).filter(
+          (record) => record.links.some((link) => link.id === card.id));
+        if (consumers.length) {
+          target.append(element("h3", "", "Where this knoxel was used"));
+          for (const consumer of consumers) {
+            const relation = consumer.links.filter((link) => link.id === card.id).map((link) => link.relation).join(", ");
+            const button = element("button", "ref", `#${consumer.id} · ${consumer.role} · ${relation}`);
+            button.onclick = () => openKnoxel(consumer.id);
+            target.append(button, element("p", "text", consumer.text));
+          }
+        }
+        if (!$("knoxel-dialog").open) $("knoxel-dialog").showModal();
+        $("knoxel-dialog").scrollTop = 0;
+      }
+      function readActivity(view) {
+        const target = $("cognitive-content");
+        target.replaceChildren();
+        for (const button of $("reading-tabs").children)
+          button.setAttribute("aria-pressed", String(button.dataset.view === view));
+        if (view === "packages") {
+          const select = element("select", "knoxel-search");
+          select.setAttribute("aria-label", "Record package");
+          const body = element("div");
+          for (const [index, packet] of current.package_views.entries()) {
+            const option = element("option", "", packet.title);
+            option.value = index;
+            select.append(option);
+          }
+          const draw = () => {
+            const packet = current.package_views[Number(select.value)];
+            body.replaceChildren();
+            body.append(element("p", "sub", `${packet.view} · ${packet.perspective} · ${packet.captured_at}`));
+            if (packet.gwt) {
+              const summary = element("p", "text", packet.gwt.summary);
+              summary.title = JSON.stringify(packet.gwt, null, 2);
+              body.append(summary);
+            }
+            for (const id of packet.record_ids) body.append(cognitiveCard(current.cognition.records[String(id)]));
+          };
+          select.onchange = draw;
+          target.append(select, body);
+          draw();
+        } else if (view === "chat") {
+          for (const row of current.conversation) {
+            const block = element("div", "chat-message" + (row.speaker === "Spamuel" ? " companion" : ""));
+            const button = element("button", "ref", `${row.speaker} · #${row.id}${row.fixture ? " · supplied setup" : ""}`);
+            button.title = metadataPreview(current.cognition.records[String(row.id)]);
+            button.onclick = () => openKnoxel(row.id);
+            block.append(button, element("div", "text", row.text));
+            target.append(block);
+          }
+        } else if (view === "thoughts") {
+          target.append(element("p", "sub", "Exact captured outputs. Links show recorded sources and selected versions; they do not establish that an interpretation is true."));
+          current.cognition.episodes.forEach((episode, index) => {
+            const block = element("details", "trace-episode");
+            block.open = index === 0;
+            const cards = episode.records.map((id) => current.cognition.records[String(id)]);
+            const routes = cards.filter((card) => card.route).map((card) => card.route);
+            const thought = cards.find((card) => card.role === "Private thought");
+            block.append(element("summary", "", `${episode.title} · cycle ${episode.tick}${routes.length ? " → " + [...new Set(routes)].join(", ") : ""}`));
+            if (thought) {
+              for (const card of cards.filter((card) => card.role === "Private thought")) block.append(cognitiveCard(card));
+            } else {
+              block.append(element("p", "trace-path", "Input → codelet output → attention → routing choice → public workflow"));
+              for (const card of cards.filter((card) => card.kind === "Dialogue" && card.source === "Jesse")) block.append(cognitiveCard(card));
+              for (const card of cards.filter((card) => card.role === "Private appraisal")) block.append(cognitiveCard(card));
+              const codelets = element("details");
+              codelets.append(element("summary", "", "Codelet output — selected and unselected candidates"));
+              for (const card of cards.filter((card) => card.role === "Codelet output")) codelets.append(cognitiveCard(card));
+              const schedule = element("details");
+              schedule.append(element("summary", "", "Which codelets ran or stayed silent"));
+              for (const row of episode.codelets) schedule.append(element("p", "", `${row.codelet} · ${row.status} · ${row.reason}`));
+              codelets.append(schedule);
+              block.append(codelets);
+            }
+            for (const card of cards.filter((card) => ["AttentionFrame", "ActionSchema", "Belief", "BeliefShift"].includes(card.kind) || card.role === "Routing decision" || card.role === "Reflection experiment")) {
+              block.append(cognitiveCard(card));
+              if (card.kind === "AttentionFrame") {
+                const focus = card.links.filter((link) => link.relation === "focus");
+                if (focus.length) block.append(element("h4", "", "Content brought into focus"));
+                for (const link of focus) {
+                  const record = current.cognition.records[String(link.id)];
+                  if (record) block.append(cognitiveCard(record));
+                }
+              }
+            }
+            target.append(block);
+          });
+        } else {
+          const search = element("input", "knoxel-search");
+          search.type = "search";
+          search.placeholder = "Search knoxel text or number";
+          search.setAttribute("aria-label", "Search knoxels");
+          const list = element("div");
+          target.append(element("p", "sub", "The list starts with this conversation's records. Search also includes older context sources."));
+          const render = () => {
+            const query = search.value.toLowerCase();
+            const ids = current.cognition.primary_ids || current.conversation.map((row) => row.id);
+            const first = ids.length ? Math.min(...ids) : 0;
+            list.replaceChildren();
+            for (const card of Object.values(current.cognition.records).sort((a, b) => a.id - b.id)) {
+              if (!query && card.id < first) continue;
+              if (!(`${card.id} ${card.text} ${card.role} ${card.codelet}`).toLowerCase().includes(query)) continue;
+              const button = element("button", "ref", `Open #${card.id} · ${card.role}`);
+              button.onclick = () => openKnoxel(card.id);
+              const block = cognitiveCard(card);
+              block.prepend(button);
+              list.append(block);
+            }
+          };
+          search.oninput = render;
+          target.append(search, list);
+          render();
+        }
+      }
+      function renderActivity() {
+        const captured = Boolean(current.cognition);
+        $("reading-tabs").classList.toggle("hidden", !captured);
+        $("cognitive-content").classList.toggle("hidden", !captured);
+        $("content").classList.toggle("hidden", captured);
+        $("content-heading").textContent = captured ? "Conversation and private activity" : "Captured reply";
+        $("reading-tabs").replaceChildren();
+        if (!captured) return;
+        const views = [["knoxels", "Knoxel contents"]];
+        if (current.cognition.episodes.length) views.unshift(["thoughts", "Thoughts & routing"]);
+        if (current.conversation?.length) views.unshift(["chat", "Chatlog"]);
+        if (current.package_views) views.push(["packages", "Record packages"]);
+        for (const [view, label] of views) {
+          const button = element("button", "btn", label);
+          button.dataset.view = view;
+          button.onclick = () => readActivity(view);
+          $("reading-tabs").append(button);
+        }
+        readActivity(current.conversation?.length ? "chat" : current.package_views ? "packages" : "thoughts");
       }
       function showItem(id) {
         current = bundle.items.find((x) => x.id === id);
@@ -1239,6 +1468,7 @@
           $("content"),
           current.content || "No reply was captured for this case.",
         );
+        renderActivity();
         const context = current.context;
         $("current-context").replaceChildren();
         $("earlier-context").replaceChildren();
@@ -1260,6 +1490,8 @@
         $("notes").replaceChildren(
           ...current.notes.map((text) => element("li", "", text)),
         );
+        $("notes").parentElement.classList.toggle("hidden", !current.notes.length);
+        $("references").parentElement.classList.toggle("hidden", !current.references.length);
         $("references").replaceChildren();
         current.references.forEach((ref, index) => {
           const button = element("button", "ref", ref.label + " ↗");
@@ -1460,6 +1692,7 @@
         if (abandon()) refresh();
       };
       $("close-dialog").onclick = () => $("reference-dialog").close();
+      $("close-knoxel").onclick = () => $("knoxel-dialog").close();
       window.addEventListener("beforeunload", (e) => {
         if (dirty) {
           e.preventDefault();

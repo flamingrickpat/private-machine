@@ -17,6 +17,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
 import time
 from urllib.parse import parse_qs, urlsplit
@@ -24,6 +25,9 @@ import webbrowser
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+
+from dev.review.record_format import present_packages
 SCHEMA = "pm.dev-review.bundle.v1"
 SCORES = ("naturalness", "self_explanation", "immersion", "usefulness", "groundedness")
 
@@ -103,6 +107,10 @@ def register(bundle: dict, registry_path: Path, data: Path) -> str:
                 raise ValueError("Context roles and content must be text.")
         for ref in item["references"]:
             reference_path(ref["path"])
+        if "conversation" in item or "cognition" in item:
+            validate_activity(item)
+        if "packages" in item:
+            present_packages(item)
     target = data / "bundles" / f"{bundle_id}.json"
     encoded = json.dumps(bundle, ensure_ascii=False, indent=2) + "\n"
     if target.exists() and target.read_text(encoding="utf-8") != encoded:
@@ -116,6 +124,29 @@ def register(bundle: dict, registry_path: Path, data: Path) -> str:
     registry["bundles"] = [old for old in registry["bundles"] if old["id"] != bundle_id] + [row]
     write(registry_path, registry)
     return bundle_id
+
+
+def validate_activity(item: dict) -> None:
+    """Reject incomplete cognitive captures before they enter the review queue.
+
+    Every displayed link must resolve inside the captured bundle. The server
+    never fills missing content from an active companion checkpoint.
+    """
+    records = item["cognition"]["records"]
+    for key, card in records.items():
+        if str(card["id"]) != key or not isinstance(card["text"], str):
+            raise ValueError("Captured knoxel ids and text must match the record register.")
+        for link in card["links"]:
+            if str(link["id"]) not in records:
+                raise ValueError("A captured knoxel link has no content.")
+    for message in item["conversation"]:
+        if str(message["id"]) not in records or not isinstance(message["text"], str):
+            raise ValueError("A chat message has no captured knoxel content.")
+        if records[str(message["id"])]["text"] != message["text"]:
+            raise ValueError("A chat message differs from its captured knoxel content.")
+    for episode in item["cognition"]["episodes"]:
+        if any(str(key) not in records for key in episode["records"]):
+            raise ValueError("A cognitive episode has a missing output record.")
 
 
 def reference_path(value: str) -> Path:
@@ -338,6 +369,7 @@ class ReviewHandler(BaseHTTPRequestHandler):
                 self.respond(200, {"bundles": rows})
             elif route.path == "/api/bundle":
                 bundle = registered(registry_path, query["id"][0])
+                bundle = {**bundle, "items": [present_packages(item) for item in bundle["items"]]}
                 self.respond(200, {"bundle": bundle, "feedback": feedback(data, bundle["id"])})
             elif route.path == "/api/reference":
                 bundle = registered(registry_path, query["bundle"][0])
@@ -391,6 +423,11 @@ def main() -> None:
     capture.add_argument("--id", help="Use a new id when registering a different context selection for the same receipt.")
     add = sub.add_parser("register", help="Register a generic review bundle from JSON.")
     add.add_argument("bundle", type=Path)
+    package = sub.add_parser("register-package", help="Review serialized runtime record collections.")
+    package.add_argument("packages", type=Path, nargs="+")
+    package.add_argument("--id", required=True)
+    package.add_argument("--work-item", default="Debug")
+    package.add_argument("--title")
     sub.add_parser("feedback", help="Print saved human feedback for the next agent session.")
     args = parser.parse_args()
     if args.command == "import-receipt":
@@ -400,6 +437,16 @@ def main() -> None:
         print(register(bundle, args.registry, args.data))
     elif args.command == "register":
         print(register(load(args.bundle), args.registry, args.data))
+    elif args.command == "register-package":
+        packages = [load(path) for path in args.packages]
+        title = args.title or packages[0]["title"]
+        bundle = {"schema": SCHEMA, "id": args.id, "work_item": args.work_item,
+                  "title": title, "created_at": packages[-1]["captured_at"], "summary": "Captured runtime records. Human review is pending.",
+                  "items": [{"id": f"records-{index}", "title": packet["title"], "persona": "Captured runtime",
+                             "scenario": "Record collections", "context": [], "content": "",
+                             "reviewable": True, "notes": [], "references": [], "packages": [packet]}
+                            for index, packet in enumerate(packages)]}
+        print(register(bundle, args.registry, args.data))
     elif args.command == "feedback":
         print(json.dumps([{ "bundle_id": row["id"], "work_item": row["work_item"],
                             "feedback": feedback(args.data, row["id"])["items"]}

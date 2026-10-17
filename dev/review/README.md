@@ -85,6 +85,35 @@ Future development scripts can call this command after their own evidence is com
 
 ## Register another result format
 
+The runtime can export `pm.record-package.v1` collections through `pm.introspection.record_packages`.
+Each package contains existing serialized records and a `records`, `chat`, or `gwt` display hint.
+Register package files directly:
+
+```powershell
+uv run --locked python dev/review/server.py register-package .runtime/debug/chat.json .runtime/debug/gwt.json --id YOUR-REVIEW-ID
+```
+
+The desk formats content and shows useful metadata on hover.
+Expand **Record metadata** for every captured field. Embeddings stay hidden.
+Each imported file receives its own review item, so separate snapshots retain their own versions.
+The engineering manual explains [record packages](../../docs/subsystems/record-packages.md).
+
+A19 also supplies an offline cognitive capture:
+
+```powershell
+uv run --locked python dev/review/cognitive_trace.py .runtime/alpha/YOUR-A19-REVIEW --id YOUR-REVIEW-ID
+uv run --locked python dev/review/server.py register .runtime/alpha/YOUR-A19-REVIEW/review-bundle.json
+```
+
+The source directory must contain a completed `receipt.json` and its `ghost.json`.
+The exporter rejects runtime errors, missing speech, and unfinished user exchanges.
+It copies actual chat messages, accepted private thoughts, codelet candidates, attention, and routing records.
+The browser provides **Chatlog**, **Thoughts & routing**, and **Knoxel contents** views.
+Open a knoxel to read its exact text, recorded sources, and consuming records.
+These links describe recorded dependencies. They do not establish that an interpretation is correct.
+The capture includes the supplied scenario belief and identifies it as setup.
+Human ratings remain empty until the reviewer saves feedback.
+
 Write a bundle JSON file under `.runtime`, using this schema:
 
 ```json
@@ -121,6 +150,8 @@ Use a new id for each changed result.
 The receipt importer accepts `--id NEW-ID` for a new context selection of an older run.
 Re-registering identical content retains feedback.
 Changing a registered bundle's content is rejected.
+If a new capture replaces an older review package, set the older register row's `superseded_by` to the new bundle id.
+The desk opens the replacement and keeps the older capture and feedback on disk.
 References must point inside the repository to evidence, code, tests, or documentation.
 The server exposes only references attached to a registered item.
 It refuses live `ghost.json` checkpoints and environment files.

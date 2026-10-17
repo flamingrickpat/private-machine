@@ -10,6 +10,38 @@
       "sha256": "e160737c4de46046df5ee3185978c9159b83884dc13ec31cd4a06de4b7ade2e0",
       "items": 16,
       "reviewable": 16
+    },
+    {
+      "id": "a19-story-review",
+      "title": "A19 · What ‘later’ means to Spamuel",
+      "work_item": "A19",
+      "created_at": "2026-10-17T17:21:02.231297+00:00",
+      "path": ".runtime/dev-review/bundles/a19-story-review.json",
+      "sha256": "fe3a70db3eeb6683d1fa4219707a5ab4272bcc829d78af6da321f77323b85b19",
+      "items": 1,
+      "reviewable": 1,
+      "superseded_by": "a19-record-packages"
+    },
+    {
+      "id": "a19-story-review-v2",
+      "title": "A19 · What ‘later’ means to Spamuel",
+      "work_item": "A19",
+      "created_at": "2026-10-17T17:21:02.231297+00:00",
+      "path": ".runtime/dev-review/bundles/a19-story-review-v2.json",
+      "sha256": "ae634fd2c4d5db7b532eec12dcc1066490a4eda4d8ed497e138f835f3dc80e41",
+      "items": 1,
+      "reviewable": 1,
+      "superseded_by": "a19-record-packages"
+    },
+    {
+      "id": "a19-record-packages",
+      "title": "A19 · What ‘later’ means to Spamuel",
+      "work_item": "A19",
+      "created_at": "2026-10-17T17:21:02.231297+00:00",
+      "path": ".runtime/dev-review/bundles/a19-record-packages.json",
+      "sha256": "49947ad09ffc7611628ed86eb29f61ef81fe8bc6875ac94473230c69bb917fca",
+      "items": 1,
+      "reviewable": 1
     }
   ]
 }

@@ -62,6 +62,18 @@ If essential deployment information is missing, ask the user for that informatio
 Record an unavailable gate explicitly until it runs against the real service.
 Never report dummy execution as a replacement pass.
 
+## Prepare the owner's review
+
+Fix engineering failures before asking the owner to review companion quality.
+Retain failed receipts as development evidence outside the ready review package.
+Register the completed capture with `dev/review/server.py`, then open the browser review desk.
+Give the owner its direct review URL.
+The review must show actual chat, private thought excerpts, codelet output, and relevant knoxel content.
+Show recorded links from memory through attention to the later routing choice.
+Keep human ratings beside that content and leave them empty until the owner supplies them.
+Do not substitute Markdown reports, hashes, timing statistics, or model scores for this review.
+Read [conversation review](../subsystems/async-conversation-review.md#read-private-activity-beside-the-conversation) for the current capture path.
+
 ## Known local deployment
 
 Current development selects `config.alpha.openrouter.yaml` explicitly.

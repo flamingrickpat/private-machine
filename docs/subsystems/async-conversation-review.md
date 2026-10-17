@@ -98,3 +98,56 @@ Read messages in their displayed order.
 Overlapping composition can produce `Jesse 1, Jesse 2, Spamuel 1, Spamuel 2` without a routing defect.
 Use causal diagnostics to investigate attribution; do not infer causes from arrival position.
 Keep the old failures and human feedback when a later run supplies repaired evidence.
+
+## Read private activity beside the conversation
+
+The A19 review continuation is `dev/work_items/alpha_a19_review.py`.
+Its entry point is [`dev.work_items.alpha_a19_review.run`][].
+It copies an accepted reflection checkpoint into a fresh evidence directory.
+The full application resumes pending speech before the script supplies later story and scheduling messages.
+The private revision comes from the accepted source run. The continuation captures subsequent public behavior.
+Normal private timer activity waits for one hour during this focused conversation.
+The application still owns recall, codelets, attention, action selection, and public speech.
+This fixture supplies Jesse's messages. It does not use the independent Jesse model described above.
+World polling stays disabled because this scenario concerns a shared story.
+
+```powershell
+uv run --locked python dev/work_items/alpha_a19_review.py `
+  --source .runtime/alpha/YOUR-A19-EVALUATION/ghost.json `
+  --out .runtime/alpha/YOUR-A19-REVIEW
+uv run --locked python dev/review/cognitive_trace.py `
+  .runtime/alpha/YOUR-A19-REVIEW --id YOUR-REVIEW-ID
+uv run --locked python dev/review/server.py register `
+  .runtime/alpha/YOUR-A19-REVIEW/review-bundle.json
+uv run --locked python dev/review/server.py serve
+```
+
+The runner waits for each source exchange's recorded public outcome.
+A reply to an older request cannot complete a newer request.
+The deadline is 1,800 seconds. A runtime error or missing reply prevents review registration.
+Shutdown stops and joins owned workers before the final receipt reaches disk.
+Use `--drain-only` to finish pending exchanges without adding new messages after a restart.
+The continuation preserves previously captured delivery rows when its source receipt contains them.
+
+The offline exporter reads the completed checkpoint and copies selected records into an immutable bundle.
+See [`dev.review.cognitive_trace.build_bundle`][] for the export contract.
+It uses the generic [runtime record-package contract](record-packages.md) for chat, private activity, and each retained GWT turn.
+The review server still reads no checkpoint and runs no inference.
+The A19 selection starts at record 11203, after the complete 11,202-record canon.
+It retains the supplied mistaken belief, actual revision, and all transitive recorded sources.
+Vectors stay outside the review bundle.
+
+The browser opens the chatlog first. Ratings stay beside the captured activity.
+**Thoughts & routing** shows private thoughts and each later attention cycle.
+Expand codelet output to compare selected and unselected candidates.
+Read the attention frame's focus contents and the routing decision's actual explanation.
+The selected action names the public workflow that receives it.
+**Knoxel contents** searches exact record text and record numbers.
+Opening a knoxel shows its sources and the later records that reference it.
+The **Record packages** view also opens each named collection directly.
+Record headings expose useful metadata on hover. **Record metadata** retains every captured field except embeddings.
+These references establish recorded dependencies, not the truth of a thought or an isolated causal effect.
+Structured explanations and reflection plans retain their original wording under **Recorded explanation and raw output**.
+Experiment cards show the final captured ledger state. Their retained history preserves the earlier lifecycle actions.
+The scenario marks the introduced mistaken belief as supplied setup.
+Engineering failures remain in their evidence directories. They do not enter this completed conversation's review item.
