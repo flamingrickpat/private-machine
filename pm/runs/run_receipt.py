@@ -52,6 +52,8 @@ class ManagedRunReceipt:
     interrupted_from: str = ""
     events: list[dict] = field(default_factory=list)
     resume_requests: list[str] = field(default_factory=list)
+    singleton_key: str = ""
+    blocked_by_run_id: str = ""
 
     def __post_init__(self) -> None:
         if self.state not in STATES:
@@ -82,6 +84,8 @@ class ManagedRunReceipt:
             "interrupted_from": self.interrupted_from,
             "events": list(self.events),
             "resume_requests": list(self.resume_requests),
+            "singleton_key": self.singleton_key,
+            "blocked_by_run_id": self.blocked_by_run_id,
         }
 
     @classmethod

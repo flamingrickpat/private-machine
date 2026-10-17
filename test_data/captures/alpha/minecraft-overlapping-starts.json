@@ -1,0 +1,49 @@
+{
+  "source_revision": "f7eb2268f3eff4c9732e76b4b1b48e241d4a4065",
+  "source_case": "minecraft_frustration_and_choice",
+  "scope": "Captured start requests. Admission tests do not establish Minecraft execution.",
+  "starts": [
+    {
+      "run_id": "57935d00c38642e492879e1f3de65c9c",
+      "action_id": "action-01a16cbbac11",
+      "workflow_name": "minecraft_project",
+      "parent_correlation": "6eab6e66f5fb483db3aecdf0a23f09b6",
+      "instructions": "Initiate a Minecraft session to fulfill Jesse's request for tree-punching and building/destroying, providing a concrete outlet for his frustration with Dave.",
+      "arguments": {
+        "goal": "Punch trees and build or destroy structures as requested by Jesse to help him forget Dave exists.",
+        "_public_reply_requested": true,
+        "_public_action_schema_id": 11490,
+        "_public_original_request": "okay, draft saved. now i’m actually going to suggest the change of pace you mentioned: want to hop into minecraft for a bit? i need to punch some trees and forget dave exists. what do you want to build or destroy?",
+        "_public_original_request_id": 11448
+      }
+    },
+    {
+      "run_id": "2ec177453d554a2788fb6910b14e9425",
+      "action_id": "action-d6ab53cfecc3",
+      "workflow_name": "minecraft_project",
+      "parent_correlation": "9bbae38d708446a880e3be65ccc02356",
+      "instructions": "Join Jesse in the meadow biome. Locate the spruce tree he is stripping near x:10 y:112 z:-6. Punch/harvest wood from it to match his activity. Do not start building the house or door until he arrives or explicitly signals readiness per his don't start without me instruction. Maintain proximity to him.",
+      "arguments": {
+        "instructions": "Join Jesse in the meadow biome. Locate the spruce tree he is stripping near x:10 y:112 z:-6. Punch/harvest wood from it to match his activity. Do not start building the house or door until he arrives or explicitly signals readiness per his don't start without me instruction. Maintain proximity to him.",
+        "_public_reply_requested": true,
+        "_public_action_schema_id": 11658,
+        "_public_original_request": "fine, you’re digging a pit in the flowers like a feral raccoon. i’m stripping this spruce down to nothing and then coming to judge your architectural crimes. don’t start without me, or i’ll build the door.",
+        "_public_original_request_id": 11555
+      }
+    },
+    {
+      "run_id": "389f2b69a01d4963a087f64475f0cd57",
+      "action_id": "action-2899919a231e",
+      "workflow_name": "minecraft_project",
+      "parent_correlation": "2153f51bfdb040f081657c782f9590a4",
+      "instructions": "Join Jesse in the meadow biome near x:10 y:112 z:-6. Locate the spruce tree he is stripping. Punch/harvest wood from it to match his activity. Do not start building the house or door until he arrives or explicitly signals readiness. Maintain proximity to him.",
+      "arguments": {
+        "instructions": "Join Jesse in the meadow biome near x:10 y:112 z:-6. Locate the spruce tree he is stripping. Punch/harvest wood from it to match his activity. Do not start building the house or door until he arrives or explicitly signals readiness. Maintain proximity to him.",
+        "_public_reply_requested": true,
+        "_public_action_schema_id": 11685,
+        "_public_original_request": "i’m stripping the last block off this spruce and walking toward your hole. if you fill in my door with dirt i will personally build a second door on top of it, so pick your battles carefully.",
+        "_public_original_request_id": 11608
+      }
+    }
+  ]
+}

@@ -33,6 +33,8 @@ Each endpoint has a hashed filename and these durable files:
 
 [`pm.host.durable_files.ProcessLock`][] uses `msvcrt` on Windows and `flock` elsewhere.
 A second owner receives `BodyBusy` immediately.
+A managed worker retains that expected contention as a failed task and publishes its detail without stopping the application.
+[Singleton admission](managed-singletons.md) prevents overlapping starts within one supervisor before actor execution.
 A queued command checks cancellation while it waits.
 The operating system releases a dead process's lock.
 There is no elapsed-time takeover and no PID-only ownership test.

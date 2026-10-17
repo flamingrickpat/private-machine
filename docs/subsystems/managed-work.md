@@ -16,6 +16,8 @@ Cognition or Assistant tools request a start, status, update, answer, or cancell
 The supervisor accepts the request and stores a receipt.
 A worker runs the configured manifest.
 Events return through the bus to cognition.
+An explicit [singleton setting](managed-singletons.md) limits active runs for a workflow or shared resource key.
+A busy start returns its owner as workflow evidence. Cognition chooses the next management action.
 
 The configured targets include `local_task`, `local_task_question`, `note_task`, `minecraft`, and `minecraft_project`.
 `local_task` is a control worker and cannot execute arbitrary note instructions.
@@ -75,6 +77,7 @@ A completed external effect remains complete after cancellation.
 MCP transport success alone does not establish tool success.
 The Minecraft adapter raises [`TaskServiceError`][pm.runs.errors.TaskServiceError] for a failed connection or transport.
 The supervisor retains a failed receipt and lets other work continue.
+A late `BodyBusy` also remains a task failure, with its contention detail available to cognition.
 A lost response leaves external effects uncertain. The supervisor does not repeat the command.
 Cancellation still propagates. Unexpected logic errors still reach the application's error handler.
 

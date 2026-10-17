@@ -16,6 +16,7 @@ The [16 October error analysis](a18b-errors-20261016.md) traces the current run'
 provider rejection, body conflict, and reviewer failures to their code boundaries.
 It includes independently checked world receipts and proposed repairs.
 It does not establish a repaired runtime or A19 readiness.
+The [singleton admission record](a18b-singleton.md) tracks the subsequent managed-work repair and its exact evidence scope.
 The [materiality record](a18b-review-materiality.md) separates sufficient-result routing from pending real reviewer calibration.
 
 ## Mechanism checks

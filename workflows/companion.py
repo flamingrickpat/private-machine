@@ -63,6 +63,7 @@ def _managed_workflows(stage_model=None, embeddings=None) -> dict:
                 stage_model.measure_context if stage_model is not None else None,
             ),
             resumable=True,
+            singleton=True, singleton_key="minecraft_body",
             request_context=persona_context,
         ),
         "minecraft_project": WorkflowSpec(
@@ -71,6 +72,7 @@ def _managed_workflows(stage_model=None, embeddings=None) -> dict:
             tools_factory=build_minecraft_module_tools(stage_model.complete if stage_model is not None else None,
                 stage_model.measure_context if stage_model is not None else None),
             resumable=True,
+            singleton=True, singleton_key="minecraft_body",
             request_context=persona_context,
             memory_config_factory=(lambda store, cancel: project_memory_config(store, cancel, embeddings))
                 if stage_model is not None else None,
@@ -95,7 +97,12 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
                         "note_task": "Real pm-coder note writer. Exact UTF-8 byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.",
                         "minecraft": "One sustained survival specialist leaf. Standalone completion requires an explicit supported verifier, currently wood_return. Use minecraft_project for other goals that need verified completion.",
                         "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals. Inventory questions use direct Assistant observation."}
-        options.append({"name": name, "description": descriptions.get(name, f"Managed workflow {name}.")})
+        description = descriptions.get(name, f"Managed workflow {name}.")
+        spec = supervisor.workflows[name]
+        if spec.singleton:
+            description += (f" One active run for {spec.singleton_key or name}. "
+                            "A busy start returns its owner; choose wait, update, or terminate through self_management.")
+        options.append({"name": name, "description": description})
     return options
 
 

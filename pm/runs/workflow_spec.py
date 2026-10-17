@@ -48,4 +48,8 @@ class WorkflowSpec:
     request_context: Callable[[Any], Mapping[str, Any]] | None = None
     #: The workflow selects an accepted memory view at each native decision group.
     memory_config_factory: Callable[[Any, Any], MemoryToolConfig] | None = None
+    #: Admit one active run. A cancelled worker retains its slot through cleanup.
+    singleton: bool = False
+    #: Share admission across workflow names. An empty key uses the workflow name.
+    singleton_key: str = ""
 

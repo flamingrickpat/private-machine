@@ -189,6 +189,30 @@ class ManagedRunSupervisor:
 
     # ------------------------------------------------------------ start
 
+    def _singleton_key(self, workflow_name: str) -> str:
+        """Return the configured admission key, or an empty key for parallel work."""
+        spec = self.workflows.get(workflow_name)
+        return (spec.singleton_key or workflow_name) if spec is not None and spec.singleton else ""
+
+    def _singleton_owner(self, workflow_name: str, *, exclude: str = "") -> dict | None:
+        """Read the owner under the supervisor mutex, including worker cleanup.
+
+        The accepted receipt reserves the slot before thread launch. Cancellation
+        changes the receipt before cleanup ends, so the worker lock also counts.
+        This admission policy belongs to one supervisor. External body leases
+        retain their independent operating-system fence across processes.
+        """
+        key = self._singleton_key(workflow_name)
+        if not key:
+            return None
+        for run_id, run in self.receipts().items():
+            if run_id == exclude:
+                continue
+            owner_key = run.get("singleton_key") or self._singleton_key(run["workflow_name"])
+            if owner_key == key and (run["state"] in ACTIVE_STATES or run_id in self._worker_locks):
+                return run
+        return None
+
     def start(
         self,
         *,
@@ -204,6 +228,8 @@ class ManagedRunSupervisor:
 
         A repeated action ID returns the original receipt. An unknown workflow
         produces an explicit failed receipt rather than a silent no-op.
+        A busy singleton retains a failed request receipt and publishes its
+        current owner to cognition. It launches no worker and cancels no owner.
         """
         with self._lock:
             existing = self._find_by_action(action_id)
@@ -226,6 +252,23 @@ class ManagedRunSupervisor:
                 return self._persist(receipt)
 
             run_id = run_id or uuid.uuid4().hex
+            singleton_key = self._singleton_key(workflow_name)
+            owner = self._singleton_owner(workflow_name)
+            if owner is not None:
+                detail = (f"Workflow {workflow_name} is already in use by run {owner['run_id']} "
+                          f"({owner['workflow_name']}). This start did not launch a worker. "
+                          "Choose whether to wait, update that run, or terminate it.")
+                receipt = ManagedRunReceipt(run_id=run_id, action_id=action_id,
+                    workflow_name=workflow_name, parent_correlation=parent_correlation,
+                    state="failed", latest_event=detail, artifact_path="",
+                    instructions=instructions, arguments=dict(arguments or {}),
+                    created_at=self.clock(), updated_at=self.clock(),
+                    singleton_key=singleton_key, blocked_by_run_id=owner["run_id"])
+                self._persist(receipt)
+                self._emit(run_id, "start_rejected", reason="singleton_busy", detail=detail,
+                           singleton_key=singleton_key, blocked_by_run_id=owner["run_id"],
+                           owner_workflow=owner["workflow_name"], owner_state=owner["state"])
+                return self.get(run_id)
             if not artifact_path:
                 artifact_path = str(self.task_root / run_id)
             receipt = ManagedRunReceipt(
@@ -241,6 +284,7 @@ class ManagedRunSupervisor:
                 created_at=self.clock(),
                 updated_at=self.clock(),
                 evidence=[artifact_path],
+                singleton_key=singleton_key,
             )
             persisted = self._persist(receipt)
             self._launch(receipt, resume=False, payload=None)
@@ -339,7 +383,8 @@ class ManagedRunSupervisor:
                         receipt.run_id, state="cancelled" if cancelled else "failed",
                         latest_event=f"worker error: {type(exc).__name__}: {exc}"[-500:],
                     )
-                    self._emit(receipt.run_id, "failed", error=str(exc))
+                    self._emit(receipt.run_id, "failed", error=str(exc), detail=str(exc),
+                               reason="resource_busy" if isinstance(exc, BodyBusy) else "worker_error")
                 else:
                     # Publication can fail after a terminal receipt commits.
                     # Keep that actual outcome and identify the delivery error.
@@ -348,9 +393,10 @@ class ManagedRunSupervisor:
                 recording_failed = True
                 exc.add_note(f"Recording the worker failure also failed: {type(recording_error).__name__}: {recording_error}")
             from pm.runs.errors import TaskServiceError
-            # Service loss ends this task, so other work can continue. Logic
-            # faults still reach the application's error handler.
-            if recording_failed or (not cancelled and not isinstance(exc, TaskServiceError)):
+            # Service loss or resource contention ends only this task. Keep the
+            # fence intact and let cognition choose the next action. Logic faults
+            # still reach the application's error handler.
+            if recording_failed or (not cancelled and not isinstance(exc, (TaskServiceError, BodyBusy))):
                 if self.on_error is None:
                     raise
                 self.on_error(exc)
@@ -620,12 +666,20 @@ class ManagedRunSupervisor:
             thread = self._threads.get(run_id)
             if thread is not None and thread.is_alive():
                 raise ManagedRunError("The previous worker still needs external cleanup.")
+            owner = self._singleton_owner(current.workflow_name, exclude=run_id)
+            if owner is not None:
+                detail = (f"Workflow {current.workflow_name} is already in use by run {owner['run_id']}. "
+                          "Recovery did not launch a worker. Wait, update that run, or terminate it.")
+                self._emit(run_id, "resume_rejected", reason="singleton_busy", detail=detail,
+                           blocked_by_run_id=owner["run_id"], singleton_key=self._singleton_key(current.workflow_name))
+                raise ManagedRunError(detail)
             try:
                 lock = ProcessLock(Path(current.artifact_path) / "worker.lock").acquire()
             except BodyBusy as error:
                 raise ManagedRunError("Another process owns this managed worker.") from error
             try:
                 current.interrupted_from = current.state
+                current.singleton_key = self._singleton_key(current.workflow_name)
                 current.state, current.updates_open = "accepted", True
                 current.execution_epoch += 1
                 current.latest_event = "explicit resume accepted; fresh observation required"
