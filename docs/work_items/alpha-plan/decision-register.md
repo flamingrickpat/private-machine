@@ -119,6 +119,36 @@ The preserved original brief remains unchanged.
 The [companion development policy](companion-development.md) applies these decisions.
 The [curated source guide](cognitive-sources.md) defines the selected adaptations and excluded ideas.
 
+## Pre-trial direction on 2026-10-17
+
+D18: Deliver A19 reflection, A19B memory consolidation, A19C daily-use interface polish, and A19D container-agent dialogue before the personal trial.
+The owner then chats with one continuing character across multiple real days.
+PM feature work pauses during that interval. Bug fixes remain permitted.
+Broad A20 hardening follows the owner's review so repairs preserve the intended experience.
+Read the [personal-trial contract](personal-trial.md).
+
+D19: Use `StateNeeds` and the full mental-state vector as the sole live representation of needs and cognition axes.
+Retire the older parallel holders through an explicit import path.
+Add only the measured `memory_integrity` need for this phase.
+New eligible experience lowers integrity. Accepted consolidation raises it.
+The wider needs system remains beta work.
+
+D20: Favor simple, interruption-tolerant consolidation over elaborate processing metadata.
+Partition sources by conversation or internal channel and reality scope before embedding-based agglomerative clustering.
+Generate topical memory, temporal summaries, extracted facts, and a record graph for graph search.
+Complete one bounded input window before committing its results and the single cursor together.
+An interrupted window retries from the last accepted cursor.
+Use durable commit order because reserved record IDs can commit out of order.
+Do not add per-stage completion flags, per-channel cursors, or a second processing ledger.
+Retain ordinary source membership and graph links.
+The [memory design](memory-consolidation.md) and [atomic-window contract](consolidation-commits.md) apply this decision.
+
+D21: The companion can converse with an existing execution harness inside a persistent Linux Docker environment.
+The container agent can install tools and build software for the companion or user with root-capable container execution.
+This is separate from a human conversation, a peer companion, and the larger development workflow.
+Hermes is a candidate, with the actual harness selected and pinned through real integration evidence in [A19D](work-items/a19d.md).
+This capability does not grant automatic PM source modification or general host access.
+
 ## Seed import evidence
 
 Validate imported memories against the private ontology and capabilities at their attributed time.

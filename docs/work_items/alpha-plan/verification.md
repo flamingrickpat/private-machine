@@ -2,7 +2,7 @@
 
 ## Summary
 
-Seven milestones let the user test visible behavior before later work begins.
+Seven acceptance milestones and a personal trial let the user inspect behavior before later work begins.
 Contract tests establish engineering properties.
 Real endpoints establish behavioral evidence.
 The user evaluates immersion.
@@ -112,4 +112,6 @@ The companion must reobserve before retrying an uncertain world mutation.
 ## Later milestones
 
 [M5–M7](cognition-verification.md) verify the second conscious loop, self-reflection, and sustained integrated use.
+The [personal trial](personal-trial.md) follows A19D and precedes broad A20 hardening.
+Its real-day use and PM feature freeze remain separate from the two-hour M7 acceptance sessions.
 The [evaluation contract](evaluation.md) defines measurements and session evidence for every milestone.

@@ -9,7 +9,7 @@ The user records continuity and regeneration wishes.
 Failures and unavailable services remain explicit in the final handoff.
 
 Parent: [manual milestones](verification.md).
-Related: [later milestones](cognition-verification.md) and [A01](work-items/a01.md).
+Related: [later milestones](cognition-verification.md), [personal trial](personal-trial.md), and [A01](work-items/a01.md).
 
 ## Evaluation contract
 
@@ -58,6 +58,12 @@ Distinguish a typed proposal, accepted state change, chosen action, and observed
 Record opposing evidence and unsuccessful trials.
 Machine assertions establish source and execution facts.
 Human review establishes neither a causal fact nor an automatic truth label.
+
+The owner's [personal trial](personal-trial.md) precedes broad A20 hardening and spans multiple actual calendar days.
+Its ordinary conversation uses optional feedback instead of a required rating after each reply.
+Detailed integrated acceptance keeps its existing per-exchange review contract.
+Separate trial bug fixes, runtime learning, design feedback, and later operator feature changes.
+Automated summaries cannot replace the owner's review of whether the experience fits the intended companion.
 
 Large Minecraft fixtures remain deferred rather than replacement requirements for cognitive quality.
 Use modest real tasks when an acceptance case needs an external consequence.

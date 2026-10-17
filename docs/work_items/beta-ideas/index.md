@@ -8,6 +8,8 @@ A note records what the user and the agent discussed.
 It also records what the next step might be.
 After A20, promote the useful notes into proper beta work items.
 Each note states its dependency, its rough scope, and its open questions.
+Bounded container-agent access now belongs to [alpha A19D](../alpha-plan/work-items/a19d.md).
+The broader host-access note retains the remaining beta scope.
 
 Parent: [alpha plan](../alpha-plan/index.md).
 Process: [work-item development](../process.md).
@@ -23,7 +25,7 @@ Start with the direction that the alpha most clearly prepares.
 | [Codelet discovery](codelet-discovery.md) | Let the companion invent, evolve, and select new codelets. | A16 |
 | [Deeper qualia and ontology](deeper-qualia-ontology.md) | Extend the channel manifold and the private vocabulary. | A17 |
 | [Multi-persona deployment](multi-persona-deployment.md) | Run many personas as containers in one shared world with chat. | A14, A17 |
-| [Sandboxed host access](sandboxed-host-access.md) | Give the persona a shell in its container, with a written boundary. | A14, A19 |
+| [Sandboxed host access](sandboxed-host-access.md) | Extend A19D's bounded container capability toward broader host access. | A19D, A20 |
 | [Multiple companions in one world](companions-and-factions.md) | Relationships, factions, and conflict between autonomous companions. | Multi-persona |
 | [Source self-modification](source-self-modification.md) | Let reflection change its own source, versioned and reversible. | A19 |
 | [System One decision uses](system-one-uses.md) | Find tested uses for the fast decision classifier. | A20 |

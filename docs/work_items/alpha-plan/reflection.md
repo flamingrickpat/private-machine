@@ -9,6 +9,7 @@ Emotional appraisal can respond to a discovery without changing the inspected fa
 
 Parent: [cognitive architecture](cognition.md).
 Related: [second conscious loop](private-loop.md), [A18](work-items/a18.md), and [A19](work-items/a19.md).
+Pre-trial follow-ups: [memory consolidation](memory-consolidation.md), [A19C interface](work-items/a19c.md), and [A19D container agent](work-items/a19d.md).
 
 ## Self-model and reflection
 
@@ -75,6 +76,18 @@ A failed intervention stays in the durable history.
 A reversal creates a new version rather than erasing the experiment.
 Concurrent source changes require reassessment before commit.
 Restart retains whether an intervention was proposed, applied, observed, or interrupted.
+
+## Boundary with consolidation and the trial
+
+A19 owns experiments and effective strategy changes.
+[A19B](work-items/a19b.md) owns compact memory of those experiments and the wider external and internal experience stream.
+Consolidation preserves predictions, actual outcomes, failed explanations, and unresolved questions.
+It cannot turn an unresolved experiment into a successful strategy or erase its reversal history.
+
+The owner then uses the integrated companion across [multiple real days](personal-trial.md).
+Existing versioned reflection remains active during that PM feature freeze.
+Operator feature changes wait until the trial review.
+Bug fixes retain their evidence, revisions, and effect on the continuing instance.
 
 Successful behavior can also justify reflection.
 Learning can retain a useful pattern with its scope and sources.

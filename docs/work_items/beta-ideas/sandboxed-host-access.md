@@ -1,5 +1,14 @@
 # Sandboxed host access
 
+## Summary
+
+Broader host access remains a beta idea.
+The owner promoted a bounded container-agent capability into [alpha A19D](../alpha-plan/work-items/a19d.md) on 2026-10-17.
+A19D delegates work to an existing harness in a persistent Linux container.
+It does not grant general host access or automatic PM source modification.
+
+Parent: [beta ideas](index.md).
+
 ## The idea
 
 The assistant should be able to use the host.

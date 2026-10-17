@@ -2,8 +2,8 @@
 
 ## Summary
 
-This proposed second plan contains 20 numbered work items, follow-up items, and seven manual milestones.
-It develops persistent cognition, LLM classification, adaptive Minecraft work, and source-aware reflection.
+This second plan contains 20 numbered work items, follow-up items, seven acceptance milestones, and a personal trial.
+It develops persistent cognition, memory consolidation, daily conversation, container work, and source-aware reflection.
 Each item defines a handoff for a fresh coding session.
 
 Parent: [engineering manual](../../index.md).
@@ -12,7 +12,9 @@ Earlier delivery: [W0–W8 plan](../plan.md).
 ## Current development priority
 
 The owner prioritizes companion quality over conversation latency during development.
-The next sequence is A17, A18, A18B, A18C, A19, then companion acceptance in A20.
+After accepted A18C, the next sequence is A19, A19B, A19C, and A19D.
+The owner then runs a [personal trial across real days](personal-trial.md) before broad A20 hardening.
+PM feature development pauses during that trial. Bug fixes remain permitted.
 Large Minecraft acceptance remains deferred.
 Each item still verifies the actual interfaces it uses.
 Read [companion development priorities](companion-development.md) before implementation.
@@ -54,15 +56,20 @@ A16's grounded codelet repertoire, pathways, and proposal consumers are implemen
 Its [verification](../verification/a16-codelets.md) retains the human review and remaining live checks.
 A17 is delivered.
 A18 has an engineering delivery recorded, with its live gate pending.
-A19 remains planned and on hold during [A17/A18 hardening](../verification/a17-a18-hardening.md).
-A18B adds [blinded cognitive evaluation](../../subsystems/cognitive-evaluation.md) before further architecture expansion.
+A19 remains planned.
+Earlier [A17/A18 hardening](../verification/a17-a18-hardening.md) and A18B failures retain their recorded status.
+A18B supplies [blinded cognitive evaluation](../../subsystems/cognitive-evaluation.md), with its complete evaluation still unverified.
 A18C delivers [deliberate mental control](work-items/a18c.md), including a real [inference wait](../../subsystems/inference-wait.md).
 Its mental-work agent has real full-canon recall and scoped failure-recovery receipts.
 Bounded private episodes and focus receipts are implemented with focused tests.
 Focused full-canon checks now cover recall, attention, episodes, parking, and failure recovery.
 The owner accepted A18C for alpha on 17 October 2026 after review of the verification record.
 This acceptance does not establish a complete A18B evaluation pass or detailed human quality ratings.
-A20 will verify the revised companion scope while retaining deferred gameplay status.
+A19B plans [memory consolidation](memory-consolidation.md) with one cursor, atomic windows, and canonical needs in the mental-state vector.
+A19C plans daily-use polish of the existing console.
+A19D plans companion dialogue with a working agent in a persistent Linux container.
+These items precede the owner's multi-day personal trial.
+A20 follows that review and verifies the integrated companion while retaining deferred gameplay status.
 A14B supplies [direct memory tools](../../subsystems/agent-memory.md) for native decisions.
 Its [verification](../verification/a14b-agent-memory.md) keeps the larger operator-designed test pending.
 A13's [gate review](../verification/a13/task-gate-review.md) records the pending real acceptance and implemented workflow split.
@@ -121,6 +128,8 @@ Read the [model policy](model-policy.md#generalization-ladder) and the [evaluati
 The [beta ideas](../../work_items/beta-ideas/index.md) hold directions that are out of alpha scope.
 They are rough notes, not plans.
 After A20, promote the useful ones into proper beta work items.
+The bounded container-agent capability is now alpha scope in [A19D](work-items/a19d.md).
+Broader host access and automatic source modification remain separate ideas.
 
 ## Read the plan
 
@@ -130,6 +139,9 @@ After A20, promote the useful ones into proper beta work items.
 | [Previous attempts](previous-attempts.md) | What to preserve, adapt, and leave behind |
 | [Cognitive architecture](cognition.md) | State, emotion, codelets, internal thought, and self-reflection |
 | [Companion development priorities](companion-development.md) | Quality first, revised dependencies, and deferred large gameplay acceptance |
+| [Memory consolidation](memory-consolidation.md) | Channel-separated memory, canonical needs, and compact normal recall |
+| [Atomic consolidation windows](consolidation-commits.md) | One cursor, durable commit order, cancellation, and complete-window retry |
+| [Personal trial](personal-trial.md) | Multi-day use with one continuing character and a PM feature freeze |
 | [Curated cognitive sources](cognitive-sources.md) | Selected paper passages and historical code with explicit reuse boundaries |
 | [Felt-state projections](felt-state.md) | A17 channel measurements, reportability, and stable personal vocabulary |
 | [Private ontology](ontology.md) | Capability-consistent expression and protection against polluted memory |
@@ -166,6 +178,10 @@ After A20, promote the useful ones into proper beta work items.
 | A18B | [Build cognitive believability evaluation](work-items/a18b.md) | Automated review with separate human inspection |
 | A18C | [Deliberate attention and control of private thought](work-items/a18c.md) — accepted for alpha | Real waits, deliberate recall, and bounded private episodes |
 | A19 | [Reflect, test hypotheses, and revise behavior](work-items/a19.md) | M6: source-grounded self-reflection |
+| A19B | [Consolidate experience and measure memory integrity](work-items/a19b.md) | Interruptible hierarchical memory and one canonical mental state |
+| A19C | [Finish the interface for daily conversation](work-items/a19c.md) | Usable conversation across browser and worker restarts |
+| A19D | [Converse with a working container agent](work-items/a19d.md) | Real installation, software artifacts, and persistent work sessions |
+| Personal trial | [Use one character across real days](personal-trial.md) | Owner review before broad A20 hardening. Bug fixes only |
 | A20 | [Verify the integrated alpha in sustained use](work-items/a20.md) | M7: a mixed-session alpha trial |
 
 The order supports useful stopping points.
@@ -189,4 +205,4 @@ Deferred large gameplay acceptance does not block unrelated cognitive work under
 
 These are delivery work packages.
 A complex package may need more than one coding session.
-The plan does not promise that all 20 packages fit one weekend.
+The plan does not promise that these packages fit one weekend.

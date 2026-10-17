@@ -4,7 +4,8 @@
 
 Companion quality governs the next development phase.
 Conversation latency is currently acceptable to the owner.
-A16 through A19 build emotional pathways, private thought, self-knowledge, and effective reflection.
+A16 through A19D build private thought, reflection, consolidated memory, daily conversation, and container-agent access.
+The owner's personal trial precedes broad A20 hardening.
 Large Minecraft scenarios remain deferred acceptance work.
 They do not block cognitive development that uses different interfaces.
 
@@ -31,10 +32,23 @@ Repeated review without useful progress remains a behavior problem.
 A slow deliberation can be useful when it explores a real conflict or changes a later choice.
 The comparison concerns what the work achieves.
 
+On 2026-10-17, the owner added these requirements before integrated alpha acceptance:
+
+- Deliver A19 reflection, A19B consolidation, A19C interface polish, and A19D container-agent dialogue.
+- Use the mental-state vector as the sole live representation of needs and cognition axes.
+- Keep consolidation simple through one cursor and atomic complete windows.
+- Run one continuing character across multiple real days before broad A20 hardening.
+- Pause PM feature development during that trial and permit bug fixes.
+
+The [personal-trial contract](personal-trial.md) defines the freeze and its review.
+
 ## Order and dependency boundary
 
-The next implementation sequence is A17, A18, A18B, A19, then companion acceptance in A20.
-A18B adds [cognitive evaluation](../../subsystems/cognitive-evaluation.md) while A19 remains on hold for hardening.
+The owner accepted A18C for alpha on 2026-10-17.
+The next sequence is [A19](work-items/a19.md), [A19B](work-items/a19b.md), [A19C](work-items/a19c.md), and [A19D](work-items/a19d.md).
+The personal trial then supplies owner feedback before A20 acceptance work.
+A18B supplies [cognitive evaluation](../../subsystems/cognitive-evaluation.md), with its complete evaluation still unverified.
+Its failed receipts stay visible. Each new item verifies the interfaces it uses.
 A15 already supplies the selective scheduler and attention competition.
 Its remaining live checks retain their existing status.
 A16 supplies the codelet repertoire, the pathways, and the proposal consumers.
@@ -45,7 +59,7 @@ A14B supplies optional direct memory tools and native draft sessions.
 Neither item has full behavioral acceptance.
 Their failed receipts remain evidence of limitations.
 
-Large changed-house, clean destructive-project, and withdrawn diamond acceptance do not block A16 through A19.
+Large changed-house, clean destructive-project, and withdrawn diamond acceptance do not block the pre-trial sequence through A19D.
 An item must still verify every interface it uses.
 Before an inner goal uses the Minecraft body, verify the relevant ownership, cancellation, and uncertain-outcome recovery path.
 Use modest real tasks to establish that integration.
@@ -58,6 +72,7 @@ A society of interacting companions is a later deployment of the same runtime.
 [Multi-persona deployment](../beta-ideas/multi-persona-deployment.md) runs one container per persona with a shared world and chat.
 No alpha item builds a separate society engine.
 Identity, relationship, memory, and peer events must not hardcode one user or one chat partner.
+A19D's subordinate execution agent is a separate capability from a society of companion personas.
 
 ## Quality requirements
 

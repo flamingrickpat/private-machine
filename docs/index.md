@@ -19,6 +19,7 @@ This manual explains current behavior, test procedures, and the earlier implemen
 | Understand runtime ownership | [System map](concepts/architecture.md) |
 | Compare the plan with current code | [Plan and implementation](work_items/plan.md) |
 | Develop the companion alpha in ordered sessions | [Companion alpha plan](work_items/alpha-plan/index.md) |
+| Prepare a continuing character for daily use | [A19 pre-trial sequence](work_items/alpha-plan/index.md#current-development-priority) and [personal trial](work_items/alpha-plan/personal-trial.md) |
 | Plan faster cognition experiments | [Next experiments](work_items/experiments.md) |
 
 ## Main boundaries

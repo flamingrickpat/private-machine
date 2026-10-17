@@ -4,6 +4,7 @@
 
 M5 verifies private activity and its consequences.
 M6 verifies source-aware self-reflection and tested changes.
+A personal trial after A19D checks the owner's experience across real days before A20 hardening.
 M7 verifies the integrated alpha during sustained use.
 These gates require real endpoints and user observations.
 
@@ -62,9 +63,18 @@ Answer A18's episode questions from actual input, output, and cause references.
 Inspect whether the running workflow consumed the intervention's effective resource version.
 Retain a failed diagnosis and its later correction.
 
+## Personal trial before A20
+
+**After A19D.** Use one continuing character across multiple real days under the [personal-trial contract](personal-trial.md).
+Complete reflection, interruptible consolidation, daily-use interface polish, and container-agent access before the trial starts.
+Pause PM feature development and permit bug fixes with retained evidence.
+The owner reviews whether the experience matches the intended companion before broad A20 hardening.
+The trial does not establish a complete A18B pass or deferred large gameplay.
+
 ## M7: sustained alpha trial
 
 **After A20.** Run a mixed session for at least two hours.
+Complete the real-day personal trial before this broader integrated acceptance work.
 Include conversation, autonomous task progress, quiet intervals, changed goals, expected failures, and a restart.
 Evaluate both selected personas separately.
 

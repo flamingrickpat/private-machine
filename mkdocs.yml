@@ -133,6 +133,9 @@ nav:
           - Deliberate mental control: work_items/alpha-plan/deliberate-control.md
           - Felt-state projections: work_items/alpha-plan/felt-state.md
           - Self-model and reflection: work_items/alpha-plan/reflection.md
+          - Pre-trial memory consolidation: work_items/alpha-plan/memory-consolidation.md
+          - Atomic consolidation windows: work_items/alpha-plan/consolidation-commits.md
+          - Personal trial across real days: work_items/alpha-plan/personal-trial.md
           - Models and workflow inputs: work_items/alpha-plan/decisions.md
           - Classification inputs and INVALID: work_items/alpha-plan/workflow-inputs.md
           - Minecraft architecture: work_items/alpha-plan/minecraft.md
@@ -172,6 +175,9 @@ nav:
               - A18B Cognitive evaluation: work_items/alpha-plan/work-items/a18b.md
               - A18C Deliberate mental control: work_items/alpha-plan/work-items/a18c.md
               - A19 Effective reflection: work_items/alpha-plan/work-items/a19.md
+              - A19B Memory consolidation and needs: work_items/alpha-plan/work-items/a19b.md
+              - A19C Daily-use interface: work_items/alpha-plan/work-items/a19c.md
+              - A19D Working container agent: work_items/alpha-plan/work-items/a19d.md
               - A20 Integrated alpha trial: work_items/alpha-plan/work-items/a20.md
       - Verification:
           - Companion cognition plan revision: work_items/verification/cognition-plan-revision.md
