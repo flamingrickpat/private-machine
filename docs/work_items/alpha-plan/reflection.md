@@ -13,7 +13,8 @@ Pre-trial follow-ups: [memory consolidation](memory-consolidation.md), [A19C int
 
 ## Self-model and reflection
 
-This design is planned behavior.
+The [reflection implementation](../../subsystems/reflection.md) is in progress.
+Its [verification record](../verification/a19-reflection.md) separates implemented contracts from pending acceptance.
 [A18](work-items/a18.md) and [A19](work-items/a19.md) contain the expanded implementation and acceptance contracts.
 The [current priorities](companion-development.md) favor companion quality over conversation latency.
 The [source guide](cognitive-sources.md) separates selected mechanisms from excluded historical ideas.

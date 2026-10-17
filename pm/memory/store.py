@@ -224,6 +224,10 @@ class MemoryStore(RecordIndex):
                 return self.applied_commits[batch.commit_id]
             batch.check_cancelled()
             conflicts = [record_id for record_id, revision in batch._expected.items() if self.revisions[record_id] != revision]
+            family_conflicts = [key for key, value, expected in batch._metadata_guards
+                                if {record.id: self.revisions[record.id]
+                                    for record in self._all_knoxels.values()
+                                    if record.metadata.get(key) == value} != expected]
             run_conflicts = [run_id for run_id in batch._runs if self.managed_runs.get(run_id) != batch._initial_runs.get(run_id)]
             consolidation_conflicts = [
                 key for key in batch._consolidations
@@ -234,10 +238,10 @@ class MemoryStore(RecordIndex):
                 current = {key: value for key, value in self.consolidations.items() if value.get("run_id") == run_id}
                 if before != current:
                     consolidation_conflicts.append(run_id)
-            if conflicts or run_conflicts or consolidation_conflicts:
+            if conflicts or run_conflicts or consolidation_conflicts or family_conflicts:
                 raise GhostConflict(
                     f"Stale memory revisions: {conflicts}. Stale run receipts: {run_conflicts}. "
-                    f"Stale consolidation receipts: {consolidation_conflicts}."
+                    f"Stale consolidation receipts: {consolidation_conflicts}. Stale record families: {family_conflicts}."
                 )
             allowed_ids = set(batch._snapshot._records) | set(batch._new)
             for raw in (*batch._new.values(), *batch._replacements.values()):

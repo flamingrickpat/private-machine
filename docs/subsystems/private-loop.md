@@ -15,6 +15,7 @@ only in dummy mode and wrote one hardcoded sentence.
 Parent: [cognitive pipeline](cognition.md).
 Design: [the second conscious loop](../work_items/alpha-plan/private-loop.md) and [felt-state projections](../work_items/alpha-plan/felt-state.md).
 Work item: [A17](../work_items/alpha-plan/work-items/a17.md).
+Longitudinal learning: [private reflection experiments](reflection.md) and [their lifecycle](reflection-lifecycle.md).
 Evidence: [A17 verification](../work_items/verification/a17-private-loop.md).
 Runtime: [`workflows.inner_thought.host.PrivateThoughtLoop`][].
 

@@ -40,6 +40,12 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
     tests and traces are reproducible. Urgency stays in 0..1.
     """
     candidates: list[TriggerCandidate] = []
+    reflection = getattr(request, "reflection", {}) or {}
+    if reflection.get("review_due"):
+        candidates.append(TriggerCandidate(
+            name="experiment_review", cause="a versioned private experiment needs its next evidence step",
+            urgency=0.65, operations=["reflection_review"],
+            reason="Review a committed prediction before creating another experiment."))
     tick = int(request.tick_id or 0)
     # A parked concern stays quiet until its review time or new outside evidence.
     suppressed = {int(item) for item in (getattr(request, "episode", {}) or {}).get("suppressed_source_ids", [])}
@@ -60,7 +66,7 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
             candidates.append(TriggerCandidate(
                 name="unresolved_commitment", cause=f"goal {goal.get('knoxel_id')} is {age} ticks old and {fulfilment:.2f} fulfilled",
                 urgency=min(1.0, 0.4 + age / 100.0),
-                operations=["commitment_review", "plan_next_step", "feasibility_check"],
+                operations=["commitment_review", "plan_next_step", "feasibility_check", "reflection_review"],
                 reason="An accepted goal with no progress needs private attention.",
             ))
             break
@@ -73,7 +79,7 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
             candidates.append(TriggerCandidate(
                 name="pending_expectation", cause=f"expectation {expectation.get('knoxel_id')} is {age} ticks old and unresolved",
                 urgency=min(1.0, 0.35 + age / 100.0),
-                operations=["expectation_review", "emotional_debrief"],
+                operations=["expectation_review", "emotional_debrief", "reflection_review"],
                 reason="A recorded anticipation has not met its outcome yet.",
             ))
             break
@@ -83,7 +89,7 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
         candidates.append(TriggerCandidate(
             name="surprising_outcome", cause=f"the last main frame reports surprise {surprise:.2f}",
             urgency=min(1.0, 0.4 + abs(surprise) / 2.0),
-            operations=["emotional_debrief", "expectation_review", "perspective_shift"],
+            operations=["emotional_debrief", "expectation_review", "perspective_shift", "reflection_review"],
             reason="A surprising outcome deserves a private interpretation.",
         ))
 
@@ -92,7 +98,7 @@ def evaluate_triggers(request) -> list[TriggerCandidate]:
         candidates.append(TriggerCandidate(
             name="fresh_main_frame", cause="the main loop published a new workspace frame",
             urgency=0.3,
-            operations=["perspective_shift", "narrative_stitching", "emotional_debrief"],
+            operations=["perspective_shift", "narrative_stitching", "emotional_debrief", "reflection_review"],
             reason="A fresh accepted workspace gives private thought new material.",
         ))
 

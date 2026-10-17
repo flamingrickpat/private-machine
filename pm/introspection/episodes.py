@@ -99,7 +99,7 @@ def _ints(values: Iterable) -> tuple[int, ...]:
 
 
 class EpisodeIndex:
-    """Build and query episodes from one MemoryStore.
+    """Build and query episodes from a MemoryStore or frozen snapshot.
 
     The index reads committed state only. It performs no write and no model
     call. A caller that needs a later state builds a new index.
@@ -113,7 +113,12 @@ class EpisodeIndex:
     def _build(self) -> None:
         store = self.store
         episodes: list[Episode] = []
-        for tick, turn in store.gwt_turns.items():
+        if hasattr(store, "gwt_turns"):
+            turns = store.gwt_turns
+        else:
+            from pm.records.global_workspace import GwtTurnRecord
+            turns = {tick: GwtTurnRecord.model_validate(raw) for tick, raw in store.serialize_gwt().items()}
+        for tick, turn in turns.items():
             episodes.append(self._from_turn(tick, turn))
         for record in store.all_knoxels.values():
             if getattr(record, "feature_type", None) == FeatureType.InnerMonologue:
@@ -123,7 +128,7 @@ class EpisodeIndex:
         for record in store.all_knoxels.values():
             if isinstance(record, ActionSchemaRecord):
                 episodes.append(self._from_action(record))
-        for run_id, receipt in store.managed_runs.items():
+        for run_id, receipt in getattr(store, "managed_runs", {}).items():
             episodes.append(self._from_receipt(run_id, receipt))
         episodes.sort(key=lambda item: (item.tick_id, item.episode_id))
         self._episodes = episodes

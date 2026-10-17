@@ -438,10 +438,13 @@ class MainCogLoop(CognitiveWorkflow):
             retrieval["matches"] = [item for item in retrieval["matches"] if item["knoxel_id"] not in rejected_ids]
             retrieval["trace"]["speech_only_excluded_ids"] = sorted(rejected_ids)
         self._memory_view = memory_view
-        from workflows.cognitive_control.attention import active_focus
+        from workflows.cognitive_control.attention import active_focus, focus_versions
         control = getattr(self, "cognitive_control", None)
         maximum_focus_bias = control.config.maximum_focus_bias if control is not None else None
         focus = active_focus(self.ghost, maximum_strength=maximum_focus_bias)
+        self._focus_family_revisions = focus_versions(memory_view)
+        from workflows.reflection.experiments import effective_inputs
+        self._reflection_inputs = effective_inputs(memory_view, focus)
         mental_proposals, focus_proposals = [], []
         for source in sources:
             plan = source.metadata.get("mental_plan")
@@ -455,6 +458,7 @@ class MainCogLoop(CognitiveWorkflow):
         # Deliberate recall can introduce sources that a literal stimulus
         # query missed. They remain original, revisioned memory candidates.
         focus_ids = set(focus.get("promote_ids", []) + focus.get("reduce_ids", []))
+        focus_ids.update(self._reflection_inputs["source_ids"])
         for item in mental_proposals:
             focus_ids.update(item.get("evidence_ids", []))
         for item in focus_proposals:
@@ -502,6 +506,7 @@ class MainCogLoop(CognitiveWorkflow):
             active_focus=focus,
             focus_proposals=focus_proposals,
             mental_proposals=mental_proposals,
+            reflection_guidance=self._reflection_inputs["guidance"],
             # Continuation cannot skip action selection until a bounded
             # episode executor owns the next step and its acknowledgment.
             deliberation_only=False,
@@ -630,6 +635,8 @@ class MainCogLoop(CognitiveWorkflow):
         )
         tick = changes.tick_id
         view = changes.view()
+        if hasattr(self, "_focus_family_revisions"):
+            changes.expect_metadata_version("control_kind", "attention_focus", self._focus_family_revisions)
         for source_id, revision in self._stimulus_revisions.items():
             changes.expect_revision(source_id, revision)
         for source_id, revision in getattr(self, "_focus_source_revisions", {}).items():
@@ -757,19 +764,26 @@ class MainCogLoop(CognitiveWorkflow):
             topic_hints=list(parent.lineage.topic_hints) if parent is not None else [])
         for key in set([*created_order, *attention_ids]) & changes.created_ids:
             changes.annotate_lineage(key, lineage)
+        reflection_versions = {}
+        for item in getattr(self, "_reflection_inputs", {}).get("guidance", []):
+            effective_id = item["effective_record_id"]
+            if (item["owner"] == "attention" and parsed.focus_decision.get("control_record_id") == effective_id
+                    or item["owner"] == "belief" and effective_id in {memory.knoxel_id for memory in parsed.selected_memories}):
+                reflection_versions[str(item["experiment_id"])] = effective_id
         selection = new_feature(self.ghost, str(parsed.action_selection.get("reasoning") or parsed.summary),
             FeatureType.StateUpdate, source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
-            changes=changes, metadata={"operation": "action_selection", "selection": parsed.action_selection},
+            changes=changes, metadata={"operation": "action_selection", "selection": parsed.action_selection,
+                                       "reflection_versions": reflection_versions},
             lineage=lineage.model_copy(update={"operation": "action_selection", "parent_record_ids": [frame.id]}))
         created_order.append(selection.id)
         focus = parsed.focus_decision
         if focus.get("fresh") and focus.get("accept"):
             from workflows.cognitive_control.schemas import FocusProposal
             advice = FocusProposal.model_validate(focus)
-            accepted_focus = new_feature(self.ghost, advice.instruction, FeatureType.StateUpdate,
-                source=self.ghost.get_companion_name(), source_kind=SourceKind.Self, changes=changes,
-                metadata={"control_kind": "attention_focus", "focus": focus,
-                          "expires_at": (datetime.utcnow() + timedelta(seconds=advice.seconds)).isoformat()},
+            from workflows.cognitive_control.attention import stage_focus
+            accepted_focus = stage_focus(changes, getattr(self, "_memory_view", view),
+                instruction=advice.instruction, focus=focus, companion_name=self.ghost.get_companion_name(),
+                expires_at=(datetime.utcnow() + timedelta(seconds=advice.seconds)).isoformat(),
                 lineage=lineage.model_copy(update={"operation": "focus_acceptance"}))
             created_order.append(accepted_focus.id)
         published: list[tuple] = []

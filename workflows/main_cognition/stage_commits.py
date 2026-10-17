@@ -398,7 +398,51 @@ def apply_belief_proposals(
             "rejected": rejected}
 
 
+def subjective_belief(record) -> bool:
+    """Identify an active interpretation that reflection can revise.
+
+    Attributed user reports keep their original text, even when their author
+    expressed uncertainty. Their belief kind does not make them self-authored.
+    """
+    return (isinstance(record, BeliefRecord) and record.active
+            and record.belief_kind in {"guess", "interpretation", "theory", "self_model", "user_model", "world_model"}
+            and record.source != "user_message" and not record.source.startswith("user:")
+            and not (record.provenance and record.provenance.source_kind == SourceKind.User))
+
+
+def revise_reflected_belief(batch, previous: BeliefRecord, *, text: str,
+                           evidence_ids: list[int], opposing_ids: list[int],
+                           experiment_id: int, companion_name: str) -> BeliefRecord:
+    """Supersede a subjective belief without changing its observed sources.
+
+    The caller guards the inspected revision and owns commit and cancellation.
+    Reversal calls this function again with the original text and evidence.
+    An inactive belief cannot replace a newer accepted interpretation.
+    """
+    if not subjective_belief(previous):
+        raise ValueError("Reflection can revise only an active subjective belief.")
+    revised = batch.create(BeliefRecord(
+        content=text, belief_key=previous.belief_key, belief_kind="interpretation",
+        confidence=previous.confidence, certainty=previous.certainty,
+        importance=previous.importance, valence=previous.valence,
+        about_entity_ids=list(previous.about_entity_ids), scope=previous.scope,
+        supporting_knoxel_ids=list(evidence_ids), contradicting_knoxel_ids=list(opposing_ids),
+        source=f"self:{companion_name}",
+        provenance=Provenance(source_kind=SourceKind.Self, source_ref="reflection"),
+        metadata={**previous.metadata, "reality": "inferred", "revised_from": previous.id,
+                  "reflection_experiment_id": experiment_id}))
+    old = previous.model_copy(update={"active": False, "superseded_by_id": revised.id})
+    batch.replace(old)
+    batch.create(BeliefShiftRecord(content=f"Reflection revised {previous.belief_key}",
+        target_belief_id=previous.id, proposed_belief_key=previous.belief_key,
+        shift_type="supersede", reason="A versioned private experiment revised this interpretation.",
+        causal_knoxel_ids=[*evidence_ids, revised.id], accepted=True))
+    return revised
+
+
 __all__ = [
+    "subjective_belief",
+    "revise_reflected_belief",
     "active_goal_texts",
     "active_intentions",
     "apply_appraisal",

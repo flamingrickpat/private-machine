@@ -24,7 +24,7 @@ from workflows.inner_thought.schemas import (
     TriggerChoice,
 )
 
-STAGE_ORDER = ("trigger", "thought", "integrate")
+STAGE_ORDER = ("trigger", "thought", "integrate", "reflection")
 
 #: The continuation choices a thought may carry. Only ``continue`` keeps an
 #: episode open; it must name the next operation.
@@ -83,7 +83,8 @@ def run_cycle(request: InnerRequest, run_stage, retrieve_memory=None) -> InnerRe
         if retrieve_memory is None:
             raise ModelProposalError("Private recall requested an unavailable retrieval tool.")
         from workflows.inner_thought.schemas import ThoughtCandidate
-        retrieved = retrieve_memory(trigger.retrieval_query)["matches"]
+        recall = retrieve_memory(trigger.retrieval_query)
+        retrieved = recall["matches"]
         existing = {item.knoxel_id for item in request.candidates}
         for item in retrieved:
             if int(item["knoxel_id"]) not in existing:
@@ -92,6 +93,12 @@ def run_cycle(request: InnerRequest, run_stage, retrieve_memory=None) -> InnerRe
                     reason="deliberate private recall"))
                 existing.add(int(item["knoxel_id"]))
         known = citable_ids(request)
+        if request.reflection:
+            source_ids = {item["knoxel_id"] for item in request.reflection["records"]}
+            for item in recall.get("reflection_sources", retrieved):
+                if item["knoxel_id"] not in source_ids:
+                    request.reflection["records"].append(dict(item))
+                    source_ids.add(item["knoxel_id"])
         base = request.model_dump(mode="json")
     narrowed = [int(item) for item in trigger.candidate_ids if int(item) in known] or [
         int(item.knoxel_id) for item in request.candidates]
@@ -126,6 +133,11 @@ def run_cycle(request: InnerRequest, run_stage, retrieve_memory=None) -> InnerRe
     validate_integration(integration, known, request)
     progress, progress_reason = concrete_progress(integration, thought, request)
 
+    from workflows.reflection.schemas import ReflectionDecision
+    reflection = ReflectionDecision()
+    if operation.name == "reflection_review":
+        reflection = ReflectionDecision.model_validate(run_stage("reflection", dict(base)))
+
     return InnerReport(
         run_id=request.run_id,
         operation=operation.name,
@@ -153,6 +165,7 @@ def run_cycle(request: InnerRequest, run_stage, retrieve_memory=None) -> InnerRe
         progress=progress,
         progress_reason=progress_reason,
         retrieved_memories=retrieved,
+        reflection=reflection,
     )
 
 

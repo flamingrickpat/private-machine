@@ -10,6 +10,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from workflows.main_cognition.schemas import GoalChange
+from workflows.reflection.schemas import ReflectionDecision
 
 #: Reality labels a private thought may carry. They mirror the main loop's
 #: labels so one vocabulary spans both loops.
@@ -155,6 +156,7 @@ class InnerRequest(BaseModel):
     #: the model reads a bounded view instead of scanning the repository.
     inspection: dict = Field(default_factory=dict)
     episode: dict = Field(default_factory=dict)
+    reflection: dict = Field(default_factory=dict)
 
 
 class InnerReport(BaseModel):
@@ -186,6 +188,7 @@ class InnerReport(BaseModel):
     progress: str = "none"
     progress_reason: str = ""
     retrieved_memories: list[dict] = Field(default_factory=list)
+    reflection: ReflectionDecision = Field(default_factory=ReflectionDecision)
 
 
 __all__ = [

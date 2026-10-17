@@ -51,7 +51,8 @@ def build_inner_stage_runner(ghost, llm_complete: Callable, runtime_root: Path,
         environment = (MemoryBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
                        if read_environment is not None else make_environment(ghost))
         def complete(messages, **generation):
-            profile = payload["operation"]["group"] if name == "thought" else "off"
+            profile = (payload["operation"]["group"] if name == "thought"
+                       else "evaluate" if name == "reflection" else "off")
             return llm_complete(messages, cancel=stop, reasoning_budget=REASONING[profile], **generation)
 
         runtime = WorkflowRuntime(

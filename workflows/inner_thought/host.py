@@ -64,8 +64,13 @@ def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provi
         def retrieve_memory(query: str) -> dict:
             if not query.strip():
                 raise ValueError("Private recall requires a nonempty query.")
-            return asyncio.run(ghost.retrieve_experiences(
+            result = asyncio.run(ghost.retrieve_experiences(
                 query, embeddings, view=view, scopes=scopes, limit=8, cancel=cancel))
+            from workflows.reflection.experiments import source_payload
+            ids = {key for item in result["matches"] for key in [item["knoxel_id"], *item.get("source_ids", [])]}
+            result["reflection_sources"] = [source_payload(view, view.get(key)) for key in sorted(ids)
+                                            if key in view.revisions]
+            return result
 
         return {"run_stage": build_inner_stage_runner(
             ghost, llm_complete, Path(runtime_root), read_environment=environment, cancel=cancel),
@@ -226,6 +231,13 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                                         main_frame, thoughts, latest_user),
             operations=[{"name": line} for line in operation_lines()],
         )
+        from workflows.reflection.experiments import context as reflection_context, source_payload
+        request.reflection = reflection_context(view)
+        reflection_sources = {item["knoxel_id"] for item in request.reflection["records"]}
+        for candidate in request.candidates:
+            if candidate.knoxel_id not in reflection_sources:
+                request.reflection["records"].append(source_payload(view, view.get(candidate.knoxel_id)))
+        self._reflection_context = request.reflection
         # A bounded episode carries its own identity and history. A continuing
         # step waits for main appraisal of the previous thought before it reads
         # new accepted state. Step, time, and stall limits close it explicitly.
@@ -304,6 +316,23 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                     raise GhostConflict("Private recall includes a source outside the invocation grant.")
                 changes.expect_revision(source_id, view.revisions[source_id])
 
+        experiment_record = None
+        if parsed.reflection.action != "none":
+            from workflows.reflection.experiments import source_payload, stage_decision
+            payload = dict(self._reflection_context)
+            payload["records"] = list(payload["records"])
+            known = {item["knoxel_id"] for item in payload["records"]}
+            for item in parsed.retrieved_memories:
+                for key in {item["knoxel_id"], *item.get("source_ids", [])} - known:
+                    payload["records"].append(source_payload(view, view.get(key)))
+                    known.add(key)
+            try:
+                experiment_record = stage_decision(changes, view, parsed.reflection, payload,
+                    companion_name=ghost.get_companion_name(),
+                    maximum_focus_bias=self._episode_limits().maximum_focus_bias)
+            except ValueError as error:
+                raise ModelProposalError(str(error)) from error
+
         episode_metadata = self._next_episode(parsed)
         thought = new_feature(
             ghost, parsed.thought, FeatureType.InnerMonologue,
@@ -317,6 +346,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                 topic_hints=list(parsed.topic_hints), reality=parsed.reality),
             metadata={
                 "loop": "inner", "operation": parsed.operation, "trigger": parsed.trigger,
+                "reflection": parsed.reflection.model_dump(mode="json"),
+                "reflection_experiment_id": experiment_record.id if experiment_record is not None else None,
                 "episode": episode_metadata,
                 **({"control_generation": getattr(self, "_control_generation", self.cognitive_control.generation)}
                    if getattr(self, "cognitive_control", None) is not None else {}),

@@ -368,6 +368,7 @@ class CognitiveRequest(BaseModel):
     active_focus: dict = Field(default_factory=dict)
     focus_proposals: list[dict] = Field(default_factory=list)
     mental_proposals: list[dict] = Field(default_factory=list)
+    reflection_guidance: list[dict] = Field(default_factory=list)
     deliberation_only: bool = False
     wait_default_seconds: float = 1800
 

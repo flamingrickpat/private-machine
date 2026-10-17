@@ -28,6 +28,7 @@ class WriteBatch:
         self._new: dict[int, dict] = {}
         self._replacements: dict[int, dict] = {}
         self._expected: dict[int, int] = {}
+        self._metadata_guards: list[tuple[str, object, dict[int, int]]] = []
         self._initial_runs = deepcopy(ghost.managed_runs)
         self._runs: dict[str, dict] = {}
         self._initial_consolidations = deepcopy(ghost.consolidations)
@@ -106,6 +107,16 @@ class WriteBatch:
         if record_id not in self._snapshot.revisions:
             raise ValueError("The evidence is outside the batch view.")
         self._expected[record_id] = revision
+
+    def expect_metadata_version(self, key: str, value: object, revisions: dict[int, int]) -> None:
+        """Guard a versioned record family, including an empty family.
+
+        Pass the matching IDs and revisions from the invocation's frozen view.
+        Commit rejects a concurrent append or replacement in that family.
+        This guard closes the gap that a revision check on the old head leaves.
+        """
+        self.check_cancelled()
+        self._metadata_guards.append((key, deepcopy(value), dict(revisions)))
 
     def set_gwt(self, record: GwtTurnRecord, cycle: CycleState | None = None) -> None:
         self.check_cancelled()

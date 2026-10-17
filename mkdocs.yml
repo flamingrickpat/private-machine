@@ -59,6 +59,8 @@ nav:
       - Codelets and attention: subsystems/codelets.md
       - Codelet pathways: subsystems/codelet-pathways.md
       - The private thought loop: subsystems/private-loop.md
+      - Private reflection experiments: subsystems/reflection.md
+      - Experiment lifecycle and recovery: subsystems/reflection-lifecycle.md
       - Wait for a stimulus: subsystems/inference-wait.md
       - Implementation inspection and the self-model: subsystems/introspection.md
       - Story speech: subsystems/story-speech.md
@@ -222,6 +224,9 @@ nav:
           - A18C wait and control: work_items/verification/a18c-control.md
           - A18B singleton admission: work_items/verification/a18b-singleton.md
           - A18B review materiality: work_items/verification/a18b-review-materiality.md
+          - A19 reflection experiments:
+              - Verification: work_items/verification/a19-reflection.md
+              - Live evidence: work_items/verification/a19/live-evidence.md
           - A18B error analysis:
               - Overview: work_items/verification/a18b-errors-20261016.md
               - Missing reply: work_items/verification/a18b-errors/stall.md

@@ -56,7 +56,7 @@ A16's grounded codelet repertoire, pathways, and proposal consumers are implemen
 Its [verification](../verification/a16-codelets.md) retains the human review and remaining live checks.
 A17 is delivered.
 A18 has an engineering delivery recorded, with its live gate pending.
-A19 remains planned.
+A19 reflection experiments are in progress, with [verification and remaining acceptance](../verification/a19-reflection.md) recorded separately.
 Earlier [A17/A18 hardening](../verification/a17-a18-hardening.md) and A18B failures retain their recorded status.
 A18B supplies [blinded cognitive evaluation](../../subsystems/cognitive-evaluation.md), with its complete evaluation still unverified.
 A18C delivers [deliberate mental control](work-items/a18c.md), including a real [inference wait](../../subsystems/inference-wait.md).

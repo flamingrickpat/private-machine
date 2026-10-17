@@ -30,6 +30,10 @@ class Operation:
 
 
 OPERATIONS: dict[str, Operation] = {
+    "reflection_review": Operation(
+        "reflection_review", "evaluate", "discriminatory", "present",
+        "Compare a recorded prediction with actual episodes, test a scoped hypothesis, "
+        "and guide one versioned experiment. Preserve failed explanations and reversal history."),
     "memory_search": Operation(
         "memory_search", "remember", "generative", "past",
         "Retrieve episodes or preferences relevant to a current concern, and attribute each result to its source."),

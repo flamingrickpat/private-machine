@@ -63,6 +63,8 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
     )
     import json
     user = user + "\nPrivate episode and operation suggestions:\n" + json.dumps(parsed.episode)
+    if parsed.reflection:
+        user = user + "\nPrivate experiment status and evidence:\n" + json.dumps(parsed.reflection)
     return [Turn(Role.System, system.strip()), Turn(Role.User, user.strip())]
 
 

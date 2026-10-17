@@ -91,3 +91,26 @@ def active_focus(store, now=None, *, maximum_strength: float | None = None) -> d
         if maximum_strength is not None and focus.get("accept"):
             focus["strength"] = min(float(focus.get("strength", 0.0)), float(maximum_strength))
         return {**focus, "fresh": False, "control_record_id": record.id}
+
+
+def focus_versions(view) -> dict[int, int]:
+    """Return the revision set of the advice owner from a frozen view."""
+    return {record.id: view.revisions[record.id] for record in view.all_knoxels.values()
+            if record.metadata.get("control_kind") == "attention_focus"}
+
+
+def stage_focus(batch, view, *, instruction: str, focus: dict, companion_name: str,
+                expires_at: str, experiment_id: int | None = None, lineage=None):
+    """Stage a new advice version and reject concurrent advice at commit.
+
+    The caller supplies an absolute UTC expiry. Reversal preserves that expiry
+    so it cannot extend old advice. The caller owns cancellation and commit.
+    """
+    from pm.records.enums import FeatureType, SourceKind
+    from pm.records.memory_records import new_feature
+
+    batch.expect_metadata_version("control_kind", "attention_focus", focus_versions(view))
+    return new_feature(batch._ghost, instruction, FeatureType.StateUpdate,
+        source=companion_name, source_kind=SourceKind.Self, changes=batch, lineage=lineage,
+        metadata={"control_kind": "attention_focus", "focus": focus, "expires_at": expires_at,
+                  "reflection_experiment_id": experiment_id})

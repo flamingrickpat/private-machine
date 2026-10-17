@@ -65,6 +65,9 @@ def build_messages(request: dict, prompts: dict) -> list[Turn]:
         memory_candidates=render_memories(request.get("memory_candidates", [])),
         stimuli=render_context(request.get("stimuli", [])),
     )
+    if request.get("reflection_guidance"):
+        user = user + "\nScoped private experiments in effect:\n" + json.dumps(request["reflection_guidance"])
+        user = user + "\nUse a strategy only within its scope. Its prediction remains unverified until later evidence."
     return [
         Turn(Role.System, system.strip()),
         Turn(Role.User, user.strip()),
