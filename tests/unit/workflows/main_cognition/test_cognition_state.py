@@ -24,7 +24,7 @@ from pm.app.lifecycle_records import CLEAN_END, UNCERTAIN_END, record_shutdown, 
 from tests.support import ManualClock, Recorder
 from pm.runs.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.dispatch import resolve_prerequisites, resolve_same_cycle
-from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, fixed_attention, scripted_tools
+from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, scripted_tools
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.schemas import ActionDispatch
 from workflows.main_cognition.stage_commits import find_intention, normalize_goal_key
@@ -173,74 +173,6 @@ class AppraisalCommitTests(unittest.TestCase):
         self.assertEqual([item.tick_id for item in ghost.states[-1].broadcasts],
                          [state.tick_id for state in ghost.states])
         self.assertEqual(ghost.states[-1].stimuli_ids, [second])
-
-
-class CodeletBeliefCommitTests(unittest.TestCase):
-    """One real cycle commits accepted belief proposals as durable beliefs."""
-
-    def _cycle(self, ghost, reports, stimulus_id, correlation):
-        with TemporaryDirectory() as tmp, fixed_attention(reports):
-            module, bus, errors = _module(ghost, reports, tmp)
-            requests = Recorder(bus, "action.request")
-            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
-                             correlation_id=correlation, payload={"knoxel_id": stimulus_id}))
-            self.assertTrue(module.step(block=False))
-            self.assertEqual(errors, [])
-            return requests
-
-    def test_an_accepted_belief_commits_with_consumers_and_topic(self):
-        ghost = _small_ghost()
-        stimulus_id = _store(ghost, "Jesse: we actually finished the house.")
-        original = ghost.get_knoxel_by_id(stimulus_id).content
-        reports = _reports(stimulus_id, emotion={"pride": 0.6, "joy": 0.4})
-        reports["attention"] = {
-            "selected_ids": [stimulus_id], "summary": "n",
-            "nominations": [{
-                "nomination_id": "n1", "codelet": "self_story", "family": "narratives",
-                "attention_kind": "belief", "status": "selected", "origin": "memory",
-                "reality": "inferred", "text": "Jesse and I finish what we start together.",
-                "topic": "our_follow_through", "target_ids": [stimulus_id],
-                "cause": ["memories.selected>=1"], "activation": 0.56, "score": 0.5,
-                "source_revisions": {}, "reason": "score 0.5",
-            }],
-        }
-        self._cycle(ghost, reports, stimulus_id, "corr-belief")
-        from pm.records.cognitive_records import BeliefRecord
-        beliefs = [item for item in ghost.all_knoxels.values() if isinstance(item, BeliefRecord)]
-        self.assertEqual(len(beliefs), 1)
-        self.assertEqual(beliefs[0].supporting_knoxel_ids, [stimulus_id])
-        self.assertEqual(beliefs[0].metadata["nomination_id"], "n1")
-        self.assertEqual(beliefs[0].metadata["topic"], "our_follow_through")
-        # The observed utterance keeps its own words.
-        self.assertEqual(ghost.get_knoxel_by_id(stimulus_id).content, original)
-        records = ghost.all_attention_knoxels
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0].metadata["topic"], "our_follow_through")
-        self.assertEqual(records[0].metadata["consumers"],
-                         ["workspace", "goals", "belief_owner"])
-        frame = ghost.all_attention_frames[-1]
-        self.assertEqual(frame.metadata["belief_proposals"]["accepted_ids"], [beliefs[0].id])
-
-    def test_a_deferred_belief_never_commits(self):
-        ghost = _small_ghost()
-        stimulus_id = _store(ghost, "Jesse: hello again.")
-        reports = _reports(stimulus_id)
-        reports["attention"] = {
-            "selected_ids": [], "summary": "n",
-            "nominations": [{
-                "nomination_id": "n1", "codelet": "self_story", "family": "narratives",
-                "attention_kind": "belief", "status": "deferred", "origin": "memory",
-                "reality": "inferred", "text": "A story I did not get to tell.",
-                "target_ids": [], "source_revisions": {}, "reason": "capacity",
-            }],
-        }
-        self._cycle(ghost, reports, stimulus_id, "corr-deferred")
-        from pm.records.cognitive_records import BeliefRecord
-        self.assertEqual([item for item in ghost.all_knoxels.values()
-                           if isinstance(item, BeliefRecord)], [])
-        record = ghost.all_attention_knoxels[0]
-        self.assertFalse(record.selected)
-        self.assertEqual(record.metadata["consumers"], [])
 
 
 class GoalLifecycleTests(unittest.TestCase):

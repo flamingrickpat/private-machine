@@ -18,10 +18,10 @@
 #                    with memory tools, then the percept conversion). An
 #                    omitted value means agent for the MemoryAccessors family
 #                    as first family, else chain.
-#   nomination_kind  How attention and the later phases read the
-#                    recommendation until step 6 replaces attention:
-#                    appraisal, simulation, action_tendency, memory_access.
-#   reality          internal, imagined, inferred, or remembered.
+#   nomination_kind  Old label of the A15 attention competition: appraisal,
+#                    simulation, action_tendency, memory_access. No phase
+#                    reads it since A19F step 6.
+#   reality          Old label: internal, imagined, inferred, or remembered.
 #   stimulus_kinds   Stimulus kinds that match the codelet. Empty means all.
 #
 # Owner review can swap codelets. Add any other old definition in this

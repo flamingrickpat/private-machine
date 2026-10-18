@@ -1,0 +1,33 @@
+# Prompts of the structures phase (A19F step 6).
+#
+# The structure binder call starts with the shared story prefix of story.yaml.
+# The instruction comes last. It binds the percepts of the mental mechanisms
+# to memories and narratives, with a stated reason for each binding.
+# Conflicting content in one structure is allowed.
+user_template: |
+  Here are the thoughts, impressions, memories, and self-images that are active in {companion_name}'s mind at this
+  moment, below awareness. Some come from mental mechanisms (the line names the mechanism), some are memories, and
+  some are narratives about who {companion_name} or {entity_name} is. Each line starts with its id.
+  ### BEGIN MIND
+  {view}
+  ### END MIND
+
+  What {companion_name} was aware of in the last moments, oldest first:
+  {broadcasts}
+
+  Your task: act as the structure-building mechanism of {companion_name}'s mind. Bind the impulses of the mental
+  mechanisms to the memories and narratives that give them weight. For example: "{companion_name} should react
+  angrily because X" binds to memory X' because the topic matches and {companion_name} felt the same way at that
+  time. A structure can hold conflicting content: an impulse and the memory that argues against it. Do not smooth
+  the conflict away.
+
+  Write between 1 and {max_structures} structures. For each structure:
+  - "theme": a few words that name what holds the structure together.
+  - "reason": one or two sentences of story prose: why these lines belong together for {companion_name} right now.
+  - "record_ids": at least two ids from the MIND list.
+  - "relations": links between two ids of the structure, each with the link in a few words, for example
+    "is fueled by", "contradicts", "repeats".
+  - "target": the part of the story that the structure concerns. Use exactly one of: {targets}.
+
+  Answer with only this JSON object and nothing else:
+  {{"structures": [{{"theme": "...", "reason": "...", "record_ids": [1, 2], "relations": [{{"source_id": 1, "relation": "is fueled by", "target_id": 2}}], "target": "self"}}]}}

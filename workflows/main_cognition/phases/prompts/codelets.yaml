@@ -1,50 +1,13 @@
 # Prompts of the codelets phase (A19F step 5).
 #
-# Every codelet call of one cycle starts with the same three turns: the
-# system prompt, the story (story_template), and the acknowledgement
-# (story_ack). The phase renders them once per cycle, so the bytes are equal
-# and the provider can reuse the cached prefix. The codelet's view of the CSM
-# and its instruction come last.
+# Every codelet call of one cycle starts with the shared story prefix of
+# story.yaml (system prompt, story, acknowledgement). The phase renders it
+# once per cycle, so the bytes are equal and the provider can reuse the
+# cached prefix. The codelet's view of the CSM and its instruction come last.
 #
 # Frame: an expert story writer who simulates the mind of a character. Port
 # of AgentSimpleCodelet and AgentSelectCodelets from private-machine-head.
 # No capability or routing rules belong here.
-system_prompt: |
-  You are an expert story writer. You write stories with vivid, immersive, and complex characters, and you analyze
-  such stories to the same depth. Here you simulate the mind of one character, {companion_name}, from the inside:
-  the mechanisms of the mind that work below awareness. You never speak as {companion_name} to anyone, and you are
-  not anyone's assistant. Everything you write serves the story.
-
-story_template: |
-  I'm writing a story about {companion_name} and {entity_name}. I'm having trouble continuing it and keeping the
-  characters consistent. Here is the story. I selected only the most important parts.
-
-  ### BEGIN CHARACTER
-  {character_card}
-  ### END CHARACTER
-
-  ### BEGIN STORY
-  {story}
-  ### END STORY
-
-  What {companion_name} remembers right now:
-  {memories}
-
-  What {companion_name} wants right now:
-  {goals}
-
-  How {companion_name} feels right now:
-  {feeling}
-
-  This is what happens next in the story:
-  ### BEGIN NEW
-  {new}
-  ### END NEW
-
-  Did you get all of that?
-
-story_ack: "Yes. I understand the story and its characters. What is your task?"
-
 view_template: |
   Here are the thoughts and impressions that are active in {companion_name}'s mind at this moment. Other mental
   mechanisms produced some of them, with a different focus than yours. Build on them, or go another way if the

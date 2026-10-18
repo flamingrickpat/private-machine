@@ -15,6 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_valid
 
 from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX
 from pm.records.mental_state import AppraisalGeneral, AppraisalSocial, FullMentalState, StateEmotions, StateNeeds
+from pm.records.codelet_records import StructureRelation
+from pm.records.global_workspace import ShardChange
 from pm.records.workspace import ShardKey
 from workflows.cognitive_control.schemas import FocusProposal, FocusState, WaitRequest
 from workflows.public_speech.public_context import Presentation
@@ -204,31 +206,6 @@ class ContextResult(BaseModel):
     belief_updates: list[BeliefUpdate] = Field(default_factory=list)
 
 
-# Where a proposal's content comes from. A thought-origin proposal must stay
-# distinguishable from an outside event, so a private worry never becomes a
-# remembered fact.
-PROPOSAL_ORIGINS = ("outside", "thought", "memory", "state")
-# What the proposal content claims about reality. Workspace and dialogue read
-# this label; "imagined" content is a possibility, never an executed event.
-REALITY_LABELS = ("observed", "remembered", "internal", "inferred", "imagined")
-PROPOSAL_KINDS = ("attention", "memory_access", "appraisal", "simulation", "regulation", "action_tendency", "belief")
-
-# A16 proposal-consumer map. A typed nomination without a consumer does not
-# establish a cognitive effect, so every kind names its downstream owner and
-# the durable effect that owner produces. The host commits one
-# AttentionRecord per proposal whatever happens; the consumer column is what
-# turns an *accepted* (selected, not stale) proposal into behavior.
-PROPOSAL_CONSUMERS = {
-    "attention": "Workspace frame; the dialogue workflow then plans its memory context from the winning texts and target ids.",
-    "memory_access": "Context planning for public speech: winning target ids become required records for the reply.",
-    "appraisal": "Workspace frame and the goals phase: the interpretation informs the frame and can justify a goal change through the goals commit boundary.",
-    "simulation": "Workspace frame and the decide phase: a possibility can steer a choice while its imagined reality label keeps it distinguishable from events.",
-    "regulation": "Workspace frame and the decide phase: a way to stay steady can change the chosen action without changing the appraisal itself.",
-    "action_tendency": "Goals phase and the decide phase: a motive can become a durable Intention change or a concrete choice, at the owner's discretion.",
-    "belief": "The belief owner in the main module stages a revisable subjective BeliefRecord; an interpretation never rewrites the observed records it cites.",
-}
-
-
 class RecordView(BaseModel):
     """One record that the CSM can hold, as the codelet prompts render it.
 
@@ -238,6 +215,13 @@ class RecordView(BaseModel):
     percepts. ``kind`` is the persisted record type or the memory kind.
     ``source`` is the speaker of a dialogue turn or the codelet of a percept.
     ``timestamp`` is the world time (naive UTC), or None when unknown.
+
+    The workspace requirements read the last four fields
+    (``workflows/main_cognition/workspace.yaml``). ``record_class`` is the
+    Python record class name, for example ``Narrative``. ``entity_ids`` are
+    the entities that the record is about. ``category`` is the narrative
+    type, the claim kind, or the belief kind. ``feature_type`` is the
+    ``FeatureType`` value of a ``Feature`` record and empty otherwise.
     """
 
     record_id: int = 0
@@ -245,6 +229,10 @@ class RecordView(BaseModel):
     source: str = ""
     content: str = ""
     timestamp: datetime | None = None
+    record_class: str = ""
+    entity_ids: list[int] = Field(default_factory=list)
+    category: str = ""
+    feature_type: str = ""
 
     def story_line(self) -> str:
         """Return the record as one line of story text.
@@ -265,7 +253,7 @@ class VariantPercept(BaseModel):
     ``compute_state_delta``. ``appraisal_vec`` is the resulting state and
     ``delta_vec`` is the change from the copied state. A percept is not
     causal: neither vector changes the mental state until attention puts the
-    percept into a workspace shard (step 6 of A19F).
+    percept into a workspace shard. Then the commit stages it as causal.
 
     ``record_id`` is a pending id below -1 until the commit stages the
     ``CodeletPercept`` record. ``activation`` is its activation when it
@@ -314,35 +302,6 @@ class CodeletOutput(BaseModel):
     mode: str = ""
     wave: int = 0
     variants: list[CodeletVariant] = Field(default_factory=list)
-
-
-class CodeletProposal(BaseModel):
-    """One typed nomination that a codelet offers to attention competition.
-
-    A proposal cannot change accepted state or start an action. The main
-    module commits it as an ``AttentionRecord`` whether it wins or not.
-    ``source_revisions`` maps each knoxel id that the codelet read to the
-    revision it saw. The module rejects the proposal as stale when one of
-    those revisions changed before commit.
-
-    Until step 6 of A19F replaces attention, the codelets phase makes one
-    proposal for each variant recommendation and each percept. ``target_ids``
-    can hold pending percept ids. The commit replaces them by record ids.
-    """
-
-    nomination_id: str = ""
-    codelet: str = ""
-    family: str = ""
-    proposal_kind: str = "attention"
-    origin: str = "outside"
-    reality: str = "observed"
-    text: str = ""
-    target_ids: list[int] = Field(default_factory=list)
-    cause: list[str] = Field(default_factory=list)
-    activation: float = 0.0
-    source_revisions: dict[str, int] = Field(default_factory=dict)
-    dropped_target_ids: list[int] = Field(default_factory=list)
-    topic: str = Field(default="", description="Stable topic key of a belief proposal. Other kinds leave it empty.")
 
 
 class ActivationScore(BaseModel):
@@ -410,25 +369,8 @@ class CodeletCost(BaseModel):
     measurement: str = "estimated.tiktoken"
 
 
-class AttentionPolicy(BaseModel):
-    """Attention competition settings of the main loop.
-
-    Step 6 of A19F replaces this competition with attention into shards.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    capacity: int = Field(default=5, ge=1)
-    min_score: float = Field(default=0.3, ge=0.0, le=1.0)
-    score_batch_size: int = Field(default=8, ge=1)
-    weights: dict[str, float] = Field(default_factory=lambda: {
-        "urgency": 0.35, "novelty": 0.15, "goal_relevance": 0.3, "reportability": 0.2})
-    danger_urgency_bonus: float = Field(default=0.3, ge=0.0)
-    reserved_codelets: dict[str, int] = Field(default_factory=dict)
-
-
 class CodeletsResult(BaseModel):
-    """Result of the codelets phase: outputs, proposals, and the full trace.
+    """Result of the codelets phase: outputs and the full trace.
 
     ``budget`` is the number of codelet runs that triage granted.
     ``scores`` are the activation scores before the selector. ``ratings``
@@ -444,9 +386,6 @@ class CodeletsResult(BaseModel):
     runs: list[CodeletRun] = Field(default_factory=list)
     outputs: list[CodeletOutput] = Field(default_factory=list)
     pathway_boosts: list[PathwayBoost] = Field(default_factory=list)
-    proposals: list[CodeletProposal] = Field(default_factory=list)
-    loop: str = "main"
-    policy: AttentionPolicy = Field(default_factory=AttentionPolicy)
     cost: CodeletCost = Field(default_factory=CodeletCost)
 
 
@@ -498,88 +437,147 @@ class AgentCodeletAnswer(BaseModel):
     session_ref: str = ""
 
 
-class AttentionNomination(BaseModel):
-    """One scored nomination and its competition outcome.
+class ShardStream(BaseModel):
+    """The newest stream records that the host offers for one shard tail.
 
-    The first block keeps the older attention contract. The A15 fields record
-    which codelet produced the nomination and why it won or lost. ``status``
-    is ``selected``, ``deferred``, or ``rejected``; the module can later mark
-    a nomination ``stale`` before commit.
+    ``record_ids`` are oldest first. The intake phase keeps the newest of
+    them within ``WORKSPACE_TAIL_TOKENS``. The host supplies a view of each
+    record in ``CycleRequest.records``.
     """
 
-    target_ids: list[int] = Field(default_factory=list)
-    attention_kind: str = "goal_relevance"
-    score: float = 0.5
-    novelty: float = 0.0
-    urgency: float = 0.0
-    goal_relevance: float = 0.0
-    reportability: float = 0.0
+    key: ShardKey = Field(default_factory=ShardKey)
+    record_ids: list[int] = Field(default_factory=list)
+
+
+class StructureDraft(BaseModel):
+    """One structure of this cycle before the commit stages its record.
+
+    ``record_id`` is a pending id below -1 until the commit stages the
+    ``Structure`` record. ``builder`` is ``topical_coalition`` or
+    ``structure_binder``. ``kind`` is ``balanced`` or ``hard`` for a
+    coalition and ``binding`` for a binder structure. ``record_ids`` are CSM
+    record ids in world-time order. ``reason`` says why the records belong
+    together. ``relations`` are the stated links of a binding.
+    ``target_shard`` is the shard that the builder chose. Attention can
+    place the records in another shard.
+    """
+
+    record_id: int = 0
+    builder: str = ""
+    kind: str = ""
+    theme: str = ""
+    reason: str = ""
+    record_ids: list[int] = Field(default_factory=list)
+    relations: list[StructureRelation] = Field(default_factory=list)
+    target_shard: ShardKey = Field(default_factory=ShardKey)
+    valence: float = 0.0
+    salience: float = 0.0
+
+
+class BoundRelation(BaseModel):
+    """One relation of a binder answer: the source record, the link in words, the target record."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: int = 0
+    relation: str = ""
+    target_id: int = 0
+
+
+class BoundStructure(BaseModel):
+    """One structure in the answer of the structure binder.
+
+    ``record_ids`` are ids of the MIND list. ``reason`` states why the
+    records belong together, for example a matching topic and a similar
+    feeling at that time. ``target`` is one shard label of the story.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    theme: str = Field(default="", min_length=1)
+    reason: str = Field(default="", min_length=1)
+    record_ids: list[int] = Field(default_factory=list, min_length=2)
+    relations: list[BoundRelation] = Field(default_factory=list)
+    target: str = "self"
+
+
+class BinderAnswer(BaseModel):
+    """The answer of the structure binder call."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    structures: list[BoundStructure] = Field(default_factory=list)
+
+
+class StructuresResult(BaseModel):
+    """Result of the structures phase.
+
+    ``structures`` holds the coalitions first, then the binder structures.
+    ``view_ids`` is the CSM view that the binder read. ``clusters`` is the
+    number of topical clusters.
+    """
+
+    structures: list[StructureDraft] = Field(default_factory=list)
+    view_ids: list[int] = Field(default_factory=list)
+    clusters: int = 0
+    calls: int = 0
+
+
+class StructureRating(BaseModel):
+    """The rating of one structure for one shard in the attention answer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    structure: str = ""
     reasoning: str = ""
-    nomination_id: str = ""
-    codelet: str = ""
-    family: str = ""
-    origin: str = "outside"
-    reality: str = "observed"
-    text: str = ""
-    cause: list[str] = Field(default_factory=list)
-    activation: float = 0.0
-    source_revisions: dict[str, int] = Field(default_factory=dict)
-    topic: str = ""
-    status: str = ""
-    reason: str = ""
+    rating: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
-class RankingEntry(BaseModel):
-    """One nomination in the competition order, with its outcome."""
+class StructureRatings(BaseModel):
+    """The answer of one attention call: one rating for each offered structure."""
 
-    nomination_id: str = ""
-    codelet: str = ""
-    score: float = 0.0
-    status: str = ""
-    reason: str = ""
+    model_config = ConfigDict(extra="forbid")
+
+    ratings: list[StructureRating] = Field(default_factory=list)
 
 
-class CompetitionTrace(BaseModel):
-    """How attention competition chose its winners.
+class RatedStructure(BaseModel):
+    """The attention score of one structure for one shard.
 
-    ``ranking`` lists the scored nominations in competition order.
-    ``rejected`` lists the unscored ones. ``focus`` is the effective
-    deliberate focus of this cycle, or None.
+    ``score`` is ``rating + aux / max_aux * COALITION_AUX_RATING_FACTOR``.
+    The auxiliary part only breaks ties, as in the old code.
     """
 
-    policy: AttentionPolicy = Field(default_factory=AttentionPolicy)
-    danger: bool = False
-    deliberate_bias: dict[str, float] = Field(default_factory=dict)
-    ranking: list[RankingEntry] = Field(default_factory=list)
-    rejected: list[RankingEntry] = Field(default_factory=list)
-    focus: FocusState | None = None
-    scoring_calls: int = 0
+    structure_id: int = 0
+    label: str = ""
+    rating: float = 0.0
+    aux: float = 0.0
+    score: float = 0.0
+    reasoning: str = ""
+
+
+class ShardRatings(BaseModel):
+    """The attention scores of all structures for one shard."""
+
+    key: ShardKey = Field(default_factory=ShardKey)
+    ratings: list[RatedStructure] = Field(default_factory=list)
 
 
 class AttentionResult(BaseModel):
-    nominations: list[AttentionNomination] = Field(default_factory=list)
-    selected_ids: list[int] = Field(default_factory=list)
-    reasoning: str = ""
-    competition: CompetitionTrace = Field(default_factory=CompetitionTrace)
+    """Result of the attention phase.
 
-
-class NominationScore(BaseModel):
-    """Model scores for one nomination, as integers from 0 to 10.
-
-    Small quantized models handle a coarse integer scale more reliably than
-    floats. The competition divides each value by 10.
+    ``ratings`` holds one entry for each updated shard. ``changes`` holds the
+    entered, left, and kept items and the tail of each updated shard. The
+    commit copies them into the turn record. ``focus`` is the effective
+    deliberate focus advice, or None. ``focus_ids`` are the records that got
+    a ``deliberate_focus`` endorsement. ``calls`` counts the rating calls.
     """
 
-    id: str = ""
-    urgency: int = Field(ge=0, le=10)
-    novelty: int = Field(ge=0, le=10)
-    goal_relevance: int = Field(ge=0, le=10)
-    reportability: int = Field(ge=0, le=10)
-    why: str = ""
-
-
-class NominationScores(BaseModel):
-    scores: list[NominationScore] = Field(default_factory=list)
+    ratings: list[ShardRatings] = Field(default_factory=list)
+    changes: list[ShardChange] = Field(default_factory=list)
+    focus: FocusState | None = None
+    focus_ids: list[int] = Field(default_factory=list)
+    calls: int = 0
 
 
 class GoalChange(BaseModel):
@@ -713,18 +711,14 @@ __all__ = [
     "AppraisalAffect",
     "AppraisalResult",
     "AppraisalView",
-    "AttentionNomination",
-    "AttentionPolicy",
     "AttentionResult",
     "BeliefUpdate",
     "CodeletCost",
     "CodeletOutput",
-    "CodeletProposal",
     "CodeletRatings",
     "CodeletRun",
     "CodeletVariant",
     "CodeletsResult",
-    "CompetitionTrace",
     "ContextResult",
     "FocusProposalRef",
     "GoalChange",
@@ -733,21 +727,24 @@ __all__ = [
     "ManagedRunView",
     "MemoryCandidate",
     "MentalProposal",
-    "NominationScore",
-    "NominationScores",
-    "PROPOSAL_CONSUMERS",
-    "PROPOSAL_KINDS",
-    "PROPOSAL_ORIGINS",
     "PathwayBoost",
     "PhaseReceipt",
-    "REALITY_LABELS",
     "RecordView",
-    "RankingEntry",
     "ReflectionGuidance",
     "Stimulus",
     "TriageItem",
     "TriageResult",
     "VariantPercept",
     "WorkflowOption",
+    "BinderAnswer",
+    "BoundRelation",
+    "BoundStructure",
+    "RatedStructure",
+    "ShardRatings",
+    "ShardStream",
+    "StructureDraft",
+    "StructureRating",
+    "StructureRatings",
+    "StructuresResult",
     "WorkspaceResult",
 ]

@@ -3,10 +3,12 @@
 Port of the codelet part of ``GhostCodelets.cognitive_cycle`` in
 ``private-machine-head/pm/ghosts/ghost_codelets.py``. Steps:
 
-1. Build the shared prompt prefix once: the story-simulator system prompt,
-   the story (character card, recent dialogue, memories, goals, feeling, and
-   the new stimuli), and an acknowledgement. Every model call of this phase
-   starts with these exact bytes, so the provider can reuse the cache.
+1. Build the shared story prefix once
+   (:class:`~workflows.main_cognition.story_prefix.StoryPrefix`): the
+   story-simulator system prompt, the story (character card, the self shard
+   and the group shards with their tails, the feeling, and the new stimuli),
+   and an acknowledgement. Every model call of this phase starts with these
+   exact bytes, so the provider can reuse the cache.
 2. Score every registered codelet
    (:func:`~workflows.main_cognition.codelet_registry.activation_score`).
 3. The selector call rates the top candidates. Each rating adds to the
@@ -21,18 +23,17 @@ Port of the codelet part of ``GhostCodelets.cognitive_cycle`` in
    tool, then the same percept call.
 6. Mini-appraisal: each percept copies the current mental state, sets its
    appraisal axes, and runs ``compute_state_delta``. The percept stores both
-   vectors. It does not change the mental state (it is not causal).
+   vectors. It does not change the mental state until attention puts it into
+   a workspace shard. Then it becomes causal.
 7. Each percept and each recommendation enters the CSM under a pending id.
    The records it is about get an endorsement from the codelet.
 8. Pathways boost the next registered codelet downstream.
+9. Prune the CSM. The CSM requirements protect their items.
 
 Model calls run in worker threads. Embeddings and every change of the CSM or
 the codelet state happen in the phase thread, in run order, so results are
 repeatable. Exhausted repairs raise ``ModelFormatError``, and the host
 retries the whole cycle.
-
-Until step 6 of A19F replaces attention, each recommendation and each
-percept also becomes one ``CodeletProposal`` for the attention competition.
 """
 from __future__ import annotations
 
@@ -58,7 +59,7 @@ from pm.llm.context_window import estimate_tokens
 from pm.llm.prompt_encoding import TurnInput
 from pm.records.mental_state import compute_attention_bias
 from pm.records.situational_model import SituationalItem, affect_term, cosine
-from pm.records.workspace import SELF_SHARD, ShardKey
+from pm.records.workspace import ShardKey
 
 from workflows.inference_settings import CODELET_WORKERS
 from workflows.main_cognition.affect import percept_affect
@@ -66,18 +67,19 @@ from workflows.main_cognition.codelet_percepts import (
     HEADER_FIELDS, CodeletPerceptType, container_model, percept_items, percept_text, sample_percept_types, schema_text,
 )
 from workflows.main_cognition.codelet_registry import (
-    CodeletDefinition, LoadedDefinitions, activation_score, add_rating, apply_pathway_boost, fill,
+    CodeletDefinition, activation_score, add_rating, apply_pathway_boost, fill,
     load_definitions, mark_fired, pathway_boosts, ranked, wave_sizes,
 )
-from workflows.main_cognition.csm_view import Embedder, render_story, story_line, story_tokens
+from workflows.main_cognition.csm_view import Embedder, csm_protected, render_story, story_line, story_tokens
 from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
 from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.appraise import partner_entity
 from workflows.main_cognition.phases.model import complete, complete_prose, phase_prompts
 from workflows.main_cognition.schemas import (
-    ActivationScore, AgentCodeletJob, CodeletCost, CodeletOutput, CodeletProposal, CodeletRatings, CodeletRun,
-    CodeletsResult, CodeletVariant, MemoryCandidate, RecordView, VariantPercept,
+    ActivationScore, AgentCodeletJob, CodeletOutput, CodeletRatings, CodeletRun, CodeletsResult, CodeletVariant,
+    RecordView, VariantPercept,
 )
+from workflows.main_cognition.story_prefix import StoryPrefix
 
 #: Percept type name of the record that holds a variant recommendation.
 RECOMMENDATION = "Recommendation"
@@ -114,18 +116,6 @@ class JobResult(BaseModel):
     seconds: float = 0.0
 
 
-def story_memories(work: CycleWork) -> list[MemoryCandidate]:
-    """Return the selected memories without the current stimuli.
-
-    Retrieval can return the current stimulus, or a record derived only from
-    it, as a memory. The story already shows the stimulus as new. Listed as a
-    memory, it would look like something that happened before.
-    """
-    current = {item.knoxel_id for item in work.request.stimuli}
-    return [item for item in work.selected_memories
-            if item.knoxel_id not in current and not (item.source_ids and set(item.source_ids) <= current)]
-
-
 def tokens(messages: Sequence[TurnInput]) -> int:
     """Return the estimated token count of one call's messages."""
     return estimate_tokens("", messages)[0]
@@ -134,40 +124,21 @@ def tokens(messages: Sequence[TurnInput]) -> int:
 class CodeletFrame:
     """The prompt frame of one cycle: names, shared prefix, and targets.
 
-    The frame renders the shared prefix once. Every call of the phase
-    starts with :attr:`prefix`, so the bytes stay equal across calls.
+    The frame uses the shared story prefix of the cycle. Every call of the
+    phase starts with :attr:`prefix`, so the bytes stay equal across calls.
     ``targets`` maps each shard label that the conversion call may name to
     its shard key: ``self`` and one label for each stimulus group.
     """
 
     def __init__(self, work: CycleWork, prompts: PhasePrompts):
-        request = work.request
+        story = StoryPrefix(work)
         self.prompts = prompts
-        self.companion = request.companion_name
-        # Step 8 of A19F gives every group its own entity. Until then the
-        # other character of every story is the user.
-        self.entity = request.user_name
-        system = fill(prompts.system_prompt, self.companion, self.entity)
-        story = format_content(fill(prompts.story_template, self.companion, self.entity),
-            character_card=request.character_card.strip() or "(no character card)",
-            story=render_story(work.records, request.recent_dialogue_ids, with_id=False) or "(the story starts here)",
-            memories="\n".join(f"- {item.text}" for item in story_memories(work)) or "(nothing in particular)",
-            goals="\n".join(f"- {goal}" for goal in request.active_goals) or "(no goals)",
-            feeling=work.affect.felt or work.state_summary or "(no feeling recorded)",
-            new=render_story(work.records, [item.knoxel_id for item in request.stimuli], with_id=False)
-                or "(nothing new happens)",
-        )
-        self.prefix = [Turn(Role.System, system.strip()), Turn(Role.User, story.strip()),
-                       Turn(Role.Assistant, fill(prompts.story_ack, self.companion, self.entity).strip())]
+        self.companion = story.companion
+        self.entity = story.entity
+        self.prefix = story.turns
         #: The prefix as plain text, for agent sessions.
-        self.story_text = f"{system.strip()}\n\n{story.text.strip()}"
-        self.targets: dict[str, ShardKey] = {"self": SELF_SHARD}
-        for group in work.state.stimulus_groups:
-            if group.key.kind == "entity":
-                label = request.user_name if group.key.ref == str(request.user_entity_id) else f"entity {group.key.ref}"
-                self.targets[label] = group.key
-            elif group.key.kind == "workflow":
-                self.targets[group.key.ref] = group.key
+        self.story_text = story.story_text
+        self.targets: dict[str, ShardKey] = story.targets
 
     def fill(self, text: str) -> str:
         """Replace the name placeholders of a definition text."""
@@ -301,8 +272,8 @@ def enter(work: CycleWork, embedder: Embedder, *, record_id: int, codelet: str, 
           valence: float, salience: float, shard: ShardKey) -> None:
     """Add one new percept or recommendation record to the CSM under its pending id."""
     tick = provisional_tick(work)
-    work.records[record_id] = RecordView(record_id=record_id, kind="CodeletPercept", source=codelet,
-                                         content=content, timestamp=work.request.cycle_time)
+    work.records[record_id] = RecordView(record_id=record_id, kind="CodeletPercept", record_class="CodeletPercept",
+                                         source=codelet, content=content, timestamp=work.request.cycle_time)
     work.state.csm.add_or_boost(SituationalItem(
         record_id=record_id, entered_tick=tick, last_boost_tick=tick, activation=activation,
         valence=valence, salience=salience, shard_hint=shard), codelet, embedder.record)
@@ -367,38 +338,6 @@ def integrate(work: CycleWork, embedder: Embedder, definition: CodeletDefinition
     codelets.cost.seconds = round(codelets.cost.seconds + result.seconds, 3)
 
 
-def proposals(work: CycleWork, loaded: LoadedDefinitions, codelets: CodeletsResult) -> list[CodeletProposal]:
-    """Turn every recommendation and percept into one attention nomination.
-
-    Step 6 of A19F replaces this bridge with attention into shards. A
-    recommendation targets its own record and the records it is about. A
-    percept targets its own record. ``source_revisions`` holds the revision
-    of each target that the request knows, so the commit can mark a stale
-    proposal.
-    """
-    definitions = loaded.by_name()
-    scores = {run.codelet: run.score for run in codelets.runs}
-    revisions = dict(work.request.stimulus_revisions)
-    for item in work.request.memory_candidates:
-        revisions.setdefault(item.knoxel_id, item.revision)
-    result: list[CodeletProposal] = []
-
-    def add(definition: CodeletDefinition, text: str, targets: list[int]) -> None:
-        result.append(CodeletProposal(
-            nomination_id=f"n{len(result) + 1}", codelet=definition.name, family=str(definition.families[0]),
-            proposal_kind=definition.nomination_kind, origin="thought", reality=definition.reality, text=text,
-            target_ids=targets, cause=[f"codelet:{definition.name}"], activation=scores[definition.name],
-            source_revisions={str(key): revisions[key] for key in targets if key in revisions}))
-
-    for output in codelets.outputs:
-        definition = definitions[output.codelet]
-        for variant in output.variants:
-            add(definition, variant.recommendation, [variant.recommendation_id, *variant.about_ids])
-            for percept in variant.percepts:
-                add(definition, percept.text, [percept.record_id])
-    return result
-
-
 def collect(context, work: CycleWork, prompts: PhasePrompts) -> CodeletsResult:
     """Score, select, and run the codelets of one cycle. Change the CSM and the codelet state."""
     request = work.request
@@ -460,8 +399,7 @@ def collect(context, work: CycleWork, prompts: PhasePrompts) -> CodeletsResult:
         for job, result in zip(jobs, results, strict=True):
             integrate(work, embedder, definitions[job.codelet], job, result, registered, codelets)
             ran.append(job.codelet)
-    work.state.csm.prune({item.knoxel_id for item in request.stimuli})
-    codelets.proposals = proposals(work, loaded, codelets)
+    work.state.csm.prune(csm_protected(work))
     return codelets
 
 
@@ -487,7 +425,6 @@ __all__ = [
     "enter",
     "execute",
     "integrate",
-    "proposals",
     "run",
     "select",
 ]

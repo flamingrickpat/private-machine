@@ -1,60 +1,43 @@
-# A15: the model only scores nominations. Python chooses the winners in
-# workflows/main_cognition/attention_competition.py. The prompt is long and
-# plain for a small quantized model: four integer scores per item, nothing else.
-system_prompt: |
-  You help the mind of {companion_name} decide what to pay attention to.
-  Below is a list of things that came to mind just now.
-  Each item has an id like "n1".
-
-  Give every item four scores. Each score is a whole number from 0 to 10.
-
-  - urgency: How soon must {companion_name} act or answer?
-    10 = right now, for example danger or a direct question.
-    0 = there is no hurry at all.
-  - novelty: How new or surprising is it?
-    10 = completely new. 0 = already known and often repeated.
-  - goal_relevance: How much does it matter for the goals of {companion_name}
-    and for the relationship with {user_name}?
-    10 = it matters very much. 0 = it does not matter.
-  - reportability: How useful is it to keep in mind for the next reply or action?
-    10 = very useful. 0 = useless.
-
-  Rules:
-  - Score every item exactly once. Copy the id exactly.
-  - Danger, pain, or a strong feeling from {user_name} gets high urgency.
-  - A harmless small detail gets low scores.
-  - Something important that repeats can still get high scores.
-  - An item marked "possibility" did not happen. Do not give it high urgency
-    only because it sounds dramatic.
-  - An item marked "my own thought" was not said by anyone else.
-  - "why" is a few words only.
-
-  Answer with only this JSON object and nothing else:
-  {{"scores": [{{"id": "n1", "urgency": 0, "novelty": 0, "goal_relevance": 0, "reportability": 0, "why": "few words"}}]}}
-
+# Prompts of the attention phase (A19F step 6).
+#
+# Port of _simulate_attention_on_coalitions from
+# private-machine-head/pm/ghosts/ghost_lida.py. One call for each updated
+# workspace shard rates every structure for that shard. Each call starts
+# with the shared story prefix of story.yaml, which already holds the
+# character card. The instruction comes last. It holds the AttentionFocus
+# narrative, the state of mind, the structures, and the mental aperture
+# instruction of the old code. Python then fills the shards
+# (workflows/main_cognition/workspace_selection.py).
 user_template: |
-  Companion: {companion_name}
-  User: {user_name}
+  This is how {companion_name} tends to focus, in {companion_name}'s own story:
+  {attention_narrative}
 
-  Current feeling of {companion_name}:
-  {affect}
+  {companion_name}'s state of mind right now:
+  {mental_state}
 
-  Active goals:
-  {active_goals}
+  Below awareness, these structures compete to become conscious in {companion_name}'s awareness of {shard_focus}.
+  Each structure starts with its label and says why its lines belong together.
+  {structures}
 
-  Items to score:
-  {items}
+  Your task: act as the attention mechanism of {companion_name}'s mind. Rate how well each structure fits into
+  {companion_name}'s conscious awareness of {shard_focus} right now, for this moment of the story and for
+  {companion_name}'s traits. {aperture}
+  Rate from 0 to 1. 1 means it must be conscious now. 0 means it stays below awareness. Give a short reason for each
+  rating, as story prose.
 
-  Score every item in the list. Answer with only the JSON object.
+  Answer with only this JSON object and nothing else, with exactly one entry for each label:
+  {{"ratings": [{{"structure": "S1", "reasoning": "...", "rating": 0.0}}]}}
 
-repair_template: |
-  Your answer did not score these ids: {missing}.
-  Score only these items now, in the same JSON format:
-  {items}
+# Old aperture texts. The phase picks one by the mental aperture of the state.
+aperture_narrow: >-
+  {companion_name}'s mental aperture is low. Focus very narrowly on the single most important theme. Structures with
+  a central theme score higher than structures with balanced content.
+aperture_broad: >-
+  {companion_name}'s mental aperture is high. Keep a broad awareness and select structures with a diverse range of
+  themes. Structures with balanced content score higher than structures with a central theme.
+aperture_default: "Select the most relevant content for the current situation."
 
-reality_labels:
-  observed: "happening now"
-  remembered: "a memory from before"
-  internal: "my own feeling or thought"
-  inferred: "a guess"
-  imagined: "a possibility, it did not happen"
+shard_labels:
+  self_focus: "themself: who {companion_name} is, how {companion_name} feels, and what {companion_name} wants"
+  entity_focus: "{entity_name} and the relationship with {entity_name}"
+  workflow_focus: "the world of {workflow_name} and the work in it"

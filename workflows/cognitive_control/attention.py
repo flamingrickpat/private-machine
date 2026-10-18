@@ -62,26 +62,6 @@ def resolve_focus(context, active: FocusState | None, proposals: list[FocusPropo
     return effective
 
 
-def attention_bias(nominations, focus: FocusState | None, *, danger: bool) -> dict[str, float]:
-    """Bound deliberate influence and preserve urgent competing concerns.
-
-    Return the bias for each nomination id. Rejected or missing advice adds
-    no bias.
-    """
-    if focus is None or not focus.accept:
-        return {}
-    promote, reduce = set(focus.promote_ids), set(focus.reduce_ids)
-    strength = min(0.5, max(0.0, float(focus.strength)))
-    biases = {}
-    for item in nominations:
-        targets = set(item.target_ids)
-        bias = strength if targets & promote else 0.0
-        if targets & reduce and not danger and item.urgency < 0.8:
-            bias -= strength
-        biases[item.nomination_id] = bias
-    return biases
-
-
 def active_focus(store, now=None, *, maximum_strength: float | None = None) -> dict:
     """Read the latest accepted advice. Expired advice has no effect.
 

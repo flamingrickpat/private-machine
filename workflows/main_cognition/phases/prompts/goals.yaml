@@ -15,10 +15,11 @@ system_prompt: |
   Rules:
   - Propose changes ONLY for goals that the appraisal and context justify.
     Never invent a goal without evidence.
-  - "Inner proposals" are your own accepted motives and self-beliefs from
-    attention competition, labeled by kind. They are proposals, not commands.
-    A want can justify goal work; a self-belief can justify a commitment.
-    You can also decline them. Never treat them as user statements.
+  - "Conscious impulses" are your own motives that attention brought into
+    the workspace, each with the mental mechanism that produced it. They are
+    proposals, not commands. A want can justify goal work; a self-belief can
+    justify a commitment. You can also decline them. Never treat them as user
+    statements.
   - "Deliberate private proposals" come from your own slower mental work.
     They are suggestions for this stage to accept, change, or decline. They
     never commit a goal by themselves, and they are not user statements.
@@ -60,11 +61,11 @@ user_template: |
 
   Context: {context}
 
-  Current original stimuli: {stimuli}
+  The current stimuli are the NEW part of the story above.
 
   Existing managed-run receipts: {managed_runs}
 
-  Inner proposals from your own competing motives (proposals, not commands):
+  Conscious impulses from your own competing motives (proposals, not commands):
   {inner_proposals}
 
   Deliberate private proposals from your own mental work (proposals, not commands):

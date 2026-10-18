@@ -2,18 +2,25 @@
 
 The phase changes the previous cycle state in place. It does not rebuild it.
 It decays the CSM and the codelet activations by one cycle, groups the
-stimuli, and creates the workspace shards of new groups. It makes no model
-call.
+stimuli, creates the workspace shards of new groups, and sets the shard
+tails. It makes no model call.
+
+The tails come first because they do not depend on attention: a tail is the
+newest stream of its shard. So the codelets of this cycle already read the
+latest dialogue in the shared story prefix.
 """
 from __future__ import annotations
 
+from pm.constants import WORKSPACE_TAIL_TOKENS
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
 from pm.records.workspace import SELF_SHARD, ShardKey
 
 from workflows.main_cognition.codelet_registry import decay_registry
+from workflows.main_cognition.csm_view import record_tokens
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.schemas import Stimulus
+from workflows.main_cognition.workspace_selection import select_tail
 
 
 def group_key(stimulus: Stimulus, request: CycleRequest) -> ShardKey:
@@ -72,8 +79,24 @@ def start(request: CycleRequest) -> CycleWork:
     state.qualia_channels = {}
     work = CycleWork(request=request, state=state, state_summary=request.state_summary,
                      records=dict(request.records))
+    set_tails(work)
     work.receipt("intake", f"{len(request.stimuli)} stimuli in {len(state.stimulus_groups)} groups")
     return work
 
 
-__all__ = ["group_key", "group_stimuli", "start"]
+def set_tails(work: CycleWork) -> None:
+    """Set the tail of each shard from the streams of the request.
+
+    Each tail is the newest stretch of its stream within
+    ``WORKSPACE_TAIL_TOKENS``. The current stimuli are not part of a tail,
+    because the prompt shows them as new. A stream for a shard that does not
+    exist yet creates the shard.
+    """
+    exclude = {item.knoxel_id for item in work.request.stimuli}
+    for stream in work.request.streams:
+        shard = work.state.workspace.ensure_shard(stream.key)
+        shard.tail_ids = select_tail(stream.record_ids, lambda record_id: record_tokens(work.records, record_id),
+                                     WORKSPACE_TAIL_TOKENS, exclude)
+
+
+__all__ = ["group_key", "group_stimuli", "set_tails", "start"]

@@ -5,9 +5,10 @@ the self, one shard for each entity, and one shard for each workflow. Each
 shard holds record references, not record copies. The memory store owns the
 records. The cycle state owns the workspace and saves it with each cycle.
 
-This module holds only data and simple lookups. The attention phase of a later
-step fills the shards. The requirement models describe what the attention
-phase must keep and what it must cap.
+This module holds only data and simple lookups. The attention phase of main
+cognition fills the shards (``workflows/main_cognition/workspace_selection.py``).
+The requirement models describe what the attention phase must keep and what
+it must cap.
 """
 from __future__ import annotations
 
@@ -80,6 +81,18 @@ class WorkspaceShard(BaseModel):
         """Return the token sum of the items. The tail is not part of the sum."""
         return sum(item.tokens for item in self.items)
 
+    def rekey(self, mapping: dict[int, int]) -> None:
+        """Replace pending record and structure ids by store ids.
+
+        See ``SituationalModel.rekey``. Ids that are not in ``mapping`` stay
+        unchanged.
+        """
+        for item in self.items:
+            item.record_id = mapping.get(item.record_id, item.record_id)
+            if item.structure_id is not None:
+                item.structure_id = mapping.get(item.structure_id, item.structure_id)
+        self.tail_ids = [mapping.get(record_id, record_id) for record_id in self.tail_ids]
+
 
 class GlobalWorkspace(BaseModel):
     """All workspace shards of one cycle.
@@ -132,6 +145,15 @@ class GlobalWorkspace(BaseModel):
     def item_ids(self) -> list[int]:
         """Return the unique record ids of all shard items, in shard order. Tails are not included."""
         return list(dict.fromkeys(record_id for shard in self.all_shards() for record_id in shard.item_ids()))
+
+    def tail_ids(self) -> list[int]:
+        """Return the unique record ids of all shard tails, in shard order."""
+        return list(dict.fromkeys(record_id for shard in self.all_shards() for record_id in shard.tail_ids))
+
+    def rekey(self, mapping: dict[int, int]) -> None:
+        """Replace pending ids by store ids in every shard. See ``WorkspaceShard.rekey``."""
+        for shard in self.all_shards():
+            shard.rekey(mapping)
 
 
 class RecordSelector(BaseModel):

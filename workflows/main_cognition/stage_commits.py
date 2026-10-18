@@ -26,17 +26,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     # ``public_context`` imports this module, and the schemas import
     # ``public_context``. The types are for annotations only.
-    from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult, AttentionNomination, GoalChange
-
-
-def _normalize_topic(text: str, limit: int = 48) -> str:
-    """Return a stable topic key from free text.
-
-    Case and repeated whitespace are ignored so nearby reformulations of one
-    belief resolve to one identity. The limit keeps the key readable in
-    metadata when a codelet supplied no explicit topic.
-    """
-    return re.sub(r"\s+", " ", str(text or "").strip().casefold())[:limit]
+    from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult, GoalChange
 
 
 def _clamp01(value: float) -> float:
@@ -270,115 +260,6 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
     return records
 
 
-BELIEF_REALITIES = frozenset({"inferred", "internal"})
-
-
-def apply_belief_proposals(
-    batch,
-    nominations: list[AttentionNomination],
-    *,
-    companion_name: str,
-    stale_ids: set[str] | None = None,
-    catalogue_version: str = "",
-) -> dict:
-    """Stage revisable subjective beliefs for accepted belief proposals.
-
-    The caller passes the cycle's parsed nominations; only selected, non-stale
-    ``belief``-kind nominations with text are consumed. The proposal is an
-    interpretation: it cites the observed records through
-    ``supporting_knoxel_ids`` and never rewrites them. A belief proposal whose
-    reality is not ``inferred`` or ``internal`` is rejected, so a subjective
-    reading cannot enter storage as an observed fact.
-
-    Duplicate-effect prevention: the belief key is the codelet plus its topic
-    (or the normalized text). An identical repeat retains the existing record
-    and adds no second belief and no confidence. A changed text under the
-    same key supersedes the old record and keeps its history through
-    ``superseded_by_id`` and a BeliefShiftRecord. Repeated generated
-    interpretations of one source therefore do not count as independent
-    evidence.
-
-    Returns a receipt with ``accepted_ids``, ``retained_ids``, ``revised``, and
-    ``rejected``. Proposals take effect only when the caller commits the batch.
-    """
-    stale = set(stale_ids or set())
-    view = batch.view()
-    accepted, retained, revised, rejected = [], [], [], []
-    for nomination in nominations or []:
-        if nomination.attention_kind != "belief":
-            continue
-        if nomination.status != "selected":
-            continue
-        if nomination.nomination_id in stale:
-            continue
-        text = " ".join(nomination.text.split())
-        if not text:
-            continue
-        reality = nomination.reality
-        if reality not in BELIEF_REALITIES:
-            rejected.append({"nomination_id": nomination.nomination_id,
-                             "reason": f"belief proposal reality {reality!r} is not a permitted interpretation"})
-            continue
-        codelet = nomination.codelet
-        topic = _normalize_topic(nomination.topic or text)
-        key = f"codelet:{codelet}:{topic}"
-        targets = list(nomination.target_ids)
-        in_view = [item for item in dict.fromkeys(targets) if view.get_knoxel_by_id(item) is not None]
-        dropped = [item for item in targets if item not in in_view]
-        prior = [record for record in view.all_knoxels.values()
-                 if isinstance(record, BeliefRecord) and record.active
-                 and record.belief_key == key]
-        prior = sorted(prior, key=lambda record: record.id)
-        if any(record.content == text for record in prior):
-            # Retained: the same accepted interpretation does not stack.
-            existing = next(record for record in prior if record.content == text)
-            known = set(existing.supporting_knoxel_ids)
-            additions = [item for item in in_view if item not in known]
-            if additions:
-                existing.supporting_knoxel_ids = [*existing.supporting_knoxel_ids, *additions]
-                batch.replace(existing)
-            retained.append(existing.id)
-            continue
-        scope = view.get_knoxel_by_id(in_view[0]).scope if in_view else None
-        metadata = {
-            "memory_kind": "subjective_belief",
-            "codelet": codelet,
-            "nomination_id": nomination.nomination_id,
-            "reality": reality,
-            "catalogue_version": catalogue_version,
-            "topic": topic,
-            "evidence_ids": list(in_view),
-            "dropped_target_ids": dropped,
-            "revised_from": prior[0].id if prior else None,
-        }
-        belief = batch.create(BeliefRecord(
-            content=text, belief_key=key, belief_kind="interpretation",
-            confidence=0.45 if in_view else 0.3,
-            supporting_knoxel_ids=in_view,
-            source=f"self:{companion_name}",
-            **({"scope": scope} if scope is not None else {}),
-            provenance=Provenance(source_kind=SourceKind.Self, source_ref=f"codelet:{codelet}"),
-            metadata=metadata,
-        ))
-        accepted.append(belief.id)
-        for old in prior:
-            old.active = False
-            old.superseded_by_id = belief.id
-            batch.replace(old)
-            revised.append({"old_id": old.id, "new_id": belief.id})
-            batch.create(BeliefShiftRecord(
-                content=f"Codelet {codelet} revised {key}",
-                target_belief_id=old.id, proposed_belief_key=key,
-                shift_type="supersede",
-                reason="A later accepted interpretation with the same topic replaced it. "
-                       "The earlier belief and its evidence stay linked.",
-                causal_knoxel_ids=[*in_view, belief.id], accepted=True,
-                provenance=Provenance(source_kind=SourceKind.Self, source_ref=f"codelet:{codelet}"),
-            ))
-    return {"accepted_ids": accepted, "retained_ids": retained, "revised": revised,
-            "rejected": rejected}
-
-
 def subjective_belief(record) -> bool:
     """Identify an active interpretation that reflection can revise.
 
@@ -427,7 +308,6 @@ __all__ = [
     "active_goal_texts",
     "active_intentions",
     "apply_appraisal",
-    "apply_belief_proposals",
     "apply_goal_changes",
     "find_intention",
     "goal_identity",

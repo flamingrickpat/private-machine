@@ -34,7 +34,22 @@ CSM_SNAPSHOT_EXPLOIT = 0.9  # At or above this salience bias, the snapshot sorts
 WORKSPACE_SHARD_TOKENS = 12000  # Content budget of each shard, in tokens.
 WORKSPACE_TAIL_TOKENS = 6000  # Separate budget of each shard tail, in tokens.
 WORKSPACE_HOLD_BONUS = 0.1  # Activation bonus that keeps an incumbent item against a newcomer.
+WORKSPACE_MIN_RATING = 0.5  # Lowest entry priority of a newcomer or an incumbent. Reserved places ignore it.
+WORKSPACE_HOME_BONUS = 0.05  # Priority bonus in the home shard of a record: the shard of the entity it is about, or the target shard of its structure.
+WORKSPACE_TAIL_CANDIDATES = 96  # Newest stream records that the host offers for each shard tail.
+WORKSPACE_PAYLOAD_ITEMS = 16  # Workspace items that an action request names as attention for the public workflows.
 CCQ_LENGTH = 8  # Number of recent broadcasts that the cycle state keeps.
+
+# Structure builders (port of _build_structures_get_coalitions) and attention into shards
+# (port of _simulate_attention_on_coalitions in private-machine-head/pm/ghosts/ghost_lida.py).
+COALITION_ITEMS_PER_CLUSTER = 8  # The clustering makes one cluster for each this many CSM items (old value).
+COALITION_MAX_CLUSTERS = 6  # Upper bound of clusters, so the attention prompt stays focused.
+COALITION_AUX_RATING_FACTOR = 0.03  # Weight of the normalized auxiliary rating. It only breaks ties (old value).
+COALITION_RECENCY_DECAY = 0.95  # Auxiliary rating factor for each tick since an item entered the CSM (old value).
+STRUCTURE_VIEW_TOKENS = 3000  # Token budget of the CSM view that the structure binder reads.
+STRUCTURE_BINDER_MAX = 5  # Most structures that one binder call returns.
+ATTENTION_LINE_CHARS = 400  # Characters of one record line in the attention rating prompt.
+ATTENTION_APERTURE_THRESHOLD = 0.5  # Mental aperture beyond which the rating asks for narrow (-) or broad (+) focus (old value).
 
 # Codelets and decisions.
 CODELET_OUTPUT_VARIANTS = 1  # Number of output variants that each codelet returns.
@@ -77,6 +92,8 @@ CSM_DIALOGUE_ACTIVATION = 0.6  # Activation of one of the last dialogue turns.
 CSM_SELECTED_MEMORY_ACTIVATION = 0.7  # Activation of a memory that the retrieve phase selected.
 CSM_CANDIDATE_ACTIVATION = 0.4  # Activation of a retrieved memory candidate that was not selected.
 CSM_RECENT_DIALOGUE_TURNS = 8  # Number of dialogue turns before the stimuli that the host supplies.
+CSM_NARRATIVE_ACTIVATION = 0.5  # Activation of a narrative of the self or of a group entity.
+CSM_GOAL_ACTIVATION = 0.5  # Activation of an active goal.
 
 # Deliberate focus.
 FOCUS_ACTIVATION_WEIGHT = 0.3  # Maximum activation that one focus endorsement adds to an item.

@@ -19,6 +19,7 @@ from pm.constants import MENTAL_STATE_REFERENCE_MINUTES, MENTAL_STATE_SIGMA_FLOO
 
 if TYPE_CHECKING:
     # memory_records imports this module, so the type is for annotations only.
+    from pm.records.codelet_records import CodeletPercept
     from pm.records.memory_records import Feature
 
 # ---------- Global vector space ----------
@@ -1003,31 +1004,54 @@ def sparse_delta(vector: Sequence[float]) -> Dict[int, float]:
             if pos != VectorModelRelationshipEntityID and value and math.isfinite(value)}
 
 
-def feature_state_sample(feature: "Feature") -> MentalStateSample:
-    """Return the EMA sample of one ``Feature`` record.
+def _state_sample(timestamp, entity_id: int, appraisal_vec: Sequence[float],
+                  delta_vec: Sequence[float]) -> MentalStateSample:
+    """Return one EMA sample from the affect fields of a record.
 
     The partner of the appraisal state is the integral, positive value in
-    the relationship entity id slot of ``mental_state_appraisal_vec``.
+    the relationship entity id slot of ``appraisal_vec``.
     """
-    entity_ids = [feature.entity_id] if feature.entity_id else []
-    partner = float(feature.mental_state_appraisal_vec[VectorModelRelationshipEntityID] or 0.0)
+    entity_ids = [entity_id] if entity_id else []
+    partner = float(appraisal_vec[VectorModelRelationshipEntityID] or 0.0)
     if partner > 0 and partner.is_integer() and int(partner) not in entity_ids:
         entity_ids.append(int(partner))
-    return MentalStateSample(timestamp=_naive_utc(feature.timestamp_world_begin), entity_ids=entity_ids,
-                             delta=sparse_delta(feature.mental_state_delta_vec))
+    return MentalStateSample(timestamp=_naive_utc(timestamp), entity_ids=entity_ids,
+                             delta=sparse_delta(delta_vec))
 
 
-def features_to_history(features: List["Feature"]) -> List[MentalStateSample]:
-    """Return the EMA samples of the causal features, oldest first.
+def feature_state_sample(feature: "Feature") -> MentalStateSample:
+    """Return the EMA sample of one ``Feature`` record."""
+    return _state_sample(feature.timestamp_world_begin, feature.entity_id,
+                         feature.mental_state_appraisal_vec, feature.mental_state_delta_vec)
 
-    Only causal features count: they entered the story. A feature without a
-    delta still counts, because its deviation sample shapes the scale.
+
+def percept_state_sample(percept: "CodeletPercept") -> MentalStateSample:
+    """Return the EMA sample of one ``CodeletPercept`` record.
+
+    A percept names no entity of its own. Its partner comes from the entity
+    id slot that the mini-appraisal wrote.
+    """
+    return _state_sample(percept.timestamp_world_begin, 0,
+                         percept.mental_state_appraisal_vec, percept.mental_state_delta_vec)
+
+
+def features_to_history(features: List["Feature"],
+                        percepts: Sequence["CodeletPercept"] = ()) -> List[MentalStateSample]:
+    """Return the EMA samples of the causal features and percepts, oldest first.
+
+    Only causal records count: they entered the story. A codelet percept
+    becomes causal when attention puts it into a workspace shard (A19F step
+    6). Until then its mini-appraisal delta does not change the mental
+    state. A record without a delta still counts, because its deviation
+    sample shapes the scale.
+
     The old ``_compute_mental_state`` also kept only the features of one
     partner, with the id 2 written into the code. Here the whole history
     sets the overall state, and :func:`compute_relationship_state` filters
     by entity.
     """
     samples = [feature_state_sample(feature) for feature in features if feature.causal]
+    samples += [percept_state_sample(percept) for percept in percepts if percept.causal]
     return sorted(samples, key=lambda sample: sample.timestamp)
 
 

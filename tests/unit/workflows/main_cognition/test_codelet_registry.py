@@ -227,7 +227,8 @@ class CycleTests(unittest.TestCase):
         self.assertEqual(len(prefixes), 1)
         system, story, ack = next(iter(prefixes))
         self.assertIn("expert story writer", system)
-        self.assertIn("BEGIN STORY", story)
+        self.assertIn("BEGIN CHARACTER", story)
+        self.assertIn("BEGIN WHAT IS ON", story)
         self.assertIn("the kitchen is on fire", story)
 
     def test_focus_evidence_holds_codelet_notes_only(self):

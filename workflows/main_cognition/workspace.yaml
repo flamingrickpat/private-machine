@@ -19,8 +19,9 @@ shards:
         select: {record: [SemanticRecord, BeliefRecord], entity: self}
         min_items: 1
         max_token_share: 0.15
+      # Goal records store entity id 0, so this selector has no entity filter.
       - name: self_goals
-        select: {record: [Intention], entity: self}
+        select: {record: [Intention]}
         max_token_share: 0.15
       - name: codelet_percepts
         select: {record: [CodeletPercept]}

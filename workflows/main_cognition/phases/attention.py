@@ -1,42 +1,70 @@
-"""Attention phase: score the codelet proposals and run the competition.
+"""Attention phase: rate the structures for each shard and update the shards.
 
-The phase works in two steps:
+Port of ``_simulate_attention_on_coalitions`` from
+``private-machine-head/pm/ghosts/ghost_lida.py``. The phase updates the
+self shard and the shard of each current stimulus group. Steps:
 
-1. Scoring (model). The model gives four 0..10 integer scores for each
-   proposal, in batches of ``score_batch_size``. A batch that misses ids gets
-   one repair request for only the missing ids. A proposal that still has no
-   score is ``rejected`` as ``unscored``.
-2. Selection (pure Python). ``attention_competition.compete`` chooses the
-   winners and gives every nomination a status and a reason.
+1. Deliberate focus. Fresh focus proposals are accepted or rejected
+   (``resolve_focus``). Accepted advice becomes CSM endorsements with the
+   endorser ``deliberate_focus``. Each endorsement adds at most
+   ``FOCUS_ACTIVATION_WEIGHT``. A reduced record loses at most that much.
+2. Rating (model). One story-framed call for each shard rates every
+   structure from 0 to 1 for that shard. One call per shard keeps each
+   prompt about one kind of awareness. The calls read the character card
+   (in the shared prefix), the AttentionFocus narrative, the state of mind
+   in words, and the mental aperture instruction of the old code. The calls
+   run in parallel.
+3. Auxiliary rating (Python). The old rule-based rating of the records of a
+   structure. Normalized and weighted with ``COALITION_AUX_RATING_FACTOR``,
+   it only breaks ties.
+4. Selection (Python). ``workspace_selection.select_shards`` changes each
+   shard in place: reserved places, then the other content in score order
+   within the budget and the caps. Incumbents get ``WORKSPACE_HOLD_BONUS``.
+   A record gets ``WORKSPACE_HOME_BONUS`` in its home shard.
+5. Effects. A codelet whose percept entered a shard gets a higher
+   base-level activation (LIDA attentional learning). The commit makes each
+   entered percept causal, so its delta enters the EMA mental state of the
+   next cycle.
 
-Fresh deliberate focus proposals are accepted or rejected here, before the
-competition, and bias it within bounds. Target ids come only from proposals.
-The codelets phase limited them to records of the CSM and their percepts.
-The id guard here repeats that check at the phase boundary.
-
-A codelet whose nomination wins gets a higher base-level activation (LIDA
-attentional learning). Step 6 of A19F replaces this phase with attention
-into workspace shards, and then a percept that enters a shard does this.
+Exhausted repairs of a rating call raise ``ModelFormatError``, and the host
+retries the whole cycle.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model, model_validator
 
-from pm.constants import THREAT_APPRAISAL_THRESHOLD
-from pm.context_render.turns import Role, Turn, format_content
+from pm.constants import (
+    ATTENTION_APERTURE_THRESHOLD,
+    ATTENTION_LINE_CHARS,
+    COALITION_AUX_RATING_FACTOR,
+    COALITION_RECENCY_DECAY,
+    FOCUS_ACTIVATION_WEIGHT,
+    THREAT_APPRAISAL_THRESHOLD,
+    WORKSPACE_HOME_BONUS,
+)
+from pm.context_render.turns import format_content
 from pm.llm.concurrency import ordered_parallel_map
+from pm.records.situational_model import SituationalItem
+from pm.records.workspace import SELF_SHARD, ShardKey, WorkspaceShard
 
-from workflows.cognitive_control.attention import attention_bias, resolve_focus
+from workflows.cognitive_control.attention import resolve_focus
+from workflows.cognitive_control.schemas import FocusState
 from workflows.inference_settings import ATTENTION_WORKERS
-from workflows.main_cognition.attention_competition import compete
 from workflows.main_cognition.codelet_registry import reinforce
-from workflows.main_cognition.cycle_work import CycleWork
-from workflows.main_cognition.model_json import PhasePrompts, StageOutputError
+from workflows.main_cognition.csm_view import (
+    Embedder, match_context, record_tokens, story_line, workspace_requirements,
+)
+from workflows.main_cognition.cycle_work import CycleWork, provisional_tick
+from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import (
-    AppraisalView, AttentionNomination, AttentionResult, CodeletProposal, NominationScore,
-    NominationScores, Stimulus,
+    AppraisalView, AttentionResult, RatedStructure, ShardRatings, Stimulus, StructureDraft, StructureRatings,
 )
+from workflows.main_cognition.story_prefix import StoryPrefix, shard_label, shown_shards
+from workflows.main_cognition.workspace_selection import Candidate, SelectionInput, select_shards, selector_matches
+
+#: The endorser name of deliberate focus in the CSM.
+DELIBERATE_FOCUS = "deliberate_focus"
 
 
 class FocusEvidence(BaseModel):
@@ -48,137 +76,305 @@ class FocusEvidence(BaseModel):
     stimuli: list[Stimulus] = Field(default_factory=list)
 
 
-def candidate_ids(work: CycleWork) -> set[int]:
-    """Return the ids that attention may select.
+def focus_evidence(work: CycleWork) -> FocusEvidence:
+    """Return the evidence of the focus decision: the appraisal, the codelet texts, the goals, the stimuli."""
+    notes = [text for output in work.codelets.outputs for variant in output.variants
+             for text in [variant.recommendation, *(percept.text for percept in variant.percepts)]]
+    return FocusEvidence(appraisal=work.appraisal_view(), codelet_notes=notes, goals=work.request.active_goals,
+                         stimuli=work.request.stimuli)
 
-    These are the selected memories, the stimuli, the active goals, and every
-    record that the CSM of this cycle can name, new percepts included.
+
+def apply_focus(work: CycleWork, focus: FocusState | None, embedder: Embedder, *,
+                danger: bool = False) -> dict[int, float]:
+    """Turn accepted focus advice into bounded CSM endorsements. Return the focus bonus by record id.
+
+    A promoted record gets ``add_or_boost`` with the endorser
+    ``deliberate_focus`` and a boost of ``min(strength,
+    FOCUS_ACTIVATION_WEIGHT)``. A record that the CSM does not hold enters
+    it, when the cycle has its view. A reduced record loses the same amount
+    of activation, down to 0. In danger, reduction does nothing: the
+    companion cannot look away from a threat (as the old A15 focus bias).
+    Prune protection and reserved places still apply, so focus cannot
+    remove a required item. Rejected or missing advice changes nothing.
     """
-    ids = set(work.context.candidate_ids) | set(work.records)
-    ids |= {item.knoxel_id for item in work.request.stimuli}
-    ids |= {goal.knoxel_id for goal in work.request.active_goal_records}
-    return ids
+    if focus is None or not focus.accept:
+        return {}
+    amount = min(max(0.0, focus.strength), FOCUS_ACTIVATION_WEIGHT)
+    tick = provisional_tick(work)
+    csm = work.state.csm
+    bonus: dict[int, float] = {}
+    for record_id in focus.promote_ids:
+        if record_id not in work.records:
+            continue
+        item = csm.add_or_boost(SituationalItem(record_id=record_id, entered_tick=tick, last_boost_tick=tick,
+                                                activation=amount), DELIBERATE_FOCUS, embedder.record, boost=amount)
+        bonus[item.record_id] = amount
+    for record_id in [] if danger else focus.reduce_ids:
+        if record_id in csm.items:
+            csm.items[record_id].activation = max(0.0, csm.items[record_id].activation - amount)
+            bonus[record_id] = -amount
+    return bonus
 
 
-def ensure_candidate_ids(result: AttentionResult, allowed: set[int]) -> None:
-    """Reject any id that was not in the supplied candidate list."""
-    for nomination in result.nominations:
-        for target_id in nomination.target_ids:
-            if target_id not in allowed:
-                raise StageOutputError(
-                    f"Attention nominated target id {target_id} that was not a candidate."
-                )
-    for selected_id in result.selected_ids:
-        if selected_id not in allowed:
-            raise StageOutputError(
-                f"Attention selected id {selected_id} that was not a candidate."
-            )
+def attention_narrative(work: CycleWork) -> str:
+    """Return the newest AttentionFocus narrative of the self, or a placeholder."""
+    self_id = work.request.self_entity_id
+    narratives = [view for view in work.records.values()
+                  if view.record_class == "Narrative" and view.category == "AttentionFocus"
+                  and self_id in view.entity_ids]
+    if not narratives:
+        return "(no narrative yet)"
+    return max(narratives, key=lambda view: (view.timestamp is not None, view.timestamp or 0, view.record_id)).content
 
 
-def render_items(proposals: list[CodeletProposal], prompts: PhasePrompts) -> str:
-    labels = prompts.reality_labels
-    lines = [f'- {item.nomination_id} ({labels[item.reality] if item.reality in labels else item.reality}): "{item.text}"'
-             for item in proposals]
-    return "\n".join(lines) or "(none)"
+def aperture_text(work: CycleWork, prompts: PhasePrompts) -> str:
+    """Return the old mental aperture instruction for the current state."""
+    aperture = work.state.mental_state.state_cognition.mental_aperture
+    if aperture < -ATTENTION_APERTURE_THRESHOLD:
+        return prompts.aperture_narrow
+    if aperture > ATTENTION_APERTURE_THRESHOLD:
+        return prompts.aperture_broad
+    return prompts.aperture_default
 
 
-def build_messages(work: CycleWork, prompts: PhasePrompts, proposals: list[CodeletProposal]) -> list[Turn]:
-    companion = work.request.companion_name
-    user = work.request.user_name
-    system = prompts.system_prompt.format(companion_name=companion, user_name=user)
-    user_message = format_content(prompts.user_template,
-        companion_name=companion, user_name=user,
-        affect=work.affect.felt,
-        active_goals="\n".join(f"- {goal}" for goal in work.request.active_goals) or "(none)",
-        items=render_items(proposals, prompts),
-    )
-    return [Turn(Role.System, system.strip()), Turn(Role.User, user_message.strip())]
+def aux_rating(work: CycleWork, structure: StructureDraft) -> float:
+    """Return the old auxiliary rating of a structure: the sum over its records.
 
+    Port of the rule part of ``_simulate_attention_on_coalitions``. For each
+    record, ``base * recency + public * (1 + ego_strength)``:
 
-def score_batch(context, work: CycleWork, prompts: PhasePrompts,
-                batch: list[CodeletProposal]) -> dict[str, NominationScore]:
-    """Return the scores of one batch by nomination id.
-
-    Unknown ids in the model answer are ignored. Missing ids get one repair
-    request that lists only those items. Scoring calls get no grounding turn.
+    - ``recency`` is ``COALITION_RECENCY_DECAY ** ticks`` since the record
+      entered the CSM, at least 0.1.
+    - ``base`` is 0.3 for a goal, the larger of the absolute valence and 0.1
+      for a feeling, an experience, or an expectation outcome, 0.15 for a
+      narrative update, 0.1 for a narrative or a memory, and the salience for
+      a codelet percept. The old code had percepts as features without a
+      base score. Here their salience counts, so a strong impulse can break
+      a tie.
+    - ``public`` is 1 for a dialogue turn, as the old interlocus value.
     """
-    wanted = {item.nomination_id for item in batch}
-    messages = build_messages(work, prompts, batch)
-    result = complete(context, work, messages, NominationScores)
-    scores = {item.id: item for item in result.scores if item.id in wanted}
-    missing = [item for item in batch if item.nomination_id not in scores]
-    if missing:
-        repair = [*messages, {"role": "assistant", "content": result.model_dump_json()},
-                  {"role": "user", "content": prompts.repair_template.format(
-                      missing=", ".join(item.nomination_id for item in missing),
-                      items=render_items(missing, prompts))}]
-        retry = complete(context, work, repair, NominationScores)
-        for item in retry.scores:
-            if item.id in wanted and item.id not in scores:
-                scores[item.id] = item
-    return scores
+    tick = provisional_tick(work)
+    ego = 1.0 + work.state.mental_state.state_cognition.ego_strength
+    total = 0.0
+    for record_id in structure.record_ids:
+        view = work.records[record_id]
+        item = work.state.csm.items[record_id] if record_id in work.state.csm.items else None
+        recency = max(0.1, COALITION_RECENCY_DECAY ** (tick - item.entered_tick if item is not None else 0))
+        base = 0.0
+        if view.record_class == "Intention":
+            base = 0.3
+        elif view.record_class == "CodeletPercept":
+            base = (item.salience or 0.0) if item is not None else 0.0
+        elif view.feature_type in {"Feeling", "SubjectiveExperience", "ExpectationOutcome"}:
+            base = max(abs(item.valence or 0.0) if item is not None else 0.3, 0.1)
+        elif view.feature_type == "NarrativeUpdate":
+            base = 0.15
+        elif view.record_class in {"Narrative", "MemoryClusterRecord", "DeclarativeFactRecord"}:
+            base = 0.1
+        public = 1.0 if view.feature_type == "Dialogue" else 0.0
+        total += base * recency + public * ego
+    return total
 
 
-def nominations_from(proposals: list[CodeletProposal], scores: dict[str, NominationScore]) -> list[AttentionNomination]:
-    """Merge proposals and their 0..10 scores into 0..1 nominations."""
-    nominations = []
-    for proposal in proposals:
-        nomination = AttentionNomination(
-            target_ids=list(proposal.target_ids), attention_kind=proposal.proposal_kind,
-            nomination_id=proposal.nomination_id, codelet=proposal.codelet, family=proposal.family,
-            origin=proposal.origin, reality=proposal.reality, text=proposal.text, cause=list(proposal.cause),
-            activation=proposal.activation, source_revisions=dict(proposal.source_revisions),
-            topic=proposal.topic,
-        )
-        if proposal.nomination_id not in scores:
-            nomination.status, nomination.reason, nomination.score = "rejected", "unscored", 0.0
-        else:
-            score = scores[proposal.nomination_id]
-            nomination.urgency = round(score.urgency / 10.0, 2)
-            nomination.novelty = round(score.novelty / 10.0, 2)
-            nomination.goal_relevance = round(score.goal_relevance / 10.0, 2)
-            nomination.reportability = round(score.reportability / 10.0, 2)
-            nomination.reasoning = score.why
-        nominations.append(nomination)
-    return nominations
+class ShardJob(BaseModel):
+    """One rating call: the shard, its labels, and its instruction."""
+
+    key: ShardKey = Field(default_factory=ShardKey)
+    labels: list[str] = Field(default_factory=list)
+    instruction: str = ""
+
+
+def render_structures(work: CycleWork, structures: list[StructureDraft]) -> str:
+    """Render the structures with labels ``S1``, ``S2``, ... for a rating call.
+
+    Each record is one story line without its id, cut to
+    ``ATTENTION_LINE_CHARS`` characters, so one prompt can show every
+    structure.
+    """
+    blocks = []
+    for index, structure in enumerate(structures, start=1):
+        lines = [story_line(work.records[record_id], with_id=False)[:ATTENTION_LINE_CHARS]
+                 for record_id in structure.record_ids]
+        blocks.append("\n".join([f"### S{index}: {structure.theme}", f"Why: {structure.reason}",
+                                 *(f"- {line}" for line in lines)]))
+    return "\n\n".join(blocks)
+
+
+def shard_job(work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, shard: WorkspaceShard,
+              structures: list[StructureDraft]) -> ShardJob:
+    """Return the rating call of one shard."""
+    name = shard_label(shard.key, work.request)
+    labels = prompts.shard_labels
+    focus = {"self": labels.self_focus, "entity": labels.entity_focus, "workflow": labels.workflow_focus}[shard.key.kind]
+    values = {"companion_name": prefix.companion, "entity_name": name, "workflow_name": name}
+    instruction = format_content(prefix.fill(prompts.user_template),
+        attention_narrative=attention_narrative(work),
+        mental_state=work.affect.felt or work.state_summary or "(no feeling recorded)",
+        shard_focus=focus.format(**values),
+        structures=render_structures(work, structures),
+        aperture=prefix.fill(aperture_text(work, prompts)),
+    ).text
+    return ShardJob(key=shard.key, labels=[f"S{index}" for index in range(1, len(structures) + 1)],
+                    instruction=instruction)
+
+
+def rate(context, work: CycleWork, prefix: StoryPrefix, job: ShardJob) -> StructureRatings:
+    """Run one rating call. Runs in a worker thread and does not change ``work``.
+
+    A missing, repeated, or unknown label is invalid output and gets a
+    repair turn.
+    """
+    wanted = job.labels
+
+    def check(answer):
+        given = [item.structure for item in answer.ratings]
+        if sorted(given) != sorted(wanted):
+            raise ValueError(f"Rate each label exactly once: {', '.join(wanted)}.")
+        return answer
+
+    schema = create_model("StructureRatingsChecked", __base__=StructureRatings,
+                          __validators__={"check": model_validator(mode="after")(check)})
+    return complete(context, work, prefix.ask(job.instruction), schema)
+
+
+def scored(work: CycleWork, job: ShardJob, answer: StructureRatings,
+           structures: list[StructureDraft]) -> ShardRatings:
+    """Combine the model ratings and the auxiliary ratings of one shard.
+
+    ``score = rating + aux / max_aux * COALITION_AUX_RATING_FACTOR``. When
+    every auxiliary rating is 0, the score is the rating.
+    """
+    by_label = {item.structure: item for item in answer.ratings}
+    aux = [aux_rating(work, structure) for structure in structures]
+    top = max(aux, default=0.0)
+    ratings = []
+    for label, structure, value in zip(job.labels, structures, aux, strict=True):
+        rating = by_label[label]
+        bonus = value / top * COALITION_AUX_RATING_FACTOR if top > 0.0 else 0.0
+        ratings.append(RatedStructure(structure_id=structure.record_id, label=label, rating=rating.rating,
+                                      aux=round(value, 4), score=round(rating.rating + bonus, 4),
+                                      reasoning=rating.reasoning.strip()))
+    return ShardRatings(key=job.key, ratings=ratings)
+
+
+def home_shard(work: CycleWork, record_id: int, structure: StructureDraft) -> ShardKey:
+    """Return the shard where a record belongs when the ratings tie.
+
+    A record about the entity of a current group belongs to that entity's
+    shard. A record about the companion belongs to the self shard. Any other
+    record belongs to the target shard of its structure.
+    """
+    view = work.records[record_id]
+    for group in work.state.stimulus_groups:
+        if group.key.kind == "entity" and int(group.key.ref) in view.entity_ids:
+            return group.key
+    if work.request.self_entity_id is not None and work.request.self_entity_id in view.entity_ids:
+        return SELF_SHARD
+    return structure.target_shard
+
+
+def newcomers(work: CycleWork, ratings: list[ShardRatings], bonus: dict[int, float]) -> list[Candidate]:
+    """Return one candidate for each record of each rated structure and shard.
+
+    The priority is the structure score, plus ``WORKSPACE_HOME_BONUS`` in the
+    home shard of the record (:func:`home_shard`). The model often rates one
+    structure equally for two shards. The bonus then puts a narrative about
+    the user into the user's shard and a self narrative into the self shard.
+    """
+    structures = {draft.record_id: draft for draft in work.structures.structures}
+    result = []
+    for shard in ratings:
+        for rated in shard.ratings:
+            structure = structures[rated.structure_id]
+            reason = f"{structure.theme} (rated {rated.rating:.2f}): {rated.reasoning}"
+            result.extend(Candidate(
+                record_id=record_id, key=shard.key,
+                priority=rated.score + (WORKSPACE_HOME_BONUS if home_shard(work, record_id, structure) == shard.key
+                                        else 0.0),
+                focus_bonus=bonus[record_id] if record_id in bonus else 0.0,
+                structure_id=structure.record_id, reason=reason)
+                for record_id in structure.record_ids)
+    return result
+
+
+def select(work: CycleWork, ratings: list[ShardRatings], bonus: dict[int, float]):
+    """Update the shown shards in place and return their changes."""
+    shards = shown_shards(work)
+    updated = {shard.key for shard in shards}
+    blocked = {item.knoxel_id for item in work.request.stimuli} | set(work.state.workspace.tail_ids())
+    blocked |= {record_id for shard in work.state.workspace.all_shards() if shard.key not in updated
+                for record_id in shard.item_ids()}
+    offered = newcomers(work, ratings, bonus)
+    csm = work.state.csm
+    ids = set(csm.items) | {item.record_id for item in offered} | {
+        record_id for shard in shards for record_id in shard.item_ids()}
+    context = match_context(work)
+    requirements = workspace_requirements()
+    selection = SelectionInput(
+        tick=provisional_tick(work), shards=shards,
+        requirement_sets={kind: requirements.shards[kind] for kind in requirements.shards},
+        newcomers=offered, activation={record_id: item.activation for record_id, item in csm.items.items()},
+        tokens={record_id: record_tokens(work.records, record_id) for record_id in ids},
+        blocked=sorted(blocked), focus_ids=sorted(record_id for record_id, value in bonus.items() if value > 0.0))
+    changes = select_shards(selection, lambda requirement, record_id, key: selector_matches(
+        requirement.select, work.records[record_id], key, context))
+    for change in changes:
+        change.tail_ids = list(work.state.workspace.shard(change.key).tail_ids)
+    return changes
+
+
+def reinforce_entries(work: CycleWork, result: AttentionResult) -> list[str]:
+    """Raise the base-level activation of each codelet whose percept entered a shard. Return the names."""
+    names = list(dict.fromkeys(work.records[item.record_id].source for change in result.changes
+                               for item in change.entered
+                               if work.records[item.record_id].record_class == "CodeletPercept"))
+    for name in names:
+        reinforce(work.state.codelets.runtime(name))
+    return names
 
 
 def run(context, work: CycleWork) -> CycleWork:
     prompts = phase_prompts("attention")
-    proposals = work.codelets.proposals
-    policy = work.codelets.policy
-    scores: dict[str, NominationScore] = {}
-    batches = [proposals[start:start + policy.score_batch_size]
-               for start in range(0, len(proposals), policy.score_batch_size)]
-    results = ordered_parallel_map(lambda batch: score_batch(context, work, prompts, batch), batches,
-                                   workers=ATTENTION_WORKERS, cancel=context.runtime.stop_event)
-    for result in results:
-        scores.update(result)
+    focus = resolve_focus(context, work.request.active_focus, work.request.focus_proposals, focus_evidence(work))
     danger = work.appraisal.general().bodily_threat >= THREAT_APPRAISAL_THRESHOLD
-    evidence = FocusEvidence(appraisal=work.appraisal_view(), codelet_notes=[item.text for item in proposals],
-                             goals=work.request.active_goals, stimuli=work.request.stimuli)
-    focus = resolve_focus(context, work.request.active_focus, work.request.focus_proposals, evidence)
-    nominations = nominations_from(proposals, scores)
-    result = compete(nominations, policy, danger=danger,
-                     biases=attention_bias(nominations, focus, danger=danger))
-    result.competition.focus = focus
-    result.competition.scoring_calls = len(batches)
-    ensure_candidate_ids(result, candidate_ids(work))
-    for name in dict.fromkeys(item.codelet for item in result.nominations if item.status == "selected"):
-        reinforce(work.state.codelets.runtime(name))
+    bonus = apply_focus(work, focus, Embedder(context, work.records), danger=danger)
+    structures = work.structures.structures
+    prefix = StoryPrefix(work)
+    jobs = [shard_job(work, prefix, prompts, shard, structures) for shard in shown_shards(work)] if structures else []
+    answers = ordered_parallel_map(lambda job: rate(context, work, prefix, job), jobs,
+                                   workers=ATTENTION_WORKERS, cancel=context.runtime.stop_event)
+    ratings = [scored(work, job, answer, structures) for job, answer in zip(jobs, answers, strict=True)]
+    result = AttentionResult(ratings=ratings, focus=focus, calls=len(jobs),
+                             focus_ids=sorted(record_id for record_id, value in bonus.items() if value > 0.0))
+    result.changes = select(work, ratings, bonus)
     work.attention = result
-    winners = sum(1 for item in result.nominations if item.status == "selected")
-    work.receipt("attention", f"scored {len(scores)} of {len(proposals)} nominations and selected {winners}")
+    reinforced = reinforce_entries(work, result)
+    entered = sum(len(change.entered) for change in result.changes)
+    left = sum(len(change.left) for change in result.changes)
+    items = sum(len(work.state.workspace.shard(change.key).items) for change in result.changes)
+    top = max((rated.score for shard in ratings for rated in shard.ratings), default=0.0)
+    work.receipt("attention", f"rated {len(structures)} structures for {len(jobs)} shards (best {top:.2f}); "
+                              f"{entered} items entered, {left} left, {items} present; "
+                              f"reinforced {', '.join(reinforced) or 'no codelet'}")
     return work
 
 
 __all__ = [
+    "DELIBERATE_FOCUS",
     "FocusEvidence",
-    "build_messages",
-    "candidate_ids",
-    "ensure_candidate_ids",
-    "nominations_from",
-    "render_items",
+    "ShardJob",
+    "apply_focus",
+    "attention_narrative",
+    "aperture_text",
+    "aux_rating",
+    "focus_evidence",
+    "home_shard",
+    "newcomers",
+    "rate",
+    "reinforce_entries",
+    "render_structures",
     "run",
-    "score_batch",
+    "scored",
+    "select",
+    "shard_job",
 ]

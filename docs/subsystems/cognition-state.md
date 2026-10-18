@@ -114,8 +114,10 @@ The system never attributes an unknown stop cause to the user.
 ## State and side effects
 
 The module opens one batch with `new_tick=True`.
-It stages the appraisal Feature, the goal intentions, the attention frame, and
-each action in that batch.
+It stages the appraisal Feature, the goal intentions, the codelet percepts, the
+structures, the attention frame, and each action in that batch.
+The GWT turn record of that batch lists the shard changes of the cycle
+(see [structures, attention, and the workspace](workspace.md)).
 It commits once.
 A failure before the commit leaves accepted state unchanged.
 A stale revision raises `GhostConflict`, so no partial update lands.

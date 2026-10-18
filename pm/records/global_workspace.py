@@ -51,6 +51,22 @@ class ShardChange(BaseModel):
     kept_ids: List[int] = Field(default_factory=list)
     tail_ids: List[int] = Field(default_factory=list)
 
+    def rekey(self, mapping: dict[int, int]) -> None:
+        """Replace pending record and structure ids by store ids.
+
+        The attention phase records the change before the commit assigns
+        record ids to new percepts and structures. Ids that are not in
+        ``mapping`` stay unchanged.
+        """
+        for item in self.entered:
+            item.record_id = mapping.get(item.record_id, item.record_id)
+            if item.structure_id is not None:
+                item.structure_id = mapping.get(item.structure_id, item.structure_id)
+        for item in self.left:
+            item.record_id = mapping.get(item.record_id, item.record_id)
+        self.kept_ids = [mapping.get(record_id, record_id) for record_id in self.kept_ids]
+        self.tail_ids = [mapping.get(record_id, record_id) for record_id in self.tail_ids]
+
 
 class GwtTurnRecord(BaseModel):
     """One published GWT broadcast for one slot and one cycle (spec §7).

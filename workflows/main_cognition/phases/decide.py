@@ -15,14 +15,15 @@ from __future__ import annotations
 import re
 
 from pm.context_render import render_context
-from pm.context_render.turns import Role, Turn, format_content
+from pm.context_render.turns import Turn, format_content
 from pm.records.cycle_records import ActionDecision
 
 from workflows.main_cognition.cycle_work import CycleWork, primary_group
 from workflows.main_cognition.model_json import PhasePrompts, StageOutputError
-from workflows.main_cognition.phases.goals import ACTION_KINDS, inner_proposals, render_inner_proposals
+from workflows.main_cognition.phases.goals import render_inner_proposals
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import ActionSelectionResult, WorkflowOption
+from workflows.main_cognition.story_prefix import StoryPrefix, conscious_percepts
 from workflows.public_speech.public_context import PublicContext
 
 ACTION_TYPES = (
@@ -70,7 +71,12 @@ def render_capabilities(capabilities: list[str]) -> str:
     return "\n".join(f"- {capability}" for capability in capabilities) or "(none)"
 
 
-def build_messages(work: CycleWork, prompts: PhasePrompts) -> list[Turn]:
+def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) -> list[Turn]:
+    """Return the shared story prefix and then the action instruction as the last turn.
+
+    The prefix shows the workspace shards that attention updated. Step 8 of
+    A19F splits this call into an in-character decision and routing.
+    """
     request = work.request
     system = prompts.system_prompt.format(
         companion_name=request.companion_name,
@@ -89,12 +95,9 @@ def build_messages(work: CycleWork, prompts: PhasePrompts) -> list[Turn]:
         managed_runs=render_context(request.managed_runs),
         available_workflows=render_workflows(available_workflows(work)),
         capabilities=render_capabilities(request.capabilities),
-        inner_proposals=render_inner_proposals(inner_proposals(work.attention, ACTION_KINDS)),
+        inner_proposals=render_inner_proposals(conscious_percepts(work)),
     )
-    return [
-        Turn(Role.System, system.strip()),
-        Turn(Role.User, user.strip()),
-    ]
+    return prefix.ask(f"{system.strip()}\n\n{user.text.strip()}")
 
 
 def validate_actions(result: ActionSelectionResult, workflows: list[WorkflowOption]) -> None:
@@ -166,8 +169,9 @@ def check_capabilities(result: ActionSelectionResult, capabilities: list[str],
 def run(context, work: CycleWork) -> CycleWork:
     # Earlier phases already supply appraisal and the selected workspace.
     # Hidden reasoning exhausted a real completion during a teasing choice.
-    result = complete(context, work, build_messages(work, phase_prompts("decide")), ActionSelectionResult,
-                      grounded=True, emotion=False)
+    prefix = StoryPrefix(work)
+    result = complete(context, work, build_messages(work, phase_prompts("decide"), prefix), ActionSelectionResult,
+                      grounded=True, emotion=False, grounding_at=len(prefix.turns))
     validate_actions(result, available_workflows(work))
     check_capabilities(result, work.request.capabilities, work.request.public_context)
     work.action_selection = result

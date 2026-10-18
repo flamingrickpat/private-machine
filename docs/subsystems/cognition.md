@@ -26,11 +26,16 @@ The module commits accepted state in one write batch and publishes action envelo
 | Triage | Classify the incoming situation | [`workflows.main_cognition.phases.triage.run`][] |
 | Appraise | Evaluate the situation | [`workflows.main_cognition.phases.appraise.run`][] |
 | Retrieve | Select supplied memory candidates and add them to the CSM | [`workflows.main_cognition.phases.retrieve.run`][] |
-| Codelets | Run codelets in waves, fill the CSM, and collect nominations | [`workflows.main_cognition.phases.codelets.run`][] |
-| Attention | Score proposals, then select winners in Python | [`workflows.main_cognition.phases.attention.run`][] |
+| Codelets | Run codelets in waves and fill the CSM with percepts | [`workflows.main_cognition.phases.codelets.run`][] |
+| Structures | Build topical coalitions and bound structures from the CSM | [`workflows.main_cognition.phases.structures.run`][] |
+| Attention | Rate the structures for each shard, then update the shards in Python | [`workflows.main_cognition.phases.attention.run`][] |
 | Goals | Produce goal proposals | [`workflows.main_cognition.phases.goals.run`][] |
 | Experience | Form the workspace frame and subjective experience | [`workflows.main_cognition.phases.experience.run`][] |
 | Decide | Select typed actions | [`workflows.main_cognition.phases.decide.run`][] |
+
+The story-framed calls share one story prefix ([`workflows.main_cognition.story_prefix.StoryPrefix`][]).
+It holds the character card, the self shard, and the shard of each current stimulus group, each with its tail.
+The goals, experience, and decide calls read the shards after attention changed them.
 
 ## Asynchronous boundary
 
@@ -61,7 +66,8 @@ Parent workflow timings include child timings.
 
 ## Go deeper
 
-Read [codelets and attention competition](codelets.md) for the registry, the waves, the percepts, and the committed nominations.
+Read [codelets](codelets.md) for the registry, the waves, and the percepts.
+Read [structures, attention, and the workspace](workspace.md) for the shards, their requirements, and causality.
 
 Read [experienced memory](experienced-memory.md) for retrieval, attribution, and source constraints.
 

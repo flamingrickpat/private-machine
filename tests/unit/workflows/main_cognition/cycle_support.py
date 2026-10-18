@@ -3,10 +3,11 @@
 The real manifest, the real phases, and the real host run. Only the tools
 are replaced: ``llm_complete`` answers from a script, ``embed_texts`` hashes
 words into small vectors, and ``codelet_agent`` returns a fixed answer. The
-script finds the phase of each call from a marker phrase in the phase's
-system prompt and answers with the JSON object that the test supplied for
-that phase. The codelet calls share one system prompt, so their markers are
-in the last turn. A phase without a supplied answer gets a neutral default.
+script finds the phase of each call from a marker phrase and answers with
+the JSON object that the test supplied for that phase. A story-framed call
+starts with the shared story system prompt, so its marker is in the last
+turn. Other calls have their marker in the system prompt. A phase without a
+supplied answer gets a neutral default.
 """
 from __future__ import annotations
 
@@ -15,7 +16,6 @@ import json
 import math
 import re
 from collections.abc import Callable
-from unittest import mock
 
 from pm.llm.prompt_encoding import normalize_turns
 from workflows.main_cognition.codelet_percepts import HEADER_FIELDS, MODEL_BY_TYPE, CodeletPerceptType
@@ -29,15 +29,17 @@ PHASE_MARKERS = (
     ("goals", '"Goals" codelet'),
     ("experience", '"Workspace" codelet'),
     ("decide", '"Action Selection" codelet'),
-    ("attention", "decide what to pay attention to"),
     ("focus", "deliberate focus proposal"),
 )
 
-#: Markers in the last turn of the codelet calls. Their system prompt is shared.
+#: Markers in the last turn of the story-framed calls. Their system prompt is shared.
+#: The goals, experience, and decide calls keep their old markers in the last turn.
 CODELET_MARKERS = (
     ("codelet_select", "act as a selector"),
     ("codelet_percepts", "put the result of your analysis into JSON"),
     ("codelet_story", "act as one mental mechanism"),
+    ("structures", "act as the structure-building mechanism"),
+    ("attention", "act as the attention mechanism"),
 )
 STORY_SYSTEM_MARKER = "expert story writer"
 
@@ -51,6 +53,13 @@ def default_percepts(messages) -> dict:
     value = ["scripted"] if model.model_fields[field].annotation == list[str] else "scripted percept"
     return {"target": "self", "about_ids": [], offered[0]: {"salience": 0.6, "valence": -0.2, field: value}}
 
+def default_ratings(messages) -> dict:
+    """Rate every offered structure 0.7, so its records can enter the shard."""
+    text = normalize_turns(messages)[-1].content.text
+    labels = re.findall(r"^### (S[0-9]+):", text, re.MULTILINE)
+    return {"ratings": [{"structure": label, "reasoning": "scripted", "rating": 0.7} for label in labels]}
+
+
 DEFAULT_ANSWERS = {
     "triage": {"items": []},
     "appraise": {"feeling": "calm"},
@@ -59,7 +68,8 @@ DEFAULT_ANSWERS = {
     "codelet_story": "She has had enough of waiting and wants to shake things up.",
     "codelet_percepts": default_percepts,
     "codelet_agent": {"recommendation": "She remembers this pattern and wants to name it.", "evidence_ids": []},
-    "attention": {"scores": []},
+    "structures": {"structures": []},
+    "attention": default_ratings,
     "goals": {"changes": []},
     "experience": {"frame_reason": "reply", "focus_ids": [], "control_mode": "reactive"},
     "decide": {"actions": []},
@@ -73,7 +83,7 @@ def phase_of(messages) -> str:
     system = turns[0].content.text
     if STORY_SYSTEM_MARKER in system:
         last = turns[-1].content.text
-        return next(name for name, marker in CODELET_MARKERS if marker in last)
+        return next(name for name, marker in (*CODELET_MARKERS, *PHASE_MARKERS) if marker in last)
     return next(name for name, marker in PHASE_MARKERS if marker in system)
 
 
@@ -132,23 +142,6 @@ class ScriptedModel:
         return {"llm_complete": self, "embed_texts": self.embed, "codelet_agent": self.agent}
 
 
-def fixed_attention(reports: dict):
-    """Patch the attention phase to use ``reports["attention"]`` as its result.
-
-    The patch reads the fixture at each cycle. Use it as a context manager
-    around the cycles of a test that needs fixed nominations.
-    """
-    from workflows.main_cognition.schemas import AttentionResult
-
-    def run(context, work):
-        work.attention = AttentionResult.model_validate(
-            {key: value for key, value in reports["attention"].items() if key != "summary"})
-        work.receipt("attention", "fixed attention result")
-        return work
-
-    return mock.patch("workflows.main_cognition.phases.attention.run", run)
-
-
 def scripted_tools(model: ScriptedModel):
     """Return a ``tools_factory`` that grants the scripted tools of ``model``."""
     return lambda environment, batch: model.tools()
@@ -157,8 +150,8 @@ def scripted_tools(model: ScriptedModel):
 def answers_from_reports(reports: dict) -> dict:
     """Map old stage report fixtures to phase answers.
 
-    Codelet and attention fixtures are not mapped: the real codelets phase
-    runs, and attention scores nothing unless a test scripts it.
+    Codelet and attention fixtures are not mapped: the real codelets,
+    structures, and attention phases run with the scripted defaults.
     """
     names = {"triage": "triage", "appraisal": "appraise", "context": "retrieve", "goals": "goals",
              "workspace": "experience", "action_selection": "decide"}
@@ -169,4 +162,5 @@ def answers_from_reports(reports: dict) -> dict:
     return answers
 
 
-__all__ = ["CODELET_MARKERS", "DEFAULT_ANSWERS", "fake_embedding", "fixed_attention", "PHASE_MARKERS", "ScriptedModel", "answers_from_reports", "phase_of", "scripted_tools"]
+__all__ = ["CODELET_MARKERS", "DEFAULT_ANSWERS", "fake_embedding", "default_ratings", "PHASE_MARKERS", "ScriptedModel",
+           "answers_from_reports", "phase_of", "scripted_tools"]

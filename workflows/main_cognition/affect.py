@@ -130,7 +130,8 @@ def percept_affect(base: FullMentalState, general: AppraisalGeneral, social: App
     ``compute_state_delta`` with the group entity. ``base`` stays unchanged.
     The delta is the result minus the copy, on the EMA axes only. A percept
     does not change the mental state. Its delta can enter the EMA history
-    only after attention makes it causal (step 6 of A19F).
+    after attention puts the percept into a workspace shard. Then the commit
+    stages it as causal.
     """
     probe = base.model_copy(deep=True)
     probe.appraisal_general = general.model_copy()

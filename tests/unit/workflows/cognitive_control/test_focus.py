@@ -15,11 +15,11 @@ from pm.records.enums import FeatureType, InterlocusType, SourceKind
 from pm.records.memory_records import new_feature
 
 from tests.unit.test_design_contracts import small_ghost
-from workflows.cognitive_control.attention import active_focus, attention_bias, resolve_focus
+from workflows.cognitive_control.attention import active_focus, resolve_focus
 from pydantic import BaseModel
 
 from workflows.cognitive_control.schemas import FocusState
-from workflows.main_cognition.schemas import AttentionNomination, FocusProposalRef
+from workflows.main_cognition.schemas import FocusProposalRef
 
 
 class _Evidence(BaseModel):
@@ -100,23 +100,6 @@ class ResolveFocusTests(unittest.TestCase):
         self.assertEqual(result.instruction, "look away")
         self.assertEqual([item.proposal_id for item in result.rejections], [9])
         self.assertIsNone(resolve_focus(context, None, [], _Evidence()))
-
-
-class AttentionBiasTests(unittest.TestCase):
-    def test_reduction_does_not_defeat_urgent_or_dangerous_candidates(self):
-        focus = FocusState(accept=True, strength=0.3, promote_ids=[], reduce_ids=[5])
-        calm = AttentionNomination(nomination_id="a", target_ids=[5], urgency=0.1)
-        urgent = AttentionNomination(nomination_id="b", target_ids=[5], urgency=0.9)
-        biases = attention_bias([calm, urgent], focus, danger=False)
-        self.assertLess(biases["a"], 0)
-        self.assertEqual(biases["b"], 0.0)
-        danger = attention_bias([calm], focus, danger=True)
-        self.assertEqual(danger["a"], 0.0)
-
-    def test_rejected_focus_applies_no_bias(self):
-        focus = FocusState(accept=False, reduce_ids=[5], strength=0.3)
-        calm = AttentionNomination(nomination_id="a", target_ids=[5], urgency=0.1)
-        self.assertEqual(attention_bias([calm], focus, danger=False), {})
 
 
 if __name__ == "__main__":

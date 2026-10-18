@@ -7,8 +7,9 @@ writes each attempt to the prompt log (``PM_PROMPT_LOG_DIR``).
 
 Some phases read private grounding context: the public-context snapshot that
 the host froze for this cycle. :func:`complete` inserts it as the second turn
-of every attempt. The context is data, so it stays outside the instruction
-turn, and the current phase input stays last and authoritative.
+of every attempt, or after the shared story prefix in a story-framed phase.
+The context is data, so it stays outside the instruction turn, and the
+current phase input stays last and authoritative.
 """
 from __future__ import annotations
 
@@ -70,11 +71,13 @@ def grounding_turn(work: CycleWork, *, emotion: bool) -> Turn | None:
 
 
 def complete(context, work: CycleWork, messages: Sequence[TurnInput], schema: type[Result], *,
-             grounded: bool = False, emotion: bool = True) -> Result:
+             grounded: bool = False, emotion: bool = True, grounding_at: int = 1) -> Result:
     """Call the model for one phase and return the validated answer.
 
-    ``grounded`` inserts the private grounding turn as the second turn of each
-    attempt. ``emotion`` is passed to :func:`grounding_turn`. Invalid output
+    ``grounded`` inserts the private grounding turn at index ``grounding_at``
+    of each attempt. A story-framed phase passes the length of the shared
+    prefix, so the prefix bytes stay equal and the provider can reuse the
+    cache. ``emotion`` is passed to :func:`grounding_turn`. Invalid output
     gets repair turns (see ``complete_json``). Exhausted repairs raise
     ``ModelFormatError``. Transport errors and cancellation propagate.
     """
@@ -82,7 +85,7 @@ def complete(context, work: CycleWork, messages: Sequence[TurnInput], schema: ty
 
     def insert(turns: list[Turn]) -> list[Turn]:
         if turn is not None:
-            turns.insert(1, turn)
+            turns.insert(grounding_at, turn)
         return turns
 
     return complete_json(context, messages, schema, transform=insert,

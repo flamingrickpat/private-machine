@@ -1,4 +1,4 @@
-# Codelets and attention competition
+# Codelets
 
 ## Summary
 
@@ -6,7 +6,7 @@ Codelets are small unconscious processes of the companion's mind.
 Each codelet has one narrow concern, for example boredom, wounded pride, or a joke.
 A codelet reads the story and its own view of the current situational model (CSM).
 It writes a recommendation for the character and converts it into typed percepts.
-The percepts enter the CSM. They do not change the mental state.
+The percepts enter the CSM. They do not change the mental state until attention puts them into a workspace shard.
 
 A19F step 5 replaced the A15 catalogue scheduler and the A16 repertoire.
 The registry now holds twelve codelets of the old generation as data.
@@ -14,13 +14,13 @@ Each codelet keeps a persistent activation between cycles.
 An LLM selector, pathways, a cooldown, and base-level activation change that activation.
 Codelets run in waves, and a later wave sees the CSM after the earlier waves.
 
-Until step 6 of A19F, attention still uses the A15 competition.
-Each recommendation and each percept becomes one nomination for it.
+After the codelets, the structure builders bind the CSM items, and attention moves them into workspace shards.
+See [structures, attention, and the workspace](workspace.md).
 
 Parent: [cognitive pipeline](cognition.md).
 Plan: [A19F](../work_items/alpha-plan/work-items/a19f.md), sections "Codelets", "Prompt frame", and "Current situational model".
 Decisions: D25 and D26 in the [decision register](../work_items/alpha-plan/decision-register.md).
-Related: [codelet pathways](codelet-pathways.md), [emotional dynamics](emotional-dynamics.md).
+Related: [structures, attention, and the workspace](workspace.md), [codelet pathways](codelet-pathways.md), [emotional dynamics](emotional-dynamics.md).
 Earlier evidence: [A15 verification](../work_items/verification/a15-codelets.md), [A16 verification](../work_items/verification/a16-codelets.md). These records describe the removed catalogue.
 
 ## Where codelets run in the cycle
@@ -32,11 +32,13 @@ flowchart LR
     T[triage] --> A[appraise] --> R[retrieve] --> K[codelets] --> S[structures] --> N[attention] --> G[goals]
     R -- stimuli, dialogue, memories --> CSM[(CSM)]
     K -- percepts, recommendations, endorsements --> CSM
-    K -- nominations --> N
+    CSM --> S
+    S -- structures --> N
+    N -- items --> W[(workspace shards)]
 ```
 
 The retrieve phase fills the CSM first ([`enter_retrieval`][workflows.main_cognition.csm_view.enter_retrieval]).
-It adds the current stimuli, the last dialogue turns, and the memory candidates with the endorser `retrieval`.
+It adds the current stimuli, the last dialogue turns, the memory candidates, the narratives of the self and of the group entities, and the active goals with the endorser `retrieval`.
 The codelets phase reads the mental state that the appraise phase accepted.
 So an emotion that the current event caused can already activate a codelet.
 
@@ -48,13 +50,13 @@ An unknown field or a duplicate name stops the cycle.
 
 | Field | Meaning |
 | --- | --- |
-| `name` | Stable identity. The registry state, the percept records, and `AttentionRecord.from_codelet` use it. |
+| `name` | Stable identity. The registry state and the percept records use it. |
 | `description` | What the codelet is about. The selector and the signature embedding read it. |
 | `families` | The old `CodeletFamily` values. They select the percept types and the state match. |
 | `data_aquisation` | The old retrieval list. An agent codelet reads it as its retrieval plan. |
 | `prompt` | The instruction of the codelet. |
 | `execution` | `chain` or `agent`. An omitted value means `agent` when `MemoryAccessors` is the first family. |
-| `nomination_kind`, `reality` | Labels for the A15 attention competition until step 6. |
+| `nomination_kind`, `reality` | Old labels of the A15 attention competition. No phase reads them now. |
 | `stimulus_kinds` | Stimulus kinds that match. An empty list matches every stimulus. |
 
 Texts use the placeholders `{companion_name}` and `{entity_name}`.
@@ -96,7 +98,7 @@ The cycle state holds the runtime state of every codelet in [`CodeletRegistrySta
 It survives from cycle to cycle. Each [`CodeletRuntimeState`][pm.records.codelet_records.CodeletRuntimeState] holds:
 
 - `activation`: the stored activation. It decays by `CODELET_ACTIVATION_DECAY` in every cycle and returns to 0 after a run.
-- `base_activation`: the base-level activation. It rises when a nomination of the codelet wins attention, and it falls slowly in every cycle (LIDA attentional learning).
+- `base_activation`: the base-level activation. It rises when a percept of the codelet enters a workspace shard, and it falls slowly in every cycle (LIDA attentional learning).
 - `cooldown_ticks`, `last_fired_tick`, `total_runs`, `last_percept_ids`.
 - `precursor_ids`: percepts of an upstream pathway codelet. The codelet's CSM view favors them.
 
@@ -132,16 +134,18 @@ Embeddings and every change of the CSM or the registry happen in the phase threa
 
 ## Prompt frame
 
-Every call of the phase starts with the same three turns:
+Every call of the phase starts with the same three turns of the shared story prefix ([`StoryPrefix`][workflows.main_cognition.story_prefix.StoryPrefix]):
 
 1. The system prompt: an expert story writer who simulates the mind of the character.
-2. The story: the character card, the recent dialogue in world-time order, the memories, the goals, the feeling in words, and the new stimuli.
+2. The story: the character card, then the self shard, then the shard of each current stimulus group, each with its tail, in world-time order. Then the feeling in words and the new stimuli.
 3. The acknowledgement of the story.
 
-[`CodeletFrame`][workflows.main_cognition.phases.codelets.CodeletFrame] renders these turns once per cycle.
+[`CodeletFrame`][workflows.main_cognition.phases.codelets.CodeletFrame] uses that prefix for every call of the cycle.
 So the bytes are equal for every call, and the provider can reuse the cached prefix.
+The codelets read the shards as the previous cycle left them, with the new tails.
+Memories reach a codelet through its CSM view, not through the prefix.
 The codelet's CSM view and its instruction come last.
-The prompts are in `workflows/main_cognition/phases/prompts/codelets.yaml`.
+The prefix texts are in `workflows/main_cognition/phases/prompts/story.yaml`. The codelet texts are in `codelets.yaml` beside it.
 
 ## Execution modes
 
@@ -189,7 +193,7 @@ An unknown appraisal axis or a value outside its bounds is invalid model output 
 For each percept, [`percept_affect`][workflows.main_cognition.affect.percept_affect] copies the current mental state, sets the percept's appraisal axes, and calls `compute_state_delta` with the group entity.
 The percept stores the resulting state and the delta on the EMA axes.
 The current mental state does not change.
-A percept becomes causal only when attention puts it into a workspace shard (step 6 of A19F).
+A percept becomes causal only when attention puts it into a workspace shard. Then the commit stores it with `causal=True`, and its delta enters the EMA mental state of the next cycle ([`features_to_history`][pm.records.mental_state.features_to_history]).
 
 The recommendation gets a record of its own.
 It stores the mean appraisal state and the summed delta of its percepts, as the old `CodeletOutput` feature did.
@@ -211,49 +215,17 @@ The query is the codelet's signature embedding. The view favors the codelet's pr
 The view holds at most `CODELET_VIEW_TOKENS` tokens and is rendered in world-time order, with record ids.
 Embeddings never appear in a prompt.
 
-## Nominations and attention competition
-
-[`proposals`][workflows.main_cognition.phases.codelets.proposals] turns each recommendation and each percept into one [`CodeletProposal`][workflows.main_cognition.schemas.CodeletProposal].
-A recommendation targets its own record and the records it is about. A percept targets its own record.
-
-The attention phase scores the proposals in batches of `score_batch_size` (8).
-The model gives four integers from 0 to 10 per proposal: `urgency`, `novelty`, `goal_relevance`, and `reportability`.
-If a batch misses ids, the phase asks once more for only the missing ids.
-A proposal that still has no score is `rejected` with reason `unscored`.
-
-[`workflows.main_cognition.attention_competition.compete`][] then selects the winners:
-
-1. The score is the weighted sum of the four values divided by 10. The weights are 0.35, 0.15, 0.3, and 0.2.
-2. In danger (an appraised `bodily_threat` of at least `THREAT_APPRAISAL_THRESHOLD`), urgency gets a bonus of 0.3.
-3. The places go to the highest scores at or above `min_score` (0.3), up to `capacity` (5).
-4. Every loser is `deferred`. Its reason is `capacity` or `below_min_score`, with the numbers.
-
-A codelet with a winning nomination gets a higher base-level activation ([`reinforce`][workflows.main_cognition.codelet_registry.reinforce]).
-Step 6 of A19F replaces this competition with attention into workspace shards.
-
-## Proposal consumers
-
-A typed nomination without a consumer does not establish a cognitive effect.
-[`PROPOSAL_CONSUMERS`][workflows.main_cognition.schemas.PROPOSAL_CONSUMERS] names the consumer of every kind.
-[`proposal_consumers`][workflows.main_cognition.phases.goals.proposal_consumers] is the executable form of that map. The host writes it on each committed `AttentionRecord` under `metadata.consumers`.
-[`inner_proposals`][workflows.main_cognition.phases.goals.inner_proposals] filters the accepted nominations: the goals phase reads `action_tendency` and `belief`, and the decide phase reads `action_tendency`, `regulation`, and `simulation`.
-The experience phase reads every accepted nomination.
-
-The twelve codelets make no `belief` nominations.
-The belief owner, [`apply_belief_proposals`][workflows.main_cognition.stage_commits.apply_belief_proposals], stays for definitions that use that kind.
-
 ## Commit
 
 [`MainCogLoop.publish_output`][workflows.main_cognition.host.MainCogLoop.publish_output] commits in one write batch:
 
-- one `CodeletPercept` record for each percept and each recommendation, with its appraisal vector, its delta vector, its percept type, its story fields, and its target shard;
-- one `AttentionRecord` per nomination, winners and losers;
-- the `AttentionFrameRecord`. Its `metadata` holds `codelet_runs`, `codelet_cost`, `codelet_budget`, `codelet_ratings`, the definitions version and digest, `percept_ids`, and `pathway_boosts`;
-- the cycle state with the CSM and the registry state.
+- one `CodeletPercept` record for each percept and each recommendation, with its appraisal vector, its delta vector, its percept type, its story fields, its target shard, and `causal`;
+- the `Structure` records of the cycle (see [structures, attention, and the workspace](workspace.md));
+- the `AttentionFrameRecord`. Its `metadata` holds `codelet_runs`, `codelet_cost`, `codelet_budget`, `codelet_ratings`, the definitions version and digest, `percept_ids`, `structure_ids`, `causal_percept_ids`, `attention_ratings`, and `pathway_boosts`;
+- the cycle state with the CSM, the workspace, and the registry state.
 
 The phases use the provisional tick `previous tick + 1`.
-The commit replaces it with the real tick in the CSM and the registry.
-[`stale_nominations`][workflows.main_cognition.host.stale_nominations] marks a nomination whose read sources changed before commit. A stale nomination cannot win.
+The commit replaces it with the real tick in the CSM, the registry, and the workspace items.
 
 ## Inspect a real cycle
 

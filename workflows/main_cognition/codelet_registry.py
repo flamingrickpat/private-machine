@@ -68,8 +68,8 @@ class CodeletDefinition(BaseModel):
     Texts can hold the placeholders ``{companion_name}`` and
     ``{entity_name}``. ``execution`` is ``chain``, ``agent``, or empty. An
     empty value selects ``agent`` when ``MemoryAccessors`` is the first
-    family, else ``chain``. ``nomination_kind`` and ``reality`` label the
-    recommendation for attention until step 6 of A19F replaces attention.
+    family, else ``chain``. ``nomination_kind`` and ``reality`` are old labels
+    of the A15 attention competition. No phase reads them since A19F step 6.
     ``stimulus_kinds`` lists the stimulus kinds that match the codelet. An
     empty list matches every stimulus.
     """

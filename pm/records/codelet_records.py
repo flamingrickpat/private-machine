@@ -33,17 +33,23 @@ class AffectMeta(BaseModel):
 
 
 class StructureRelation(BaseModel):
-    source_id: int
-    relation: str
-    target_id: int
+    """One relation between two records of a structure, with its reason in words."""
+
+    source_id: int = 0
+    relation: str = ""
+    target_id: int = 0
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class Structure(RecordBase):
+    """A bag of records with a theme, relations, affect, and a target shard.
+
+    The structure builders of main cognition make structures from the CSM.
+    Attention rates them for each workspace shard. ``content`` holds the
+    theme and the reason in words. ``primitive_metadata`` names the builder
+    and the structure kind. A structure can bind conflicting content.
     """
-    Bundle of knoxels sharing some common theme with metadata to allow competition for attention mechanisms.
-    """
-    active: bool = Field(description="Whether this structure is active or inactive (superceded, ignored)")
+    active: bool = Field(default=True, description="Whether this structure is active or inactive (superceded, ignored)")
     internal_knoxel_ids: List[int] = Field(default_factory=list, description="list of knoxels that contribute (memories, features, beliefs, ...)")
     structure_ids: List[int] = Field(default_factory=list, description="Nested structure ids that contribute to this structure")
     relations: List[StructureRelation] = Field(default_factory=list, description="Inline relation triplets between referenced knoxels")
@@ -128,13 +134,14 @@ class CodeletPercept(RecordBase):
     """
     Minimal header that every percept carries for selection and blending.
     """
-    codelet_name: str
-    explanation: str
-    reasoning_trace: str
+    codelet_name: str = ""
+    explanation: str = ""
+    reasoning_trace: str = ""
     affect: AffectMeta = Field(default_factory=AffectMeta, description="Simple low-dim appraisal vector for runtime importance")
     mental_state_appraisal_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state (total, includes state at which feature was created).")
     mental_state_delta_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state (local delta, can be added up in EMA for 'state during'.")
     internal_knoxel_ids: List[int] = Field(default_factory=list, description="list of knoxels that are based on this percept (new beliefs, attention shifts, goals, or just the features)")
+    causal: bool = Field(default=False, description="True after the percept entered a workspace shard. Only causal percepts add their delta to the EMA mental state.")
 
     @property
     def knoxels(self) -> List[RecordBase]:

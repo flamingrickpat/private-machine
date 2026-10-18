@@ -48,7 +48,9 @@ from workflows.main_cognition.schemas import (
     PhaseReceipt,
     RecordView,
     ReflectionGuidance,
+    ShardStream,
     Stimulus,
+    StructuresResult,
     TriageResult,
     WorkflowOption,
     WorkspaceResult,
@@ -75,7 +77,12 @@ class CycleRequest(BaseModel):
     ``personality`` is the stable profile of the persona.
 
     ``character_card`` is the story character card of the companion. The
-    codelet prompts open their shared story prefix with it.
+    shared story prefix opens with it.
+
+    ``self_entity_id`` is the entity record of the companion, or None.
+    ``narrative_ids`` are the newest narrative records of the self and of the
+    group entities. The retrieve phase puts them into the CSM. ``streams``
+    hold the newest stream records of each shard, for the shard tails.
     """
 
     run_id: str = ""
@@ -83,6 +90,7 @@ class CycleRequest(BaseModel):
     companion_name: str = ""
     user_name: str = ""
     user_entity_id: int | None = None
+    self_entity_id: int | None = None
     state_summary: str = ""
     previous_state: CycleState | None = None
     cycle_time: datetime = Field(default_factory=datetime.utcnow)
@@ -109,6 +117,8 @@ class CycleRequest(BaseModel):
     records: dict[int, RecordView] = Field(default_factory=dict)
     # The last dialogue turns before the stimuli, oldest first.
     recent_dialogue_ids: list[int] = Field(default_factory=list)
+    narrative_ids: list[int] = Field(default_factory=list)
+    streams: list[ShardStream] = Field(default_factory=list)
     active_focus: FocusState | None = None
     focus_proposals: list[FocusProposalRef] = Field(default_factory=list)
     mental_proposals: list[MentalProposal] = Field(default_factory=list)
@@ -135,7 +145,11 @@ class CycleWork(BaseModel):
     ``records`` holds the record views that the CSM can name. Intake copies
     them from the request, and the codelets phase adds the views of new
     percepts. ``last_pending_id`` is the last pending id that this cycle gave
-    to a new percept (see :meth:`allocate_pending_id`).
+    to a new percept or structure (see :meth:`allocate_pending_id`).
+
+    ``structures`` holds the structures of this cycle. ``attention`` holds
+    the shard ratings and the shard changes. The attention phase changes the
+    shards of ``state.workspace`` in place.
 
     Each phase result field holds an empty result until its phase runs.
     """
@@ -150,6 +164,7 @@ class CycleWork(BaseModel):
     context: ContextResult = Field(default_factory=ContextResult)
     selected_memories: list[MemoryCandidate] = Field(default_factory=list)
     codelets: CodeletsResult = Field(default_factory=CodeletsResult)
+    structures: StructuresResult = Field(default_factory=StructuresResult)
     attention: AttentionResult = Field(default_factory=AttentionResult)
     goals: GoalsResult = Field(default_factory=GoalsResult)
     workspace: WorkspaceResult = Field(default_factory=WorkspaceResult)
@@ -171,8 +186,9 @@ class CycleWork(BaseModel):
     def allocate_pending_id(self) -> int:
         """Return a new pending record id for a record that the commit creates.
 
-        The memory store assigns record ids only at commit. A new percept
-        needs an id earlier, because the CSM holds it by id. Pending ids
+        The memory store assigns record ids only at commit. A new percept or
+        structure needs an id earlier, because the CSM and the workspace hold
+        it by id. Pending ids
         count down from -2: -1 is the store's "unassigned" id and 0 is no
         record. The commit replaces each pending id by the record id.
         """

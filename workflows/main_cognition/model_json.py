@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 from pm.utils import yaml_util
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from collections.abc import Callable, Sequence
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.context_render.turns import Role, Turn
@@ -35,6 +35,29 @@ def load_yaml(path: str | Path) -> dict:
     return yaml_util.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
+class ShardLabels(BaseModel):
+    """The words that the shared story prefix uses for the workspace shards.
+
+    The texts can hold ``{companion_name}``, ``{entity_name}``, and
+    ``{workflow_name}``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    self_title: str = ""
+    self_tail: str = ""
+    entity_title: str = ""
+    entity_tail: str = ""
+    workflow_title: str = ""
+    workflow_tail: str = ""
+    empty_items: str = ""
+    empty_tail: str = ""
+    # The attention phase: what the awareness of each shard kind is about.
+    self_focus: str = ""
+    entity_focus: str = ""
+    workflow_focus: str = ""
+
+
 class PhasePrompts(BaseModel):
     """The prompt texts of one phase, read from its YAML file.
 
@@ -48,9 +71,15 @@ class PhasePrompts(BaseModel):
     job_template: str = ""
     reality_labels: dict[str, str] = Field(default_factory=dict)
     reality_rules: dict[str, str] = Field(default_factory=dict)
-    # The codelets phase: the shared story prefix and its per-call parts.
+    # The shared story prefix (story.yaml) and the per-call parts of the codelets phase.
     story_template: str = ""
     story_ack: str = ""
+    shard_template: str = ""
+    shard_labels: ShardLabels = Field(default_factory=ShardLabels)
+    # The attention phase: the mental aperture texts of the old code.
+    aperture_narrow: str = ""
+    aperture_broad: str = ""
+    aperture_default: str = ""
     view_template: str = ""
     conversion_template: str = ""
     selector_template: str = ""
@@ -153,6 +182,7 @@ __all__ = [
     "complete_text",
     "extract_json",
     "PhasePrompts",
+    "ShardLabels",
     "load_prompts",
     "load_yaml",
     "read_request",

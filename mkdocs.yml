@@ -56,7 +56,8 @@ nav:
       - Emotional dynamics: subsystems/emotional-dynamics.md
       - Cooperative survival: subsystems/cooperative-survival.md
       - Observed world events: subsystems/world-events.md
-      - Codelets and attention: subsystems/codelets.md
+      - Codelets: subsystems/codelets.md
+      - Structures, attention, and the workspace: subsystems/workspace.md
       - Codelet pathways: subsystems/codelet-pathways.md
       - The private thought loop: subsystems/private-loop.md
       - Private reflection experiments: subsystems/reflection.md
