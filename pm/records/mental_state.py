@@ -15,7 +15,13 @@ import math
 from typing import TYPE_CHECKING, Dict, List, Sequence, Type, TypeVar, Optional, Tuple
 from pydantic import BaseModel, Field
 
-from pm.constants import MENTAL_STATE_REFERENCE_MINUTES, MENTAL_STATE_SIGMA_FLOOR, MENTAL_STATE_TANH_GAIN
+from pm.constants import (
+    ALPHA_MAX_STATE_STEP,
+    ALPHA_MAX_STIMULUS_DELTA,
+    MENTAL_STATE_REFERENCE_MINUTES,
+    MENTAL_STATE_SIGMA_FLOOR,
+    MENTAL_STATE_TANH_GAIN,
+)
 
 if TYPE_CHECKING:
     # memory_records imports this module, so the type is for annotations only.
@@ -1004,19 +1010,67 @@ def sparse_delta(vector: Sequence[float]) -> Dict[int, float]:
             if pos != VectorModelRelationshipEntityID and value and math.isfinite(value)}
 
 
+def alpha_clamp_delta(vector: Sequence[float]) -> List[float]:
+    """ALPHA RUN ONLY. Return ``vector`` with every axis clamped to +-``ALPHA_MAX_STIMULUS_DELTA``.
+
+    !!! TEMPORARY FAILSAFE FOR THE ALPHA RUN. FIX PROPERLY LATER. !!!
+    One record must not move one axis by more than a third. The relationship
+    entity id slot is an identifier, so it stays as it is. Remove this
+    function together with the ALPHA block in ``pm.constants``.
+    """
+    limit = ALPHA_MAX_STIMULUS_DELTA
+    return [float(value) if pos == VectorModelRelationshipEntityID else max(-limit, min(limit, float(value or 0.0)))
+            for pos, value in enumerate(vector)]
+
+
+def alpha_limit_state_step(previous: "FullMentalState", state: "FullMentalState") -> None:
+    """ALPHA RUN ONLY. Limit the change of each EMA axis of ``state`` to +-``ALPHA_MAX_STATE_STEP``.
+
+    !!! TEMPORARY FAILSAFE FOR THE ALPHA RUN. FIX PROPERLY LATER. !!!
+    ``previous`` is the state that the last accepted cycle published. Each
+    axis of core affect, emotions (boredom too), and needs can move at most
+    a third from its previous value. The relationship is limited only when
+    both states describe the same partner; for a new partner there is no
+    previous value. The function changes ``state`` in place. Call
+    :func:`derive_expression` after it, so the expression readouts match.
+
+    The limit acts on the readout only. The stored deltas keep the full
+    history, so a large but lasting change still arrives over some cycles.
+    """
+    limit = ALPHA_MAX_STATE_STEP
+    before = previous.to_list()
+    after = state.to_list()
+    relationship = set(StateRelationship.get_vector_positions().values())
+    same_partner = (previous.state_relationship is not None and state.state_relationship is not None
+                    and previous.state_relationship.entity_id == state.state_relationship.entity_id)
+    for pos in ema_axis_positions():
+        if pos in relationship and not same_partner:
+            continue
+        after[pos] = max(before[pos] - limit, min(before[pos] + limit, after[pos]))
+    for part in (state.state_core, state.state_emotions, state.state_needs):
+        part.from_vector(after)
+    if same_partner:
+        entity_id = state.state_relationship.entity_id
+        state.state_relationship.from_vector(after)
+        state.state_relationship.entity_id = entity_id
+
+
 def _state_sample(timestamp, entity_id: int, appraisal_vec: Sequence[float],
                   delta_vec: Sequence[float]) -> MentalStateSample:
     """Return one EMA sample from the affect fields of a record.
 
     The partner of the appraisal state is the integral, positive value in
     the relationship entity id slot of ``appraisal_vec``.
+
+    ALPHA RUN ONLY: the delta passes :func:`alpha_clamp_delta`, so old
+    stored records and codelet percepts also move one axis by a third at most.
     """
     entity_ids = [entity_id] if entity_id else []
     partner = float(appraisal_vec[VectorModelRelationshipEntityID] or 0.0)
     if partner > 0 and partner.is_integer() and int(partner) not in entity_ids:
         entity_ids.append(int(partner))
     return MentalStateSample(timestamp=_naive_utc(timestamp), entity_ids=entity_ids,
-                             delta=sparse_delta(delta_vec))
+                             delta=sparse_delta(alpha_clamp_delta(delta_vec)))
 
 
 def feature_state_sample(feature: "Feature") -> MentalStateSample:

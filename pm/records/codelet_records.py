@@ -187,6 +187,9 @@ class CodeletRuntimeState(BaseModel):
     total_runs: int = 0
     last_percept_ids: List[int] = Field(default_factory=list)
     precursor_ids: List[int] = Field(default_factory=list)
+    # ALPHA RUN ONLY: the last selector rating, for ALPHA_MAX_RATING_STEP.
+    # Remove it with the ALPHA block in pm.constants.
+    last_rating: float | None = None
 
     def rekey(self, mapping: Dict[int, int]) -> None:
         """Replace pending percept ids by record ids. See ``SituationalModel.rekey``."""

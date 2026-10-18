@@ -140,6 +140,7 @@ The commit stages one [`Structure`][pm.records.codelet_records.Structure] record
 - An incumbent's priority is the larger of its CSM activation and its newcomer score, plus `WORKSPACE_HOLD_BONUS`. So an incumbent stays while it beats the newcomers.
 - Each `min_items` requirement first takes the matching pool records with the highest priority, without the focus bonus. If the pool has none, it takes the matching CSM items with the highest activation.
 - Then every other pool entry enters in priority order, until the budget (`WORKSPACE_SHARD_TOKENS`) or a cap (`max_items`, `max_token_share`) refuses it.
+  ALPHA RUN ONLY (temporary, fix properly later): `workspace.yaml` sets extra `max_items` caps, marked `# ALPHA`, on goals, the self model, codelet percepts, memories, and expectations. They stop the shard growth of the review run (about 40 items after five ticks). The real fix is attention that also displaces incumbents.
 - An entry below `WORKSPACE_MIN_RATING` (0.6) does not enter. A reserved place ignores this limit.
 - Records with a focus endorsement fill at most `FOCUS_MAX_SHARE` of the budget. Focus cannot pin an item and cannot remove a reserved item.
 - One record is in at most one shard. It goes to the shard where its priority is highest.

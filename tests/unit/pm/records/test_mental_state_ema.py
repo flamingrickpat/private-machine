@@ -56,8 +56,9 @@ class EmaStateTests(unittest.TestCase):
         event = T0 + timedelta(hours=3)
         joyful = [*history, MentalStateSample(timestamp=event, delta={JOY: 0.5, SADNESS: -0.2})]
         state = _state(joyful, event)
-        # One delta of 0.5 over the scale floor reads as tanh(1.0), about 0.76.
-        self.assertGreater(state.state_emotions.joy, 0.7)
+        # One delta of 0.5 over the scale floor reads as tanh(0.5 / (2 * floor)).
+        # ALPHA RUN: the floor is 0.35 (was 0.25), so about 0.61 (was 0.76).
+        self.assertGreater(state.state_emotions.joy, 0.55)
         # An emotion cannot fall below its default of 0.
         self.assertEqual(state.state_emotions.sadness, 0.0)
         # An axis without deltas stays at its default.
@@ -73,7 +74,7 @@ class EmaStateTests(unittest.TestCase):
         samples = [*_noise(12), MentalStateSample(timestamp=event, delta={JOY: 0.5})]
         values = [_state(samples, event + timedelta(hours=hours)).state_emotions.joy for hours in (0, 6, 24, 96)]
         self.assertEqual(values, sorted(values, reverse=True))
-        self.assertGreater(values[0], 0.7)
+        self.assertGreater(values[0], 0.55)  # ALPHA RUN: sigma floor 0.35.
         self.assertLess(values[-1], 0.1)
 
     def test_an_event_after_a_long_gap_still_shows(self):
@@ -81,7 +82,7 @@ class EmaStateTests(unittest.TestCase):
         # half-lives erased the new event at once.
         event = T0 + timedelta(days=30)
         samples = [*_noise(12), MentalStateSample(timestamp=event, delta={JOY: 0.5})]
-        self.assertGreater(_state(samples, event).state_emotions.joy, 0.7)
+        self.assertGreater(_state(samples, event).state_emotions.joy, 0.55)  # ALPHA RUN: sigma floor 0.35.
 
     def test_a_longer_half_life_keeps_the_feeling_longer(self):
         event = T0 + timedelta(hours=3)

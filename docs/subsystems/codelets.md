@@ -122,7 +122,7 @@ The port fixes three old defects: the old score used the cosine distance, the ol
 [`collect`][workflows.main_cognition.phases.codelets.collect] runs these steps:
 
 1. Score every codelet.
-2. The selector call rates the top `CODELET_SELECTOR_CANDIDATES` codelets from 0 to 1 for this moment of the story. Each rating adds `CODELET_SELECTOR_WEIGHT * rating` to the stored activation. The old code iterated the ratings without `.items()`. This port reads every rating.
+2. The selector call rates the top `CODELET_SELECTOR_CANDIDATES` codelets from 0 to 1 for this moment of the story. Each rating adds `CODELET_SELECTOR_WEIGHT * rating` to the stored activation. ALPHA RUN ONLY (temporary, fix properly later): a rating moves at most `ALPHA_MAX_RATING_STEP` (1/3) from the previous rating of the same codelet ([`workflows.main_cognition.codelet_registry.add_rating`][]). So one tease cannot spike `BoredomThresholdCross`, but repetition over some cycles still raises it. The old code iterated the ratings without `.items()`. This port reads every rating.
    The selector first writes the patterns of the recent story (`CodeletRatings.patterns`), then rates how clearly the trigger of each codelet is present, not how well it fits the mood.
    The prompt also lists the earlier lines of the same speaker that echo the newest line, with their count ([`echoes`][workflows.main_cognition.phases.codelets.echoes]). A line echoes when its embedding cosine with the stimulus is at least `CODELET_ECHO_SIMILARITY`.
    In the A19F step 5 replay, the selector rated `BoredomThresholdCross` 0.1 although Jesse deferred the choice for the fourth time. A repetition across many turns was invisible to a model that read the newest line first.

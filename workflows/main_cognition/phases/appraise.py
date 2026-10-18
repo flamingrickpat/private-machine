@@ -35,6 +35,8 @@ from __future__ import annotations
 from pm.context_render.turns import Turn, format_content
 from pm.records.mental_state import (
     MentalStateSample,
+    alpha_clamp_delta,
+    alpha_limit_state_step,
     compute_mental_state,
     compute_relationship_state,
     derive_expression,
@@ -135,6 +137,10 @@ def update_affect(work: CycleWork, appraisal: AppraisalResult) -> AppraisalAffec
     if entity is not None:
         current.state_relationship = compute_relationship_state(history, entity, now=now, half_life_s=half_life)
     appraisal_state, delta = appraise_state(current, appraisal, entity_id=entity)
+    # !!! ALPHA RUN ONLY: TEMPORARY FAILSAFE. FIX PROPERLY LATER. !!!
+    # One stimulus moves one axis by a third at most. The commit stores the
+    # clamped delta, so the next cycle reads the same sample.
+    delta = alpha_clamp_delta(delta)
 
     sample = MentalStateSample(timestamp=now, entity_ids=[entity] if entity is not None else [],
                                delta=sparse_delta(delta))
@@ -142,6 +148,11 @@ def update_affect(work: CycleWork, appraisal: AppraisalResult) -> AppraisalAffec
     state = compute_mental_state(updated, now=now, half_life_s=half_life, personality=request.personality)
     if entity is not None:
         state.state_relationship = compute_relationship_state(updated, entity, now=now, half_life_s=half_life)
+    # !!! ALPHA RUN ONLY: TEMPORARY FAILSAFE. FIX PROPERLY LATER. !!!
+    # Each axis moves a third at most from the state of the last cycle. In
+    # the A19F review run one stimulus moved valence from +0.78 to -1.0.
+    if request.previous_state is not None:
+        alpha_limit_state_step(request.previous_state.mental_state, state)
     derive_expression(state)
     work.state.mental_state = state
     partner_name = request.user_name if entity is not None and entity == request.user_entity_id else ""

@@ -10,6 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+from pm.constants import ALPHA_MAX_STIMULUS_DELTA
 from pm.app.lifecycle_records import record_shutdown, record_startup
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
@@ -246,12 +247,15 @@ class UpdateAffectTests(unittest.TestCase):
                                             "trust_cues": 0.9, "fairness": 0.9})
         affect = update_affect(work, answer)
         state = work.state.mental_state
-        self.assertGreater(state.state_emotions.joy, 0.5)
+        # ALPHA RUN: the delta clamp (ALPHA_MAX_STIMULUS_DELTA) and the higher
+        # sigma floor keep one strong appraisal below the old 0.5 readout.
+        self.assertGreater(state.state_emotions.joy, 0.4)
         self.assertEqual(state.state_relationship.entity_id, 1)
         self.assertGreater(state.state_relationship.trust, 0.0)
         self.assertEqual(affect.entity_id, 1)
         self.assertGreater(affect.delta_vec[JOY], 0.0)
-        self.assertIn("joy", affect.felt)
+        # ALPHA RUN: joy is softer now, so other positive feelings can rank above it.
+        self.assertIn("good spirits", affect.felt)
         self.assertIn("Toward User", affect.felt)
 
     def test_elapsed_time_between_cycles_lets_an_untouched_feeling_fade(self):
@@ -267,7 +271,8 @@ class UpdateAffectTests(unittest.TestCase):
         # EMA baseline moves with the elapsed time.
         update_affect(soon, AppraisalResult())
         update_affect(later, AppraisalResult())
-        self.assertLess(soon.state.mental_state.state_needs.connection, 0.2)
+        # ALPHA RUN: the higher sigma floor softens the dip (was below 0.2).
+        self.assertLess(soon.state.mental_state.state_needs.connection, 0.3)
         self.assertGreater(later.state.mental_state.state_needs.connection,
                            soon.state.mental_state.state_needs.connection)
 
@@ -337,7 +342,8 @@ class CycleTests(unittest.TestCase):
         work, _ = _cycle(ghost, _reports(second), second)
         samples = work.request.state_history
         self.assertIn(feature_state_sample(feature), samples)
-        self.assertEqual(sparse_delta(feature.mental_state_delta_vec)[JOY], 0.5)
+        # ALPHA RUN: the stored delta is clamped to ALPHA_MAX_STIMULUS_DELTA.
+        self.assertEqual(sparse_delta(feature.mental_state_delta_vec)[JOY], min(0.5, ALPHA_MAX_STIMULUS_DELTA))
 
     def test_danger_makes_the_cycle_reactive_and_later_prompts_read_it(self):
         ghost = _small_ghost()

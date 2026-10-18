@@ -80,6 +80,23 @@ A feature without a delta also counts, because its deviation sample changes the 
 [`pm.records.mental_state.compute_relationship_state`][] reads only the samples of one entity.
 A sample concerns an entity when the Feature names it in `entity_id` or in the relationship slot of its appraisal vector.
 
+## Alpha failsafe clamps (temporary)
+
+!!! danger "ALPHA RUN ONLY. Fix properly later."
+    These clamps are temporary failsafes for the first owner run with the real persona.
+    They hide the symptom, not the cause.
+    In the A19F review run, one stimulus moved core valence from +0.78 to -1.0 in one tick.
+    The real fix is a tuned affect design: sigma floor, gain, half-life, and appraisal calibration.
+    After that fix, delete the `ALPHA_*` block in `pm/constants.py` and every use of it.
+
+- `ALPHA_MAX_STIMULUS_DELTA` (1/3): one record moves one axis by a third at most.
+  The appraise phase stores the clamped delta.
+  The EMA reader also clamps old stored deltas and codelet percept deltas ([`pm.records.mental_state.alpha_clamp_delta`][]).
+- `ALPHA_MAX_STATE_STEP` (1/3): each axis of core affect, emotions (boredom too), and needs moves a third at most from the state of the last cycle ([`pm.records.mental_state.alpha_limit_state_step`][]).
+  The relationship is limited only when the partner stays the same.
+  The limit acts on the readout only, so a lasting change still arrives over some cycles.
+- `MENTAL_STATE_SIGMA_FLOOR` is 0.35 instead of 0.25 for the alpha run. One delta of 0.5 now reads as about 0.61 instead of 0.76.
+
 ## Departures from the old code
 
 - The delta is the step from the current readout to the appraised state, as in the old `cognitive_cycle`. The raw level is the running sum of all deltas and has no bound. That is intended: only the deviation of the level from its EMA baseline is read out. An earlier port derived the delta against the raw level. Its sign flips came from the old scale floor of 0.001, not from this rule. With that floor, one small delta pinned the readout at a bound.

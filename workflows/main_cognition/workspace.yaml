@@ -7,6 +7,12 @@
 # feature_type filters only Feature records.
 # min_items reserves places. max_items and max_token_share are caps.
 # max_token_share is a part of the shard content budget (WORKSPACE_SHARD_TOKENS).
+#
+# !!! ALPHA RUN ONLY: the max_items caps marked "ALPHA" are temporary. FIX PROPERLY LATER. !!!
+# In the A19F review run the self shard held about 37 items and the user's
+# shard about 44 after five ticks. The caps keep the story prefix small and
+# stable for the owner run. The real fix is attention that also removes
+# items (displacement and decay of incumbents), not a fixed count.
 shards:
   self:
     requirements:
@@ -18,13 +24,16 @@ shards:
       - name: self_model
         select: {record: [SemanticRecord, BeliefRecord], entity: self}
         min_items: 1
+        max_items: 6  # ALPHA
         max_token_share: 0.15
       # Goal records store entity id 0, so this selector has no entity filter.
       - name: self_goals
         select: {record: [Intention]}
+        max_items: 6  # ALPHA
         max_token_share: 0.15
       - name: codelet_percepts
         select: {record: [CodeletPercept]}
+        max_items: 10  # ALPHA
         max_token_share: 0.35
   entity:
     requirements:
@@ -35,9 +44,11 @@ shards:
         max_token_share: 0.2
       - name: memories
         select: {record: [MemoryClusterRecord, DeclarativeFactRecord, SemanticRecord], entity: shard}
+        max_items: 12  # ALPHA
         max_token_share: 0.4
       - name: interpersonal_expectations
         select: {record: [ExpectationRecord, Intention], entity: shard}
+        max_items: 6  # ALPHA
         max_token_share: 0.15
   workflow:
     requirements:

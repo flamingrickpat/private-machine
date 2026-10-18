@@ -34,6 +34,7 @@ from typing import Callable, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.constants import (
+    ALPHA_MAX_RATING_STEP,
     CODELET_ACTIVATION_DECAY,
     CODELET_BASE_FORGET,
     CODELET_BASE_LEARN_RATE,
@@ -244,9 +245,22 @@ def add_activation(runtime: CodeletRuntimeState, amount: float) -> None:
     runtime.activation = max(0.0, min(CODELET_MAX_ACTIVATION, runtime.activation + amount))
 
 
-def add_rating(runtime: CodeletRuntimeState, rating: float) -> None:
-    """Add a selector rating (0 to 1) times ``CODELET_SELECTOR_WEIGHT`` to the stored activation."""
+def add_rating(runtime: CodeletRuntimeState, rating: float) -> float:
+    """Add a selector rating (0 to 1) times ``CODELET_SELECTOR_WEIGHT`` to the stored activation.
+
+    !!! ALPHA RUN ONLY: TEMPORARY FAILSAFE. FIX PROPERLY LATER. !!!
+    The rating moves at most ``ALPHA_MAX_RATING_STEP`` from the previous
+    rating of the same codelet. In the A19F review run the selector rated
+    BoredomThresholdCross 0.95 on a tease. So a codelet can rise over some
+    cycles of repetition, but one cycle cannot spike it. The real fix is a
+    calibrated selector. Returns the rating that was applied.
+    """
+    if runtime.last_rating is not None:
+        rating = max(runtime.last_rating - ALPHA_MAX_RATING_STEP,
+                     min(runtime.last_rating + ALPHA_MAX_RATING_STEP, rating))
+    runtime.last_rating = rating
     add_activation(runtime, CODELET_SELECTOR_WEIGHT * rating)
+    return rating
 
 
 def mark_fired(runtime: CodeletRuntimeState, tick: int, percept_ids: list[int]) -> None:

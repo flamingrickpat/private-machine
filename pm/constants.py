@@ -128,10 +128,29 @@ FOCUS_MAX_SHARE = 0.3  # Maximum part of a shard budget that deliberate focus ca
 # Affect: the EMA mental state over feature deltas (D27).
 # See pm.records.mental_state.compute_mental_state for the formula.
 MENTAL_STATE_REFERENCE_MINUTES = 24 * 60  # EMA half-life of the mental state. Ego-strength scaling is disabled for now.
-MENTAL_STATE_SIGMA_FLOOR = 0.25  # Smallest deviation scale of one axis. A small floor lets one small delta pin the readout at a bound. Tune with replays.
+MENTAL_STATE_SIGMA_FLOOR = 0.35  # Smallest deviation scale of one axis. A small floor lets one small delta pin the readout at a bound. ALPHA RUN: raised from 0.25 to soften the readout (see the alpha block below). Tune with replays.
 MENTAL_STATE_TANH_GAIN = 1.0  # Soft clip gain. A deviation of two scales reads as tanh(1.0), about 0.76 of the axis range. Tune with replays.
 EXPECTATION_VALENCE_GAIN = 0.55  # Core valence change for an expectation error of 1.
 EXPECTATION_EMOTION_GAIN = 0.35  # Joy (better) or sadness (worse) change for an expectation error of magnitude 1.
+
+# ############################################################################
+# ##                                                                        ##
+# ##   !!!  ALPHA RUN ONLY: TEMPORARY FAILSAFE CLAMPS. FIX PROPERLY LATER  !!!
+# ##                                                                        ##
+# ##   These limits are hard failsafes for the first owner run with the     ##
+# ##   real persona. They hide the symptom, not the cause. In the A19F      ##
+# ##   review run, one stimulus moved core valence from +0.78 to -1.0 in    ##
+# ##   one tick, and the boredom codelet jumped to 0.95 on a tease.         ##
+# ##   The real fix is a tuned affect design (D27: sigma floor, gain,       ##
+# ##   half-life, appraisal calibration) and a calibrated codelet           ##
+# ##   selector. When that is done, DELETE this block and every use of      ##
+# ##   the ALPHA_* names (grep ALPHA_).                                     ##
+# ##                                                                        ##
+# ############################################################################
+ALPHA_MAX_STIMULUS_DELTA = 1.0 / 3.0  # ALPHA ONLY. Largest absolute delta of one record (stimulus appraisal, percept, expectation) on one EMA axis. The EMA reader clamps every sample, old stored ones too.
+ALPHA_MAX_STATE_STEP = 1.0 / 3.0  # ALPHA ONLY. Largest change of one mental state axis (core affect, every emotion including boredom, needs, relationship) from one cycle to the next.
+ALPHA_MAX_RATING_STEP = 1.0 / 3.0  # ALPHA ONLY. Largest change of the codelet selector rating of one codelet (for example BoredomThresholdCross) from its previous rating.
+# ############################################################################
 
 # Regulation mode. The appraise phase maps the appraisal and the accepted state to one mode.
 THREAT_APPRAISAL_THRESHOLD = 0.6  # Appraised bodily threat at which danger preempts contemplation.
