@@ -62,14 +62,17 @@ def story_entities(work: CycleWork) -> str:
     return " and ".join(dict.fromkeys(names)) or work.request.user_name
 
 
-def shown_shards(work: CycleWork) -> list[WorkspaceShard]:
+def shown_shards(work: CycleWork, group: ShardKey | None = None) -> list[WorkspaceShard]:
     """Return the shards that the prefix shows: the self shard, then the shard of each current group.
 
     The group shards keep the order of the stimulus groups. A self group
-    adds no second self shard.
+    adds no second self shard. With ``group``, only the self shard and the
+    shard of that group remain: the calls for one group read only their own
+    part of the story.
     """
     workspace = work.state.workspace
-    keys = list(dict.fromkeys(group.key for group in work.state.stimulus_groups if group.key != SELF_SHARD))
+    keys = list(dict.fromkeys(item.key for item in work.state.stimulus_groups if item.key != SELF_SHARD
+                              and (group is None or item.key == group)))
     return [workspace.self_shard, *(workspace.shard(key) for key in keys)]
 
 
@@ -124,29 +127,42 @@ class StoryPrefix:
     ``self`` and one label for each stimulus group.
     """
 
-    def __init__(self, work: CycleWork, prompts: PhasePrompts | None = None):
+    def __init__(self, work: CycleWork, prompts: PhasePrompts | None = None, group: ShardKey | None = None):
+        """Build the prefix of the whole moment, or with ``group`` the prefix of one stimulus group.
+
+        The prefix of one group shows the self shard and that group's shard,
+        the group's stimuli as new events, and the group's entity as the
+        other character. The self tail leaves out the experiences of this
+        cycle that belong to the other groups (``ExperienceResult.hidden_for``).
+        Without ``group``, every call of the cycle gets the same bytes.
+        """
         request = work.request
         self.prompts = prompts or phase_prompts("story")
         self.companion = request.companion_name
-        self.entity = story_entities(work)
+        groups = [item for item in work.state.stimulus_groups if group is None or item.key == group]
+        self.entity = story_entities(work) if group is None else (
+            shard_label(group, request) if group.kind == "entity" else request.user_name)
+        hidden = set(work.experience.hidden_for(group))
         blocks = [shard_block(self.prompts, shard.key, shard_label(shard.key, request), self.companion,
-                              work.records, shard.item_ids(), shard.tail_ids)
-                  for shard in shown_shards(work)]
+                              work.records, shard.item_ids(),
+                              [record_id for record_id in shard.tail_ids if record_id not in hidden])
+                  for shard in shown_shards(work, group)]
+        new_ids = [record_id for item in groups for record_id in item.stimulus_ids] if group is not None else [
+            item.knoxel_id for item in request.stimuli]
         system = self.fill(self.prompts.system_prompt).strip()
         story = format_content(self.fill(self.prompts.story_template),
             character_card=request.character_card.strip() or "(no character card)",
             shards="\n\n".join(blocks),
             feeling=work.affect.felt or work.state_summary or "(no feeling recorded)",
-            new=render_story(work.records, [item.knoxel_id for item in request.stimuli], with_id=False)
-                or "(nothing new happens)",
+            new=render_story(work.records, new_ids, with_id=False) or "(nothing new happens)",
         ).text.strip()
         self.turns = [Turn(Role.System, system), Turn(Role.User, story),
                       Turn(Role.Assistant, self.fill(self.prompts.story_ack).strip())]
         self.story_text = f"{system}\n\n{story}"
         self.targets: dict[str, ShardKey] = {"self": SELF_SHARD}
-        for group in work.state.stimulus_groups:
-            if group.key != SELF_SHARD:
-                self.targets[shard_label(group.key, request)] = group.key
+        for item in groups:
+            if item.key != SELF_SHARD:
+                self.targets[shard_label(item.key, request)] = item.key
 
     def fill(self, text: str) -> str:
         """Replace the name placeholders ``{companion_name}`` and ``{entity_name}``."""

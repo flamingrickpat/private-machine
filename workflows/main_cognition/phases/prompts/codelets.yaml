@@ -35,7 +35,10 @@ conversion_template: |
   {schema}
 
   Also fill:
-  - "target": the part of the story that your result concerns. Use exactly one of: {targets}.
+  - "target": the part of the story that your result concerns. Use exactly one of: {targets}. Use "self" only
+    for a result about {companion_name} alone. A result about another character uses that character's name. When
+    the moment holds several characters or a world, choose the one part that the result is most about, and write
+    the percept texts about that part only: the mind keeps each relationship in its own place.
   - "about_ids": the ids of the lines in the MIND list above that your result is about. Use only ids from that
     list. An empty list is allowed.
 
@@ -45,12 +48,29 @@ conversion_template: |
 
 selector_template: |
   I have a list of mental mechanisms that can shape what {companion_name} feels and does next in this story. The
-  list is long, so act as a selector. Rate each mechanism from 0 to 1: how strongly it should shape
-  {companion_name}'s mind at this exact moment of the story. 1 means it must speak now. 0 means it has nothing to
-  add now.
+  list is long, so act as a selector.
 
+  First read the recent story for patterns, not only the newest line: a request, dodge, question, or move that
+  comes back again (count how often it came back in the recent turns), a slight, a loss of attention, a sudden turn
+  of feeling, an absurd collision, a stuck goal. Write these patterns in "patterns", in two to four sentences.
+
+  Then rate each mechanism from 0 to 1: how clearly the thing that this mechanism reacts to is in the story right
+  now, in the patterns or in the newest line. Rate the trigger, not the mood. A mechanism whose trigger is present
+  rates high even when it clashes with {companion_name}'s current feeling: a mind holds friction, and other
+  mechanisms supply the balance. 1 means its trigger is plainly there and it must speak now. 0 means its trigger is
+  absent.
+
+  {echoes}
   Mechanisms:
   {candidates}
 
   Answer with only this JSON object and nothing else, with one entry for each mechanism name:
-  {{"ratings": {{"<mechanism name>": 0.0}}}}
+  {{"patterns": "...", "ratings": {{"<mechanism name>": 0.0}}}}
+
+# Added to the selector prompt when earlier lines of the same speaker come close to the newest line.
+# Python finds these lines by embedding similarity (phases/codelets.py, echoes).
+echo_template: |
+  These earlier lines of the recent story say nearly the same as the newest line. The same move has come
+  around {count} times before:
+  {lines}
+

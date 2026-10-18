@@ -19,10 +19,14 @@ user_template: |
   Each structure starts with its label and says why its lines belong together.
   {structures}
 
-  Your task: act as the attention mechanism of {companion_name}'s mind. Rate how well each structure fits into
-  {companion_name}'s conscious awareness of {shard_focus} right now, for this moment of the story and for
-  {companion_name}'s traits. {aperture}
-  Rate from 0 to 1. 1 means it must be conscious now. 0 means it stays below awareness. Give a short reason for each
+  Your task: act as the attention mechanism of {companion_name}'s mind. Awareness is small. Of these {count}
+  structures, at most {winners} can become conscious in {companion_name}'s awareness of {shard_focus} right now. The
+  rest stay below awareness in this moment, even when they are true and important. Choose what {companion_name}
+  actually notices now, for this moment of the story and for {companion_name}'s traits and feelings, not what would be
+  useful or balanced. {aperture}
+  Rate from 0 to 1 and spread the ratings. Give a rating above 0.6 only to the structures that {companion_name}
+  notices now, and the highest rating to the one that grabs {companion_name} first. Give 0.3 or less to the
+  structures that stay below awareness. Do not give two structures the same rating. Give a short reason for each
   rating, as story prose.
 
   Answer with only this JSON object and nothing else, with exactly one entry for each label:

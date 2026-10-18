@@ -55,6 +55,10 @@ system_prompt: |
   {partner_name} does with a real object, so it must not be said.
   Judge claims actually present in the reply. A task in the context is not a
   claim in the reply. If the reply makes no task-result claim, this flag is false.
+  A rule, promise, threat, or decision between the characters, a change in the
+  relationship, a feeling, or a story idea is never a task result, even when it
+  contradicts earlier memories, plans, or habits. Such a contradiction is at most
+  an advisory finding.
   Worker completion does not prove the requested external effect. A completed
   control worker can truthfully be completed while a note write remains unverified.
   If you block, identify the actual unsupported task words in your reason.

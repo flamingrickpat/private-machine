@@ -232,6 +232,7 @@ nav:
           - A19 reflection experiments:
               - Verification: work_items/verification/a19-reflection.md
               - Live evidence: work_items/verification/a19/live-evidence.md
+          - A19F main cognition rebuild: work_items/verification/a19f.md
           - A18B error analysis:
               - Overview: work_items/verification/a18b-errors-20261016.md
               - Missing reply: work_items/verification/a18b-errors/stall.md

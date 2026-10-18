@@ -58,6 +58,7 @@ Capability limits and workflow rules appear only in the route call. The private 
 3. The text is the seed, the continuation, and a focus phrase for the newest message of an entity.
 4. The text becomes a `SubjectiveExperience` feature. It enters the self shard tail at once, so the goals, decide, and route calls read it.
 5. The commit links it from the broadcast (`BroadcastRef.experience_id`) and the turn record (`GwtTurnRecord.experience_id`). It is also the cycle summary and the `workspace` field of the action request.
+6. When more than one stimulus group is significant, one more call runs for each of them, with the prefix of that group: the self shard and the group's shard only ([`GroupExperience`][workflows.main_cognition.schemas.GroupExperience]). The decide and route calls of the group and its action request read this experience. So the reply to one entity does not mention the content of another group.
 
 The old "workspace frame" call and the `AttentionFrameRecord` are gone (A19F step 10). The turn record and the `Structure` records hold the attention decisions.
 
@@ -87,8 +88,8 @@ Accepted public speech uses [durable publication and recovery](public-publicatio
 - the decision text (`content`), the workflow, the arguments, and the presentation;
 - the stimulus group and its stimuli;
 - the partner: the entity that a reply addresses. A reply to an entity group addresses that entity. A reply to the self group or a workflow group addresses the user;
-- the shards that the reply needs: the self shard, the partner's entity shard, and the group's workflow shard, each with its tail ([`request_shards`][workflows.main_cognition.action_request.request_shards]);
-- the subjective experience, the feeling in words, and the regulation mode.
+- the shards that the reply needs: the self shard, the partner's entity shard, and the group's workflow shard, each with its tail ([`request_shards`][workflows.main_cognition.action_request.request_shards]). The self tail leaves out the experiences of this cycle that belong to other groups;
+- the subjective experience of the group, the feeling in words, and the regulation mode.
 
 The host stores the same request in the action record. Dispatch recovery publishes it again after a restart ([`replay_intents`][workflows.main_cognition.dispatch_recovery.replay_intents]).
 The public workflows build their reply context from the shards. They do not retrieve memory again. Read [public dialogue context](public-dialogue.md).

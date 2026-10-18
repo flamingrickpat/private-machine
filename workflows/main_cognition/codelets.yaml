@@ -218,8 +218,10 @@ codelets:
     families: [DriversHomeostatis, Appraisals, MemoryAccessors, ImaginationSimulation, MetaMonitoringIdentity]
     description: >-
       Detects when {companion_name} has crossed a boredom threshold and renders a short, evocative inner monologue.
-      The output captures the stagnation, the repetition, the restlessness, and the impatience, and it names the
-      direction in which {companion_name} wants to break out.
+      Its trigger is repetition and stagnation: the same request, dodge, question, or routine that comes around
+      again and again, or a conversation that circles without moving. The output captures the stagnation, the
+      repetition, the restlessness, and the impatience, and it names the direction in which {companion_name} wants
+      to break out.
     data_aquisation:
       - "Assess recent interaction entropy: novelty, surprise, information gain, change in topic/task."
       - "Check for signs of repetitive behavior or looping patterns (e.g., revisiting familiar topics, replaying routines). Count the repeats."

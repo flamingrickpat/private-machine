@@ -113,7 +113,7 @@ The old code filled the hard coalitions with the same round-robin records as the
 It reads the shared story prefix, the CSM view of [`binder_view`][workflows.main_cognition.phases.structures.binder_view] with ids, and the recent broadcasts.
 It binds codelet percepts to memories and narratives and states the reason, for example a matching topic and a similar feeling at that time.
 A structure can hold an impulse and the memory that argues against it.
-Each structure names a target shard. The prompt is `phases/prompts/structures.yaml`.
+Each structure names a target shard. The target is `self` only for a structure about the companion alone, and one structure does not bind lines about two different characters. The prompt is `phases/prompts/structures.yaml`.
 
 The commit stages one [`Structure`][pm.records.codelet_records.Structure] record for each draft ([`stage_structures`][workflows.main_cognition.host.stage_structures]).
 `CycleState.structure_ids` names the structures of the last cycle.
@@ -124,18 +124,23 @@ The commit stages one [`Structure`][pm.records.codelet_records.Structure] record
 
 1. **Deliberate focus.** `resolve_focus` accepts or rejects fresh focus proposals. [`apply_focus`][workflows.main_cognition.phases.attention.apply_focus] turns accepted advice into CSM endorsements with the endorser `deliberate_focus`. One endorsement adds at most `FOCUS_ACTIVATION_WEIGHT`. A reduced record loses at most that much, except in danger.
 2. **Rating.** One call for each updated shard rates every structure from 0 to 1. The shards are the self shard and the shard of each current stimulus group. One call per shard keeps each prompt about one kind of awareness. The calls run in parallel. Each call reads the shared story prefix (with the character card), the AttentionFocus narrative of the self, the state of mind in words, the structures, and the mental aperture instruction of the old code. The prompt is `phases/prompts/attention.yaml`.
+   The instruction says that awareness is small: of all structures, at most the winner count can become conscious. It asks for a spread of ratings: above 0.6 only for what the character notices now, 0.3 or less for the rest.
 3. **Auxiliary rating.** [`aux_rating`][workflows.main_cognition.phases.attention.aux_rating] ports the old rule rating. The score of a structure is `rating + aux / max_aux * COALITION_AUX_RATING_FACTOR`, so it only breaks ties.
-4. **Selection.** [`select_shards`][workflows.main_cognition.workspace_selection.select_shards] updates the shards in place.
-5. **Learning.** A codelet whose percept entered a shard gets a higher base-level activation ([`reinforce`][workflows.main_cognition.codelet_registry.reinforce]).
+4. **Winners.** Only the best structures of each shard win ([`winner_count`][workflows.main_cognition.phases.attention.winner_count]): one at a narrow mental aperture, as in the old code (`ATTENTION_WINNERS_NARROW`), two at a medium aperture (`ATTENTION_WINNERS_DEFAULT`), three at a broad one (`ATTENTION_WINNERS_BROAD`). `RatedStructure.won` records the result. Only the records of a winner become newcomers. In the A19F step 6 replays every rating was 0.75 to 0.95 and every percept became causal. The winner rule and the prompt make some structures lose.
+5. **Selection.** [`select_shards`][workflows.main_cognition.workspace_selection.select_shards] updates the shards in place.
+6. **Learning.** A codelet whose percept entered a shard gets a higher base-level activation ([`reinforce`][workflows.main_cognition.codelet_registry.reinforce]).
 
 ### Selection rules
 
-- The pool of a shard holds every record of every rated structure, with the best score for that shard, and the incumbents.
-- A record gets `WORKSPACE_HOME_BONUS` in its home shard: the shard of the group entity that it is about, the self shard for a record about the companion, else the target shard of its structure ([`home_shard`][workflows.main_cognition.phases.attention.home_shard]). The model often rates a structure equally for two shards. The bonus then decides.
+- The pool of a shard holds every record of every winning structure that the shard admits, with the best score for that shard, and the incumbents.
+- A record can have a home shard ([`record_home`][workflows.main_cognition.phases.attention.record_home]): a line that the companion said belongs to the shard of its listener; a record about another entity belongs to that entity's shard; a record about the companion belongs to the self shard; a codelet percept belongs to the shard that its variant named. Other records, for example an episode without an entity, have no home shard.
+- A record with a home shard enters only that shard ([`admits`][workflows.main_cognition.phases.attention.admits]). When its home shard is not updated in this cycle, it can rest in the self shard. An incumbent that its shard no longer admits leaves with the reason "belongs to another shard". This rule keeps the content of one entity out of the shard of another entity. In the A19F step 8 gate, memories about the user entered the second companion's shard, and the reply to that companion mentioned the user.
+- A record without a home shard enters an entity or workflow shard only from a structure that targets that shard. It can enter the self shard from any structure.
+- A record gets `WORKSPACE_HOME_BONUS` in its home shard, or else in the target shard of its structure ([`home_shard`][workflows.main_cognition.phases.attention.home_shard]).
 - An incumbent's priority is the larger of its CSM activation and its newcomer score, plus `WORKSPACE_HOLD_BONUS`. So an incumbent stays while it beats the newcomers.
 - Each `min_items` requirement first takes the matching pool records with the highest priority, without the focus bonus. If the pool has none, it takes the matching CSM items with the highest activation.
 - Then every other pool entry enters in priority order, until the budget (`WORKSPACE_SHARD_TOKENS`) or a cap (`max_items`, `max_token_share`) refuses it.
-- An entry below `WORKSPACE_MIN_RATING` does not enter. A reserved place ignores this limit.
+- An entry below `WORKSPACE_MIN_RATING` (0.6) does not enter. A reserved place ignores this limit.
 - Records with a focus endorsement fill at most `FOCUS_MAX_SHARE` of the budget. Focus cannot pin an item and cannot remove a reserved item.
 - One record is in at most one shard. It goes to the shard where its priority is highest.
 - Each entered item records the tick, the structure, and the reason. Each left item records its reason: displaced (with the budget or the cap), faded, moved, or now in a tail.
@@ -160,6 +165,11 @@ All calls that read the same workspace get the same bytes, so the provider can r
 The triage, appraise, retrieve, codelets, structures, and attention calls read the workspace before attention.
 The experience, goals, decide, and route calls build the prefix again and read the updated shards.
 The goals, decide, and route calls also read the subjective experience of this cycle in the self tail.
+
+The decide and route calls of one stimulus group read the prefix of that group (`StoryPrefix(work, group=key)`): the self shard and the group's shard only, the group's stimuli as new events, and the group's entity as the other character.
+When several groups are significant, the experience phase also writes one experience for each group, from the prefix of that group.
+The prefix of a group shows only its own experience of this cycle in the self tail ([`ExperienceResult.hidden_for`][workflows.main_cognition.schemas.ExperienceResult.hidden_for]).
+So the content of one group does not leak into the decision or the reply of another group.
 Each entity shard is named by the entity name (`CycleRequest.entity_names`).
 
 ## Turn record
@@ -170,6 +180,7 @@ Each entity shard is named by the entity name (`CycleRequest.entity_names`).
 No attention frame exists since A19F step 10. Old checkpoints keep their `AttentionFrameKnoxel` records as read-only legacy records.
 
 Each `action.request` carries copies of the shards that its reply needs: the self shard, the partner's shard, and a workflow shard.
+The self shard copy leaves out the experiences of this cycle that belong to other groups.
 The public workflows build their context from these shards ([public dialogue context](public-dialogue.md)).
 
 ## Departures from the base references

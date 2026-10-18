@@ -2,9 +2,9 @@
 
 A19F step 8 and decision D28. The phase runs one story-framed call for each
 stimulus group that triage did not mark insignificant. The calls run in
-parallel. Each call reads the shared story prefix (the updated shards, the
-subjective experience in the self tail, the new events) and then the group
-instruction: the group's stimuli, the feeling, the subjective experience,
+parallel. Each call reads the story prefix of its own group (the self shard
+and the group's shard after attention, the group's subjective experience in
+the self tail, the group's new events) and then the group instruction: the group's stimuli, the feeling, the subjective experience,
 the causal codelet percepts in the self shard and the group shard, and the
 goals.
 
@@ -97,7 +97,7 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, 
         stimuli=group_stimuli(work, group),
         affect=work.affect.felt or work.state_summary or "(no feeling recorded)",
         regulation_words=prompts.regulation_words[work.affect.regulation],
-        experience=work.experience.text or "(nothing)",
+        experience=work.experience.text_for(group.key) or "(nothing)",
         impulses=group_percepts(work, group),
         goals=render_goals(work),
         variants=DECISION_VARIANTS,
@@ -115,9 +115,11 @@ def decide(context, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix,
 
 def run(context, work: CycleWork) -> CycleWork:
     prompts = phase_prompts("decide")
-    prefix = StoryPrefix(work)
     groups = [group for group in work.state.stimulus_groups if not group.insignificant]
-    answers = ordered_parallel_map(lambda group: decide(context, work, prompts, prefix, group), groups,
+    # Each group reads only the self shard and its own shard. The content of
+    # another group must not leak into this group's decision.
+    prefixes = {group.key: StoryPrefix(work, group=group.key) for group in groups}
+    answers = ordered_parallel_map(lambda group: decide(context, work, prompts, prefixes[group.key], group), groups,
                                    workers=DECISION_WORKERS, cancel=context.runtime.stop_event)
     work.state.decisions = [
         ActionDecision(group=group.key, text=answer.variants[0], variants=list(answer.variants),

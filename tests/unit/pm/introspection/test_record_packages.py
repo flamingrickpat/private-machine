@@ -92,6 +92,20 @@ class CyclePackageTests(unittest.TestCase):
         self.assertEqual(package["gwt"]["stimulus_ids"], [stimulus.id])
         self.assertNotIn("embedding", json.dumps(package))
         self.assertEqual(SELF_SHARD.kind, package["cycle"]["workspace"]["self_shard"]["key"]["kind"])
+        self.assertIsNone(package["mental_state_before"])
+        before = ghost.states[-1].model_copy(deep=True)
+        before.mental_state.state_emotions.joy = 0.25
+        package = capture_cycle(ghost.snapshot(), ghost.states[-1], previous=before)
+        self.assertEqual(package["mental_state_before"]["state_emotions"]["joy"], 0.25)
+
+    def test_decode_vector_names_the_axes(self):
+        from pm.introspection.record_packages import decode_vector
+        from pm.records.mental_state import FullMentalState
+        state = FullMentalState()
+        vector = [0.0] * len(state.to_list())
+        joy = type(state.state_emotions).get_vector_positions()["joy"]
+        vector[joy] = 0.4
+        self.assertEqual(decode_vector(vector), {"state_emotions.joy": 0.4})
 
 
 if __name__ == "__main__":

@@ -13,7 +13,9 @@ Port of the codelet part of ``GhostCodelets.cognitive_cycle`` in
    (:func:`~workflows.main_cognition.codelet_registry.activation_score`).
 3. The selector call rates the top candidates. Each rating adds to the
    stored activation (port of ``AgentSelectCodelets``; the old code
-   iterated the ratings without ``.items()``).
+   iterated the ratings without ``.items()``). The selector first names the
+   patterns of the recent story. It also reads the earlier lines that echo
+   the newest line (:func:`echoes`), so a repetition is visible to it.
 4. Run waves. Each wave scores the codelets that did not run yet and runs
    the best ones in parallel. Triage sets the total budget. A later wave sees
    the CSM after the earlier waves.
@@ -45,6 +47,7 @@ from collections.abc import Sequence
 from pydantic import BaseModel, Field, create_model, model_validator
 
 from pm.constants import (
+    CODELET_ECHO_SIMILARITY,
     CODELET_OUTPUT_VARIANTS,
     CODELET_PERCEPT_TEMPERATURE,
     CODELET_PERCEPT_TYPES,
@@ -246,16 +249,46 @@ def execute(context, work: CycleWork, frame: CodeletFrame, definition: CodeletDe
     return result
 
 
-def select(context, work: CycleWork, frame: CodeletFrame, candidates: list[CodeletDefinition]) -> CodeletRatings:
+def echoes(work: CycleWork, embedder: Embedder) -> list[int]:
+    """Return the earlier lines that echo a current stimulus, oldest first.
+
+    For each stimulus of an entity group, the candidates are the lines of
+    the same entity in the tail of the group's shard (the recent dialogue).
+    A line echoes the stimulus when the cosine similarity of their story
+    line embeddings is at least ``CODELET_ECHO_SIMILARITY``. The selector
+    reads these lines. A request or a dodge that comes back for the fourth
+    time is a pattern across many turns. A model that reads the newest line
+    first easily misses it (A19F step 5 replay: boredom rated 0.1).
+    """
+    found: list[int] = []
+    for group in work.state.stimulus_groups:
+        if group.key.kind != "entity" or not work.state.workspace.has_shard(group.key):
+            continue
+        entity = int(group.key.ref)
+        lines = [record_id for record_id in work.state.workspace.shard(group.key).tail_ids
+                 if work.records[record_id].feature_type == "Dialogue" and entity in work.records[record_id].entity_ids]
+        embedder.prefetch_records([*lines, *group.stimulus_ids])
+        for stimulus_id in group.stimulus_ids:
+            found.extend(record_id for record_id in lines
+                         if cosine(embedder.record(stimulus_id), embedder.record(record_id)) >= CODELET_ECHO_SIMILARITY)
+    return list(dict.fromkeys(found))
+
+
+def select(context, work: CycleWork, frame: CodeletFrame, candidates: list[CodeletDefinition],
+           echo_ids: list[int]) -> CodeletRatings:
     """Ask the selector to rate the candidates for this moment of the story.
 
     Port of ``AgentSelectCodelets``. A rating for a name outside the
     candidates is invalid output and gets a repair turn. A candidate without
-    a rating gets nothing.
+    a rating gets nothing. ``echo_ids`` are the earlier lines that echo the
+    newest line (:func:`echoes`). The prompt lists them with their count.
     """
     names = {item.name for item in candidates}
     listing = "\n".join(f"- {item.name}: {frame.fill(item.description)}" for item in candidates)
-    text = format_content(frame.fill(frame.prompts.selector_template), candidates=listing).text.strip()
+    lines = render_story(work.records, echo_ids, with_id=False)
+    echo = frame.fill(frame.prompts.echo_template).format(count=len(echo_ids), lines=lines) if echo_ids else ""
+    text = format_content(frame.fill(frame.prompts.selector_template), candidates=listing,
+                          echoes=echo).text.strip()
 
     def known(answer):
         unknown = sorted(set(answer.ratings) - names)
@@ -367,7 +400,9 @@ def collect(context, work: CycleWork, prompts: PhasePrompts) -> CodeletsResult:
 
     codelets.scores = score(list(definitions))
     candidates = [definitions[item.codelet] for item in codelets.scores[:CODELET_SELECTOR_CANDIDATES]]
-    codelets.ratings = select(context, work, frame, candidates).ratings
+    codelets.echo_ids = echoes(work, embedder)
+    answer = select(context, work, frame, candidates, codelets.echo_ids)
+    codelets.ratings, codelets.patterns = answer.ratings, answer.patterns
     codelets.cost.llm_calls += 1
     for name, rating in codelets.ratings.items():
         add_rating(registry.runtime(name), rating)
@@ -422,6 +457,7 @@ __all__ = [
     "RECOMMENDATION",
     "collect",
     "convert",
+    "echoes",
     "enter",
     "execute",
     "integrate",

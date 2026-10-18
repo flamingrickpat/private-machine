@@ -7,8 +7,13 @@ context. It does not retrieve memory again, so the reply reads the same
 conscious content that the decision read.
 
 - The verbatim transcript is the tail of the partner shard (the dialogue
-  with that entity) and the companion's private thoughts in the self tail,
-  in world-time order.
+  with that entity) and the private thoughts of the self tail that belong
+  to that exchange, in world-time order. A thought belongs to the exchange
+  when it is not older than the oldest dialogue line of the transcript.
+  At most ``DIALOGUE_THOUGHT_LIMIT`` thoughts are shown, the newest ones.
+  The self tail holds 6k tokens of thoughts. Without this limit, old
+  thoughts from earlier days crowd out the dialogue and bring back old
+  wording into the reply.
 - The story text renders each shard with
   :func:`workflows.main_cognition.story_prefix.shard_block`: the same words
   as the story prefix of the cycle. The transcript records are left out of
@@ -20,6 +25,7 @@ The functions read a frozen memory store view and make no model call.
 """
 from __future__ import annotations
 
+from pm.constants import DIALOGUE_THOUGHT_LIMIT
 from pm.memory.retrieval import candidate
 from pm.records.enums import FeatureType
 from pm.records.memory_records import Feature
@@ -41,6 +47,20 @@ def _turn(record: Feature) -> DialogueTurn:
     kind = "thought" if record.feature_type in THOUGHT_TYPES else "speech"
     return DialogueTurn(speaker=record.source or "unknown", text=" ".join(record.content.split()),
                         knoxel_id=record.id, timestamp=record.timestamp_world_begin.isoformat(), kind=kind)
+
+
+def exchange_thoughts(dialogue: list[Feature], thoughts: list[Feature]) -> list[Feature]:
+    """Return the thoughts that belong to the exchange of ``dialogue``, oldest first.
+
+    A thought belongs to the exchange when it is not older than the oldest
+    line of ``dialogue``. Of these, the newest ``DIALOGUE_THOUGHT_LIMIT``
+    remain. Without dialogue, only the newest thoughts remain.
+    """
+    ordered = sorted(thoughts, key=lambda record: (record.timestamp_world_begin, record.id))
+    if dialogue:
+        start = min(record.timestamp_world_begin for record in dialogue)
+        ordered = [record for record in ordered if record.timestamp_world_begin >= start]
+    return ordered[-DIALOGUE_THOUGHT_LIMIT:]
 
 
 def _views(view, request: ActionRequest) -> dict[int, RecordView]:
@@ -70,22 +90,24 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
     and raises KeyError. The current stimuli are not in any tail.
     """
     records = _views(view, request)
-    transcript: list[Feature] = []
-    shown_tail: dict[int, list[int]] = {}
-    moved: dict[int, bool] = {}
-    for index, item in enumerate(request.shards):
-        shard = item.shard
-        tail = []
-        for record_id in shard.tail_ids:
+    dialogue: list[Feature] = []
+    all_thoughts: list[Feature] = []
+    for item in request.shards:
+        for record_id in item.shard.tail_ids:
             record = view.get(record_id)
-            verbatim = (record.feature_type == FeatureType.Dialogue if shard.key.kind == "entity"
-                        else shard.key.kind == "self" and record.feature_type in THOUGHT_TYPES)
-            if verbatim:
-                transcript.append(record)
-            else:
-                tail.append(record_id)
-        shown_tail[index] = tail
-        moved[index] = len(tail) < len(shard.tail_ids)
+            if item.shard.key.kind == "entity" and record.feature_type == FeatureType.Dialogue:
+                dialogue.append(record)
+            elif item.shard.key.kind == "self" and record.feature_type in THOUGHT_TYPES:
+                all_thoughts.append(record)
+    thoughts = exchange_thoughts(dialogue, all_thoughts)
+    transcript = [*dialogue, *thoughts]
+    # The story text leaves out every verbatim line. It also leaves out the
+    # thoughts that the transcript drops, so they do not come back there.
+    verbatim = {record.id for record in [*dialogue, *all_thoughts]}
+    dropped = {record.id for record in all_thoughts} - {record.id for record in thoughts}
+    shown_tail = {index: [record_id for record_id in item.shard.tail_ids if record_id not in verbatim]
+                  for index, item in enumerate(request.shards)}
+    moved = {index: len(shown_tail[index]) < len(item.shard.tail_ids) for index, item in enumerate(request.shards)}
     prompts = phase_prompts("story")
     blocks = [shard_block(prompts, item.shard.key, item.name, companion_name, records,
                           item.shard.item_ids(), shown_tail[index], verbatim_tail=moved[index])
@@ -95,6 +117,8 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
     evidence = []
     for item in request.shards:
         for record_id in dict.fromkeys([*item.shard.item_ids(), *item.shard.tail_ids]):
+            if record_id in dropped:
+                continue
             entry = EvidenceItem.model_validate(candidate(view, record_id, serialized[record_id]))
             entry.lane = f"shard:{item.name}"
             evidence.append(entry)
@@ -107,4 +131,4 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
                           evidence=evidence, story=BLOCK_SEPARATOR.join(blocks), trace=trace)
 
 
-__all__ = ["THOUGHT_TYPES", "shard_context", "shard_story"]
+__all__ = ["THOUGHT_TYPES", "exchange_thoughts", "shard_context", "shard_story"]

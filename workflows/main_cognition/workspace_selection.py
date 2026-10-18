@@ -182,6 +182,8 @@ class SelectionInput(BaseModel):
 
 #: Returns True when one record matches one requirement of one shard.
 Matcher = Callable[[WorkspaceRequirement, int, ShardKey], bool]
+#: Returns True when a shard may hold a record (the home shard rule of the attention phase).
+Admits = Callable[[ShardKey, int], bool]
 
 
 class _ShardFill:
@@ -228,8 +230,13 @@ class _ShardFill:
             self.focus_tokens += tokens
 
 
-def select_shards(selection: SelectionInput, matcher: Matcher) -> list[ShardChange]:
+def select_shards(selection: SelectionInput, matcher: Matcher, admits: Admits | None = None) -> list[ShardChange]:
     """Update the shards of ``selection`` in place and return their changes.
+
+    ``admits`` decides whether a shard may hold a record. A newcomer or a
+    reserved CSM item that a shard does not admit cannot enter it. An
+    incumbent that its shard no longer admits leaves it. Without
+    ``admits``, every shard admits every record.
 
     Steps:
 
@@ -261,6 +268,9 @@ def select_shards(selection: SelectionInput, matcher: Matcher) -> list[ShardChan
     def active(record_id: int) -> float:
         return activation[record_id] if record_id in activation else 0.0
 
+    def allowed(key: ShardKey, record_id: int) -> bool:
+        return admits is None or admits(key, record_id)
+
     pools: dict[ShardKey, dict[int, Candidate]] = {fill.shard.key: {} for fill in fills}
     for candidate in selection.newcomers:
         if candidate.record_id in blocked or candidate.key not in pools:
@@ -274,6 +284,9 @@ def select_shards(selection: SelectionInput, matcher: Matcher) -> list[ShardChan
         for item in fill.shard.items:
             if item.record_id in blocked:
                 left_reasons[fill.shard.key][item.record_id] = "now in a tail or a current stimulus"
+                continue
+            if not allowed(fill.shard.key, item.record_id):
+                left_reasons[fill.shard.key][item.record_id] = "belongs to another shard"
                 continue
             offered = pool[item.record_id] if item.record_id in pool else None
             base = max(active(item.record_id), offered.priority if offered is not None else 0.0)
@@ -301,7 +314,7 @@ def select_shards(selection: SelectionInput, matcher: Matcher) -> list[ShardChan
                                      reason=f"reserved for {requirement.name}: the best matching CSM item")
                            for record_id in sorted(activation, key=lambda record_id: (-activation[record_id], record_id))
                            if record_id not in placed and record_id not in blocked and record_id in selection.tokens
-                           and matcher(requirement, record_id, fill.shard.key)]
+                           and allowed(fill.shard.key, record_id) and matcher(requirement, record_id, fill.shard.key)]
             taken = 0
             for candidate in options:
                 if taken >= requirement.min_items:
@@ -355,6 +368,7 @@ def select_shards(selection: SelectionInput, matcher: Matcher) -> list[ShardChan
 
 
 __all__ = [
+    "Admits",
     "Candidate",
     "MatchContext",
     "Matcher",

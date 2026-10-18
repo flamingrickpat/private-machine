@@ -9,7 +9,10 @@ state: the CSM items with their activation and endorsers, the workspace
 shards with their items and tails, the codelet registry state, the stimulus
 groups, the decisions, and the dispatches. It also holds the turn record of
 the tick (shard changes, codelet runs, structures, the decision record) and
-every record that the state or the turn names.
+every record that the state or the turn names. With the previous cycle
+state, it also holds the mental state before the tick. ``decoded_vectors``
+names the axes of each mental-state vector of a member record, so a reader
+sees the mini-appraisal of a codelet percept without the vector layout.
 """
 from __future__ import annotations
 
@@ -21,6 +24,17 @@ from typing import Iterable, Literal
 from pm.memory.snapshot import Snapshot
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
+from pm.records.mental_state import (
+    AppraisalGeneral,
+    AppraisalSocial,
+    StateCognition,
+    StateCore,
+    StateEmotions,
+    StateExpressionExt,
+    StateNeeds,
+    StateNeurochemical,
+    StateRelationship,
+)
 
 SCHEMA = "pm.record-package.v1"
 
@@ -70,14 +84,55 @@ def capture_gwt(snapshot: Snapshot, tick_id: int) -> dict:
                            view="gwt", tick_id=tick_id)
 
 
+#: The parts of a mental-state vector, in the order of ``FullMentalState.to_list``.
+VECTOR_PARTS = (("appraisal_general", AppraisalGeneral), ("appraisal_social", AppraisalSocial),
+                ("state_neurochemical", StateNeurochemical), ("state_core", StateCore),
+                ("state_emotions", StateEmotions), ("state_cognition", StateCognition), ("state_needs", StateNeeds),
+                ("state_relationship", StateRelationship), ("state_expression_ext", StateExpressionExt))
+#: Values with a smaller magnitude count as zero in a decoded vector.
+DECODE_EPSILON = 1e-6
+
+
+def decode_vector(vector: list[float]) -> dict[str, float]:
+    """Return the nonzero axes of one mental-state vector by name, for example ``state_emotions.joy``.
+
+    The positions come from the state models. The relationship part names
+    its entity in ``entity_id``; that position is not an axis and stays out.
+    """
+    named: dict[str, float] = {}
+    for part, model in VECTOR_PARTS:
+        for name, position in model.get_vector_positions().items():
+            if name == "entity_id" or position >= len(vector):
+                continue
+            value = float(vector[position])
+            if abs(value) > DECODE_EPSILON:
+                named[f"{part}.{name}"] = round(value, 4)
+    return named
+
+
+def decoded_vectors(records: list[dict]) -> dict[str, dict[str, dict[str, float]]]:
+    """Return the decoded appraisal and delta vectors of each serialized record that has them, by record id."""
+    decoded = {}
+    for wrapped in records:
+        data = wrapped["data"]
+        if "mental_state_appraisal_vec" not in data and "mental_state_delta_vec" not in data:
+            continue
+        decoded[str(data["id"])] = {
+            "appraisal": decode_vector(data["mental_state_appraisal_vec"]) if "mental_state_appraisal_vec" in data else {},
+            "delta": decode_vector(data["mental_state_delta_vec"]) if "mental_state_delta_vec" in data else {}}
+    return decoded
+
+
 def cycle_record_ids(state: CycleState, turn: GwtTurnRecord | None) -> list[int]:
     """Return every record id that one cycle state and its turn record name, in a stable order.
 
     The order is: the claimed stimuli, the workspace items and tails, the CSM
     items and their merged records, the structures, the codelet percepts of
     the registry, the dispatched actions, the broadcast experiences, and the
-    records of the turn (created percepts and structures, the experience, and
-    the decision record).
+    records of the turn (created percepts and structures, the lines that the
+    codelet selector read as echoes, the experience, the decision record, and
+    every other record that the turn names: the appraisal, the goals, the
+    expectations, the actions, and the selected memories).
     """
     ids = [*state.claimed_ids(), *(key for decision in state.decisions for key in decision.stimulus_ids),
            *state.workspace.item_ids(), *state.workspace.tail_ids()]
@@ -89,20 +144,25 @@ def cycle_record_ids(state: CycleState, turn: GwtTurnRecord | None) -> list[int]
     ids.extend(ref.action_id for ref in state.dispatches if ref.action_id is not None)
     ids.extend(ref.experience_id for ref in state.broadcasts if ref.experience_id is not None)
     if turn is not None:
-        ids.extend([*turn.trace.percept_ids, *turn.trace.structure_ids,
-                    *(key for key in (turn.experience_id, turn.decision_id) if key is not None)])
+        ids.extend([*turn.trace.percept_ids, *turn.trace.structure_ids, *turn.trace.echo_ids,
+                    *(key for key in (turn.experience_id, turn.decision_id) if key is not None),
+                    *turn.knoxel_ids])
     return list(dict.fromkeys(ids))
 
 
 def capture_cycle(snapshot: Snapshot, state: CycleState, *, title: str = "",
-                  perspective: str = "developer") -> dict:
+                  perspective: str = "developer", previous: CycleState | None = None) -> dict:
     """Return a ``cycle`` collection of one accepted cycle state from one frozen snapshot.
 
-    ``state`` is the cycle state of the store for the same tick as the
-    snapshot. The collection members are the records that the state and its
+    ``state`` is a cycle state of the store, and the snapshot holds its
+    records. The collection members are the records that the state and its
     turn record name (:func:`cycle_record_ids`). ``cycle`` holds the state
-    itself. A named record that the snapshot lacks raises KeyError. The
-    function performs no inference, file writes, or memory commits.
+    itself. ``previous`` is the cycle state before ``state``; its mental
+    state becomes ``mental_state_before``. ``decoded_vectors`` names the
+    axes of the mental-state vectors of the members (:func:`decode_vector`).
+    ``entity_names`` maps the id of each entity shard to the entity name.
+    A named record that the snapshot lacks raises KeyError. The function
+    performs no inference, file writes, or memory commits.
     """
     gwt = snapshot.serialize_gwt()
     turn = GwtTurnRecord.model_validate(gwt[state.tick_id]) if state.tick_id in gwt else None
@@ -110,6 +170,11 @@ def capture_cycle(snapshot: Snapshot, state: CycleState, *, title: str = "",
                               view="cycle", perspective=perspective,
                               tick_id=state.tick_id if turn is not None else None)
     package["cycle"] = without_embeddings(state.model_dump(mode="json"))
+    package["mental_state_before"] = (without_embeddings(previous.mental_state.model_dump(mode="json"))
+                                      if previous is not None else None)
+    package["decoded_vectors"] = decoded_vectors(package["records"])
+    # The reader names each entity shard by its entity, not by its id.
+    package["entity_names"] = {str(key): snapshot.get_entity_name(key) for key in state.workspace.entity_shards}
     return package
 
 

@@ -16,7 +16,9 @@ self shard and the shard of each current stimulus group. Steps:
    run in parallel.
 3. Auxiliary rating (Python). The old rule-based rating of the records of a
    structure. Normalized and weighted with ``COALITION_AUX_RATING_FACTOR``,
-   it only breaks ties.
+   it only breaks ties. Then only the best structures of each shard win:
+   one at a narrow mental aperture, as in the old code, two at a medium
+   aperture, and three at a broad one (:func:`winner_count`).
 4. Selection (Python). ``workspace_selection.select_shards`` changes each
    shard in place: reserved places, then the other content in score order
    within the budget and the caps. Incumbents get ``WORKSPACE_HOLD_BONUS``.
@@ -36,6 +38,9 @@ from pydantic import BaseModel, Field, create_model, model_validator
 from pm.constants import (
     ATTENTION_APERTURE_THRESHOLD,
     ATTENTION_LINE_CHARS,
+    ATTENTION_WINNERS_BROAD,
+    ATTENTION_WINNERS_DEFAULT,
+    ATTENTION_WINNERS_NARROW,
     COALITION_AUX_RATING_FACTOR,
     COALITION_RECENCY_DECAY,
     FOCUS_ACTIVATION_WEIGHT,
@@ -137,6 +142,21 @@ def aperture_text(work: CycleWork, prompts: PhasePrompts) -> str:
     return prompts.aperture_default
 
 
+def winner_count(work: CycleWork) -> int:
+    """Return how many structures can win one shard, by the mental aperture.
+
+    The old code put only the one winning coalition into the workspace. A
+    narrow aperture keeps that rule. A medium or broad aperture lets two or
+    three structures win, because a shard holds several kinds of content.
+    """
+    aperture = work.state.mental_state.state_cognition.mental_aperture
+    if aperture < -ATTENTION_APERTURE_THRESHOLD:
+        return ATTENTION_WINNERS_NARROW
+    if aperture > ATTENTION_APERTURE_THRESHOLD:
+        return ATTENTION_WINNERS_BROAD
+    return ATTENTION_WINNERS_DEFAULT
+
+
 def aux_rating(work: CycleWork, structure: StructureDraft) -> float:
     """Return the old auxiliary rating of a structure: the sum over its records.
 
@@ -213,6 +233,8 @@ def shard_job(work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts, shard
         shard_focus=focus.format(**values),
         structures=render_structures(work, structures),
         aperture=prefix.fill(aperture_text(work, prompts)),
+        winners=str(winner_count(work)),
+        count=str(len(structures)),
     ).text
     return ShardJob(key=shard.key, labels=[f"S{index}" for index in range(1, len(structures) + 1)],
                     instruction=instruction)
@@ -254,46 +276,98 @@ def scored(work: CycleWork, job: ShardJob, answer: StructureRatings,
         ratings.append(RatedStructure(structure_id=structure.record_id, label=label, rating=rating.rating,
                                       aux=round(value, 4), score=round(rating.rating + bonus, 4),
                                       reasoning=rating.reasoning.strip()))
+    # Only the best structures of the shard win. The others stay below
+    # awareness in this cycle, even with a high rating.
+    for rated in sorted(ratings, key=lambda item: (-item.score, item.label))[:winner_count(work)]:
+        rated.won = True
     return ShardRatings(key=job.key, ratings=ratings)
+
+
+def record_home(work: CycleWork, record_id: int) -> ShardKey | None:
+    """Return the shard that a record belongs to, or None when it belongs to no particular shard.
+
+    - A line that the companion said belongs to the shard of its listener.
+      A line without a known listener belongs to the user.
+    - A record about another entity belongs to that entity's shard. An
+      entity of a current group comes first.
+    - A record about the companion belongs to the self shard.
+    - A codelet percept belongs to the shard that its variant named.
+    - Any other record, for example an episode without an entity, belongs
+      to no particular shard.
+    """
+    view = work.records[record_id]
+    request = work.request
+    self_id = request.self_entity_id
+    if view.feature_type == "Dialogue" and self_id is not None and self_id in view.entity_ids:
+        partner = view.addressee_entity_id or request.user_entity_id
+        return ShardKey(kind="entity", ref=str(partner)) if partner else SELF_SHARD
+    others = [entity_id for entity_id in view.entity_ids if entity_id != self_id]
+    if others:
+        present = [int(group.key.ref) for group in work.state.stimulus_groups if group.key.kind == "entity"]
+        return ShardKey(kind="entity", ref=str(next((item for item in others if item in present), others[0])))
+    if self_id is not None and self_id in view.entity_ids:
+        return SELF_SHARD
+    csm = work.state.csm.items
+    if view.record_class == "CodeletPercept" and record_id in csm and csm[record_id].shard_hint is not None:
+        return csm[record_id].shard_hint
+    return None
+
+
+def admits(work: CycleWork, key: ShardKey, record_id: int, updated: set[ShardKey]) -> bool:
+    """Return True when the record may be an item of the shard ``key``.
+
+    A record with a home shard (:func:`record_home`) may only enter that
+    shard. When its home shard is not updated in this cycle, it may rest in
+    the self shard. A record without a home shard may enter any shard.
+    This rule keeps the content of one entity out of the shard of another
+    entity. The decision and the reply for a group read only the self shard
+    and the group's shard, so a misplaced record would leak into them.
+    """
+    home = record_home(work, record_id)
+    if home is None or home == key:
+        return True
+    return key == SELF_SHARD and home not in updated
 
 
 def home_shard(work: CycleWork, record_id: int, structure: StructureDraft) -> ShardKey:
     """Return the shard where a record belongs when the ratings tie.
 
-    A record about the entity of a current group belongs to that entity's
-    shard. A record about the companion belongs to the self shard. Any other
-    record belongs to the target shard of its structure.
+    This is :func:`record_home`, or the target shard of the structure for a
+    record without a home shard.
     """
-    view = work.records[record_id]
-    for group in work.state.stimulus_groups:
-        if group.key.kind == "entity" and int(group.key.ref) in view.entity_ids:
-            return group.key
-    if work.request.self_entity_id is not None and work.request.self_entity_id in view.entity_ids:
-        return SELF_SHARD
-    return structure.target_shard
+    home = record_home(work, record_id)
+    return home if home is not None else structure.target_shard
 
 
 def newcomers(work: CycleWork, ratings: list[ShardRatings], bonus: dict[int, float]) -> list[Candidate]:
-    """Return one candidate for each record of each rated structure and shard.
+    """Return one candidate for each record of each winning structure and shard that admits it.
 
     The priority is the structure score, plus ``WORKSPACE_HOME_BONUS`` in the
-    home shard of the record (:func:`home_shard`). The model often rates one
-    structure equally for two shards. The bonus then puts a narrative about
-    the user into the user's shard and a self narrative into the self shard.
+    home shard of the record (:func:`home_shard`). A shard admits a record
+    by :func:`admits`. An entity or workflow shard admits a record without a
+    home shard only when the structure targets that shard. The self shard
+    admits it from any structure.
     """
     structures = {draft.record_id: draft for draft in work.structures.structures}
+    updated = {shard.key for shard in ratings}
     result = []
     for shard in ratings:
         for rated in shard.ratings:
+            if not rated.won:
+                continue
             structure = structures[rated.structure_id]
             reason = f"{structure.theme} (rated {rated.rating:.2f}): {rated.reasoning}"
-            result.extend(Candidate(
-                record_id=record_id, key=shard.key,
-                priority=rated.score + (WORKSPACE_HOME_BONUS if home_shard(work, record_id, structure) == shard.key
-                                        else 0.0),
-                focus_bonus=bonus[record_id] if record_id in bonus else 0.0,
-                structure_id=structure.record_id, reason=reason)
-                for record_id in structure.record_ids)
+            for record_id in structure.record_ids:
+                if not admits(work, shard.key, record_id, updated):
+                    continue
+                if (record_home(work, record_id) is None and shard.key != SELF_SHARD
+                        and structure.target_shard != shard.key):
+                    continue
+                home = WORKSPACE_HOME_BONUS if home_shard(work, record_id, structure) == shard.key else 0.0
+                result.append(Candidate(
+                    record_id=record_id, key=shard.key, priority=rated.score + home,
+                    focus_bonus=bonus[record_id] if record_id in bonus else 0.0,
+                    structure_id=structure.record_id, reason=reason))
     return result
 
 
@@ -317,7 +391,8 @@ def select(work: CycleWork, ratings: list[ShardRatings], bonus: dict[int, float]
         tokens={record_id: record_tokens(work.records, record_id) for record_id in ids},
         blocked=sorted(blocked), focus_ids=sorted(record_id for record_id, value in bonus.items() if value > 0.0))
     changes = select_shards(selection, lambda requirement, record_id, key: selector_matches(
-        requirement.select, work.records[record_id], key, context))
+        requirement.select, work.records[record_id], key, context),
+        lambda key, record_id: admits(work, key, record_id, updated))
     for change in changes:
         change.tail_ids = list(work.state.workspace.shard(change.key).tail_ids)
     return changes
@@ -365,11 +440,14 @@ def run(context, work: CycleWork) -> CycleWork:
 __all__ = [
     "DELIBERATE_FOCUS",
     "FocusEvidence",
+    "admits",
+    "record_home",
     "ShardJob",
     "apply_focus",
     "attention_narrative",
     "aperture_text",
     "aux_rating",
+    "winner_count",
     "focus_evidence",
     "home_shard",
     "newcomers",

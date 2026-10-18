@@ -13,6 +13,7 @@ from tempfile import TemporaryDirectory
 from pydantic import ValidationError
 
 from pm.bus.bus import BusSystem
+from pm.llm.prompt_encoding import normalize_turns
 from pm.bus.envelopes import Envelope, new_id
 from pm.memory.bash_view import MemoryBashTarget
 from pm.memory.store import MemoryStore
@@ -134,6 +135,45 @@ class GroupDecisionTests(unittest.TestCase):
             self.assertEqual(action.content, event.payload["content"])
             self.assertEqual(action.metadata["dispatch_correlation"], ref.correlation_id)
             self.assertEqual(action.metadata["group"], ref.group.model_dump(mode="json"))
+
+    def test_each_group_reads_only_the_self_shard_and_its_own_shard(self):
+        ghost = ghost_with_entities()
+        jesse = say(ghost, "Jesse", "Fine, I still won't pick an ending.")
+        mara = say(ghost, "Mara", "Can I add a third ending?")
+
+        def experience(messages) -> str:
+            # Echo the new events of the story prefix, so the test sees what each experience read.
+            story = normalize_turns(messages)[1].content.text
+            return " ".join(story.split("### BEGIN NEW")[1].split("### END NEW")[0].split())
+
+        model = ScriptedModel({"decide": decide_by_part, "route": route_reply, "experience": experience})
+        batch = [user(jesse, "c-jesse"),
+                 Envelope(id=new_id(), source="mara", kind="data", topic="user.input", correlation_id="c-mara",
+                          payload={"knoxel_id": mara})]
+        with TemporaryDirectory() as tmp:
+            module, bus, errors = module_for(ghost, model, tmp)
+            requests = Recorder(bus, "action.request")
+            module.handle_batch(batch)
+            self.assertEqual(errors, [])
+        # One experience of the whole moment and one for each group.
+        self.assertEqual(model.calls.count("experience"), 3)
+        decide_stories = [messages[1].content.text for phase, messages in zip(model.calls, model.messages)
+                          if phase == "decide"]
+        self.assertEqual(len(decide_stories), 2)
+        jesse_story, mara_story = sorted(decide_stories, key=lambda text: "third ending" in text)
+        self.assertNotIn("third ending", jesse_story)
+        self.assertNotIn("won't pick", mara_story)
+        by_correlation = {item.correlation_id: ActionRequest.model_validate(item.payload) for item in requests.events}
+        self.assertIn("third ending", by_correlation["c-mara"].workspace)
+        self.assertNotIn("won't pick", by_correlation["c-mara"].workspace)
+        self.assertNotIn("third ending", by_correlation["c-jesse"].workspace)
+        # The self shard copy of a request holds no experience of another group.
+        experiences = {item.id: item.content for item in ghost.all_features
+                       if item.feature_type == FeatureType.SubjectiveExperience}
+        self.assertEqual(len(experiences), 3)
+        mara_tail = by_correlation["c-mara"].shards[0].shard.tail_ids
+        self.assertEqual([experiences[key] for key in mara_tail if key in experiences],
+                         [by_correlation["c-mara"].workspace])
 
     def test_an_insignificant_group_gets_no_decision(self):
         ghost = ghost_with_entities()

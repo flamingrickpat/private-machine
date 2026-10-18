@@ -98,11 +98,16 @@ class CycleTrace(BaseModel):
     this cycle. The attention scores of each structure are in the metadata
     of its ``Structure`` record. ``input_tokens_estimate`` and
     ``output_tokens_estimate`` are tiktoken estimates of the codelet calls.
+    ``selector_patterns`` is the selector's note on the patterns of the
+    recent story. ``echo_ids`` are the earlier lines that echo a current
+    stimulus; the selector read them.
     """
 
     codelet_budget: int = 0
     codelet_runs: List[CodeletRunRef] = Field(default_factory=list)
     codelet_ratings: dict[str, float] = Field(default_factory=dict)
+    selector_patterns: str = ""
+    echo_ids: List[int] = Field(default_factory=list)
     pathway_boosts: List[PathwayBoostRef] = Field(default_factory=list)
     definitions_version: str = ""
     definitions_digest: str = ""

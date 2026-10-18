@@ -123,6 +123,10 @@ The port fixes three old defects: the old score used the cosine distance, the ol
 
 1. Score every codelet.
 2. The selector call rates the top `CODELET_SELECTOR_CANDIDATES` codelets from 0 to 1 for this moment of the story. Each rating adds `CODELET_SELECTOR_WEIGHT * rating` to the stored activation. The old code iterated the ratings without `.items()`. This port reads every rating.
+   The selector first writes the patterns of the recent story (`CodeletRatings.patterns`), then rates how clearly the trigger of each codelet is present, not how well it fits the mood.
+   The prompt also lists the earlier lines of the same speaker that echo the newest line, with their count ([`echoes`][workflows.main_cognition.phases.codelets.echoes]). A line echoes when its embedding cosine with the stimulus is at least `CODELET_ECHO_SIMILARITY`.
+   In the A19F step 5 replay, the selector rated `BoredomThresholdCross` 0.1 although Jesse deferred the choice for the fourth time. A repetition across many turns was invisible to a model that read the newest line first.
+   The turn record keeps the patterns and the echo ids (`CycleTrace.selector_patterns`, `CycleTrace.echo_ids`).
 3. Triage sets the codelet budget of the cycle, from 1 to 12 (`TriageResult.codelet_budget`, default 4).
 4. [`wave_sizes`][workflows.main_cognition.codelet_registry.wave_sizes] splits the budget into `CODELET_WAVES` waves. A budget of 4 gives two waves of two.
 5. Each wave scores the codelets that did not run yet and runs the best ones in parallel.
@@ -154,6 +158,7 @@ A `chain` codelet makes two calls, as the old `AgentSimpleCodelet` did:
 
 1. Call 1 returns the recommendation as prose (2 to 4 sentences, third person).
 2. Call 2 continues the same conversation. It converts the recommendation into typed percepts. It also names the target shard and the view records that the result is about.
+   The target is `self` only for a result about the companion alone. With several characters in the moment, call 2 chooses the one part that the result is most about and writes the percepts about that part only. The attention phase puts a percept only into its target shard, so a percept about two characters would leak one character into the other's decision.
 
 ### Agent
 

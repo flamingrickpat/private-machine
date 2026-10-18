@@ -57,11 +57,13 @@ A category outside the four names is invalid model output. The repair turn asks 
 
 [`workflows.main_cognition.phases.decide.run`][] makes one story-framed call for each significant group. The calls run in parallel (`DECISION_WORKERS`).
 
-Each call reads the shared story prefix and then the instruction of `phases/prompts/decide.yaml`:
+Each call reads the story prefix of its group and then the instruction of `phases/prompts/decide.yaml`.
+The prefix of a group shows the self shard and the group's shard only, not the shards of the other groups ([structures, attention, and the workspace](workspace.md#the-shared-story-prefix)).
+The instruction holds:
 
 - the part of the story that the group is, and its new stimuli;
 - the feeling in words and the regulation mode;
-- the subjective experience of this cycle;
+- the subjective experience of this cycle, or the experience of the group when several groups are significant;
 - the causal codelet percepts in the self shard and in the group shard ([`group_percepts`][workflows.main_cognition.phases.decide.group_percepts]);
 - the active goals and the goals that this cycle adds.
 
@@ -80,7 +82,7 @@ The phase writes each decision as an [`ActionDecision`][pm.records.cycle_records
 
 [`workflows.main_cognition.phases.route.run`][] makes one story-framed call for each decision. The calls run in parallel.
 
-Each call reads the shared story prefix and then the instruction of `phases/prompts/route.yaml`:
+Each call reads the story prefix of the decision's group and then the instruction of `phases/prompts/route.yaml`:
 the decision, the group's stimuli with their ids, the selected memories, the goal changes, the managed-run receipts, the capabilities, and the available workflows.
 Only this call gets the capability section of the private grounding turn.
 

@@ -96,6 +96,8 @@ uv run --locked python dev/review/server.py register-package .runtime/debug/chat
 The desk formats content and shows useful metadata on hover.
 Expand **Record metadata** for every captured field. Embeddings stay hidden.
 Each imported file receives its own review item, so separate snapshots retain their own versions.
+Add `--combine` to put all files into one review item. Use it only for packages of one snapshot.
+A combined item with `cycle` packages opens a **Cycles** view: the path from the stimuli through codelets, attention, and the shards to the decision, the route, and the reply.
 The engineering manual explains [record packages](../../docs/subsystems/record-packages.md).
 
 A19 also supplies an offline cognitive capture:

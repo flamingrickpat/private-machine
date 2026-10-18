@@ -116,8 +116,10 @@ def record_view(record) -> RecordView:
     entity_ids, category = _entity_facts(record, record_class)
     source = ""
     feature_type = ""
+    addressee = 0
     if record_class == "Feature":
         feature_type = record.feature_type.value
+        addressee = record.addressee_entity_id
         source = record.source if record.feature_type == FeatureType.Dialogue else f"{record.source} ({feature_type})"
     elif record_class == "CodeletPercept":
         source = record.codelet_name
@@ -127,7 +129,8 @@ def record_view(record) -> RecordView:
         source = f"expectation ({category})"
     return RecordView(record_id=record.id, kind=kind, source=source, content=record.content,
                       timestamp=record.timestamp_world_begin, record_class=record_class,
-                      entity_ids=entity_ids, category=category, feature_type=feature_type)
+                      entity_ids=entity_ids, category=category, feature_type=feature_type,
+                      addressee_entity_id=addressee)
 
 
 def story_tokens(text: str) -> int:

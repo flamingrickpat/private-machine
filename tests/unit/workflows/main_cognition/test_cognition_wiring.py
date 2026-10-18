@@ -165,6 +165,35 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(len(list(Path(tmp).rglob("model-output-rejection.json"))), 1)
             self.assertEqual(errors, [])
 
+    def test_a_failed_provider_completion_retries_the_whole_cycle(self):
+        from pm.llm.http_client import ProviderCompletionError
+        ghost = _small_ghost()
+        stimulus_id = _store(ghost, "the kitchen is on fire")
+        candidate_id = _store(ghost, "Jesse owns a fire extinguisher")
+        scripted = ScriptedModel(reports=_fake_reports(stimulus_id, candidate_id))
+        calls = []
+
+        def model(messages, **generation):
+            calls.append(1)
+            if len(calls) == 1:
+                raise ProviderCompletionError("The model provider failed or filtered generation.")
+            return scripted(messages, **generation)
+
+        with TemporaryDirectory() as tmp:
+            bus = BusSystem()
+            errors = []
+            module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
+                working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
+                tools_factory=lambda environment, batch: {**scripted.tools(), "llm_complete": model},
+                runtime_root=Path(tmp), ghost=ghost)
+            rejected = Recorder(bus, "cycle.rejected")
+            requests = Recorder(bus, "action.request")
+            module.handle_batch([Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                correlation_id="retained-user", payload={"knoxel_id": stimulus_id})])
+            self.assertEqual(rejected.events[0].payload["error_type"], "ProviderCompletionError")
+            self.assertEqual([item.correlation_id for item in requests.events], ["retained-user"])
+            self.assertEqual(errors, [])
+
     def test_explicit_run_cancellation_prevents_a_format_retry(self):
         from workflows.main_cognition.model_json import ModelFormatError
         ghost = _small_ghost()

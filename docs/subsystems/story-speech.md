@@ -63,7 +63,7 @@ A live check on 2026-10-13 confirmed that `qwen/qwen3.8-flash` on OpenRouter con
 
 The reply addresses the partner of the action request. All `{partner_name}` texts of the prompt name that entity.
 A reply to a second companion therefore reads "<that companion> says: …" lines and is cut at that companion's next line.
-The [shard context](context-planning.md#shard-context) fills the assistant turn: the dialogue in the tail of the partner shard and the companion's private thoughts in the self tail, oldest first.
+The [shard context](context-planning.md#shard-context) fills the assistant turn: the dialogue in the tail of the partner shard and the companion's private thoughts of that exchange (at most `DIALOGUE_THOUGHT_LIMIT`), oldest first.
 A thought renders as `<companion> thinks: *...*`. A day marker such as `*(30 May 2026)*` starts each new day in the window.
 A standalone situation has no shards. Its context plan fills the transcript and the memory sections.
 
@@ -92,6 +92,8 @@ Only `false_task_result` is a hard block.
 [`is_blocked`][workflows.public_speech.speech_review.is_blocked] reads the model's explicit `false_task_result` flag.
 An invented kind cannot reject a reply.
 The review prompt lists what is never a problem: exaggeration, a chosen lie or tease, a metaphor, a guess, an opinion, a plan, an accepted feeling, a repeated user statement, and a small paraphrase.
+It also says that a rule, promise, threat, or decision between the characters, a change in the relationship, a feeling, or a story idea is never a task result, even when it contradicts earlier memories or habits.
+In the first A19F step 11 review session, the reviewer blocked "I revoke every opt-out" as a false task result, and the application stopped without a reply.
 A prior deception intent explains a chosen false statement.
 It cannot authorize a false task result. Actual task and tool receipts remain authoritative.
 The parser requires a boolean `false_task_result` and a nonempty reason before it accepts the review object.

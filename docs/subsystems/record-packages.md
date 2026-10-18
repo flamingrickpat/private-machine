@@ -51,8 +51,11 @@ It does not reconstruct prior versions of mutable records.
 Pass the snapshot and the cycle state of the same tick, for example `app.ghost.states[-1]`.
 The package field `cycle` holds the state: the CSM items with activation and endorsers, the workspace shards with items and tails, the codelet registry state, the stimulus groups, the decisions, and the dispatches.
 `gwt` holds the turn record of the tick.
-The members are every record that the state or the turn names ([`cycle_record_ids`][pm.introspection.record_packages.cycle_record_ids]): stimuli, shard items and tails, CSM items, structures, codelet percepts, actions, experiences, and the decision record.
-Step 11 of A19F builds the review package from these captures.
+The members are every record that the state or the turn names ([`cycle_record_ids`][pm.introspection.record_packages.cycle_record_ids]): stimuli, shard items and tails, CSM items, structures, codelet percepts, the lines that the codelet selector read as echoes, actions, experiences, the appraisal, the expectations, the selected memories, and the decision record.
+Pass `previous`, the cycle state before the tick, to fill `mental_state_before`.
+`decoded_vectors` names the axes of each mental-state vector of a member ([`decode_vector`][pm.introspection.record_packages.decode_vector]), for example the mini-appraisal of a codelet percept.
+`entity_names` maps the id of each entity shard to its entity name.
+`dev/work_items/alpha_a19f_review.py` builds the A19F review package from these captures: one chat package and one cycle package for each main tick, all from one snapshot.
 
 [`pm.introspection.record_packages.dump_package`][] writes the detached package as UTF-8 JSON.
 The caller owns the destination and exposes it for review after the write returns.
@@ -71,6 +74,7 @@ The versioned schema is `pm.record-package.v1`.
 | `revisions` | Captured accepted revision of each included record |
 | `gwt` | Complete selected GWT turn, or `null` |
 | `cycle` | The captured cycle state. Only the `cycle` display hint has it. |
+| `mental_state_before`, `decoded_vectors`, `entity_names` | The mental state of the previous tick, the named axes of the member vectors, and the entity shard names. Only the `cycle` display hint has them. |
 
 Display hints are `records`, `chat`, `gwt`, and `cycle`.
 All serialized fields remain available except recursively named `embedding` and `embeddings` fields.
@@ -88,10 +92,12 @@ uv run --locked python dev/review/server.py serve
 
 The importer creates a review item for each file.
 This permits separate captures to retain different versions of the same record.
-A combined item can also contain multiple packages from one consistent snapshot.
+With `--combine`, the importer puts all files into one review item. Use it only for packages of one consistent snapshot, so links work across the packages.
 Conflicting copies in a combined item raise an error instead of choosing one silently.
 
 The desk opens chat as speech in caller order.
+The **Cycles** view arranges each `cycle` package as the path of one tick: stimuli, the mental state before and after, the appraisal, the codelet selector and runs with their percepts, the CSM, the structures with their attention ratings, the shard changes, the experience, the decisions and routes, the expectations, the shard items that the action carried to the reply, and the reply.
+The formatter for this view is [`dev.review.record_format.present_cycle`][].
 The **Record packages** view selects named collections and displays GWT summaries beside their member content.
 Hover over a record heading or **Record metadata** to see timestamps, source, revision, appraisal, and codelet fields.
 Expand **Record metadata** to read all captured fields.

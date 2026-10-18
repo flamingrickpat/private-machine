@@ -428,6 +428,8 @@ def main() -> None:
     package.add_argument("--id", required=True)
     package.add_argument("--work-item", default="Debug")
     package.add_argument("--title")
+    package.add_argument("--combine", action="store_true",
+                         help="Put all packages into one review item. Use only for packages of one snapshot.")
     sub.add_parser("feedback", help="Print saved human feedback for the next agent session.")
     args = parser.parse_args()
     if args.command == "import-receipt":
@@ -440,12 +442,17 @@ def main() -> None:
     elif args.command == "register-package":
         packages = [load(path) for path in args.packages]
         title = args.title or packages[0]["title"]
+        # Separate items keep separate snapshots apart. A combined item links
+        # records across its packages; present_packages rejects conflicting
+        # copies of one record, so only packages of one snapshot combine.
+        groups = [packages] if args.combine else [[packet] for packet in packages]
         bundle = {"schema": SCHEMA, "id": args.id, "work_item": args.work_item,
                   "title": title, "created_at": packages[-1]["captured_at"], "summary": "Captured runtime records. Human review is pending.",
-                  "items": [{"id": f"records-{index}", "title": packet["title"], "persona": "Captured runtime",
+                  "items": [{"id": f"records-{index}", "title": title if args.combine else group[0]["title"],
+                             "persona": "Captured runtime",
                              "scenario": "Record collections", "context": [], "content": "",
-                             "reviewable": True, "notes": [], "references": [], "packages": [packet]}
-                            for index, packet in enumerate(packages)]}
+                             "reviewable": True, "notes": [], "references": [], "packages": group}
+                            for index, group in enumerate(groups)]}
         print(register(bundle, args.registry, args.data))
     elif args.command == "feedback":
         print(json.dumps([{ "bundle_id": row["id"], "work_item": row["work_item"],

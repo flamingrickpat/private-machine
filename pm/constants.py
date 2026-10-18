@@ -34,10 +34,11 @@ CSM_SNAPSHOT_EXPLOIT = 0.9  # At or above this salience bias, the snapshot sorts
 WORKSPACE_SHARD_TOKENS = 12000  # Content budget of each shard, in tokens.
 WORKSPACE_TAIL_TOKENS = 6000  # Separate budget of each shard tail, in tokens.
 WORKSPACE_HOLD_BONUS = 0.1  # Activation bonus that keeps an incumbent item against a newcomer.
-WORKSPACE_MIN_RATING = 0.5  # Lowest entry priority of a newcomer or an incumbent. Reserved places ignore it.
+WORKSPACE_MIN_RATING = 0.6  # Lowest entry priority of a newcomer or an incumbent. Reserved places ignore it. Raised from 0.5 after the A19F step 6 replays: ratings ran 0.75-0.95 and everything entered.
 WORKSPACE_HOME_BONUS = 0.05  # Priority bonus in the home shard of a record: the shard of the entity it is about, or the target shard of its structure.
 WORKSPACE_TAIL_CANDIDATES = 96  # Newest stream records that the host offers for each shard tail.
 CCQ_LENGTH = 8  # Number of recent broadcasts that the cycle state keeps.
+DIALOGUE_THOUGHT_LIMIT = 12  # Most private thoughts that a reply transcript shows. Only thoughts newer than its oldest dialogue line count.
 
 # Structure builders (port of _build_structures_get_coalitions) and attention into shards
 # (port of _simulate_attention_on_coalitions in private-machine-head/pm/ghosts/ghost_lida.py).
@@ -49,6 +50,9 @@ STRUCTURE_VIEW_TOKENS = 3000  # Token budget of the CSM view that the structure 
 STRUCTURE_BINDER_MAX = 5  # Most structures that one binder call returns.
 ATTENTION_LINE_CHARS = 400  # Characters of one record line in the attention rating prompt.
 ATTENTION_APERTURE_THRESHOLD = 0.5  # Mental aperture beyond which the rating asks for narrow (-) or broad (+) focus (old value).
+ATTENTION_WINNERS_NARROW = 1  # Structures per shard that can win at a narrow aperture. The old code let one coalition win.
+ATTENTION_WINNERS_DEFAULT = 2  # Structures per shard that can win at a medium aperture.
+ATTENTION_WINNERS_BROAD = 3  # Structures per shard that can win at a broad aperture.
 
 # Codelets and decisions.
 CODELET_OUTPUT_VARIANTS = 1  # Number of output variants that each codelet returns.
@@ -75,6 +79,7 @@ CODELET_BASE_LEARN_RATE = 0.1  # Part of the distance to 1.0 that a workspace en
 CODELET_BASE_FORGET = 0.995  # Factor for each cycle that slowly lowers base-level activation.
 CODELET_SELECTOR_WEIGHT = 0.5  # Stored activation that a selector rating of 1.0 adds.
 CODELET_SELECTOR_CANDIDATES = 12  # Number of top-scored codelets that the LLM selector rates.
+CODELET_ECHO_SIMILARITY = 0.5  # Embedding cosine at which an earlier line of the same speaker echoes the newest line. story_continuation replay: the four deferrals scored 0.51-0.59, most unrelated lines 0.36-0.40, one unrelated line 0.51. The selector reads the lines and judges them, so a false echo costs little.
 CODELET_BUDGET_DEFAULT = 4  # Codelet runs of a cycle when triage sets no budget.
 CODELET_BUDGET_MAX = 12  # Most codelet runs that triage can grant to one cycle.
 CODELET_WAVES = 2  # Waves of one cycle. A later wave sees the CSM after the earlier waves.

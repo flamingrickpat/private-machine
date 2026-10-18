@@ -27,7 +27,9 @@ user_template: |
   - "record_ids": at least two ids from the MIND list.
   - "relations": links between two ids of the structure, each with the link in a few words, for example
     "is fueled by", "contradicts", "repeats".
-  - "target": the part of the story that the structure concerns. Use exactly one of: {targets}.
+  - "target": the part of the story that the structure concerns. Use exactly one of: {targets}. Use "self" only
+    for a structure about {companion_name} alone. Do not bind lines about two different characters into one
+    structure: the mind keeps each relationship in its own place.
 
   Answer with only this JSON object and nothing else:
   {{"structures": [{{"theme": "...", "reason": "...", "record_ids": [1, 2], "relations": [{{"source_id": 1, "relation": "is fueled by", "target_id": 2}}], "target": "self"}}]}}

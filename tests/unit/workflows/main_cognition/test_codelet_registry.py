@@ -273,3 +273,34 @@ class CommitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EchoTests(unittest.TestCase):
+    """The selector reads the earlier lines of the same speaker that echo the newest line."""
+
+    def test_only_close_lines_of_the_same_speaker_echo(self):
+        from types import SimpleNamespace
+
+        from pm.records.cycle_records import StimulusGroup
+        from pm.records.workspace import ShardKey
+        from workflows.main_cognition.csm_view import Embedder
+        from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
+        from workflows.main_cognition.phases.codelets import echoes
+        from workflows.main_cognition.schemas import RecordView
+
+        key = ShardKey(kind="entity", ref="1")
+
+        def line(record_id: int, entity: int, text: str) -> RecordView:
+            return RecordView(record_id=record_id, record_class="Feature", feature_type="Dialogue",
+                              source="speaker", content=text, entity_ids=[entity])
+
+        records = {1: line(1, 1, "keep both endings open, do not choose yet"),
+                   2: line(2, 1, "the plant has one dark leaf"),
+                   3: line(3, 2, "keep both endings open, do not choose yet"),
+                   4: line(4, 1, "keep both endings open, do not choose yet")}
+        work = CycleWork(request=CycleRequest(), records=records)
+        work.state.stimulus_groups = [StimulusGroup(key=key, stimulus_ids=[4])]
+        work.state.workspace.ensure_shard(key).tail_ids = [1, 2, 3]
+        context = SimpleNamespace(runtime=SimpleNamespace(tools={"embed_texts": ScriptedModel().embed}))
+        # Line 3 is the same text from the companion (entity 2), so it is no echo of the speaker.
+        self.assertEqual(echoes(work, Embedder(context, records)), [1])

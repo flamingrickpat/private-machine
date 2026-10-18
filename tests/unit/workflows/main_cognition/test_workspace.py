@@ -210,24 +210,93 @@ class IncumbentTests(unittest.TestCase):
 
 
 class HomeShardTests(unittest.TestCase):
-    def test_a_tied_rating_puts_each_narrative_into_its_home_shard(self):
+    """A record with a home shard enters only that shard. Only winning structures bring newcomers."""
+
+    OTHER_ID = 9
+    OTHER_SHARD = ShardKey(kind="entity", ref=str(OTHER_ID))
+
+    def work(self, records, groups, structures):
         from pm.records.cycle_records import StimulusGroup
         from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
+        work = CycleWork(request=CycleRequest(self_entity_id=SELF_ID, user_entity_id=USER_ID), records=records)
+        work.state.stimulus_groups = [StimulusGroup(key=key) for key in groups]
+        work.structures.structures = structures
+        return work
+
+    def ratings(self, keys, *rated):
+        from workflows.main_cognition.schemas import ShardRatings
+        return [ShardRatings(key=key, ratings=[item.model_copy() for item in rated]) for key in keys]
+
+    def rated(self, structure_id, rating, won=True):
+        from workflows.main_cognition.schemas import RatedStructure
+        return RatedStructure(structure_id=structure_id, label=f"S{-structure_id}", rating=rating, score=rating,
+                              won=won)
+
+    def test_a_tied_rating_puts_each_narrative_into_its_home_shard(self):
         from workflows.main_cognition.phases.attention import newcomers
-        from workflows.main_cognition.schemas import RatedStructure, ShardRatings, StructureDraft
+        from workflows.main_cognition.schemas import StructureDraft
 
         records = {7: view(7, "Narrative", entity_ids=[SELF_ID]), 8: view(8, "Narrative", entity_ids=[USER_ID])}
-        work = CycleWork(request=CycleRequest(self_entity_id=SELF_ID, user_entity_id=USER_ID), records=records)
-        work.state.stimulus_groups = [StimulusGroup(key=USER_SHARD)]
-        work.structures.structures = [StructureDraft(record_id=-9, record_ids=[7, 8], target_shard=SELF_SHARD)]
-        ratings = [ShardRatings(key=key, ratings=[RatedStructure(structure_id=-9, label="S1", rating=0.9, score=0.9)])
-                   for key in (SELF_SHARD, USER_SHARD)]
+        work = self.work(records, [USER_SHARD], [StructureDraft(record_id=-9, record_ids=[7, 8], target_shard=SELF_SHARD)])
+        ratings = self.ratings((SELF_SHARD, USER_SHARD), self.rated(-9, 0.9))
         shards = [WorkspaceShard(key=SELF_SHARD, requirement_set="self"),
                   WorkspaceShard(key=USER_SHARD, requirement_set="entity")]
         chosen = SelectionInput(tick=5, shards=shards, tokens={7: 10, 8: 10}, newcomers=newcomers(work, ratings, {}))
         select_shards(chosen, matcher(records))
         self.assertEqual(shards[0].item_ids(), [7])
         self.assertEqual(shards[1].item_ids(), [8])
+
+    def test_content_about_one_entity_never_enters_the_shard_of_another(self):
+        from workflows.main_cognition.phases.attention import newcomers
+        from workflows.main_cognition.schemas import StructureDraft
+
+        # 8 is about the user, 7 about the companion, 6 names no entity.
+        records = {6: view(6), 7: view(7, "Narrative", entity_ids=[SELF_ID]),
+                   8: view(8, "MemoryClusterRecord", entity_ids=[USER_ID])}
+        work = self.work(records, [USER_SHARD, self.OTHER_SHARD],
+                         [StructureDraft(record_id=-9, record_ids=[6, 7, 8], target_shard=USER_SHARD)])
+        offered = newcomers(work, self.ratings((SELF_SHARD, USER_SHARD, self.OTHER_SHARD), self.rated(-9, 0.9)), {})
+        into_other = [item.record_id for item in offered if item.key == self.OTHER_SHARD]
+        self.assertEqual(into_other, [])
+        self.assertEqual(sorted(item.record_id for item in offered if item.key == USER_SHARD), [6, 8])
+        self.assertEqual(sorted(item.record_id for item in offered if item.key == SELF_SHARD), [6, 7])
+
+    def test_an_incumbent_of_the_wrong_shard_leaves(self):
+        records = {8: view(8, "MemoryClusterRecord", entity_ids=[USER_ID])}
+        shard = WorkspaceShard(key=self.OTHER_SHARD, requirement_set="entity",
+                               items=[WorkspaceItem(record_id=8, tokens=10)])
+        chosen = SelectionInput(tick=5, shards=[shard], tokens={8: 10}, activation={8: 0.9})
+        change = select_shards(chosen, matcher(records), lambda key, record_id: key == USER_SHARD)[0]
+        self.assertEqual(shard.items, [])
+        self.assertEqual(change.left[0].reason, "belongs to another shard")
+
+    def test_only_winning_structures_bring_newcomers(self):
+        from workflows.main_cognition.phases.attention import newcomers
+        from workflows.main_cognition.schemas import StructureDraft
+
+        records = {6: view(6), 5: view(5)}
+        work = self.work(records, [], [StructureDraft(record_id=-1, record_ids=[6], target_shard=SELF_SHARD),
+                                       StructureDraft(record_id=-2, record_ids=[5], target_shard=SELF_SHARD)])
+        offered = newcomers(work, self.ratings((SELF_SHARD,), self.rated(-1, 0.9), self.rated(-2, 0.85, won=False)),
+                            {})
+        self.assertEqual([item.record_id for item in offered], [6])
+
+    def test_the_aperture_sets_the_winner_count(self):
+        from pm.constants import ATTENTION_WINNERS_DEFAULT, ATTENTION_WINNERS_NARROW
+        from workflows.main_cognition.phases.attention import ShardJob, scored
+        from workflows.main_cognition.schemas import StructureDraft, StructureRatings
+
+        structures = [StructureDraft(record_id=-index, record_ids=[]) for index in range(1, 5)]
+        work = self.work({}, [], structures)
+        job = ShardJob(key=SELF_SHARD, labels=["S1", "S2", "S3", "S4"])
+        answer = StructureRatings.model_validate({"ratings": [
+            {"structure": label, "reasoning": "", "rating": value}
+            for label, value in zip(job.labels, (0.2, 0.9, 0.7, 0.4))]})
+        won = [item.label for item in scored(work, job, answer, structures).ratings if item.won]
+        self.assertEqual(won, ["S2", "S3"][:ATTENTION_WINNERS_DEFAULT])
+        work.state.mental_state.state_cognition.mental_aperture = -0.9
+        won = [item.label for item in scored(work, job, answer, structures).ratings if item.won]
+        self.assertEqual(won, ["S2"][:ATTENTION_WINNERS_NARROW])
 
 
 class FocusTests(unittest.TestCase):

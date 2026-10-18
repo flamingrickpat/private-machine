@@ -12,11 +12,13 @@ applies the changes. This phase never writes memory.
 """
 from __future__ import annotations
 
+from pydantic import create_model, model_validator
+
 from pm.context_render import render_context
 from pm.context_render.turns import Turn, format_content
 
 from workflows.main_cognition.cycle_work import CycleWork
-from workflows.main_cognition.model_json import PhasePrompts, StageOutputError
+from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import GoalsResult, MentalProposal
 from workflows.main_cognition.story_prefix import StoryPrefix, conscious_percepts
@@ -70,21 +72,30 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) 
     return prefix.ask(user.text)
 
 
-def validate_changes(result: GoalsResult) -> None:
-    """Raise if the model proposed a change kind outside the allowed set."""
+def validate_changes(result: GoalsResult) -> GoalsResult:
+    """Return ``result``, or raise ValueError for a change kind outside :data:`ALLOWED_CHANGES`.
+
+    The call validates its answer with this function, so an invalid kind
+    is invalid model output and gets a repair turn (a replay once returned
+    an empty kind and stopped the cycle).
+    """
     for change in result.changes:
         if change.change not in ALLOWED_CHANGES:
-            raise StageOutputError(
-                f"Goals proposed an unsupported change {change.change!r}; "
-                f"allowed changes are {', '.join(ALLOWED_CHANGES)}."
-            )
+            raise ValueError(f"Goal change {change.change!r} is not allowed. "
+                             f"Use one of: {', '.join(ALLOWED_CHANGES)}.")
+    return result
+
+
+#: The answer model of the goals call: ``GoalsResult`` with the change kinds checked.
+CheckedGoals = create_model("CheckedGoals", __base__=GoalsResult,
+                            __validators__={"allowed": model_validator(mode="after")(validate_changes)})
 
 
 def run(context, work: CycleWork) -> CycleWork:
     prefix = StoryPrefix(work)
-    result = complete(context, work, build_messages(work, phase_prompts("goals"), prefix), GoalsResult,
+    answer = complete(context, work, build_messages(work, phase_prompts("goals"), prefix), CheckedGoals,
                       grounded=True, emotion=False, grounding_at=len(prefix.turns))
-    validate_changes(result)
+    result = GoalsResult.model_validate(answer.model_dump())
     work.goals = result
     work.receipt("goals", f"proposed {len(result.changes)} goal changes")
     return work
@@ -92,6 +103,7 @@ def run(context, work: CycleWork) -> CycleWork:
 
 __all__ = [
     "ALLOWED_CHANGES",
+    "CheckedGoals",
     "build_messages",
     "render_deliberate_proposals",
     "render_goals",

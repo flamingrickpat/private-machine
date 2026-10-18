@@ -7,7 +7,7 @@ request without a cycle and use the same helpers on the newest cycle state.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from pm.records.workspace import SELF_SHARD, GlobalWorkspace, ShardKey
 
@@ -27,20 +27,25 @@ def partner_key(group: ShardKey, user_entity_id: int | None) -> ShardKey | None:
 
 
 def request_shards(workspace: GlobalWorkspace, group: ShardKey, partner: ShardKey | None,
-                   label: Callable[[ShardKey], str]) -> list[RequestShard]:
+                   label: Callable[[ShardKey], str], hidden: Iterable[int] = ()) -> list[RequestShard]:
     """Return the shards that a request carries: self, the partner, and a workflow group.
 
     The shards are copies, so a later cycle cannot change a stored request.
     A partner without a shard yet gets an empty shard: the companion has no
     conscious content about it and no dialogue tail. ``label`` returns the
-    story name of a shard key.
+    story name of a shard key. ``hidden`` holds the record ids that the
+    copies leave out of every tail: the experiences of this cycle that
+    belong to other groups (``ExperienceResult.hidden_for``). So the reply
+    to one group does not read the content of another group.
     """
+    left_out = set(hidden)
     keys = [SELF_SHARD, *([partner] if partner is not None else []),
             *([group] if group.kind == "workflow" else [])]
     shards = []
     for key in dict.fromkeys(keys):
         shard = (workspace.shard(key).model_copy(deep=True) if workspace.has_shard(key)
                  else GlobalWorkspace().ensure_shard(key))
+        shard.tail_ids = [record_id for record_id in shard.tail_ids if record_id not in left_out]
         shards.append(RequestShard(name=label(key), shard=shard))
     return shards
 

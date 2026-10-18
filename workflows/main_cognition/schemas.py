@@ -392,6 +392,9 @@ class RecordView(BaseModel):
     the entities that the record is about. ``category`` is the narrative
     type, the claim kind, or the belief kind. ``feature_type`` is the
     ``FeatureType`` value of a ``Feature`` record and empty otherwise.
+    ``addressee_entity_id`` is the listener of a dialogue line (0 for the
+    user or unknown). Attention uses it to find the shard of a companion
+    line.
     """
 
     record_id: int = 0
@@ -403,6 +406,7 @@ class RecordView(BaseModel):
     entity_ids: list[int] = Field(default_factory=list)
     category: str = ""
     feature_type: str = ""
+    addressee_entity_id: int = 0
 
     def story_line(self) -> str:
         """Return the record as one line of story text.
@@ -544,8 +548,10 @@ class CodeletsResult(BaseModel):
 
     ``budget`` is the number of codelet runs that triage granted.
     ``scores`` are the activation scores before the selector. ``ratings``
-    are the selector ratings, by codelet name. ``outputs`` hold the variants
-    in run order.
+    are the selector ratings, by codelet name, and ``patterns`` is the
+    selector's note on the patterns of the recent story. ``echo_ids`` are
+    the earlier lines that echo a current stimulus (see
+    ``phases.codelets.echoes``). ``outputs`` hold the variants in run order.
     """
 
     definitions_version: str = ""
@@ -553,6 +559,8 @@ class CodeletsResult(BaseModel):
     budget: int = 0
     scores: list[ActivationScore] = Field(default_factory=list)
     ratings: dict[str, float] = Field(default_factory=dict)
+    patterns: str = ""
+    echo_ids: list[int] = Field(default_factory=list)
     runs: list[CodeletRun] = Field(default_factory=list)
     outputs: list[CodeletOutput] = Field(default_factory=list)
     pathway_boosts: list[PathwayBoost] = Field(default_factory=list)
@@ -560,8 +568,16 @@ class CodeletsResult(BaseModel):
 
 
 class CodeletRatings(BaseModel):
-    """The answer of the codelet selector: a rating from 0 to 1 for each candidate."""
+    """The answer of the codelet selector: a rating from 0 to 1 for each candidate.
 
+    ``patterns`` comes first in the answer. The selector names the patterns
+    of the recent story there (repeated moves with their count, dodges,
+    slights, sudden turns) before it rates. A trigger that spans several
+    turns, for example a request that comes back a fourth time, is easy to
+    miss when the model rates the newest line alone.
+    """
+
+    patterns: str = ""
     ratings: dict[str, float] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -715,7 +731,10 @@ class RatedStructure(BaseModel):
     """The attention score of one structure for one shard.
 
     ``score`` is ``rating + aux / max_aux * COALITION_AUX_RATING_FACTOR``.
-    The auxiliary part only breaks ties, as in the old code.
+    The auxiliary part only breaks ties, as in the old code. ``won`` is True
+    for the structures with the best scores of the shard, up to the winner
+    count of the mental aperture. Only the records of a winner can enter the
+    shard as newcomers.
     """
 
     structure_id: int = 0
@@ -724,6 +743,7 @@ class RatedStructure(BaseModel):
     aux: float = 0.0
     score: float = 0.0
     reasoning: str = ""
+    won: bool = False
 
 
 class ShardRatings(BaseModel):
@@ -762,6 +782,20 @@ class GoalsResult(BaseModel):
     changes: list[GoalChange] = Field(default_factory=list)
 
 
+class GroupExperience(BaseModel):
+    """The subjective experience of one stimulus group in a cycle with several groups.
+
+    The call reads only the self shard and the shard of ``key``. So the
+    decision and the reply for this group do not read the content of the
+    other groups. ``record_id`` is a pending id until the commit.
+    """
+
+    key: ShardKey = Field(default_factory=ShardKey)
+    text: str = ""
+    seed: str = ""
+    record_id: int = 0
+
+
 class ExperienceResult(BaseModel):
     """Result of the experience phase: the subjective experience of this moment.
 
@@ -771,11 +805,40 @@ class ExperienceResult(BaseModel):
     alone. ``record_id`` is the pending id of the ``SubjectiveExperience``
     feature until the commit stores it. The record is in the tail of the
     self shard, so the goals, decide, and route calls read it.
+
+    ``text`` covers the whole moment. When more than one group is
+    significant, ``groups`` also holds one experience for each of them.
+    The decide and route calls and the reply of a group read the experience
+    of their own group (:meth:`text_for`) and do not see the others
+    (:meth:`hidden_for`).
     """
 
     text: str = ""
     seed: str = ""
     record_id: int = 0
+    groups: list[GroupExperience] = Field(default_factory=list)
+
+    def text_for(self, key: ShardKey) -> str:
+        """Return the experience that the calls of group ``key`` read."""
+        own = [item.text for item in self.groups if item.key == key]
+        return own[0] if own else self.text
+
+    def hidden_for(self, key: ShardKey | None) -> list[int]:
+        """Return the experience record ids of this cycle that a view of group ``key`` leaves out.
+
+        A view of one group shows its own group experience only. Without
+        group experiences, or for the whole-mind view (``key`` None),
+        nothing is hidden.
+        """
+        if key is None or not self.groups:
+            return []
+        return [self.record_id, *(item.record_id for item in self.groups if item.key != key)]
+
+    def rekey(self, mapping: dict[int, int]) -> None:
+        """Replace the pending record ids by the stored record ids."""
+        self.record_id = mapping.get(self.record_id, self.record_id)
+        for item in self.groups:
+            item.record_id = mapping.get(item.record_id, item.record_id)
 
 
 #: The action types that routing can choose.
@@ -1126,6 +1189,7 @@ __all__ = [
     "ExpectationFulfillment",
     "ExpectationOutcome",
     "ExperienceResult",
+    "GroupExperience",
     "OpenExpectation",
     "QUIET_ACTIONS",
     "RouteAnswer",

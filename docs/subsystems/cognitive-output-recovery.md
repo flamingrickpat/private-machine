@@ -33,7 +33,11 @@ The new invocation reads current state and retains the original user correlation
 
 An explicit stop ends these retries.
 The main loop distinguishes explicit run cancellation from the sibling-cancellation signal after a parallel stage failure.
-Transport errors, provider content refusals, tool type errors, and ordinary Python errors do not become format retries.
+Tool type errors and ordinary Python errors do not become format retries.
+Since A19F step 11, the main loop also retries the whole cycle after a failed model completion (`pm.llm.http_client.ModelError`): a completion that the provider failed, filtered, cut off, or left empty.
+The diagnostic names the error type, and the same growing delay applies.
+Two live gate cycles stopped on such completions before this change.
+The HTTP client keeps its own retry of transport errors. The private loop does not use the cycle retry.
 Semantic evidence checks still reject unsupported citations and invalid expectation updates.
 Successful JSON parsing alone does not establish correct behavior.
 

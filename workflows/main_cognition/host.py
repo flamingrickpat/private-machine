@@ -30,6 +30,7 @@ from pm.constants import (
     EXPECTATION_OPEN_LIMIT, WORKSPACE_TAIL_CANDIDATES,
 )
 from pm.llm.completion import TextCompletion
+from pm.llm.http_client import ModelError
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.memory.snapshot import GhostCancelled
 from pm.records.base import Provenance
@@ -312,8 +313,12 @@ class MainCogLoop(CognitiveWorkflow):
         raise the conflict, so contention cannot silently discard user input.
         Exhausted format repairs retain a diagnostic and retry the same batch
         after a delay that doubles from CYCLE_RETRY_DELAY_SECONDS up to
-        CYCLE_RETRY_MAX_DELAY_SECONDS.
-        Cancellation stops retries. Ordinary Python and provider errors propagate.
+        CYCLE_RETRY_MAX_DELAY_SECONDS. A completion that the provider failed,
+        filtered, cut off, or left empty (``ModelError``, for example
+        ``ProviderCompletionError``) is outside our control and gets the same
+        whole-cycle retry: the A19F step 11 gate lost two cycles to such
+        completions. No partial text of it is used.
+        Cancellation stops retries. Ordinary Python errors propagate.
         """
         from pm.memory.snapshot import GhostConflict
         self._event_stimuli = {}
@@ -323,7 +328,7 @@ class MainCogLoop(CognitiveWorkflow):
             try:
                 super().handle_batch(batch)
                 return
-            except ModelFormatError as error:
+            except (ModelFormatError, ModelError) as error:
                 diagnostic = {"invocation_id": self.invocation_id, "error_type": type(error).__name__,
                               "reason": str(error), "traceback": traceback.format_exc()}
                 path = self.runtime_root / "kernel" / self.invocation_id / "model-output-rejection.json"
@@ -820,12 +825,20 @@ class MainCogLoop(CognitiveWorkflow):
             source=self.ghost.get_companion_name(), source_kind=SourceKind.Self, changes=changes,
             metadata={"memory_kind": "interpretation", "operation": "subjective_experience",
                       "seed": work.experience.seed})
-        mapping = {**pending, **structure_ids, work.experience.record_id: experience_feature.id}
+        # A cycle with several significant groups also has one experience for each group.
+        group_experiences = {item.record_id: new_feature(
+            self.ghost, item.text, FeatureType.SubjectiveExperience, source=self.ghost.get_companion_name(),
+            source_kind=SourceKind.Self, changes=changes,
+            metadata={"memory_kind": "interpretation", "operation": "subjective_experience", "seed": item.seed,
+                      "group": item.key.model_dump(mode="json")}).id
+            for item in work.experience.groups}
+        mapping = {**pending, **structure_ids, work.experience.record_id: experience_feature.id, **group_experiences}
         remap_pending(work, mapping)
         caused = mark_causal(changes, view, work)
         experience = work.experience
         created_order: list[int] = [appraisal_feature.id, *created_goal_ids, *experience_ids,
                                     *pending.values(), *structure_ids.values(), experience_feature.id,
+                                    *group_experiences.values(),
                                     *belief_receipt["accepted_ids"]]
         from pm.records.lineage import RecordLineage
         parent = next((view.get(key) for key in self._stimulus_ids if view.get(key).lineage is not None), None)
@@ -906,8 +919,9 @@ class MainCogLoop(CognitiveWorkflow):
                 partner_name=shard_label(partner, request) if partner is not None else request.user_name,
                 stimuli=[stimuli[key] for key in dispatch.stimulus_ids],
                 shards=request_shards(work.state.workspace, dispatch.group, partner,
-                                      lambda key: shard_label(key, request)),
-                presentation=presentation, workspace=experience.text,
+                                      lambda key: shard_label(key, request),
+                                      hidden=experience.hidden_for(dispatch.group)),
+                presentation=presentation, workspace=experience.text_for(dispatch.group),
                 affect=work.affect.felt, regulation=work.affect.regulation)
             action = changes.create(ActionSchemaRecord(
                 content=dispatch.content,
@@ -950,6 +964,7 @@ class MainCogLoop(CognitiveWorkflow):
             codelet_runs=[CodeletRunRef.model_validate(run.model_dump(include=set(CodeletRunRef.model_fields)))
                           for run in codelets.runs],
             codelet_ratings=dict(codelets.ratings),
+            selector_patterns=codelets.patterns, echo_ids=list(codelets.echo_ids),
             pathway_boosts=[PathwayBoostRef.model_validate(boost.model_dump(include=set(PathwayBoostRef.model_fields)))
                             for boost in codelets.pathway_boosts],
             definitions_version=codelets.definitions_version, definitions_digest=codelets.definitions_digest,
@@ -1190,7 +1205,7 @@ def stage_structures(changes, work: CycleWork, pending: dict[int, int]) -> dict[
         for rated in shard.ratings:
             scores.setdefault(rated.structure_id, []).append(
                 {"shard": shard.key.model_dump(mode="json"), "rating": rated.rating, "aux": rated.aux,
-                 "score": rated.score, "reasoning": rated.reasoning})
+                 "score": rated.score, "won": rated.won, "reasoning": rated.reasoning})
     mapping: dict[int, int] = {}
     for draft in work.structures.structures:
         record = changes.create(Structure(
@@ -1255,7 +1270,7 @@ def remap_pending(work: CycleWork, mapping: dict[int, int]) -> None:
     for pending_id, record_id in mapping.items():
         if pending_id in work.records:
             work.records[record_id] = work.records[pending_id].model_copy(update={"record_id": record_id})
-    work.experience.record_id = mapping.get(work.experience.record_id, work.experience.record_id)
+    work.experience.rekey(mapping)
 
 
 def stage_expectations(changes, view, work: CycleWork, dispatch: ActionDispatch, action_id: int) -> list[int]:
@@ -1314,7 +1329,7 @@ def apply_expectation_outcomes(changes, view, work: CycleWork) -> None:
             record.observation_ids = list(outcome.observation_ids)
             record.resolved_tick_id = changes.tick_id
         record.metadata = {**record.metadata, "last_check": outcome.model_dump(mode="json"),
-                           "resolved_by": EXPECTATION_SOURCE}
+                           "last_check_tick": changes.tick_id, "resolved_by": EXPECTATION_SOURCE}
         changes.replace(record)
 
 

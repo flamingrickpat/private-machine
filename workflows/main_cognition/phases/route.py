@@ -3,7 +3,7 @@
 A19F step 8 and decision D28. Steps:
 
 1. Routing (model). One story-framed call for each decision, in parallel.
-   The call reads the shared story prefix, the decision, the group's
+   The call reads the story prefix of the decision's group, the decision, the group's
    stimuli, the memories, the goal changes, the managed-run receipts, the
    capabilities, and the available workflows. It holds every capability,
    Minecraft, task, and presentation rule. It returns the action type, the
@@ -238,15 +238,16 @@ def run(context, work: CycleWork) -> CycleWork:
     prerequisite stays queued.
     """
     prompts = phase_prompts("route")
-    prefix = StoryPrefix(work)
+    # The route of a decision reads the prefix of the decision's group, like the decision itself.
+    prefixes = {decision.group: StoryPrefix(work, group=decision.group) for decision in work.state.decisions}
     stop = context.runtime.stop_event
-    answers = ordered_parallel_map(lambda decision: route(context, work, prompts, prefix, decision),
+    answers = ordered_parallel_map(lambda decision: route(context, work, prompts, prefixes[decision.group], decision),
                                    work.state.decisions, workers=DECISION_WORKERS, cancel=stop)
     work.routes = routed_decisions(work, answers)
     dispatches = resolve_prerequisites(resolve_same_cycle(action_dispatches(work.routes)), {})
     dispatches = resolve_conflicts(dispatches, work.state.stimulus_groups)
     released = [item for item in dispatches if item.status == "dispatched"]
-    drafts = ordered_parallel_map(lambda item: anticipate(context, work, prompts, prefix, item), released,
+    drafts = ordered_parallel_map(lambda item: anticipate(context, work, prompts, prefixes[item.group], item), released,
                                   workers=DECISION_WORKERS, cancel=stop)
     for dispatch, expected in zip(released, drafts, strict=True):
         dispatch.expectations = expected

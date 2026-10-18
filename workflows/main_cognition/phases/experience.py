@@ -19,6 +19,11 @@ seed phrases (``_generate_state_seed_phrases``).
    the tail of the self shard, so the goals, decide, and route calls read
    it in the shared prefix. The commit stores the record, links it from the
    broadcast and the turn record, and makes it the cycle summary.
+5. When more than one stimulus group is significant, one more call runs for
+   each of them. Each reads the prefix of its own group: the self shard and
+   the group's shard only. Its text is the experience that the decision and
+   the reply of that group read. So a reply to one entity does not mention
+   the content of another group. The calls run in parallel.
 """
 from __future__ import annotations
 
@@ -30,13 +35,15 @@ from pm.records.base import persisted_type_name
 from pm.records.enums import FeatureType
 from pm.records.memory_records import Feature
 from pm.records.mental_state import FullMentalState
-from pm.records.workspace import SELF_SHARD
+from pm.llm.concurrency import ordered_parallel_map
+from pm.records.workspace import SELF_SHARD, ShardKey
 
 from workflows.main_cognition.csm_view import record_tokens, render_story
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import load_yaml
 from workflows.main_cognition.phases.model import PROMPTS_DIR, complete_prose
-from workflows.main_cognition.schemas import ExperienceResult, RecordView
+from workflows.inference_settings import DECISION_WORKERS
+from workflows.main_cognition.schemas import ExperienceResult, GroupExperience, RecordView
 from workflows.main_cognition.story_prefix import StoryPrefix, shard_label
 from workflows.main_cognition.workspace_selection import select_tail
 
@@ -187,30 +194,36 @@ def seed_text(phrases: list[str], prompts: ExperiencePrompts) -> str:
     return f"{' '.join(phrases)}{prompts.seed_tail}" if phrases else ""
 
 
-def focus_phrase(work: CycleWork, prompts: ExperiencePrompts) -> str:
+def focus_phrase(work: CycleWork, prompts: ExperiencePrompts, group: ShardKey | None = None) -> str:
     """Return the focus phrase for the newest message of an entity group, or empty text.
 
     The old code added it for a user message. The port drops its reply
     instruction ("make a concise, relevant reply"), because the experience
-    does not plan the reply.
+    does not plan the reply. With ``group``, only that group counts.
     """
-    groups = [group for group in work.state.stimulus_groups if group.key.kind == "entity"]
+    groups = [item for item in work.state.stimulus_groups
+              if item.key.kind == "entity" and (group is None or item.key == group)]
     if not groups:
         return ""
-    group = groups[-1]
-    text = next(item.text for item in work.request.stimuli if item.knoxel_id == group.stimulus_ids[-1])
-    return prompts.focus_phrase.format(entity_name=shard_label(group.key, work.request), message=text)
+    last = groups[-1]
+    text = next(item.text for item in work.request.stimuli if item.knoxel_id == last.stimulus_ids[-1])
+    return prompts.focus_phrase.format(entity_name=shard_label(last.key, work.request), message=text)
 
 
-def render_entered(work: CycleWork) -> str:
-    """Return the story lines of the items that entered a shard in this cycle, in world-time order."""
-    entered = [item.record_id for change in work.attention.changes for item in change.entered]
+def render_entered(work: CycleWork, group: ShardKey | None = None) -> str:
+    """Return the story lines of the items that entered a shard in this cycle, in world-time order.
+
+    With ``group``, only the self shard and the shard of that group count.
+    """
+    entered = [item.record_id for change in work.attention.changes
+               if group is None or change.key in (SELF_SHARD, group) for item in change.entered]
     return render_story(work.records, entered, with_id=False) or "(nothing new)"
 
 
-def build_messages(work: CycleWork, prompts: ExperiencePrompts, prefix: StoryPrefix, seed: str) -> list[Turn]:
-    """Return the shared story prefix, the instruction, and the seed as an open assistant turn."""
-    instruction = format_content(prefix.fill(prompts.user_template), entered=render_entered(work)).text
+def build_messages(work: CycleWork, prompts: ExperiencePrompts, prefix: StoryPrefix, seed: str,
+                   group: ShardKey | None = None) -> list[Turn]:
+    """Return the story prefix, the instruction, and the seed as an open assistant turn."""
+    instruction = format_content(prefix.fill(prompts.user_template), entered=render_entered(work, group)).text
     turns = prefix.ask(instruction)
     return [*turns, Turn(Role.Assistant, seed)] if seed else turns
 
@@ -242,21 +255,48 @@ def enter_self_tail(work: CycleWork, record_id: int) -> None:
     change.tail_ids = list(shard.tail_ids)
 
 
-def run(context, work: CycleWork) -> CycleWork:
-    prompts = load_experience_prompts()
-    seed = seed_text(seed_phrases(work.state.mental_state, prompts.seed_phrases), prompts)
-    prefix = StoryPrefix(work)
-    raw = complete_prose(context, build_messages(work, prompts, prefix, seed))
-    text = f"{seed}{continuation(raw, seed)}{focus_phrase(work, prompts)}".strip()
+def _record(work: CycleWork, text: str) -> int:
+    """Add a pending ``SubjectiveExperience`` view to the cycle records and return its id."""
     request = work.request
     record_id = work.allocate_pending_id()
     work.records[record_id] = RecordView(
         record_id=record_id, kind=persisted_type_name(Feature),
         source=f"{request.companion_name} ({FeatureType.SubjectiveExperience.value})", content=text,
         timestamp=request.cycle_time, record_class="Feature", feature_type=FeatureType.SubjectiveExperience.value)
+    return record_id
+
+
+def experience_groups(work: CycleWork) -> list[ShardKey]:
+    """Return the groups that get an experience of their own: none, or every significant group when there are several."""
+    keys = [group.key for group in work.state.stimulus_groups if not group.insignificant]
+    return keys if len(keys) > 1 else []
+
+
+def run(context, work: CycleWork) -> CycleWork:
+    prompts = load_experience_prompts()
+    seed = seed_text(seed_phrases(work.state.mental_state, prompts.seed_phrases), prompts)
+    prefix = StoryPrefix(work)
+    raw = complete_prose(context, build_messages(work, prompts, prefix, seed))
+    text = f"{seed}{continuation(raw, seed)}{focus_phrase(work, prompts)}".strip()
+    record_id = _record(work, text)
     enter_self_tail(work, record_id)
     work.experience = ExperienceResult(text=text, seed=seed, record_id=record_id)
-    work.receipt("experience", f"experience of {len(text)} characters, {len(seed)} seed characters")
+
+    keys = experience_groups(work)
+    # The group entries exist before the calls, so the prefix of each group
+    # hides the whole-moment experience (``hidden_for``). The group text then
+    # does not repeat the content of the other groups.
+    work.experience.groups = [GroupExperience(key=key, seed=seed) for key in keys]
+    prefixes = [StoryPrefix(work, group=key) for key in keys]
+    texts = ordered_parallel_map(
+        lambda index: complete_prose(context, build_messages(work, prompts, prefixes[index], seed, keys[index])),
+        list(range(len(keys))), workers=DECISION_WORKERS, cancel=context.runtime.stop_event)
+    for item, raw_group in zip(work.experience.groups, texts, strict=True):
+        item.text = f"{seed}{continuation(raw_group, seed)}{focus_phrase(work, prompts, item.key)}".strip()
+        item.record_id = _record(work, item.text)
+        enter_self_tail(work, item.record_id)
+    work.receipt("experience", f"experience of {len(text)} characters, {len(seed)} seed characters; "
+                               f"{len(keys)} group experiences")
     return work
 
 
@@ -271,6 +311,7 @@ __all__ = [
     "build_messages",
     "continuation",
     "enter_self_tail",
+    "experience_groups",
     "focus_phrase",
     "load_experience_prompts",
     "render_entered",

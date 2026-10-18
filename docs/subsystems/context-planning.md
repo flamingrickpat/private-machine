@@ -37,9 +37,14 @@ The v2 planner keeps the lane design and adds the workspace focus.
 
 | Part | Source | Goes to |
 | --- | --- | --- |
-| Transcript | The dialogue in the tail of the partner shard, and the private thoughts in the tail of the self shard, in world-time order | Story: assistant turn, verbatim. Assistant: chat messages, speech only. |
+| Transcript | The dialogue in the tail of the partner shard, and the private thoughts of the self tail that belong to that exchange ([`exchange_thoughts`][workflows.public_speech.shard_context.exchange_thoughts]), in world-time order | Story: assistant turn, verbatim. Assistant: chat messages, speech only. |
 | Shard story | Each shard, rendered with [`shard_block`][workflows.main_cognition.story_prefix.shard_block] as in the story prefix of the cycle, without the verbatim lines | User turn |
 | Evidence | Every item and tail record of the shards, with the lane `shard:<name>` | Speech review and the commit guard |
+
+A thought belongs to the exchange when it is not older than the oldest dialogue line of the transcript.
+Of these thoughts, the newest `DIALOGUE_THOUGHT_LIMIT` (12) stay.
+The other thoughts of the self tail do not appear in the reply context: not in the transcript, the shard story, or the evidence.
+The self tail holds 6k tokens of thoughts. In the A19F step 10 replay, about 88 thoughts from earlier days filled the transcript and brought back their old wording, for example "she" for Jesse.
 
 The shards already have token budgets (`WORKSPACE_SHARD_TOKENS`, `WORKSPACE_TAIL_TOKENS`) and content requirements.
 So the reply reads the same conscious content as the decision, and no record is retrieved again.

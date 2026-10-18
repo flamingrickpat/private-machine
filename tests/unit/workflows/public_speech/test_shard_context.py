@@ -5,16 +5,18 @@ action request with a self shard and a partner shard.
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 import unittest
 
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.records.enums import EntityClass, FeatureType
-from pm.records.memory_records import Entity, new_feature
+from pm.constants import DIALOGUE_THOUGHT_LIMIT
+from pm.records.memory_records import Entity, Feature, new_feature
 from pm.records.workspace import SELF_SHARD, ShardKey, WorkspaceItem, WorkspaceShard
 from workflows.main_cognition.schemas import ActionRequest, RequestShard, Stimulus
 from workflows.public_speech.public_context import build_public_context
-from workflows.public_speech.shard_context import shard_context, shard_story
+from workflows.public_speech.shard_context import exchange_thoughts, shard_context, shard_story
 
 
 class ShardContextTests(unittest.TestCase):
@@ -61,6 +63,27 @@ class ShardContextTests(unittest.TestCase):
         self.assertEqual(lanes[self.thought.id], "shard:self")
         self.assertIn(self.current.id, lanes)
         self.assertEqual(context.shard_story, planned.story)
+
+
+class ExchangeThoughtTests(unittest.TestCase):
+    """Only the thoughts of the recent exchange reach the reply transcript."""
+
+    def feature(self, minute: int, kind: FeatureType, number: int) -> Feature:
+        return Feature(id=number, content=f"line {number}", feature_type=kind,
+                       timestamp_world_begin=datetime(2026, 10, 1) + timedelta(minutes=minute))
+
+    def test_thoughts_older_than_the_oldest_dialogue_line_are_left_out(self):
+        dialogue = [self.feature(100, FeatureType.Dialogue, 1)]
+        thoughts = [self.feature(10, FeatureType.Thought, 2), self.feature(150, FeatureType.Thought, 3)]
+        self.assertEqual([item.id for item in exchange_thoughts(dialogue, thoughts)], [3])
+
+    def test_only_the_newest_thoughts_remain(self):
+        dialogue = [self.feature(0, FeatureType.Dialogue, 1)]
+        thoughts = [self.feature(minute, FeatureType.Thought, 10 + minute) for minute in range(1, 40)]
+        kept = exchange_thoughts(dialogue, thoughts)
+        self.assertEqual(len(kept), DIALOGUE_THOUGHT_LIMIT)
+        self.assertEqual(kept[-1].id, 10 + 39)
+        self.assertEqual([item.id for item in kept], sorted(item.id for item in kept))
 
 
 if __name__ == "__main__":

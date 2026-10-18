@@ -85,6 +85,7 @@ class PhasePrompts(BaseModel):
     view_template: str = ""
     conversion_template: str = ""
     selector_template: str = ""
+    echo_template: str = ""
     # The appraise phase: the expectation check. The route phase: the anticipation call.
     check_template: str = ""
     anticipation_template: str = ""

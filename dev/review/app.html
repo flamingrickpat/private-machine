@@ -1306,9 +1306,14 @@
           type: card?.kind, revision: card?.revision, tick: data.tick_id,
           created: data.timestamp_creation, world_time: data.timestamp_world_begin,
           source: data.provenance, codelet: data.from_codelet,
-          selected: data.selected, status: metadata.status,
+          selected: data.selected, status: metadata.status ?? data.status,
           why: metadata.why, appraisal: metadata.affect_summary,
-          emotion_delta: metadata.emotion_delta, evidence: metadata.evidence_ids,
+          emotion_delta: metadata.emotion_delta, evidence: metadata.evidence_ids ?? data.evidence_ids,
+          codelet_name: data.codelet_name, percept_type: metadata.percept_type, causal: data.causal,
+          target_shard: metadata.target_shard ?? data.target_shard, affect: data.affect,
+          reason: data.primitive_metadata?.reason, attention: metadata.attention,
+          fulfillment: data.fulfillment, last_check: metadata.last_check,
+          mini_appraisal: card?.decoded,
         }, null, 2);
       }
       function openKnoxel(id) {
@@ -1336,7 +1341,44 @@
         target.replaceChildren();
         for (const button of $("reading-tabs").children)
           button.setAttribute("aria-pressed", String(button.dataset.view === view));
-        if (view === "packages") {
+        if (view === "cycles") {
+          target.append(element("p", "sub", "Each cycle in order: stimuli, feeling before and after, appraisal, codelets, CSM, structures and attention, shards, experience, decisions and routing, expectations, supplied memory, and the reply. Hover a row for its fields. Expand a row or a record for all captured fields. Links show recorded dependencies, not proof that an interpretation is right."));
+          current.cycles.forEach((cycle, index) => {
+            const block = element("details", "trace-episode");
+            block.open = index === 0;
+            block.append(element("summary", "", cycle.title));
+            if (cycle.summary) block.append(element("p", "text", cycle.summary));
+            for (const section of cycle.sections) {
+              const part = element("details");
+              part.append(element("summary", "", `${section.title} (${section.rows.length})`));
+              if (section.note) part.append(element("p", "sub", section.note));
+              for (const row of section.rows) {
+                if (row.kind === "record") {
+                  const card = current.cognition.records[String(row.id)];
+                  const button = element("button", "ref", `#${row.id}${row.label ? " · " + row.label : ""}`);
+                  button.title = card ? metadataPreview(card) : "Record not captured";
+                  button.disabled = !card;
+                  button.onclick = () => openKnoxel(row.id);
+                  part.append(button);
+                  if (card) part.append(cognitiveCard(card));
+                  if (row.data && Object.keys(row.data).length) {
+                    const raw = element("details");
+                    raw.append(element("summary", "", "Row fields"), element("pre", "", JSON.stringify(row.data, null, 2)));
+                    part.append(raw);
+                  }
+                } else {
+                  const line = element("details");
+                  const head = element("summary", "", row.text);
+                  head.title = JSON.stringify(row.data, null, 2);
+                  line.append(head, element("pre", "", JSON.stringify(row.data, null, 2)));
+                  part.append(line);
+                }
+              }
+              block.append(part);
+            }
+            target.append(block);
+          });
+        } else if (view === "packages") {
           const select = element("select", "knoxel-search");
           select.setAttribute("aria-label", "Record package");
           const body = element("div");
@@ -1443,6 +1485,7 @@
         const views = [["knoxels", "Knoxel contents"]];
         if (current.cognition.episodes.length) views.unshift(["thoughts", "Thoughts & routing"]);
         if (current.conversation?.length) views.unshift(["chat", "Chatlog"]);
+        if (current.cycles?.length) views.push(["cycles", "Cycles"]);
         if (current.package_views) views.push(["packages", "Record packages"]);
         for (const [view, label] of views) {
           const button = element("button", "btn", label);
