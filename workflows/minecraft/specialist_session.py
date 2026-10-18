@@ -149,7 +149,7 @@ def run_specialist_session(context) -> dict:
             resources = [RESOURCES / "shared.md", RESOURCES / "navigator.md", RESOURCES / f"{request.specialist}.md"]
             skill = "\n\n".join(path.read_text(encoding="utf-8") for path in dict.fromkeys(resources))
             skill += ("\n\nYou are a private specialist of the same companion. Do not address the user. "
-                      "Read inbox/persona.yaml and inbox/request.yaml_util. Tools use the live MCP schemas. "
+                      "Read inbox/persona.yaml and inbox/request.yaml. Tools use the live MCP schemas. "
                       "Read inbox/server-rules.json before choosing recovery. It contains current server rules, not assumed vanilla mechanics. "
                       "If natural regeneration is off, full food and waiting cannot heal damage. Check enabled nutrition effects. "
                       "Ordinary food and saturation do not heal with natural regeneration off. Nutrition penalties are not healing effects. "
@@ -268,7 +268,7 @@ def run_specialist_session(context) -> dict:
                 from pm.llm.prompt_log import log_directory
                 driver = PmCoderDriver(log_root=log_directory() / "agents")
                 result = driver.run_session(run_id=context.task_id + "-actor", attempt=1,
-                    skill=str(skill_path), prompt="Execute the Minecraft leaf in inbox/request.yaml_util. "
+                    skill=str(skill_path), prompt="Execute the Minecraft leaf in inbox/request.yaml. "
                     "Current leaf operands, which take precedence over retained notes: "
                     + json.dumps(current_leaf, ensure_ascii=False, separators=(",", ":")) + "\n"
                     "Unresolved world effects from retained actors; reconcile these before replacing missing resources: "

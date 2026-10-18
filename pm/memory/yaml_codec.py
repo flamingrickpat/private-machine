@@ -65,9 +65,9 @@ def _is_plain_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def _represent_list(dumper: _GhostStateYamlDumper, data: list[Any]) -> yaml_util.nodes.SequenceNode:
+def _represent_list(dumper: _GhostStateYamlDumper, data: list[Any]) -> yaml.nodes.SequenceNode:
     flow_style = True if data and all(_is_plain_number(item) for item in data) else None
-    return dumper.represent_sequence("tag:yaml_util.org,2002:seq", data, flow_style=flow_style)
+    return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=flow_style)
 
 
 _GhostStateYamlDumper.add_representer(list, _represent_list)
@@ -121,7 +121,7 @@ def dump_ghost_state_to_yaml(state: CycleStateModel, path: str | Path) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
-        yaml_util.dump(
+        yaml.dump(
             ghost_state_to_dict(state),
             handle,
             Dumper=_GhostStateYamlDumper,
@@ -144,6 +144,6 @@ def _normalize_base_loader_nulls(value: Any) -> Any:
 
 def load_ghost_state_from_yaml(path: str | Path) -> CycleStateModel:
     with Path(path).open("r", encoding="utf-8") as handle:
-        data = yaml_util.load(handle, Loader=yaml_util.CBaseLoader) or {}
+        data = yaml.load(handle, Loader=yaml.CBaseLoader) or {}
     data = _normalize_base_loader_nulls(data)
     return ghost_state_from_dict(data)

@@ -53,7 +53,7 @@ def _write_note(context) -> dict:
         result = driver.run_session(
             run_id=context.task_id + "-note", attempt=1,
             skill=str(Path(__file__).with_name("note.md")),
-            prompt="Write the note specified in inbox/request.yaml_util. Return only the requested JSON result.",
+            prompt="Write the note specified in inbox/request.yaml. Return only the requested JSON result.",
             work_dir=context.workspace, runtime=agent_runtime,
             trace_file=context.kernel_data / "note-agent-trace.jsonl",
         )

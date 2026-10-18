@@ -6,7 +6,6 @@ proposals that a write batch has not committed.
 from __future__ import annotations
 
 import pickle
-from copy import deepcopy
 from types import MappingProxyType
 
 from pm.records.base import RecordBase
@@ -43,8 +42,8 @@ class Snapshot:
         return self.get(entity_id).content
 
     def serialize_knoxels(self) -> dict[int, dict]:
-        return pickle.loads(pickle.dumps(self._records, -1)) #deepcopy(self._records)
+        return pickle.loads(pickle.dumps(self._records, -1))
 
     def serialize_gwt(self) -> dict[int, dict]:
-        return pickle.loads(pickle.dumps(self._records, -1)) #deepcopy(self._gwt)
+        return pickle.loads(pickle.dumps(self._gwt, -1))
 

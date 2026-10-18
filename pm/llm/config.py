@@ -110,7 +110,7 @@ def load_config(path: str | Path) -> ModelConfig:
     try:
         data = yaml_util.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError:
-        raise ValueError("The model config contains invalid yaml_util. Check the local file.") from None
+        raise ValueError("The model config contains invalid YAML. Check the local file.") from None
     config = ModelConfig.model_validate(data)
     for preset, connection in config.chat.items():
         if connection.startup_script is not None:

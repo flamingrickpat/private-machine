@@ -149,6 +149,43 @@ This is separate from a human conversation, a peer companion, and the larger dev
 Hermes is a candidate, with the actual harness selected and pinned through real integration evidence in [A19D](work-items/a19d.md).
 This capability does not grant automatic PM source modification or general host access.
 
+## Main cognition rebuild on 2026-10-18
+
+D22: Rebuild main cognition as a typed LIDA-style cycle in [A19F](work-items/a19f.md), before the personal trial.
+The old-generation CSM, codelet registry, pathways, and mini-appraisal are the reference design.
+Old code can be copied.
+What A19F builds becomes the canon. Old turn and frame records are not migrated.
+
+D23: The inner loop moves to the shared cycle in [A19G](work-items/a19g.md), after A19F.
+
+D24: A workspace shard is a separate global workspace.
+One self shard holds self-referential content. Each entity and each workflow has its own shard.
+A second companion is an entity like a human user.
+Each shard has a 12k-token content budget and a separate 6k-token tail for its newest stream.
+Content requirements reserve places and set caps, so important content stays and content types stay balanced.
+
+D25: Every model call in main cognition is an unconscious process.
+Prompt each call as an immersive character story and choice simulator.
+Codelets express their single purpose at full strength, without softeners or concern about harshness.
+Each codelet returns a list of output variants. The count starts at 1.
+
+D26: Memory codelets run as pm-coder sessions with scoped memory tools. Other codelets run as two-call chains.
+Quality comes before speed. More agent sessions are allowed where they improve believability.
+
+D27: The mental state comes from `compute_state_delta` and the EMA baseline over feature deltas.
+Appraisal results become features with affect data. `project_affect` is removed.
+
+D28: Action selection decides zero or one action for each stimulus group, in character.
+A separate unconscious routing step maps decisions to workflows and holds the capability rules.
+Simulated dialogue for hard decisions is beta work.
+Deliberate focus has a bounded weight in the CSM and the workspace. The companion cannot fully control its own mind.
+
+D29: Code at main cognition boundaries uses pydantic models, not raw dicts.
+A bug crashes the process. Only failures outside our control are retried: provider transport errors and invalid model output.
+No persona name appears in code.
+The whole cycle is one pm-workflows manifest, so later items can insert agent phases between code phases.
+Model configuration does not change in A19F.
+
 ## Seed import evidence
 
 Validate imported memories against the private ontology and capabilities at their attributed time.

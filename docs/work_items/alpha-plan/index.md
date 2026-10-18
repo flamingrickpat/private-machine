@@ -12,7 +12,8 @@ Earlier delivery: [W0–W8 plan](../plan.md).
 ## Current development priority
 
 The owner prioritizes companion quality over conversation latency during development.
-After accepted A18C, the next sequence is A19, A19B, A19C, and A19D.
+After accepted A18C, the next sequence is A19, A19F, A19G, A19B, A19C, and A19D.
+A19F rebuilds main cognition on a situational model and a sharded workspace. A19G moves the inner loop onto that cycle.
 The owner then runs a [personal trial across real days](personal-trial.md) before broad A20 hardening.
 PM feature development pauses during that trial. Bug fixes remain permitted.
 Large Minecraft acceptance remains deferred.
@@ -178,6 +179,8 @@ Broader host access and automatic source modification remain separate ideas.
 | A18B | [Build cognitive believability evaluation](work-items/a18b.md) | Automated review with separate human inspection |
 | A18C | [Deliberate attention and control of private thought](work-items/a18c.md) — accepted for alpha | Real waits, deliberate recall, and bounded private episodes |
 | A19 | [Reflect, test hypotheses, and revise behavior](work-items/a19.md) | M6: source-grounded self-reflection |
+| A19F | [Rebuild main cognition on a situational model and a sharded workspace](work-items/a19f.md) | In-character codelets, persistent CSM, shards, and one decision per stimulus group |
+| A19G | [Run the inner loop on the shared cycle](work-items/a19g.md) | One cycle for both loops |
 | A19B | [Consolidate experience and measure memory integrity](work-items/a19b.md) | Interruptible hierarchical memory and one canonical mental state |
 | A19C | [Finish the interface for daily conversation](work-items/a19c.md) | Usable conversation across browser and worker restarts |
 | A19D | [Converse with a working container agent](work-items/a19d.md) | Real installation, software artifacts, and persistent work sessions |
