@@ -26,8 +26,9 @@ Design rules:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any, Mapping
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from pm.records.mental_state import FullMentalState, PersonalityProfile, StateCore, StateEmotions, StateNeeds, compute_attention_bias, compute_state_delta, create_empty_state, parse_personality_profile
 
@@ -58,17 +59,25 @@ REGULATION_REFLECTIVE = "reflective"
 REGULATION_BLENDED = "blended"
 
 
-@dataclass(frozen=True)
-class AffectProjection:
-    """One projected affect step and its causal trace."""
+class AffectProjection(BaseModel):
+    """One projected affect step and its causal trace.
 
-    state: FullMentalState
-    delta: FullMentalState
-    trace: dict
-    summary: str
-    attention_bias: tuple[float, float]
-    regulation: str
-    behavior: dict = field(default_factory=dict)
+    ``delta_vec`` is the latent vector of ``state`` minus the previous state.
+    It is a plain vector, because a delta breaks the value bounds of
+    ``FullMentalState``. ``trace`` and ``behavior`` are the mappings that
+    this module writes into the appraisal record metadata. Step 4 of A19F
+    replaces this module.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    state: FullMentalState = Field(default_factory=FullMentalState)
+    delta_vec: list[float] = Field(default_factory=list)
+    trace: dict = Field(default_factory=dict)
+    summary: str = ""
+    attention_bias: tuple[float, float] = (0.0, 0.0)
+    regulation: str = ""
+    behavior: dict = Field(default_factory=dict)
 
 
 def _field_bounds(field_info: Any) -> tuple[float | None, float | None]:
@@ -469,10 +478,9 @@ def project_affect(
         "behavior": behavior,
     }
     delta_vec = [new - old for new, old in zip(working.to_list(), current.to_list())]
-    delta = FullMentalState.init_from_list(delta_vec)
     return AffectProjection(
         state=working,
-        delta=delta,
+        delta_vec=delta_vec,
         trace=trace,
         summary=summarize_affect(working),
         attention_bias=bias,

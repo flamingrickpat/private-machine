@@ -83,7 +83,7 @@ def run(context) -> dict:
     their traceback. A rejected report cannot establish successful note work.
     """
     from pm.llm.http_client import ModelError
-    from workflows.main_cognition.stage_support import StageOutputError
+    from workflows.main_cognition.model_json import StageOutputError
     try:
         return _write_note(context)
     except (ModelError, StageOutputError, ValueError, OSError, TimeoutError) as error:
@@ -100,7 +100,7 @@ def build_note_tools(model):
     """Bind exact instruction extraction. This tool never writes the note."""
     def factory(run_id, environment):
         def note_spec(instruction: str):
-            from workflows.main_cognition.stage_support import extract_json
+            from workflows.main_cognition.model_json import extract_json
             raw = model.complete([
                 {"role": "system", "content": "Determine whether this original message requests a new note-file write. "
                  "An apology, affection, frustration, remembered task, or workflow status is not a new note request. "

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from pm.records.mental_state import FullMentalState
 from workflows.main_cognition.schemas import GoalChange
 from workflows.reflection.schemas import ReflectionDecision
 
@@ -135,10 +136,11 @@ class InnerRequest(BaseModel):
     """
 
     run_id: str = ""
-    companion_name: str = "Spamuel"
-    user_name: str = "Jesse"
+    companion_name: str = ""
+    user_name: str = ""
     state_summary: str = ""
-    mental_state_latent_vec: list[float] = Field(default_factory=list)
+    #: The accepted mental state of the last cycle, or None before the first cycle.
+    mental_state: FullMentalState | None = None
     mental_state_age_seconds: float = 0.0
     seconds_since_user_input: float | None = None
     tick_id: int = 0

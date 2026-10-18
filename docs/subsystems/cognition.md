@@ -5,37 +5,38 @@
 Context selection repairs an invalid memory ID once. If repair still fails, it drops unavailable IDs and rebuilds memory text from supplied sources.
 The original rejection remains in the stage artifacts. Current conversation can continue without fabricated memory references.
 
-The parent workflow runs eight stages in a fixed order.
+The main cognition workflow runs its typed phases in a fixed order.
 Later stages receive earlier reports.
 The module accepts the resulting attention frame and GWT before it dispatches typed actions.
 
 Parent: [system map](../concepts/architecture.md).
-Entry: [`workflows.main_cognition.pipeline.run_cycle`][].
+Entry: [`workflows.main_cognition.steps.run`][].
 Game initiative: [cooperative survival](cooperative-survival.md) and [observed world events](world-events.md).
 
 ## Input, change, and output
 
 The request contains stimuli, memory candidates, user context, and available workflows.
-The stages produce reports and action proposals.
-The parent collects those proposals into a typed cognitive report.
-The application module commits accepted state and publishes action envelopes.
+One manifest runs the phases intake, triage, appraise, retrieve, codelets, structures, attention, goals, experience, decide, route, and commit.
+The phases share one typed cycle state and add their results to it.
+The commit phase hands the finished cycle to the application module.
+The module commits accepted state in one write batch and publishes action envelopes.
 
-| Stage | Main responsibility | Implementation |
+| Phase | Main responsibility | Implementation |
 | --- | --- | --- |
-| Triage | Classify the incoming situation | [`workflows.main_cognition.stages.triage.steps.run`][] |
-| Appraisal | Evaluate the situation | [`workflows.main_cognition.stages.appraisal.steps.run`][] |
-| Context | Select supplied memory candidates | [`workflows.main_cognition.stages.context.steps.run`][] |
-| Codelets | Schedule codelets and collect typed proposals | [`workflows.main_cognition.stages.codelets.steps.run`][] |
-| Attention | Score proposals, then select winners in Python | [`workflows.main_cognition.stages.attention.steps.run`][] |
-| Goals | Produce goal proposals | [`workflows.main_cognition.stages.goals.steps.run`][] |
-| Workspace | Form the workspace proposal | [`workflows.main_cognition.stages.workspace.steps.run`][] |
-| Action selection | Select typed actions | [`workflows.main_cognition.stages.action_selection.steps.run`][] |
+| Triage | Classify the incoming situation | [`workflows.main_cognition.phases.triage.run`][] |
+| Appraise | Evaluate the situation | [`workflows.main_cognition.phases.appraise.run`][] |
+| Retrieve | Select supplied memory candidates | [`workflows.main_cognition.phases.retrieve.run`][] |
+| Codelets | Schedule codelets and collect typed proposals | [`workflows.main_cognition.phases.codelets.run`][] |
+| Attention | Score proposals, then select winners in Python | [`workflows.main_cognition.phases.attention.run`][] |
+| Goals | Produce goal proposals | [`workflows.main_cognition.phases.goals.run`][] |
+| Experience | Form the workspace frame and subjective experience | [`workflows.main_cognition.phases.experience.run`][] |
+| Decide | Select typed actions | [`workflows.main_cognition.phases.decide.run`][] |
 
 ## Asynchronous boundary
 
-[`workflows.main_cognition.stage_runner.build_stage_runner`][] invokes each child through the shared kernel runner.
-The child does not need its own module thread or bus subscription.
-[`workflows.main_cognition.host.MainCogLoop`][] connects this pipeline to the bus and Ghost.
+[`workflows.main_cognition.host.build_main_cognition_tools`][] grants each run its model tool. All phases run in one manifest and share one typed [`workflows.main_cognition.cycle_work.CycleWork`][].
+The workflow does not need its own module thread or bus subscription.
+[`workflows.main_cognition.host.MainCogLoop`][] connects the cycle to the bus and the memory store.
 
 Story dialogue produces character speech.
 Assistant dialogue can call scoped tools.

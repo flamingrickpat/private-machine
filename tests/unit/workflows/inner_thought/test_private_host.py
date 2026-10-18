@@ -23,7 +23,7 @@ from pm.runs.workflow_module import PROJECT_ROOT
 from tests.support import ManualClock, Recorder
 from workflows.inner_thought.host import PrivateThoughtLoop, build_inner_thought_tools
 from workflows.inner_thought.schemas import InnerReport
-from workflows.main_cognition.stage_support import ModelFormatError
+from workflows.main_cognition.model_json import ModelFormatError
 
 MANIFEST = PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md"
 

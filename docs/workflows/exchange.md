@@ -28,7 +28,7 @@ The bus gives each matching subscriber a detached JSON copy.
 Each module processes its own mailbox batch.
 
 [`workflows.main_cognition.host.MainCogLoop`][] invokes the real parent workflow.
-[`workflows.main_cognition.pipeline.run_cycle`][] runs the ordered children.
+[`workflows.main_cognition.steps.run`][] runs the ordered phases.
 The parent commits accepted state before action dispatch.
 The selected dialogue module commits its reply before public output.
 The Story request retains the accepted action intent beside the current user message.

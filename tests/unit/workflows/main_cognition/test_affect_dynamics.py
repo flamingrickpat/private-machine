@@ -20,6 +20,8 @@ from pm.records.mental_state import FullMentalState, create_empty_state, make_pe
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
 from workflows.main_cognition.host import MainCogLoop
+from workflows.main_cognition.cycle_work import CycleWork
+from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, scripted_tools
 from pm.app.lifecycle_records import record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
 from pm.runs.workflow_module import PROJECT_ROOT
@@ -71,24 +73,19 @@ def _reports(stimulus_id: int, *, appraisal=None, emotion=None, need=None, actio
 
 
 def _module(ghost, reports, tmp, module_id="main_cog"):
-    payloads: dict[str, dict] = {}
-
-    def run_stage(name, payload):
-        payloads[name] = dict(payload)
-        return dict(reports[name])
-
+    model = ScriptedModel(reports=reports)
     bus = BusSystem()
     errors: list[BaseException] = []
     module = MainCogLoop(
         module_id, bus, errors.append, ManualClock(), None,
         working_target=MemoryBashTarget(ghost, "read"),
         workflow=REAL_MANIFEST,
-        tools_factory=lambda environment, batch: {"run_stage": run_stage},
+        tools_factory=scripted_tools(model),
         runtime_root=Path(tmp) / "runtime",
         ghost=ghost,
     )
     bus.subscribe(module.module_id, module.accepts, module.deliver)
-    return module, bus, errors, payloads
+    return module, bus, errors, model
 
 
 class AffectMathTests(unittest.TestCase):
@@ -157,45 +154,54 @@ class AffectMathTests(unittest.TestCase):
         self.assertEqual(projected.trace["expectation_error"], -1.0)
 
 
-class PipelineTraceTests(unittest.TestCase):
-    def test_pipeline_trace_links_event_to_affect_and_regulation(self):
-        payloads: dict[str, dict] = {}
+class CycleTraceTests(unittest.TestCase):
+    def _cycle(self, reports, stimulus_id, ghost):
+        with TemporaryDirectory() as tmp:
+            module, bus, errors, model = _module(ghost, reports, tmp)
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                             correlation_id="corr-trace", payload={"knoxel_id": stimulus_id}))
+            self.assertTrue(module.step(block=False))
+            self.assertEqual(errors, [])
+            return CycleWork.model_validate(module.last_result.report), model
 
-        def run_stage(name, payload):
-            payloads[name] = dict(payload)
-            return dict(_reports(11, appraisal={
-                "feeling": "alarmed",
-                "appraisal": {"bodily_threat": 0.9, "goal_congruence": -0.8},
-            })[name])
-
-        from workflows.main_cognition.pipeline import run_cycle
-        request = {
-            "companion_name": "Spamuel", "user_name": "Jesse",
-            "mental_state_latent_vec": create_empty_state().to_list(),
-            "mental_state_age_seconds": 120.0,
-            "stimuli": [{"knoxel_id": 11, "kind": "user.input", "text": "the kitchen is on fire"}],
-        }
-        report = run_cycle(request, run_stage)
-        self.assertEqual(report.regulation, REGULATION_REACTIVE)
-        self.assertIn("elapsed_seconds", report.affect_trace)
-        self.assertIn("behavior", report.affect_trace)
-        # Later stages see the accepted affect block.
-        self.assertIn("affect", payloads["attention"])
-        self.assertEqual(payloads["attention"]["affect"]["regulation"], REGULATION_REACTIVE)
+    def test_cycle_trace_links_event_to_affect_and_regulation(self):
+        ghost = _small_ghost()
+        stimulus_id = _store(ghost, "the kitchen is on fire")
+        reports = _reports(stimulus_id, appraisal={
+            "feeling": "alarmed",
+            "appraisal": {"bodily_threat": 0.9, "goal_congruence": -0.8},
+        })
+        work, model = self._cycle(reports, stimulus_id, ghost)
+        self.assertEqual(work.affect.regulation, REGULATION_REACTIVE)
+        self.assertIn("elapsed_seconds", work.affect.trace)
+        self.assertIn("behavior", work.affect.trace)
+        # Later phases read the accepted affect.
+        self.assertEqual(work.affect_view.regulation, REGULATION_REACTIVE)
+        goals = model.messages[model.calls.index("goals")][-1].content.text
+        self.assertIn(REGULATION_REACTIVE, goals)
         # Danger forces the reactive control mode even when the model chose reflective.
-        self.assertIn("workspace", payloads)
-        self.assertEqual(report.control_mode, REGULATION_REACTIVE)
-        self.assertIn("preempt", report.frame_reason.lower())
+        frame = ghost.all_attention_frames[-1]
+        self.assertEqual(frame.control_mode, REGULATION_REACTIVE)
+        self.assertIn("preempt", frame.frame_reason.lower())
 
-    def test_report_carries_the_projected_state(self):
-        def run_stage(name, payload):
-            return dict(_reports(11, emotion={"joy": 0.5})[name])
+    def test_a_falling_affect_step_survives_the_phase_state_round_trip(self):
+        joyful = project_affect(None, AppraisalResult(emotion_delta={"joy": 0.8, "relief": 0.6}))
+        falling = project_affect(joyful.state.to_list(), AppraisalResult(emotion_delta={"joy": -0.7}),
+                                 elapsed_seconds=3600.0)
+        self.assertTrue(any(value < 0 for value in falling.delta_vec))
+        work = CycleWork(affect=falling)
+        restored = CycleWork.model_validate_json(work.model_dump_json())
+        self.assertEqual(restored.affect.delta_vec, falling.delta_vec)
+        self.assertEqual(restored.affect.state.to_list(), falling.state.to_list())
 
-        from workflows.main_cognition.pipeline import run_cycle
-        report = run_cycle({"stimuli": [{"knoxel_id": 11, "kind": "user.input"}]}, run_stage)
-        mental = FullMentalState.init_from_list(report.mental_state_latent_vec)
+    def test_committed_state_is_the_projected_state(self):
+        ghost = _small_ghost()
+        stimulus_id = _store(ghost, "good news")
+        work, _ = self._cycle(_reports(stimulus_id, emotion={"joy": 0.5}), stimulus_id, ghost)
+        mental = ghost.states[-1].mental_state
         self.assertGreater(mental.state_emotions.joy, 0.0)
-        self.assertTrue(report.affect_summary)
+        self.assertEqual(mental.to_list(), work.affect.state.to_list())
+        self.assertTrue(work.affect.summary)
 
 
 class ModuleCommitTests(unittest.TestCase):
@@ -277,6 +283,8 @@ class ModuleCommitTests(unittest.TestCase):
                 id=new_id(), source="system", kind="data", topic="system.lifecycle",
                 correlation_id="", payload={"knoxel_id": boot["knoxel_id"]},
             )
+            # Stimuli resolve through the frozen view of an invocation.
+            module.last_environment = module.working_target.open("lifecycle-test")
             knoxel_id, text, kind = module._stimulus_from(envelope)
             self.assertEqual(kind, "system.lifecycle")
             self.assertIn("uncertain", text)

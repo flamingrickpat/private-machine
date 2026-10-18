@@ -77,7 +77,7 @@ Inactive or superseded beliefs remain historical evidence.
 
 The Context LLM selects only supplied IDs.
 It returns an empty `memories` list to avoid copying source passages through model generation.
-[`workflows.main_cognition.pipeline.run_cycle`][] replaces its generated memory strings with the exact selected candidate text.
+[`workflows.main_cognition.steps.run`][] replaces its generated memory strings with the exact selected candidate text.
 Action selection receives that context explicitly.
 The report, GWT, appraisal trace, action metadata, and dispatched payload retain the evidence chain.
 The dialogue payload uses this selection instead of another recent-memory search.

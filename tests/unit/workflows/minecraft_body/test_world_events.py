@@ -123,6 +123,7 @@ class WorldEventTests(unittest.TestCase):
         self.assertNotEqual(world_conditions(changed), world_conditions(self.observation))
 
     def test_world_event_never_becomes_user_speech(self):
-        from workflows.main_cognition.stages.codelets.steps import stimulus_label
-        self.assertEqual(stimulus_label({"kind": "minecraft.world"}, "Jesse"),
+        from workflows.main_cognition.phases.codelets import stimulus_label
+        from workflows.main_cognition.schemas import Stimulus
+        self.assertEqual(stimulus_label(Stimulus(kind="minecraft.world"), "Jesse"),
                          ("Minecraft observation", "outside", "observed"))

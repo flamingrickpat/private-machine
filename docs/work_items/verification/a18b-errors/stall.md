@@ -103,5 +103,5 @@ The diagnostic index retains the 44 exact action-selection results.
 Code:
 [`dev.work_items.a18b.runner.wait_case`][],
 [`dev.work_items.a18b.supervision.run_worker`][],
-[`workflows.main_cognition.pipeline.action_dispatches`][],
+`workflows.main_cognition.pipeline.action_dispatches` (removed in A19F),
 [`workflows.inner_thought.triggers.evaluate_triggers`][].

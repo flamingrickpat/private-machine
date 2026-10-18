@@ -12,7 +12,7 @@ Related: [private thought](private-loop.md), [review boundaries](cognitive-revie
 
 ## Stage proposals
 
-[`workflows.main_cognition.stage_support.complete_json`][] validates syntax and the stage schema within the same repair loop.
+[`workflows.main_cognition.model_json.complete_json`][] validates syntax and the stage schema within the same repair loop.
 It permits ten attempts.
 Each repair receives the complete original task, the latest rejected answer, and its validation error.
 Earlier rejected answers do not accumulate in the prompt.
@@ -24,7 +24,7 @@ The model request logs also retain the actual inference calls.
 No stage report exists until validation succeeds.
 The stage owns no accepted state or external action, so repair repeats no committed effect.
 
-After ten rejected answers, [`workflows.main_cognition.stage_support.ModelFormatError`][] identifies model format exhaustion.
+After ten rejected answers, [`workflows.main_cognition.model_json.ModelFormatError`][] identifies model format exhaustion.
 The private loop discards that cycle and emits `thought.rejected` telemetry.
 Its diagnostic remains beside the parent kernel artifacts.
 The next scheduled private cycle can run.

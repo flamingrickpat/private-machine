@@ -17,7 +17,7 @@ from workflows.main_cognition.codelet_schedule import (
     AttentionPolicy, load_catalogue, request_signals, schedule, state_signals,
 )
 from workflows.main_cognition.host import stale_nominations
-from workflows.main_cognition.schemas import AttentionNomination
+from workflows.main_cognition.schemas import AppraisalResult, AttentionNomination, CodeletHistory, Stimulus
 from pm.records.mental_state import create_empty_state
 
 
@@ -26,6 +26,13 @@ def write_catalogue(directory: str, codelets: list[dict], **policy) -> Path:
     path.write_text(yaml.safe_dump({"version": "t1", "policy": {"main": policy}, "codelets": codelets}),
                     encoding="utf-8")
     return path
+
+
+def signals_for(stimuli=(), *, idle=None, appraisal=None) -> dict[str, float]:
+    """Return the event signals of a cycle with these inputs and no goals or memories."""
+    return request_signals([Stimulus.model_validate(item) for item in stimuli], active_goal_count=0,
+                           selected_memory_count=0, seconds_since_user_input=idle, regulation="",
+                           appraisal=AppraisalResult.model_validate(appraisal or {}))
 
 
 def llm(name: str, base: float, **extra) -> dict:
@@ -49,13 +56,13 @@ class DefaultCatalogueTests(unittest.TestCase):
 
 class SignalTests(unittest.TestCase):
     def test_thought_and_user_stimuli_are_separate_signals(self):
-        thought = request_signals({"stimuli": [{"knoxel_id": 1, "kind": "thought.created"}]})
-        user = request_signals({"stimuli": [{"knoxel_id": 1, "kind": "user.input", "source": "user_input"}]})
+        thought = signals_for([{"knoxel_id": 1, "kind": "thought.created"}])
+        user = signals_for([{"knoxel_id": 1, "kind": "user.input", "source": "user_input"}])
         self.assertEqual((thought["stimulus.thought"], thought["stimulus.user"]), (1.0, 0.0))
         self.assertEqual((user["stimulus.thought"], user["stimulus.user"]), (0.0, 1.0))
 
     def test_idle_seconds_become_hours_and_negative_valence_is_positive(self):
-        signals = request_signals({"seconds_since_user_input": 7200})
+        signals = signals_for(idle=7200)
         self.assertEqual(signals["time.idle_hours"], 2.0)
         state = create_empty_state()
         state.state_core.valence = -0.4
@@ -66,9 +73,9 @@ class SignalTests(unittest.TestCase):
         self.assertEqual(flat["emotion.negative_strongest"], 0.6)
 
     def test_missing_axes_derive_inverse_signals_for_gates_and_boosts(self):
-        signals = request_signals({"appraisal": {"appraisal": {
+        signals = signals_for(appraisal={"appraisal": {
             "fairness": 0.2, "inclusion_exclusion": 0.3, "certainty": 0.25,
-        }}})
+        }})
         self.assertEqual(signals["appraisal.unfairness"], 0.8)
         self.assertEqual(signals["appraisal.exclusion"], 0.7)
         self.assertEqual(signals["appraisal.uncertainty"], 0.75)
@@ -135,7 +142,7 @@ class ScheduleTests(unittest.TestCase):
         ]
         with TemporaryDirectory() as directory:
             loaded = load_catalogue(write_catalogue(directory, codelets, max_llm_codelets=2))
-        decisions, _ = schedule(loaded, {"emotion.sadness": 0.8}, {"cooling": {"cycles_since": 1}})
+        decisions, _ = schedule(loaded, {"emotion.sadness": 0.8}, {"cooling": CodeletHistory(cycles_since=1)})
         reasons = {item.definition.name: (item.run, item.reason) for item in decisions}
         self.assertEqual(reasons["gated"], (False, "gate"))
         self.assertEqual(reasons["cooling"], (False, "cooldown"))
@@ -147,7 +154,7 @@ class ScheduleTests(unittest.TestCase):
     def test_cooldown_ends_after_the_declared_cycles(self):
         with TemporaryDirectory() as directory:
             loaded = load_catalogue(write_catalogue(directory, [llm("cooling", 0.9, cooldown_ticks=2)]))
-        decisions, _ = schedule(loaded, {}, {"cooling": {"cycles_since": 2}})
+        decisions, _ = schedule(loaded, {}, {"cooling": CodeletHistory(cycles_since=2)})
         self.assertTrue(decisions[0].run)
 
     def test_danger_runs_pure_codelets_only(self):

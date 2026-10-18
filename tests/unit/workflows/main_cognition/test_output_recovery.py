@@ -11,7 +11,7 @@ import unittest
 from pm.context_render.turns import Role, Turn
 from pm.memory.bash_view import MemoryBashEnvironment
 from workflows.inner_thought.schemas import ThoughtResult
-from workflows.main_cognition.stage_support import ModelFormatError, complete_json
+from workflows.main_cognition.model_json import ModelFormatError, complete_json
 
 CAPTURE = Path(__file__).resolve().parents[4] / "test_data/captures/alpha/cognitive-format-recovery.json"
 

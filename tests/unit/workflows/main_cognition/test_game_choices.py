@@ -14,13 +14,13 @@ from workflows.main_cognition.stage_commits import apply_goal_changes
 
 class GameChoiceTests(unittest.TestCase):
     def test_real_quiet_choice_is_accepted_without_starting_a_workflow(self):
-        from workflows.main_cognition.pipeline import action_dispatches
-        from workflows.main_cognition.schemas import ActionSelectionResult
-        from workflows.main_cognition.stages.action_selection.steps import validate_actions
+        from workflows.main_cognition.phases.decide import validate_actions
+        from workflows.main_cognition.phases.route import action_dispatches
+        from workflows.main_cognition.schemas import ActionSelectionResult, WorkflowOption
         original = json.loads(Path("test_data/captures/alpha/game-quiet-choice.json").read_text(encoding="utf-8"))["result"]
         result = ActionSelectionResult.model_validate(original)
-        validate_actions(result, [{"name": "minecraft"}])
-        self.assertEqual(action_dispatches(original["actions"]), [])
+        validate_actions(result, [WorkflowOption(name="minecraft")])
+        self.assertEqual(action_dispatches(result.actions), [])
         self.assertEqual(result.actions[0].content, original["actions"][0]["content"])
 
     def test_social_appraisal_changes_relationship_but_world_events_retain_it(self):

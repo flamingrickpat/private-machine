@@ -18,7 +18,7 @@ from dev.work_items.shared.evidence import save_json
 from pm.context_render.turns import Role, Turn
 from pm.memory.bash_view import MemoryBashEnvironment
 from workflows.inner_thought.schemas import ThoughtResult
-from workflows.main_cognition.stage_support import complete_json
+from workflows.main_cognition.model_json import complete_json
 
 ROOT = Path(__file__).resolve().parents[2]
 CAPTURE = ROOT / "test_data/captures/alpha/cognitive-format-recovery.json"

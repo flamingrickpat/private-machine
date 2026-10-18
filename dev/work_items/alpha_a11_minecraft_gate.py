@@ -135,7 +135,7 @@ def run(args) -> None:
             for folder in ("pm", "workflows/minecraft", "workflows/minecraft_body", "workflows/minecraft_project")
             for path in (ROOT / folder).rglob("*") if path.is_file() and path.suffix in {".py", ".md"}}}
     receipt["source_files_sha256"].update({name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
-        for name in ("main.py", "dev/work_items/alpha_a11_minecraft_gate.py", "workflows/main_cognition/stages/action_selection/prompts.yaml")})
+        for name in ("main.py", "dev/work_items/alpha_a11_minecraft_gate.py", "workflows/main_cognition/phases/prompts/decide.yaml")})
     import inspect
     from importlib.metadata import distribution
     import pm_coder

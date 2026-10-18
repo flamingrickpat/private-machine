@@ -33,7 +33,7 @@ from pm.records.qualia_records import QualeRecord
 from pm.runs.workflow_module import CognitiveWorkflow
 
 from workflows.main_cognition.host import seconds_since_user_input
-from workflows.main_cognition.stage_support import ModelFormatError
+from workflows.main_cognition.model_json import ModelFormatError
 from workflows.main_cognition.stage_commits import active_intentions
 from workflows.inner_thought.expectations import open_expectation, pending_expectations, resolve_expectation
 from workflows.inner_thought.felt_state import (
@@ -218,7 +218,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
             state_summary=self._state_summary(previous_cycle),
-            mental_state_latent_vec=mental_vec,
+            mental_state=previous_cycle.mental_state if previous_cycle is not None else None,
             mental_state_age_seconds=age_seconds,
             seconds_since_user_input=seconds_since_user_input(self.ghost, []),
             tick_id=tick,

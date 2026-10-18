@@ -9,17 +9,17 @@ A goal change creates or moves an `Intention` through its lifecycle.
 Actions keep a stable identity and a separate success prerequisite.
 
 Parent: [Cognition](cognition.md).
-Entry: [`workflows.main_cognition.pipeline.run_cycle`][].
+Entry: [`workflows.main_cognition.steps.run`][].
 Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 
 ## Place in the system
 
 [`workflows.main_cognition.host.MainCogLoop`][] builds one request from a bus batch.
-The eight child stages return typed reports.
-[`workflows.main_cognition.pipeline.run_cycle`][] collects them into one
-[`workflows.main_cognition.schemas.CognitiveReport`][].
-The report now carries the appraisal, the goal changes, and the stimulus
-origins.
+Each phase of the cycle adds its typed result to one shared
+[`workflows.main_cognition.cycle_work.CycleWork`][].
+[`workflows.main_cognition.steps.run`][] validates it at the entry of each phase.
+The final work carries the appraisal, the affect step, the goal changes, the
+dispatches, and the changed cycle state.
 The module applies those proposals inside one Ghost write batch.
 
 ## Input → change → output
@@ -34,7 +34,7 @@ The module applies those proposals inside one Ghost write batch.
 
 ## Appraisal to affect
 
-[`workflows.main_cognition.pipeline.run_cycle`][] computes one affect
+[`workflows.main_cognition.steps.run`][] computes one affect
 projection after the appraisal stage.
 [`workflows.main_cognition.affect_dynamics.project_affect`][] applies elapsed-time decay,
 personality gains, canonical appraisal axes, explicit emotion and need deltas,
@@ -78,7 +78,7 @@ The request builder reads only active goals.
 
 ## Stable actions and prerequisites
 
-[`workflows.main_cognition.pipeline.stable_action_id`][] hashes the workflow,
+[`workflows.main_cognition.phases.route.stable_action_id`][] hashes the workflow,
 action type, content, and arguments.
 The same intent receives the same ID across cycles.
 Two dependency kinds stay apart:

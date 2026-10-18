@@ -29,7 +29,7 @@ from pm.llm.completion import AsyncTextCompletion
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field
 
-from workflows.main_cognition.stage_support import StageOutputError, extract_json
+from workflows.main_cognition.model_json import StageOutputError, extract_json
 from workflows.public_speech.public_context import (
     DialogueTurn, PublicContext, ability_lines, memory_lines, task_lines,
 )

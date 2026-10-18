@@ -14,7 +14,7 @@ from pm.context_render.turns import Role, Turn, format_content
 
 from workflows.inner_thought.schemas import InnerRequest, IntegrationResult, ThoughtResult, TriggerChoice
 from workflows.inner_thought.pipeline import IntegrationError, citable_ids, validate_integration
-from workflows.main_cognition.stage_support import complete_json, load_yaml, read_request, write_report
+from workflows.main_cognition.model_json import complete_json, load_yaml, read_request, write_report
 
 WORKFLOW_DIR = Path(__file__).resolve().parent
 

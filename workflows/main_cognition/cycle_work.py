@@ -1,0 +1,167 @@
+"""The shared typed state of one main cognition cycle.
+
+The cycle is one pm-workflows manifest with one Python phase for each step:
+intake, retrieve, triage, appraise, codelets, structures, attention,
+experience, goals, decide, route, and commit. All phases share one
+:class:`CycleWork` object.
+
+State flow between phases:
+
+- The host writes :class:`CycleRequest` to ``inbox/request.yaml``. The
+  workflow runner does this for every invocation.
+- The intake phase validates the request and creates the first
+  ``CycleWork``.
+- Every phase reads ``CycleWork`` from :data:`WORK_FILE` in the working
+  target and validates it at entry. It returns the changed object, and the
+  phase entry point writes it back. The working target of main cognition is
+  an in-memory Bash machine, so the file never reaches the disk.
+- The commit phase writes the final ``CycleWork`` to ``outbox/report.yaml``.
+  The host validates it again and stages the one write batch.
+
+No phase writes the memory store. The host owns the store and the bus.
+"""
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+from pm.records.cycle_state import CycleState
+from workflows.cognitive_control.schemas import FocusState, WaitRequest
+from workflows.main_cognition.affect_dynamics import AffectProjection
+from workflows.main_cognition.schemas import (
+    ActionDispatch,
+    ActionSelectionResult,
+    AffectView,
+    AppraisalResult,
+    AppraisalView,
+    AttentionResult,
+    CodeletHistory,
+    CodeletsResult,
+    ContextResult,
+    FocusProposalRef,
+    GoalRecordView,
+    GoalsResult,
+    ManagedRunView,
+    MemoryCandidate,
+    MentalProposal,
+    PathwayPrecursor,
+    PhaseReceipt,
+    ReflectionGuidance,
+    Stimulus,
+    TriageResult,
+    WorkflowOption,
+    WorkspaceResult,
+)
+from workflows.public_speech.public_context import PublicContext
+
+#: Path of the shared phase state in the working target.
+WORK_FILE = "scratch/cycle_work.json"
+
+
+class CycleRequest(BaseModel):
+    """The frozen input of one main cycle.
+
+    The host derives every field from committed state and records the
+    revisions it read. ``previous_state`` is the last accepted cycle state, or
+    None before the first cycle. The cycle changes a copy of it.
+    ``user_entity_id`` is the entity record of the user, or None when the
+    persona has no such record. ``relationship_entity_id`` is set only when a
+    user message is among the stimuli. ``memory_trace`` is the retrieval
+    trace of ``pm.memory``. The cycle stores it unchanged in record metadata.
+    """
+
+    run_id: str = ""
+    correlation_id: str = ""
+    companion_name: str = ""
+    user_name: str = ""
+    user_entity_id: int | None = None
+    relationship_entity_id: int | None = None
+    state_summary: str = ""
+    previous_state: CycleState | None = None
+    mental_state_age_seconds: float = 0.0
+    personality_vec: list[float] = Field(default_factory=list)
+    active_goals: list[str] = Field(default_factory=list)
+    stimuli: list[Stimulus] = Field(default_factory=list)
+    memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
+    memory_trace: dict = Field(default_factory=dict)
+    capabilities: list[str] = Field(default_factory=list)
+    available_workflows: list[WorkflowOption] = Field(default_factory=list)
+    public_context: PublicContext | None = None
+    managed_runs: list[ManagedRunView] = Field(default_factory=list)
+    # A15 scheduler inputs. The module derives them from committed state.
+    stimulus_revisions: dict[int, int] = Field(default_factory=dict)
+    active_goal_records: list[GoalRecordView] = Field(default_factory=list)
+    codelet_history: dict[str, CodeletHistory] = Field(default_factory=dict)
+    seconds_since_user_input: float | None = None
+    codelet_catalogue: str = ""
+    # Selects the catalogue's attention policy. A17 sets "inner".
+    attention_loop: str = "main"
+    # Accepted precursor proposals from recent committed cycles. The codelets
+    # phase turns them into pathway.<name> activation signals.
+    pathway_precursors: list[PathwayPrecursor] = Field(default_factory=list)
+    # The newest committed attention tick. Tick age is measured from it, not
+    # from the newest precursor, so an old precursor keeps its true age.
+    pathway_latest_tick: int = 0
+    active_focus: FocusState | None = None
+    focus_proposals: list[FocusProposalRef] = Field(default_factory=list)
+    mental_proposals: list[MentalProposal] = Field(default_factory=list)
+    reflection_guidance: list[ReflectionGuidance] = Field(default_factory=list)
+    wait_default_seconds: float = 1800
+
+
+class CycleWork(BaseModel):
+    """The state that the phases of one cycle share.
+
+    ``state`` is the previous cycle state. The phases change it in place:
+    intake decays the CSM and sets the stimulus groups, appraise sets the
+    mental state, decide sets the decisions. The host sets the tick, the
+    dispatch references, and the broadcast queue at commit.
+
+    ``state_summary`` is the state text that prompts read. Before appraisal it
+    is the last broadcast summary. After appraisal it is the summary of the
+    accepted affect step.
+
+    Each phase result field holds an empty result until its phase runs.
+    """
+
+    request: CycleRequest = Field(default_factory=CycleRequest)
+    state: CycleState = Field(default_factory=lambda: CycleState(tick_id=0))
+    state_summary: str = ""
+    phases: list[PhaseReceipt] = Field(default_factory=list)
+    triage: TriageResult = Field(default_factory=TriageResult)
+    appraisal: AppraisalResult = Field(default_factory=AppraisalResult)
+    affect: AffectProjection = Field(default_factory=AffectProjection)
+    affect_view: AffectView = Field(default_factory=AffectView)
+    context: ContextResult = Field(default_factory=ContextResult)
+    selected_memories: list[MemoryCandidate] = Field(default_factory=list)
+    codelets: CodeletsResult = Field(default_factory=CodeletsResult)
+    attention: AttentionResult = Field(default_factory=AttentionResult)
+    goals: GoalsResult = Field(default_factory=GoalsResult)
+    workspace: WorkspaceResult = Field(default_factory=WorkspaceResult)
+    action_selection: ActionSelectionResult = Field(default_factory=ActionSelectionResult)
+    dispatches: list[ActionDispatch] = Field(default_factory=list)
+    wait_request: WaitRequest | None = None
+    summary: str = ""
+
+    def appraisal_view(self) -> AppraisalView:
+        """Return the appraisal with its accepted affect, for prompts."""
+        return AppraisalView(**self.appraisal.model_dump(), affect=self.affect_view)
+
+    def receipt(self, name: str, summary: str) -> None:
+        """Record that phase ``name`` ran."""
+        self.phases.append(PhaseReceipt(name=name, summary=summary))
+
+
+def read_work(environment) -> CycleWork:
+    """Read and validate the shared phase state from the working target.
+
+    A missing or invalid file is a bug in the phase order and raises.
+    """
+    return CycleWork.model_validate_json(environment.read_text(WORK_FILE))
+
+
+def write_work(environment, work: CycleWork) -> None:
+    """Write the shared phase state to the working target."""
+    environment.write_text(WORK_FILE, work.model_dump_json())
+
+
+__all__ = ["CycleRequest", "CycleWork", "WORK_FILE", "read_work", "write_work"]

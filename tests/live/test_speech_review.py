@@ -22,7 +22,7 @@ from workflows.public_speech.public_context import PublicContext
 from workflows.public_speech.ontology import seed_terms
 from workflows.public_speech.speech_review import is_blocked, load_prompts, review_speech
 from workflows.public_speech.speech_review import parse_review
-from workflows.main_cognition.stage_support import extract_json
+from workflows.main_cognition.model_json import extract_json
 
 EVIDENCE = Path(".runtime/live/speech-review") / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 

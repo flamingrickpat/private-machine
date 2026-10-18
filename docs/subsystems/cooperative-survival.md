@@ -20,7 +20,7 @@ User stimuli also supply the real user entity ID as `relationship_entity_id`.
 World events supply no relationship entity ID.
 A game hazard cannot directly become an adverse relationship update.
 
-[`workflows.main_cognition.pipeline.run_cycle`][] runs the eight normal cognition stages.
+[`workflows.main_cognition.steps.run`][] runs the normal cognition phases.
 Appraisal supplies causal evidence IDs and named axes or emotion deltas.
 [`workflows.main_cognition.affect_dynamics.project_affect`][] projects affect once for the remaining stages and the final commit.
 The model inputs contain all emotion values and the relationship fields, including trust and conflict tension.

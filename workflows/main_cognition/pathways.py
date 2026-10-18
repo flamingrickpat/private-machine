@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from workflows.main_cognition.schemas import PathwayPrecursor
+
 PATHWAY_SIGNAL_PREFIX = "pathway."
 
 
@@ -58,12 +60,21 @@ def pathway_map(pathways: list[PathwayDefinition]) -> dict[str, PathwayDefinitio
     return result
 
 
+class PathwayEntry(BaseModel):
+    """One fresh precursor inside one pathway window, with its tick age."""
+
+    precursor: PathwayPrecursor = Field(default_factory=PathwayPrecursor)
+    tick_age: int = 0
+    pathway: str = ""
+    pathway_version: str = ""
+
+
 def precursors_by_pathway(
-    precursors: list[dict],
+    precursors: list[PathwayPrecursor],
     pathways: dict[str, PathwayDefinition],
     *,
     latest_tick: int,
-) -> dict[str, list[dict]]:
+) -> dict[str, list[PathwayEntry]]:
     """Group fresh precursor records under their pathway names.
 
     A precursor is one committed ``AttentionRecord`` summary: it must be
@@ -71,27 +82,22 @@ def precursors_by_pathway(
     Older or unselected records are dropped here, so the caller cannot boost
     from stale or losing evidence.
     """
-    grouped: dict[str, list[dict]] = {}
+    grouped: dict[str, list[PathwayEntry]] = {}
     for pathway in pathways.values():
         members = pathway.member_set()
-        for item in precursors or []:
-            if not item.get("selected", False):
+        for item in precursors:
+            if not item.selected or item.codelet not in members:
                 continue
-            if str(item.get("codelet", "")) not in members:
-                continue
-            tick_age = int(latest_tick) - int(item.get("tick_id", latest_tick))
+            tick_age = int(latest_tick) - int(item.tick_id)
             if tick_age < 0 or tick_age >= pathway.window_ticks:
                 continue
-            entry = dict(item)
-            entry["tick_age"] = tick_age
-            entry["pathway"] = pathway.name
-            entry["pathway_version"] = pathway.version
-            grouped.setdefault(pathway.name, []).append(entry)
+            grouped.setdefault(pathway.name, []).append(PathwayEntry(
+                precursor=item, tick_age=tick_age, pathway=pathway.name, pathway_version=pathway.version))
     return grouped
 
 
 def pathway_signals(
-    precursors: list[dict],
+    precursors: list[PathwayPrecursor],
     pathways: dict[str, PathwayDefinition],
     *,
     latest_tick: int,
@@ -105,7 +111,7 @@ def pathway_signals(
     signals: dict[str, float] = {}
     for name, entries in precursors_by_pathway(precursors, pathways, latest_tick=latest_tick).items():
         pathway = pathways[name]
-        total = sum(pathway.decay_per_tick ** float(entry["tick_age"]) for entry in entries)
+        total = sum(pathway.decay_per_tick ** float(entry.tick_age) for entry in entries)
         signals[PATHWAY_SIGNAL_PREFIX + name] = round(min(1.0, total), 4)
     return signals
 
@@ -113,6 +119,7 @@ def pathway_signals(
 __all__ = [
     "PATHWAY_SIGNAL_PREFIX",
     "PathwayDefinition",
+    "PathwayEntry",
     "pathway_map",
     "pathway_signals",
     "precursors_by_pathway",

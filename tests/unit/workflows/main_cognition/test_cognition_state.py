@@ -2,7 +2,7 @@
 
 No live model, module thread, or Minecraft server. The real parent kernel, the
 real module adapter, and the real MemoryStore commit boundary are exercised with a
-deterministic ``run_stage`` stub.
+scripted model that answers each phase from a fixed stage report fixture.
 """
 from __future__ import annotations
 
@@ -23,8 +23,9 @@ from pm.records.cycle_state import PersonaConfig
 from pm.app.lifecycle_records import CLEAN_END, UNCERTAIN_END, record_shutdown, record_startup
 from tests.support import ManualClock, Recorder
 from pm.runs.workflow_module import PROJECT_ROOT
-from workflows.main_cognition.dispatch import resolve_prerequisites
-from workflows.main_cognition.pipeline import run_cycle
+from workflows.main_cognition.dispatch import resolve_prerequisites, resolve_same_cycle
+from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, fixed_attention, scripted_tools
+from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.schemas import ActionDispatch
 from workflows.main_cognition.stage_commits import find_intention, normalize_goal_key
 from pm.memory.bash_view import MemoryBashTarget
@@ -72,16 +73,13 @@ def _reports(stimulus_id: int, *, emotion=None, need=None, goals=None, actions=N
 
 
 def _module(ghost, reports, tmp, module_id="main_cog"):
-    def run_stage(name, payload):
-        return dict(reports[name])
-
     bus = BusSystem()
     errors: list[BaseException] = []
     module = MainCogLoop(
         module_id, bus, errors.append, ManualClock(), None,
         working_target=MemoryBashTarget(ghost, "read"),
         workflow=REAL_MANIFEST,
-        tools_factory=lambda environment, batch: {"run_stage": run_stage},
+        tools_factory=scripted_tools(ScriptedModel(reports=reports)),
         runtime_root=Path(tmp) / "runtime",
         ghost=ghost,
     )
@@ -126,39 +124,60 @@ class AppraisalCommitTests(unittest.TestCase):
                 id=new_id(), source="user_input", kind="data", topic="user.input",
                 correlation_id="corr-repeat", payload={"knoxel_id": stimulus_id},
             )
-            request = module.prepare_input([envelope])
-
-            def run_stage(name, payload):
-                return dict(reports[name])
-
-            report = run_cycle(request, run_stage).model_dump(mode="json")
-            module.invocation_id = "same-real-turn"
-            module.publish_output(report, [envelope])
+            module.handle_batch([envelope])
+            report = module.last_result.report
             accepted = set(ghost.all_knoxels)
             module.publish_output(report, [envelope])
             self.assertEqual(set(ghost.all_knoxels), accepted)
             for event in requests.events:
                 self.assertIn(event.payload["knoxel_id"], accepted)
 
-    def test_pipeline_report_carries_appraisal_and_goal_changes(self):
-        stimulus_id = 11
+    def test_cycle_report_carries_appraisal_goal_changes_and_typed_state(self):
+        ghost = _small_ghost()
+        stimulus_id = _store(ghost, "let us build a house")
         reports = _reports(stimulus_id, goals=[{"change": "add", "goal": "build a house"}])
+        with TemporaryDirectory() as tmp:
+            module, bus, errors = _module(ghost, reports, tmp)
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                             correlation_id="corr-house", payload={"knoxel_id": stimulus_id}))
+            self.assertTrue(module.step(block=False))
+            work = CycleWork.model_validate(module.last_result.report)
+        self.assertEqual(errors, [])
+        self.assertEqual(work.appraisal.feeling, "warm")
+        self.assertEqual([change.goal for change in work.goals.changes], ["build a house"])
+        state = ghost.states[-1]
+        self.assertEqual(state.stimulus_groups[0].stimulus_ids, [stimulus_id])
+        self.assertEqual(state.stimulus_groups[0].category, "Moderate")
+        self.assertEqual([item.text for item in state.decisions], ["reply to Jesse"])
+        self.assertEqual([item.workflow for item in state.dispatches], ["dialogue_story"])
+        self.assertEqual(state.broadcasts[-1].tick_id, state.tick_id)
+        self.assertEqual(state.mental_state.to_list(), work.affect.state.to_list())
 
-        def run_stage(name, payload):
-            return dict(reports[name])
-
-        report = run_cycle({"stimuli": [{"knoxel_id": stimulus_id, "kind": "user.input"}]}, run_stage)
-        self.assertIsNotNone(report.appraisal)
-        self.assertEqual(report.appraisal.feeling, "warm")
-        self.assertEqual([change.goal for change in report.goal_changes], ["build a house"])
-        self.assertEqual(report.event_origins[str(stimulus_id)], "user.input")
+    def test_next_cycle_mutates_the_previous_state(self):
+        ghost = _small_ghost()
+        first = _store(ghost, "hello")
+        reports = _reports(first)
+        with TemporaryDirectory() as tmp:
+            module, bus, errors = _module(ghost, reports, tmp)
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                             correlation_id="corr-1", payload={"knoxel_id": first}))
+            self.assertTrue(module.step(block=False))
+            second = _store(ghost, "hello again")
+            reports.update(_reports(second))
+            bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                             correlation_id="corr-2", payload={"knoxel_id": second}))
+            self.assertTrue(module.step(block=False))
+        self.assertEqual(errors, [])
+        self.assertEqual([item.tick_id for item in ghost.states[-1].broadcasts],
+                         [state.tick_id for state in ghost.states])
+        self.assertEqual(ghost.states[-1].stimuli_ids, [second])
 
 
 class CodeletBeliefCommitTests(unittest.TestCase):
     """One real cycle commits accepted belief proposals as durable beliefs."""
 
     def _cycle(self, ghost, reports, stimulus_id, correlation):
-        with TemporaryDirectory() as tmp:
+        with TemporaryDirectory() as tmp, fixed_attention(reports):
             module, bus, errors = _module(ghost, reports, tmp)
             requests = Recorder(bus, "action.request")
             bus.put(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
@@ -355,11 +374,11 @@ class PrerequisiteTests(unittest.TestCase):
              "content": "the house is done", "arguments": {}, "requires_completed": ["start"]},
         ])
 
-        def run_stage(name, payload):
-            return dict(reports[name])
-
-        report = run_cycle({"stimuli": [{"knoxel_id": 11, "kind": "user.input"}]}, run_stage)
-        by_id = {dispatch.action_id: dispatch for dispatch in report.dispatches}
+        from workflows.main_cognition.phases.route import action_dispatches
+        from workflows.main_cognition.schemas import ActionIntent
+        intents = [ActionIntent.model_validate(item) for item in reports["action_selection"]["actions"]]
+        report = resolve_prerequisites(resolve_same_cycle(action_dispatches(intents)), {})
+        by_id = {dispatch.action_id: dispatch for dispatch in report}
         self.assertEqual(by_id["start"].status, "dispatched")
         self.assertEqual(by_id["celebrate"].status, "queued")
 
@@ -471,6 +490,8 @@ class LifecycleTests(unittest.TestCase):
                 id=new_id(), source="system", kind="data", topic="system.lifecycle",
                 correlation_id="", payload={"knoxel_id": boot["knoxel_id"]},
             )
+            # Stimuli resolve through the frozen view of an invocation.
+            module.last_environment = module.working_target.open("lifecycle-test")
             knoxel_id, text, kind = module._stimulus_from(envelope)
             self.assertEqual(kind, "system.lifecycle")
             self.assertEqual(knoxel_id, boot["knoxel_id"])

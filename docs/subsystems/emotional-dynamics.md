@@ -12,7 +12,7 @@ Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 
 ## Place in the system
 
-[`workflows.main_cognition.pipeline.run_cycle`][] runs the eight stages.
+[`workflows.main_cognition.steps.run`][] runs the phases of the cycle.
 After the appraisal stage, the parent computes one affect projection.
 The projection feeds the later stages and the parent report.
 [`workflows.main_cognition.host.MainCogLoop.publish_output`][] commits the same projected vector.

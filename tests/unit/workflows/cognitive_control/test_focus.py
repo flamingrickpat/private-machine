@@ -16,7 +16,14 @@ from pm.records.memory_records import new_feature
 
 from tests.unit.test_design_contracts import small_ghost
 from workflows.cognitive_control.attention import active_focus, attention_bias, resolve_focus
-from workflows.main_cognition.schemas import AttentionNomination
+from pydantic import BaseModel
+
+from workflows.cognitive_control.schemas import FocusState
+from workflows.main_cognition.schemas import AttentionNomination, FocusProposalRef
+
+
+class _Evidence(BaseModel):
+    goals: list[str] = []
 
 
 class _Runtime:
@@ -64,32 +71,40 @@ class ActiveFocusTests(unittest.TestCase):
 class ResolveFocusTests(unittest.TestCase):
     def test_fresh_rejection_keeps_older_advice_and_lists_the_rejection(self):
         context = _Context(['{"accept": false, "reason": "the worry still matters"}'])
-        request = {"active_focus": {"accept": True, "promote_ids": [5], "strength": 0.2,
-                                     "fresh": False},
-                   "focus_proposals": [{"record_id": 9, "focus": {
-                       "instruction": "stop thinking about the message", "promote_ids": [], "reduce_ids": [5]}}]}
-        result = resolve_focus(context, request)
-        self.assertTrue(result["accept"])
-        self.assertEqual(result["promote_ids"], [5])
-        self.assertFalse(result["fresh"])
-        self.assertEqual([item["proposal_id"] for item in result["rejections"]], [9])
-        self.assertFalse(result["rejections"][0]["accept"])
+        active = FocusState(accept=True, promote_ids=[5], strength=0.2, fresh=False)
+        proposals = [FocusProposalRef.model_validate({"record_id": 9, "focus": {
+            "instruction": "stop thinking about the message", "promote_ids": [], "reduce_ids": [5]}})]
+        result = resolve_focus(context, active, proposals, _Evidence())
+        self.assertTrue(result.accept)
+        self.assertEqual(result.promote_ids, [5])
+        self.assertFalse(result.fresh)
+        self.assertEqual([item.proposal_id for item in result.rejections], [9])
+        self.assertFalse(result.rejections[0].accept)
 
     def test_accepted_proposal_becomes_the_fresh_advice(self):
         context = _Context(['{"accept": true, "reason": "it fits the moment"}'])
-        request = {"active_focus": {"accept": True, "promote_ids": [5], "strength": 0.2},
-                   "focus_proposals": [{"record_id": 9, "focus": {
-                       "instruction": "remember the story", "promote_ids": [7], "reduce_ids": [5]}}]}
-        result = resolve_focus(context, request)
-        self.assertTrue(result["accept"])
-        self.assertTrue(result["fresh"])
-        self.assertEqual(result["proposal_id"], 9)
-        self.assertEqual(result["promote_ids"], [7])
+        active = FocusState(accept=True, promote_ids=[5], strength=0.2)
+        proposals = [FocusProposalRef.model_validate({"record_id": 9, "focus": {
+            "instruction": "remember the story", "promote_ids": [7], "reduce_ids": [5]}})]
+        result = resolve_focus(context, active, proposals, _Evidence())
+        self.assertTrue(result.accept)
+        self.assertTrue(result.fresh)
+        self.assertEqual(result.proposal_id, 9)
+        self.assertEqual(result.promote_ids, [7])
+
+    def test_a_rejection_without_older_advice_is_the_whole_result(self):
+        context = _Context(['{"accept": false, "reason": "not now"}'])
+        proposals = [FocusProposalRef.model_validate({"record_id": 9, "focus": {"instruction": "look away"}})]
+        result = resolve_focus(context, None, proposals, _Evidence())
+        self.assertFalse(result.accept)
+        self.assertEqual(result.instruction, "look away")
+        self.assertEqual([item.proposal_id for item in result.rejections], [9])
+        self.assertIsNone(resolve_focus(context, None, [], _Evidence()))
 
 
 class AttentionBiasTests(unittest.TestCase):
     def test_reduction_does_not_defeat_urgent_or_dangerous_candidates(self):
-        focus = {"accept": True, "strength": 0.3, "promote_ids": [], "reduce_ids": [5]}
+        focus = FocusState(accept=True, strength=0.3, promote_ids=[], reduce_ids=[5])
         calm = AttentionNomination(nomination_id="a", target_ids=[5], urgency=0.1)
         urgent = AttentionNomination(nomination_id="b", target_ids=[5], urgency=0.9)
         biases = attention_bias([calm, urgent], focus, danger=False)
@@ -99,7 +114,7 @@ class AttentionBiasTests(unittest.TestCase):
         self.assertEqual(danger["a"], 0.0)
 
     def test_rejected_focus_applies_no_bias(self):
-        focus = {"accept": False, "reduce_ids": [5], "strength": 0.3}
+        focus = FocusState(accept=False, reduce_ids=[5], strength=0.3)
         calm = AttentionNomination(nomination_id="a", target_ids=[5], urgency=0.1)
         self.assertEqual(attention_bias([calm], focus, danger=False), {})
 

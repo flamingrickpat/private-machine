@@ -113,10 +113,14 @@ def utterance_metadata(view, action_id: int | None) -> dict:
     action = view.get_knoxel_by_id(action_id) if action_id is not None else None
     if isinstance(action, ActionSchemaRecord):
         result["action_schema_id"] = action.id
-        presentation = action.metadata.get("presentation", {})
-        if (presentation.get("mode") == "deceive" and presentation.get("purpose")
-                and presentation.get("known_fact_ids")):
-            known = presentation["known_fact_ids"]
+        # Imported here: ``public_context`` imports the cycle commit helpers.
+        from workflows.public_speech.public_context import Presentation
+        # Actions from the main cycle store their presentation. Other actions
+        # have none and are candid.
+        presentation = (Presentation.model_validate(action.metadata["presentation"])
+                        if "presentation" in action.metadata else Presentation())
+        if presentation.mode == "deceive" and presentation.purpose and presentation.known_fact_ids:
+            known = list(presentation.known_fact_ids)
             if all(view.get_knoxel_by_id(key) is not None for key in known):
-                result.update(deception_intent_id=action.id, deception_purpose=presentation["purpose"], known_fact_ids=known)
+                result.update(deception_intent_id=action.id, deception_purpose=presentation.purpose, known_fact_ids=known)
     return result

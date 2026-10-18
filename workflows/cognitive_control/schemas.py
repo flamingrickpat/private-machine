@@ -47,3 +47,39 @@ class MentalPlan(BaseModel):
     evidence_ids: list[int] = Field(default_factory=list)
     summary: str
     disposition: Literal["propose", "no_change"] = "propose"
+
+
+class FocusRejection(BaseModel):
+    """One fresh focus proposal that attention rejected in a cycle."""
+
+    proposal_id: int | None = None
+    accept: bool = False
+    decision_reason: str = ""
+    fresh: bool = True
+    instruction: str = ""
+
+
+class FocusState(BaseModel):
+    """The effective deliberate focus advice of one cycle.
+
+    Accepted advice holds the proposal fields and ``accept=True``. A fresh
+    rejection without older advice holds ``accept=False`` and the rejected
+    proposal. ``fresh`` is True when this cycle decided the advice.
+    ``control_record_id`` names the stored advice record that is in effect.
+    ``rejections`` keeps the latest fresh rejections, so both receipts stay
+    visible. Stored advice records hold this model as ``metadata["focus"]``.
+    """
+
+    accept: bool = False
+    instruction: str = ""
+    promote_ids: list[int] = Field(default_factory=list)
+    reduce_ids: list[int] = Field(default_factory=list)
+    strength: float = 0.0
+    seconds: float = 900
+    topic_hints: list[str] = Field(default_factory=list)
+    reason: str = ""
+    proposal_id: int | None = None
+    decision_reason: str = ""
+    fresh: bool = False
+    control_record_id: int | None = None
+    rejections: list[FocusRejection] = Field(default_factory=list)

@@ -12,15 +12,16 @@ from workflows.main_cognition.codelet_schedule import load_catalogue
 from workflows.main_cognition.pathways import (
     PathwayDefinition, pathway_map, pathway_signals,
 )
+from workflows.main_cognition.schemas import PathwayPrecursor
 
 
 def pathway(name: str, members: list[str], **extra) -> PathwayDefinition:
     return PathwayDefinition(name=name, version="1", members=members, **extra)
 
 
-def precursor(codelet: str, tick: int, **extra) -> dict:
-    return {"codelet": codelet, "tick_id": tick, "selected": True, "record_id": tick,
-            "pathways": [], **extra}
+def precursor(codelet: str, tick: int, **extra) -> PathwayPrecursor:
+    return PathwayPrecursor.model_validate({"codelet": codelet, "tick_id": tick, "selected": True,
+                                            "record_id": tick, "pathways": [], **extra})
 
 
 class PathwaySignalTests(unittest.TestCase):
@@ -53,8 +54,7 @@ class PathwaySignalTests(unittest.TestCase):
         self.assertAlmostEqual(signals["pathway.curiosity"], 1.0)
 
     def test_unselected_and_foreign_records_never_count(self):
-        lost = precursor("curiosity_probe", 10)
-        lost["selected"] = False
+        lost = precursor("curiosity_probe", 10, selected=False)
         signals = pathway_signals([lost, precursor("refusal_edge", 10, selected=False)],
                                   self.pathways, latest_tick=10)
         self.assertEqual(signals, {})

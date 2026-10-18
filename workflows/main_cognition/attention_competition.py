@@ -1,6 +1,6 @@
 """Pure attention competition over scored codelet nominations.
 
-The attention stage asks the model for scores only. This module chooses the
+The attention phase asks the model for scores only. This module chooses the
 winners with fixed, inspectable rules, so a reader can see why one nomination
 won and another waited. It never calls a model and never writes state.
 
@@ -21,8 +21,9 @@ Rules, in order:
 """
 from __future__ import annotations
 
-from workflows.main_cognition.codelet_schedule import AttentionPolicy
-from workflows.main_cognition.schemas import AttentionNomination, AttentionResult
+from workflows.main_cognition.schemas import (
+    AttentionNomination, AttentionPolicy, AttentionResult, CompetitionTrace, RankingEntry,
+)
 
 SCORE_AXES = ("urgency", "novelty", "goal_relevance", "reportability")
 
@@ -75,15 +76,16 @@ def compete(nominations: list[AttentionNomination], policy: AttentionPolicy, *,
             nomination.status, nomination.reason = "selected", f"score {raw:g}"
             winners.append(nomination)
     selected_ids = list(dict.fromkeys(int(key) for item in winners for key in item.target_ids))
-    trace = {
-        "policy": policy.model_dump(mode="json"),
-        "danger": danger,
-        "deliberate_bias": dict(biases or {}),
-        "ranking": [{"nomination_id": item.nomination_id, "codelet": item.codelet, "score": raw,
-                     "status": item.status, "reason": item.reason} for raw, _, item in order],
-        "rejected": [{"nomination_id": item.nomination_id, "codelet": item.codelet, "reason": item.reason}
-                     for item in nominations if item.status == "rejected"],
-    }
+    trace = CompetitionTrace(
+        policy=policy,
+        danger=danger,
+        deliberate_bias=dict(biases or {}),
+        ranking=[RankingEntry(nomination_id=item.nomination_id, codelet=item.codelet, score=raw,
+                              status=item.status, reason=item.reason) for raw, _, item in order],
+        rejected=[RankingEntry(nomination_id=item.nomination_id, codelet=item.codelet, status=item.status,
+                               reason=item.reason)
+                  for item in nominations if item.status == "rejected"],
+    )
     summary = ", ".join(f"{item.codelet}:{item.nomination_id}" for item in winners) or "nothing"
     return AttentionResult(
         nominations=nominations,

@@ -62,7 +62,7 @@ class ManagementWiringTests(unittest.TestCase):
                 None, Path(tmp), ghost=ghost, cognition="real",
                 stage_model=StubStageModel(), clock=time.monotonic,
             )
-            names = {item["name"] for item in app.main_cog.workflow_catalogue}
+            names = {item.name for item in app.main_cog.workflow_catalogue}
             self.assertIn("focus_management", names)
             self.assertIsNotNone(app.focus_management)
             self.assertTrue(any(module is app.focus_management for module in app.modules))

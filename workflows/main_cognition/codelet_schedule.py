@@ -3,9 +3,9 @@
 A codelet is a small, declared process that can offer a proposal to attention
 competition. This module decides *which* codelets run in one cycle. It never
 calls a model, reads the MemoryStore, or writes files. The codelets stage
-calls it with values that the main module derived from committed state.
+phase calls it with values that the main module derived from committed state.
 
-The catalogue is a workflow resource (``stages/codelets/catalogue.yaml``).
+The catalogue is a workflow resource (``phases/codelet_catalogue.yaml``).
 Its version and a SHA-256 digest of its bytes go into every trace, so a
 changed configuration is visible in the committed evidence.
 
@@ -40,11 +40,22 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pm.records.mental_state import FullMentalState
 from workflows.main_cognition.affect_dynamics import THREAT_APPRAISAL_THRESHOLD
 from workflows.main_cognition.pathways import PathwayDefinition, pathway_map
-from workflows.main_cognition.schemas import PROPOSAL_KINDS, PROPOSAL_ORIGINS, REALITY_LABELS
+from workflows.main_cognition.schemas import (
+    PROPOSAL_KINDS, PROPOSAL_ORIGINS, REALITY_LABELS, AppraisalResult, AttentionPolicy, CodeletHistory, Stimulus,
+)
 
-DEFAULT_CATALOGUE = Path(__file__).resolve().parent / "stages" / "codelets" / "catalogue.yaml"
+DEFAULT_CATALOGUE = Path(__file__).resolve().parent / "phases" / "codelet_catalogue.yaml"
 
 CODELET_KINDS = ("pure", "llm")
+
+
+def signal(signals: dict[str, float], name: str) -> float:
+    """Return one named signal.
+
+    The signal map is sparse by design: a signal that no source supplied
+    counts as 0.0. This keeps a gate on an unavailable value closed.
+    """
+    return float(signals.get(name, 0.0))
 TRIGGER_OPERATORS = (">=", "<=", ">", "<", "==")
 
 
@@ -69,7 +80,7 @@ class Condition(BaseModel):
         A signal that is absent counts as 0.0. This keeps a gate on an
         unavailable value closed instead of raising during a live cycle.
         """
-        actual = float(signals.get(self.signal, 0.0))
+        actual = signal(signals, self.signal)
         return {
             ">=": actual >= self.value,
             "<=": actual <= self.value,
@@ -137,27 +148,6 @@ class CodeletDefinition(BaseModel):
         if self.reality not in REALITY_LABELS:
             raise ValueError(f"Codelet {self.name}: unknown reality label {self.reality!r}.")
         return self
-
-
-class AttentionPolicy(BaseModel):
-    """Per-loop attention settings.
-
-    The main loop uses ``main``. A17 adds an ``inner`` policy for the second
-    conscious loop without a code change.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    activation_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
-    max_llm_codelets: int = Field(default=3, ge=0)
-    danger_llm_codelets: int = Field(default=0, ge=0)
-    capacity: int = Field(default=4, ge=1)
-    min_score: float = Field(default=0.3, ge=0.0, le=1.0)
-    score_batch_size: int = Field(default=8, ge=1)
-    weights: dict[str, float] = Field(default_factory=lambda: {
-        "urgency": 0.35, "novelty": 0.15, "goal_relevance": 0.3, "reportability": 0.2})
-    danger_urgency_bonus: float = Field(default=0.3, ge=0.0)
-    reserved_codelets: dict[str, int] = Field(default_factory=dict)
 
 
 class Catalogue(BaseModel):
@@ -238,24 +228,33 @@ def state_signals(state: FullMentalState | None) -> dict[str, float]:
             value = getattr(container, name)
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 signals[f"{prefix}.{name}"] = round(float(value), 4)
-    valence = signals.get("core.valence", 0.0)
+    valence = signal(signals, "core.valence")
     signals["core.negative_valence"] = round(max(0.0, -valence), 4)
     signals["core.positive_valence"] = round(max(0.0, valence), 4)
     emotions = {key: value for key, value in signals.items() if key.startswith("emotion.")}
     signals["emotion.strongest"] = max(emotions.values(), default=0.0)
     signals["emotion.negative_strongest"] = max(
-        (signals.get(f"emotion.{name}", 0.0) for name in NEGATIVE_EMOTIONS), default=0.0)
+        (signal(signals, f"emotion.{name}") for name in NEGATIVE_EMOTIONS), default=0.0)
     return signals
 
 
-def request_signals(request: dict) -> dict[str, float]:
-    """Derive event signals from the cycle request and earlier stage reports.
+def request_signals(
+    stimuli: list[Stimulus],
+    *,
+    active_goal_count: int,
+    selected_memory_count: int,
+    seconds_since_user_input: float | None,
+    regulation: str,
+    appraisal: AppraisalResult,
+) -> dict[str, float]:
+    """Derive event signals from the cycle input and earlier phase results.
 
     ``stimulus.user`` and ``stimulus.thought`` are separate signals. A codelet
     gated on a private thought therefore never fires for an outside message.
+    ``seconds_since_user_input`` is None when no earlier user message exists.
     """
-    kinds = [str(item.get("kind", "")) for item in request.get("stimuli", [])]
-    sources = [str(item.get("source", "")) for item in request.get("stimuli", [])]
+    kinds = [item.kind for item in stimuli]
+    sources = [item.source for item in stimuli]
     signals = {
         "stimulus.count": float(len(kinds)),
         "stimulus.user": 1.0 if any(kind == "user.input" for kind in kinds) or "user_input" in sources else 0.0,
@@ -263,19 +262,16 @@ def request_signals(request: dict) -> dict[str, float]:
         "stimulus.workflow": 1.0 if any(kind.startswith("workflow.") for kind in kinds) else 0.0,
         "stimulus.system": 1.0 if "system.lifecycle" in kinds else 0.0,
         "stimulus.world": 1.0 if "minecraft.world" in kinds else 0.0,
-        "goals.active": float(len(request.get("active_goal_records") or request.get("active_goals") or [])),
-        "memories.selected": float(len((request.get("context") or {}).get("candidate_ids", []))),
+        "goals.active": float(active_goal_count),
+        "memories.selected": float(selected_memory_count),
     }
-    idle = request.get("seconds_since_user_input")
+    idle = seconds_since_user_input
     signals["time.idle_hours"] = round(float(idle) / 3600.0, 4) if idle is not None else 0.0
-    affect = request.get("affect") or {}
-    signals["regulation.reactive"] = 1.0 if affect.get("regulation") == "reactive" else 0.0
-    appraisal = request.get("appraisal") or {}
-    error = float(appraisal.get("expectation_error", 0.0) or 0.0)
+    signals["regulation.reactive"] = 1.0 if regulation == "reactive" else 0.0
+    error = float(appraisal.expectation_error)
     signals["appraisal.disappointment"] = round(max(0.0, -error), 4)
     signals["appraisal.pleasant_surprise"] = round(max(0.0, error), 4)
-    axes = {axis: float(value) for axis, value in (appraisal.get("appraisal") or {}).items()
-            if isinstance(value, (int, float))}
+    axes = {axis: float(value) for axis, value in appraisal.appraisal.items()}
     signals.update({f"appraisal.{axis}": value for axis, value in axes.items()})
     # Inverted axes. The underlying appraisal fields stay as they are; these
     # derived signals let a boost or gate rise when something is missing, such
@@ -294,9 +290,9 @@ def in_danger(signals: dict[str, float]) -> bool:
 
     Danger is an appraised bodily threat at or above the A07 threat
     threshold. Fear alone is not danger: in the A15 live gate a private
-    thought about losing Jesse raised fear above 0.55 with no threat at all.
+    thought about losing the user raised fear above 0.55 with no threat at all.
     """
-    return float(signals.get("appraisal.bodily_threat", 0.0)) >= THREAT_APPRAISAL_THRESHOLD
+    return signal(signals, "appraisal.bodily_threat") >= THREAT_APPRAISAL_THRESHOLD
 
 
 @dataclass
@@ -310,17 +306,18 @@ class Decision:
     cause: list[str] = field(default_factory=list)
 
 
-def _cooldown(definition: CodeletDefinition, history: dict) -> bool:
+def _cooldown(definition: CodeletDefinition, history: CodeletHistory | None) -> bool:
     """Return True while the codelet must wait.
 
-    ``history`` comes from committed ``AttentionRecord`` evidence, so a
-    restart keeps cooldowns. ``cycles_since`` counts committed cycles since the
-    codelet last produced a nomination. ``seconds_since`` is wall time.
+    ``history`` comes from committed attention frame evidence, so a restart
+    keeps cooldowns. It is None for a codelet that never ran.
+    ``cycles_since`` counts committed cycles since the codelet last ran.
+    ``seconds_since`` is wall time.
     """
-    if not history:
+    if history is None:
         return False
-    cycles = history.get("cycles_since")
-    seconds = history.get("seconds_since")
+    cycles = history.cycles_since
+    seconds = history.seconds_since
     if definition.cooldown_ticks and cycles is not None and int(cycles) < definition.cooldown_ticks:
         return True
     if definition.cooldown_seconds and seconds is not None and float(seconds) < definition.cooldown_seconds:
@@ -331,7 +328,7 @@ def _cooldown(definition: CodeletDefinition, history: dict) -> bool:
 def schedule(
     loaded: LoadedCatalogue,
     signals: dict[str, float],
-    history: dict[str, dict],
+    history: dict[str, CodeletHistory],
     *,
     loop: str = "main",
 ) -> tuple[list[Decision], AttentionPolicy]:
@@ -348,14 +345,14 @@ def schedule(
         cause = [condition.label() for condition in definition.when if condition.holds(signals)]
         activation = definition.base_activation
         for boost in definition.boost:
-            value = float(signals.get(boost.signal, 0.0))
+            value = signal(signals, boost.signal)
             activation += boost.weight * value
             if boost.weight and value:
                 cause.append(f"{boost.signal}={value:g}")
         activation = round(min(1.0, max(0.0, activation)), 4)
         if closed:
             decisions.append(Decision(definition, False, "gate", activation, ["closed: " + "; ".join(closed)]))
-        elif _cooldown(definition, history.get(definition.name, {})):
+        elif _cooldown(definition, history.get(definition.name)):
             decisions.append(Decision(definition, False, "cooldown", activation, cause))
         elif activation < policy.activation_threshold:
             decisions.append(Decision(definition, False, "threshold", activation, cause))
@@ -386,5 +383,6 @@ __all__ = [
     "load_catalogue",
     "request_signals",
     "schedule",
+    "signal",
     "state_signals",
 ]

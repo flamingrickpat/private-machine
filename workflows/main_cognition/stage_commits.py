@@ -22,6 +22,12 @@ from pm.records.base import Provenance
 from pm.records.enums import FeatureSubtype, FeatureType, InterlocusType, IntentionType, SourceKind
 from pm.records.cognitive_records import BeliefRecord, BeliefShiftRecord, Intention
 from pm.records.mental_state import FullMentalState
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # ``public_context`` imports this module, and the schemas import
+    # ``public_context``. The types are for annotations only.
+    from workflows.main_cognition.schemas import AppraisalResult, AttentionNomination, GoalChange
 
 
 def _normalize_topic(text: str, limit: int = 48) -> str:
@@ -47,40 +53,33 @@ def normalize_goal_key(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "").strip().lower())
 
 
-def goal_identity(change) -> str:
+def goal_identity(change: GoalChange) -> str:
     """Return the stable key for a goal change, preferring an explicit key."""
-    explicit = str(getattr(change, "goal_key", "") or "").strip().lower()
-    return explicit or normalize_goal_key(getattr(change, "goal", ""))
+    explicit = change.goal_key.strip().lower()
+    return explicit or normalize_goal_key(change.goal)
 
 
-def intention_key(intention) -> str:
-    """Return the identity of an existing intention knoxel."""
-    metadata = getattr(intention, "metadata", None) or {}
-    explicit = str(metadata.get("goal_key", "") or "").strip().lower()
-    return explicit or normalize_goal_key(getattr(intention, "content", ""))
+def intention_key(intention: Intention) -> str:
+    """Return the identity of an existing intention record.
+
+    Intentions that the goals commit created carry ``goal_key`` in their
+    metadata. Older intentions resolve by their normalized text.
+    """
+    explicit = str(intention.metadata["goal_key"]).strip().lower() if "goal_key" in intention.metadata else ""
+    return explicit or normalize_goal_key(intention.content)
 
 
-def active_intentions(record_source) -> list:
-    """Return active Intention knoxels from a MemoryStore view or a MemoryStore.
+def active_intentions(record_source) -> list[Intention]:
+    """Return active Intention records from a MemoryStore view or a MemoryStore.
 
     ``record_source`` may be a batch view or a MemoryStore. Only intentions with an
     ``active`` flag and an ``active`` status steer current work.
     """
-    if hasattr(record_source, "all_knoxels"):
-        records = record_source.all_knoxels
-        if isinstance(records, dict):
-            candidates = records.values()
-        else:  # pragma: no cover - defensive for unusual owners
-            candidates = records
-    else:  # pragma: no cover - defensive for unusual owners
-        candidates = []
     result = []
-    for knoxel in candidates:
+    for knoxel in record_source.all_knoxels.values():
         if not isinstance(knoxel, Intention):
             continue
-        if not getattr(knoxel, "active", False):
-            continue
-        if str(getattr(knoxel, "status", "active")) != "active":
+        if not knoxel.active or knoxel.status != "active":
             continue
         result.append(knoxel)
     result.sort(key=lambda item: (-float(item.incentive_salience), item.id))
@@ -103,7 +102,7 @@ def find_intention(record_source, key: str):
 def apply_appraisal(
     batch,
     view,
-    appraisal,
+    appraisal: AppraisalResult,
     *,
     previous_vec,
     evidence_ids,
@@ -135,9 +134,9 @@ def apply_appraisal(
             expectation_error=expectation_error,
         )
     updated = projection.state
-    delta_vec = projection.delta.to_list()
-    feeling = str(getattr(appraisal, "feeling", "") or "")
-    reasoning = str(getattr(appraisal, "reasoning", "") or "")
+    delta_vec = list(projection.delta_vec)
+    feeling = appraisal.feeling
+    reasoning = appraisal.reasoning
     content = feeling or "appraisal"
     if reasoning:
         content = f"{content}: {reasoning}"
@@ -156,8 +155,8 @@ def apply_appraisal(
             "memory_trace": dict(memory_trace or {}),
             "origin": "appraisal",
             "evidence_ids": [int(item) for item in (evidence_ids or [])],
-            "emotion_delta": dict(getattr(appraisal, "emotion_delta", None) or {}),
-            "need_delta": dict(getattr(appraisal, "need_delta", None) or {}),
+            "emotion_delta": dict(appraisal.emotion_delta),
+            "need_delta": dict(appraisal.need_delta),
             "affect_trace": projection.trace,
             "affect_summary": projection.summary,
             "regulation": projection.regulation,
@@ -173,7 +172,7 @@ def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, 
     metadata = {
         "goal_key": key,
         "origin": origin,
-        "reason": str(getattr(change, "reason", "") or ""),
+        "reason": change.reason,
         "evidence_ids": [int(item) for item in (evidence_ids or [])],
         "appraisal_id": appraisal_id,
         "choice_history": [{"change": str(change.change), "reason": str(change.reason),
@@ -185,7 +184,7 @@ def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, 
         content=goal,
         entity_id=0,
         affective_valence=0.0,
-        incentive_salience=_clamp01(float(getattr(change, "priority", 0.5) or 0.5)),
+        incentive_salience=_clamp01(float(change.priority or 0.5)),
         intention_type=IntentionType.WorldState,
         status=status,
         active=active,
@@ -193,7 +192,7 @@ def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, 
     ))
 
 
-def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id: int | None = None,
+def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=None, appraisal_id: int | None = None,
                        origin="main_appraisal") -> list[dict]:
     """Stage goal lifecycle changes and return one record per change.
 
@@ -207,9 +206,9 @@ def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id:
     map staged ids to committed ids after one commit.
     """
     records: list[dict] = []
-    for change in changes or []:
-        kind = str(getattr(change, "change", "") or "").strip().lower()
-        goal = str(getattr(change, "goal", "") or "").strip()
+    for change in changes:
+        kind = change.change.strip().lower()
+        goal = change.goal.strip()
         key = goal_identity(change)
         # Refresh the view so an intention added earlier in this batch is visible.
         existing = find_intention(batch.view(), key) if key else None
@@ -237,7 +236,7 @@ def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id:
         elif kind == "reprioritize":
             if existing is not None:
                 replaced = existing
-                replaced.incentive_salience = _clamp01(float(getattr(change, "priority", 0.5)))
+                replaced.incentive_salience = _clamp01(float(change.priority))
                 batch.replace(replaced)
                 result = "reprioritized"
         elif kind == "defer":
@@ -275,8 +274,9 @@ def apply_goal_changes(batch, view, changes, *, evidence_ids=None, appraisal_id:
         intention_id = created_id if created_id is not None else (int(existing.id) if existing is not None else None)
         if created_id is None and intention_id is not None and kind != "retain" and result != "missing":
             intention = batch.view().get_knoxel_by_id(intention_id)
-            history = list(intention.metadata.get("choice_history", []))
-            history.append({"change": kind, "reason": str(getattr(change, "reason", "") or ""),
+            # Only intentions with earlier changes carry a choice history.
+            history = list(intention.metadata["choice_history"]) if "choice_history" in intention.metadata else []
+            history.append({"change": kind, "reason": change.reason,
                             "evidence_ids": list(evidence_ids or []), "appraisal_id": appraisal_id})
             intention.metadata.update(reason=history[-1]["reason"], evidence_ids=list(evidence_ids or []),
                                       appraisal_id=appraisal_id, choice_history=history)
@@ -294,7 +294,7 @@ BELIEF_REALITIES = frozenset({"inferred", "internal"})
 
 def apply_belief_proposals(
     batch,
-    nominations,
+    nominations: list[AttentionNomination],
     *,
     companion_name: str,
     stale_ids: set[str] | None = None,
@@ -324,24 +324,24 @@ def apply_belief_proposals(
     view = batch.view()
     accepted, retained, revised, rejected = [], [], [], []
     for nomination in nominations or []:
-        if str(getattr(nomination, "attention_kind", "")) != "belief":
+        if nomination.attention_kind != "belief":
             continue
-        if str(getattr(nomination, "status", "")) != "selected":
+        if nomination.status != "selected":
             continue
-        if str(getattr(nomination, "nomination_id", "")) in stale:
+        if nomination.nomination_id in stale:
             continue
-        text = " ".join(str(getattr(nomination, "text", "") or "").split())
+        text = " ".join(nomination.text.split())
         if not text:
             continue
-        reality = str(getattr(nomination, "reality", "") or "")
+        reality = nomination.reality
         if reality not in BELIEF_REALITIES:
-            rejected.append({"nomination_id": getattr(nomination, "nomination_id", ""),
+            rejected.append({"nomination_id": nomination.nomination_id,
                              "reason": f"belief proposal reality {reality!r} is not a permitted interpretation"})
             continue
-        codelet = str(getattr(nomination, "codelet", "") or "")
-        topic = _normalize_topic(getattr(nomination, "topic", "") or text)
+        codelet = nomination.codelet
+        topic = _normalize_topic(nomination.topic or text)
         key = f"codelet:{codelet}:{topic}"
-        targets = [int(item) for item in getattr(nomination, "target_ids", []) or []]
+        targets = list(nomination.target_ids)
         in_view = [item for item in dict.fromkeys(targets) if view.get_knoxel_by_id(item) is not None]
         dropped = [item for item in targets if item not in in_view]
         prior = [record for record in view.all_knoxels.values()
@@ -358,11 +358,11 @@ def apply_belief_proposals(
                 batch.replace(existing)
             retained.append(existing.id)
             continue
-        scope = getattr(view.get_knoxel_by_id(in_view[0]), "scope", None) if in_view else None
+        scope = view.get_knoxel_by_id(in_view[0]).scope if in_view else None
         metadata = {
             "memory_kind": "subjective_belief",
             "codelet": codelet,
-            "nomination_id": str(getattr(nomination, "nomination_id", "")),
+            "nomination_id": nomination.nomination_id,
             "reality": reality,
             "catalogue_version": catalogue_version,
             "topic": topic,

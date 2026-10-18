@@ -2,7 +2,7 @@
 
 Start this file in PyCharm with the project interpreter (``.venv``) and the
 repository root as the working directory. Set a breakpoint, for example in
-``workflows/main_cognition/stages/triage/steps.py`` at ``run``.
+``workflows/main_cognition/phases/triage.py`` at ``run``.
 
 Each start copies ``ghost.json`` into a fresh directory under
 ``.runtime/situations/story_continuation/``. The situation folder stays unchanged.

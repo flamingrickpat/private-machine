@@ -1,39 +1,62 @@
-"""Module-level tool factory for the real main-cognition parent.
+"""Bus module and tool factory of the main cognition cycle.
 
-The application supplies one lazily-activated completion callable. This module
-binds it, the MemoryStore, and the runtime root into the ``run_stage`` tool the
-parent Python role names in its manifest. Each ``run_stage`` call builds a
-fresh read-only MemoryStore projection and invokes the real child kernel exactly as
-the child's standalone tests do.
+``MainCogLoop`` turns one bus batch into one run of
+``main_cognition.workflow.md``. It builds the typed
+:class:`~workflows.main_cognition.cycle_work.CycleRequest` from committed
+state, lets the phases run, and then commits the final
+:class:`~workflows.main_cognition.cycle_work.CycleWork` in one write batch.
+After the commit it publishes the bus events.
+
+The application supplies one lazily activated completion callable.
+:func:`build_main_cognition_tools` binds it as the ``llm_complete`` tool of
+each run. The phases call the model only through that tool.
 """
 from __future__ import annotations
 
-from pathlib import Path
-import json
-import traceback
-from typing import Callable
-from pm.llm.completion import TextCompletion
-from collections.abc import Mapping
-
-from workflows.main_cognition.stage_runner import build_stage_runner
-from workflows.main_cognition.stage_support import ModelFormatError
 import asyncio
+import json
+import threading
+import traceback
+from collections.abc import Sequence
 from datetime import datetime, timedelta
-from workflows.main_cognition.affect_dynamics import AffectProjection
-from pm.records.cycle_state import CycleState
-from pm.records.global_workspace import GwtTurnRecord
-from pm.records.memory_records import ActionSchemaRecord
-from pm.records.enums import ActionType, FeatureType, SourceKind
+from pathlib import Path
+from typing import Callable
+
+from pydantic import BaseModel
+
+from pm.bus.envelopes import Envelope, new_envelope, new_id
+from pm.constants import CCQ_LENGTH
+from pm.llm.completion import TextCompletion
+from pm.llm.prompt_encoding import TurnInput, normalize_turns
+from pm.memory.snapshot import GhostCancelled
 from pm.records.cognitive_records import AttentionFrameRecord, AttentionRecord
-from pm.records.mental_state import FullMentalState, create_empty_state
+from pm.records.cycle_records import ActionDispatchRef, BroadcastRef
+from pm.records.cycle_state import CycleState
+from pm.records.mental_state import FullMentalState
+from pm.records.workspace import SELF_SHARD
+from pm.records.enums import ActionType, FeatureType, SourceKind
+from pm.records.global_workspace import GwtTurnRecord
+from pm.records.memory_records import ActionSchemaRecord, new_feature
+from pm.runs.workflow_module import CognitiveWorkflow
+from workflows.cognitive_control.schemas import FocusState, MentalPlan
+from workflows.inference_settings import REASONING
+from workflows.main_cognition.codelet_schedule import LoadedCatalogue, load_catalogue
+from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.experience import consolidate_cycle, update_beliefs
-from pm.bus.envelopes import Envelope, new_id
-from workflows.main_cognition.codelet_schedule import load_catalogue
-from workflows.main_cognition.pipeline import DEFAULT_WORKFLOWS, proposal_consumers
+from workflows.main_cognition.model_json import ModelFormatError
+from workflows.main_cognition.phases.decide import primary_group
+from workflows.main_cognition.phases.goals import proposal_consumers
 from workflows.main_cognition.schemas import (
-    CognitiveReport,
-    CognitiveRequest,
+    CodeletHistory,
+    CodeletRun,
+    FocusProposalRef,
+    GoalChange,
+    GoalRecordView,
+    ManagedRunView,
     MemoryCandidate,
+    MentalProposal,
+    PathwayPrecursor,
+    ReflectionGuidance,
     Stimulus,
     WorkflowOption,
 )
@@ -41,67 +64,69 @@ from workflows.main_cognition.stage_commits import (
     active_goal_texts, active_intentions, apply_appraisal, apply_belief_proposals, apply_goal_changes,
 )
 from workflows.public_speech.public_context import build_public_context
-from pm.bus.envelopes import new_envelope
-from pm.records.memory_records import new_feature
-from workflows.public_speech.public_dialogue import _clip, _recency
-from pm.runs.workflow_module import CognitiveWorkflow
-from pm.memory.snapshot import GhostCancelled
 
 
 def build_main_cognition_tools(
     ghost,
     runtime_root: Path,
     llm_complete: TextCompletion,
-    *, generation_overrides: Mapping[str, Mapping[str, object]] | None = None,
-    cancel_provider: Callable | None = None,
+    *,
+    cancel_provider: Callable[[], threading.Event] | None = None,
 ) -> Callable[[object, object], dict]:
-    """Return the ``tools_factory(environment, batch)`` for the parent module."""
+    """Return the ``tools_factory(environment, batch)`` of the main module.
+
+    The factory grants one ``llm_complete`` tool to each run. The tool turns
+    hidden reasoning off, because a reasoning budget exhausted real
+    completions before. It passes the run's cancellation signal, so a failed
+    parallel call or a cancelled run also stops its sibling calls.
+    ``ghost`` and ``runtime_root`` stay in the signature for the application
+    wiring. Phases never read the store through the tool.
+    """
 
     def factory(environment, batch) -> dict:
-        return {"run_stage": build_stage_runner(ghost, llm_complete, Path(runtime_root),
-                                               read_environment=environment, generation_overrides=generation_overrides,
-                                               cancel=cancel_provider() if cancel_provider is not None else None)}
+        stop = cancel_provider() if cancel_provider is not None else threading.Event()
+
+        def complete(messages: Sequence[TurnInput], **generation: object) -> str:
+            generation["reasoning_budget"] = REASONING["off"]
+            return llm_complete(normalize_turns(messages), cancel=stop, **generation)
+
+        return {"llm_complete": complete}
 
     return factory
-
-
-__all__ = ["build_main_cognition_tools"]
 
 
 ACTION_BY_NAME = {member.value: member for member in ActionType}
 
 
-def _recent_thoughts(ghost, limit: int = 4) -> list[str]:
-    thoughts = [
-        knoxel for knoxel in ghost.all_features
-        if knoxel.feature_type in {FeatureType.Thought, FeatureType.InnerMonologue}
-        and str(knoxel.content).strip()
-    ]
-    thoughts.sort(key=_recency)
-    return [
-        f"{ghost.get_companion_name()} thinks: *{knoxel.content}*"
-        for knoxel in thoughts[-limit:]
-    ]
+class QueryRewrite(BaseModel):
+    """The retrieval query that the rewrite provider derived from the stimuli."""
+
+    query: str = ""
+    evidence_use: str = "general"
+    status: str = "literal"
 
 
-def _memory_candidates(ghost, limit: int = 16) -> list[MemoryCandidate]:
-    """Bounded candidates for the context stage to re-rank. No embeddings here."""
-    items: dict[int, str] = {}
-    dialogue = [
-        knoxel for knoxel in ghost.all_features
-        if knoxel.feature_type == FeatureType.Dialogue and str(knoxel.content).strip()
-    ]
-    dialogue.sort(key=_recency)
-    for knoxel in dialogue[-limit:]:
-        items[knoxel.id] = str(knoxel.content)
-    for knoxel in sorted(ghost.all_declarative_facts, key=lambda k: (-k.importance, k.id))[:limit]:
-        items.setdefault(knoxel.id, str(knoxel.content))
-    for knoxel in sorted(ghost.all_narratives, key=_recency)[-8:]:
-        items.setdefault(knoxel.id, str(knoxel.content))
-    return [
-        MemoryCandidate(knoxel_id=knoxel_id, text=_clip(text))
-        for knoxel_id, text in items.items()
-    ]
+class WorkflowQuestionPayload(BaseModel):
+    """The payload of a ``workflow.question`` telemetry message."""
+
+    question: str = ""
+
+
+class WorkflowEventPayload(BaseModel):
+    """The payload fields of a ``workflow.event`` message that cognition reads."""
+
+    run_id: str = ""
+    event: str = ""
+    detail: str = ""
+    message: str = ""
+    artifact_path: str = ""
+    executed_at: str | None = None
+
+
+class KnoxelPayload(BaseModel):
+    """The record reference of a data message. Some topics carry none."""
+
+    knoxel_id: int | None = None
 
 
 def _capabilities(ghost) -> list[str]:
@@ -109,44 +134,45 @@ def _capabilities(ghost) -> list[str]:
 
 
 def _state_summary(ghost) -> str:
-    turns = getattr(ghost, "gwt_turns", None) or {}
+    """Return the summary of the newest broadcast, or an empty text before the first one."""
+    turns = ghost.gwt_turns
     if not turns:
         return ""
-    return str(getattr(turns[max(turns)], "summary", ""))
+    return turns[max(turns)].summary
 
 
-def codelet_history(ghost) -> dict[str, dict]:
+def codelet_history(ghost) -> dict[str, CodeletHistory]:
     """Return per-codelet run history from committed attention frames.
 
-    Each committed ``AttentionFrameRecord`` stores the codelets that ran in
-    its cycle under ``metadata["codelet_runs"]``. Runs that stayed silent
-    count too, so a quiet LLM codelet still waits out its cooldown and does
-    not spend a model call every cycle. The history is derived, never stored
-    separately, so it survives restart and has one owner: the MemoryStore.
-
-    ``cycles_since`` is the number of committed cycles after the last run.
-    ``seconds_since`` uses the frame's creation time.
+    Each committed main ``AttentionFrameRecord`` stores the codelets that ran
+    in its cycle under ``metadata["codelet_runs"]``. Frames of the private
+    loop have no such entry. Runs that stayed silent count too, so a quiet LLM
+    codelet still waits out its cooldown and does not spend a model call every
+    cycle. The history is derived, never stored separately, so it survives
+    restart and has one owner: the MemoryStore.
     """
     frames = sorted(ghost.all_attention_frames, key=lambda item: (item.tick_id, item.id))
     if not frames:
         return {}
     latest_tick = max(int(item.tick_id) for item in frames)
     now = datetime.utcnow()
-    history: dict[str, dict] = {}
+    history: dict[str, CodeletHistory] = {}
     for frame in frames:
-        for entry in frame.metadata.get("codelet_runs", []) or []:
-            name = str(entry.get("codelet", ""))
-            if not name or entry.get("status") not in {"ran", "silent", "failed"}:
+        if "codelet_runs" not in frame.metadata:
+            continue
+        for entry in frame.metadata["codelet_runs"]:
+            run = CodeletRun.model_validate(entry)
+            if not run.codelet or run.status not in {"ran", "silent", "failed"}:
                 continue
-            record = history.setdefault(name, {"runs": 0})
-            record["runs"] += 1
-            record["last_tick"] = int(frame.tick_id)
-            record["cycles_since"] = latest_tick - int(frame.tick_id)
-            record["seconds_since"] = max(0.0, (now - frame.timestamp_creation).total_seconds())
+            record = history.setdefault(run.codelet, CodeletHistory())
+            record.runs += 1
+            record.last_tick = int(frame.tick_id)
+            record.cycles_since = latest_tick - int(frame.tick_id)
+            record.seconds_since = max(0.0, (now - frame.timestamp_creation).total_seconds())
     return history
 
 
-def pathway_precursors(ghost, loaded) -> tuple[list[dict], int]:
+def pathway_precursors(ghost, loaded: LoadedCatalogue) -> tuple[list[PathwayPrecursor], int]:
     """Derive fresh pathway precursor evidence from committed attention.
 
     A precursor is a committed ``AttentionRecord`` that attention accepted
@@ -156,7 +182,7 @@ def pathway_precursors(ghost, loaded) -> tuple[list[dict], int]:
     carries the record's revision at read time; the trace keeps it visible.
 
     Returns ``(precursors, latest_tick)`` where ``latest_tick`` is the newest
-    committed attention tick. The codelets stage measures tick age from it,
+    committed attention tick. The codelets phase measures tick age from it,
     not from the newest precursor, so an old precursor keeps its true age.
     """
     pathways = loaded.catalogue.pathway_map()
@@ -179,17 +205,14 @@ def pathway_precursors(ghost, loaded) -> tuple[list[dict], int]:
             tick = int(record.tick_id)
             if latest_tick - tick >= window:
                 continue
-            precursors.append({
-                "codelet": codelet,
-                "record_id": int(record.id),
-                "tick_id": tick,
-                "attention_kind": str(record.attention_kind),
-                "reality": str(record.metadata.get("reality", "")),
-                "family": str(record.metadata.get("family", "")),
-                "pathways": list(membership[codelet]),
-                "selected": True,
-                "revision": int(ghost.revisions.get(int(record.id), 1)),
-            })
+            # The main commit writes reality and family on every codelet record.
+            precursors.append(PathwayPrecursor(
+                codelet=codelet, record_id=int(record.id), tick_id=tick,
+                attention_kind=str(record.attention_kind),
+                reality=str(record.metadata["reality"]), family=str(record.metadata["family"]),
+                pathways=list(membership[codelet]), selected=True,
+                revision=int(ghost.revisions[int(record.id)]),
+            ))
     return precursors, latest_tick
 
 
@@ -217,50 +240,26 @@ def stale_nominations(nominations, revisions) -> set[str]:
     """
     stale = set()
     for nomination in nominations:
-        for key, seen in (nomination.source_revisions or {}).items():
-            if revisions.get(int(key)) != int(seen):
+        for key, seen in nomination.source_revisions.items():
+            if int(key) not in revisions or revisions[int(key)] != int(seen):
                 stale.add(nomination.nomination_id)
                 break
     return stale
 
 
-def _projection_from_report(report, previous_vec) -> AffectProjection | None:
-    """Rebuild the parent affect projection from the committed report.
-
-    The result lets the module commit the exact state that the stages already
-    saw. A report without a latent vector returns None, and the caller then
-    recomputes the step from the previous accepted state.
-    """
-    vector = list(getattr(report, "mental_state_latent_vec", None) or [])
-    if not vector:
-        return None
-    updated = FullMentalState.init_from_list(vector)
-    previous = FullMentalState.init_from_list(previous_vec) if previous_vec else create_empty_state()
-    delta = FullMentalState.init_from_list(
-        [new - old for new, old in zip(updated.to_list(), previous.to_list())]
-    )
-    trace = dict(getattr(report, "affect_trace", None) or {})
-    behavior = dict(trace.get("behavior", {})) if isinstance(trace.get("behavior"), dict) else {}
-    regulation = str(getattr(report, "regulation", "") or trace.get("regulation", "") or "")
-    return AffectProjection(
-        state=updated,
-        delta=delta,
-        trace=trace,
-        summary=str(getattr(report, "affect_summary", "") or ""),
-        attention_bias=(0.0, 0.0),
-        regulation=regulation,
-        behavior=behavior,
-    )
-
-
 class MainCogLoop(CognitiveWorkflow):
-    """Real cognitive parent: eight stages, committed GWT, typed dispatches.
+    """Real cognitive parent: one typed phase sequence, committed GWT, typed dispatches.
 
-    The parent workflow owns the stage order and the dispatch ids. This module
-    owns the bus: it builds one typed request from the batch, commits one
-    attention frame, GWT turn, and action schema per released dispatch, then
-    publishes ``action.request`` targeted at each dispatch's workflow name.
-    Rejected dispatches publish an explicit receipt and never an action.
+    The workflow owns the phase order and the dispatch ids. This module owns
+    the bus and the store: it builds one typed request from the batch,
+    commits one attention frame, GWT turn, cycle state, and action schema per
+    released dispatch in one write batch, then publishes ``action.request``
+    targeted at each dispatch's workflow name. Rejected dispatches publish an
+    explicit receipt and never an action.
+
+    The application sets ``cognitive_control``, ``release_private_results``,
+    ``capability_provider``, and ``retrieval_query_provider`` after
+    construction. Each stays None when the application does not use it.
     """
 
     WORKFLOW_NAME = "main_cognition"
@@ -277,16 +276,32 @@ class MainCogLoop(CognitiveWorkflow):
         # The codelet catalogue is a workflow resource. ``None`` selects the
         # default file; a gate or persona can name another one.
         self.codelet_catalogue = str(codelet_catalogue) if codelet_catalogue else ""
-        # Configuration supplies the action space. The fixed catalogue remains
-        # the fallback so direct tests and older callers keep working.
-        self.workflow_catalogue = list(workflow_catalogue) if workflow_catalogue else None
+        # Configuration supplies the action space. The decide phase uses its
+        # default action space when this list is empty.
+        self.workflow_catalogue = [WorkflowOption.model_validate(item) for item in workflow_catalogue or []]
         self.embedding_config_path = embedding_config_path
         self._embeddings = None
         self._cancelled_invocation_id: str | None = None
+        self.invocation_id: str | None = None
+        self.cognitive_control = None
+        self.release_private_results: Callable | None = None
+        self.capability_provider: Callable | None = None
+        self.retrieval_query_provider: Callable | None = None
+        # Per-batch state. ``prepare_input`` sets it and ``publish_output``
+        # reads it for the same invocation.
+        self._event_stimuli: dict[str, tuple[int | None, str, str]] = {}
+        self._stimulus_ids: list[int] = []
+        self._stimulus_revisions: dict[int, int] = {}
+        self._focus_family_revisions: dict[int, int] = {}
+        self._focus_source_revisions: dict[int, int] = {}
+        self._batch_correlation = ""
+        self._memory_view = None
+        self._control_generation = 0
+        self._private_only = False
 
     def cancel_run(self) -> None:
         """Cancel this invocation and prevent a format retry for the same request."""
-        self._cancelled_invocation_id = getattr(self, "invocation_id", None)
+        self._cancelled_invocation_id = self.invocation_id
         super().cancel_run()
 
     def accepts(self, envelope: Envelope) -> bool:
@@ -296,22 +311,20 @@ class MainCogLoop(CognitiveWorkflow):
 
     def deliver(self, envelope: Envelope) -> None:
         """Record external wake causes before queueing the next cognition cycle."""
-        control = getattr(self, "cognitive_control", None)
-        if control is not None:
-            control.observe(envelope)
+        if self.cognitive_control is not None:
+            self.cognitive_control.observe(envelope)
         super().deliver(envelope)
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         """Honor a wait and reject obsolete private stimuli before inference."""
-        control = getattr(self, "cognitive_control", None)
+        control = self.cognitive_control
         original = batch
         if control is not None:
             batch, self._control_generation = control.admit(batch)
             if not batch:
                 control.release_wakes(original)
-                release = getattr(self, "release_private_results", None)
-                if release is not None:
-                    release(original)
+                if self.release_private_results is not None:
+                    self.release_private_results(original)
                 return
         self._private_only = bool(batch) and all(item.topic == "thought.created" for item in batch)
         try:
@@ -323,9 +336,8 @@ class MainCogLoop(CognitiveWorkflow):
         finally:
             if control is not None:
                 control.release_wakes(original)
-            release = getattr(self, "release_private_results", None)
-            if release is not None:
-                release(original)
+            if self.release_private_results is not None:
+                self.release_private_results(original)
 
     def _handle_awake_batch(self, batch: list[Envelope]) -> None:
         """Retry rejected model formats and revision conflicts without speech.
@@ -354,7 +366,7 @@ class MainCogLoop(CognitiveWorkflow):
                     {key: value for key, value in diagnostic.items() if key != "traceback"}))
                 # No report reached publication. Retain the original input and
                 # its event records while the next invocation reads fresh state.
-                # A failed parallel stage sets run_stop to join its siblings.
+                # A failed parallel call sets run_stop to join its siblings.
                 # Only an explicit run cancellation or module stop ends retry.
                 if (self.stop_event.wait(0.2)
                         or self._cancelled_invocation_id == self.invocation_id):
@@ -369,11 +381,60 @@ class MainCogLoop(CognitiveWorkflow):
                 if attempt == 3:
                     raise
 
+    def _retrieve(self, stimuli: list[Stimulus], memory_view, sources) -> tuple[list[MemoryCandidate], dict]:
+        """Retrieve memory candidates for the stimuli by embedding.
+
+        Returns the candidates and the retrieval trace of ``pm.memory``. The
+        trace stays an opaque mapping. The cycle stores it in record metadata.
+        A user message first goes through the query rewrite provider, when the
+        application supplies one.
+        """
+        frontier = max(((item.tick_id, item.sub_tick_id) for item in sources), default=None)
+        scopes = {(item.scope.reality_id, item.scope.frame.value) for item in sources} or None
+        if self.embedding_config_path and self._embeddings is None:
+            from pm.memory.embeddings import EmbeddingService
+            from pm.llm.config import load_config
+            self._embeddings = EmbeddingService(load_config(self.embedding_config_path).embedding)
+        original_query = "\n".join(item.text for item in stimuli)
+        if self.retrieval_query_provider is not None and any(item.source == "user_input" for item in stimuli):
+            rewrite = QueryRewrite.model_validate(self.retrieval_query_provider(original_query))
+        else:
+            rewrite = QueryRewrite(query=original_query)
+        retrieval = asyncio.run(self.ghost.retrieve_experiences(
+            rewrite.query, self._embeddings, view=memory_view,
+            frontier=frontier, scopes=scopes, cancel=self.run_stop,
+        ))
+        trace = retrieval["trace"]
+        trace["original_query"] = original_query
+        trace["query_rewrite"] = rewrite.model_dump(mode="json")
+        matches = [MemoryCandidate.model_validate(item) for item in retrieval["matches"]]
+        if rewrite.evidence_use == "event":
+            from pm.memory.retrieval import evidence_role
+            records = memory_view.serialize_knoxels()
+            selected_sources = {key for item in matches for key in item.source_ids if key in records}
+            original_sources = {key for key in selected_sources
+                                if evidence_role(memory_view, records[key]) in {"user_report", "runtime_event", "world_observation"}}
+            # An answer to a recall question cannot become event evidence for
+            # its repetition. Keep speech available for explicit speech recall.
+            rejected_ids = {item.knoxel_id for item in matches
+                            if item.evidence_role in {"companion_utterance", "intent", "imagined", "interpretation"}
+                            or item.evidence_role == "derived" and not original_sources.intersection(item.source_ids)}
+            matches = [item for item in matches if item.knoxel_id not in rejected_ids]
+            trace["speech_only_excluded_ids"] = sorted(rejected_ids)
+        return matches, trace
+
     def prepare_input(self, batch: list[Envelope]) -> dict:
+        """Build the typed cycle request from the batch and committed state.
+
+        Side effects: event stimuli become new store records (see
+        ``_stimulus_from``). The method records the revisions that the cycle
+        read, so the commit can reject the cycle when one of them changed.
+        """
+        # The working target owns the frozen permitted view. Materialized host
+        # events remain stimuli, but cannot expose concurrent future memory.
+        memory_view = self.last_environment.ghost_view
         stimuli: list[Stimulus] = []
-        self._stimulus_ids: list[int] = []
-        self._stimulus_records: list[dict] = []
-        self._stimulus_revisions: dict[int, int] = {}
+        self._stimulus_revisions = {}
         correlation = ""
         for envelope in batch:
             knoxel_id, text, kind = self._stimulus_from(envelope)
@@ -383,88 +444,64 @@ class MainCogLoop(CognitiveWorkflow):
                 knoxel_id=knoxel_id, source=envelope.source, text=text,
                 correlation_id=envelope.correlation_id, kind=kind,
             ))
-            self._stimulus_ids.append(knoxel_id)
-            self._stimulus_records.append(stimuli[-1].model_dump(mode="json"))
-            frozen = getattr(self.last_environment, "ghost_view", None)
-            if frozen is not None and knoxel_id in frozen.revisions:
-                self._stimulus_revisions[knoxel_id] = frozen.revisions[knoxel_id]
+            # Event records that the host created after the view froze are
+            # not in the view. Their revision comes from the store.
+            if knoxel_id in memory_view.revisions:
+                self._stimulus_revisions[knoxel_id] = memory_view.revisions[knoxel_id]
             else:
                 with self.ghost.lock:
                     self._stimulus_revisions[knoxel_id] = self.ghost.revisions[knoxel_id]
             if not correlation:
                 correlation = envelope.correlation_id
+        self._stimulus_ids = [item.knoxel_id for item in stimuli]
         # A queued task event cannot take the cause of a newer user request.
         # Individual stimuli retain their own correlation for attribution.
         user_correlations = [item.correlation_id for item in stimuli if item.source == "user_input"]
         if user_correlations:
             correlation = user_correlations[-1]
         self._batch_correlation = correlation
-        # The working target owns the frozen permitted view. Materialized host
-        # events remain stimuli, but cannot expose concurrent future memory.
-        environment_view = getattr(self.last_environment, "ghost_view", None)
-        memory_view = environment_view if environment_view is not None else self.ghost.snapshot()
         sources = [memory_view.get_knoxel_by_id(item.knoxel_id) or self.ghost.get_knoxel_by_id(item.knoxel_id)
                    for item in stimuli]
-        sources = [item for item in sources if item is not None]
-        frontier = max(((item.tick_id, item.sub_tick_id) for item in sources), default=None)
-        scopes = {(item.scope.reality_id, item.scope.frame.value) for item in sources} or None
-        if self.embedding_config_path and self._embeddings is None:
-            from pm.memory.embeddings import EmbeddingService
-            from pm.llm.config import load_config
-            self._embeddings = EmbeddingService(load_config(self.embedding_config_path).embedding)
-        original_query = "\n".join(item.text for item in stimuli)
-        rewrite = getattr(self, "retrieval_query_provider", None)
-        rewrite_result = (rewrite(original_query) if rewrite is not None and any(item.source == "user_input" for item in stimuli)
-                          else {"query": original_query, "evidence_use": "general", "status": "literal"})
-        query = rewrite_result["query"]
-        retrieval = asyncio.run(self.ghost.retrieve_experiences(
-            query, self._embeddings, view=memory_view,
-            frontier=frontier, scopes=scopes, cancel=self.run_stop,
-        ))
-        retrieval["trace"]["original_query"] = original_query
-        retrieval["trace"]["query_rewrite"] = rewrite_result
-        if rewrite_result["evidence_use"] == "event":
-            from pm.memory.retrieval import evidence_role
-            records = memory_view.serialize_knoxels()
-            selected_sources = {key for item in retrieval["matches"] for key in item["source_ids"] if key in records}
-            original_sources = {key for key in selected_sources
-                                if evidence_role(memory_view, records[key]) in {"user_report", "runtime_event", "world_observation"}}
-            # An answer to a recall question cannot become event evidence for
-            # its repetition. Keep speech available for explicit speech recall.
-            rejected = [item for item in retrieval["matches"]
-                        if item["evidence_role"] in {"companion_utterance", "intent", "imagined", "interpretation"}
-                        or item["evidence_role"] == "derived" and not original_sources.intersection(item["source_ids"])]
-            rejected_ids = {item["knoxel_id"] for item in rejected}
-            retrieval["matches"] = [item for item in retrieval["matches"] if item["knoxel_id"] not in rejected_ids]
-            retrieval["trace"]["speech_only_excluded_ids"] = sorted(rejected_ids)
+        matches, trace = self._retrieve(stimuli, memory_view, sources)
         self._memory_view = memory_view
+
         from workflows.cognitive_control.attention import active_focus, focus_versions
-        control = getattr(self, "cognitive_control", None)
-        maximum_focus_bias = control.config.maximum_focus_bias if control is not None else None
-        focus = active_focus(self.ghost, maximum_strength=maximum_focus_bias)
-        self._focus_family_revisions = focus_versions(memory_view)
         from workflows.reflection.experiments import effective_inputs
-        self._reflection_inputs = effective_inputs(memory_view, focus)
-        mental_proposals, focus_proposals = [], []
+        control = self.cognitive_control
+        maximum_focus_bias = control.config.maximum_focus_bias if control is not None else None
+        # Reflection reads the stored advice mapping. The cycle reads it typed.
+        stored_focus = active_focus(self.ghost, maximum_strength=maximum_focus_bias)
+        focus = FocusState.model_validate(stored_focus) if stored_focus else None
+        self._focus_family_revisions = focus_versions(memory_view)
+        reflection = effective_inputs(memory_view, stored_focus)
+        guidance = [ReflectionGuidance.model_validate(item) for item in reflection["guidance"]]
+        mental_proposals: list[MentalProposal] = []
+        focus_proposals: list[FocusProposalRef] = []
         for source in sources:
-            plan = source.metadata.get("mental_plan")
-            if plan and plan.get("disposition") == "propose":
-                mental_proposals.append({"record_id": source.id, **plan})
-                if plan.get("focus"):
-                    advice = dict(plan["focus"])
-                    if maximum_focus_bias is not None:
-                        advice["strength"] = min(advice.get("strength", 0.3), maximum_focus_bias)
-                    focus_proposals.append({"record_id": source.id, "focus": advice})
+            if "mental_plan" not in source.metadata:
+                continue
+            plan = MentalPlan.model_validate(source.metadata["mental_plan"])
+            if plan.disposition != "propose":
+                continue
+            mental_proposals.append(MentalProposal(
+                record_id=source.id, instruction=plan.instruction, summary=plan.summary,
+                disposition=plan.disposition, evidence_ids=list(plan.evidence_ids),
+                goal_changes=[GoalChange.model_validate(item) for item in plan.goal_changes]))
+            if plan.focus is not None:
+                advice = plan.focus
+                if maximum_focus_bias is not None:
+                    advice = advice.model_copy(update={"strength": min(advice.strength, maximum_focus_bias)})
+                focus_proposals.append(FocusProposalRef(record_id=source.id, focus=advice))
         # Deliberate recall can introduce sources that a literal stimulus
         # query missed. They remain original, revisioned memory candidates.
-        focus_ids = set(focus.get("promote_ids", []) + focus.get("reduce_ids", []))
-        focus_ids.update(self._reflection_inputs["source_ids"])
+        focus_ids = set(focus.promote_ids + focus.reduce_ids) if focus is not None else set()
+        focus_ids.update(reflection["source_ids"])
         for item in mental_proposals:
-            focus_ids.update(item.get("evidence_ids", []))
+            focus_ids.update(item.evidence_ids)
         for item in focus_proposals:
-            focus_ids.update(item["focus"].get("promote_ids", []) + item["focus"].get("reduce_ids", []))
+            focus_ids.update(item.focus.promote_ids + item.focus.reduce_ids)
         self._focus_source_revisions = {}
-        present = {item["knoxel_id"] for item in retrieval["matches"]}
+        present = {item.knoxel_id for item in matches}
         from pm.memory.retrieval import evidence_role, memory_kind
         records = memory_view.serialize_knoxels() if focus_ids else {}
         for key in sorted(focus_ids):
@@ -474,81 +511,75 @@ class MainCogLoop(CognitiveWorkflow):
             self._focus_source_revisions[key] = memory_view.revisions[key]
             if key not in present:
                 raw = records[key]
-                retrieval["matches"].append({"knoxel_id": key, "text": record.content,
-                    "revision": memory_view.revisions[key], "source_ids": [key],
-                    "memory_kind": memory_kind(raw), "evidence_role": evidence_role(memory_view, raw),
-                    "reasons": ["deliberate mental recall"]})
-        self._memory_candidates = retrieval["matches"]
+                matches.append(MemoryCandidate(knoxel_id=key, text=record.content,
+                    revision=memory_view.revisions[key], source_ids=[key],
+                    memory_kind=memory_kind(raw), evidence_role=evidence_role(memory_view, raw),
+                    reasons=["deliberate mental recall"]))
         previous = self.ghost.states[-1] if self.ghost.states else None
-        previous_vec = previous.mental_state.to_list() if previous is not None else []
         age_seconds = 0.0
         if previous is not None:
             from pm.memory.retrieval import utc_time
             age_seconds = max(0.0, (utc_time(datetime.utcnow()) - utc_time(previous.timestamp)).total_seconds())
-        provider = getattr(self, "capability_provider", None)
+        capabilities = self.capability_provider() if self.capability_provider is not None else None
         public = build_public_context(self.ghost, {"stimuli": [item.model_dump(mode="json") for item in stimuli]},
-                                      capabilities=provider() if provider else None)
-        request = CognitiveRequest(
+                                      capabilities=capabilities)
+        user_entity_id = self.ghost.get_entity_id(self.ghost.get_user_name())
+        request = CycleRequest(
             run_id=self.invocation_id or "",
             correlation_id=correlation,
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
-            relationship_entity_id=self.ghost.get_entity_id(self.ghost.get_user_name())
-                if any(item.source == "user_input" for item in stimuli) else None,
+            user_entity_id=user_entity_id,
+            relationship_entity_id=user_entity_id if any(item.source == "user_input" for item in stimuli) else None,
             state_summary=_state_summary(self.ghost),
-            mental_state_latent_vec=previous_vec,
+            previous_state=previous,
             mental_state_age_seconds=age_seconds,
             personality_vec=list(self.ghost.ghost_config.personality_profile),
             active_goals=active_goal_texts(self.ghost)[:8],
             stimuli=stimuli,
-            memory_candidates=[MemoryCandidate(**item) for item in retrieval["matches"]],
-            memory_trace=retrieval["trace"],
+            memory_candidates=matches,
+            memory_trace=trace,
             active_focus=focus,
             focus_proposals=focus_proposals,
             mental_proposals=mental_proposals,
-            reflection_guidance=self._reflection_inputs["guidance"],
-            # Continuation cannot skip action selection until a bounded
-            # episode executor owns the next step and its acknowledgment.
-            deliberation_only=False,
-            wait_default_seconds=getattr(getattr(self, "cognitive_control", None), "config", None).wait_seconds
-                if getattr(self, "cognitive_control", None) is not None else 1800,
+            reflection_guidance=guidance,
+            wait_default_seconds=control.config.wait_seconds if control is not None else 1800,
             capabilities=_capabilities(self.ghost),
-            available_workflows=[
-                WorkflowOption(**workflow)
-                for workflow in (self.workflow_catalogue or DEFAULT_WORKFLOWS)
-            ],
-            public_context=public.model_dump(mode="json"),
-            managed_runs=[{key: run.get(key) for key in
-                          ("run_id", "workflow_name", "state", "instructions", "parent_correlation")}
+            available_workflows=self.workflow_catalogue,
+            public_context=public,
+            managed_runs=[ManagedRunView.model_validate(run)
                           for run in list(self.ghost.managed_runs.values())[-16:]],
-            stimulus_revisions={str(key): int(value) for key, value in self._stimulus_revisions.items()},
+            stimulus_revisions=dict(self._stimulus_revisions),
             active_goal_records=[
-                {"knoxel_id": int(item.id), "text": str(item.content),
-                 "revision": int(memory_view.revisions.get(int(item.id), 1))}
+                GoalRecordView(knoxel_id=int(item.id), text=str(item.content),
+                               revision=int(memory_view.revisions[int(item.id)]))
                 for item in active_intentions(memory_view)[:8]
             ],
             codelet_history=codelet_history(self.ghost),
             seconds_since_user_input=seconds_since_user_input(self.ghost, self._stimulus_ids),
             codelet_catalogue=self.codelet_catalogue,
         )
-        # The pathway catalogue is the same file the codelets stage reads. A
+        # The pathway catalogue is the same file the codelets phase reads. A
         # broken catalogue stops the cycle here, exactly as it would in the
-        # stage, rather than silently running without pathways.
+        # phase, rather than silently running without pathways.
         loaded = load_catalogue(self.codelet_catalogue or None)
-        precursors, latest_tick = pathway_precursors(self.ghost, loaded)
-        request.pathway_precursors = precursors
-        request.pathway_latest_tick = latest_tick
+        request.pathway_precursors, request.pathway_latest_tick = pathway_precursors(self.ghost, loaded)
         return request.model_dump(mode="json")
 
-    def _stimulus_from(self, envelope: Envelope):
-        # Retrying a rejected cycle must reuse its materialized event records.
-        # The cache belongs to one handled batch and does not survive restart.
-        cached = getattr(self, "_event_stimuli", {})
+    def _stimulus_from(self, envelope: Envelope) -> tuple[int | None, str, str]:
+        """Resolve one envelope to ``(record id, text, kind)``.
+
+        The record id is None when the envelope names no record. Workflow
+        questions and workflow events become new ``WorldEvent`` records, with
+        the store write as a side effect. Retrying a rejected cycle must reuse
+        those records, so the result is cached for the handled batch. The cache
+        does not survive restart.
+        """
+        cached = self._event_stimuli
         if envelope.id in cached:
             return cached[envelope.id]
-        payload = envelope.payload
         if envelope.topic == "workflow.question" and envelope.kind == "telemetry":
-            question = str(payload.get("question", "")).strip()
+            question = WorkflowQuestionPayload.model_validate(envelope.payload).question.strip()
             if not question:
                 return None, "", ""
             feature = new_feature(
@@ -561,13 +592,14 @@ class MainCogLoop(CognitiveWorkflow):
             self._event_stimuli = {**cached, envelope.id: result}
             return result
         if envelope.topic == "workflow.event" and envelope.kind == "telemetry":
-            run_id = str(payload.get("run_id", "")).strip()
-            state = str(payload.get("event", "")).strip()
+            event = WorkflowEventPayload.model_validate(envelope.payload)
+            run_id = event.run_id.strip()
+            state = event.event.strip()
             if not run_id or not state:
                 return None, "", ""
             # Keep progress detail and evidence so the cycle can judge the task.
-            detail = str(payload.get("detail", "") or payload.get("message", "")).strip()
-            artifact = str(payload.get("artifact_path", "")).strip()
+            detail = (event.detail or event.message).strip()
+            artifact = event.artifact_path.strip()
             if artifact:
                 from workflows.memory_consolidation.artifact_consolidation import Consolidator
                 Consolidator(self.ghost, clock=self.clock).consolidate(run_id, artifact)
@@ -582,52 +614,51 @@ class MainCogLoop(CognitiveWorkflow):
                     "run_id": run_id,
                     "event": state,
                     "artifact_path": artifact,
-                    "evidence": dict(payload),
-                    "executed_at": payload.get("executed_at") or datetime.utcnow().isoformat(),
+                    "evidence": dict(envelope.payload),
+                    "executed_at": event.executed_at or datetime.utcnow().isoformat(),
                 },
             )
             result = feature.id, text, "workflow.event"
             self._event_stimuli = {**cached, envelope.id: result}
             return result
-        if envelope.topic == "cognition.wake":
-            knoxel_id = int(payload["knoxel_id"])
-            knoxel = self._input_knoxel(knoxel_id)
-            return knoxel_id, str(knoxel.content), "cognition.wake"
-        if envelope.topic == "system.lifecycle":
-            knoxel_id = payload.get("knoxel_id")
-            if knoxel_id is None:
-                return None, "", ""
-            knoxel = self._input_knoxel(int(knoxel_id))
-            return int(knoxel_id), str(knoxel.content) if knoxel is not None else "", "system.lifecycle"
-        if "knoxel_id" not in payload:
+        knoxel_id = KnoxelPayload.model_validate(envelope.payload).knoxel_id
+        if knoxel_id is None:
             return None, "", ""
-        knoxel_id = int(payload["knoxel_id"])
         knoxel = self._input_knoxel(knoxel_id)
+        if envelope.topic in {"cognition.wake", "system.lifecycle"}:
+            return knoxel_id, str(knoxel.content), envelope.topic
         kind = "user.input"
-        if knoxel is not None:
-            if envelope.topic == "minecraft.world":
-                kind = "minecraft.world"
-            elif knoxel.feature_type in {FeatureType.Thought, FeatureType.InnerMonologue}:
-                kind = "thought.created"
-            elif knoxel.feature_type == FeatureType.SystemMessage:
-                kind = "system.lifecycle"
-            elif knoxel.feature_type == FeatureType.WorldEvent:
-                kind = "workflow.event"
-        return knoxel_id, str(knoxel.content) if knoxel is not None else "", kind
+        if envelope.topic == "minecraft.world":
+            kind = "minecraft.world"
+        elif knoxel.feature_type in {FeatureType.Thought, FeatureType.InnerMonologue}:
+            kind = "thought.created"
+        elif knoxel.feature_type == FeatureType.SystemMessage:
+            kind = "system.lifecycle"
+        elif knoxel.feature_type == FeatureType.WorldEvent:
+            kind = "workflow.event"
+        return knoxel_id, str(knoxel.content), kind
 
     def _input_knoxel(self, knoxel_id: int):
         """Resolve a supplied ID through the frozen invocation grant."""
-        view = getattr(self.last_environment, "ghost_view", None)
-        if view is not None:
-            if knoxel_id not in view.revisions:
-                raise KeyError(f"Stimulus is outside the invocation view: {knoxel_id}")
-            return view.get(knoxel_id)
-        return self.ghost.get_knoxel_by_id(knoxel_id)
+        view = self.last_environment.ghost_view
+        if knoxel_id not in view.revisions:
+            raise KeyError(f"Stimulus is outside the invocation view: {knoxel_id}")
+        return view.get(knoxel_id)
 
     def publish_output(self, report: dict, batch: list[Envelope]) -> None:
+        """Commit one finished cycle in one write batch, then publish its events.
+
+        The batch holds the appraisal, goal changes, beliefs, the episodic
+        summary, every attention record, the attention frame, the action
+        selection record, one action schema per released dispatch, the GWT
+        turn, and the cycle state. Bus events go out only after the commit. A
+        stale source or a concurrent focus change aborts the whole batch.
+        """
         if self.stop_event.is_set() or self.run_stop.is_set():
             return
-        parsed = CognitiveReport.model_validate(report)
+        work = CycleWork.model_validate(report)
+        request = work.request
+        stimulus_records = [item.model_dump(mode="json") for item in request.stimuli]
         correlation = self._batch_correlation or (batch[0].correlation_id if batch else "")
         cause = batch[0].id if batch else None
         changes = self.ghost.begin_batch(
@@ -635,13 +666,12 @@ class MainCogLoop(CognitiveWorkflow):
         )
         tick = changes.tick_id
         view = changes.view()
-        if hasattr(self, "_focus_family_revisions"):
-            changes.expect_metadata_version("control_kind", "attention_focus", self._focus_family_revisions)
+        changes.expect_metadata_version("control_kind", "attention_focus", self._focus_family_revisions)
         for source_id, revision in self._stimulus_revisions.items():
             changes.expect_revision(source_id, revision)
-        for source_id, revision in getattr(self, "_focus_source_revisions", {}).items():
+        for source_id, revision in self._focus_source_revisions.items():
             changes.expect_revision(source_id, revision)
-        for memory in parsed.selected_memories:
+        for memory in work.selected_memories:
             changes.expect_revision(memory.knoxel_id, memory.revision)
             for source_id in memory.source_ids:
                 if source_id in self._memory_view.revisions:
@@ -649,64 +679,64 @@ class MainCogLoop(CognitiveWorkflow):
 
         # Apply the appraisal and goal proposals into this same batch before the
         # frame. A failure here aborts the whole batch, so stale proposals never
-        # partly update accepted state. The parent pipeline already projected
-        # the affect step; reuse it so accepted state matches the stage input.
-        previous = self.ghost.states[-1] if self.ghost.states else None
-        previous_vec = previous.mental_state.to_list() if previous is not None else None
-        projection = _projection_from_report(parsed, previous_vec)
+        # partly update accepted state. The appraise phase already projected
+        # the affect step; reuse it so accepted state matches the phase input.
+        memory_trace = {**request.memory_trace,
+                        "context_selected_ids": [item.knoxel_id for item in work.selected_memories]}
         appraisal_feature, mental_state = apply_appraisal(
-            changes, view, parsed.appraisal,
-            previous_vec=previous_vec,
-            evidence_ids=[int(item) for item in self._stimulus_ids],
+            changes, view, work.appraisal,
+            previous_vec=None,
+            evidence_ids=list(self._stimulus_ids),
             companion_name=self.ghost.get_companion_name(),
-            projection=projection,
-            memory_trace=parsed.memory_trace,
+            projection=work.affect,
+            memory_trace=memory_trace,
         )
         goal_records = apply_goal_changes(
-            changes, view, parsed.goal_changes,
-            evidence_ids=[int(item) for item in self._stimulus_ids],
+            changes, view, work.goals.changes,
+            evidence_ids=list(self._stimulus_ids),
             appraisal_id=appraisal_feature.id,
         )
         created_goal_ids = [
             int(record["intention_id"]) for record in goal_records
-            if record.get("created") and record.get("intention_id") is not None
+            if record["created"] and record["intention_id"] is not None
         ]
         goal_ids = [int(item.id) for item in active_intentions(changes.view())]
-        belief_receipt = update_beliefs(changes, parsed.belief_updates, user_name=self.ghost.get_user_name(),
-                                      permitted_source_ids=set(self._stimulus_ids))
-        experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, parsed.affect_summary)
+        belief_receipt = update_beliefs(changes, work.context.belief_updates, user_name=self.ghost.get_user_name(),
+                                        permitted_source_ids=set(self._stimulus_ids))
+        experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, work.affect.summary)
 
         # Commit every nomination, winner or not, as an AttentionRecord. A
         # nomination whose read sources changed since the cycle began is
         # marked stale and cannot win. The cycle itself continues: one stale
         # proposal must not cost the user a reply.
-        stale = stale_nominations(parsed.nominations, view.revisions)
+        nominations = work.attention.nominations
+        stale = stale_nominations(nominations, view.revisions)
+        codelets = work.codelets
         # The belief owner consumes accepted belief proposals through the same
         # batch. A repeat of the same interpretation retains the prior record;
         # a changed one supersedes it and keeps its history. Nothing here
         # rewrites the observed records that the interpretation cites.
         codelet_beliefs = apply_belief_proposals(
-            changes, parsed.nominations,
+            changes, nominations,
             companion_name=self.ghost.get_companion_name(),
             stale_ids=stale,
-            catalogue_version=str((parsed.codelet_trace or {}).get("catalogue_version", "")),
+            catalogue_version=codelets.catalogue_version,
         )
         # The winning nominations are the workspace focus that the public
         # workflows plan their memory context from. Stale ones never win.
         attention_focus = [{"text": item.text, "target_ids": list(item.target_ids), "reality": item.reality}
-                           for item in parsed.nominations
+                           for item in nominations
                            if item.status == "selected" and item.nomination_id not in stale and item.text]
-        trace = dict(parsed.codelet_trace or {})
         attention_ids: list[int] = []
         winning_ids: list[int] = []
-        for nomination in parsed.nominations:
+        for nomination in nominations:
             status, reason = nomination.status, nomination.reason
             if nomination.nomination_id in stale:
                 status, reason = "stale", "a source changed before commit; was " + (nomination.status or "unscored")
             record = changes.create(AttentionRecord(
                 content=nomination.text or nomination.reasoning or nomination.attention_kind,
                 tick_id=tick,
-                target_knoxel_ids=[int(key) for key in nomination.target_ids],
+                target_knoxel_ids=list(nomination.target_ids),
                 attention_kind=nomination.attention_kind,
                 score=max(0.0, min(1.0, float(nomination.score))),
                 novelty=float(nomination.novelty), urgency=float(nomination.urgency),
@@ -720,35 +750,36 @@ class MainCogLoop(CognitiveWorkflow):
                     "cause": list(nomination.cause), "activation": nomination.activation,
                     "source_revisions": dict(nomination.source_revisions), "why": nomination.reasoning,
                     "topic": nomination.topic,
-                    "consumers": proposal_consumers(str(nomination.attention_kind)) if status == "selected" else [],
-                    "loop": trace.get("loop", "main"),
-                    "catalogue_version": trace.get("catalogue_version", ""),
-                    "catalogue_digest": trace.get("catalogue_digest", ""),
+                    "consumers": proposal_consumers(nomination.attention_kind) if status == "selected" else [],
+                    "loop": codelets.loop,
+                    "catalogue_version": codelets.catalogue_version,
+                    "catalogue_digest": codelets.catalogue_digest,
                 },
             ))
             attention_ids.append(record.id)
             if status == "selected":
                 winning_ids.append(record.id)
+        workspace = work.workspace
         frame = changes.create(AttentionFrameRecord(
-            content=parsed.frame_reason or parsed.summary,
+            content=workspace.frame_reason or work.summary,
             tick_id=tick,
-            focus_knoxel_ids=list(parsed.focus_ids),
-            # Older reports carry no nominations; keep their selected ids.
-            winning_attention_ids=winning_ids if parsed.nominations else list(parsed.winning_attention_ids),
-            active_goal_ids=goal_ids or list(parsed.active_goal_ids),
-            control_mode=parsed.control_mode,
-            frame_reason=parsed.frame_reason or parsed.summary,
+            focus_knoxel_ids=list(workspace.focus_ids),
+            # A cycle without nominations keeps the ids that attention selected.
+            winning_attention_ids=winning_ids if nominations else list(work.attention.selected_ids),
+            active_goal_ids=goal_ids,
+            control_mode=workspace.control_mode,
+            frame_reason=workspace.frame_reason or work.summary,
             metadata={
-                "codelet_runs": [{key: run.get(key) for key in
-                                  ("codelet", "kind", "status", "reason", "activation", "calls")}
-                                 for run in trace.get("runs", [])],
-                "codelet_cost": trace.get("cost", {}),
-                "catalogue_version": trace.get("catalogue_version", ""),
-                "catalogue_digest": trace.get("catalogue_digest", ""),
+                "codelet_runs": [run.model_dump(mode="json", include={"codelet", "kind", "status", "reason",
+                                                                      "activation", "calls"})
+                                 for run in codelets.runs],
+                "codelet_cost": codelets.cost.model_dump(mode="json"),
+                "catalogue_version": codelets.catalogue_version,
+                "catalogue_digest": codelets.catalogue_digest,
                 "stale_nominations": sorted(stale),
                 "attention_record_ids": attention_ids,
                 "belief_proposals": codelet_beliefs,
-                "pathway_signals": dict(trace.get("pathway_signals") or {}),
+                "pathway_signals": dict(codelets.pathway_signals),
             },
         ))
         created_order: list[int] = [frame.id, appraisal_feature.id, *created_goal_ids, *experience_ids,
@@ -764,33 +795,37 @@ class MainCogLoop(CognitiveWorkflow):
             topic_hints=list(parent.lineage.topic_hints) if parent is not None else [])
         for key in set([*created_order, *attention_ids]) & changes.created_ids:
             changes.annotate_lineage(key, lineage)
+        focus = work.attention.competition.focus
+        selected_ids = {memory.knoxel_id for memory in work.selected_memories}
         reflection_versions = {}
-        for item in getattr(self, "_reflection_inputs", {}).get("guidance", []):
-            effective_id = item["effective_record_id"]
-            if (item["owner"] == "attention" and parsed.focus_decision.get("control_record_id") == effective_id
-                    or item["owner"] == "belief" and effective_id in {memory.knoxel_id for memory in parsed.selected_memories}):
-                reflection_versions[str(item["experiment_id"])] = effective_id
-        selection = new_feature(self.ghost, str(parsed.action_selection.get("reasoning") or parsed.summary),
+        for item in request.reflection_guidance:
+            effective_id = item.effective_record_id
+            if (item.owner == "attention" and focus is not None and focus.control_record_id == effective_id
+                    or item.owner == "belief" and effective_id in selected_ids):
+                reflection_versions[str(item.experiment_id)] = effective_id
+        selection_dump = work.action_selection.model_dump(mode="json")
+        selection = new_feature(self.ghost, work.action_selection.reasoning or work.summary,
             FeatureType.StateUpdate, source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
-            changes=changes, metadata={"operation": "action_selection", "selection": parsed.action_selection,
+            changes=changes, metadata={"operation": "action_selection", "selection": selection_dump,
                                        "reflection_versions": reflection_versions},
             lineage=lineage.model_copy(update={"operation": "action_selection", "parent_record_ids": [frame.id]}))
         created_order.append(selection.id)
-        focus = parsed.focus_decision
-        if focus.get("fresh") and focus.get("accept"):
-            from workflows.cognitive_control.schemas import FocusProposal
-            advice = FocusProposal.model_validate(focus)
+        if focus is not None and focus.fresh and focus.accept:
             from workflows.cognitive_control.attention import stage_focus
-            accepted_focus = stage_focus(changes, getattr(self, "_memory_view", view),
-                instruction=advice.instruction, focus=focus, companion_name=self.ghost.get_companion_name(),
-                expires_at=(datetime.utcnow() + timedelta(seconds=advice.seconds)).isoformat(),
+            accepted_focus = stage_focus(changes, self._memory_view,
+                instruction=focus.instruction, focus=focus.model_dump(mode="json"),
+                companion_name=self.ghost.get_companion_name(),
+                expires_at=(datetime.utcnow() + timedelta(seconds=focus.seconds)).isoformat(),
                 lineage=lineage.model_copy(update={"operation": "focus_acceptance"}))
             created_order.append(accepted_focus.id)
+        memory_evidence = [item.model_dump(mode="json") for item in work.selected_memories]
+        memory_texts = [item.text for item in work.selected_memories]
+        experience_text = workspace.subjective_experience or workspace.frame_reason
         published: list[tuple] = []
         rejected = []
         queued = []
         duplicates = []
-        for dispatch in parsed.dispatches:
+        for dispatch in work.dispatches:
             if dispatch.status == "queued":
                 queued.append(dispatch)
                 continue
@@ -807,13 +842,13 @@ class MainCogLoop(CognitiveWorkflow):
             if existing is not None:
                 duplicates.append((dispatch, existing))
                 continue
-            from workflows.public_speech.public_context import Presentation
-            presentation = Presentation.model_validate(dispatch.presentation)
+            presentation = dispatch.presentation
             if presentation.mode == "deceive" and (
                 not presentation.purpose or not presentation.known_fact_ids
                 or any(key not in view.revisions for key in presentation.known_fact_ids)
             ):
                 raise ValueError("The proposed deception lacks retained factual context.")
+            arguments = dispatch.arguments.payload()
             action = changes.create(ActionSchemaRecord(
                 content=dispatch.content,
                 action_type=ACTION_BY_NAME[dispatch.action_type],
@@ -827,64 +862,52 @@ class MainCogLoop(CognitiveWorkflow):
                     "workflow_name": dispatch.workflow_name,
                     "depends_on": list(dispatch.depends_on),
                     "requires_completed": list(dispatch.requires_completed),
-                    "arguments": dict(dispatch.arguments),
-                    "affect_summary": parsed.affect_summary,
+                    "arguments": arguments,
+                    "affect_summary": work.affect.summary,
                     "appraisal_id": appraisal_feature.id,
                     "evidence_ids": list(self._stimulus_ids),
                     "self_origin": not any(item.source == "user_input" for item in batch),
-                    "regulation": parsed.regulation,
-                    "memory_evidence": [item.model_dump(mode="json") for item in parsed.selected_memories],
-                    "memory_trace": parsed.memory_trace,
+                    "regulation": work.affect.regulation,
+                    "memory_evidence": memory_evidence,
+                    "memory_trace": memory_trace,
                     "belief_updates": belief_receipt,
                     "presentation": presentation.model_dump(mode="json"),
                     "dispatch_status": "pending",
                     "dispatch_target": dispatch.workflow_name,
                     "dispatch_correlation": correlation,
                     "dispatch_payload": {"action_id": dispatch.action_id, "workflow_name": dispatch.workflow_name,
-                        "content": dispatch.content, "arguments": dict(dispatch.arguments),
-                        "stimuli": list(self._stimulus_records), "memories": [item.text for item in parsed.selected_memories],
-                        "memory_evidence": [item.model_dump(mode="json") for item in parsed.selected_memories],
-                        "workspace": parsed.subjective_experience or parsed.frame_reason,
-                        "affect": parsed.affect_summary, "regulation": parsed.regulation,
+                        "content": dispatch.content, "arguments": arguments,
+                        "stimuli": stimulus_records, "memories": memory_texts,
+                        "memory_evidence": memory_evidence,
+                        "workspace": experience_text,
+                        "affect": work.affect.summary, "regulation": work.affect.regulation,
                         "attention": attention_focus},
                 },
             ))
             created_order.append(action.id)
             published.append((dispatch, action.id))
+        summary = workspace.subjective_experience.strip() or work.affect.summary.strip() or work.summary
+        state = self._accepted_state(work, tick, frame.id, mental_state, summary, published, correlation)
         changes.set_gwt(
             GwtTurnRecord(
                 tick_id=tick, attention_frame_id=frame.id,
                 knoxel_ids=list(dict.fromkeys([*self._stimulus_ids, *created_order,
-                                             *(item.knoxel_id for item in parsed.selected_memories)])),
-                summary=(
-                    parsed.subjective_experience.strip()
-                    or parsed.affect_summary.strip()
-                    or parsed.summary
-                ),
+                                             *(item.knoxel_id for item in work.selected_memories)])),
+                summary=summary,
             ),
-            CycleState(
-                tick_id=tick, attention_frame_id=frame.id, published_slots=["main"],
-                stimuli_ids=list(self._stimulus_ids),
-                mental_state=mental_state,
-                control_generation=getattr(self, "_control_generation", 0),
-            ),
+            state,
         )
-        control = getattr(self, "cognitive_control", None)
+        control = self.cognitive_control
         if control is None:
             receipt = self.ghost.commit(changes)
         else:
-            from workflows.cognitive_control.schemas import WaitRequest
-            receipt = control.commit(changes,
-                WaitRequest.model_validate(parsed.wait_request) if parsed.wait_request is not None else None,
-                getattr(self, "_control_generation", control.generation),
+            receipt = control.commit(changes, work.wait_request, self._control_generation,
                 envelope_ids={item.id for item in batch},
                 wake_ids=[int(item.payload["knoxel_id"]) for item in batch if item.topic == "cognition.wake"],
-                private_generation=getattr(self, "_control_generation", control.generation)
-                    if getattr(self, "_private_only", False) else None,
+                private_generation=self._control_generation if self._private_only else None,
                 source_ids=list(self._stimulus_ids))
         tick = receipt.tick_id
 
-        memory_texts = [item.text for item in parsed.selected_memories]
         self.bus.put(new_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))
         for dispatch, created_id in published:
             # A repeated commit returns the original receipt and does not apply
@@ -899,13 +922,13 @@ class MainCogLoop(CognitiveWorkflow):
                     "action_id": dispatch.action_id,
                     "workflow_name": dispatch.workflow_name,
                     "content": dispatch.content,
-                    "arguments": dict(dispatch.arguments),
-                    "stimuli": list(self._stimulus_records),
+                    "arguments": dispatch.arguments.payload(),
+                    "stimuli": stimulus_records,
                     "memories": memory_texts,
-                    "memory_evidence": [item.model_dump(mode="json") for item in parsed.selected_memories],
-                    "workspace": parsed.subjective_experience or parsed.frame_reason,
-                    "affect": parsed.affect_summary,
-                    "regulation": parsed.regulation,
+                    "memory_evidence": memory_evidence,
+                    "workspace": experience_text,
+                    "affect": work.affect.summary,
+                    "regulation": work.affect.regulation,
                     "attention": attention_focus,
                 },
                 target=dispatch.workflow_name,
@@ -920,9 +943,34 @@ class MainCogLoop(CognitiveWorkflow):
                 correlation, dispatch, "duplicate", cause,
                 detail=f"active action {existing_id} has identity {dispatch.action_id}",
             )
-        acknowledge = getattr(self, "private_acknowledge", None)
-        if acknowledge is not None:
-            acknowledge(list(self._stimulus_ids))
+
+    def _accepted_state(self, work: CycleWork, tick: int, frame_id: int, mental_state: FullMentalState,
+                        summary: str, published: list[tuple], correlation: str) -> CycleState:
+        """Finish the cycle state that the phases changed and return it.
+
+        The phases changed the previous state in place. Here the state gets
+        its tick, time, frame, mental state, dispatch references, and the new
+        broadcast. The broadcast queue keeps the last ``CCQ_LENGTH`` turns.
+        """
+        state = work.state
+        state.tick_id = tick
+        state.timestamp = datetime.utcnow()
+        state.attention_frame_id = frame_id
+        state.published_slots = ["main"]
+        state.stimuli_ids = list(self._stimulus_ids)
+        state.mental_state = mental_state
+        state.control_generation = self._control_generation
+        state.commit_hash = None
+        # Every dispatch of the old single decision belongs to the primary
+        # group, as in the decide phase. A cycle without stimuli acts for the self.
+        primary = primary_group(work)
+        key = primary.key if primary is not None else SELF_SHARD
+        state.dispatches = [ActionDispatchRef(
+            action_id=created_id, group=key, correlation_id=correlation,
+            workflow=dispatch.workflow_name, action_type=dispatch.action_type,
+        ) for dispatch, created_id in published]
+        state.broadcasts = [*state.broadcasts, BroadcastRef(tick_id=tick, summary=summary)][-CCQ_LENGTH:]
+        return state
 
     def _committed_action_id(self, dispatch, tick: int) -> int | None:
         """Return the accepted action id for this identity and tick, if any."""
@@ -931,7 +979,7 @@ class MainCogLoop(CognitiveWorkflow):
                 continue
             if int(knoxel.tick_id) != int(tick):
                 continue
-            if str(knoxel.metadata.get("action_id", "")) == dispatch.action_id:
+            if "action_id" in knoxel.metadata and knoxel.metadata["action_id"] == dispatch.action_id:
                 return int(knoxel.id)
         return None
 
@@ -941,13 +989,16 @@ class MainCogLoop(CognitiveWorkflow):
         Read the current durable run table before committing an action. A new
         user input permits another request. Updates and cancellation still use
         the existing management controls. Completed runs release this boundary.
+        An action without an operation is a start, or an update when it names
+        a run id.
         """
         route = dispatch.workflow_name
-        if route in {"minecraft", "minecraft_project"} and (
-                dispatch.arguments.get("operation", "update" if dispatch.arguments.get("run_id") else "start") != "start"):
+        arguments = dispatch.arguments
+        operation = arguments.operation or ("update" if arguments.run_id else "start")
+        if route in {"minecraft", "minecraft_project"} and operation != "start":
             return None
-        if route == "self_management" and dispatch.arguments.get("operation") == "start":
-            route = dispatch.arguments.get("workflow_name")
+        if route == "self_management" and arguments.operation == "start":
+            route = arguments.workflow_name
         if route not in {"minecraft", "minecraft_project"} or not correlation or any(
                 item.source == "user_input" for item in batch):
             return None
@@ -968,7 +1019,7 @@ class MainCogLoop(CognitiveWorkflow):
         for knoxel in self.ghost.all_knoxels.values():
             if not isinstance(knoxel, ActionSchemaRecord):
                 continue
-            if str(knoxel.metadata.get("action_id", "")) == dispatch.action_id:
+            if "action_id" in knoxel.metadata and knoxel.metadata["action_id"] == dispatch.action_id:
                 return int(knoxel.id)
         return None
 
@@ -987,6 +1038,7 @@ class MainCogLoop(CognitiveWorkflow):
             causation_id=cause,
         ))
 
+
 class InnerThoughtLoop(CognitiveWorkflow):
     DATA_TOPICS = frozenset()
 
@@ -1001,3 +1053,7 @@ class InnerThoughtLoop(CognitiveWorkflow):
         self.bus.put(new_envelope(
             self.module_id, "data", "thought.created", "", {"knoxel_id": receipt.added_ids[0]},
         ))
+
+
+__all__ = ["InnerThoughtLoop", "MainCogLoop", "build_main_cognition_tools", "codelet_history",
+           "pathway_precursors", "seconds_since_user_input", "stale_nominations"]

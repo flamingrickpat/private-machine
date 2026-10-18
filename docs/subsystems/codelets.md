@@ -17,8 +17,8 @@ Evidence: [A15 verification](../work_items/verification/a15-codelets.md), [A16 v
 
 ## Where codelets run in the cycle
 
-The main cycle has eight stages since A15.
-The `codelets` stage runs after `context` and before `attention`.
+The main cycle runs as one manifest of typed phases (A19F).
+The `codelets` phase runs after `retrieve` and before `attention`.
 
 ```mermaid
 flowchart LR
@@ -29,7 +29,7 @@ flowchart LR
 
 The codelets stage reads the affect projection that appraisal just accepted.
 Thus an emotion that the current event caused can already activate a codelet.
-[`workflows.main_cognition.pipeline.run_cycle`][] supplies the flattened state as `state_signals`.
+[`workflows.main_cognition.phases.codelets.collect`][] merges the flattened state into the scheduler signals.
 
 The codelets and attention calls omit the public grounding block.
 Each call is one small question for a small model.
@@ -40,7 +40,7 @@ Read [inference settings](inference-settings.md) for shared prefixes, worker lim
 
 ## The catalogue
 
-The catalogue is a workflow resource: `workflows/main_cognition/stages/codelets/catalogue.yaml`.
+The catalogue is a workflow resource: `workflows/main_cognition/phases/codelet_catalogue.yaml`.
 [`workflows.main_cognition.codelet_schedule.load_catalogue`][] validates it.
 An invalid or missing catalogue stops the cycle with an error.
 A silent empty catalogue would hide the defect.
@@ -150,7 +150,7 @@ Definition count does not establish quality; the [A16 verification](../work_item
 | `action` | `goal_pressure`, `refusal_edge`, `question_move`, `share_offer` |
 | `narratives` | `self_story`, `episode_link` |
 
-Each definition in `workflows/main_cognition/stages/codelets/catalogue.yaml` declares its gates, its boosts, its pathway, its context requirements, and its expected consequence.
+Each definition in `workflows/main_cognition/phases/codelet_catalogue.yaml` declares its gates, its boosts, its pathway, its context requirements, and its expected consequence.
 The families follow the [A16 family coverage](../work_items/alpha-plan/work-items/a16.md#family-coverage).
 The [pathway page](codelet-pathways.md) lists which members feed which pathway.
 
@@ -159,8 +159,8 @@ Numbers in the text would invite the workspace to quote internal values in speec
 
 ## LLM codelet calls
 
-[`run_llm_codelet`][workflows.main_cognition.stages.codelets.steps.run_llm_codelet] makes one call per scheduled LLM codelet.
-All codelets share one template in `stages/codelets/prompts.yaml`.
+[`run_llm_codelet`][workflows.main_cognition.phases.codelets.run_llm_codelet] makes one call per scheduled LLM codelet.
+All codelets share one template in `phases/prompts/codelets.yaml`.
 The codelet adds its `instructions` and its reality rule.
 
 The target deployment is a quantized `qwen3.8-flash` model (Q3) on the operator's home computer.
@@ -218,7 +218,7 @@ It must keep these labels true. A possibility or a private worry must not become
 
 A typed nomination without a consumer does not establish a cognitive effect.
 [`PROPOSAL_CONSUMERS`][workflows.main_cognition.schemas.PROPOSAL_CONSUMERS] names the consumer and the durable effect of every kind.
-[`proposal_consumers`][workflows.main_cognition.pipeline.proposal_consumers] is the executable form of that map, and the host writes it on each committed `AttentionRecord` under `metadata.consumers`.
+[`proposal_consumers`][workflows.main_cognition.phases.goals.proposal_consumers] is the executable form of that map, and the host writes it on each committed `AttentionRecord` under `metadata.consumers`.
 
 | Kind | Consumer | Durable effect |
 | --- | --- | --- |
@@ -230,7 +230,7 @@ A typed nomination without a consumer does not establish a cognitive effect.
 | `action_tendency` | Goals stage; action selection | A motive can become a durable `Intention` change or a concrete choice, at the owner's discretion. |
 | `belief` | Belief owner in the main module | A revisable subjective `BeliefRecord`. See below. |
 
-[`inner_proposals`][workflows.main_cognition.pipeline.inner_proposals] filters the accepted nominations per owner: the goals stage reads `action_tendency` and `belief`, and action selection reads `action_tendency`, `regulation`, and `simulation`.
+[`inner_proposals`][workflows.main_cognition.phases.goals.inner_proposals] filters the accepted nominations per owner: the goals stage reads `action_tendency` and `belief`, and action selection reads `action_tendency`, `regulation`, and `simulation`.
 Both prompts state that these are proposals, never commands and never user statements.
 Each consumer runs inside the same cycle, so a nomination cannot apply its effect twice.
 The belief dedupe below prevents the one durable case of repetition.

@@ -19,6 +19,7 @@ from pm.records.memory_records import new_feature
 from tests.support import ManualClock, Recorder
 from tests.unit.test_design_contracts import small_ghost
 from tests.unit.workflows.inner_thought.test_private_host import _module as private_module, _reports as private_reports
+from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, scripted_tools
 from tests.unit.workflows.main_cognition.test_cognition_state import _module as main_module, _reports, _store
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
@@ -218,7 +219,7 @@ class WaitTests(unittest.TestCase):
         for value in (0, -1, 86401, float("inf"), float("nan"), True, "later", None):
             with self.subTest(value=value), self.assertRaises(ValidationError):
                 ActionIntent(action_type="Sleep", arguments={"timeout_seconds": value})
-        self.assertEqual(ActionIntent(action_type="Sleep", arguments={"timeout_seconds": 30}).arguments["timeout_seconds"], 30)
+        self.assertEqual(ActionIntent(action_type="Sleep", arguments={"timeout_seconds": 30}).arguments.timeout_seconds, 30)
 
 
 class KernelWaitTests(unittest.TestCase):
@@ -344,7 +345,7 @@ class KernelWaitTests(unittest.TestCase):
             wake = next(record for record in ghost.all_features if record.metadata.get("origin") == "cognition.wake")
             # The real parent and child protocol use fixed reports here. Only
             # routing, atomic consumption, and duplicate admission are checked.
-            module.tools_factory = lambda environment, batch: {"run_stage": lambda name, payload: _reports(wake.id)[name]}
+            module.tools_factory = scripted_tools(ScriptedModel(reports=_reports(wake.id)))
             module.step()
             self.assertEqual(errors, [])
             self.assertEqual(ghost.get_knoxel_by_id(wake.id).metadata["wake_status"], "consumed")

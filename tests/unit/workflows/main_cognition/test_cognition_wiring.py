@@ -1,8 +1,8 @@
 """Direct W5 checkpoint-two wiring tests.
 
-No live model and no module thread. A deterministic ``run_stage`` stands in for
-the eight real children, and a deterministic ``story_complete`` stands in for
-Story generation. The real parent kernel, the real module adapter, the real
+No live model and no module thread. A scripted ``llm_complete`` answers the
+model calls of the real phases, and a deterministic ``story_complete`` stands
+in for Story generation. The real parent kernel, the real module adapter, the real
 MemoryStore commits, and the real bus are exercised.
 """
 from __future__ import annotations
@@ -23,7 +23,9 @@ from workflows.dialogue_story.host import StoryDialogue
 from tests.support import ManualClock, Recorder
 from pm.runs.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.host import build_main_cognition_tools
-from workflows.main_cognition.pipeline import stable_action_id
+from workflows.main_cognition.phases.route import stable_action_id
+from workflows.main_cognition.schemas import ActionIntent
+from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, scripted_tools
 from pm.memory.bash_view import MemoryBashTarget
 
 REAL_MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
@@ -85,8 +87,9 @@ class MainCogLoopWiringTests(unittest.TestCase):
             bus = BusSystem()
             module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"run_stage": lambda name, payload: reports[name]},
-                runtime_root=Path(directory), ghost=ghost)
+                tools_factory=scripted_tools(ScriptedModel(reports=reports)),
+                runtime_root=Path(directory), ghost=ghost,
+                workflow_catalogue=[{"name": proposed["workflow_name"], "description": "game project"}])
             requests, receipts = Recorder(bus, "action.request"), Recorder(bus, "action.receipt")
             module.handle_batch(batch)
             self.assertFalse(requests.events)
@@ -105,18 +108,18 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertIsNone(module._active_game_request(dispatch, original["parent_correlation"], batch))
 
     def test_mixed_user_failure_releases_the_world_sources_original_correlation(self):
-        from workflows.main_cognition.stage_support import StageOutputError
+        from workflows.main_cognition.model_json import StageOutputError
         ghost = _small_ghost()
         user_id = _store(ghost, "What changed in the world?")
         world = ghost.store_knoxel(Feature(content="A retained world observation changed.",
             feature_type=FeatureType.WorldEvent, causal=True, override_source="world_events"))
-        def failed_stage(name, payload):
+        def failed_model(messages, **generation):
             raise StageOutputError("The retained model result failed its protocol contract.")
         with TemporaryDirectory() as directory:
             bus = BusSystem()
             module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"run_stage": failed_stage},
+                tools_factory=lambda environment, batch: {"llm_complete": failed_model},
                 runtime_root=Path(directory), ghost=ghost)
             receipts = Recorder(bus, "action.receipt")
             with self.assertRaisesRegex(StageOutputError, "protocol contract"):
@@ -129,26 +132,27 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(receipts.events, [])
 
     def test_exhausted_format_repair_keeps_the_user_cause_for_the_next_invocation(self):
-        from workflows.main_cognition.stage_support import ModelFormatError
+        from workflows.main_cognition.model_json import ModelFormatError
         ghost = _small_ghost()
         stimulus_id = _store(ghost, "the kitchen is on fire")
         candidate_id = _store(ghost, "Jesse owns a fire extinguisher")
         reports = _fake_reports(stimulus_id, candidate_id)
         calls = []
+        scripted = ScriptedModel(reports=reports)
 
-        def run_stage(name, payload):
-            calls.append(name)
+        def model(messages, **generation):
+            calls.append(1)
             if len(calls) == 1:
                 module.run_stop.set()
                 raise ModelFormatError("Captured model syntax stayed invalid.")
-            return dict(reports[name])
+            return scripted(messages, **generation)
 
         with TemporaryDirectory() as tmp:
             bus = BusSystem()
             errors = []
             module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"run_stage": run_stage},
+                tools_factory=lambda environment, batch: {"llm_complete": model},
                 runtime_root=Path(tmp), ghost=ghost)
             rejected = Recorder(bus, "cycle.rejected")
             requests = Recorder(bus, "action.request")
@@ -162,13 +166,13 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(errors, [])
 
     def test_explicit_run_cancellation_prevents_a_format_retry(self):
-        from workflows.main_cognition.stage_support import ModelFormatError
+        from workflows.main_cognition.model_json import ModelFormatError
         ghost = _small_ghost()
         stimulus_id = _store(ghost, "the kitchen is on fire")
         calls = []
 
-        def run_stage(name, payload):
-            calls.append(name)
+        def model(messages, **generation):
+            calls.append(1)
             module.cancel_run()
             raise ModelFormatError("Captured model syntax stayed invalid.")
 
@@ -176,7 +180,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             bus = BusSystem()
             module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"run_stage": run_stage},
+                tools_factory=lambda environment, batch: {"llm_complete": model},
                 runtime_root=Path(tmp), ghost=ghost)
             requests = Recorder(bus, "action.request")
             module.handle_batch([Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
@@ -191,9 +195,6 @@ class MainCogLoopWiringTests(unittest.TestCase):
         candidate_id = _store(ghost, "Jesse owns a fire extinguisher")
         reports = _fake_reports(stimulus_id, candidate_id)
 
-        def run_stage(name, payload):
-            return dict(reports[name])
-
         with TemporaryDirectory() as tmp:
             bus = BusSystem()
             errors: list[BaseException] = []
@@ -201,7 +202,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 "main_cog", bus, errors.append, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"run_stage": run_stage},
+                tools_factory=scripted_tools(ScriptedModel(reports=reports)),
                 runtime_root=Path(tmp) / "runtime",
                 ghost=ghost,
             )
@@ -223,7 +224,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(event.correlation_id, "corr-fire")
             self.assertEqual(
                 event.payload["action_id"],
-                stable_action_id(reports["action_selection"]["actions"][0], 0),
+                stable_action_id(ActionIntent.model_validate(reports["action_selection"]["actions"][0]), 0),
             )
             self.assertIn(stimulus_id, ghost.gwt_turns[ghost.current_tick_id].knoxel_ids)
             action = ghost.get_knoxel_by_id(event.payload["knoxel_id"])
@@ -242,9 +243,6 @@ class MainCogLoopWiringTests(unittest.TestCase):
             "summary": "action selection",
         }
 
-        def run_stage(name, payload):
-            return dict(reports[name])
-
         with TemporaryDirectory() as tmp:
             bus = BusSystem()
             errors: list[BaseException] = []
@@ -252,7 +250,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 "main_cog", bus, errors.append, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"run_stage": run_stage},
+                tools_factory=scripted_tools(ScriptedModel(reports=reports)),
                 runtime_root=Path(tmp) / "runtime",
                 ghost=ghost,
             )
@@ -274,15 +272,8 @@ class MainCogLoopWiringTests(unittest.TestCase):
         ghost = _small_ghost()
         candidate_id = _store(ghost, "a memory")
         reports = _fake_reports(0, candidate_id)
-
-        captured: dict = {}
-
-        def run_stage(name, payload):
-            captured[name] = payload
-            if name == "triage":
-                stimulus_id = int(payload["stimuli"][0]["knoxel_id"])
-                return {"items": [{"knoxel_id": stimulus_id, "category": "Moderate"}], "summary": "triaged"}
-            return dict(reports[name])
+        reports["workspace"]["focus_ids"] = []
+        model = ScriptedModel(reports=reports)
 
         with TemporaryDirectory() as tmp:
             bus = BusSystem()
@@ -291,7 +282,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 "main_cog", bus, errors.append, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"run_stage": run_stage},
+                tools_factory=scripted_tools(model),
                 runtime_root=Path(tmp) / "runtime",
                 ghost=ghost,
             )
@@ -305,11 +296,11 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertTrue(module.step(block=False))
 
             self.assertEqual(errors, [])
-            stimulus = captured["triage"]["stimuli"][0]
-            self.assertEqual(stimulus["kind"], "workflow.question")
-            self.assertIn("Start the task?", stimulus["text"])
-            feature = ghost.get_knoxel_by_id(stimulus["knoxel_id"])
+            triage = model.messages[model.calls.index("triage")][-1].content.text
+            self.assertIn("kind=workflow.question text='Start the task?'", triage)
+            feature = ghost.get_knoxel_by_id(ghost.states[-1].stimuli_ids[0])
             self.assertEqual(feature.feature_type, FeatureType.WorldEvent)
+            self.assertIn("Start the task?", feature.content)
 
 
 class StoryDialogueWiringTests(unittest.TestCase):
@@ -393,27 +384,24 @@ class StoryDialogueWiringTests(unittest.TestCase):
 
 
 class ModuleToolsTests(unittest.TestCase):
-    def test_run_stage_invokes_the_real_child_kernel(self):
-        ghost = _small_ghost()
-        stimulus_id = _store(ghost, "the kitchen is on fire")
-        completion = (
-            '{"items": [{"knoxel_id": %d, "category": "Critical", "input_kind": "message",'
-            ' "urgency": 0.9, "relevance": 0.9, "reasoning": "fire", "evidence_ids": [%d]}]}'
-            % (stimulus_id, stimulus_id)
-        )
+    def test_the_tool_turns_reasoning_off_and_passes_the_run_cancellation(self):
+        import threading
+        from workflows.inference_settings import REASONING
+
+        seen = {}
+        stop = threading.Event()
 
         def llm_complete(messages, **generation):
-            return completion
+            seen.update(generation, roles=[turn.role for turn in messages])
+            return "{}"
 
-        with TemporaryDirectory() as tmp:
-            factory = build_main_cognition_tools(ghost, Path(tmp) / "runtime", llm_complete)
-            tools = factory(None, None)
-            report = tools["run_stage"]("triage", {
-                "companion_name": "Spamuel",
-                "user_name": "Jesse",
-                "stimuli": [{"knoxel_id": stimulus_id, "source": "Jesse", "text": "the kitchen is on fire"}],
-            })
-            self.assertEqual([item["category"] for item in report["items"]], ["Critical"])
+        factory = build_main_cognition_tools(_small_ghost(), Path("."), llm_complete, cancel_provider=lambda: stop)
+        tools = factory(None, None)
+        self.assertEqual(sorted(tools), ["llm_complete"])
+        self.assertEqual(tools["llm_complete"]([{"role": "user", "content": "hi"}], temperature=0.7), "{}")
+        self.assertIs(seen["cancel"], stop)
+        self.assertEqual(seen["reasoning_budget"], REASONING["off"])
+        self.assertEqual(seen["temperature"], 0.7)
 
 
 class LazyModelTests(unittest.TestCase):
@@ -459,27 +447,8 @@ class MultiExchangeTests(unittest.TestCase):
         errors: list[BaseException] = []
         counter = {"n": 0}
 
-        def run_stage(name, payload):
-            stimulus_id = int(payload["stimuli"][0]["knoxel_id"])
-            candidates = [int(item["knoxel_id"]) for item in payload.get("memory_candidates", [])]
-            candidate_id = candidates[0] if candidates else None
-            context_ids = [candidate_id] if candidate_id is not None else []
-            selected = ([candidate_id] if candidate_id is not None else []) + [stimulus_id]
-            reports = {
-                "triage": {"items": [{"knoxel_id": stimulus_id, "category": "Critical"}], "summary": "t"},
-                "appraisal": {"feeling": "curious", "summary": "a"},
-                "context": {"candidate_ids": context_ids, "summary": "c"},
-                "codelets": {"proposals": [], "runs": [], "summary": "codelets"},
-                "attention": {"selected_ids": selected, "nominations": [], "summary": "n"},
-                "goals": {"changes": [], "summary": "g"},
-                "workspace": {"frame_reason": "reply", "focus_ids": selected, "summary": "w"},
-                "action_selection": {
-                    "actions": [{"action_type": "Reply", "workflow_name": "dialogue_story",
-                                 "content": "reply to Jesse", "arguments": {}, "depends_on": []}],
-                    "summary": "s",
-                },
-            }
-            return dict(reports[name])
+        model = ScriptedModel({"decide": {"actions": [{"action_type": "Reply", "workflow_name": "dialogue_story",
+                                                        "content": "reply to Jesse"}]}})
 
         async def story_complete(messages, **generation):
             counter["n"] += 1
@@ -494,7 +463,7 @@ class MultiExchangeTests(unittest.TestCase):
                 "main_cog", bus, errors.append, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"),
                 workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"run_stage": run_stage},
+                tools_factory=scripted_tools(model),
                 runtime_root=root / "main", ghost=ghost,
             )
             dialogue = StoryDialogue(

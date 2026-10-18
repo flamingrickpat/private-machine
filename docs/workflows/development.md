@@ -68,7 +68,7 @@ uv run --locked python -m unittest discover -s tests/contract -t . -b
 Run the owning stage's direct contracts after a stage change.
 
 ```powershell
-uv run --locked python -m unittest tests.contract.main_cognition.stages.test_attention_contract -v -b
+uv run --locked python -m unittest tests.contract.main_cognition.test_cycle_contract -v -b
 ```
 
 `unittest discover -s tests` includes live suites.

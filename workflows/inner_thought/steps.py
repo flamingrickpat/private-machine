@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from workflows.inner_thought.pipeline import run_cycle
 from workflows.inner_thought.schemas import InnerReport, InnerRequest
-from workflows.main_cognition.stage_support import read_request, write_report
+from workflows.main_cognition.model_json import read_request, write_report
 
 
 def run(context) -> dict:

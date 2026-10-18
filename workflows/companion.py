@@ -416,7 +416,7 @@ def build_app(
 
         main_cog.capability_provider = provider
         def retrieval_query(text):
-            from workflows.main_cognition.stage_support import StageOutputError, extract_json
+            from workflows.main_cognition.model_json import StageOutputError, extract_json
             raw = stage_model.complete([
                 {"role": "system", "content": "Rewrite this message as a short memory search query. "
                  "Search for original user reports or concrete executed events, not earlier answers to recall requests. "

@@ -95,6 +95,7 @@ class AttributionTests(unittest.TestCase):
         from pm.bus.envelopes import new_envelope
         loop = MainCogLoop.__new__(MainCogLoop)
         loop.ghost = self.ghost
+        loop._event_stimuli = {}
         event = new_envelope("worker", "telemetry", "workflow.event", "request",
                              {"run_id": "observed-run", "event": "completed"})
         first = loop._stimulus_from(event)

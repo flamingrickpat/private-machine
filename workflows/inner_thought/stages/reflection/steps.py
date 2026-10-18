@@ -7,7 +7,7 @@ No role writes accepted memory or performs an external intervention.
 import json
 
 from pm.constants import Sampler
-from workflows.main_cognition.stage_support import complete_json, read_request, write_report
+from workflows.main_cognition.model_json import complete_json, read_request, write_report
 from workflows.reflection.schemas import Assessment, MonitorResult, ReflectionDecision
 from workflows.reflection.experiments import validate_decision
 

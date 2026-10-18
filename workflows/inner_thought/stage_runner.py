@@ -18,13 +18,18 @@ from pm_workflows.runtime import WorkflowRuntime
 from pm.memory.bash_view import MemoryBashEnvironment
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 
-from workflows.main_cognition.stage_runner import make_environment
 from workflows.inner_thought.pipeline import STAGE_ORDER
 from workflows.inference_settings import REASONING
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 PARENT_MANIFEST = PACKAGE_DIR / "inner_thought.workflow.md"
 STAGES_DIR = PACKAGE_DIR / "stages"
+
+
+def make_environment(ghost) -> MemoryBashEnvironment:
+    """Return a fresh read-only projection of the current store state."""
+    view = ghost.snapshot()
+    return MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), "read")
 
 
 def stage_manifest(name: str) -> Path:

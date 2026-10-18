@@ -53,5 +53,5 @@ Its placement depends on whether it predicts world state, selects context, or co
 
 ## Go deeper
 
-Read [development loop](../workflows/development.md), [memory experiments](../workflows/memory.md), and [`workflows.main_cognition.pipeline.run_cycle`][].
+Read [development loop](../workflows/development.md), [memory experiments](../workflows/memory.md), and `workflows.main_cognition.pipeline.run_cycle` (removed in A19F).
 

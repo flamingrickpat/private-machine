@@ -16,8 +16,8 @@ from pm.host.mcp_listeners import serve_services
 from pm.llm.prompt_log import log_directory
 from workflows.cognitive_control.schemas import MentalPlan
 from workflows.main_cognition.schemas import GoalChange
-from workflows.main_cognition.stage_support import read_request
-from workflows.main_cognition.stages.goals.steps import validate_changes
+from workflows.main_cognition.model_json import read_request
+from workflows.main_cognition.phases.goals import validate_changes
 from workflows.main_cognition.schemas import GoalsResult
 
 

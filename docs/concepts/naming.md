@@ -32,7 +32,7 @@ Keep these strings exactly as they are, even when the Python name changes:
 - Do not create `utils`, `common`, `helpers`, or `misc` folders. Put a helper in the narrowest package that owns its concept.
 - Create a folder only for a real boundary. A folder with one file is acceptable only for a workflow or a stage.
 
-Acceptable: `workflows/main_cognition/stages/appraisal/`.
+Acceptable: `workflows/main_cognition/phases/appraise.py`.
 Not acceptable: `pm_core/utils/datetime_utils.py` (one function, generic folder name).
 
 ## Python files

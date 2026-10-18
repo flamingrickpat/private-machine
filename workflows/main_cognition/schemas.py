@@ -1,33 +1,63 @@
 """Typed contracts for the main cognitive cycle.
 
-Every stage boundary crosses here. Model output is validated into these
-schemas once; the parent finalizer, not the model, builds knoxels. No stage
-stores free-form unvalidated model text as canonical memory.
+Model output and phase results cross here. Each model answer is validated
+into one of these schemas once. The commit, not the model, builds records.
+No phase stores free-form unvalidated model text as canonical memory.
+
+The request and the shared phase state are in
+:mod:`workflows.main_cognition.cycle_work`.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
-from workflows.cognitive_control.schemas import WaitRequest
+from workflows.cognitive_control.schemas import FocusProposal, FocusState, WaitRequest
+from workflows.public_speech.public_context import Presentation
 
 
 class Stimulus(BaseModel):
     """One incoming item for one cycle, resolved from a bus envelope."""
 
-    knoxel_id: int
+    knoxel_id: int = 0
     source: str = ""
     text: str = ""
     correlation_id: str = ""
     kind: str = "user.input"
 
 
-class StageReceipt(BaseModel):
-    """Evidence that one child stage ran for this cycle."""
+class PhaseReceipt(BaseModel):
+    """Evidence that one phase of the cycle ran, with its short summary."""
 
-    name: str
-    status: str
-    artifact: str = ""
+    name: str = ""
     summary: str = ""
+
+
+class ActionArguments(BaseModel):
+    """Workflow arguments of one action.
+
+    The target workflow owns the meaning of its arguments, so unknown keys
+    stay (``extra="allow"``). The cycle reads only the named fields.
+    Serialization writes only the supplied fields. So ``payload()`` returns
+    the arguments as the model supplied them, also after a JSON round trip
+    between phases. ``timeout_seconds`` is strict: a bool is not a duration.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    operation: str = ""
+    run_id: str = ""
+    workflow_name: str = ""
+    timeout_seconds: float | None = Field(default=None, strict=True)
+
+    @model_serializer(mode="wrap")
+    def _supplied_only(self, handler):
+        data = handler(self)
+        return {key: value for key, value in data.items()
+                if key in self.model_fields_set or key not in type(self).model_fields}
+
+    def payload(self) -> dict:
+        """Return the supplied arguments for the target workflow."""
+        return self.model_dump(mode="json")
 
 
 class ActionDispatch(BaseModel):
@@ -40,22 +70,22 @@ class ActionDispatch(BaseModel):
     action can start. A queued prerequisite never releases dependent work.
     """
 
-    action_id: str
-    workflow_name: str
+    action_id: str = ""
+    workflow_name: str = ""
     action_type: str = "Reply"
     content: str = ""
-    arguments: dict = Field(default_factory=dict)
+    arguments: ActionArguments = Field(default_factory=ActionArguments)
     depends_on: list[str] = Field(default_factory=list)
     requires_completed: list[str] = Field(default_factory=list)
     gwt_tick_id: int | None = None
     status: str = "proposed"  # proposed | dispatched | queued | rejected
     rejection_reason: str = ""
-    presentation: dict = Field(default_factory=dict)
+    presentation: Presentation = Field(default_factory=Presentation)
 
 
 class TriageItem(BaseModel):
-    knoxel_id: int
-    category: str
+    knoxel_id: int = 0
+    category: str = ""
     input_kind: str = "message"
     urgency: float = 0.0
     relevance: float = 0.0
@@ -83,12 +113,28 @@ class AppraisalResult(BaseModel):
     evidence_ids: list[int] = Field(default_factory=list)
 
 
-class ContextResult(BaseModel):
-    memories: list[str] = Field(default_factory=list)
-    active_goals: list[str] = Field(default_factory=list)
-    capabilities: list[str] = Field(default_factory=list)
-    candidate_ids: list[int] = Field(default_factory=list)
-    belief_updates: list["BeliefUpdate"] = Field(default_factory=list)
+class AffectView(BaseModel):
+    """The accepted affect step in the form that later prompts read.
+
+    The appraise phase builds it once from the projection. ``attention_bias``
+    holds ``valence_focus`` and ``salience``. ``behavior`` and
+    ``relationship`` are the mappings of ``affect_dynamics``. Step 4 of A19F
+    replaces that module and these two mappings.
+    """
+
+    summary: str = ""
+    regulation: str = ""
+    attention_focus: str = "neutral"
+    attention_bias: dict[str, float] = Field(default_factory=dict)
+    behavior: dict = Field(default_factory=dict)
+    emotions: dict[str, float] = Field(default_factory=dict)
+    relationship: dict | None = None
+
+
+class AppraisalView(AppraisalResult):
+    """The appraisal with its accepted affect, as later prompts render it."""
+
+    affect: AffectView = Field(default_factory=AffectView)
 
 
 class BeliefUpdate(BaseModel):
@@ -98,10 +144,18 @@ class BeliefUpdate(BaseModel):
     the prior beliefs and rejects quotes from generated or imagined sources.
     """
 
-    source_id: int
+    source_id: int = 0
     quote: str = Field(min_length=1)
     belief_key: str = Field(min_length=1)
     correction: bool = False
+
+
+class ContextResult(BaseModel):
+    memories: list[str] = Field(default_factory=list)
+    active_goals: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
+    candidate_ids: list[int] = Field(default_factory=list)
+    belief_updates: list[BeliefUpdate] = Field(default_factory=list)
 
 
 # Where a proposal's content comes from. A thought-origin proposal must stay
@@ -121,10 +175,10 @@ PROPOSAL_KINDS = ("attention", "memory_access", "appraisal", "simulation", "regu
 PROPOSAL_CONSUMERS = {
     "attention": "Workspace frame; the dialogue workflow then plans its memory context from the winning texts and target ids.",
     "memory_access": "Context planning for public speech: winning target ids become required records for the reply.",
-    "appraisal": "Workspace frame and the goals stage: the interpretation informs the frame and can justify a goal change through the goals commit boundary.",
-    "simulation": "Workspace frame and action selection: a possibility can steer a choice while its imagined reality label keeps it distinguishable from events.",
-    "regulation": "Workspace frame and action selection: a way to stay steady can change the chosen action without changing the appraisal itself.",
-    "action_tendency": "Goals stage and action selection: a motive can become a durable Intention change or a concrete choice, at the owner's discretion.",
+    "appraisal": "Workspace frame and the goals phase: the interpretation informs the frame and can justify a goal change through the goals commit boundary.",
+    "simulation": "Workspace frame and the decide phase: a possibility can steer a choice while its imagined reality label keeps it distinguishable from events.",
+    "regulation": "Workspace frame and the decide phase: a way to stay steady can change the chosen action without changing the appraisal itself.",
+    "action_tendency": "Goals phase and the decide phase: a motive can become a durable Intention change or a concrete choice, at the owner's discretion.",
     "belief": "The belief owner in the main module stages a revisable subjective BeliefRecord; an interpretation never rewrites the observed records it cites.",
 }
 
@@ -139,8 +193,8 @@ class CodeletProposal(BaseModel):
     those revisions changed before commit.
     """
 
-    nomination_id: str
-    codelet: str
+    nomination_id: str = ""
+    codelet: str = ""
     family: str = ""
     proposal_kind: str = "attention"
     origin: str = "outside"
@@ -158,14 +212,14 @@ class CodeletRun(BaseModel):
     """Evidence for one scheduled codelet decision in one cycle.
 
     ``status`` is ``ran`` (it produced proposals), ``silent`` (it ran and found
-    nothing), ``skipped`` (it was not scheduled), or ``failed``. ``reason``
-    names why, for example ``cooldown`` or ``budget``.
+    nothing), or ``skipped`` (it was not scheduled). ``reason`` names why, for
+    example ``cooldown`` or ``budget``.
     """
 
-    codelet: str
-    kind: str
+    codelet: str = ""
+    kind: str = ""
     family: str = ""
-    status: str
+    status: str = ""
     reason: str = ""
     activation: float = 0.0
     cause: list[str] = Field(default_factory=list)
@@ -176,25 +230,53 @@ class CodeletRun(BaseModel):
     seconds: float = 0.0
 
 
-class CodeletsResult(BaseModel):
-    """Report of the codelets stage: proposals plus the full schedule trace.
+class CodeletCost(BaseModel):
+    """Estimated model cost of the codelets of one cycle."""
 
-    ``policy`` is the attention policy of ``loop`` from the same catalogue
-    read. The attention stage uses it, so both stages of one cycle apply one
-    catalogue version even if the file changes in between.
+    llm_calls: int = 0
+    input_tokens_estimate: int = 0
+    output_tokens_estimate: int = 0
+    seconds: float = 0.0
+    measurement: str = "estimated.tiktoken"
+
+
+class AttentionPolicy(BaseModel):
+    """Per-loop attention settings from the codelet catalogue.
+
+    The main loop uses ``main``. A17 adds an ``inner`` policy for the second
+    conscious loop without a code change. The codelets phase records the
+    policy in its result. The attention phase uses that recorded copy, so both
+    phases of one cycle apply one catalogue read.
     """
+
+    model_config = ConfigDict(extra="forbid")
+
+    activation_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    max_llm_codelets: int = Field(default=3, ge=0)
+    danger_llm_codelets: int = Field(default=0, ge=0)
+    capacity: int = Field(default=4, ge=1)
+    min_score: float = Field(default=0.3, ge=0.0, le=1.0)
+    score_batch_size: int = Field(default=8, ge=1)
+    weights: dict[str, float] = Field(default_factory=lambda: {
+        "urgency": 0.35, "novelty": 0.15, "goal_relevance": 0.3, "reportability": 0.2})
+    danger_urgency_bonus: float = Field(default=0.3, ge=0.0)
+    reserved_codelets: dict[str, int] = Field(default_factory=dict)
+
+
+class CodeletsResult(BaseModel):
+    """Result of the codelets phase: proposals plus the full schedule trace."""
 
     proposals: list[CodeletProposal] = Field(default_factory=list)
     runs: list[CodeletRun] = Field(default_factory=list)
     catalogue_version: str = ""
     catalogue_digest: str = ""
     loop: str = "main"
-    policy: dict = Field(default_factory=dict)
+    policy: AttentionPolicy = Field(default_factory=AttentionPolicy)
     signals: dict[str, float] = Field(default_factory=dict)
     # Pathway activation values without the ``pathway.`` prefix, so a trace
     # shows which accepted precursors drove this cycle.
     pathway_signals: dict[str, float] = Field(default_factory=dict)
-    cost: dict = Field(default_factory=dict)
+    cost: CodeletCost = Field(default_factory=CodeletCost)
 
 
 class AttentionNomination(BaseModel):
@@ -228,11 +310,38 @@ class AttentionNomination(BaseModel):
     reason: str = ""
 
 
+class RankingEntry(BaseModel):
+    """One nomination in the competition order, with its outcome."""
+
+    nomination_id: str = ""
+    codelet: str = ""
+    score: float = 0.0
+    status: str = ""
+    reason: str = ""
+
+
+class CompetitionTrace(BaseModel):
+    """How attention competition chose its winners.
+
+    ``ranking`` lists the scored nominations in competition order.
+    ``rejected`` lists the unscored ones. ``focus`` is the effective
+    deliberate focus of this cycle, or None.
+    """
+
+    policy: AttentionPolicy = Field(default_factory=AttentionPolicy)
+    danger: bool = False
+    deliberate_bias: dict[str, float] = Field(default_factory=dict)
+    ranking: list[RankingEntry] = Field(default_factory=list)
+    rejected: list[RankingEntry] = Field(default_factory=list)
+    focus: FocusState | None = None
+    scoring_calls: int = 0
+
+
 class AttentionResult(BaseModel):
     nominations: list[AttentionNomination] = Field(default_factory=list)
     selected_ids: list[int] = Field(default_factory=list)
     reasoning: str = ""
-    competition: dict = Field(default_factory=dict)
+    competition: CompetitionTrace = Field(default_factory=CompetitionTrace)
 
 
 class NominationScore(BaseModel):
@@ -242,7 +351,7 @@ class NominationScore(BaseModel):
     floats. The competition divides each value by 10.
     """
 
-    id: str
+    id: str = ""
     urgency: int = Field(ge=0, le=10)
     novelty: int = Field(ge=0, le=10)
     goal_relevance: int = Field(ge=0, le=10)
@@ -268,7 +377,7 @@ class CodeletAnswer(BaseModel):
 
 
 class GoalChange(BaseModel):
-    change: str  # retain | add | complete | reprioritize
+    change: str = ""  # retain | add | complete | reprioritize | defer | refuse
     goal: str = ""
     goal_key: str = ""  # stable identity; falls back to normalized goal text
     reason: str = ""
@@ -287,21 +396,20 @@ class WorkspaceResult(BaseModel):
 
 
 class ActionIntent(BaseModel):
-    action_id: str = ""  # optional durable identity; the parent fills a stable one
+    action_id: str = ""  # optional durable identity; the route phase fills a stable one
     action_type: str = "Reply"
     workflow_name: str = "dialogue_story"
     content: str = ""
-    arguments: dict = Field(default_factory=dict)
+    arguments: ActionArguments = Field(default_factory=ActionArguments)
     depends_on: list[str] = Field(default_factory=list)
     requires_completed: list[str] = Field(default_factory=list)
-    presentation: dict = Field(default_factory=dict)
-
+    presentation: Presentation = Field(default_factory=Presentation)
 
     @model_validator(mode="after")
     def validate_wait(self) -> "ActionIntent":
-        """Reject unusable Sleep durations inside the stage's repair boundary."""
-        if self.action_type == "Sleep" and "timeout_seconds" in self.arguments:
-            WaitRequest(seconds=self.arguments["timeout_seconds"])
+        """Reject unusable Sleep durations inside the phase's repair boundary."""
+        if self.action_type == "Sleep" and "timeout_seconds" in self.arguments.model_fields_set:
+            WaitRequest(seconds=self.arguments.timeout_seconds)
         return self
 
 
@@ -311,7 +419,13 @@ class ActionSelectionResult(BaseModel):
 
 
 class MemoryCandidate(BaseModel):
-    knoxel_id: int
+    """One retrieved memory that the cycle may select.
+
+    ``scope`` and ``provenance`` are record fields as the retrieval service
+    serialized them. The cycle passes them on unchanged.
+    """
+
+    knoxel_id: int = 0
     text: str = ""
     revision: int = 1
     memory_kind: str = "attributed_record"
@@ -327,108 +441,129 @@ class MemoryCandidate(BaseModel):
 
 
 class WorkflowOption(BaseModel):
-    name: str
+    name: str = ""
     description: str = ""
 
 
-class CognitiveRequest(BaseModel):
-    run_id: str = ""
-    correlation_id: str = ""
-    companion_name: str = "Spamuel"
-    user_name: str = "Jesse"
-    relationship_entity_id: int | None = None
-    state_summary: str = ""
-    mental_state_latent_vec: list[float] = Field(default_factory=list)
-    mental_state_age_seconds: float = 0.0
-    personality_vec: list[float] = Field(default_factory=list)
-    active_goals: list[str] = Field(default_factory=list)
-    stimuli: list[Stimulus] = Field(default_factory=list)
-    memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
-    memory_trace: dict = Field(default_factory=dict)
-    capabilities: list[str] = Field(default_factory=list)
-    available_workflows: list[WorkflowOption] = Field(default_factory=list)
-    public_context: dict = Field(default_factory=dict)
-    managed_runs: list[dict] = Field(default_factory=list)
-    # A15 scheduler inputs. The module derives them from committed state.
-    stimulus_revisions: dict[str, int] = Field(default_factory=dict)
-    active_goal_records: list[dict] = Field(default_factory=list)
-    codelet_history: dict[str, dict] = Field(default_factory=dict)
-    seconds_since_user_input: float | None = None
-    codelet_catalogue: str = ""
-    # Selects the catalogue's attention policy. A17 sets "inner".
-    attention_loop: str = "main"
-    # Accepted precursor proposals from recent committed cycles. The codelets
-    # stage turns them into pathway.<name> activation signals. The main
-    # module derives them fresh from committed AttentionRecords, so a restart
-    # keeps them and no cycle can reuse stale pathway state.
-    pathway_precursors: list[dict] = Field(default_factory=list)
-    # The newest committed attention tick. Tick age is measured from it, not
-    # from the newest precursor, so an old precursor keeps its true age.
-    pathway_latest_tick: int = 0
-    active_focus: dict = Field(default_factory=dict)
-    focus_proposals: list[dict] = Field(default_factory=list)
-    mental_proposals: list[dict] = Field(default_factory=list)
-    reflection_guidance: list[dict] = Field(default_factory=list)
-    deliberation_only: bool = False
-    wait_default_seconds: float = 1800
+class ManagedRunView(BaseModel):
+    """One recent managed run, as the cycle prompts show it."""
+
+    run_id: str | None = None
+    workflow_name: str | None = None
+    state: str | None = None
+    instructions: str | None = None
+    parent_correlation: str | None = None
 
 
-class CognitiveReport(BaseModel):
-    """Parent output. MainCogLoop commits the GWT and dispatches actions."""
+class GoalRecordView(BaseModel):
+    """One active goal record with the revision that the cycle read."""
 
-    status: str = "done"
+    knoxel_id: int = 0
+    text: str = ""
+    revision: int = 1
+
+
+class CodeletHistory(BaseModel):
+    """Run history of one codelet, derived from committed attention frames.
+
+    ``cycles_since`` counts committed cycles after the last run.
+    ``seconds_since`` is the wall time since that frame was created.
+    """
+
+    runs: int = 0
+    last_tick: int = 0
+    cycles_since: int | None = None
+    seconds_since: float | None = None
+
+
+class PathwayPrecursor(BaseModel):
+    """One accepted codelet proposal from a recent cycle that feeds a pathway.
+
+    The host derives it fresh from a committed ``AttentionRecord`` in every
+    cycle. ``revision`` is the record revision at read time.
+    """
+
+    codelet: str = ""
+    record_id: int = 0
+    tick_id: int = 0
+    attention_kind: str = ""
+    reality: str = ""
+    family: str = ""
+    pathways: list[str] = Field(default_factory=list)
+    selected: bool = False
+    revision: int = 1
+
+
+class MentalProposal(BaseModel):
+    """A private plan from deliberate mental work that a stimulus carries.
+
+    ``record_id`` is the stimulus record that holds the plan. The goals phase
+    may accept, change, or decline the proposed goal changes.
+    """
+
+    record_id: int = 0
+    instruction: str = ""
     summary: str = ""
-    receipts: list[StageReceipt] = Field(default_factory=list)
-    dispatches: list[ActionDispatch] = Field(default_factory=list)
-    gwt_tick_id: int | None = None
-    focus_ids: list[int] = Field(default_factory=list)
-    winning_attention_ids: list[int] = Field(default_factory=list)
-    active_goal_ids: list[int] = Field(default_factory=list)
-    control_mode: str = "reactive"
-    frame_reason: str = ""
-    subjective_experience: str = ""
-    appraisal: AppraisalResult | None = None
+    disposition: str = "propose"
+    evidence_ids: list[int] = Field(default_factory=list)
     goal_changes: list[GoalChange] = Field(default_factory=list)
-    event_origins: dict[str, str] = Field(default_factory=dict)
-    mental_state_latent_vec: list[float] = Field(default_factory=list)
-    affect_trace: dict = Field(default_factory=dict)
-    affect_summary: str = ""
-    regulation: str = ""
-    selected_memories: list[MemoryCandidate] = Field(default_factory=list)
-    memory_trace: dict = Field(default_factory=dict)
-    belief_updates: list[BeliefUpdate] = Field(default_factory=list)
-    nominations: list[AttentionNomination] = Field(default_factory=list)
-    codelet_trace: dict = Field(default_factory=dict)
-    wait_request: WaitRequest | None = None
-    focus_decision: dict = Field(default_factory=dict)
-    action_selection: dict = Field(default_factory=dict)
+
+
+class FocusProposalRef(BaseModel):
+    """A deliberate focus proposal and the stimulus record that carries it."""
+
+    record_id: int = 0
+    focus: FocusProposal = Field(default_factory=lambda: FocusProposal(instruction=""))
+
+
+class ReflectionGuidance(BaseModel):
+    """One scoped private experiment that is in effect for this cycle."""
+
+    experiment_id: int = 0
+    owner: str = ""
+    effective_record_id: int = 0
+    scope: str = ""
+    instruction: str = ""
+    status: str = ""
 
 
 __all__ = [
+    "ActionArguments",
     "ActionDispatch",
     "ActionIntent",
     "ActionSelectionResult",
+    "AffectView",
     "AppraisalResult",
-    "BeliefUpdate",
+    "AppraisalView",
     "AttentionNomination",
+    "AttentionPolicy",
     "AttentionResult",
-    "CognitiveReport",
+    "BeliefUpdate",
     "CodeletAnswer",
+    "CodeletCost",
+    "CodeletHistory",
     "CodeletProposal",
     "CodeletRun",
     "CodeletsResult",
-    "CognitiveRequest",
-    "PROPOSAL_CONSUMERS",
+    "CompetitionTrace",
     "ContextResult",
+    "FocusProposalRef",
     "GoalChange",
+    "GoalRecordView",
     "GoalsResult",
+    "ManagedRunView",
     "MemoryCandidate",
+    "MentalProposal",
     "NominationScore",
     "NominationScores",
+    "PROPOSAL_CONSUMERS",
     "PROPOSAL_KINDS",
     "PROPOSAL_ORIGINS",
+    "PathwayPrecursor",
+    "PhaseReceipt",
     "REALITY_LABELS",
-    "StageReceipt",
+    "RankingEntry",
+    "ReflectionGuidance",
     "Stimulus",
     "TriageItem",
     "TriageResult",
