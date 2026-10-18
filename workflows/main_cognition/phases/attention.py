@@ -81,7 +81,7 @@ def build_messages(work: CycleWork, prompts: PhasePrompts, proposals: list[Codel
     system = prompts.system_prompt.format(companion_name=companion, user_name=user)
     user_message = format_content(prompts.user_template,
         companion_name=companion, user_name=user,
-        affect=work.affect_view.summary or work.state_summary or "(calm, nothing strong)",
+        affect=work.affect.felt,
         active_goals="\n".join(f"- {goal}" for goal in work.request.active_goals) or "(none)",
         items=render_items(proposals, prompts),
     )

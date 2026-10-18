@@ -8,7 +8,7 @@ MemoryStore checkpoint. It drives four turns:
 3. a return to the disappointment;
 4. a repair offer.
 
-After each turn it records the accepted mental state, the affect trace on the
+After each turn it records the accepted mental state, the delta axes on the
 appraisal Feature, the regulation mode, and the public replies. It then runs
 one contrasting persona turn with the cheerful fixture to show that the same
 facts produce a different internal trajectory.
@@ -35,6 +35,7 @@ from dev.work_items.shared.evidence import save_json
 from workflows.companion import build_app
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
+from pm.records.mental_state import sparse_delta
 from pm.app.lifecycle_records import record_shutdown
 
 import yaml
@@ -100,9 +101,11 @@ def _latest_appraisal(ghost) -> dict | None:
     return {
         "id": int(feature.id),
         "content": str(feature.content),
-        "affect_trace": dict(feature.metadata.get("affect_trace", {})),
-        "regulation": str(feature.metadata.get("regulation", "")),
-        "behavior": dict(feature.metadata.get("behavior", {})),
+        # D27: the appraisal Feature carries the appraisal state and its
+        # delta. The delta axes are the trace of what this appraisal changed.
+        "delta_axes": sparse_delta(feature.mental_state_delta_vec),
+        "relationship_entity_id": feature.metadata["relationship_entity_id"],
+        "regulation": str(feature.metadata["regulation"]),
     }
 
 
@@ -231,10 +234,10 @@ def main(argv=None) -> int:
     failures: list[str] = []
     traced = [
         snapshot for snapshot in primary["snapshots"]
-        if snapshot["appraisal"] and snapshot["appraisal"]["affect_trace"]
+        if snapshot["appraisal"] and snapshot["appraisal"]["delta_axes"]
     ]
     if len(traced) != len(primary["snapshots"]):
-        failures.append("one or more turns wrote no appraisal affect trace")
+        failures.append("one or more turns wrote an appraisal without a delta")
     if primary["appraisal_features"] < len(TURNS):
         failures.append("the primary sequence wrote fewer appraisals than turns")
     if any(not snapshot["replies"] for snapshot in primary["snapshots"]):

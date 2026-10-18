@@ -4,7 +4,7 @@
 
 Main cognition proposes affect, goals, and actions.
 A06 makes the accepted path carry those proposals into Ghost state.
-An appraisal changes the latent mental state.
+An appraisal adds one delta to the history that sets the mental state.
 A goal change creates or moves an `Intention` through its lifecycle.
 Actions keep a stable identity and a separate success prerequisite.
 
@@ -18,7 +18,7 @@ Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 Each phase of the cycle adds its typed result to one shared
 [`workflows.main_cognition.cycle_work.CycleWork`][].
 [`workflows.main_cognition.steps.run`][] validates it at the entry of each phase.
-The final work carries the appraisal, the affect step, the goal changes, the
+The final work carries the appraisal, the appraisal affect, the goal changes, the
 dispatches, and the changed cycle state.
 The module applies those proposals inside one Ghost write batch.
 
@@ -26,7 +26,7 @@ The module applies those proposals inside one Ghost write batch.
 
 | Input | Change | Output |
 | --- | --- | --- |
-| Appraisal report | New latent state and one appraisal Feature | Feature in accepted memory |
+| Appraisal report | EMA mental state and one appraisal Feature | Feature in accepted memory |
 | Goal change list | New or changed `Intention` knoxel | Durable goal lifecycle |
 | Action selection | Stable action IDs and prerequisite records | `action.request` or `action.receipt` |
 | Startup gap | One system lifecycle Feature | First-cycle stimulus, unless an accepted wait suppresses routine cognition |
@@ -34,26 +34,22 @@ The module applies those proposals inside one Ghost write batch.
 
 ## Appraisal to affect
 
-[`workflows.main_cognition.steps.run`][] computes one affect
-projection after the appraisal stage.
-[`workflows.main_cognition.affect_dynamics.project_affect`][] applies elapsed-time decay,
-personality gains, canonical appraisal axes, explicit emotion and need deltas,
-and an expectation error.
-[`workflows.main_cognition.stage_commits.apply_appraisal`][] stages the result
-as one `Feature` with `feature_subtype=Appraisal`.
-The Feature carries the new total state in `mental_state_appraisal_vec`.
-It carries the difference in `mental_state_delta_vec`.
-Its metadata carries the causal `affect_trace` and the regulation mode.
-The module stores the same new state in the cycle
-`mental_state` field.
-The appraisal Feature is self-origin (`SourceKind.Self`).
+The appraise phase computes the affect of the cycle (D27).
+[`workflows.main_cognition.phases.appraise.update_affect`][] reads the causal feature history of the request.
+It derives the appraisal state and its delta with [`workflows.main_cognition.affect.appraise_state`][].
+Then it sets the cycle `mental_state` to the EMA readout over the history and the new delta.
+[`workflows.main_cognition.stage_commits.apply_appraisal`][] stages one `Feature` with `feature_subtype=Appraisal`.
+The Feature carries the appraisal state in `mental_state_appraisal_vec`.
+It carries the delta in `mental_state_delta_vec`.
+Its metadata carries the appraisal axes, the explicit deltas, the relationship entity id, the feeling in words, and the regulation mode.
+The Feature is causal and self-origin (`SourceKind.Self`).
+The next cycle reads its delta from the store.
 
-Read [emotional dynamics](emotional-dynamics.md) for the step order, the
-personality gains, and the behavior mapping.
-The model names axes, for example `goal_congruence` or `connection`.
-The code maps each name onto the existing appraisal, emotion, or need field.
-An unknown name has no effect.
-The math uses bounded values, so state stays in range.
+Read [emotional dynamics](emotional-dynamics.md) for the formula, the regulation mode, and the departures from the old code.
+The model names axes, for example `goal_congruence`, and deltas, for example `connection`.
+`AppraisalResult` accepts only the field names of the appraisal, emotion, and need models.
+An unknown name or an out-of-bounds axis is invalid model output, and the repair loop asks the model to fix it.
+The math clamps every value to its field bounds, so the state stays in range.
 
 ## Goal lifecycle
 

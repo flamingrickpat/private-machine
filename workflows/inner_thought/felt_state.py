@@ -54,19 +54,17 @@ def channel_position(channel_id: str, state: FullMentalState, *, active_goals: l
         relationship = state.state_relationship
         if relationship is None or relationship.entity_id is None:
             return 0.0, "absent source"
-        values = [float(getattr(relationship, name, 0.0) or 0.0) for name in spec["positive"]]
+        values = [getattr(relationship, name) for name in spec["positive"]]
         return _clamp(sum(values) / spec["scale"], -1.0, 1.0), ""
     if spec.get("goals"):
         goals = list(active_goals or [])
         if not goals:
             return 0.0, "absent source"
-        conflicted = [goal for goal in goals
-                      if float(getattr(goal, "affective_valence", 0.0) or 0.0) <= -0.3
-                      and float(getattr(goal, "fulfilment", 0.0) or 0.0) < 0.5]
+        conflicted = [goal for goal in goals if goal.affective_valence <= -0.3 and goal.fulfilment < 0.5]
         return _clamp(len(conflicted) / len(goals), 0.0, 1.0), ""
     emotions = state.state_emotions
-    positive = sum(float(getattr(emotions, name, 0.0) or 0.0) for name in spec["positive"])
-    negative = sum(float(getattr(emotions, name, 0.0) or 0.0) for name in spec["negative"])
+    positive = sum(getattr(emotions, name) for name in spec["positive"])
+    negative = sum(getattr(emotions, name) for name in spec["negative"])
     position = (positive - negative) / spec["scale"]
     low = 0.0 if spec["units"] == "0..1" else -1.0
     return _clamp(position, low, 1.0), ""

@@ -5,7 +5,7 @@ import unittest
 from pm.context_render import Role, Turn
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.phases import goals
-from workflows.main_cognition.schemas import AffectView
+from workflows.main_cognition.schemas import AppraisalAffect
 from workflows.public_speech.public_context import PublicContext
 
 
@@ -23,7 +23,7 @@ class PhaseContextRenderingTests(unittest.TestCase):
         work = CycleWork(request=CycleRequest(
             companion_name="Companion", user_name="User", public_context=public,
             stimuli=[{"knoxel_id": 11, "text": "current utterance", "source": "user_input", "kind": "user.input"}]),
-            affect_view=AffectView(emotions={"shame": 0.8932695940694135}))
+            affect=AppraisalAffect(felt="Companion feels strong shame.", regulation="reflective"))
         context = SimpleNamespace(runtime=SimpleNamespace(tools={"llm_complete": complete}, environment=None))
         work = goals.run(context, work)
         self.assertEqual(work.goals.changes, [])
@@ -32,7 +32,8 @@ class PhaseContextRenderingTests(unittest.TestCase):
         body = "\n".join(turn.content.text for turn in captured["turns"])
         self.assertNotIn("OLDER AFFECT SNAPSHOT", body)
         self.assertNotIn('"emotion_state"', body)
-        self.assertIn('"shame":0.89', captured["turns"][-1].content.text)
+        self.assertIn("Companion feels strong shame.", captured["turns"][-1].content.text)
+        self.assertIn("Regulation mode: reflective", captured["turns"][-1].content.text)
         self.assertEqual(body.count("current utterance"), 1)
         self.assertFalse(captured["generation"]["enable_thinking"])
         self.assertEqual(public.revisions, {11: 2})

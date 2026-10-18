@@ -25,14 +25,14 @@ from typing import Callable
 from pydantic import BaseModel
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
-from pm.constants import CCQ_LENGTH
+from pm.constants import CCQ_LENGTH, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS
 from pm.llm.completion import TextCompletion
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.memory.snapshot import GhostCancelled
 from pm.records.cognitive_records import AttentionFrameRecord, AttentionRecord
 from pm.records.cycle_records import ActionDispatchRef, BroadcastRef
 from pm.records.cycle_state import CycleState
-from pm.records.mental_state import FullMentalState
+from pm.records.mental_state import PersonalityProfile, features_to_history
 from pm.records.workspace import SELF_SHARD
 from pm.records.enums import ActionType, FeatureType, SourceKind
 from pm.records.global_workspace import GwtTurnRecord
@@ -41,10 +41,9 @@ from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.cognitive_control.schemas import FocusState, MentalPlan
 from workflows.inference_settings import REASONING
 from workflows.main_cognition.codelet_schedule import LoadedCatalogue, load_catalogue
-from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
+from workflows.main_cognition.cycle_work import CycleRequest, CycleWork, primary_group
 from workflows.main_cognition.experience import consolidate_cycle, update_beliefs
 from workflows.main_cognition.model_json import ModelFormatError
-from workflows.main_cognition.phases.decide import primary_group
 from workflows.main_cognition.phases.goals import proposal_consumers
 from workflows.main_cognition.schemas import (
     CodeletHistory,
@@ -345,12 +344,15 @@ class MainCogLoop(CognitiveWorkflow):
         A concurrent commit can invalidate the cycle's proposal. Each retry
         opens a new view and keeps the original causes. Three failed attempts
         raise the conflict, so contention cannot silently discard user input.
-        Exhausted format repairs retain a diagnostic and retry the same batch.
+        Exhausted format repairs retain a diagnostic and retry the same batch
+        after a delay that doubles from CYCLE_RETRY_DELAY_SECONDS up to
+        CYCLE_RETRY_MAX_DELAY_SECONDS.
         Cancellation stops retries. Ordinary Python and provider errors propagate.
         """
         from pm.memory.snapshot import GhostConflict
         self._event_stimuli = {}
         attempt = 0
+        delay = CYCLE_RETRY_DELAY_SECONDS
         while not self.stop_event.is_set():
             try:
                 super().handle_batch(batch)
@@ -368,9 +370,12 @@ class MainCogLoop(CognitiveWorkflow):
                 # its event records while the next invocation reads fresh state.
                 # A failed parallel call sets run_stop to join its siblings.
                 # Only an explicit run cancellation or module stop ends retry.
-                if (self.stop_event.wait(0.2)
+                # The same model often repeats the same mistake. A growing
+                # delay stops a fast loop of model calls and run directories.
+                if (self.stop_event.wait(delay)
                         or self._cancelled_invocation_id == self.invocation_id):
                     return
+                delay = min(delay * 2, CYCLE_RETRY_MAX_DELAY_SECONDS)
             except GhostConflict as error:
                 attempt += 1
                 self.bus.put(new_envelope(self.module_id, "telemetry", "cycle.conflict",
@@ -516,10 +521,11 @@ class MainCogLoop(CognitiveWorkflow):
                     memory_kind=memory_kind(raw), evidence_role=evidence_role(memory_view, raw),
                     reasons=["deliberate mental recall"]))
         previous = self.ghost.states[-1] if self.ghost.states else None
-        age_seconds = 0.0
-        if previous is not None:
-            from pm.memory.retrieval import utc_time
-            age_seconds = max(0.0, (utc_time(datetime.utcnow()) - utc_time(previous.timestamp)).total_seconds())
+        # The appraise phase computes the EMA mental state from this history.
+        # It reads the live store, like ``previous``: the cycle state and the
+        # features that produced it come from the same committed ticks.
+        with self.ghost.lock:
+            history = features_to_history(self.ghost.all_features)
         capabilities = self.capability_provider() if self.capability_provider is not None else None
         public = build_public_context(self.ghost, {"stimuli": [item.model_dump(mode="json") for item in stimuli]},
                                       capabilities=capabilities)
@@ -530,11 +536,11 @@ class MainCogLoop(CognitiveWorkflow):
             companion_name=self.ghost.get_companion_name(),
             user_name=self.ghost.get_user_name(),
             user_entity_id=user_entity_id,
-            relationship_entity_id=user_entity_id if any(item.source == "user_input" for item in stimuli) else None,
             state_summary=_state_summary(self.ghost),
             previous_state=previous,
-            mental_state_age_seconds=age_seconds,
-            personality_vec=list(self.ghost.ghost_config.personality_profile),
+            cycle_time=datetime.utcnow(),
+            state_history=history,
+            personality=PersonalityProfile.init_from_vector(self.ghost.ghost_config.personality_profile),
             active_goals=active_goal_texts(self.ghost)[:8],
             stimuli=stimuli,
             memory_candidates=matches,
@@ -679,16 +685,14 @@ class MainCogLoop(CognitiveWorkflow):
 
         # Apply the appraisal and goal proposals into this same batch before the
         # frame. A failure here aborts the whole batch, so stale proposals never
-        # partly update accepted state. The appraise phase already projected
-        # the affect step; reuse it so accepted state matches the phase input.
+        # partly update accepted state. The appraise phase already computed the
+        # appraisal affect and the EMA mental state; the commit stores them.
         memory_trace = {**request.memory_trace,
                         "context_selected_ids": [item.knoxel_id for item in work.selected_memories]}
-        appraisal_feature, mental_state = apply_appraisal(
-            changes, view, work.appraisal,
-            previous_vec=None,
+        appraisal_feature = apply_appraisal(
+            changes, work.appraisal, work.affect,
             evidence_ids=list(self._stimulus_ids),
             companion_name=self.ghost.get_companion_name(),
-            projection=work.affect,
             memory_trace=memory_trace,
         )
         goal_records = apply_goal_changes(
@@ -703,7 +707,7 @@ class MainCogLoop(CognitiveWorkflow):
         goal_ids = [int(item.id) for item in active_intentions(changes.view())]
         belief_receipt = update_beliefs(changes, work.context.belief_updates, user_name=self.ghost.get_user_name(),
                                         permitted_source_ids=set(self._stimulus_ids))
-        experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, work.affect.summary)
+        experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, work.affect.felt)
 
         # Commit every nomination, winner or not, as an AttentionRecord. A
         # nomination whose read sources changed since the cycle began is
@@ -863,7 +867,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "depends_on": list(dispatch.depends_on),
                     "requires_completed": list(dispatch.requires_completed),
                     "arguments": arguments,
-                    "affect_summary": work.affect.summary,
+                    "affect_summary": work.affect.felt,
                     "appraisal_id": appraisal_feature.id,
                     "evidence_ids": list(self._stimulus_ids),
                     "self_origin": not any(item.source == "user_input" for item in batch),
@@ -880,14 +884,14 @@ class MainCogLoop(CognitiveWorkflow):
                         "stimuli": stimulus_records, "memories": memory_texts,
                         "memory_evidence": memory_evidence,
                         "workspace": experience_text,
-                        "affect": work.affect.summary, "regulation": work.affect.regulation,
+                        "affect": work.affect.felt, "regulation": work.affect.regulation,
                         "attention": attention_focus},
                 },
             ))
             created_order.append(action.id)
             published.append((dispatch, action.id))
-        summary = workspace.subjective_experience.strip() or work.affect.summary.strip() or work.summary
-        state = self._accepted_state(work, tick, frame.id, mental_state, summary, published, correlation)
+        summary = workspace.subjective_experience.strip() or work.affect.felt.strip() or work.summary
+        state = self._accepted_state(work, tick, frame.id, summary, published, correlation)
         changes.set_gwt(
             GwtTurnRecord(
                 tick_id=tick, attention_frame_id=frame.id,
@@ -927,7 +931,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "memories": memory_texts,
                     "memory_evidence": memory_evidence,
                     "workspace": experience_text,
-                    "affect": work.affect.summary,
+                    "affect": work.affect.felt,
                     "regulation": work.affect.regulation,
                     "attention": attention_focus,
                 },
@@ -944,13 +948,14 @@ class MainCogLoop(CognitiveWorkflow):
                 detail=f"active action {existing_id} has identity {dispatch.action_id}",
             )
 
-    def _accepted_state(self, work: CycleWork, tick: int, frame_id: int, mental_state: FullMentalState,
+    def _accepted_state(self, work: CycleWork, tick: int, frame_id: int,
                         summary: str, published: list[tuple], correlation: str) -> CycleState:
         """Finish the cycle state that the phases changed and return it.
 
-        The phases changed the previous state in place. Here the state gets
-        its tick, time, frame, mental state, dispatch references, and the new
-        broadcast. The broadcast queue keeps the last ``CCQ_LENGTH`` turns.
+        The phases changed the previous state in place. The appraise phase set
+        the mental state. Here the state gets its tick, time, frame, dispatch
+        references, and the new broadcast. The broadcast queue keeps the last
+        ``CCQ_LENGTH`` turns.
         """
         state = work.state
         state.tick_id = tick
@@ -958,7 +963,6 @@ class MainCogLoop(CognitiveWorkflow):
         state.attention_frame_id = frame_id
         state.published_slots = ["main"]
         state.stimuli_ids = list(self._stimulus_ids)
-        state.mental_state = mental_state
         state.control_generation = self._control_generation
         state.commit_hash = None
         # Every dispatch of the old single decision belongs to the primary

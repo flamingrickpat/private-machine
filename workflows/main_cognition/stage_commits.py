@@ -3,8 +3,9 @@
 Main cognition and the future inner loop share these helpers. They keep the
 accepted state path in one place:
 
-- an appraisal updates the cycle's latent mental state and writes one appraisal
-  Feature that carries the new state, the delta, and its evidence;
+- an appraisal writes one appraisal Feature that carries the appraisal state,
+  the delta, and its evidence. The appraise phase already computed the EMA
+  mental state of the cycle;
 - a goal change creates, completes, or reprioritises an ``Intention`` knoxel
   that has a stable identity and a lifecycle status.
 
@@ -16,18 +17,16 @@ from __future__ import annotations
 
 import re
 
-from workflows.main_cognition.affect_dynamics import AffectProjection, project_affect
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance
 from pm.records.enums import FeatureSubtype, FeatureType, InterlocusType, IntentionType, SourceKind
 from pm.records.cognitive_records import BeliefRecord, BeliefShiftRecord, Intention
-from pm.records.mental_state import FullMentalState
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     # ``public_context`` imports this module, and the schemas import
     # ``public_context``. The types are for annotations only.
-    from workflows.main_cognition.schemas import AppraisalResult, AttentionNomination, GoalChange
+    from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult, AttentionNomination, GoalChange
 
 
 def _normalize_topic(text: str, limit: int = 48) -> str:
@@ -101,46 +100,28 @@ def find_intention(record_source, key: str):
 
 def apply_appraisal(
     batch,
-    view,
     appraisal: AppraisalResult,
+    affect: AppraisalAffect,
     *,
-    previous_vec,
     evidence_ids,
     companion_name: str,
-    elapsed_seconds: float = 0.0,
-    personality=None,
-    expectation_error: float = 0.0,
-    projection: AffectProjection | None = None,
     memory_trace: dict | None = None,
-) -> tuple[Feature, FullMentalState]:
-    """Apply one appraisal to the mental state and stage an appraisal Feature.
+) -> Feature:
+    """Stage the appraisal ``Feature`` of one cycle and return it.
 
-    ``previous_vec`` is the latent vector of the last accepted cycle. The
-    projection applies elapsed-time decay, personality gains, canonical
-    appraisal axes, explicit emotion and need deltas, and an expectation error.
-    The Feature records the new total state in ``mental_state_appraisal`` and
-    the difference in ``mental_state_delta``. The metadata carries the causal
-    trace and the behavior mapping. The caller reads ``state`` to store it on
-    the cycle.
-
-    ``projection`` may be supplied when the parent pipeline already computed
-    the same step, so the accepted state and the stage input cannot diverge.
+    ``affect`` comes from the appraise phase. The Feature stores the
+    appraisal state in ``mental_state_appraisal_vec`` and the delta in
+    ``mental_state_delta_vec``. The Feature is causal, so the next cycle reads
+    its delta in the EMA history. The relationship partner sits in the entity
+    id slot of the appraisal vector. The metadata keeps the feeling in words
+    and the regulation mode. The caller commits the batch.
     """
-    if projection is None:
-        projection = project_affect(
-            previous_vec, appraisal,
-            elapsed_seconds=elapsed_seconds,
-            personality=personality,
-            expectation_error=expectation_error,
-        )
-    updated = projection.state
-    delta_vec = list(projection.delta_vec)
     feeling = appraisal.feeling
     reasoning = appraisal.reasoning
     content = feeling or "appraisal"
     if reasoning:
         content = f"{content}: {reasoning}"
-    feature = batch.create(Feature(
+    return batch.create(Feature(
         content=content,
         feature_type=FeatureType.StateUpdate,
         feature_subtype=FeatureSubtype.Appraisal,
@@ -148,22 +129,22 @@ def apply_appraisal(
         override_source=companion_name,
         interlocus=InterlocusType.PrivateReportable,
         provenance=Provenance(source_kind=SourceKind.Self, source_ref="main_appraisal"),
-        mental_state_appraisal_vec=updated.to_list(),
-        mental_state_delta_vec=delta_vec,
+        mental_state_appraisal_vec=affect.appraisal_state.to_list(),
+        mental_state_delta_vec=list(affect.delta_vec),
         metadata={
             "memory_kind": "internal_state",
             "memory_trace": dict(memory_trace or {}),
             "origin": "appraisal",
             "evidence_ids": [int(item) for item in (evidence_ids or [])],
+            "appraisal": dict(appraisal.appraisal),
             "emotion_delta": dict(appraisal.emotion_delta),
             "need_delta": dict(appraisal.need_delta),
-            "affect_trace": projection.trace,
-            "affect_summary": projection.summary,
-            "regulation": projection.regulation,
-            "behavior": projection.behavior,
+            "expectation_error": appraisal.expectation_error,
+            "relationship_entity_id": affect.entity_id,
+            "affect_summary": affect.felt,
+            "regulation": affect.regulation,
         },
     ))
-    return feature, updated
 
 
 def _stage_intention(batch, *, goal, key, status, active, change, evidence_ids, appraisal_id=None,

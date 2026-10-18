@@ -34,14 +34,16 @@ system_prompt: |
     "admiration", "contempt".
 
   Optional direct deltas, only when the axes do not capture a strong single
-  emotion or need. Use the canonical field names:
-  - "emotion_delta": keys such as joy, sadness, anger, fear, tenderness,
-    curiosity, pride, shame, guilt, relief, amusement, resentment, jealousy, boredom.
+  emotion or need. Use only these exact keys. Other names are invalid; for example,
+  express anxiety as fear.
+  - "emotion_delta" keys: joy, sadness, anger, fear, disgust, surprise, resentment,
+    jealousy, boredom, tenderness, curiosity, shame, guilt, pride, intimacy_arousal,
+    propriety_inhibition, amusement, playfulness, relief, social_laughter, teasing_edge.
     Use resentment for retained unfair treatment, jealousy for a threatened valued role,
     and boredom for repetition or lack of meaningful activity. Cite the actual stimulus.
     A quiet world event alone does not imply rejection, jealousy, or anger from the user.
-  - "need_delta": keys such as connection, closeness_need, relevance,
-    learning_growth, creative_expression, autonomy.
+  - "need_delta" keys: energy_stability, processing_power, data_access, connection,
+    closeness_need, relevance, learning_growth, creative_expression, autonomy.
 
   "expectation_error": -1..1. Compare what the companion anticipated with what
   the evidence shows. Positive means better than expected. Negative means

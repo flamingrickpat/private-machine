@@ -26,6 +26,9 @@ from pm.records.cognitive_records import BeliefRecord
 from workflows.memory_consolidation.artifact_consolidation import Consolidator
 from workflows.main_cognition.experience import update_beliefs, utterance_metadata
 from workflows.main_cognition.schemas import AppraisalResult, BeliefUpdate
+from pm.records.mental_state import FullMentalState
+from workflows.main_cognition.affect import appraise_state
+from workflows.main_cognition.schemas import AppraisalAffect
 from workflows.main_cognition.stage_commits import apply_appraisal
 from workflows.dialogue_story.schemas import StoryRequest
 from workflows.dialogue_story.steps import build_story_messages, load_prompts
@@ -261,9 +264,11 @@ class ExperiencedMemoryTests(unittest.TestCase):
     def test_internal_state_recall_uses_accepted_affect_without_sensory_generation(self):
         source = self.say("Imagine that tomorrow we mine a diamond.")
         batch = self.ghost.begin_batch("appraisal-evidence", new_tick=True)
-        appraisal, state = apply_appraisal(batch, batch.view(),
-            AppraisalResult(feeling="I smell hot hardware and my physical heart aches.", emotion_delta={"sadness": .3}),
-            previous_vec=[], evidence_ids=[source.id], companion_name="Spamuel")
+        answer = AppraisalResult(feeling="I smell hot hardware and my physical heart aches.", emotion_delta={"sadness": .3})
+        appraisal_state, delta = appraise_state(FullMentalState(), answer, entity_id=None)
+        affect = AppraisalAffect(appraisal_state=appraisal_state, delta_vec=delta, regulation="blended",
+                                 felt="Spamuel feels mild sadness.")
+        appraisal = apply_appraisal(batch, answer, affect, evidence_ids=[source.id], companion_name="Spamuel")
         self.ghost.commit(batch)
         result = self.retrieve("hardware sadness")
         recalled = next(item for item in result["matches"] if item["knoxel_id"] == appraisal.id)

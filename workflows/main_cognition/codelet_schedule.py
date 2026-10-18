@@ -37,8 +37,8 @@ from pathlib import Path
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from pm.records.mental_state import FullMentalState
-from workflows.main_cognition.affect_dynamics import THREAT_APPRAISAL_THRESHOLD
+from pm.constants import THREAT_APPRAISAL_THRESHOLD
+from pm.records.mental_state import FullMentalState, compute_attention_bias
 from workflows.main_cognition.pathways import PathwayDefinition, pathway_map
 from workflows.main_cognition.schemas import (
     PROPOSAL_KINDS, PROPOSAL_ORIGINS, REALITY_LABELS, AppraisalResult, AttentionPolicy, CodeletHistory, Stimulus,
@@ -210,31 +210,31 @@ NEGATIVE_EMOTIONS = (
 def state_signals(state: FullMentalState | None) -> dict[str, float]:
     """Flatten the accepted mental state into named scheduler signals.
 
-    Names are ``emotion.<field>``, ``core.<field>``, ``needs.<field>``, and
-    ``relationship.<field>`` when a partner state exists.
-    ``core.negative_valence`` is ``max(0, -valence)``, because a gate needs a
-    positive number for "how bad does it feel".
+    Names are ``emotion.<field>``, ``core.<field>``, ``needs.<field>``,
+    ``expression.<field>``, and ``relationship.<field>`` when a partner
+    state exists. ``core.negative_valence`` is ``max(0, -valence)``, because
+    a gate needs a positive number for "how bad does it feel".
     ``emotion.negative_strongest`` is the strongest unpleasant emotion, so a
     gate can ask "is something wrong" without listing every emotion.
+    ``bias.valence_focus`` and ``bias.salience`` come from
+    ``compute_attention_bias``. ``state`` is None before the first cycle.
     """
     if state is None:
         return {}
-    signals: dict[str, float] = {}
-    for prefix, container in (("emotion", state.state_emotions), ("core", state.state_core),
-                              ("needs", state.state_needs), ("relationship", state.state_relationship)):
-        if container is None:
-            continue
-        for name in type(container).model_fields:
-            value = getattr(container, name)
-            if isinstance(value, (int, float)) and not isinstance(value, bool):
-                signals[f"{prefix}.{name}"] = round(float(value), 4)
-    valence = signal(signals, "core.valence")
+    parts = {"emotion": state.state_emotions.model_dump(), "core": state.state_core.model_dump(),
+             "needs": state.state_needs.model_dump(), "expression": state.state_expression_ext.model_dump()}
+    if state.state_relationship is not None:
+        parts["relationship"] = state.state_relationship.model_dump(exclude={"entity_id"})
+    signals = {f"{prefix}.{name}": round(value, 4) for prefix, values in parts.items() for name, value in values.items()}
+    valence = state.state_core.valence
     signals["core.negative_valence"] = round(max(0.0, -valence), 4)
     signals["core.positive_valence"] = round(max(0.0, valence), 4)
-    emotions = {key: value for key, value in signals.items() if key.startswith("emotion.")}
-    signals["emotion.strongest"] = max(emotions.values(), default=0.0)
-    signals["emotion.negative_strongest"] = max(
-        (signal(signals, f"emotion.{name}") for name in NEGATIVE_EMOTIONS), default=0.0)
+    emotions = parts["emotion"]
+    signals["emotion.strongest"] = round(max(emotions.values()), 4)
+    signals["emotion.negative_strongest"] = round(max(emotions[name] for name in NEGATIVE_EMOTIONS), 4)
+    valence_focus, salience = compute_attention_bias(state)
+    signals["bias.valence_focus"] = round(valence_focus, 4)
+    signals["bias.salience"] = round(salience, 4)
     return signals
 
 

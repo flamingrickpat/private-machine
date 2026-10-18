@@ -27,7 +27,7 @@ from pm.records.cognitive_records import AttentionFrameRecord, ExpectationRecord
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.lineage import RecordLineage
-from pm.records.mental_state import FullMentalState, create_empty_state
+from pm.records.mental_state import FullMentalState
 from pm.records.memory_records import new_feature
 from pm.records.qualia_records import QualeRecord
 from pm.runs.workflow_module import CognitiveWorkflow
@@ -172,7 +172,12 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             now = datetime.utcnow()
 
         previous_cycle = states[-1] if states else None
-        mental_vec = previous_cycle.mental_state.to_list() if previous_cycle is not None else []
+        # The private cycle keeps the accepted EMA state of the main cycle
+        # unchanged. A typed copy keeps the personality and the expression
+        # readouts, which a vector round trip would lose. Before the first
+        # cycle the state is the EMA readout of an empty history: the defaults.
+        mental_state = (previous_cycle.mental_state.model_copy(deep=True)
+                        if previous_cycle is not None else FullMentalState())
         age_seconds = max(0.0, (datetime.utcnow() - previous_cycle.timestamp).total_seconds()) \
             if previous_cycle is not None else 0.0
 
@@ -269,7 +274,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         }
         for candidate in request.candidates:
             self._read_revisions[int(candidate.knoxel_id)] = int(candidate.revision)
-        self._mental_vec = mental_vec
+        self._mental_state = mental_state
         self._active_goal_ids = [int(item["knoxel_id"]) for item in goal_records]
         return request.model_dump(mode="json")
 
@@ -422,8 +427,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         # reportability applies the causal gate: a driver that never won
         # attention and was never causal leaves the snapshot dormant.
         channels, previous_time = previous_cycle_sample(ghost.states)
-        state = (FullMentalState.init_from_list(self._mental_vec)
-                 if self._mental_vec else create_empty_state())
+        state = self._mental_state
         drivers = [int(item) for item in parsed.evidence_ids]
         sample = project_channels(state, active_goals=active_intentions(view),
                                   previous=channels, previous_time=previous_time,

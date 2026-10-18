@@ -94,7 +94,7 @@ No file is deleted. Reserved code moves with its owner.
 | `*/module_tools.py` (six workflows) | the same folder's `host.py` | merge | 3 | One host binding per workflow. |
 | `runtime/experience.py` | `workflows/main_cognition/experience.py` | move | 3 | Cycle clusters and beliefs. |
 | `runtime/intents.py` | `workflows/main_cognition/dispatch_recovery.py` | rename | 3 | Replays pending dispatches. `replay_intents` → `replay_dispatches`. |
-| `pm_core/model/affect_dynamics.py` | `workflows/main_cognition/affect_dynamics.py` | move | 3 | Cognition policy, not a record. |
+| `pm_core/model/affect_dynamics.py` | `workflows/main_cognition/affect_dynamics.py` | move | 3 | Cognition policy, not a record. A19F step 4 deleted it (D27). `workflows/main_cognition/affect.py` holds the behavior part. |
 | `pm_core/model/mental_state_verbalization.py` | `workflows/main_cognition/verbalization.py` | move | 3 | Reserved. |
 | `pm_core/model/meta_action.py`, `meta_narrative.py` | `workflows/main_cognition/meta_prompts.py` | merge | 3 | Reserved prompt text. |
 | `workflows/main_cognition/engine.py` | `workflows/main_cognition/stage_runner.py` | move | 3 | Host-side runner for the stage child workflows. |

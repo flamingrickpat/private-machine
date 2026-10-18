@@ -183,8 +183,8 @@ A rename changes Python identifiers only.
 
 ### affect
 
-- Definition: the projected change of mental state from appraisal, decay, and personality.
-- Owner: `workflows/main_cognition/affect_dynamics.py`.
+- Definition: the appraisal state, its delta, and the regulation mode of one cycle. The mental state is the EMA readout over the deltas of the causal features (D27).
+- Owner: `workflows/main_cognition/affect.py` (behavior) and `pm.records.mental_state` (EMA math).
 
 ### cycle state
 

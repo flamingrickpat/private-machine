@@ -209,9 +209,14 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
     feelings = ""
     regulation = str(metadata.get("regulation") or payload.get("regulation", ""))
     if state is not None:
-        from workflows.main_cognition.affect_dynamics import summarize_affect
+        from workflows.main_cognition.affect import describe_mental_state
+        # The accepted cycle state is newer than the affect text of the
+        # action request. The relationship names its partner by entity id.
         accepted = state.mental_state
-        affect = summarize_affect(accepted)
+        relationship = accepted.state_relationship
+        partner = (ghost.get_entity_name(relationship.entity_id) or ""
+                   if relationship is not None and relationship.entity_id else "")
+        affect = describe_mental_state(accepted, name=ghost.get_companion_name(), partner_name=partner)
         feelings = feelings_in_words(accepted)
         current_state = next((raw["data"] for raw in reversed(list(records.values()))
                               if raw["data"].get("tick_id") == state.tick_id

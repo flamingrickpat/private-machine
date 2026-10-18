@@ -22,15 +22,18 @@ No phase writes the memory store. The host owns the store and the bus.
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
+from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
+from pm.records.mental_state import MentalStateSample, PersonalityProfile
 from workflows.cognitive_control.schemas import FocusState, WaitRequest
-from workflows.main_cognition.affect_dynamics import AffectProjection
 from workflows.main_cognition.schemas import (
     ActionDispatch,
     ActionSelectionResult,
-    AffectView,
+    AppraisalAffect,
     AppraisalResult,
     AppraisalView,
     AttentionResult,
@@ -64,9 +67,13 @@ class CycleRequest(BaseModel):
     revisions it read. ``previous_state`` is the last accepted cycle state, or
     None before the first cycle. The cycle changes a copy of it.
     ``user_entity_id`` is the entity record of the user, or None when the
-    persona has no such record. ``relationship_entity_id`` is set only when a
-    user message is among the stimuli. ``memory_trace`` is the retrieval
-    trace of ``pm.memory``. The cycle stores it unchanged in record metadata.
+    persona has no such record. ``memory_trace`` is the retrieval trace of
+    ``pm.memory``. The cycle stores it unchanged in record metadata.
+
+    ``cycle_time`` is the naive UTC time at which the host built the request.
+    The EMA mental state measures elapsed time up to it. ``state_history``
+    holds one sample for each causal feature in the store, oldest first.
+    ``personality`` is the stable profile of the persona.
     """
 
     run_id: str = ""
@@ -74,11 +81,11 @@ class CycleRequest(BaseModel):
     companion_name: str = ""
     user_name: str = ""
     user_entity_id: int | None = None
-    relationship_entity_id: int | None = None
     state_summary: str = ""
     previous_state: CycleState | None = None
-    mental_state_age_seconds: float = 0.0
-    personality_vec: list[float] = Field(default_factory=list)
+    cycle_time: datetime = Field(default_factory=datetime.utcnow)
+    state_history: list[MentalStateSample] = Field(default_factory=list)
+    personality: PersonalityProfile = Field(default_factory=PersonalityProfile)
     active_goals: list[str] = Field(default_factory=list)
     stimuli: list[Stimulus] = Field(default_factory=list)
     memory_candidates: list[MemoryCandidate] = Field(default_factory=list)
@@ -113,12 +120,16 @@ class CycleWork(BaseModel):
 
     ``state`` is the previous cycle state. The phases change it in place:
     intake decays the CSM and sets the stimulus groups, appraise sets the
-    mental state, decide sets the decisions. The host sets the tick, the
+    EMA mental state, decide sets the decisions. The host sets the tick, the
     dispatch references, and the broadcast queue at commit.
 
     ``state_summary`` is the state text that prompts read. Before appraisal it
-    is the last broadcast summary. After appraisal it is the summary of the
-    accepted affect step.
+    is the last broadcast summary. After appraisal it is the accepted mental
+    state in words (``affect.felt``).
+
+    ``affect`` holds the appraisal state, its delta, the relationship
+    partner, and the regulation mode. The commit stores them on the
+    appraisal ``Feature``.
 
     Each phase result field holds an empty result until its phase runs.
     """
@@ -129,8 +140,7 @@ class CycleWork(BaseModel):
     phases: list[PhaseReceipt] = Field(default_factory=list)
     triage: TriageResult = Field(default_factory=TriageResult)
     appraisal: AppraisalResult = Field(default_factory=AppraisalResult)
-    affect: AffectProjection = Field(default_factory=AffectProjection)
-    affect_view: AffectView = Field(default_factory=AffectView)
+    affect: AppraisalAffect = Field(default_factory=AppraisalAffect)
     context: ContextResult = Field(default_factory=ContextResult)
     selected_memories: list[MemoryCandidate] = Field(default_factory=list)
     codelets: CodeletsResult = Field(default_factory=CodeletsResult)
@@ -143,12 +153,25 @@ class CycleWork(BaseModel):
     summary: str = ""
 
     def appraisal_view(self) -> AppraisalView:
-        """Return the appraisal with its accepted affect, for prompts."""
-        return AppraisalView(**self.appraisal.model_dump(), affect=self.affect_view)
+        """Return the appraisal with the accepted feeling in words, for prompts."""
+        return AppraisalView(**self.appraisal.model_dump(), felt_state=self.affect.felt)
 
     def receipt(self, name: str, summary: str) -> None:
         """Record that phase ``name`` ran."""
         self.phases.append(PhaseReceipt(name=name, summary=summary))
+
+
+def primary_group(work: CycleWork) -> StimulusGroup | None:
+    """Return the group that owns the appraisal and the decisions of this cycle.
+
+    It is the group that carries the cycle correlation, or the first group.
+    The result is None for a cycle without stimuli, for example a wake event
+    that resolved to no record. Such a cycle records no decisions.
+    """
+    groups = work.state.stimulus_groups
+    if not groups:
+        return None
+    return next((group for group in groups if group.correlation_id == work.request.correlation_id), groups[0])
 
 
 def read_work(environment) -> CycleWork:
@@ -164,4 +187,4 @@ def write_work(environment, work: CycleWork) -> None:
     environment.write_text(WORK_FILE, work.model_dump_json())
 
 
-__all__ = ["CycleRequest", "CycleWork", "WORK_FILE", "read_work", "write_work"]
+__all__ = ["CycleRequest", "CycleWork", "WORK_FILE", "primary_group", "read_work", "write_work"]

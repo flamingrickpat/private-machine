@@ -47,7 +47,7 @@ def _store(ghost, content: str) -> int:
 def _fake_reports(stimulus_id: int, candidate_id: int) -> dict:
     return {
         "triage": {"items": [{"knoxel_id": stimulus_id, "category": "Critical"}], "summary": "triaged"},
-        "appraisal": {"feeling": "alarmed", "emotion_delta": {"anxiety": 0.4}, "summary": "appraised"},
+        "appraisal": {"feeling": "alarmed", "emotion_delta": {"fear": 0.4}, "summary": "appraised"},
         "context": {"memories": ["fire extinguisher"], "candidate_ids": [candidate_id], "summary": "context"},
         "codelets": {"proposals": [], "runs": [], "summary": "codelets"},
         "attention": {"selected_ids": [stimulus_id], "nominations": [], "summary": "attention"},

@@ -6,7 +6,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, PrivateAttr, Se
 from pm.records.base import RecordBase
 from pm.records.codelet_records import CodeletRegistryState
 from pm.records.cycle_records import ActionDecision, ActionDispatchRef, BroadcastRef, StimulusGroup
-from pm.records.mental_state import FullMentalState, create_empty_ms_vector
+from pm.records.mental_state import FullMentalState, PersonalityProfile
 from pm.records.qualia_records import QualeChannelState
 from pm.records.situational_model import SituationalModel
 from pm.records.workspace import GlobalWorkspace
@@ -65,7 +65,9 @@ class PersonaConfig(BaseModel):
     supported_capabilities: list[str] = Field(default_factory=list)
     unsupported_capabilities: list = Field(default_factory=list)
     capability_notes: list = Field(default_factory=list)
-    personality_profile: List[float] = Field(default_factory=create_empty_ms_vector)
+    # The stable traits as a vector at positions 800-814. A persona without
+    # traits gets the neutral PersonalityProfile defaults (0.5), not zeros.
+    personality_profile: List[float] = Field(default_factory=lambda: PersonalityProfile().to_vector())
 
     @property
     def universal_character_card(self) -> str:

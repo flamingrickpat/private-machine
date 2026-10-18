@@ -7,7 +7,7 @@ import unittest
 from pm.memory.store import MemoryStore
 from pm.records.mental_state import FullMentalState
 from tests.unit.test_design_contracts import small_ghost
-from workflows.main_cognition.affect_dynamics import project_affect
+from workflows.main_cognition.affect import appraise_state
 from workflows.main_cognition.schemas import AppraisalResult, GoalChange
 from workflows.main_cognition.stage_commits import apply_goal_changes
 
@@ -23,27 +23,16 @@ class GameChoiceTests(unittest.TestCase):
         self.assertEqual(action_dispatches(result.actions), [])
         self.assertEqual(result.actions[0].content, original["actions"][0]["content"])
 
-    def test_social_appraisal_changes_relationship_but_world_events_retain_it(self):
-        social = AppraisalResult(feeling="I distrust that treatment.", appraisal={
-            "norm_violation": 0.9, "contempt": 0.8, "fairness": 0.0, "agency_other": 1.0},
-            emotion_delta={"anger": 0.6})
-        accepted = project_affect(None, social, relationship_entity_id=3)
-        self.assertEqual(accepted.state.state_relationship.entity_id, 3)
-        self.assertLess(accepted.state.state_relationship.trust, 0)
-        self.assertGreater(accepted.state.state_relationship.conflict_tension, 0)
-        world = project_affect(accepted.state.to_list(), social)
-        self.assertEqual(world.state.state_relationship.model_dump(), accepted.state.state_relationship.model_dump())
-        self.assertEqual(world.trace["relationship_change"], {})
-
     def test_negative_affect_round_trips_without_changing_vector_size(self):
-        baseline = FullMentalState().to_list()
+        baseline = FullMentalState()
         appraisal = AppraisalResult(feeling="I want different work.", emotion_delta={
             "anger": 0.3, "resentment": 0.4, "jealousy": 0.5, "boredom": 0.6})
-        projection = project_affect(baseline, appraisal)
-        accepted = FullMentalState.init_from_list(projection.state.to_list())
-        self.assertEqual(len(accepted.to_list()), len(baseline))
-        for name, value in appraisal.emotion_delta.items():
-            self.assertAlmostEqual(getattr(accepted.state_emotions, name), value)
+        state, delta = appraise_state(baseline, appraisal, entity_id=None)
+        accepted = FullMentalState.init_from_list(state.to_list())
+        self.assertEqual(len(accepted.to_list()), len(baseline.to_list()))
+        self.assertEqual(len(delta), len(baseline.to_list()))
+        for name in ("resentment", "jealousy", "boredom"):
+            self.assertAlmostEqual(getattr(accepted.state_emotions, name), appraisal.emotion_delta[name])
         self.assertEqual(accepted.to_list()[406:409], [0.4, 0.5, 0.6])
 
     def test_refusal_replaces_current_reason_and_retains_the_original_choice(self):

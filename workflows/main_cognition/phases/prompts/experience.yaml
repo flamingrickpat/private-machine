@@ -32,8 +32,8 @@ system_prompt: |
 user_template: |
   Companion: {companion_name}
   User: {user_name}
-  Current internal state: {state_summary}
-  Accepted affect: {affect}
+  Current feelings: {affect}
+  Regulation mode: {regulation}
   Active goals: {active_goals}
 
   What won attention:

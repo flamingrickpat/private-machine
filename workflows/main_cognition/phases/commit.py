@@ -14,13 +14,13 @@ never writes a partial cycle.
 from __future__ import annotations
 
 from workflows.cognitive_control.schemas import WaitRequest
-from workflows.main_cognition.affect_dynamics import REGULATION_REACTIVE
+from workflows.main_cognition.affect import REGULATION_REACTIVE
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import write_report
 
 
 def apply_reactive_override(work: CycleWork) -> None:
-    """Make the frame reactive when the accepted affect is reactive.
+    """Make the frame reactive when the regulation mode of the cycle is reactive.
 
     Game danger preempts slow regulation. The experience phase validated its
     own mode first, and the decide phase read that frame. This override

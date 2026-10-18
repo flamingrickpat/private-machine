@@ -103,7 +103,9 @@ class AppraisalCommitTests(unittest.TestCase):
             self.assertEqual(len(requests.events), 1)
             mental = ghost.states[-1].mental_state
             self.assertGreater(mental.state_emotions.joy, 0.0)
-            self.assertAlmostEqual(mental.state_needs.connection, 0.3)
+            # The EMA readout puts an axis without deviation at its default
+            # (0.5 for a need). The explicit need delta moves it above that.
+            self.assertGreater(mental.state_needs.connection, 0.5)
             appraisals = [
                 knoxel for knoxel in ghost.all_features
                 if knoxel.feature_subtype == FeatureSubtype.Appraisal
@@ -151,7 +153,7 @@ class AppraisalCommitTests(unittest.TestCase):
         self.assertEqual([item.text for item in state.decisions], ["reply to Jesse"])
         self.assertEqual([item.workflow for item in state.dispatches], ["dialogue_story"])
         self.assertEqual(state.broadcasts[-1].tick_id, state.tick_id)
-        self.assertEqual(state.mental_state.to_list(), work.affect.state.to_list())
+        self.assertEqual(state.mental_state.to_list(), work.state.mental_state.to_list())
 
     def test_next_cycle_mutates_the_previous_state(self):
         ghost = _small_ghost()
@@ -314,7 +316,7 @@ class GoalLifecycleTests(unittest.TestCase):
     def test_stale_batch_does_not_partly_apply_affect_or_goals(self):
         from pm.records.enums import IntentionType
         from pm.records.cognitive_records import Intention
-        from workflows.main_cognition.schemas import AppraisalResult, GoalChange
+        from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult, GoalChange
         from workflows.main_cognition.stage_commits import apply_appraisal, apply_goal_changes
 
         ghost = _small_ghost()
@@ -324,8 +326,8 @@ class GoalLifecycleTests(unittest.TestCase):
         ))
         stale = ghost.begin_batch("stale-turn", new_tick=True)
         apply_appraisal(
-            stale, stale.view(), AppraisalResult(feeling="proud", emotion_delta={"pride": 0.7}),
-            previous_vec=None, evidence_ids=[goal.id], companion_name="Spamuel",
+            stale, AppraisalResult(feeling="proud", emotion_delta={"pride": 0.7}), AppraisalAffect(),
+            evidence_ids=[goal.id], companion_name="Spamuel",
         )
         apply_goal_changes(stale, stale.view(), [GoalChange(change="complete", goal="build a house")])
 

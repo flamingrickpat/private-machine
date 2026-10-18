@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
+from pm.records.mental_state import AppraisalGeneral, AppraisalSocial, FullMentalState, StateEmotions, StateNeeds
 from workflows.cognitive_control.schemas import FocusProposal, FocusState, WaitRequest
 from workflows.public_speech.public_context import Presentation
 
@@ -98,6 +99,15 @@ class TriageResult(BaseModel):
 
 
 class AppraisalResult(BaseModel):
+    """The model answer of the appraise phase.
+
+    ``appraisal`` holds the appraisal axes by their ``AppraisalGeneral`` and
+    ``AppraisalSocial`` field names. ``emotion_delta`` and ``need_delta`` use
+    the ``StateEmotions`` and ``StateNeeds`` field names. An unknown name or
+    a value outside the axis bounds is invalid model output. The repair loop
+    asks the model to fix it.
+    """
+
     feeling: str = ""
     emotion_delta: dict[str, float] = Field(default_factory=dict)
     need_delta: dict[str, float] = Field(default_factory=dict)
@@ -112,29 +122,58 @@ class AppraisalResult(BaseModel):
     reasoning: str = ""
     evidence_ids: list[int] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def _known_names(self):
+        # The repair turn shows this message to the model. Name the allowed
+        # keys, so the model can replace an invented name with a real one.
+        groups = (
+            ("appraisal", self.appraisal, [*AppraisalGeneral.model_fields, *AppraisalSocial.model_fields]),
+            ("emotion_delta", self.emotion_delta, list(StateEmotions.model_fields)),
+            ("need_delta", self.need_delta, list(StateNeeds.model_fields)),
+        )
+        problems = [f"{field} has unknown keys {', '.join(sorted(set(values) - set(allowed)))}; "
+                    f"allowed keys are {', '.join(allowed)}"
+                    for field, values, allowed in groups if set(values) - set(allowed)]
+        if problems:
+            raise ValueError("Unknown names. " + ". ".join(problems) + ".")
+        # Raises on a value outside the declared axis bounds.
+        self.general()
+        self.social()
+        return self
 
-class AffectView(BaseModel):
-    """The accepted affect step in the form that later prompts read.
+    def general(self) -> AppraisalGeneral:
+        """Return the general appraisal axes. An omitted axis has its default."""
+        return AppraisalGeneral.model_validate(self.appraisal)
 
-    The appraise phase builds it once from the projection. ``attention_bias``
-    holds ``valence_focus`` and ``salience``. ``behavior`` and
-    ``relationship`` are the mappings of ``affect_dynamics``. Step 4 of A19F
-    replaces that module and these two mappings.
+    def social(self) -> AppraisalSocial:
+        """Return the social appraisal axes. An omitted axis has its default."""
+        return AppraisalSocial.model_validate(self.appraisal)
+
+
+class AppraisalAffect(BaseModel):
+    """The affect that the appraise phase derived from the appraisal.
+
+    ``appraisal_state`` is the state that ``compute_state_delta`` derived
+    from the appraisal axes and the explicit deltas. ``delta_vec`` is that
+    state minus the start state. It is a plain vector, because a delta can
+    break the value bounds of ``FullMentalState``. Both go onto the appraisal
+    ``Feature``. ``entity_id`` is the relationship partner of the appraisal,
+    or None for a self or workflow group. ``regulation`` is ``reactive``,
+    ``reflective``, or ``blended``. ``felt`` is the accepted cycle state in
+    words, for prompts.
     """
 
-    summary: str = ""
+    appraisal_state: FullMentalState = Field(default_factory=FullMentalState)
+    delta_vec: list[float] = Field(default_factory=list)
+    entity_id: int | None = None
     regulation: str = ""
-    attention_focus: str = "neutral"
-    attention_bias: dict[str, float] = Field(default_factory=dict)
-    behavior: dict = Field(default_factory=dict)
-    emotions: dict[str, float] = Field(default_factory=dict)
-    relationship: dict | None = None
+    felt: str = ""
 
 
 class AppraisalView(AppraisalResult):
-    """The appraisal with its accepted affect, as later prompts render it."""
+    """The appraisal with the accepted feeling in words, as later prompts render it."""
 
-    affect: AffectView = Field(default_factory=AffectView)
+    felt_state: str = ""
 
 
 class BeliefUpdate(BaseModel):
@@ -532,7 +571,7 @@ __all__ = [
     "ActionDispatch",
     "ActionIntent",
     "ActionSelectionResult",
-    "AffectView",
+    "AppraisalAffect",
     "AppraisalResult",
     "AppraisalView",
     "AttentionNomination",

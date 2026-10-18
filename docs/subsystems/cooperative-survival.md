@@ -16,14 +16,15 @@ Evidence: [A14 verification](../work_items/verification/a14-cooperation.md).
 ## From evidence to a choice
 
 [`workflows.main_cognition.host.MainCogLoop.prepare_input`][] supplies original stimuli, active goals, managed-run receipts, and selected memories.
-User stimuli also supply the real user entity ID as `relationship_entity_id`.
-World events supply no relationship entity ID.
-A game hazard cannot directly become an adverse relationship update.
+A user message belongs to the stimulus group of the user entity.
+The entity of that group is the relationship partner of the appraisal.
+A world event belongs to a workflow group, which has no partner.
+A game hazard therefore cannot directly become an adverse relationship update.
 
 [`workflows.main_cognition.steps.run`][] runs the normal cognition phases.
 Appraisal supplies causal evidence IDs and named axes or emotion deltas.
-[`workflows.main_cognition.affect_dynamics.project_affect`][] projects affect once for the remaining stages and the final commit.
-The model inputs contain all emotion values and the relationship fields, including trust and conflict tension.
+[`workflows.main_cognition.phases.appraise.update_affect`][] computes the EMA mental state once for the remaining phases and the final commit.
+Later prompts read the state in words: the strongest emotions, the relationship (for example distrust or friction), the strongest urge to act, and the pressing needs.
 
 Anger, resentment, jealousy, and boredom can influence a goal or action.
 The model chooses the consequence.

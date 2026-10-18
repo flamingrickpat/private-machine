@@ -16,9 +16,9 @@ import re
 
 from pm.context_render import render_context
 from pm.context_render.turns import Role, Turn, format_content
-from pm.records.cycle_records import ActionDecision, StimulusGroup
+from pm.records.cycle_records import ActionDecision
 
-from workflows.main_cognition.cycle_work import CycleWork
+from workflows.main_cognition.cycle_work import CycleWork, primary_group
 from workflows.main_cognition.model_json import PhasePrompts, StageOutputError
 from workflows.main_cognition.phases.goals import ACTION_KINDS, inner_proposals, render_inner_proposals
 from workflows.main_cognition.phases.model import complete, phase_prompts
@@ -79,8 +79,8 @@ def build_messages(work: CycleWork, prompts: PhasePrompts) -> list[Turn]:
     user = format_content(prompts.user_template,
         companion_name=request.companion_name,
         user_name=request.user_name,
-        state_summary=work.state_summary or "(no recorded state update)",
-        affect=render_context(work.affect_view),
+        affect=work.affect.felt,
+        regulation=work.affect.regulation,
         active_goals=", ".join(request.active_goals) or "(none)",
         workspace=render_context(work.workspace),
         goals=render_context(work.goals),
@@ -161,19 +161,6 @@ def check_capabilities(result: ActionSelectionResult, capabilities: list[str],
                 f"Action content claims capability {capability!r} that is not "
                 "available."
             )
-
-
-def primary_group(work: CycleWork) -> StimulusGroup | None:
-    """Return the group that owns the decisions of this cycle.
-
-    It is the group that carries the cycle correlation, or the first group.
-    The result is None for a cycle without stimuli, for example a wake event
-    that resolved to no record. Such a cycle records no decisions.
-    """
-    groups = work.state.stimulus_groups
-    if not groups:
-        return None
-    return next((group for group in groups if group.correlation_id == work.request.correlation_id), groups[0])
 
 
 def run(context, work: CycleWork) -> CycleWork:

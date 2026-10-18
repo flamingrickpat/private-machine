@@ -46,3 +46,41 @@ PATHWAY_SKIP_DECAY = 0.5  # Pathway strength factor for each unregistered codele
 # Deliberate focus.
 FOCUS_ACTIVATION_WEIGHT = 0.3  # Maximum activation that one focus endorsement adds to an item.
 FOCUS_MAX_SHARE = 0.3  # Maximum part of a shard budget that deliberate focus can fill.
+
+# Affect: the EMA mental state over feature deltas (D27).
+# See pm.records.mental_state.compute_mental_state for the formula.
+MENTAL_STATE_REFERENCE_MINUTES = 24 * 60  # Reference time frame at ego strength 0. The half-life is this frame times |1 - ego_strength|.
+MENTAL_STATE_SIGMA_FLOOR = 1e-3  # Smallest deviation scale of one axis. It stops a division by zero for an axis without history.
+MENTAL_STATE_TANH_GAIN = 1.5  # Soft clip gain. A deviation of two scales reads as tanh(1.5), about 0.9 of the axis range.
+EXPECTATION_VALENCE_GAIN = 0.55  # Core valence change for an expectation error of 1.
+EXPECTATION_EMOTION_GAIN = 0.35  # Joy (better) or sadness (worse) change for an expectation error of magnitude 1.
+
+# Regulation mode. The appraise phase maps the appraisal and the accepted state to one mode.
+THREAT_APPRAISAL_THRESHOLD = 0.6  # Appraised bodily threat at which danger preempts contemplation.
+AVERSIVE_REACTIVE_THRESHOLD = 0.75  # Appraised aversive pressure that makes regulation reactive.
+FEAR_REACTIVE_THRESHOLD = 0.55  # Fear that makes regulation reactive.
+ANGER_REACTIVE_THRESHOLD = 0.6  # Anger that makes regulation reactive.
+SADNESS_REFLECTIVE_THRESHOLD = 0.5  # Sadness that makes regulation reflective.
+WITHDRAWAL_REFLECTIVE_THRESHOLD = 0.55  # Disengage-and-silence pressure that makes regulation reflective.
+
+# Main cognition retries a cycle after exhausted model format repairs.
+# The delay starts here and doubles after each failed cycle, up to the cap. Seconds.
+CYCLE_RETRY_DELAY_SECONDS = 5.0
+CYCLE_RETRY_MAX_DELAY_SECONDS = 300.0
+
+# Feelings in words (workflows.main_cognition.affect.describe_mental_state).
+# Intensity words: a value at or above a threshold gets that word.
+FEELING_STRONG = 0.7  # "strong"
+FEELING_MODERATE = 0.4  # "moderate"
+FEELING_MILD = 0.15  # "mild"
+FEELING_HINT = 0.05  # "a hint of". Below this value the text does not name the feeling.
+FEELING_MAX_EMOTIONS = 3  # Number of strongest emotions that the text names.
+FEELING_MAX_NEEDS = 2  # Number of most pressing needs that the text names.
+FEELING_MAX_RELATIONSHIP = 2  # Number of strongest relationship axes that the text names. Each needs at least FEELING_MILD.
+NEED_PRESSING = 0.4  # A supply need below this value, or the closeness drive above 1 minus it, is pressing.
+MOOD_VALENCE_THRESHOLD = 0.15  # Core valence at which the mood reads as good (+) or low (-) spirits.
+MOOD_AROUSAL_KEYED = 0.6  # Core arousal that reads as "keyed up".
+MOOD_AROUSAL_ALERT = 0.3  # Core arousal that reads as "alert".
+MOOD_DOMINANCE_THRESHOLD = 0.3  # Core dominance that reads as sure (+) or out of depth (-).
+BEHAVIOR_PRESSING = 0.5  # Expression tendency at which the text names the urge.
+ATTENTION_DRIFT_THRESHOLD = 0.2  # Valence focus bias at which attention drifts toward threat (-) or reward (+).

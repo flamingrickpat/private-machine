@@ -249,7 +249,7 @@ def build_messages(work: CycleWork, definition: CodeletDefinition, prompts: Phas
     system = prompts.system_prompt.format(companion_name=companion, user_name=user)
     user_message = format_content(prompts.user_template,
         companion_name=companion, user_name=user, codelet_name=definition.name,
-        affect=work.affect_view.summary or work.state_summary or "(calm, nothing strong)",
+        affect=work.affect.felt,
         events=render_events(work), memories=render_memories(work), goals=render_goals(work),
     )
     job = prompts.job_template.format(codelet_name=definition.name, instructions=instructions,
@@ -329,17 +329,17 @@ def collect(context, work: CycleWork, prompts: PhasePrompts) -> CodeletsResult:
     # by the main module on every cycle. A pathway without a fresh precursor
     # stays at 0, which closes every gate and boost on its signal.
     pathway = pathway_signals(precursors, pathways, latest_tick=latest_tick)
-    # Codelets read the accepted affect projection, not the previous state, so
-    # an emotion that this event just caused can already activate them.
+    # Codelets read the accepted mental state of this cycle, not the previous
+    # state, so an emotion that this event just caused can already activate them.
     events = request_signals(
         request.stimuli,
         active_goal_count=len(request.active_goal_records or request.active_goals),
         selected_memory_count=len(work.context.candidate_ids),
         seconds_since_user_input=request.seconds_since_user_input,
-        regulation=work.affect_view.regulation,
+        regulation=work.affect.regulation,
         appraisal=work.appraisal,
     )
-    signals = {**events, **state_signals(work.affect.state), **pathway}
+    signals = {**events, **state_signals(work.state.mental_state), **pathway}
     decisions, policy = schedule(loaded, signals, request.codelet_history, loop=loop)
     allowed = allowed_targets(work)
     revisions = source_revisions(work)

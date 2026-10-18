@@ -2,139 +2,145 @@
 
 ## Summary
 
-Emotional dynamics turn accepted events and elapsed time into a bounded mental
-state. The state changes attention, goals, regulation, and expressive context.
-Two trait profiles can react differently to the same facts.
+Emotional dynamics turn accepted appraisals and elapsed time into a bounded mental state.
+The state changes attention, codelet scheduling, regulation, and the feelings that prompts read.
+Decision D27 sets the model: the mental state comes from `compute_state_delta` and an EMA baseline over feature deltas.
+The old generation (`ghost_codelets.py`, `_compute_mental_state`) is the reference design.
 
 Parent: [Cognition](cognition.md).
-Entry: [`workflows.main_cognition.affect_dynamics.project_affect`][].
+Entry: [`workflows.main_cognition.phases.appraise.update_affect`][].
+Math: [`pm.records.mental_state.compute_mental_state`][].
 Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 
 ## Place in the system
 
-[`workflows.main_cognition.steps.run`][] runs the phases of the cycle.
-After the appraisal stage, the parent computes one affect projection.
-The projection feeds the later stages and the parent report.
-[`workflows.main_cognition.host.MainCogLoop.publish_output`][] commits the same projected vector.
-[`workflows.main_cognition.stage_commits.apply_appraisal`][] writes the
-appraisal Feature with the state, the delta, and the causal trace.
+The appraise phase of the cycle runs after triage.
+The model answers with appraisal axes, optional emotion and need deltas, and an expectation error.
+[`workflows.main_cognition.phases.appraise.update_affect`][] then computes the affect of the cycle.
+It sets `CycleState.mental_state` and returns an
+[`AppraisalAffect`][workflows.main_cognition.schemas.AppraisalAffect].
+Later phases read the feelings in words and the regulation mode.
+At commit, [`workflows.main_cognition.stage_commits.apply_appraisal`][] writes the appraisal `Feature`.
+The Feature carries the appraisal state and the delta.
+The next cycle reads that delta from the store as part of its history.
 
 ## Input → change → output
 
 | Input | Change | Output |
 | --- | --- | --- |
-| Previous latent vector | Elapsed-time decay | State near baseline |
-| Accepted appraisal axes | Core affect and discrete emotions | New bounded state |
-| Explicit emotion and need deltas | Field values | Named field changes |
-| Expectation error | Valence, joy or sadness, certainty | Comparison effect |
-| Personality profile | Gain and decay factors | Different reaction per persona |
+| Causal feature history | Field defaults plus the sum of the deltas | Raw latent state (base) |
+| Appraisal axes | `compute_state_delta` derives core affect, emotions, relationship, and expression | Appraisal state |
+| Explicit emotion and need deltas | Add to the derived values, inside the field bounds | Appraisal state |
+| Expectation error | Moves valence, and joy or sadness | Appraisal state |
+| Appraisal state minus base | New sample in the history | Delta on the appraisal Feature |
+| History with the new sample | EMA readout up to the cycle time | `CycleState.mental_state` |
+| `PersonaConfig.personality_profile` | Stable traits of the state | Personality-dependent expression and attention bias |
 
 ## The affect step
 
-[`workflows.main_cognition.affect_dynamics.project_affect`][] applies these inputs in
-order:
+[`workflows.main_cognition.phases.appraise.update_affect`][] runs these steps:
 
-1. Load the previous state. An empty vector starts from an empty state.
-2. Apply exponential decay toward the model baseline. Emotions decay fastest,
-   core affect next, and needs slowest. Neuroticism slows the decay of negative
-   emotions. Self-control steadies the mood.
-3. Apply the canonical appraisal axes. The existing
-   [`pm.records.mental_state.compute_state_delta`][] maps the axes
-   to core affect and discrete emotions. The step blends the derived value into
-   the current state with one EMA gain.
-4. Apply explicit emotion and need deltas at full weight. An explicit delta is
-   a direct instruction from the appraisal.
-5. Apply the expectation error. A negative error lowers valence and raises
-   sadness. A positive error raises valence and joy. The magnitude lowers
-   certainty.
-6. Clamp every field to its declared bounds.
+1. Compute the half-life from the ego strength of the previous state.
+   [`pm.records.mental_state.reference_half_life_seconds`][] returns
+   `MENTAL_STATE_REFERENCE_MINUTES * 60 * |1 - ego_strength|` seconds.
+   This ports the reference time frame of `ghost_codelets.cognitive_cycle`.
+2. Compute the base: the raw latent state.
+   [`pm.records.mental_state.compute_latent_state`][] adds the deltas of all causal features to the field defaults, inside the field bounds.
+   The relationship part sums the deltas of the partner entity only.
+3. [`workflows.main_cognition.affect.appraise_state`][] copies the base and sets the appraisal axes.
+   [`pm.records.mental_state.compute_state_delta`][] derives core affect, emotions, expression, and the relationship toward the partner.
+   The explicit deltas and the expectation error then add to the derived values.
+   The delta is the appraisal state minus that copy.
+   So the new raw level equals the appraisal state.
+4. Add the delta as a new sample at the cycle time.
+   The EMA readout of the extended history becomes the cycle mental state.
+5. [`pm.records.mental_state.derive_expression`][] sets the expression readouts from that state.
 
-The `emotion_delta` and `need_delta` names use the canonical `StateEmotions`
-and `StateNeeds` fields. The `appraisal` names use the `AppraisalGeneral` and
-`AppraisalSocial` fields. An unknown name has no effect.
-The [cooperative-survival path](cooperative-survival.md) adds named resentment, jealousy, and boredom deltas.
-It also retains a user's social appraisal in the persistent relationship vector.
-World events cannot change that relationship without an original user stimulus in the accepted appraisal evidence.
+The partner is the entity of the primary stimulus group.
+A self group or a workflow group has no partner, so a world event cannot change a relationship.
 
-## Personality
+## The EMA readout
 
-[`workflows.main_cognition.affect_dynamics.personality_gains`][] returns a bounded gain
-for each named field. Every gain stays in `[0.5, 1.5]`.
+[`pm.records.mental_state.ema_baselined_normalize`][] computes the readout for each axis:
 
-- Extraversion, openness, and the approach drive raise positive emotion gains.
-- Neuroticism and the inhibition system raise negative emotion gains.
-- Self-control and agreeableness lower anger.
-- Agreeableness and expressive warmth raise care.
-- Affiliation raises connection, and attachment anxiety raises closeness need.
+- The EMA sums core affect, emotions, needs, and the relationship (`EMA_STATE_MODELS`). The other axes read their field defaults.
+- `level` is the running sum of the deltas.
+- `ema` follows `level` with the half-life. Before each sample it moves by `alpha = 1 - 2 ** (-dt / half_life)`.
+- `dev = level - ema` after each sample is one deviation sample.
+- A last catch-up step moves `ema` from the newest sample to the cycle time.
+  So a feeling fades while no new feature arrives.
+- `scale = max(std(dev), 1.4826 * MAD(dev), MENTAL_STATE_SIGMA_FLOOR)`.
+- `z = tanh(MENTAL_STATE_TANH_GAIN * dev_now / (2 * scale))`.
+- The readout is the field default at `z = 0`. It moves toward the upper bound for `z > 0` and toward the lower bound for `z < 0`.
 
-The gains scale the derived and decay paths. They never create an event.
-A trait changes the size of a reaction, not the facts.
+[`pm.records.mental_state.features_to_history`][] makes the history.
+Only causal features count, because only they entered the story.
+A feature without a delta also counts, because its deviation sample changes the scale.
+[`pm.records.mental_state.compute_relationship_state`][] reads only the samples of one entity.
+A sample concerns an entity when the Feature names it in `entity_id` or in the relationship slot of its appraisal vector.
 
-## Behavior mapping
+## Departures from the old code
 
-Accepted affect maps to a regulation mode and named behavior pressures in
-[`workflows.main_cognition.affect_dynamics._behavior_mapping`][].
+- The old `cognitive_cycle` derived the delta against the normalized start state. Then the raw level drifts without a bound, and a saturated readout turns a moderate appraisal into a large negative delta. The first replay with that rule showed dominance and warmth at -1 after a warm message. The port derives the delta against the raw level, as the `mental_state_delta_vec` field description says ("the real delta from latent_state - previous_real_state"). The sum of the deltas is then the real latent state.
+- The EMA sums only the parts that an appraisal changes. Old features carry deltas on appraisal axes and cognition from the replaced A07 projection. Summed, they put ego strength at 1.0 and so the half-life at 1 second. In the old generation these axes never had deltas, so they read their baseline.
+- The old EMA moved after the new delta. After a gap of several half-lives a new event then read as no change. The port moves the EMA first, so a new event always shows.
+- The old readout put every 0..1 axis at 0.5 without deviation. The port uses the field default, so a calm emotion reads 0 and a need reads 0.5.
+- The old global state kept only the features of entity 2, which was written into the code. The port uses all causal features for the global state and filters by entity only for the relationship.
+- The old code used the ego-strength time frame for the start state only, and 24 hours for the final state. The port uses the ego-strength half-life for the cycle state. The base is the raw level, which has no time frame.
+- The old code read no time after the newest feature. The port adds the catch-up step to the cycle time, so the time between cycles has an effect.
+- The relationship entity id is an identifier, not an axis. The delta keeps 0 in its slot, so ids never add up.
+- No appraisal axis derives resentment, jealousy, or boredom. `compute_state_delta` keeps their current values, so only an explicit delta changes them.
 
-- `reactive`: danger is present. The appraisal `bodily_threat`, the aversive
-  pressure, fear, or anger crosses a threshold. Game danger preempts slow
-  regulation.
-- `reflective`: sadness or withdrawal is high. The companion ruminates or
-  considers the situation.
+## Regulation, behavior, and attention
+
+[`workflows.main_cognition.affect.regulation_mode`][] returns one mode:
+
+- `reactive`: the appraised bodily threat or aversive pressure is high, or fear or anger in the accepted state is high. Game danger preempts slow regulation.
+- `reflective`: sadness, or the pull to go quiet (`disengage_silence`), is high.
 - `blended`: no strong pressure.
 
-The behavior block also carries `attention_focus`, `persistence`,
-`exploration`, `affiliation`, and `withdrawal`. Later stages read the block
-from the request `affect` field.
+The thresholds are in `pm/constants.py`.
+The threat axes come from the appraisal state, because the EMA does not sum appraisal axes.
 
-## Causal trace
+[`workflows.main_cognition.affect.describe_mental_state`][] writes the accepted state as short story text.
+It names the strongest emotions, the mood, the relationship toward the partner, the strongest urge to act (from `StateExpressionExt`), where attention drifts (from [`pm.records.mental_state.compute_attention_bias`][]), and the pressing needs.
+It uses words, not numbers.
+The text goes into the triage-to-decide prompts, the appraisal Feature metadata (`affect_summary`), and the action request.
+The public speech context computes the same text from the newest accepted cycle state.
 
-The appraisal Feature metadata holds `affect_trace`. The trace records:
-
-- the elapsed seconds and the two half-lives;
-- the personality gains;
-- the derived emotions and core values;
-- the explicit emotions that changed;
-- the expectation error and its effect;
-- the regulation mode and the behavior block.
-
-The committed cycle stores the projected state in its
-`mental_state` field. The appraisal Feature stores the same vector in
-`mental_state_appraisal_vec`. The `mental_state_delta_vec` holds the step from
-the previous accepted state. A reader can follow one event from the stimulus,
-through the appraisal Feature, to the affect trace, to the regulation mode, and
-to the action content.
+[`workflows.main_cognition.codelet_schedule.state_signals`][] flattens the typed state into scheduler signals.
+It adds `bias.valence_focus` and `bias.salience` from the attention bias.
 
 ## State and side effects
 
-The step is pure. It reads no Ghost and writes no file.
-[`workflows.main_cognition.host.MainCogLoop.publish_output`][] stages the appraisal Feature and the
-cycle state in one Ghost batch. A failure before the commit leaves accepted
-state unchanged. A stale revision raises `GhostConflict`.
-
-The parent report carries the projected vector. The module reuses that vector
-instead of recomputing the step. The stage input and the accepted state cannot
-diverge.
+The phase computes in memory and writes no store.
+[`workflows.main_cognition.host.MainCogLoop.publish_output`][] stages the appraisal Feature and the cycle state in one batch.
+A failure before the commit leaves the accepted state unchanged.
+The appraisal Feature is causal. The next cycle therefore reads its delta in the history.
 
 ## Traps
 
-The `FullMentalState.to_list` round trip does not persist the stable
-`state_personality` field or the `state_expression` channel. The dynamics read
-the personality from the request, not from the latent vector.
+`AppraisalResult` rejects unknown emotion, need, and axis names, and axis values outside their bounds.
+The repair loop asks the model to fix them.
+A scripted test answer with an invalid name never becomes valid.
+The host then retries the whole cycle forever, so the test hangs.
 
-An explicit `emotion_delta` or `need_delta` applies at full weight. Personality
-does not scale a value that the model already named.
+The scale is the spread of the past deviations. With a short or quiet history the scale is small, so one change reads close to the axis bound.
+A change of two scales reads as about 0.9 of the range.
 
-A model failure raises `StageOutputError` after the retries. It never becomes a
-neutral appraisal. A failed turn leaves the previous accepted state.
+A neutral appraisal derives no emotion, so it sets the raw emotion level to 0.
+Resentment, jealousy, boredom, and the needs keep their level until an explicit delta changes them.
+Their readout still fades with time, because the EMA baseline catches up.
 
-The decay uses the previous cycle timestamp minus the current time. A long
-offline gap therefore decays the mood toward baseline before the first new
-appraisal.
+A level that stays the same for several half-lives reads as the default.
+The readout shows change against the recent mood, not the absolute level.
+
+`FullMentalState.to_list` holds no personality and no universal expression channel.
+Copy a `FullMentalState` as a model, not through its vector.
 
 ## Go deeper
 
-Read [A07 verification](../work_items/verification/a07-emotional-dynamics.md) for the checks and
-the live receipts.
+Read [A07 verification](../work_items/verification/a07-emotional-dynamics.md) for the older A07 checks.
 Read [accepted cognition state](cognition-state.md) for the commit boundary.
-Read [`workflows.main_cognition.affect_dynamics`][] for the exact functions.
-Read [Cognition](cognition.md) for the stage order.
+Read [`workflows.main_cognition.affect`][] and [`pm.records.mental_state`][] for the exact functions.
+Read the [A19F plan](../work_items/alpha-plan/work-items/a19f.md) for the cycle that uses this state.

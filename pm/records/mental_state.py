@@ -12,9 +12,14 @@ from __future__ import annotations
 
 import datetime
 import math
-from dataclasses import dataclass
-from typing import Dict, List, Sequence, Type, TypeVar, Any, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Sequence, Type, TypeVar, Optional, Tuple
 from pydantic import BaseModel, Field
+
+from pm.constants import MENTAL_STATE_REFERENCE_MINUTES, MENTAL_STATE_SIGMA_FLOOR, MENTAL_STATE_TANH_GAIN
+
+if TYPE_CHECKING:
+    # memory_records imports this module, so the type is for annotations only.
+    from pm.records.memory_records import Feature
 
 # ---------- Global vector space ----------
 VectorModelReservedSize: int = 1024
@@ -130,10 +135,13 @@ from pydantic import BaseModel, Field
 # 470-479 : StateExpression (universal expression channels)
 # 480-499 : StateExpressionExt (relationship/personality-modulated readouts)
 
-class PersonalityProfile(BaseModel):
+class PersonalityProfile(MentalState):
     """
     Stable, agent-level traits (constants). Range [0..1] unless noted.
     These do not change per tick; you keep one per agent ("character card").
+
+    ``PersonaConfig.personality_profile`` stores the traits as a vector at
+    positions 800-814. ``init_from_vector`` reads them, ``to_vector`` writes them.
     """
     # Big Five–style core
     openness: float         = Field(0.5, ge=0, le=1, json_schema_extra={"vector_position": 800})
@@ -159,44 +167,6 @@ class PersonalityProfile(BaseModel):
     humor_playfulness: float= Field(0.5, ge=0, le=1, json_schema_extra={"vector_position": 812})
     warmth_expressive: float= Field(0.5, ge=0, le=1, description="Displays warmth, reassurance, caretaking.", json_schema_extra={"vector_position": 813})
     bluntness_assertive: float= Field(0.5, ge=0, le=1, description="Directness/forthrightness under tension.", json_schema_extra={"vector_position": 814})
-
-
-def parse_personality_profile(value: Any) -> PersonalityProfile:
-    """
-    Coerce character-card personality data into the stable profile model.
-
-    Character cards normally provide a mapping keyed by PersonalityProfile field
-    names. A full vector is also accepted so persisted/imported data can round
-    trip through the same helper.
-    """
-    if isinstance(value, PersonalityProfile):
-        return value
-    if isinstance(value, dict):
-        allowed = PersonalityProfile.model_fields
-        return PersonalityProfile(**{key: item for key, item in value.items() if key in allowed})
-    if isinstance(value, (list, tuple)):
-        data: Dict[str, float] = {}
-        for name, field_info in PersonalityProfile.model_fields.items():
-            extra = field_info.json_schema_extra or {}
-            pos = extra.get("vector_position")
-            if pos is not None and int(pos) < len(value):
-                try:
-                    data[name] = float(value[int(pos)] or 0.0)
-                except (TypeError, ValueError):
-                    pass
-        return PersonalityProfile(**data)
-    return PersonalityProfile()
-
-
-def personality_profile_to_vector(value: Any) -> List[float]:
-    profile = parse_personality_profile(value)
-    out = [0.0] * VectorModelReservedSize
-    for name, field_info in PersonalityProfile.model_fields.items():
-        extra = field_info.json_schema_extra or {}
-        pos = extra.get("vector_position")
-        if pos is not None:
-            out[int(pos)] = float(getattr(profile, name))
-    return out
 
 
 def make_personality_profile(
@@ -776,13 +746,18 @@ def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: Opt
     social_laughter = _clamp01( amusement * (0.5 + 0.5*(0.5+0.5*soc.perceived_warmth)) * (0.5 + 0.5*oxy) )
     teasing_edge   = _clamp01( benign_v * (0.5 + 0.5*(1.0 - ser)) * (0.3 + 0.7*(0.5+0.5*soc.perceived_warmth)) )
 
+    # No appraisal axis derives resentment, jealousy, or boredom. They change
+    # only through an explicit appraisal delta, so the derivation keeps the
+    # current values. A fresh zero would pull them down on every appraisal.
+    prev_emotions = current_ms.state_emotions
     emotions = StateEmotions(
         joy=joy, sadness=sadness, anger=anger, fear=fear, disgust=disgust, surprise=_clamp01(ap.novelty),
         tenderness=tenderness, curiosity=curiosity, shame=shame, guilt=guilt, pride=pride,
         intimacy_arousal=_clamp01(intimacy_1),     # leave as-is unless appraised
         propriety_inhibition=_clamp11(propriety_1),
         amusement=amusement, playfulness=playfulness, relief=relief,
-        social_laughter=social_laughter, teasing_edge=teasing_edge
+        social_laughter=social_laughter, teasing_edge=teasing_edge,
+        resentment=prev_emotions.resentment, jealousy=prev_emotions.jealousy, boredom=prev_emotions.boredom,
     )
 
     state_result = current_ms.copy(deep=True)
@@ -851,22 +826,6 @@ def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: Opt
     state_delta = FullMentalState.init_delta_from_list(delta)
     return state_result, state_delta
 
-@dataclass
-class _AxisStats:
-    n: int = 0
-    mean: float = 0.0
-    m2: float = 0.0  # sum of squares of differences from the current mean (Welford)
-    def add(self, x: float):
-        self.n += 1
-        d = x - self.mean
-        self.mean += d / self.n
-        self.m2 += d * (x - self.mean)
-    @property
-    def std(self) -> float:
-        if self.n < 2:
-            return 0.0
-        return math.sqrt(self.m2 / (self.n - 1))
-
 def _collect_axis_bounds() -> Dict[int, Tuple[Optional[float], Optional[float]]]:
     """
     Build a map from global vector index -> (ge, le) by scanning your models.
@@ -894,303 +853,319 @@ def _collect_axis_bounds() -> Dict[int, Tuple[Optional[float], Optional[float]]]
             bounds[int(pos)] = (ge, le)
     return bounds
 
+# The parts of the state that the EMA sums. An appraisal Feature changes
+# only these parts: compute_state_delta derives core affect, emotions, and
+# the relationship, and the explicit need deltas change the needs. Appraisal
+# axes describe one event, and cognition and neurochemistry are set by the
+# system, not by appraisal. Their deltas do not add up, so they read their
+# field defaults. Old features can carry deltas there; the EMA ignores them.
+EMA_STATE_MODELS = (StateCore, StateEmotions, StateNeeds, StateRelationship)
+
+
+def _collect_axis_defaults() -> Dict[int, float]:
+    """Return a map from vector position to the field default, for the axes that the EMA sums.
+
+    The EMA readout puts an axis without deviation at its default. The
+    relationship entity id is an identifier, not an axis, so it is left out.
+    """
+    defaults: Dict[int, float] = {}
+    for cls in EMA_STATE_MODELS:
+        for _, finfo in cls.model_fields.items():
+            pos = int(finfo.json_schema_extra["vector_position"])
+            if pos == VectorModelRelationshipEntityID:
+                continue
+            defaults[pos] = float(finfo.default)
+    return defaults
+
+
+def ema_axis_positions() -> set[int]:
+    """Return the vector positions that the EMA sums. See ``EMA_STATE_MODELS``."""
+    return set(_collect_axis_defaults())
+
+
+def _naive_utc(value: datetime.datetime) -> datetime.datetime:
+    """Return ``value`` as naive UTC. Older seeds mix aware and naive times."""
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+
+
 def ema_baselined_normalize(
     history: List[Tuple[datetime.datetime, List[float]]],
     vec_len: int,
     half_life_s: float,
     axis_bounds: Dict[int, Tuple[Optional[float], Optional[float]]],
+    axis_defaults: Dict[int, float],
     start_level: Optional[List[float]] = None,
-    # tuning knobs (defaults chosen to satisfy your tests)
-    sigma_floor: float = 1e-3,
-    tanh_gain: float = 1.5,           # ~2σ → tanh(1.5) ≈ 0.905
+    now: Optional[datetime.datetime] = None,
+    sigma_floor: float = MENTAL_STATE_SIGMA_FLOOR,
+    tanh_gain: float = MENTAL_STATE_TANH_GAIN,
 ) -> List[float]:
-    """
-    Robust, time-aware EMA baseline + soft-normalized readout.
-    - Deviations are scaled by effective_sigma = max(std, 1.4826*MAD, sigma_floor).
-    - Normalization uses tanh((dev / (2*effective_sigma)) * tanh_gain).
+    """Return the time-aware, EMA-baselined readout of a delta history.
+
+    ``history`` holds ``(time, delta vector)`` pairs. The function sorts them
+    by time. For each axis ``i`` in ``axis_defaults``:
+
+    1. ``level[i]`` is the running sum of the deltas (the raw latent level).
+    2. ``ema[i]`` follows the level with a half-life of ``half_life_s``
+       seconds. Before each sample, ``ema += alpha * (level - ema)`` with
+       ``alpha = 1 - exp(-ln 2 * dt / half_life_s)`` for the time ``dt``
+       since the previous sample. Then the sample adds its delta to the level.
+    3. ``level - ema`` after each sample is one deviation sample.
+    4. ``now`` (optional) adds a last catch-up step from the newest sample to
+       ``now``. So the deviation fades while no new feature arrives. This is
+       the time decay between cycles.
+    5. The scale is ``max(std, 1.4826 * MAD, sigma_floor)`` of the deviation
+       samples. ``z = tanh(deviation / (2 * scale) * tanh_gain)`` is in (-1, 1).
+    6. The readout maps ``z = 0`` to the axis default, ``z > 0`` toward the
+       upper bound, and ``z < 0`` toward the lower bound.
+
+    Positions outside ``axis_defaults`` read 0.0. ``start_level`` is an
+    optional level before the first sample.
+
+    The old generation updated the EMA after it added the delta. Then an
+    event after a gap of several half-lives read as no change at all. This
+    port catches up first, so a new event always shows. The old readout also
+    put every 0..1 axis at 0.5. This port puts an axis at its default, so an
+    emotion without deviation reads 0.0 and a need reads 0.5.
     """
     if not history:
-        return [0.0] * vec_len
+        return [float(axis_defaults[i]) if i in axis_defaults else 0.0 for i in range(vec_len)]
 
     history = sorted(history, key=lambda p: p[0])
-
+    axes = sorted(axis_defaults)
     level = [0.0] * vec_len if start_level is None else start_level[:]
-    ema   = [0.0] * vec_len
+    ema = level[:]
     last_t = history[0][0]
     ln2 = math.log(2.0)
+    half_life = max(EPS, half_life_s)
 
-    # collect deviations for robust scale
-    dev_samples: List[List[float]] = [[] for _ in range(vec_len)]
+    def catch_up(dt: float) -> None:
+        alpha = 1.0 - math.exp(-ln2 * dt / half_life)
+        for i in axes:
+            ema[i] += alpha * (level[i] - ema[i])
 
-    # pass 1: cumsum level, update EMA, record deviations
+    dev_samples: Dict[int, List[float]] = {i: [] for i in axes}
     for t, delta in history:
-        # cumsum
-        for i in range(vec_len):
-            level[i] += delta[i]
-
-        # time-aware alpha
-        dt = max(0.0, (t - last_t).total_seconds())
+        catch_up(max(0.0, (t - last_t).total_seconds()))
         last_t = t
-        alpha = 1.0 if half_life_s <= 0 else (1.0 - math.exp(-ln2 * dt / max(EPS, half_life_s)))
+        for i in axes:
+            level[i] += delta[i]
+            dev_samples[i].append(level[i] - ema[i])
+    if now is not None:
+        catch_up(max(0.0, (now - last_t).total_seconds()))
 
-        # EMA + collect deviation
-        for i in range(vec_len):
-            ema[i] = (1.0 - alpha) * ema[i] + alpha * level[i]
-            dev = level[i] - ema[i]
-            dev_samples[i].append(dev)
-
-    # pass 2: compute normalized readout with robust scaling + soft clip
     out = [0.0] * vec_len
-    for i in range(vec_len):
+    for i in axes:
         samples = dev_samples[i]
-        # classic std (unbiased)
         if len(samples) >= 2:
             mean = sum(samples) / len(samples)
-            var = sum((d - mean)**2 for d in samples) / (len(samples) - 1)
+            var = sum((d - mean) ** 2 for d in samples) / (len(samples) - 1)
             std = math.sqrt(max(var, 0.0))
         else:
             std = 0.0
-
-        # robust MAD
         med = _median(samples)
-        mad = _median([abs(d - med) for d in samples]) if samples else 0.0
-        robust_sigma = 1.4826 * mad  # Gaussian consistency
-
-        effective_sigma = max(std, robust_sigma, sigma_floor)
-
-        dev_now = (level[i] - ema[i])
-
-        # normalize using soft saturation; scale by 2σ to keep legacy “±2σ → near 1”
-        arg = (dev_now / (2.0 * effective_sigma)) * tanh_gain
-        z = math.tanh(arg)  # in (-1, 1)
-
-        ge, le = axis_bounds.get(i, (None, None))
-        if ge is not None and le is not None and ge >= 0.0 and le <= 1.0:
-            out[i] = 0.5 * (z + 1.0)
-        else:
-            out[i] = z
+        mad = _median([abs(d - med) for d in samples])
+        effective_sigma = max(std, 1.4826 * mad, sigma_floor)
+        z = math.tanh((level[i] - ema[i]) / (2.0 * effective_sigma) * tanh_gain)
+        ge, le = axis_bounds[i]
+        default = axis_defaults[i]
+        out[i] = default + z * (le - default) if z >= 0.0 else default + z * (default - ge)
     return out
 
 
-@dataclass(frozen=True)
-class FeatureStateRecord:
+class MentalStateSample(BaseModel):
+    """One causal feature as the EMA mental state reads it.
+
+    ``timestamp`` is the world time of the feature, as naive UTC.
+    ``entity_ids`` names the entities that the feature concerns: the entity
+    that caused it, and the relationship partner of its appraisal state.
+    ``delta`` holds the non-zero positions of the feature's delta vector. The
+    relationship entity id slot is never part of it, because an id is not an
+    axis that can add up.
     """
-    Minimal mental-state view over either a Feature knoxel or raw Python data.
 
-    The state math below should not care whether callers pass full knoxel models,
-    SimpleNamespace objects, pydantic objects, or plain dicts loaded from YAML.
+    timestamp: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+    entity_ids: List[int] = Field(default_factory=list)
+    delta: Dict[int, float] = Field(default_factory=dict)
+
+    def vector(self) -> List[float]:
+        """Return the delta as a full vector of ``VectorModelReservedSize`` values."""
+        out = [0.0] * VectorModelReservedSize
+        for pos, value in self.delta.items():
+            out[pos] = value
+        return out
+
+
+def sparse_delta(vector: Sequence[float]) -> Dict[int, float]:
+    """Return the non-zero, finite positions of a delta vector, without the entity id slot."""
+    return {pos: float(value) for pos, value in enumerate(vector)
+            if pos != VectorModelRelationshipEntityID and value and math.isfinite(value)}
+
+
+def feature_state_sample(feature: "Feature") -> MentalStateSample:
+    """Return the EMA sample of one ``Feature`` record.
+
+    The partner of the appraisal state is the integral, positive value in
+    the relationship entity id slot of ``mental_state_appraisal_vec``.
     """
-    raw: Any
-    timestamp_creation: datetime.datetime
-    mental_state_delta_vec: List[float]
-    metadata: Dict[str, Any]
-    emotional_intensity: float = 1.0
-    affective_valence: Optional[float] = None
-    feature_type: Any = None
-    entity_id: Optional[int] = None
+    entity_ids = [feature.entity_id] if feature.entity_id else []
+    partner = float(feature.mental_state_appraisal_vec[VectorModelRelationshipEntityID] or 0.0)
+    if partner > 0 and partner.is_integer() and int(partner) not in entity_ids:
+        entity_ids.append(int(partner))
+    return MentalStateSample(timestamp=_naive_utc(feature.timestamp_world_begin), entity_ids=entity_ids,
+                             delta=sparse_delta(feature.mental_state_delta_vec))
 
 
-def _raw_get(source: Any, *names: str, default: Any = None) -> Any:
-    if source is None:
-        return default
-    for name in names:
-        if isinstance(source, dict) and name in source:
-            return source[name]
-        value = getattr(source, name, None)
-        if value is not None:
-            return value
-    return default
+def features_to_history(features: List["Feature"]) -> List[MentalStateSample]:
+    """Return the EMA samples of the causal features, oldest first.
 
-
-def _coerce_datetime(value: Any) -> Optional[datetime.datetime]:
-    if isinstance(value, datetime.datetime):
-        return value
-    if isinstance(value, datetime.date):
-        return datetime.datetime.combine(value, datetime.time())
-    if isinstance(value, str) and value.strip():
-        try:
-            return datetime.datetime.fromisoformat(value.strip())
-        except ValueError:
-            return None
-    return None
-
-
-def _coerce_float_vector(value: Any) -> Optional[List[float]]:
-    if not isinstance(value, (list, tuple)):
-        return None
-    vector: List[float] = []
-    for item in value:
-        try:
-            vector.append(float(item or 0.0))
-        except (TypeError, ValueError):
-            vector.append(0.0)
-    if len(vector) < VectorModelReservedSize:
-        vector.extend([0.0] * (VectorModelReservedSize - len(vector)))
-    return _sanitize_history_vector(vector[:VectorModelReservedSize])
-
-
-def _sanitize_history_vector(vector: List[float]) -> List[float]:
+    Only causal features count: they entered the story. A feature without a
+    delta still counts, because its deviation sample shapes the scale.
+    The old ``_compute_mental_state`` also kept only the features of one
+    partner, with the id 2 written into the code. Here the whole history
+    sets the overall state, and :func:`compute_relationship_state` filters
+    by entity.
     """
-    Keep state history vectors numeric and prevent relationship identifiers from
-    being treated as accumulating emotional state.
+    samples = [feature_state_sample(feature) for feature in features if feature.causal]
+    return sorted(samples, key=lambda sample: sample.timestamp)
+
+
+def reference_half_life_seconds(ego_strength: Optional[float]) -> float:
+    """Return the EMA half-life that ego strength sets, in seconds.
+
+    The old ``cognitive_cycle`` scaled the reference time frame by
+    ``|1 - ego_strength|`` of the previous state. A strong ego therefore
+    reacts to the newest events, and a weak ego keeps a long memory of mood.
+    ``ego_strength`` is None before the first cycle. Then the full frame applies.
     """
-    cleaned: List[float] = []
-    for item in vector:
-        try:
-            value = float(item or 0.0)
-        except (TypeError, ValueError):
-            value = 0.0
-        if not math.isfinite(value):
-            value = 0.0
-        cleaned.append(value)
-    if len(cleaned) < VectorModelReservedSize:
-        cleaned.extend([0.0] * (VectorModelReservedSize - len(cleaned)))
-    cleaned = cleaned[:VectorModelReservedSize]
-    cleaned[VectorModelRelationshipEntityID] = 0.0
-    return cleaned
+    minutes = float(MENTAL_STATE_REFERENCE_MINUTES)
+    if ego_strength is not None:
+        minutes *= abs(1.0 - ego_strength)
+    return max(1.0, minutes * 60.0)
 
 
-def _appraisal_state_from_mapping(appraisals: Any) -> Optional[FullMentalState]:
-    if not isinstance(appraisals, dict) or not appraisals:
-        return None
-    general = {
-        key: float(appraisals[key])
-        for key in AppraisalGeneral.model_fields
-        if key in appraisals and isinstance(appraisals[key], (int, float))
-    }
-    social = {
-        key: float(appraisals[key])
-        for key in AppraisalSocial.model_fields
-        if key in appraisals and isinstance(appraisals[key], (int, float))
-    }
-    if not general and not social:
-        return None
-    ms = create_empty_state()
-    ms.appraisal_general = AppraisalGeneral(**general)
-    ms.appraisal_social = AppraisalSocial(**social)
-    return ms
+def compute_mental_state(
+    samples: List[MentalStateSample],
+    *,
+    now: datetime.datetime,
+    half_life_s: float,
+    personality: PersonalityProfile,
+) -> FullMentalState:
+    """Return the EMA-normalized mental state of a sample history.
 
+    This ports ``_compute_mental_state`` of the old ``ghost_codelets``.
+    ``samples`` are the causal features (see :func:`features_to_history`).
+    For each axis ``i`` of ``EMA_STATE_MODELS`` and the samples ``k`` in
+    time order:
 
-def _appraisal_delta_vector_from_mapping(appraisals: Any, emotional_intensity: float = 1.0) -> Optional[List[float]]:
-    ms = _appraisal_state_from_mapping(appraisals)
-    if ms is None:
-        return None
-    intensity = _clamp01(float(emotional_intensity))
-    _, delta = compute_state_delta(ms, relationship_entity_id=1)
-    vector = delta.to_list()
-    appraisal_vector = ms.to_list()
-    for axis_name, axis_pos in {
-        **AppraisalGeneral.get_vector_positions(),
-        **AppraisalSocial.get_vector_positions(),
-    }.items():
-        vector[axis_pos] = appraisal_vector[axis_pos]
-    return _sanitize_history_vector([value * intensity for value in vector])
+    - ``level_k = level_(k-1) + delta_k[i]``, the running sum of the deltas;
+    - ``ema_k = ema_(k-1) + alpha_k * (level_(k-1) - ema_(k-1))`` with
+      ``alpha_k = 1 - 2 ** (-dt_k / half_life_s)``, for the time ``dt_k``
+      since the previous sample;
+    - ``dev_k = level_k - ema_k``.
 
+    One last catch-up step moves the EMA from the newest sample to ``now``.
+    So the deviation fades while no feature arrives: the time between
+    cycles has an effect. ``scale = max(std(dev), 1.4826 * MAD(dev),
+    MENTAL_STATE_SIGMA_FLOOR)``, and ``z = tanh(MENTAL_STATE_TANH_GAIN *
+    dev_now / (2 * scale))``. The readout is ``default + z * (upper -
+    default)`` for ``z >= 0`` and ``default + z * (default - lower)``
+    otherwise. :func:`ema_baselined_normalize` holds the details.
 
-def feature_state_record(feature: Any) -> Optional[FeatureStateRecord]:
+    The other parts of the state read their field defaults. The state gets
+    the stable ``personality`` of the persona. The relationship part stays
+    empty: :func:`compute_relationship_state` computes it for one entity.
+    Call :func:`derive_expression` after the relationship is set, so the
+    expression readouts match the state.
     """
-    Wrap one feature-like object for shared mental-state logic.
+    vector = ema_baselined_normalize(
+        [(sample.timestamp, sample.vector()) for sample in samples],
+        VectorModelReservedSize, half_life_s, _collect_axis_bounds(), _collect_axis_defaults(), now=now)
+    state = FullMentalState(state_personality=personality.model_copy())
+    for part in (state.state_core, state.state_emotions, state.state_needs):
+        part.from_vector(vector)
+    return state
 
-    Accepted inputs include Feature knoxels and raw dictionaries with keys like
-    `time`, `timestamp`, `timestamp_creation`, `mental_state_delta_vec`,
-    `state_delta_vector`, `appraisals`, `metadata`, `feature_type`, and
-    `entity_id`.
+
+def compute_latent_state(
+    samples: List[MentalStateSample],
+    *,
+    personality: PersonalityProfile,
+    entity_id: Optional[int] = None,
+) -> FullMentalState:
+    """Return the raw latent state: the field defaults plus the sum of the deltas.
+
+    This is the ``level`` of :func:`compute_mental_state`, before the EMA
+    baseline. Appraisal works on it: the delta of a new appraisal is the
+    derived state minus this state. So the sum of all deltas stays the real
+    latent state, as the ``mental_state_delta_vec`` field of ``Feature``
+    describes. Each axis is clamped to its field bounds.
+
+    Core affect, emotions, and needs sum over all samples. The relationship
+    sums over the samples of ``entity_id`` only. Without ``entity_id`` the
+    state has no relationship. Other parts keep their field defaults.
     """
-    if isinstance(feature, FeatureStateRecord):
-        return feature
-    if feature is None:
-        return None
-
-    ts = _coerce_datetime(
-        _raw_get(
-            feature,
-            "timestamp_creation",
-            "timestamp_world_begin",
-            "timestamp",
-            "time",
-        )
-    )
-    if ts is None:
-        return None
-
-    metadata = _raw_get(feature, "metadata", default={})
-    if not isinstance(metadata, dict):
-        metadata = {}
-
-    emotional_intensity = _raw_get(feature, "emotional_intensity", "appraisal_intensity", "state_intensity", "intensity")
-    if emotional_intensity is None and "emotional_intensity" in metadata:
-        emotional_intensity = metadata.get("emotional_intensity")
-    try:
-        emotional_intensity = _clamp01(float(emotional_intensity)) if emotional_intensity is not None else 1.0
-    except (TypeError, ValueError):
-        emotional_intensity = 1.0
-
-    explicit_delta = _coerce_float_vector(_raw_get(feature, "mental_state_delta_vec", "state_delta_vector"))
-    delta = (
-        explicit_delta
-        or _appraisal_delta_vector_from_mapping(
-            _raw_get(feature, "appraisals", "mental_state_appraisal_vec"),
-            emotional_intensity=emotional_intensity,
-        )
-        or [0.0] * VectorModelReservedSize
-    )
-
-    affective_valence = _raw_get(feature, "affective_valence")
-    try:
-        affective_valence = float(affective_valence) if affective_valence is not None else None
-    except (TypeError, ValueError):
-        affective_valence = None
-
-    entity_id = _raw_get(feature, "entity_id")
-    if entity_id is None:
-        is_user = _raw_get(feature, "is_user")
-        if isinstance(is_user, bool):
-            entity_id = 1 if is_user else 2
-    try:
-        entity_id = int(entity_id) if entity_id is not None else None
-    except (TypeError, ValueError):
-        entity_id = None
-
-    return FeatureStateRecord(
-        raw=feature,
-        timestamp_creation=ts,
-        mental_state_delta_vec=delta,
-        metadata=metadata,
-        emotional_intensity=emotional_intensity,
-        affective_valence=affective_valence,
-        feature_type=_raw_get(feature, "feature_type", "type"),
-        entity_id=entity_id,
-    )
+    bounds = _collect_axis_bounds()
+    relationship_axes = set(StateRelationship.get_vector_positions().values())
+    level = FullMentalState().to_list()
+    partner = [0.0] * VectorModelReservedSize
+    axes = ema_axis_positions()
+    for sample in samples:
+        own = entity_id is not None and entity_id in sample.entity_ids
+        for pos, value in sample.delta.items():
+            if pos in relationship_axes:
+                if own:
+                    partner[pos] += value
+            elif pos in axes:
+                level[pos] += value
+    for pos in axes:
+        low, high = bounds[pos]
+        level[pos] = _clip(level[pos], low, high)
+        partner[pos] = _clip(partner[pos], low, high)
+    state = FullMentalState(state_personality=personality.model_copy())
+    for part in (state.state_core, state.state_emotions, state.state_needs):
+        part.from_vector(level)
+    if entity_id is not None:
+        state.state_relationship = StateRelationship.init_from_vector(partner)
+        state.state_relationship.entity_id = entity_id
+    return state
 
 
-def feature_state_records(features: List[Any]) -> List[FeatureStateRecord]:
-    records: List[FeatureStateRecord] = []
-    for feature in features:
-        record = feature_state_record(feature)
-        if record is not None:
-            records.append(record)
-    return records
+def derive_expression(state: FullMentalState) -> None:
+    """Set the expression readouts of ``state`` from its other parts.
 
-
-def features_to_history(features: List[Any]) -> List[Tuple[datetime.datetime, List[float]]]:
+    The EMA does not sum expression axes. The readouts are a function of
+    the emotions, core affect, neurochemistry, appraisal axes, personality,
+    and relationship, as in ``compute_state_delta``. The function changes
+    ``state`` in place.
     """
-    Convert feature-like records into timestamped mental-state delta vectors.
+    state.state_expression = _derive_expression_universal(
+        state.state_emotions, state.state_core, state.state_neurochemical, state.appraisal_general)
+    state.state_expression_ext = _derive_expression_ext(
+        state.state_emotions, state.state_core, state.state_neurochemical, state.appraisal_general,
+        state.appraisal_social, state.state_personality, state.state_relationship)
 
-    This is the public adapter entry point for raw dicts and Feature knoxels.
-    `_features_to_history` is kept as a backward-compatible alias for older tests
-    and callers.
+
+def compute_relationship_state(
+    samples: List[MentalStateSample],
+    entity_id: int,
+    *,
+    now: datetime.datetime,
+    half_life_s: float,
+) -> StateRelationship:
+    """Return the EMA relationship state toward one entity.
+
+    Only the samples that concern ``entity_id`` count. The readout uses the
+    same EMA as :func:`compute_mental_state`, and reads the relationship axes.
     """
-    history: List[Tuple[datetime.datetime, List[float]]] = []
-    for record in feature_state_records(features):
-        delta = record.mental_state_delta_vec
-        if not isinstance(delta, list):
-            continue
-        history.append((record.timestamp_creation, delta))
-    return history
+    own = [(sample.timestamp, sample.vector()) for sample in samples if entity_id in sample.entity_ids]
+    vector = ema_baselined_normalize(own, VectorModelReservedSize, half_life_s, _collect_axis_bounds(),
+                                     _collect_axis_defaults(), now=now)
+    relationship = StateRelationship.init_from_vector(vector)
+    relationship.entity_id = entity_id
+    return relationship
 
-
-def _features_to_history(features: List[Any]) -> List[Tuple[datetime.datetime, List[float]]]:
-    return features_to_history(features)
 
 # Fix your earlier bug: make sure FullMentalState.init_from_list returns the instance.
 def _init_ms_from_vec(vec: List[float]) -> "FullMentalState":
@@ -1215,155 +1190,78 @@ _REL_AXIS_TRUST = StateRelationship.model_fields["trust"].json_schema_extra["vec
 _REL_AXIS_CORE_VALENCE = StateCore.model_fields["valence"].json_schema_extra["vector_position"]
 
 
-def _relationship_signal_from_feature(feature: Any) -> float:
+class PartnerExpectationProfile(BaseModel):
+    """What the companion expects from one partner, from the interaction history.
+
+    ``baseline_quality`` and ``recent_quality`` are in [-1, 1].
+    ``disappointment_pressure`` and ``positive_surprise_bias`` are in [0, 1].
     """
-    Return a coarse interaction quality signal in [-1, 1].
-    Preference order:
-      1) expectation-learning reward metadata
-      2) explicit mental_state_delta_vec relationship/core channels
-      3) explicit affective_valence
-    """
-    record = feature_state_record(feature)
-    if record is None:
-        return 0.0
 
-    metadata = record.metadata
-    if "reward" in metadata:
-        try:
-            return _clamp11(float(metadata.get("reward", 0.0) or 0.0))
-        except Exception:
-            pass
-
-    delta_vec = record.mental_state_delta_vec
-    if isinstance(delta_vec, list) and len(delta_vec) > max(_REL_AXIS_COMM_WARMTH, _REL_AXIS_CONFLICT, _REL_AXIS_TRUST, _REL_AXIS_CORE_VALENCE):
-        comm_warmth = float(delta_vec[_REL_AXIS_COMM_WARMTH] or 0.0)
-        conflict = float(delta_vec[_REL_AXIS_CONFLICT] or 0.0)
-        trust = float(delta_vec[_REL_AXIS_TRUST] or 0.0)
-        valence = float(delta_vec[_REL_AXIS_CORE_VALENCE] or 0.0)
-        vec_signal = (0.45 * comm_warmth) + (0.35 * trust) - (0.70 * conflict) + (0.20 * valence)
-        if abs(vec_signal) > 1e-6:
-            return _clamp11(vec_signal)
-
-    if record.affective_valence is not None:
-        return _clamp11(record.affective_valence)
-
-    return 0.0
+    baseline_quality: float = 0.0
+    recent_quality: float = 0.0
+    disappointment_pressure: float = 0.0
+    positive_surprise_bias: float = 0.0
+    sample_count: int = 0
 
 
-def _feature_type_name(feature: Any) -> str:
-    record = feature_state_record(feature)
-    ft = record.feature_type if record is not None else _raw_get(feature, "feature_type", "type")
-    if ft is None:
-        return ""
-    if hasattr(ft, "name"):
-        return str(ft.name)
-    return str(ft)
+def _relationship_signal(sample: MentalStateSample) -> float:
+    """Return a coarse interaction quality in [-1, 1] from the relationship and core deltas."""
+    delta = sample.vector()
+    signal = (0.45 * delta[_REL_AXIS_COMM_WARMTH] + 0.35 * delta[_REL_AXIS_TRUST]
+              - 0.70 * delta[_REL_AXIS_CONFLICT] + 0.20 * delta[_REL_AXIS_CORE_VALENCE])
+    return _clamp11(signal)
 
 
 def compute_partner_expectation_profile(
-    features: List[Any],
-    conversation_partner_entity_id: Optional[int],
+    samples: List[MentalStateSample],
+    entity_id: int,
     reference_timeframe_minutes: int = 60 * 24,
     *,
     baseline_alpha_up: float = 0.30,
     baseline_alpha_down: float = 0.06,
     recent_half_life_minutes: float = 120.0,
-) -> Dict[str, float]:
-    """
-    Build relationship expectation profile for the active conversation partner.
-    The core behavior is asymmetric:
-      - positive interactions raise baseline relatively quickly
-      - negative interactions lower baseline slowly
-    This models "harder to impress, easier to disappoint" over time.
-    """
-    records = feature_state_records(features)
-    if not records:
-        return {
-            "baseline_quality": 0.0,
-            "recent_quality": 0.0,
-            "disappointment_pressure": 0.0,
-            "positive_surprise_bias": 0.0,
-            "sample_count": 0.0,
-        }
+) -> PartnerExpectationProfile:
+    """Return the expectation profile of the companion toward one partner.
 
-    now = max(record.timestamp_creation for record in records)
-
+    Only samples that concern ``entity_id`` and lie inside the reference time
+    frame (measured from the newest of them) count. The baseline moves
+    asymmetrically: a good interaction raises it fast, a bad one lowers it
+    slowly. So the partner becomes harder to impress and easier to
+    disappoint over time.
+    """
+    own = [sample for sample in samples if entity_id in sample.entity_ids]
+    if not own:
+        return PartnerExpectationProfile()
+    newest = max(sample.timestamp for sample in own)
     horizon_s = max(60.0, float(reference_timeframe_minutes) * 60.0)
     recent_half_life_s = max(30.0, float(recent_half_life_minutes) * 60.0)
+    selected = sorted((sample for sample in own if (newest - sample.timestamp).total_seconds() <= horizon_s),
+                      key=lambda sample: sample.timestamp)
     ln2 = math.log(2.0)
-
-    selected: List[FeatureStateRecord] = []
-    for record in records:
-        ts = record.timestamp_creation
-        age_s = max(0.0, (now - ts).total_seconds())
-        if age_s > horizon_s:
-            continue
-
-        src_id = record.entity_id
-        ft_name = _feature_type_name(record)
-        if conversation_partner_entity_id is not None:
-            if ft_name == "ExpectationOutcome":
-                selected.append(record)
-                continue
-            if src_id is not None and src_id != conversation_partner_entity_id:
-                continue
-            delta_vec = record.mental_state_delta_vec
-            if isinstance(delta_vec, list) and any(abs(float(x or 0.0)) > 1e-8 for x in delta_vec):
-                selected.append(record)
-                continue
-            if src_id == conversation_partner_entity_id:
-                selected.append(record)
-        else:
-            selected.append(record)
-
-    if not selected:
-        return {
-            "baseline_quality": 0.0,
-            "recent_quality": 0.0,
-            "disappointment_pressure": 0.0,
-            "positive_surprise_bias": 0.0,
-            "sample_count": 0.0,
-        }
-
-    selected = sorted(selected, key=lambda x: x.timestamp_creation)
-
     baseline = 0.0
     weighted_sum = 0.0
     weighted_den = 0.0
-
-    for f in selected:
-        ts = f.timestamp_creation
-        age_s = max(0.0, (now - ts).total_seconds())
+    for sample in selected:
+        age_s = max(0.0, (newest - sample.timestamp).total_seconds())
         w_recent = math.exp(-ln2 * age_s / recent_half_life_s)
-        signal = _relationship_signal_from_feature(f)
-
+        signal = _relationship_signal(sample)
         alpha = baseline_alpha_up if signal >= baseline else baseline_alpha_down
-        alpha *= (0.75 + 0.25 * w_recent)
-        alpha = _clip(alpha, 0.01, 0.60)
+        alpha = _clip(alpha * (0.75 + 0.25 * w_recent), 0.01, 0.60)
         baseline = _blend(baseline, signal, alpha)
-
         weighted_sum += signal * w_recent
         weighted_den += w_recent
-
     recent_quality = weighted_sum / max(EPS, weighted_den)
     baseline_quality = _clamp11(baseline)
-
-    disappointment_pressure = _clamp01(
-        0.90 * max(0.0, baseline_quality - recent_quality) +
-        0.25 * max(0.0, baseline_quality)
+    return PartnerExpectationProfile(
+        baseline_quality=baseline_quality,
+        recent_quality=_clamp11(recent_quality),
+        disappointment_pressure=_clamp01(0.90 * max(0.0, baseline_quality - recent_quality)
+                                         + 0.25 * max(0.0, baseline_quality)),
+        positive_surprise_bias=_clamp01(0.70 * max(0.0, recent_quality - baseline_quality)
+                                        * (1.0 - 0.65 * max(0.0, baseline_quality))),
+        sample_count=len(selected),
     )
-    positive_surprise_bias = _clamp01(
-        0.70 * max(0.0, recent_quality - baseline_quality) *
-        (1.0 - 0.65 * max(0.0, baseline_quality))
-    )
 
-    return {
-        "baseline_quality": baseline_quality,
-        "recent_quality": _clamp11(recent_quality),
-        "disappointment_pressure": disappointment_pressure,
-        "positive_surprise_bias": positive_surprise_bias,
-        "sample_count": float(len(selected)),
-    }
 
 
 def compute_attention_bias(ms: FullMentalState) -> Tuple[float, float]:

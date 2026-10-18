@@ -48,7 +48,7 @@ ACTIONS = [
 def answers(actions=ACTIONS) -> dict:
     return {
         "triage": {"items": [{"knoxel_id": 11, "category": "Critical"}]},
-        "appraise": {"feeling": "alarmed", "emotion_delta": {"anxiety": 0.5}, "evidence_ids": [11]},
+        "appraise": {"feeling": "alarmed", "emotion_delta": {"fear": 0.5}, "evidence_ids": [11]},
         "retrieve": {"candidate_ids": [42]},
         "goals": {"changes": [{"change": "add", "goal": "put out the fire"}]},
         "experience": {"frame_reason": "fire", "focus_ids": [11], "subjective_experience": "Everything is loud."},
@@ -77,7 +77,10 @@ class CycleTests(unittest.TestCase):
         self.assertIn("alarmed", retrieve[-1].content.text)
         self.assertEqual(work.selected_memories[0].knoxel_id, 42)
         self.assertEqual(work.context.memories, ["User owns a fire extinguisher."])
-        self.assertEqual(work.state.mental_state.to_list(), work.affect.state.to_list())
+        # The appraise phase set the EMA mental state and the appraisal affect.
+        self.assertEqual(len(work.affect.delta_vec), len(work.state.mental_state.to_list()))
+        self.assertTrue(work.affect.felt.startswith("Companion feels"))
+        self.assertEqual(work.state_summary, work.affect.felt)
         self.assertEqual(work.state.stimulus_groups[0].category, "Critical")
         self.assertEqual(len(work.state.decisions), 2)
         expected_ids = [item.action_id or stable_action_id(item, index)

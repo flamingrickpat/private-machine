@@ -11,6 +11,12 @@ behavior.
 Parent: [Emotional dynamics](../../subsystems/emotional-dynamics.md).
 Gate: `dev/work_items/alpha_a07_affect_gate.py`.
 
+This record describes the A07 affect path. A19F step 4 (D27) replaced it with the EMA mental state over feature deltas.
+The module `affect_dynamics.py` and its test no longer exist.
+The current tests are `tests/unit/workflows/main_cognition/test_affect.py` and `tests/unit/pm/records/test_mental_state_ema.py`.
+The gate now records the delta axes of the appraisal Feature in place of `affect_trace`.
+The results below are the A07 results and stay unchanged.
+
 ## Deterministic contract tests
 
 `tests/unit/workflows/main_cognition/test_affect_dynamics.py` covers the affect path without a model.
