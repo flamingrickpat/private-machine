@@ -53,9 +53,9 @@ def persona_context(store) -> dict:
     The supervisor calls this under the memory-store lock at each launch.
     """
     from workflows.public_speech.public_context import build_public_context
-    from pm.records.mental_state import FullMentalState, create_empty_state
+    from pm.records.mental_state import create_empty_state
     public = build_public_context(store, {}).model_dump(mode="json")
-    state = FullMentalState.init_from_list(store.states[-1].mental_state_latent_vec) if store.states else create_empty_state()
+    state = store.states[-1].mental_state if store.states else create_empty_state()
     return {"persona_context": {
         "companion_name": store.get_companion_name(),
         "user_name": store.get_user_name(),

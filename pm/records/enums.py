@@ -141,14 +141,6 @@ class StimulusType(RecordSubtypeBase):
     MemoryRecall = "MemoryRecall"
 
 
-class StimulusGroup(RecordSubtypeBase):
-    All = "All"
-    WorldInput = "WorldInput"
-    SystemInput = "SystemInput"
-    ToolInput = "ToolInput"
-    SelfInput = "SelfInput"
-
-
 class EntityClass(RecordSubtypeBase):
     Self = "Self"
     Human = "Human"

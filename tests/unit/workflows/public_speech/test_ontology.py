@@ -32,7 +32,7 @@ def ghost_with_state(*, anger: float = 0.0, tenderness: float = 0.0) -> MemorySt
         metadata={"memory_kind": "internal_state", "evidence_ids": []},
     ))
     batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, knoxel_ids=[feature.id]),
-                  CycleState(tick_id=batch.tick_id, mental_state_latent_vec=state.to_list()))
+                  CycleState(tick_id=batch.tick_id, mental_state=state))
     ghost.commit(batch)
     return ghost
 
@@ -103,7 +103,7 @@ class ObserveTests(unittest.TestCase):
             metadata={"memory_kind": "internal_state", "evidence_ids": []},
         ))
         batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, knoxel_ids=[feature.id]),
-                      CycleState(tick_id=batch.tick_id, mental_state_latent_vec=state.to_list()))
+                      CycleState(tick_id=batch.tick_id, mental_state=state))
         ghost.commit(batch)
         observe_ontology(ghost)
         active = [b for b in ghost.all_knoxels.values()

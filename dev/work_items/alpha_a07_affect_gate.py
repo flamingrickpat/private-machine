@@ -35,7 +35,6 @@ from dev.work_items.shared.evidence import save_json
 from workflows.companion import build_app
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
-from pm.records.mental_state import FullMentalState
 from pm.app.lifecycle_records import record_shutdown
 
 import yaml
@@ -77,7 +76,7 @@ def _state_snapshot(ghost) -> dict:
     if not ghost.states:
         return {"sadness": 0.0, "joy": 0.0, "fear": 0.0, "anger": 0.0,
                 "valence": 0.0, "arousal": 0.0, "summary": ""}
-    mental = FullMentalState.init_from_list(ghost.states[-1].mental_state_latent_vec)
+    mental = ghost.states[-1].mental_state
     return {
         "sadness": round(float(mental.state_emotions.sadness), 4),
         "joy": round(float(mental.state_emotions.joy), 4),

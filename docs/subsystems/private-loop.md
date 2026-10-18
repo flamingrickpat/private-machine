@@ -251,8 +251,8 @@ A nonpositive interval reports zero derivatives, never a measured stillness.
 The first sample initializes with zero derivatives, which is not an absence
 of movement.
 
-The sample lives in the inner cycle's `CycleState.internal_data`
-(`qualia_channels`), so it survives checkpoints.
+The sample lives in the inner cycle's `CycleState.qualia_channels`
+field, so it survives checkpoints.
 Continuity across a restart comes from committed history: an offline gap
 contributes no intermediate samples.
 

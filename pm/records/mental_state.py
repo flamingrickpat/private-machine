@@ -419,8 +419,13 @@ class FullMentalState(BaseModel):
         )
         if lst[VectorModelRelationshipEntityID] or rel_has_signal:
             res.state_relationship = StateRelationship.init_from_vector(lst)
-            if not lst[VectorModelRelationshipEntityID]:
-                res.state_relationship.entity_id = 0
+            # The entity id is an identifier, not an axis. Vector sums and EMA
+            # averages can leave a fraction in its slot, for example 1.38.
+            # Such a value names no entity, so it becomes 0 (no entity). An
+            # integral value becomes an int, so the typed CycleState.mental_state
+            # validates again after a checkpoint reload.
+            entity_id = float(lst[VectorModelRelationshipEntityID] or 0.0)
+            res.state_relationship.entity_id = int(entity_id) if entity_id.is_integer() else 0
         return res
 
     @classmethod

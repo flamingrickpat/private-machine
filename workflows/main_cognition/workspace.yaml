@@ -1,0 +1,58 @@
+# Content requirements of the main cognition cycle (A19F).
+# pm.records.workspace.load_workspace_requirements reads this file.
+#
+# Record names are Python record class names in pm/records.
+# entity: self = about the companion, shard = about the entity of the shard,
+#   group = about an entity of a current stimulus group, any = no filter.
+# feature_type filters only Feature records.
+# min_items reserves places. max_items and max_token_share are caps.
+# max_token_share is a part of the shard content budget (WORKSPACE_SHARD_TOKENS).
+shards:
+  self:
+    requirements:
+      - name: self_narrative
+        select: {record: [Narrative], entity: self}
+        min_items: 1
+        max_items: 3
+        max_token_share: 0.25
+      - name: self_model
+        select: {record: [SemanticRecord, BeliefRecord], entity: self}
+        min_items: 1
+        max_token_share: 0.15
+      - name: self_goals
+        select: {record: [Intention], entity: self}
+        max_token_share: 0.15
+      - name: codelet_percepts
+        select: {record: [CodeletPercept]}
+        max_token_share: 0.35
+  entity:
+    requirements:
+      - name: entity_narrative
+        select: {record: [Narrative], entity: shard}
+        min_items: 1
+        max_items: 2
+        max_token_share: 0.2
+      - name: memories
+        select: {record: [MemoryClusterRecord, DeclarativeFactRecord, SemanticRecord], entity: shard}
+        max_token_share: 0.4
+      - name: interpersonal_expectations
+        select: {record: [ExpectationRecord, Intention], entity: shard}
+        max_token_share: 0.15
+  workflow:
+    requirements:
+      - name: receipts
+        select: {record: [ActionSchemaRecord, Feature], feature_type: WorldEvent}
+        max_token_share: 0.4
+      - name: world_memories
+        select: {record: [WorldPlaceRecord, WorldObjectRecord, BodyEpisodeRecord]}
+        max_token_share: 0.3
+
+# Prune never removes a CSM item that matches one of these selectors.
+csm:
+  requirements:
+    - name: current_stimuli
+      select: {scope: current_stimuli}
+    - name: self_narratives
+      select: {record: [Narrative], entity: self}
+    - name: group_narratives
+      select: {record: [Narrative], entity: group}

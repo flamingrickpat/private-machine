@@ -172,7 +172,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             now = datetime.utcnow()
 
         previous_cycle = states[-1] if states else None
-        mental_vec = list(previous_cycle.mental_state_latent_vec) if previous_cycle is not None else []
+        mental_vec = previous_cycle.mental_state.to_list() if previous_cycle is not None else []
         age_seconds = max(0.0, (datetime.utcnow() - previous_cycle.timestamp).total_seconds()) \
             if previous_cycle is not None else 0.0
 
@@ -262,7 +262,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         # The felt channels of the last accepted cycle give the model context.
         # The new sample is computed at commit time from this frozen view.
         channels, _ = previous_cycle_sample(states)
-        request.channels = dict(channels or {})
+        request.channels = {key: value.model_dump(mode="json") for key, value in (channels or {}).items()}
         self._read_revisions = {
             int(item["knoxel_id"]): int(item["revision"])
             for item in [*goal_records, *expectation_records, *thoughts]
@@ -446,10 +446,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
 
         cycle = CycleState(
             tick_id=tick, attention_frame_id=frame.id, published_slots=["inner"],
-            stimuli_ids=[], mental_state_latent_vec=list(self._mental_vec or []),
-            internal_data={"qualia_channels": {key: value.model_dump(mode="json")
-                                               for key, value in sample.items()},
-                           "operation": parsed.operation},
+            stimuli_ids=[], mental_state=state, qualia_channels=sample,
         )
         changes.set_gwt(GwtTurnRecord(
             tick_id=tick, slot_id="inner", attention_frame_id=frame.id,

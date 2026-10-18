@@ -12,7 +12,6 @@ import unittest
 
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureSubtype, FeatureType, SourceKind
-from pm.records.mental_state import FullMentalState
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope, new_id
@@ -104,8 +103,7 @@ class AppraisalCommitTests(unittest.TestCase):
 
             self.assertEqual(errors, [])
             self.assertEqual(len(requests.events), 1)
-            state = ghost.states[-1].mental_state_latent_vec
-            mental = FullMentalState.init_from_list(state)
+            mental = ghost.states[-1].mental_state
             self.assertGreater(mental.state_emotions.joy, 0.0)
             self.assertAlmostEqual(mental.state_needs.connection, 0.3)
             appraisals = [

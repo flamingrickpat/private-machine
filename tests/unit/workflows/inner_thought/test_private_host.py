@@ -132,8 +132,8 @@ class AcceptedCycleTests(unittest.TestCase):
             self.assertEqual(turn.attention_frame_id, thought.metadata.get("frame") or turn.attention_frame_id)
             cycle = next(item for item in ghost.states if item.tick_id == tick)
             self.assertEqual(cycle.published_slots, ["inner"])
-            self.assertEqual(cycle.internal_data["operation"], "curiosity_spark")
-            self.assertIn("qualia_channels", cycle.internal_data)
+            self.assertEqual(thought.metadata["operation"], "curiosity_spark")
+            self.assertTrue(cycle.qualia_channels)
             self.assertEqual(updated.events[0].payload["slot"], "inner")
             # Private work retains advice. Only main appraisal accepts goals.
             goals = [record for record in ghost.all_knoxels.values()
@@ -310,7 +310,7 @@ class RestartTests(unittest.TestCase):
             self.assertEqual(inner[0].slot_id, "inner")
             cycle = next(item for item in reopened.states
                          if item.tick_id == inner[0].tick_id)
-            self.assertIn("qualia_channels", cycle.internal_data)
+            self.assertTrue(cycle.qualia_channels)
             thoughts = [record for record in reopened.all_features
                         if record.feature_type == FeatureType.InnerMonologue
                         and (record.metadata or {}).get("loop") == "inner"]

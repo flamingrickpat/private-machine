@@ -5,7 +5,7 @@ owns: the GWT turn record model (spec v2 §7), its YAML serialization, and
   the attention frame factory the personality cycle uses once per tick.
 not own: GWT slot publishing (the loop engine writes gwt/ files), the
   attention frame lifecycle after the cycle stores it, markdown shards.
-fails when: a turn record YAML file does not hold a mapping.
+fails when: a turn record YAML file does not validate as a turn record.
 domain: one accepted cycle produces one AttentionFrameRecord (a knoxel in
   the ghost) plus one GWT turn record (a projection file in gwt/). The
   turn record references the frame and the causal knoxel ids of the cycle,
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,8 +25,31 @@ from pydantic import BaseModel, ConfigDict, Field
 from pm.records.base import RecordScope, Provenance
 from pm.records.enums import SourceKind
 from pm.records.cognitive_records import AttentionFrameRecord
+from pm.records.workspace import ShardKey, WorkspaceItem
 
-GWT_TURN_SCHEMA = "pm.gwt-turn.v1"
+GWT_TURN_SCHEMA = "pm.gwt-turn.v2"
+
+
+class LeftItem(BaseModel):
+    """One record that left a shard in this cycle, with the reason."""
+
+    record_id: int = 0
+    reason: str = ""
+
+
+class ShardChange(BaseModel):
+    """The change of one workspace shard in one cycle.
+
+    ``entered`` holds the items that entered. ``left`` holds the records that
+    left, with reasons. ``kept_ids`` names the incumbents that stayed.
+    ``tail_ids`` is the tail of the shard after the change.
+    """
+
+    key: ShardKey = Field(default_factory=ShardKey)
+    entered: List[WorkspaceItem] = Field(default_factory=list)
+    left: List[LeftItem] = Field(default_factory=list)
+    kept_ids: List[int] = Field(default_factory=list)
+    tail_ids: List[int] = Field(default_factory=list)
 
 
 class GwtTurnRecord(BaseModel):
@@ -34,6 +57,11 @@ class GwtTurnRecord(BaseModel):
 
     Cycle publishes always name one attention frame. Hidden slot publishes
     (dialogue, M5) carry no frame; the field stays None there.
+
+    Schema v2 (A19F) adds ``shard_changes`` and ``experience_id``. Old v1
+    turns keep their schema id and load with empty v2 fields. They are not
+    migrated. ``timestamp`` is naive UTC, like the record timestamps in
+    ``pm.records.base``.
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -44,7 +72,9 @@ class GwtTurnRecord(BaseModel):
     attention_frame_id: Optional[int] = None
     knoxel_ids: List[int] = Field(default_factory=list)
     summary: str = ""
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    shard_changes: List[ShardChange] = Field(default_factory=list)
+    experience_id: Optional[int] = None
 
     def to_yaml(self) -> str:
         data = self.model_dump(mode="json", by_alias=True)
@@ -52,10 +82,7 @@ class GwtTurnRecord(BaseModel):
 
     @classmethod
     def from_yaml(cls, text: str) -> "GwtTurnRecord":
-        data = yaml_util.safe_load(text)
-        if not isinstance(data, dict):
-            raise ValueError("GWT turn record must be a YAML mapping")
-        return cls.model_validate(data)
+        return cls.model_validate(yaml_util.safe_load(text))
 
 
 def load_turn_record(path: str | Path) -> GwtTurnRecord:

@@ -38,7 +38,7 @@ class CognitiveControl(BusModule):
         # this watermark, restart can discard a valid continuing episode.
         self.generation = max([0,
             *(int(item.metadata.get("control_generation", 0)) for item in ghost.all_features),
-            *(int(item.internal_data.get("control_generation", 0)) for item in ghost.states),
+            *(item.control_generation for item in ghost.states),
             *(int(item.metadata.get("generation", 0)) + 1 for item in ghost.all_features
               if item.metadata.get("control_kind") == "inference_wait")])
         self.cancel_private: Callable[[], None] = lambda: None

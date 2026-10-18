@@ -325,7 +325,7 @@ def phase_restart(root: Path, config: str, replies: list, stopped_at: datetime,
                                                     if cycle.timestamp > reopen_time]
         channels = None
         for cycle in reversed(ghost.states):
-            channels = (cycle.internal_data or {}).get("qualia_channels")
+            channels = cycle.qualia_channels
             if channels:
                 facts["restart"]["channel_ids"] = sorted(channels)
                 break

@@ -223,7 +223,7 @@ class ModuleCommitTests(unittest.TestCase):
             self.assertEqual(feature.metadata["regulation"], trace["regulation"])
             self.assertGreater(feature.mental_state_appraisal.state_emotions.sadness, 0.0)
             # The committed cycle uses the same projected vector the stages saw.
-            committed = ghost.states[-1].mental_state_latent_vec
+            committed = ghost.states[-1].mental_state.to_list()
             self.assertEqual(committed, feature.mental_state_appraisal_vec)
             # The later choice keeps the accepted affect beside its own identity.
             action = [
@@ -243,7 +243,7 @@ class ModuleCommitTests(unittest.TestCase):
                              correlation_id="corr-need", payload={"knoxel_id": stimulus_id}))
             self.assertTrue(module.step(block=False))
             self.assertEqual(errors, [])
-            mental = FullMentalState.init_from_list(ghost.states[-1].mental_state_latent_vec)
+            mental = ghost.states[-1].mental_state
             self.assertAlmostEqual(mental.state_needs.connection, 0.3)
 
     def test_affect_survives_a_checkpoint_restart(self):
@@ -257,10 +257,10 @@ class ModuleCommitTests(unittest.TestCase):
                              correlation_id="corr-save", payload={"knoxel_id": stimulus_id}))
             self.assertTrue(module.step(block=False))
             self.assertEqual(errors, [])
-            before = FullMentalState.init_from_list(ghost.states[-1].mental_state_latent_vec)
+            before = ghost.states[-1].mental_state
 
             reopened = MemoryStore.from_checkpoint(checkpoint)
-            after = FullMentalState.init_from_list(reopened.states[-1].mental_state_latent_vec)
+            after = reopened.states[-1].mental_state
             self.assertAlmostEqual(after.state_emotions.sadness, before.state_emotions.sadness)
             # A restart does not reset the persona to neutral.
             self.assertGreater(after.state_emotions.sadness, 0.0)

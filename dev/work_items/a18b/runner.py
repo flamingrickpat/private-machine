@@ -464,12 +464,11 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
                     return
                 message_id = f"m{len(rows):04}"
                 if scenario.state_evidence:
-                    from pm.records.mental_state import FullMentalState
                     tick = row["metadata"].get("generation_state_tick")
                     if tick is not None:
                         with self.app.ghost.lock:
                             state = next(item for item in self.app.ghost.states if item.tick_id == tick)
-                            emotions = FullMentalState.init_from_list(state.mental_state_latent_vec).state_emotions.model_dump()
+                            emotions = state.mental_state.state_emotions.model_dump()
                         pending_facts.append((row["at"], message_id,
                             "At composition of this message the accepted implemented emotion fields were "
                             + json.dumps({key: round(value, 4) for key, value in emotions.items()})

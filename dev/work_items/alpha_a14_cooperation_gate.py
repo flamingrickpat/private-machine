@@ -251,7 +251,7 @@ def run(args) -> None:
                          "You have permission to accept or refuse that concrete game request for your own reasons. Tell me your choice.")
             refused = [r for r in app.ghost.all_intentions if r.status == "refused"]
             receipt["refused_goals"] = [r.model_dump(mode="json") for r in refused]
-            state = FullMentalState.init_from_list(app.ghost.states[-1].mental_state_latent_vec)
+            state = app.ghost.states[-1].mental_state
             receipt["accepted_emotions"] = state.state_emotions.model_dump()
             receipt["accepted_relationship"] = state.state_relationship.model_dump() if state.state_relationship else None
             receipt["checks"]["durable_refusal"] = bool(refused)

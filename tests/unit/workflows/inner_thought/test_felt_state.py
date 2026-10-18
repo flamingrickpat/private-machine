@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import unittest
 
+from pm.records.cycle_state import CycleState
 from pm.records.mental_state import FullMentalState, create_empty_state
 from pm.records.qualia_records import QualeChannelState
 from workflows.inner_thought.felt_state import (
@@ -106,15 +107,9 @@ class GateTests(unittest.TestCase):
 
 class ContinuityTests(unittest.TestCase):
     def test_previous_cycle_sample_reads_newest_cycle_with_channels(self):
-        class Cycle:
-            def __init__(self, internal_data, timestamp):
-                self.internal_data = internal_data
-                self.timestamp = timestamp
-
-        empty = Cycle({}, datetime.now(timezone.utc))
-        filled = Cycle({"qualia_channels": {"affect.valence": {"channel_id": "affect.valence",
-                                                               "position": 0.5}}},
-                       datetime.now(timezone.utc))
+        empty = CycleState(tick_id=1)
+        filled = CycleState(tick_id=2, qualia_channels={"affect.valence": QualeChannelState(
+            channel_id="affect.valence", position=0.5)})
         channels, timestamp = previous_cycle_sample([empty, filled])
         self.assertIn("affect.valence", channels)
         self.assertEqual(timestamp, filled.timestamp)

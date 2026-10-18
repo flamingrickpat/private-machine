@@ -97,8 +97,8 @@ The appraisal Feature metadata holds `affect_trace`. The trace records:
 - the expectation error and its effect;
 - the regulation mode and the behavior block.
 
-The committed cycle stores the projected vector in
-`mental_state_latent_vec`. The appraisal Feature stores the same vector in
+The committed cycle stores the projected state in its
+`mental_state` field. The appraisal Feature stores the same vector in
 `mental_state_appraisal_vec`. The `mental_state_delta_vec` holds the step from
 the previous accepted state. A reader can follow one event from the stimulus,
 through the appraisal Feature, to the affect trace, to the regulation mode, and

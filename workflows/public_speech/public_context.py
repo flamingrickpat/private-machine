@@ -210,8 +210,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
     regulation = str(metadata.get("regulation") or payload.get("regulation", ""))
     if state is not None:
         from workflows.main_cognition.affect_dynamics import summarize_affect
-        from pm.records.mental_state import FullMentalState
-        accepted = FullMentalState.init_from_list(state.mental_state_latent_vec)
+        accepted = state.mental_state
         affect = summarize_affect(accepted)
         feelings = feelings_in_words(accepted)
         current_state = next((raw["data"] for raw in reversed(list(records.values()))
@@ -242,8 +241,7 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
         "minecraft": {"status": "unknown", "visual_interpretation": False},
     }
     if state is not None:
-        from pm.records.mental_state import FullMentalState
-        domain_capabilities["emotion_state"] = FullMentalState.init_from_list(state.mental_state_latent_vec).state_emotions.model_dump()
+        domain_capabilities["emotion_state"] = state.mental_state.state_emotions.model_dump()
     rendered_ids = {item["knoxel_id"] for item in originals}
     domain_capabilities["evidence_limit"] = {"records": 48, "record_characters": 1200,
         "source_use": evidence_use, "omitted_ids": sorted(ids - rendered_ids - {getattr(action, "id", None)})}

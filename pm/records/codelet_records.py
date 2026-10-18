@@ -9,25 +9,14 @@ domain: structures collect knoxel ids and local relationship hints while module 
 invariant: serialized models keep references as ids and primitive metadata; live Python objects are resolved only through owner-backed properties.
 """
 
-from typing import List, Union
+from typing import Dict, List, Union
 
 from pydantic import BaseModel, Field, JsonValue
 
+from pm.constants import CODELET_BASE_ACTIVATION, CODELET_COOLDOWN_TICKS
 from pm.records.base import RecordBase
-from pm.records.mental_state import FullMentalState, MentalState, VectorModelReservedSize, create_empty_ms_vector
-
-def _coerce_full_mental_state(value) -> FullMentalState:
-    if isinstance(value, FullMentalState):
-        return value
-    if isinstance(value, (list, tuple)):
-        vector = [float(item or 0.0) for item in value]
-        if len(vector) < VectorModelReservedSize:
-            vector.extend([0.0] * (VectorModelReservedSize - len(vector)))
-        return FullMentalState.init_from_list(vector[:VectorModelReservedSize])
-    if isinstance(value, dict):
-        return FullMentalState.model_validate(value)
-    raise TypeError(f"Cannot convert {type(value).__name__} to FullMentalState")
-
+from pm.records.mental_state import FullMentalState, create_empty_ms_vector
+from pm.records.workspace import ShardKey
 
 class AffectMeta(BaseModel):
     """
@@ -61,6 +50,7 @@ class Structure(RecordBase):
     affect: AffectMeta = Field(default_factory=AffectMeta, description=" Simple low-dim appraisal vector for runtime importance")
     predecessor_id: int | None = Field(default=None, description="Predecessor structure if there is one")
     primitive_metadata: dict[str, JsonValue] = Field(default_factory=dict, description="Freeform primitive metadata for runtime inspection")
+    target_shard: ShardKey | None = Field(default=None, description="Shard that the structure concerns. Attention can choose another shard.")
 
     @property
     def knoxels(self) -> List[RecordBase]:
@@ -155,13 +145,44 @@ class CodeletPercept(RecordBase):
         return FullMentalState.init_from_list(self.mental_state_appraisal_vec)
 
     @mental_state_appraisal.setter
-    def mental_state_appraisal(self, value) -> None:
-        self.mental_state_appraisal_vec = _coerce_full_mental_state(value).to_list()
+    def mental_state_appraisal(self, value: FullMentalState) -> None:
+        self.mental_state_appraisal_vec = value.to_list()
 
     @property
     def mental_state_delta(self) -> FullMentalState:
         return FullMentalState.init_from_list(self.mental_state_delta_vec)
 
     @mental_state_delta.setter
-    def mental_state_delta(self, value) -> None:
-        self.mental_state_delta_vec = _coerce_full_mental_state(value).to_list()
+    def mental_state_delta(self, value: FullMentalState) -> None:
+        self.mental_state_delta_vec = value.to_list()
+
+
+class CodeletRuntimeState(BaseModel):
+    """The persisted runtime state of one registered codelet.
+
+    Port of ``CodeletRuntime`` from ``private-machine-head/pm/codelets/codelet.py``.
+    ``activation`` is the stored activation that the next activation score
+    starts from. ``base_activation`` is the long-term base-level activation.
+    It rises when a percept of the codelet enters a workspace shard.
+    ``cooldown_ticks`` is the number of ticks after a run in which the codelet
+    has a lower score. ``last_fired_tick`` is None until the first run.
+    ``last_percept_ids`` holds the record ids of the percepts of the last run.
+    """
+
+    name: str = ""
+    activation: float = 0.0
+    base_activation: float = CODELET_BASE_ACTIVATION
+    cooldown_ticks: int = CODELET_COOLDOWN_TICKS
+    last_fired_tick: int | None = None
+    total_runs: int = 0
+    last_percept_ids: List[int] = Field(default_factory=list)
+
+
+class CodeletRegistryState(BaseModel):
+    """The runtime state of every registered codelet, keyed by codelet name.
+
+    Port of ``CodeletState``. The cycle state owns it and saves it with each
+    cycle. The codelet definitions themselves are code and are not saved.
+    """
+
+    codelets: Dict[str, CodeletRuntimeState] = Field(default_factory=dict)

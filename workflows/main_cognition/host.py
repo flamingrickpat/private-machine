@@ -480,7 +480,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "reasons": ["deliberate mental recall"]})
         self._memory_candidates = retrieval["matches"]
         previous = self.ghost.states[-1] if self.ghost.states else None
-        previous_vec = list(previous.mental_state_latent_vec) if previous is not None else []
+        previous_vec = previous.mental_state.to_list() if previous is not None else []
         age_seconds = 0.0
         if previous is not None:
             from pm.memory.retrieval import utc_time
@@ -652,7 +652,7 @@ class MainCogLoop(CognitiveWorkflow):
         # partly update accepted state. The parent pipeline already projected
         # the affect step; reuse it so accepted state matches the stage input.
         previous = self.ghost.states[-1] if self.ghost.states else None
-        previous_vec = list(previous.mental_state_latent_vec) if previous is not None else None
+        previous_vec = previous.mental_state.to_list() if previous is not None else None
         projection = _projection_from_report(parsed, previous_vec)
         appraisal_feature, mental_state = apply_appraisal(
             changes, view, parsed.appraisal,
@@ -865,8 +865,8 @@ class MainCogLoop(CognitiveWorkflow):
             CycleState(
                 tick_id=tick, attention_frame_id=frame.id, published_slots=["main"],
                 stimuli_ids=list(self._stimulus_ids),
-                mental_state_latent_vec=mental_state.to_list(),
-                internal_data={"control_generation": getattr(self, "_control_generation", 0)},
+                mental_state=mental_state,
+                control_generation=getattr(self, "_control_generation", 0),
             ),
         )
         control = getattr(self, "cognitive_control", None)

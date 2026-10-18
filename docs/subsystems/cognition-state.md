@@ -45,7 +45,7 @@ The Feature carries the new total state in `mental_state_appraisal_vec`.
 It carries the difference in `mental_state_delta_vec`.
 Its metadata carries the causal `affect_trace` and the regulation mode.
 The module stores the same new state in the cycle
-`mental_state_latent_vec`.
+`mental_state` field.
 The appraisal Feature is self-origin (`SourceKind.Self`).
 
 Read [emotional dynamics](emotional-dynamics.md) for the step order, the

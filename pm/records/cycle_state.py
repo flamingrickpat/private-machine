@@ -1,58 +1,56 @@
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-from pydantic import AliasChoices, BaseModel, Field, PrivateAttr, SerializeAsAny
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, PrivateAttr, SerializeAsAny
 
 from pm.records.base import RecordBase
-from pm.records.mental_state import FullMentalState, VectorModelReservedSize, create_empty_ms_vector
-from pm.records.needs_axes import NeedsAxesModel, CognitionAxesModel
-
-
-def _coerce_full_mental_state(value: FullMentalState | List[float] | dict) -> FullMentalState:
-    if isinstance(value, FullMentalState):
-        return value
-    if isinstance(value, (list, tuple)):
-        vector = [float(item or 0.0) for item in value]
-        if len(vector) < VectorModelReservedSize:
-            vector.extend([0.0] * (VectorModelReservedSize - len(vector)))
-        return FullMentalState.init_from_list(vector[:VectorModelReservedSize])
-    if isinstance(value, dict):
-        return FullMentalState.model_validate(value)
-    raise TypeError(f"Cannot convert {type(value).__name__} to FullMentalState")
+from pm.records.codelet_records import CodeletRegistryState
+from pm.records.cycle_records import ActionDecision, ActionDispatchRef, BroadcastRef, StimulusGroup
+from pm.records.mental_state import FullMentalState, create_empty_ms_vector
+from pm.records.qualia_records import QualeChannelState
+from pm.records.situational_model import SituationalModel
+from pm.records.workspace import GlobalWorkspace
 
 
 class CycleState(BaseModel):
-    """
-    The state for a cycle with ticks and all that.
+    """The typed state of one accepted cycle.
 
-    v2 fields (spec §6, decision D-M4-5): the cycle ledger records which
-    stimuli the cycle claimed, which GWT slots it published, the attention
-    frame it produced, and the git commit that sealed the cycle.
+    The next cycle copies this state and changes the copy. It does not
+    rebuild the state from nothing. The memory store saves one state for each
+    accepted tick. Unknown fields raise a validation error, so old data that
+    was not migrated fails loudly and does not lose its mental state.
+
+    ``timestamp`` is naive UTC, like the record timestamps in
+    ``pm.records.base``. Local wall time corrupts restart-gap comparisons.
+
+    The ledger fields ``stimuli_ids``, ``published_slots``,
+    ``attention_frame_id``, and ``commit_hash`` remain for the current
+    consumers (spec v2 section 6, decision D-M4-5). A later A19F step
+    removes them.
     """
+
+    model_config = ConfigDict(extra="forbid")
+
     tick_id: int
-    previous_tick_id: int = -1
-    # Match record timestamps. Local wall time corrupts restart-gap comparisons.
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    rating: int = Field(default=0)
 
-    mental_state_latent_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="current latent state, for quick access")
-    state_needs: NeedsAxesModel = Field(default_factory=NeedsAxesModel, description="keeping track of physiological needs")
-    state_cognition: CognitionAxesModel = Field(default_factory=CognitionAxesModel, description="keeping track of cognitive modifiers state")
+    mental_state: FullMentalState = Field(default_factory=FullMentalState, description="Current EMA-normalized mental state.")
+    csm: SituationalModel = Field(default_factory=SituationalModel, description="Unconscious content with activation.")
+    structure_ids: List[int] = Field(default_factory=list, description="Structure record ids that are active in the CSM.")
+    workspace: GlobalWorkspace = Field(default_factory=GlobalWorkspace, description="Conscious content in shards.")
+    codelets: CodeletRegistryState = Field(default_factory=CodeletRegistryState, description="Runtime state of every registered codelet.")
+    broadcasts: List[BroadcastRef] = Field(default_factory=list, description="The last CCQ_LENGTH workspace turns, oldest first.")
+    stimulus_groups: List[StimulusGroup] = Field(default_factory=list, description="Groups of the stimuli that this cycle claimed.")
+    decisions: List[ActionDecision] = Field(default_factory=list, description="In-character decisions of this cycle.")
+    dispatches: List[ActionDispatchRef] = Field(default_factory=list, description="Routed actions of this cycle.")
+
+    control_generation: int = Field(default=0, description="Cognitive control generation that admitted this cycle. It survives restarts.")
+    qualia_channels: Dict[str, QualeChannelState] = Field(default_factory=dict, description="Qualia channel states of a private cycle, keyed by channel id.")
 
     stimuli_ids: List[int] = Field(default_factory=list, description="Stimulus knoxel ids claimed by this cycle.")
     published_slots: List[str] = Field(default_factory=list, description="GWT slot ids republished by this cycle (v1: main).")
     attention_frame_id: Optional[int] = Field(default=None, description="AttentionFrameKnoxel id produced by this cycle.")
     commit_hash: Optional[str] = Field(default=None, description="Git commit of this cycle (audit trail). Filled after the commit lands.")
-
-    internal_data: Dict[str, Any] = Field(default_factory=dict, description="working object that is modified by subsystems and codelets")
-
-    @property
-    def mental_state_latent(self) -> FullMentalState:
-        return FullMentalState.init_from_list(self.mental_state_latent_vec)
-
-    @mental_state_latent.setter
-    def mental_state_latent(self, value: FullMentalState | List[float] | dict) -> None:
-        self.mental_state_latent_vec = _coerce_full_mental_state(value).to_list()
 
 class PersonaConfig(BaseModel):
     user_name: str

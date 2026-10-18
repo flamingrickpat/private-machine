@@ -19,6 +19,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from pm.records.mental_state import FullMentalState
+from pm.records.cycle_state import CycleState
 from pm.records.qualia_records import QualeChannelState
 
 #: Channel identity, projection units, and the mental-state fields each
@@ -110,21 +111,20 @@ def project_channel(channel_id: str, state: FullMentalState, *, active_goals=Non
     )
 
 
-def project_channels(state: FullMentalState, *, active_goals=None, previous: dict | None,
+def project_channels(state: FullMentalState, *, active_goals=None,
+                     previous: dict[str, QualeChannelState] | None,
                      previous_time: datetime | None, now: datetime | None,
                      driver_ids: list[int]) -> dict[str, QualeChannelState]:
     """Project every delivered channel into a per-cycle channel state map.
 
     ``previous`` is the last committed channel state map, taken from the
-    preceding cycle's ``CycleState.internal_data``. Passing ``None`` or an
+    preceding cycle's ``CycleState.qualia_channels``. Passing ``None`` or an
     absent channel initializes that channel with zero derivatives.
     """
     now = now or datetime.now()
     result: dict[str, QualeChannelState] = {}
     for channel_id in CHANNELS:
-        prior = None
-        if previous and channel_id in previous:
-            prior = QualeChannelState.model_validate(previous[channel_id])
+        prior = previous[channel_id] if previous is not None and channel_id in previous else None
         result[channel_id] = project_channel(
             channel_id, state, active_goals=active_goals, previous=prior,
             previous_time=previous_time, now=now, driver_ids=driver_ids,
@@ -148,7 +148,7 @@ def is_reportable(driver_ids: list[int], *, attention_ids: set[int], causal_ids:
     return bool(drivers & (attention_ids | causal_ids))
 
 
-def previous_cycle_sample(cycles: list) -> tuple[dict | None, datetime | None]:
+def previous_cycle_sample(cycles: list[CycleState]) -> tuple[dict[str, QualeChannelState] | None, datetime | None]:
     """Return the channel state map and timestamp of the newest cycle that has one.
 
     The input is the accepted ``CycleState`` history, oldest first. A restart
@@ -156,9 +156,8 @@ def previous_cycle_sample(cycles: list) -> tuple[dict | None, datetime | None]:
     gap contributes no intermediate samples.
     """
     for cycle in reversed(cycles):
-        channels = (cycle.internal_data or {}).get("qualia_channels")
-        if channels:
-            return dict(channels), cycle.timestamp
+        if cycle.qualia_channels:
+            return dict(cycle.qualia_channels), cycle.timestamp
     return None, None
 
 

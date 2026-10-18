@@ -13,6 +13,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 LOCAL_ROOTS = {"pm", "workflows", "runtime", "pm_core", "main", "modules", "tests", "dev"}
 EVERYTHING_IN_PM = {"records", "llm", "context_render", "memory", "bus", "host", "runs", "app", "console", "paths", "introspection"}
+#: Leaf modules that every runtime package may import. They import no other
+#: runtime package: ``pm.constants`` holds tunable numbers (A19F engineering
+#: rules) and ``pm.utils`` holds the YAML helpers.
+LEAF_MODULES = {"constants", "utils"}
 
 #: Runtime package -> runtime packages it may import.
 ALLOWED_IN_PM: dict[str, set[str]] = {
@@ -54,12 +58,15 @@ class RuntimeDependencyTests(unittest.TestCase):
         for path in python_files("pm"):
             relative = path.relative_to(ROOT).as_posix()
             parts = path.relative_to(ROOT / "pm").parts
-            package = parts[0].removesuffix(".py") if len(parts) > 1 else None
+            name = parts[0].removesuffix(".py")
+            package = name if len(parts) > 1 or name in LEAF_MODULES else None
             for line, module in imports(path):
                 head = module.split(".")
                 if head[0] != "pm" or len(head) < 2 or package is None:
                     continue
-                if head[1] not in ALLOWED_IN_PM.get(package, EVERYTHING_IN_PM):
+                if package in LEAF_MODULES:
+                    problems.append(f"{relative}:{line} leaf module pm.{package} imports {module}")
+                elif head[1] not in ALLOWED_IN_PM.get(package, EVERYTHING_IN_PM) | LEAF_MODULES:
                     problems.append(f"{relative}:{line} pm.{package} imports {module}")
         self.assertEqual(problems, [])
 
