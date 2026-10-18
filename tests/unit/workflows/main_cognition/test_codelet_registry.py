@@ -221,7 +221,7 @@ class CycleTests(unittest.TestCase):
     def test_every_codelet_call_shares_the_prefix_and_ends_with_its_instruction(self):
         model = ScriptedModel(answers())
         run_cycle(model, "codelets-prefix")
-        codelet_calls = [turns for turns in model.messages if phase_of(turns).startswith("codelet_")]
+        codelet_calls = [turns for turns in model.messages if turns and phase_of(turns).startswith("codelet_")]
         self.assertEqual(len(codelet_calls), 1 + model.calls.count("codelet_story") + model.calls.count("codelet_percepts"))
         prefixes = {tuple(turn.content.text for turn in turns[:3]) for turns in codelet_calls}
         self.assertEqual(len(prefixes), 1)

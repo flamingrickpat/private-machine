@@ -83,6 +83,17 @@ class PhasePrompts(BaseModel):
     view_template: str = ""
     conversion_template: str = ""
     selector_template: str = ""
+    # The appraise phase: the expectation check. The route phase: the anticipation call.
+    check_template: str = ""
+    anticipation_template: str = ""
+    # The goals and decide phases: the regulation mode in story words, by mode.
+    regulation_words: dict[str, str] = Field(default_factory=dict)
+    # The decide and route phases: a stimulus group in story words, by group kind.
+    part_entity: str = ""
+    part_workflow: str = ""
+    part_self: str = ""
+    # The route phase: the routed action in words, by action type.
+    action_words: dict[str, str] = Field(default_factory=dict)
 
 
 def load_prompts(path: str | Path) -> PhasePrompts:
@@ -108,12 +119,15 @@ def extract_json(text: str) -> dict:
 
 
 def complete_json(context, messages: Sequence[TurnInput], schema: type[BaseModel], *,
-                  transform: Callable[[list[Turn]], list[Turn]] | None = None, **generation: object):
+                  transform: Callable[[list[Turn]], list[Turn]] | None = None,
+                  validation_context: dict | None = None, **generation: object):
     """Validate model JSON with at most ten syntax or schema attempts.
 
     Each repair keeps the original task and only the latest rejected answer.
     ``transform`` changes the turns of every attempt just before the model
     call, for example to insert private grounding context.
+    ``validation_context`` is the pydantic validation context of the schema,
+    for example the workflow names that a route answer may use.
     Rejected answers and errors remain in the role's scratch directory.
     Exhaustion raises ModelFormatError without a report or a state change.
     Cancellation, transport failures, and tool errors propagate unchanged.
@@ -127,7 +141,7 @@ def complete_json(context, messages: Sequence[TurnInput], schema: type[BaseModel
         if not isinstance(raw, str):
             raise TypeError("llm_complete must return the completion text as a string.")
         try:
-            return schema.model_validate(extract_json(raw))
+            return schema.model_validate(extract_json(raw), context=validation_context)
         except (StageOutputError, ValidationError) as error:
             last_error = error
             context.runtime.environment.write_text(

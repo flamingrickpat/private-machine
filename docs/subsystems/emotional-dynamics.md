@@ -16,6 +16,7 @@ Committer: [`workflows.main_cognition.host.MainCogLoop.publish_output`][].
 
 The appraise phase of the cycle runs after triage.
 The model answers with appraisal axes, optional emotion and need deltas, and an expectation error.
+When the expectation check of the same phase rated open expectations, their summed valence impact replaces the expectation error, and their fear impact adds to the fear delta ([decisions, routing, and expectations](decisions-and-routing.md)).
 [`workflows.main_cognition.phases.appraise.update_affect`][] then computes the affect of the cycle.
 It sets `CycleState.mental_state` and returns an
 [`AppraisalAffect`][workflows.main_cognition.schemas.AppraisalAffect].

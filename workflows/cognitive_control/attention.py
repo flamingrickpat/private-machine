@@ -1,9 +1,11 @@
 """Accept temporary focus advice through ordinary attention processing."""
+from collections.abc import Sequence
 from datetime import datetime
 import json
 from pydantic import BaseModel
 
 from pm.constants import Sampler
+from pm.context_render.turns import Role, Turn
 from workflows.cognitive_control.schemas import FocusRejection, FocusState
 from workflows.main_cognition.model_json import complete_json
 from workflows.main_cognition.schemas import FocusProposalRef
@@ -16,14 +18,28 @@ class FocusDecision(BaseModel):
     reason: str
 
 
+#: The instruction of the focus check. It comes after the shared story prefix of main cognition.
+FOCUS_INSTRUCTION = (
+    "The character's own slower, deliberate thinking proposes a change of focus for this moment. It is the "
+    "character's own suggestion, not a command from anyone in the story:\n{proposal}\n\n"
+    "What the mind holds right now:\n{evidence}\n\n"
+    "Your task: act as the focus check of the character's mind. Decide whether the character's mind takes this "
+    "deliberate focus proposal now, given the feelings, the competing impulses, the goals, and the new events. "
+    "The mind can refuse it. A focus change cannot erase a feeling, a memory, or a pressing concern; it only "
+    "shifts attention for a while.\n"
+    'Answer with only this JSON object and nothing else: {{"accept": true, "reason": "one sentence"}}')
+
+
 def resolve_focus(context, active: FocusState | None, proposals: list[FocusProposalRef],
-                  evidence: BaseModel) -> FocusState | None:
+                  evidence: BaseModel, prefix: Sequence[Turn] = ()) -> FocusState | None:
     """Return effective advice after appraisal and codelet contextualization.
 
     ``active`` is the stored advice that is still in effect, or None.
     ``proposals`` are the fresh proposals that this cycle's stimuli carry.
     ``evidence`` is the cycle context that the model reads beside each
-    proposal. The result is None when no advice and no rejection exist.
+    proposal. ``prefix`` is the shared story prefix of main cognition: the
+    focus check is a story-framed call, and its instruction comes last. The
+    result is None when no advice and no rejection exist.
 
     The model decides whether fresh advice fits. Its answer cannot widen the
     proposal's source grant or raise its strength. Existing advice expires
@@ -39,14 +55,11 @@ def resolve_focus(context, active: FocusState | None, proposals: list[FocusPropo
     rejections: list[FocusRejection] = list(effective.rejections)[-4:] if effective is not None else []
     for item in proposals:
         proposal = item.focus
-        result = complete_json(context, [
-            {"role": "system", "content": "Decide whether to accept this deliberate focus proposal for this cycle. "
-             "It is your own suggestion, not a user command. Consider the current appraisal, competing codelets, "
-             "goals, and new evidence. You can reject it. It cannot erase an emotion, memory, or important concern. "
-             "Accepting advice changes a temporary attention bias. Return JSON with accept and reason."},
-            {"role": "user", "content": json.dumps({"proposal": proposal.model_dump(),
-                **evidence.model_dump(mode="json")}, ensure_ascii=False)},
-        ], FocusDecision, temperature=Sampler.TempInstruct, enable_thinking=False)
+        instruction = FOCUS_INSTRUCTION.format(
+            proposal=json.dumps(proposal.model_dump(), ensure_ascii=False),
+            evidence=json.dumps(evidence.model_dump(mode="json"), ensure_ascii=False))
+        result = complete_json(context, [*prefix, Turn(Role.User, instruction)], FocusDecision,
+                               temperature=Sampler.TempInstruct, enable_thinking=False)
         if result.accept:
             effective = FocusState(**proposal.model_dump(), proposal_id=item.record_id,
                                    accept=True, decision_reason=result.reason, fresh=True)

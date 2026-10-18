@@ -1,8 +1,10 @@
 """Retrieve phase: select the memories that this cycle uses.
 
 This phase ports the old context stage. The host already retrieved the
-memory candidates by embedding before the run. The model selects the
-relevant candidates and reports user beliefs. Every selected id must come
+memory candidates by embedding before the run. The call is story-framed
+(A19F step 7): it starts with the shared story prefix and ends with the
+recall instruction. The model selects the relevant candidates and reports
+user beliefs. Every selected id must come
 from the supplied candidates. An invalid id gets one repair turn. A failed
 repair keeps only the supplied sources and records the dropped ids, so the
 conversation can continue without false memory references.
@@ -10,8 +12,9 @@ conversation can continue without false memory references.
 The selected memory text always comes from the supplied snapshot. A model
 paraphrase cannot replace the source text.
 
-At the end, the phase adds the stimuli, the last dialogue turns, and the
-memory candidates to the CSM with the endorser ``retrieval``
+At the end, the phase adds the stimuli, the last dialogue turns, the memory
+candidates, the narratives, and the goals to the CSM with the endorser
+``retrieval``, and the open expectations with the endorser ``expectation``
 (:func:`~workflows.main_cognition.csm_view.enter_retrieval`).
 """
 from __future__ import annotations
@@ -19,13 +22,15 @@ from __future__ import annotations
 import json
 
 from pm.context_render import render_context
-from pm.context_render.turns import Role, Turn, format_content
+from pm.context_render.turns import Turn, format_content
 
 from workflows.main_cognition.csm_view import Embedder, enter_retrieval
 from workflows.main_cognition.cycle_work import CycleWork
+from workflows.main_cognition.expectations import csm_expectation_ids
 from workflows.main_cognition.model_json import PhasePrompts, StageOutputError
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import ContextResult, MemoryCandidate
+from workflows.main_cognition.story_prefix import StoryPrefix
 
 
 def render_memories(candidates: list[MemoryCandidate]) -> str:
@@ -43,28 +48,25 @@ def render_memories(candidates: list[MemoryCandidate]) -> str:
     return "\n".join(lines) or "(none)"
 
 
-def build_messages(work: CycleWork, prompts: PhasePrompts) -> list[Turn]:
+def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) -> list[Turn]:
+    """Return the shared story prefix and then the recall instruction as the last turn.
+
+    Scoped private experiments of reflection join the instruction as data.
+    """
     request = work.request
-    system = prompts.system_prompt.format(companion_name=request.companion_name)
-    user = format_content(prompts.user_template,
-        companion_name=request.companion_name,
-        user_name=request.user_name,
-        state_summary=work.state_summary or "(no recorded state update)",
-        triage_summary=render_context(work.triage),
-        appraisal_summary=render_context(work.appraisal_view()),
-        active_goals="\n".join(f"- {goal}" for goal in request.active_goals) or "(none)",
-        capabilities="\n".join(f"- {capability}" for capability in request.capabilities) or "(none)",
-        memory_candidates=render_memories(request.memory_candidates),
-        stimuli=render_context(request.stimuli),
-    )
+    guidance = ""
     if request.reflection_guidance:
-        user = user + "\nScoped private experiments in effect:\n" + json.dumps(
-            [item.model_dump(mode="json") for item in request.reflection_guidance])
-        user = user + "\nUse a strategy only within its scope. Its prediction remains unverified until later evidence."
-    return [
-        Turn(Role.System, system.strip()),
-        Turn(Role.User, user.strip()),
-    ]
+        guidance = ("\nScoped private experiments in effect. Use a strategy only within its scope. Its prediction "
+                    "stays unverified until later evidence:\n"
+                    + json.dumps([item.model_dump(mode="json") for item in request.reflection_guidance]) + "\n")
+    user = format_content(prefix.fill(prompts.user_template),
+        state_summary=work.state_summary or "(no feeling recorded yet)",
+        appraisal_summary=render_context(work.appraisal_view()),
+        active_goals="\n".join(f"- {goal}" for goal in request.active_goals) or "(nothing in particular)",
+        memory_candidates=render_memories(request.memory_candidates),
+        guidance=guidance,
+    )
+    return prefix.ask(user.text)
 
 
 def validate_selection(result: ContextResult, candidates: list[MemoryCandidate]) -> None:
@@ -98,9 +100,11 @@ def select(context, work: CycleWork, prompts: PhasePrompts) -> ContextResult:
 
     Diagnostic files go to ``outbox/`` of the working target.
     """
-    messages = build_messages(work, prompts)
+    prefix = StoryPrefix(work)
+    messages = build_messages(work, prompts, prefix)
+    at = len(prefix.turns)
     candidates = work.request.memory_candidates
-    result = complete(context, work, messages, ContextResult, grounded=True, emotion=False)
+    result = complete(context, work, messages, ContextResult, grounded=True, emotion=False, grounding_at=at)
     try:
         validate_selection(result, candidates)
     except StageOutputError as error:
@@ -114,7 +118,7 @@ def select(context, work: CycleWork, prompts: PhasePrompts) -> ContextResult:
                     {"role": "user", "content": str(error) + " Select only from these candidate IDs: "
                      + str(allowed)
                      + ". IDs in other context fields are not granted. Return an empty selection if none fits."}]
-        result = complete(context, work, recovery, ContextResult, grounded=True, emotion=False)
+        result = complete(context, work, recovery, ContextResult, grounded=True, emotion=False, grounding_at=at)
         try:
             validate_selection(result, candidates)
         except StageOutputError as repair_error:
@@ -135,7 +139,7 @@ def run(context, work: CycleWork) -> CycleWork:
     result.memories = [item.text for item in selected]
     work.context = result
     work.selected_memories = selected
-    removed = enter_retrieval(work, Embedder(context, work.records))
+    removed = enter_retrieval(work, Embedder(context, work.records), csm_expectation_ids(work))
     work.receipt("retrieve", f"selected {len(result.candidate_ids)} memories and "
                              f"{len(result.active_goals)} goals; CSM holds {len(work.state.csm.items)} items, "
                              f"pruned {len(removed)}")

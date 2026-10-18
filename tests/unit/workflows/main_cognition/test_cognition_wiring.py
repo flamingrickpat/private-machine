@@ -24,7 +24,7 @@ from tests.support import ManualClock, Recorder
 from pm.runs.workflow_module import PROJECT_ROOT
 from workflows.main_cognition.host import build_main_cognition_tools
 from workflows.main_cognition.phases.route import stable_action_id
-from workflows.main_cognition.schemas import ActionIntent
+from workflows.main_cognition.schemas import ActionDispatch
 from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, scripted_tools
 from pm.memory.bash_view import MemoryBashTarget
 
@@ -224,49 +224,12 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(event.correlation_id, "corr-fire")
             self.assertEqual(
                 event.payload["action_id"],
-                stable_action_id(ActionIntent.model_validate(reports["action_selection"]["actions"][0]), 0),
+                stable_action_id(ActionDispatch(workflow_name="dialogue_story", action_type="Reply",
+                                                content="warn Jesse about the fire"), 0),
             )
             self.assertIn(stimulus_id, ghost.gwt_turns[ghost.current_tick_id].knoxel_ids)
             action = ghost.get_knoxel_by_id(event.payload["knoxel_id"])
             self.assertEqual(action.content, "warn Jesse about the fire")
-
-    def test_rejected_dispatch_publishes_a_receipt_and_no_action(self):
-        ghost = _small_ghost()
-        stimulus_id = _store(ghost, "hello")
-        candidate_id = _store(ghost, "a memory")
-        reports = _fake_reports(stimulus_id, candidate_id)
-        reports["action_selection"] = {
-            "actions": [{
-                "action_type": "Reply", "workflow_name": "dialogue_story",
-                "content": "claim it started", "arguments": {}, "depends_on": ["action-99"],
-            }],
-            "summary": "action selection",
-        }
-
-        with TemporaryDirectory() as tmp:
-            bus = BusSystem()
-            errors: list[BaseException] = []
-            module = MainCogLoop(
-                "main_cog", bus, errors.append, ManualClock(), None,
-                working_target=MemoryBashTarget(ghost, "read"),
-                workflow=REAL_MANIFEST,
-                tools_factory=scripted_tools(ScriptedModel(reports=reports)),
-                runtime_root=Path(tmp) / "runtime",
-                ghost=ghost,
-            )
-            bus.subscribe(module.module_id, module.accepts, module.deliver)
-            requests = Recorder(bus, "action.request")
-            receipts = Recorder(bus, "action.receipt")
-            bus.put(Envelope(
-                id=new_id(), source="user_input", kind="data", topic="user.input",
-                correlation_id="corr-x", payload={"knoxel_id": stimulus_id},
-            ))
-            self.assertTrue(module.step(block=False))
-
-            self.assertEqual(requests.events, [])
-            self.assertEqual(len(receipts.events), 1)
-            self.assertEqual(receipts.events[0].payload["status"], "rejected")
-            self.assertIn("action-99", receipts.events[0].payload["rejection_reason"])
 
     def test_workflow_question_enters_cognition_as_a_stimulus(self):
         ghost = _small_ghost()
@@ -447,8 +410,7 @@ class MultiExchangeTests(unittest.TestCase):
         errors: list[BaseException] = []
         counter = {"n": 0}
 
-        model = ScriptedModel({"decide": {"actions": [{"action_type": "Reply", "workflow_name": "dialogue_story",
-                                                        "content": "reply to Jesse"}]}})
+        model = ScriptedModel({"decide": {"variants": ["reply to Jesse"]}})
 
         async def story_complete(messages, **generation):
             counter["n"] += 1

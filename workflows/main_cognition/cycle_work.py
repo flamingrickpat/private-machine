@@ -1,7 +1,7 @@
 """The shared typed state of one main cognition cycle.
 
 The cycle is one pm-workflows manifest with one Python phase for each step:
-intake, retrieve, triage, appraise, codelets, structures, attention,
+intake, triage, appraise, retrieve, codelets, structures, attention,
 experience, goals, decide, route, and commit. All phases share one
 :class:`CycleWork` object.
 
@@ -32,28 +32,30 @@ from pm.records.mental_state import MentalStateSample, PersonalityProfile
 from workflows.cognitive_control.schemas import FocusState, WaitRequest
 from workflows.main_cognition.schemas import (
     ActionDispatch,
-    ActionSelectionResult,
     AppraisalAffect,
     AppraisalResult,
     AppraisalView,
     AttentionResult,
     CodeletsResult,
     ContextResult,
+    ExpectationOutcome,
+    ExperienceResult,
     FocusProposalRef,
     GoalRecordView,
     GoalsResult,
     ManagedRunView,
     MemoryCandidate,
     MentalProposal,
+    OpenExpectation,
     PhaseReceipt,
     RecordView,
     ReflectionGuidance,
+    RoutedDecision,
     ShardStream,
     Stimulus,
     StructuresResult,
     TriageResult,
     WorkflowOption,
-    WorkspaceResult,
 )
 from workflows.public_speech.public_context import PublicContext
 
@@ -80,9 +82,12 @@ class CycleRequest(BaseModel):
     shared story prefix opens with it.
 
     ``self_entity_id`` is the entity record of the companion, or None.
+    ``entity_names`` maps the entity of each stimulus group to its name.
     ``narrative_ids`` are the newest narrative records of the self and of the
     group entities. The retrieve phase puts them into the CSM. ``streams``
     hold the newest stream records of each shard, for the shard tails.
+    ``open_expectations`` are the newest pending expectations that main
+    cognition recorded earlier, with the revisions that the cycle read.
     """
 
     run_id: str = ""
@@ -91,6 +96,7 @@ class CycleRequest(BaseModel):
     user_name: str = ""
     user_entity_id: int | None = None
     self_entity_id: int | None = None
+    entity_names: dict[int, str] = Field(default_factory=dict)
     state_summary: str = ""
     previous_state: CycleState | None = None
     cycle_time: datetime = Field(default_factory=datetime.utcnow)
@@ -119,6 +125,7 @@ class CycleRequest(BaseModel):
     recent_dialogue_ids: list[int] = Field(default_factory=list)
     narrative_ids: list[int] = Field(default_factory=list)
     streams: list[ShardStream] = Field(default_factory=list)
+    open_expectations: list[OpenExpectation] = Field(default_factory=list)
     active_focus: FocusState | None = None
     focus_proposals: list[FocusProposalRef] = Field(default_factory=list)
     mental_proposals: list[MentalProposal] = Field(default_factory=list)
@@ -131,7 +138,8 @@ class CycleWork(BaseModel):
 
     ``state`` is the previous cycle state. The phases change it in place:
     intake decays the CSM and sets the stimulus groups, appraise sets the
-    EMA mental state, decide sets the decisions. The host sets the tick, the
+    EMA mental state, decide sets the decisions, route sets the dispatch
+    references. The host sets the tick, the action record ids of the
     dispatch references, and the broadcast queue at commit.
 
     ``state_summary`` is the state text that prompts read. Before appraisal it
@@ -151,6 +159,11 @@ class CycleWork(BaseModel):
     the shard ratings and the shard changes. The attention phase changes the
     shards of ``state.workspace`` in place.
 
+    ``expectations`` are the outcomes of the expectation check of the
+    appraise phase. ``experience`` is the subjective experience of the
+    experience phase. ``routes`` holds one routed decision for each decision
+    of ``state.decisions``, and ``dispatches`` the actions that they make.
+
     Each phase result field holds an empty result until its phase runs.
     """
 
@@ -166,9 +179,10 @@ class CycleWork(BaseModel):
     codelets: CodeletsResult = Field(default_factory=CodeletsResult)
     structures: StructuresResult = Field(default_factory=StructuresResult)
     attention: AttentionResult = Field(default_factory=AttentionResult)
+    expectations: list[ExpectationOutcome] = Field(default_factory=list)
     goals: GoalsResult = Field(default_factory=GoalsResult)
-    workspace: WorkspaceResult = Field(default_factory=WorkspaceResult)
-    action_selection: ActionSelectionResult = Field(default_factory=ActionSelectionResult)
+    experience: ExperienceResult = Field(default_factory=ExperienceResult)
+    routes: list[RoutedDecision] = Field(default_factory=list)
     dispatches: list[ActionDispatch] = Field(default_factory=list)
     wait_request: WaitRequest | None = None
     summary: str = ""
@@ -197,11 +211,13 @@ class CycleWork(BaseModel):
 
 
 def primary_group(work: CycleWork) -> StimulusGroup | None:
-    """Return the group that owns the appraisal and the decisions of this cycle.
+    """Return the group that owns the appraisal of this cycle.
 
     It is the group that carries the cycle correlation, or the first group.
-    The result is None for a cycle without stimuli, for example a wake event
-    that resolved to no record. Such a cycle records no decisions.
+    Its entity is the relationship partner of the appraisal. Decisions are
+    made for each group (see the decide phase). The result is None for a
+    cycle without stimuli, for example a wake event that resolved to no
+    record.
     """
     groups = work.state.stimulus_groups
     if not groups:

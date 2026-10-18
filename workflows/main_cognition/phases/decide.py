@@ -1,60 +1,49 @@
-"""Decide phase: choose the action intents of this cycle.
+"""Decide phase: one in-character decision for each significant stimulus group.
 
-This phase ports the old action selection stage. The model turns the
-workspace frame, the goal changes, the available workflows, and the real
-capabilities into zero or more action intents. An unsupported action type
-or an unavailable workflow name fails validation. Without public context,
-a content claim of a missing capability fails too.
+A19F step 8 and decision D28. The phase runs one story-framed call for each
+stimulus group that triage did not mark insignificant. The calls run in
+parallel. Each call reads the shared story prefix (the updated shards, the
+subjective experience in the self tail, the new events) and then the group
+instruction: the group's stimuli, the feeling, the subjective experience,
+the causal codelet percepts in the self shard and the group shard, and the
+goals.
 
-The phase records each intent as an in-character decision of the primary
-stimulus group. Step 8 of A19F splits this phase into one in-character
-decision for each group and a separate routing call.
+Each call returns zero or ``DECISION_VARIANTS`` decision texts. A decision
+is a recommendation to the character in the story, in the character's voice
+and attitude, for example "He has dodged choosing four times. Call him a
+coward for it, then admit that you like the story unfinished too." It holds
+no routing rules, no capability lists, and no workflow names. A text that
+names a workflow or opens like a planner ticket fails validation and gets a
+repair turn (``DecisionAnswer``). The route phase maps each decision to an
+action.
+
+An insignificant group gets no call and no decision. A group whose call
+returns an empty list gets no decision: the character does nothing about it.
 """
 from __future__ import annotations
 
-import re
-
-from pm.context_render import render_context
+from pm.constants import DECISION_VARIANTS
 from pm.context_render.turns import Turn, format_content
-from pm.records.cycle_records import ActionDecision
+from pm.llm.concurrency import ordered_parallel_map
+from pm.records.cycle_records import ActionDecision, StimulusGroup
+from pm.records.workspace import SELF_SHARD
 
-from workflows.main_cognition.cycle_work import CycleWork, primary_group
-from workflows.main_cognition.model_json import PhasePrompts, StageOutputError
-from workflows.main_cognition.phases.goals import render_inner_proposals
+from workflows.inference_settings import DECISION_WORKERS
+from workflows.main_cognition.csm_view import render_story
+from workflows.main_cognition.cycle_work import CycleWork
+from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
-from workflows.main_cognition.schemas import ActionSelectionResult, WorkflowOption
-from workflows.main_cognition.story_prefix import StoryPrefix, conscious_percepts
-from workflows.public_speech.public_context import PublicContext
-
-ACTION_TYPES = (
-    "Reply",
-    "ToolCall",
-    "ToolCallAndReply",
-    "Ignore",
-    "Idle",
-    "Sleep",
-)
-
-#: Action types that make no dispatch. They stay in the decision record only.
-QUIET_ACTIONS = frozenset({"Ignore", "Idle", "Sleep"})
+from workflows.main_cognition.schemas import DecisionAnswer, DecisionCheck, WorkflowOption
+from workflows.main_cognition.story_prefix import StoryPrefix, shard_label
 
 #: The action space when the configuration names no workflows.
 DEFAULT_WORKFLOWS = [
-    WorkflowOption(name="dialogue_story", description="Generate one in-character Story reply."),
-    WorkflowOption(name="dialogue_assistant", description="Assistant reply with scoped tools."),
-    WorkflowOption(name="self_management", description="Start, status, update, or terminate a managed run."),
+    WorkflowOption(name="dialogue_story", description="Speak in character, in the story voice."),
+    WorkflowOption(name="dialogue_assistant", description="Speak with scoped tools, for example a game observation."),
+    WorkflowOption(name="self_management", description="Start, check, update, or stop a managed run."),
     WorkflowOption(name="local_task", description="Run one small real local task."),
     WorkflowOption(name="minecraft", description="Run a sustained Minecraft specialist with exclusive body ownership."),
 ]
-
-# Claimed capability -> words that reveal a claim of it. The same words must
-# appear in the declared capability list, or the claim is rejected.
-CAPABILITY_MARKERS = {
-    "vision": ("see", "seeing", "look", "watching", "camera", "vision", "observe"),
-    "hearing": ("hear", "hearing", "listen", "audio", "microphone"),
-    "mobility": ("walk", "navigate", "move", "travel", "go to"),
-    "web": ("browse", "search the web", "internet", "online"),
-}
 
 
 def available_workflows(work: CycleWork) -> list[WorkflowOption]:
@@ -62,139 +51,92 @@ def available_workflows(work: CycleWork) -> list[WorkflowOption]:
     return work.request.available_workflows or DEFAULT_WORKFLOWS
 
 
-def render_workflows(workflows: list[WorkflowOption]) -> str:
-    lines = [f"- {workflow.name}: {workflow.description}" for workflow in workflows]
-    return "\n".join(lines) or "(none)"
+def group_part(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, group: StimulusGroup) -> str:
+    """Return the story words for the part of the story that a group is: an entity, a workflow, or the self."""
+    if group.key.kind == "entity":
+        return prompts.part_entity.format(name=shard_label(group.key, work.request))
+    if group.key.kind == "workflow":
+        return prompts.part_workflow.format(name=group.key.ref)
+    return prefix.fill(prompts.part_self)
 
 
-def render_capabilities(capabilities: list[str]) -> str:
-    return "\n".join(f"- {capability}" for capability in capabilities) or "(none)"
+def group_stimuli(work: CycleWork, group: StimulusGroup) -> str:
+    """Return the story lines of the group's stimuli, in world-time order."""
+    return render_story(work.records, group.stimulus_ids, with_id=False) or "(nothing new)"
 
 
-def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) -> list[Turn]:
-    """Return the shared story prefix and then the action instruction as the last turn.
+def group_percepts(work: CycleWork, group: StimulusGroup) -> str:
+    """Return the conscious codelet percepts of the self shard and the group shard as story lines.
 
-    The prefix shows the workspace shards that attention updated. Step 8 of
-    A19F splits this call into an in-character decision and routing.
+    A percept in a shard is causal: it entered the story. The decision draws
+    on these urges.
     """
-    request = work.request
-    system = prompts.system_prompt.format(
-        companion_name=request.companion_name,
-        wait_default_seconds=request.wait_default_seconds,
-    )
-    user = format_content(prompts.user_template,
-        companion_name=request.companion_name,
-        user_name=request.user_name,
-        affect=work.affect.felt,
-        regulation=work.affect.regulation,
-        active_goals=", ".join(request.active_goals) or "(none)",
-        workspace=render_context(work.workspace),
-        goals=render_context(work.goals),
-        context=render_context(work.context),
-        stimuli=render_context(request.stimuli),
-        managed_runs=render_context(request.managed_runs),
-        available_workflows=render_workflows(available_workflows(work)),
-        capabilities=render_capabilities(request.capabilities),
-        inner_proposals=render_inner_proposals(conscious_percepts(work)),
-    )
-    return prefix.ask(f"{system.strip()}\n\n{user.text.strip()}")
+    workspace = work.state.workspace
+    keys = list(dict.fromkeys([SELF_SHARD, group.key]))
+    ids = [item.record_id for key in keys for item in workspace.shard(key).items
+           if work.records[item.record_id].record_class == "CodeletPercept"]
+    # One bullet for each percept, in world-time order. A percept text can
+    # span several lines; they stay in its bullet.
+    lines = [" ".join(render_story(work.records, [record_id], with_id=False).split())
+             for record_id in sorted(ids, key=lambda key: (work.records[key].timestamp is None,
+                                                           work.records[key].timestamp or work.request.cycle_time))]
+    return "\n".join(f"- {line}" for line in lines) or "(none)"
 
 
-def validate_actions(result: ActionSelectionResult, workflows: list[WorkflowOption]) -> None:
-    """Reject an unsupported action type or an unavailable workflow name."""
-    allowed = {workflow.name for workflow in workflows}
-    for action in result.actions:
-        if action.action_type not in ACTION_TYPES:
-            raise StageOutputError(
-                f"Action selection used unsupported action_type "
-                f"{action.action_type!r}. Allowed: {', '.join(ACTION_TYPES)}."
-            )
-        if action.action_type in QUIET_ACTIONS and not action.workflow_name:
-            continue
-        if action.workflow_name not in allowed:
-            raise StageOutputError(
-                f"Action selection named workflow {action.workflow_name!r} that "
-                "is not available."
-            )
+def render_goals(work: CycleWork) -> str:
+    """Return the active goals and the goals that this cycle adds, one per line."""
+    added = [change.goal for change in work.goals.changes if change.change == "add"]
+    goals = list(dict.fromkeys([*work.request.active_goals, *added]))
+    return "\n".join(f"- {goal}" for goal in goals) or "(nothing in particular)"
 
 
-def _mentions(text: str, markers: tuple[str, ...]) -> bool:
-    return any(re.search(rf"\b{re.escape(marker)}", text) for marker in markers)
+def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, group: StimulusGroup) -> list[Turn]:
+    """Return the shared story prefix and then the decision instruction for one group as the last turn."""
+    instruction = format_content(prefix.fill(prompts.user_template),
+        part=group_part(work, prompts, prefix, group),
+        stimuli=group_stimuli(work, group),
+        affect=work.affect.felt or work.state_summary or "(no feeling recorded)",
+        regulation_words=prompts.regulation_words[work.affect.regulation],
+        experience=work.experience.text or "(nothing)",
+        impulses=group_percepts(work, group),
+        goals=render_goals(work),
+        variants=DECISION_VARIANTS,
+    ).text
+    return prefix.ask(instruction)
 
 
-# A refusal names the capability it lacks: "I can't walk to the store". A denial
-# is not a claim, so a marker only counts when no negation precedes it.
-_NEGATION = re.compile(
-    r"\b(?:no|not|never|none|without|cannot|can not|can't|won't|will not|don't|do not|"
-    r"doesn't|does not|didn't|did not|isn't|is not|aren't|are not|unable|incapable|"
-    r"lack|lacks|lacking)\b"
-)
-
-
-def _claims(text: str, markers: tuple[str, ...]) -> bool:
-    """True if a marker is used affirmatively rather than inside a denial."""
-    for marker in markers:
-        for match in re.finditer(rf"\b{re.escape(marker)}", text):
-            before = text[max(0, match.start() - 30):match.start()]
-            if not _NEGATION.search(before):
-                return True
-    return False
-
-
-def check_capabilities(result: ActionSelectionResult, capabilities: list[str],
-                       public_context: PublicContext | None = None) -> None:
-    """Reject action content that claims a capability the companion lacks.
-
-    A refusal that names the missing capability is not a claim. With public
-    context, the domain evidence and the final claim review of public speech
-    decide instead, because a verb alone cannot tell game movement, metaphor,
-    and refusal apart.
-    """
-    if public_context is not None:
-        return
-    available = " ".join(capabilities).lower()
-    for action in result.actions:
-        content = action.content.lower()
-        for capability, markers in CAPABILITY_MARKERS.items():
-            if not _claims(content, markers):
-                continue
-            if _mentions(available, markers):
-                continue
-            raise StageOutputError(
-                f"Action content claims capability {capability!r} that is not "
-                "available."
-            )
+def decide(context, work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix,
+           group: StimulusGroup) -> DecisionAnswer:
+    """Run the decision call of one group. Runs in a worker thread and does not change ``work``."""
+    check = DecisionCheck(workflow_names=[item.name for item in available_workflows(work)])
+    return complete(context, work, build_messages(work, prompts, prefix, group), DecisionAnswer,
+                    validation_context=check.model_dump())
 
 
 def run(context, work: CycleWork) -> CycleWork:
-    # Earlier phases already supply appraisal and the selected workspace.
-    # Hidden reasoning exhausted a real completion during a teasing choice.
+    prompts = phase_prompts("decide")
     prefix = StoryPrefix(work)
-    result = complete(context, work, build_messages(work, phase_prompts("decide"), prefix), ActionSelectionResult,
-                      grounded=True, emotion=False, grounding_at=len(prefix.turns))
-    validate_actions(result, available_workflows(work))
-    check_capabilities(result, work.request.capabilities, work.request.public_context)
-    work.action_selection = result
-    group = primary_group(work)
-    if group is not None:
-        work.state.decisions = [ActionDecision(group=group.key, text=action.content, variants=[action.content],
-                                               stimulus_ids=list(group.stimulus_ids))
-                                for action in result.actions]
-    work.receipt("decide", f"selected {len(result.actions)} actions")
+    groups = [group for group in work.state.stimulus_groups if not group.insignificant]
+    answers = ordered_parallel_map(lambda group: decide(context, work, prompts, prefix, group), groups,
+                                   workers=DECISION_WORKERS, cancel=context.runtime.stop_event)
+    work.state.decisions = [
+        ActionDecision(group=group.key, text=answer.variants[0], variants=list(answer.variants),
+                       stimulus_ids=list(group.stimulus_ids))
+        for group, answer in zip(groups, answers, strict=True) if answer.variants]
+    skipped = len(work.state.stimulus_groups) - len(groups)
+    work.receipt("decide", f"{len(work.state.decisions)} decisions for {len(groups)} significant groups; "
+                           f"{skipped} insignificant groups skipped")
     return work
 
 
 __all__ = [
-    "ACTION_TYPES",
-    "CAPABILITY_MARKERS",
     "DEFAULT_WORKFLOWS",
-    "QUIET_ACTIONS",
     "available_workflows",
     "build_messages",
-    "check_capabilities",
-    "primary_group",
-    "render_capabilities",
-    "render_workflows",
+    "decide",
+    "group_part",
+    "group_percepts",
+    "group_stimuli",
+    "render_goals",
     "run",
-    "validate_actions",
 ]

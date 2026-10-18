@@ -38,7 +38,7 @@ class PhaseContextRenderingTests(unittest.TestCase):
         self.assertNotIn("OLDER AFFECT SNAPSHOT", body)
         self.assertNotIn('"emotion_state"', body)
         self.assertIn("Companion feels strong shame.", captured["turns"][-1].content.text)
-        self.assertIn("Regulation mode: reflective", captured["turns"][-1].content.text)
+        self.assertIn("Companion is reflective:", captured["turns"][-1].content.text)
         self.assertEqual(body.count("current utterance"), 1)
         self.assertFalse(captured["generation"]["enable_thinking"])
         self.assertEqual(public.revisions, {11: 2})

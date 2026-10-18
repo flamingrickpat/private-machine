@@ -10,6 +10,7 @@ from pm.llm.reasoning import ReasoningBudget
 
 CODELET_WORKERS = 2
 ATTENTION_WORKERS = 2
+DECISION_WORKERS = 2
 CHAT_CONCURRENCY = 4
 
 REASONING = MappingProxyType({

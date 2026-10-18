@@ -26,14 +26,19 @@ from workflows.main_cognition.workspace_selection import select_tail
 def group_key(stimulus: Stimulus, request: CycleRequest) -> ShardKey:
     """Return the key of the stimulus group that owns one stimulus.
 
+    - A message from a known entity other than the companion belongs to the
+      group of that entity (``stimulus.entity_id``). A second companion is
+      an entity like the user.
     - A user message belongs to the entity group of the user. A persona
       without an entity record for the user has no entity shard, so its
       messages stay in the self group.
     - A Minecraft observation belongs to the ``minecraft`` workflow group.
     - A workflow event or question belongs to the workflow group of the
-      module that reported it. Step 8 of A19F routes by workflow name.
+      module that reported it.
     - An own thought or a system event belongs to the self group.
     """
+    if stimulus.entity_id is not None:
+        return ShardKey(kind="entity", ref=str(stimulus.entity_id))
     if stimulus.source == "user_input" and request.user_entity_id is not None:
         return ShardKey(kind="entity", ref=str(request.user_entity_id))
     if stimulus.kind == "minecraft.world":

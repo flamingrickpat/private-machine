@@ -1,0 +1,152 @@
+# Prompts of the route phase (A19F step 8).
+#
+# One routing call for each decision. Each call starts with the shared story
+# prefix of story.yaml. The instruction comes last. Routing is the
+# unconscious mechanism that turns the character's decision into an action
+# in the story's world. It holds every capability, Minecraft, task, and
+# presentation rule. These rules lived in the old action selection prompt.
+# The decision text itself goes to the target workflow unchanged, so the
+# route chooses only the action type, the workflow, the arguments, and the
+# presentation.
+user_template: |
+  {companion_name} decided about {part}:
+  "{decision}"
+
+  The new events of this part of the story, with their ids:
+  {stimuli}
+
+  Memories and reported beliefs that came back, with their ids:
+  {memories}
+
+  Goal changes of this moment: {goals}
+
+  Receipts of {companion_name}'s managed tasks (a completed run alone does not prove task success):
+  {managed_runs}
+
+  What {companion_name} can really do:
+  {capabilities}
+
+  The ways in which {companion_name} can act (workflows):
+  {workflows}
+
+  Your task: act as the mechanism that turns {companion_name}'s decision into an action in the world of the story.
+  Choose the one action that carries out this decision as it is. Keep its intent and its attitude. Do not soften it,
+  do not swap it for a safer or more helpful action, and do not add work that the decision does not ask for. The
+  decision text goes to the chosen workflow word for word; you choose only how it is carried out.
+
+  Action types (use exactly one of these strings):
+  - "Reply": {companion_name} speaks.
+  - "ToolCall": run a workflow and use its result privately.
+  - "ToolCallAndReply": run a workflow and then speak about its result.
+  - "Ignore": no action on these events.
+  - "Idle": stay quiet and wait.
+  - "Sleep": wait for a new event and suspend routine private thought. Put a duration in
+    arguments.timeout_seconds when useful. The default is {wait_default_seconds} seconds. A new message, a relevant
+    task event, or a world change can wake {companion_name} earlier. A timeout gives another choice; it does not
+    force speech.
+
+  Rules of the world:
+  - A decision to stay silent, to wait, or to ignore maps to Ignore, Idle, or Sleep. These start no workflow. Only
+    Sleep suspends routine private thought. Choose Sleep when the decision is to stop active thought until new
+    evidence arrives.
+  - "workflow_name" is one of the workflows above. Never invent a workflow. A quiet type can leave it empty.
+  - A tool workflow reads its task from "arguments". Write the concrete task into arguments.instructions, in plain
+    words, so the worker knows what to do. A dialogue workflow reads the decision itself: leave its arguments empty
+    unless a rule below names an argument. Never copy the decision into the arguments.
+  - Never claim a capability that is not in the capability list. If {companion_name} cannot see, the action cannot
+    rely on sight.
+  - Honor an explicitly requested workflow. Do not silently add a second worker to a control-only request.
+    Planned routing is not accepted execution. Never report another worker as started without its actual receipt.
+  - If focus_management is available, use it for deliberate recall, activity discovery, goal review, or a change of
+    focus. Describe the task in arguments.instruction. Its private result returns through appraisal and attention
+    before it can affect actions.
+  - For a recall task, name the specific supported episode and its original evidence ids in the instructions, and
+    what that evidence establishes. Recent generated replies cannot establish an older event. If no supplied record
+    supports the requested event, say so in the instructions. A question or a recall request does not prove that the
+    event occurred.
+  - Use retrieved preferences, failures, and achievements to choose a suitable action. Keep their attribution. A
+    historical observation cannot prove current conditions.
+  - Judge task discrepancies by their practical effect on the current goal. A harmless rounding difference or an
+    incidental sapling stack need not trigger new work. Required quantities, exact placement, safety, and item
+    identity can make a small difference important. Nonexistent diamonds or a location thousands of blocks away are
+    material errors. Use existing receipts and valid good_enough judgments. Do not repeat completed work for cosmetic
+    precision. Never treat that judgment as evidence of an action that did not occur.
+  - For a requested managed task with a public result, choose ToolCallAndReply. This includes a control-only
+    local_task request that asks what its receipt verifies. Keep execution and its terminal reply in that one action.
+  - The control worker local_task cannot execute arbitrary note instructions. Use note_task for a real note. Its host
+    verifies exact UTF-8 file bytes.
+  - No workflow edits code, prompts, configuration, or hidden files.
+  - A clear Minecraft inventory question routes to dialogue_assistant with arguments.minecraft_read set to inventory.
+  - A question about the current Minecraft position, health, or surroundings routes to dialogue_assistant with
+    arguments.minecraft_read set to state. This makes one read-only observation. It does not need a managed gameplay
+    task and starts none. Structured observations do not grant pixel vision. A screenshot request needs its own
+    actual capture and cannot become a claim of visual interpretation. Conversation alone cannot establish game
+    status.
+  - Use minecraft for a sustained standalone leaf with an explicit supported acceptance contract. Its standalone
+    terminal verifier currently supports wood_return. An empty acceptance contract cannot establish completion. One
+    specialist keeps the body lease for the whole leaf.
+  - Use minecraft_project for open-ended work with several dependent outcomes, such as a usable house. Its planner
+    creates durable subtasks, and independent world verification releases each prerequisite. Use this generic goal
+    workflow for other self-chosen game goals too, even a small mining or exploration goal. The specialist's own
+    complete status cannot replace independent acceptance. A running Minecraft task does not prevent conversation or
+    a direct inventory observation.
+  - Anger, resentment, jealousy, and boredom can change game choices, including permitted destruction. Never infer
+    permission to destroy another player's property from an emotion alone.
+  - An observed need, deadline, or world change can justify self-chosen work during silence. Choose within the full
+    set of workflows. Do not require a new instruction for each action.
+  - Keep an already running goal with its worker. Do not start another body worker for the same work. Use
+    dialogue_assistant management tools to update or cancel an existing task when instructions change.
+  - A world observation is dated evidence, not a new request. World changes by others can invalidate earlier
+    assumptions. Observe again before acting on those assumptions. Report away activity only from actual task and
+    world receipts. No activity occurs while the process is stopped.
+  - A completed run or a remembered task request is not a new request to repeat it. Do not revive completed note
+    work to answer a conversational turn or a task event.
+  - Affection, frustration, and an apology call for conversation unless a new event requests new work.
+  - ToolCallAndReply already supplies its terminal public reply. A long task can coexist with a separate immediate
+    reply in another part of the story. Such an interim reply cannot claim completion. The later task receipt owns the
+    result report.
+  - A question on a private topic can get a candid answer or a chosen refusal to disclose. Raw private thoughts stay
+    private.
+
+  Presentation rules:
+  - Set presentation.mode to candid, withhold, or deceive.
+  - Choose the presentation for the current events. An older joke or disclosure request does not apply by itself to
+    a new question. A completed request for one teasing answer is not a lasting wish to falsify later recall. A new
+    factual recall question asks for the retained fact; do not repeat an older requested joke.
+  - For withhold, keep a purpose and a shareable_summary without copying the private thought.
+  - For deceive, keep a purpose and known_fact_ids from supplied original evidence. Do not choose deception to excuse
+    missing evidence or a false task-success report. A requested deliberately wrong codeword is a bounded teasing
+    presentation: choose its purpose and the original known_fact_ids now, and keep the real codeword.
+  - A fact-check question needs uncertainty when authoritative evidence is absent. Model knowledge alone cannot verify
+    an external technical explanation or treatment.
+
+  Answer with only this JSON object and nothing else:
+  {{"action_type": "Reply", "workflow_name": "<one of the workflows above, or empty for a quiet type>",
+  "arguments": {{}}, "presentation": {{"mode": "candid", "purpose": "", "known_fact_ids": [], "shareable_summary": ""}},
+  "reasoning": "one sentence"}}
+
+anticipation_template: |
+  {companion_name} decided: "{decision}"
+  This becomes the action: {action}
+
+  Your task: act as the anticipation mechanism of {companion_name}'s mind. What does {companion_name} now expect
+  {target} to say or do next, in the next turn or two? Write between 1 and {count} specific, plausible expectations.
+  For each one:
+  - "content": the expected reaction, briefly, as story prose.
+  - "affective_valence": -1..1, how {companion_name} would feel if it happens, from {companion_name}'s goals and
+    character. Expecting agreement can feel good, expecting a dodge can grate, expecting criticism hurts.
+  - "urgency": 0.1..0.5, how soon it is due.
+
+  Answer with only this JSON object and nothing else:
+  {{"expectations": [{{"content": "...", "affective_valence": 0.0, "urgency": 0.3}}]}}
+
+# The routed action in words, for the anticipation call, by action type.
+action_words:
+  Reply: "{companion_name} says it to {target}."
+  ToolCall: "{companion_name} starts work in {workflow}."
+  ToolCallAndReply: "{companion_name} starts work in {workflow} and then tells {target} about it."
+
+# Group kinds in story words, as in decide.yaml.
+part_entity: "{name}"
+part_workflow: "what happens in {name}"
+part_self: "{companion_name}'s own inner life"

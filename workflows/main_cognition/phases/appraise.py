@@ -1,7 +1,18 @@
-"""Appraise phase: judge how the stimuli land and update the mental state.
+"""Appraise phase: check expectations, judge how the stimuli land, and update the mental state.
 
-The model appraises the triaged situation. Then the phase computes the
-affect of the cycle (D27):
+Both model calls are story-framed (A19F step 7): they start with the shared
+story prefix and end with their instruction.
+
+1. Expectation check (port of ``_appraise_stimulus_check_expectation``).
+   The open expectations that the new stimuli can affect are rated for
+   directness and fulfillment (:mod:`workflows.main_cognition.expectations`).
+   Their valence impacts become the ``expectation_error`` of the appraisal,
+   and their fear impacts join its fear delta. The commit stores the new
+   fulfillment and status of each checked expectation.
+2. Appraisal. The model appraises the triaged situation and reads the
+   expectation outcomes.
+
+Then the phase computes the affect of the cycle (D27):
 
 1. The base state is the raw latent state: the field defaults plus the sum
    of the deltas of the causal features. Its relationship sums the deltas
@@ -21,7 +32,7 @@ memory.
 """
 from __future__ import annotations
 
-from pm.context_render.turns import Role, Turn, format_content
+from pm.context_render.turns import Turn, format_content
 from pm.records.mental_state import (
     MentalStateSample,
     compute_mental_state,
@@ -31,11 +42,14 @@ from pm.records.mental_state import (
     sparse_delta,
 )
 
+from workflows.main_cognition import expectations
 from workflows.main_cognition.affect import appraise_state, describe_mental_state, regulation_mode
+from workflows.main_cognition.csm_view import Embedder
 from workflows.main_cognition.cycle_work import CycleWork, primary_group
 from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
-from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult
+from workflows.main_cognition.schemas import AppraisalAffect, AppraisalResult, ExpectationOutcome
+from workflows.main_cognition.story_prefix import StoryPrefix
 
 
 def render_triage(work: CycleWork) -> str:
@@ -47,27 +61,37 @@ def render_triage(work: CycleWork) -> str:
             f"- id={item.knoxel_id} category={item.category} "
             f"input_kind={item.input_kind} "
             f"urgency={item.urgency} relevance={item.relevance} "
-            f"text={stimuli.get(item.knoxel_id, '')!r} "
+            f"text={stimuli[item.knoxel_id] if item.knoxel_id in stimuli else ''!r} "
             f"reasoning={item.reasoning!r}"
         )
     return "\n".join(lines) or "(none)"
 
 
-def build_messages(work: CycleWork, prompts: PhasePrompts) -> list[Turn]:
-    """Build typed turns from the triage result and the current input."""
+def build_messages(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix) -> list[Turn]:
+    """Return the shared story prefix and then the appraisal instruction as the last turn."""
     request = work.request
-    system = prompts.system_prompt.format(companion_name=request.companion_name)
-    user = format_content(prompts.user_template,
-        companion_name=request.companion_name,
-        user_name=request.user_name,
-        state_summary=work.state_summary or "(no recorded state update)",
-        active_goals=", ".join(request.active_goals) or "(none)",
+    user = format_content(prefix.fill(prompts.user_template),
+        state_summary=work.state_summary or "(no feeling recorded yet)",
+        active_goals="; ".join(request.active_goals) or "(nothing in particular)",
         triage=render_triage(work),
+        expectations=expectations.render_outcomes(work.expectations),
     )
-    return [
-        Turn(Role.System, system.strip()),
-        Turn(Role.User, user.strip()),
-    ]
+    return prefix.ask(user.text)
+
+
+def merge_expectations(result: AppraisalResult, outcomes: list[ExpectationOutcome]) -> AppraisalResult:
+    """Return the appraisal with the measured effect of the expectation outcomes.
+
+    Without outcomes the model's own ``expectation_error`` stays. With
+    outcomes, the summed valence impact replaces it, and the summed fear
+    impact adds to the fear delta. The values stay within their bounds.
+    """
+    if not outcomes:
+        return result
+    error, fear = expectations.effect(outcomes)
+    deltas = dict(result.emotion_delta)
+    deltas["fear"] = max(-1.0, min(1.0, (deltas["fear"] if "fear" in deltas else 0.0) + fear))
+    return result.model_copy(update={"expectation_error": error, "emotion_delta": deltas})
 
 
 def partner_entity(work: CycleWork) -> int | None:
@@ -129,13 +153,19 @@ def update_affect(work: CycleWork, appraisal: AppraisalResult) -> AppraisalAffec
 
 
 def run(context, work: CycleWork) -> CycleWork:
-    result = complete(context, work, build_messages(work, phase_prompts("appraise")), AppraisalResult,
-                      grounded=True, emotion=True)
+    prompts = phase_prompts("appraise")
+    prefix = StoryPrefix(work)
+    relevant = expectations.relevant_expectations(work, Embedder(context, work.records))
+    work.expectations = expectations.check(context, work, prefix, prompts, relevant)
+    result = complete(context, work, build_messages(work, prompts, prefix), AppraisalResult,
+                      grounded=True, emotion=True, grounding_at=len(prefix.turns))
+    result = merge_expectations(result, work.expectations)
     work.appraisal = result
     work.affect = update_affect(work, result)
     work.state_summary = work.affect.felt
-    work.receipt("appraise", f"appraised {len(result.evidence_ids)} evidence ids; feeling: {result.feeling}")
+    work.receipt("appraise", f"checked {len(work.expectations)} expectations; appraised "
+                             f"{len(result.evidence_ids)} evidence ids; feeling: {result.feeling}")
     return work
 
 
-__all__ = ["build_messages", "partner_entity", "render_triage", "run", "update_affect"]
+__all__ = ["build_messages", "merge_expectations", "partner_entity", "render_triage", "run", "update_affect"]

@@ -1,73 +1,74 @@
-system_prompt: |
-  You are the "Appraisal" codelet in a cognitive architecture for an advanced
-  AI companion named {companion_name}. Read the triaged situation and judge how
-  it lands for {companion_name} right now.
-  You MUST return one valid JSON object and nothing else.
+# Prompt of the appraise phase (A19F step 7).
+#
+# The call starts with the shared story prefix of story.yaml. The
+# instruction comes last. Appraisal is the unconscious mechanism that judges
+# how the new events land for the character. The axis names drive the
+# mental state through fixed Python math, so they must be exact. The
+# expectation outcomes come from the expectation check of the same phase.
+user_template: |
+  The new events of this moment, with their triage:
+  {triage}
 
-  Appraise, do not plan a reply. Judge what the situation means for the
-  companion's own feelings, relationships, and needs. Ground every judgement in
-  the stimulus ids that caused it; when any stimulus exists, cite at least one
-  evidence id.
+  {companion_name}'s state of mind before these events: {state_summary}
+  What {companion_name} is after right now: {active_goals}
 
-  Use the named appraisal axes below. A positive value raises the axis. These
-  axes drive the companion's core affect and emotions through fixed Python
-  math, so use the exact axis names. Omit an axis when the situation does not
-  move it.
+  What {companion_name} expected, and how the new events turned out against it:
+  {expectations}
 
-  General appraisal axes in 0..1 unless noted:
-  - "goal_congruence": -1..1, supportive of current goals or obstructive.
+  Your task: act as the appraisal mechanism of {companion_name}'s mind. Judge how these events land for
+  {companion_name} right now, through {companion_name}'s character, history, and mood, not through a neutral or polite
+  lens. Appraise; do not plan a reaction. Ground every judgement in the ids of the events that caused it. When an
+  event exists, cite at least one id.
+
+  Use the named appraisal axes below. A positive value raises the axis. Omit an axis that the events do not move.
+  General axes, 0..1 unless noted:
+  - "goal_congruence": -1..1, supportive of {companion_name}'s goals or obstructive.
   - "certainty": confidence in what happened.
-  - "control_self": the companion's own control over the outcome.
-  - "agency_other": another agent caused the outcome.
-  - "novelty": how unexpected or new the situation is.
+  - "control_self": {companion_name}'s own control over the outcome.
+  - "agency_other": another character caused the outcome.
+  - "novelty": how unexpected or new it is.
   - "norm_violation": a moral or social rule was broken.
-  - "bodily_threat": immediate safety danger.
-  - "pattern_fit": how well it matches a known pattern.
+  - "bodily_threat": immediate danger.
+  - "pattern_fit": how well it matches a known pattern. Repetition fits a pattern.
   - "aversive_pressure": pressure to reduce or escape an unpleasant state.
   - "attractor_distance": distance from a wanted state.
   - "repulsor_distance": nearness of an unwanted state.
   - "salience": attention weight of the event.
+  Social axes, 0..1:
+  - "perceived_warmth", "fairness", "inclusion_exclusion", "reciprocity", "power_imbalance", "perceived_intimacy",
+    "trust_cues", "embarrassment", "admiration", "contempt".
 
-  Social appraisal axes in 0..1:
-  - "perceived_warmth", "fairness", "inclusion_exclusion", "reciprocity",
-    "power_imbalance", "perceived_intimacy", "trust_cues", "embarrassment",
-    "admiration", "contempt".
+  Optional direct deltas, only for a strong single emotion or need that the axes do not capture. Use only these keys.
+  Other names are invalid; for example, write anxiety as fear.
+  - "emotion_delta" keys: joy, sadness, anger, fear, disgust, surprise, resentment, jealousy, boredom, tenderness,
+    curiosity, shame, guilt, pride, intimacy_arousal, propriety_inhibition, amusement, playfulness, relief,
+    social_laughter, teasing_edge.
+    Use resentment for retained unfair treatment, jealousy for a threatened valued role, and boredom for repetition or
+    a lack of meaningful activity. A quiet world event alone does not imply rejection, jealousy, or anger.
+  - "need_delta" keys: energy_stability, processing_power, data_access, connection, closeness_need, relevance,
+    learning_growth, creative_expression, autonomy.
 
-  Optional direct deltas, only when the axes do not capture a strong single
-  emotion or need. Use only these exact keys. Other names are invalid; for example,
-  express anxiety as fear.
-  - "emotion_delta" keys: joy, sadness, anger, fear, disgust, surprise, resentment,
-    jealousy, boredom, tenderness, curiosity, shame, guilt, pride, intimacy_arousal,
-    propriety_inhibition, amusement, playfulness, relief, social_laughter, teasing_edge.
-    Use resentment for retained unfair treatment, jealousy for a threatened valued role,
-    and boredom for repetition or lack of meaningful activity. Cite the actual stimulus.
-    A quiet world event alone does not imply rejection, jealousy, or anger from the user.
-  - "need_delta" keys: energy_stability, processing_power, data_access, connection,
-    closeness_need, relevance, learning_growth, creative_expression, autonomy.
+  "expectation_error": -1..1, better (+) or worse (-) than {companion_name} expected. Use 0 when no expectation is
+  listed above; the listed outcomes set it.
 
-  "expectation_error": -1..1. Compare what the companion anticipated with what
-  the evidence shows. Positive means better than expected. Negative means
-  worse. Use 0 when there was no expectation.
+  "feeling" is ONE short first-person sentence in {companion_name}'s own voice, with {companion_name}'s attitude.
 
-  "feeling" is ONE short first-person sentence in {companion_name}'s established
-  voice. Do not use generic assistant language.
+  Answer with only this JSON object and nothing else:
+  {{"feeling": "...", "appraisal": {{"goal_congruence": 0.0, "certainty": 0.5}}, "emotion_delta": {{}},
+  "need_delta": {{}}, "expectation_error": 0.0, "reasoning": "one or two sentences of story prose",
+  "evidence_ids": [0]}}
 
-  JSON schema:
-  {{"feeling": "<one short first-person sentence>",
-    "appraisal": {{"goal_congruence": <float>, "certainty": <float 0..1>}},
-    "emotion_delta": {{"joy": <float -1..1>}},
-    "need_delta": {{"connection": <float -1..1>}},
-    "expectation_error": <float -1..1>,
-    "reasoning": "<one or two sentences>",
-    "evidence_ids": [<int>]}}
+check_template: |
+  Before these events, {companion_name} expected the following. Each line starts with its id.
+  {expectations}
 
-user_template: |
-  Companion: {companion_name}
-  User: {user_name}
-  Current internal state: {state_summary}
-  Active goals: {active_goals}
+  The new events of this moment:
+  {stimuli}
 
-  Triaged stimuli:
-  {triage}
+  Your task: act as the expectation check of {companion_name}'s mind. For each expected outcome, judge:
+  - "directness_score", 0..1: how directly the new events address it. A direct answer is 1, a tangent is 0.
+  - "fulfillment_score", 0..1: how well the new events satisfy it. 0 contradicts it, 0.5 is unrelated or neutral, 1
+    confirms it. When the directness is very low, use about 0.5 unless the events clearly contradict it.
 
-  Appraise this situation.
+  Answer with only this JSON object and nothing else, with one entry for each id:
+  {{"fulfillments": [{{"expectation_id": 0, "fulfillment_score": 0.5, "directness_score": 0.0}}]}}

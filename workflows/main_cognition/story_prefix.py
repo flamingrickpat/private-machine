@@ -12,9 +12,11 @@ Every story-framed call starts with the same three turns (plan section
 
 The instruction of the call comes last. The prefix reads only the cycle
 state, so all calls that read the same workspace get the same bytes and the
-provider can reuse its cache. The codelets, structures, and attention phases
-read the workspace before attention changes it. The goals, experience, and
-decide phases build the prefix again and read the updated shards.
+provider can reuse its cache. The triage, appraise, retrieve, codelets,
+structures, and attention phases read the workspace before attention changes
+it. The experience, goals, decide, and route phases build the prefix again
+and read the updated shards. The experience phase adds the subjective
+experience to the self tail, so the later phases read it too.
 
 The prompt texts are in ``phases/prompts/story.yaml``. The prefix holds no
 record ids and no embeddings.
@@ -32,16 +34,31 @@ from workflows.main_cognition.phases.model import phase_prompts
 
 
 def shard_label(key: ShardKey, request: CycleRequest) -> str:
-    """Return the story name of a shard: ``self``, the user name, an entity label, or the workflow name.
+    """Return the story name of a shard: ``self``, the entity name, or the workflow name.
 
-    Step 8 of A19F gives every entity its name. Until then an entity other
-    than the user is ``entity <id>``.
+    The host supplies the names of the group entities in
+    ``request.entity_names``. The user is named by ``request.user_name``.
+    An entity without a known name is ``entity <id>``.
     """
     if key.kind == "self":
         return "self"
     if key.kind == "entity":
-        return request.user_name if key.ref == str(request.user_entity_id) else f"entity {key.ref}"
+        if key.ref == str(request.user_entity_id):
+            return request.user_name
+        entity_id = int(key.ref)
+        return request.entity_names[entity_id] if entity_id in request.entity_names else f"entity {key.ref}"
     return key.ref
+
+
+def story_entities(work: CycleWork) -> str:
+    """Return the names of the other characters of this moment, for ``{entity_name}``.
+
+    These are the entities of the current stimulus groups, in group order.
+    Without an entity group, the other character is the user.
+    """
+    names = [shard_label(group.key, work.request) for group in work.state.stimulus_groups
+             if group.key.kind == "entity"]
+    return " and ".join(dict.fromkeys(names)) or work.request.user_name
 
 
 def shown_shards(work: CycleWork) -> list[WorkspaceShard]:
@@ -58,8 +75,9 @@ def shown_shards(work: CycleWork) -> list[WorkspaceShard]:
 def conscious_percepts(work: CycleWork) -> list[str]:
     """Return the story lines of the codelet percepts in the shown shards, in world-time order.
 
-    The goals and decide phases list them as the companion's own conscious
-    impulses. They are suggestions, not commands.
+    The goals phase lists them as the companion's own conscious impulses.
+    They are suggestions, not commands. The decide phase uses
+    ``group_percepts`` of the decide module for one group.
     """
     ids = [item.record_id for shard in shown_shards(work) for item in shard.items
            if work.records[item.record_id].record_class == "CodeletPercept"]
@@ -80,9 +98,7 @@ class StoryPrefix:
         request = work.request
         self.prompts = prompts or phase_prompts("story")
         self.companion = request.companion_name
-        # Step 8 of A19F gives every group its own entity. Until then the
-        # other character of every story is the user.
-        self.entity = request.user_name
+        self.entity = story_entities(work)
         labels = self.prompts.shard_labels
         blocks = []
         for shard in shown_shards(work):
@@ -128,4 +144,4 @@ class StoryPrefix:
         return next(label for label, target in self.targets.items() if target == key)
 
 
-__all__ = ["StoryPrefix", "conscious_percepts", "shard_label", "shown_shards"]
+__all__ = ["StoryPrefix", "conscious_percepts", "shard_label", "shown_shards", "story_entities"]

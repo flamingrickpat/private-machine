@@ -95,6 +95,28 @@ CSM_RECENT_DIALOGUE_TURNS = 8  # Number of dialogue turns before the stimuli tha
 CSM_NARRATIVE_ACTIVATION = 0.5  # Activation of a narrative of the self or of a group entity.
 CSM_GOAL_ACTIVATION = 0.5  # Activation of an active goal.
 
+# Expectations (port of _generate_expectations_for_action and _appraise_stimulus_check_expectation
+# in private-machine-head/pm/ghosts/ghost_lida.py, commit 7101933).
+EXPECTATION_COUNT = 2  # Expectations that the route phase records for each routed action (old expectation_generation_count).
+EXPECTATION_CHECK_LIMIT = 5  # Most open expectations that one appraisal checks (old retrieval_limit_expectations).
+EXPECTATION_RELEVANCE_DECAY = 0.8  # Recency factor for each tick since the expectation was recorded (old value).
+EXPECTATION_MIN_RECENCY = 0.05  # An expectation with a lower recency factor is too old to check (old value).
+EXPECTATION_MIN_RELEVANCE = 0.1  # Lowest relevance score of a checked expectation (old value).
+EXPECTATION_SAME_SIMILARITY = 0.92  # Cosine similarity at which a new expectation replaces an open one. Old: distance 0.08, with an inverted test.
+EXPECTATION_MIN_CHANGE = 0.05  # Fulfillment change below which an outcome has no emotional effect (old value).
+EXPECTATION_VALENCE_MULT = 0.6  # Valence impact of a fulfillment change of 1 for a wanted valence of 1 (old value).
+EXPECTATION_ANXIETY_MULT = 0.4  # Fear impact multiplier of a fulfillment change (old anxiety multiplier).
+EXPECTATION_FEAR_BASE = 0.5  # Fear falls by this part of a fulfillment rise: a met expectation confirms predictability (old value).
+EXPECTATION_STRONG_VALENCE = 0.3  # Wanted valence beyond which the fear modulation below applies (old value).
+EXPECTATION_FEAR_DISAPPOINT = 0.3  # Extra fear when a wanted outcome fails (old value).
+EXPECTATION_FEAR_CONFIRMED = 0.7  # Extra fear when a feared outcome comes true (old value).
+EXPECTATION_FEAR_RELIEF = 0.4  # Fear drop when a feared outcome fails (old value).
+EXPECTATION_OPEN_LIMIT = 16  # Newest pending expectations that the host offers to one cycle.
+EXPECTATION_SUPPORTED = 0.8  # Fulfillment at or above which an expectation counts as supported.
+EXPECTATION_CONTRADICTED = 0.2  # A direct stimulus with a fulfillment score at or below this value contradicts it.
+EXPECTATION_DIRECT = 0.5  # Directness at or above which a stimulus can contradict an expectation.
+CSM_EXPECTATION_ACTIVATION = 0.5  # CSM activation of an open expectation, with the endorser "expectation".
+
 # Deliberate focus.
 FOCUS_ACTIVATION_WEIGHT = 0.3  # Maximum activation that one focus endorsement adds to an item.
 FOCUS_MAX_SHARE = 0.3  # Maximum part of a shard budget that deliberate focus can fill.

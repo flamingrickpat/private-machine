@@ -17,7 +17,7 @@ from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.dispatch import resolve_dispatches, resolve_same_cycle
 from workflows.main_cognition.phases.route import stable_action_id
-from workflows.main_cognition.schemas import ActionDispatch, ActionIntent
+from workflows.main_cognition.schemas import ActionDispatch
 from workflows.main_cognition.steps import PHASES
 
 MANIFEST = PROJECT_ROOT / "workflows/main_cognition/main_cognition.workflow.md"
@@ -40,22 +40,20 @@ def example_request() -> dict:
     ).model_dump(mode="json")
 
 
-ACTIONS = [
-    {"action_id": "action-0", "action_type": "ToolCall", "workflow_name": "self_management",
-     "content": "start fire response", "depends_on": []},
-    {"action_type": "Reply", "workflow_name": "dialogue_story",
-     "content": "tell the user to get out", "depends_on": ["action-0"]},
-]
+DECISION = "Yell at them to get out of the kitchen right now, and save the jokes for later."
+ROUTE = {"action_type": "Reply", "workflow_name": "dialogue_story", "arguments": {},
+         "presentation": {"mode": "candid"}, "reasoning": "speak now"}
 
 
-def answers(actions=ACTIONS) -> dict:
+def answers(decision=DECISION, route=ROUTE, category="Critical") -> dict:
     return {
-        "triage": {"items": [{"knoxel_id": 11, "category": "Critical"}]},
+        "triage": {"items": [{"knoxel_id": 11, "category": category}]},
         "appraise": {"feeling": "alarmed", "emotion_delta": {"fear": 0.5}, "evidence_ids": [11]},
         "retrieve": {"candidate_ids": [42]},
         "goals": {"changes": [{"change": "add", "goal": "put out the fire"}]},
-        "experience": {"frame_reason": "fire", "focus_ids": [11], "subjective_experience": "Everything is loud."},
-        "decide": {"actions": actions, "reasoning": "act then speak"},
+        "experience": " and everything is loud.",
+        "decide": {"variants": [decision] if decision else []},
+        "route": route,
     }
 
 
@@ -85,11 +83,14 @@ class CycleTests(unittest.TestCase):
         self.assertTrue(work.affect.felt.startswith("Companion feels"))
         self.assertEqual(work.state_summary, work.affect.felt)
         self.assertEqual(work.state.stimulus_groups[0].category, "Critical")
-        self.assertEqual(len(work.state.decisions), 2)
-        expected_ids = [item.action_id or stable_action_id(item, index)
-                        for index, item in enumerate(ActionIntent.model_validate(row) for row in ACTIONS)]
-        self.assertEqual([item.action_id for item in work.dispatches], expected_ids)
-        self.assertEqual([item.status for item in work.dispatches], ["dispatched", "dispatched"])
+        self.assertEqual([item.text for item in work.state.decisions], [DECISION])
+        dispatch = work.dispatches[0]
+        self.assertEqual(dispatch.content, DECISION)
+        self.assertEqual(dispatch.action_id, stable_action_id(dispatch, 0))
+        self.assertEqual([item.status for item in work.dispatches], ["dispatched"])
+        # The subjective experience is in the self tail before the goals call.
+        self.assertIn("everything is loud.", work.experience.text)
+        self.assertIn(work.experience.record_id, work.state.workspace.self_shard.tail_ids)
 
     def test_without_public_context_no_grounding_turn_is_inserted(self):
         model = ScriptedModel(answers())
@@ -97,12 +98,22 @@ class CycleTests(unittest.TestCase):
         for turns in model.messages:
             self.assertFalse(any("Private context." in turn.content.text for turn in turns))
 
-    def test_dependency_on_an_unknown_action_is_rejected(self):
-        model = ScriptedModel(answers([{"action_type": "Reply", "workflow_name": "dialogue_story",
-                                        "content": "claim it started", "depends_on": ["action-99"]}]))
+    def test_an_insignificant_group_gets_no_decision_and_no_route_call(self):
+        model = ScriptedModel(answers(category="Insignificant"))
         work = run_cycle(model, "cycle-contract-3")
-        self.assertEqual(work.dispatches[0].status, "rejected")
-        self.assertIn("action-99", work.dispatches[0].rejection_reason)
+        self.assertNotIn("decide", model.calls)
+        self.assertNotIn("route", model.calls)
+        self.assertEqual(work.state.decisions, [])
+        self.assertEqual(work.dispatches, [])
+
+    def test_a_quiet_route_makes_no_dispatch_and_sleep_sets_the_wait(self):
+        route = {"action_type": "Sleep", "workflow_name": "", "arguments": {"timeout_seconds": 60}}
+        model = ScriptedModel(answers(decision="Say nothing. Let the silence do the work.", route=route))
+        work = run_cycle(model, "cycle-contract-4")
+        self.assertEqual(len(work.state.decisions), 1)
+        self.assertEqual(work.dispatches, [])
+        self.assertEqual(work.wait_request.seconds, 60)
+        self.assertEqual(work.wait_request.reason, "Say nothing. Let the silence do the work.")
 
 
 class DispatchTests(unittest.TestCase):

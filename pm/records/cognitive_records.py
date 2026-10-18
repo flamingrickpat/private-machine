@@ -161,7 +161,8 @@ class ExpectationRecord(RecordBase):
 
     status
         ``pending`` before resolution, then ``supported``, ``contradicted``
-        or ``unmet`` once an observation resolves it.
+        or ``unmet`` once an observation resolves it. Main cognition sets
+        ``superseded`` when a new, nearly equal expectation replaces it.
 
     expected_valence
         The expected feeling if the outcome occurs, on the -1..1 scale.
@@ -171,11 +172,22 @@ class ExpectationRecord(RecordBase):
 
     observation_ids
         The accepted records that resolved it. Empty while pending.
+
+    fulfillment
+        How far the observed stimuli satisfied the expectation so far, 0..1.
+        Main cognition moves it toward each new check result, weighted by
+        how directly the stimulus addressed the expectation (A19F).
+
+    urgency
+        How soon the outcome is due, 0..1. Older expectations lose relevance.
+
+    about_entity_ids
+        The entities whose reaction is expected. Empty for a world outcome.
     """
 
     anticipation: str = Field(default="", description="What was anticipated, in the observer's words.")
     expected_outcome: str = Field(default="", description="The anticipated outcome this record will be compared against.")
-    status: str = Field(default="pending", description="pending, supported, contradicted, or unmet.")
+    status: str = Field(default="pending", description="pending, supported, contradicted, unmet, or superseded.")
     expected_valence: float = Field(default=0.0, ge=-1.0, le=1.0, description="Expected feeling if the outcome occurs.")
     uncertainty: float = Field(default=0.5, ge=0.0, le=1.0, description="How unsure the expectation was when recorded.")
     goal_ids: List[int] = Field(default_factory=list, description="Intention ids this expectation is attached to.")
@@ -183,6 +195,9 @@ class ExpectationRecord(RecordBase):
     evidence_ids: List[int] = Field(default_factory=list, description="Accepted records that motivated the anticipation.")
     observation_ids: List[int] = Field(default_factory=list, description="Accepted records that resolved the expectation.")
     resolved_tick_id: Optional[int] = Field(default=None, description="The tick whose observation resolved this expectation.")
+    fulfillment: float = Field(default=0.0, ge=0.0, le=1.0, description="How far observations satisfied the expectation so far.")
+    urgency: float = Field(default=0.3, ge=0.0, le=1.0, description="How soon the outcome is due.")
+    about_entity_ids: List[int] = Field(default_factory=list, description="Entities whose reaction is expected.")
 
     def get_story_element(self) -> str:
         return f"[Expectation:{self.status}] {self.content}"

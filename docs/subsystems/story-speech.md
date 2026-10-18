@@ -56,7 +56,7 @@ A live check on 2026-10-13 confirmed that `qwen/qwen3.8-flash` on OpenRouter con
 | Memories | One section per plan lane, from [`memory_sections`][workflows.public_speech.public_context.memory_sections]: dated plain lines, oldest first, without IDs or machine labels. Dialogue reads "Jesse said: …". Internal-state records with numbers do not render. |
 | Goals | The active goals. |
 | Task and tool results | Worker state, effect verification, and the full durable task receipt. |
-| Inside the companion | Feelings in words from [`feelings_in_words`][workflows.public_speech.public_context.feelings_in_words], the regulation mode, the workspace experience, the chosen intent, and the presentation (candid, withhold, or deceive). |
+| Inside the companion | Feelings in words from [`feelings_in_words`][workflows.public_speech.public_context.feelings_in_words], the regulation mode, the subjective experience of the cycle, the in-character decision text as the intent, and the presentation (candid, withhold, or deceive). |
 
 ### Context plan
 

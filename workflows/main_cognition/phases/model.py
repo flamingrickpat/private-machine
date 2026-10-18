@@ -44,14 +44,17 @@ def phase_prompts(name: str) -> PhasePrompts:
     return load_prompts(PROMPTS_DIR / f"{name}.yaml")
 
 
-def grounding_turn(work: CycleWork, *, emotion: bool) -> Turn | None:
+def grounding_turn(work: CycleWork, *, emotion: bool, capabilities: bool = False) -> Turn | None:
     """Return the private grounding turn for one phase, or None.
 
     The result is None when the host supplied no public context. ``emotion``
     selects the emotion section. Phases after appraisal read the accepted
-    affect in their own input, so they pass False. Evidence rows that repeat a
-    current stimulus word for word are dropped. When evidence remains, the
-    memory list is dropped, because the evidence already holds the sources.
+    affect in their own input, so they pass False. ``capabilities`` keeps the
+    capability section and the capability note. Only the route phase passes
+    True: capability limits belong to routing (plan section "Prompt frame").
+    Evidence rows that repeat a current stimulus word for word are dropped.
+    When evidence remains, the memory list is dropped, because the evidence
+    already holds the sources.
     """
     public = work.request.public_context
     if public is None:
@@ -63,32 +66,38 @@ def grounding_turn(work: CycleWork, *, emotion: bool) -> Turn | None:
         parsed = EvidenceRow.model_validate(row)
         if parsed.knoxel_id not in stimuli or parsed.text != stimuli[parsed.knoxel_id]:
             evidence.append(row)
-    selected = public.model_copy(update={"evidence": evidence,
-                                         "memories": [] if public.evidence else public.memories})
-    grounding = "Private context. Respect domain capabilities and source attribution. "
-    grounding += "Private thoughts remain private. An emotion word cannot create an unimplemented state or sense.\n"
+    update = {"evidence": evidence, "memories": [] if public.evidence else public.memories}
+    if not capabilities:
+        update["capabilities"] = {}
+    selected = public.model_copy(update=update)
+    grounding = "Private context. Keep source attribution. "
+    if capabilities:
+        grounding += "Respect domain capabilities. An emotion word cannot create an unimplemented state or sense. "
+    grounding += "Private thoughts remain private.\n"
     return Turn(Role.User, grounding + render_context(selected, kinds))
 
 
 def complete(context, work: CycleWork, messages: Sequence[TurnInput], schema: type[Result], *,
-             grounded: bool = False, emotion: bool = True, grounding_at: int = 1) -> Result:
+             grounded: bool = False, emotion: bool = True, grounding_at: int = 1, capabilities: bool = False,
+             validation_context: dict | None = None) -> Result:
     """Call the model for one phase and return the validated answer.
 
     ``grounded`` inserts the private grounding turn at index ``grounding_at``
     of each attempt. A story-framed phase passes the length of the shared
     prefix, so the prefix bytes stay equal and the provider can reuse the
-    cache. ``emotion`` is passed to :func:`grounding_turn`. Invalid output
+    cache. ``emotion`` and ``capabilities`` are passed to :func:`grounding_turn`.
+    ``validation_context`` is passed to the schema validation. Invalid output
     gets repair turns (see ``complete_json``). Exhausted repairs raise
     ``ModelFormatError``. Transport errors and cancellation propagate.
     """
-    turn = grounding_turn(work, emotion=emotion) if grounded else None
+    turn = grounding_turn(work, emotion=emotion, capabilities=capabilities) if grounded else None
 
     def insert(turns: list[Turn]) -> list[Turn]:
         if turn is not None:
             turns.insert(grounding_at, turn)
         return turns
 
-    return complete_json(context, messages, schema, transform=insert,
+    return complete_json(context, messages, schema, transform=insert, validation_context=validation_context,
                          temperature=Sampler.TempInstruct, enable_thinking=False)
 
 

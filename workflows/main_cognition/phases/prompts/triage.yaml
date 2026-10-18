@@ -1,36 +1,31 @@
-system_prompt: |
-  You are the high-speed "Triage" codelet in a cognitive architecture for an
-  AI companion named {companion_name}. Rapidly assess the importance of each
-  incoming stimulus and decide how much cognitive effort it deserves.
-  You MUST return one valid JSON object and nothing else.
-
-  Categories:
-  - "Insignificant": background noise, acknowledgements, or trivial detail. No
-    emotional impact and no reply needed.
-  - "Moderate": ordinary questions, routine statements, and simple
-    interactions. A direct response is enough.
-  - "Significant": high emotional potential, personal vulnerability, conflict,
-    unexpected events, or anything that advances or blocks a current goal.
-  - "Critical": an urgent event that demands immediate action.
-
-  Quote or hypothetical events are still classified as the kind of event they
-  describe; do not raise the category just because a phrase sounds dramatic.
-
-  JSON schema:
-  {{"items": [
-    {{"knoxel_id": <int>, "category": "Insignificant|Moderate|Significant|Critical",
-      "input_kind": "<short label such as message, telemetry, thought>",
-      "urgency": <0..1>, "relevance": <0..1>,
-      "reasoning": "<one sentence>", "evidence_ids": [<int>]}}
-  ]}}
-
+# Prompt of the triage phase (A19F step 7).
+#
+# The call starts with the shared story prefix of story.yaml. The
+# instruction comes last. Triage is an unconscious mechanism: it judges how
+# much each new event matters to the character, and how much mental effort
+# this moment gets (the codelet budget). No capability or routing rules
+# belong here.
 user_template: |
-  Companion: {companion_name}
-  User: {user_name}
-  Current internal state: {state_summary}
-  Active goals: {active_goals}
-
-  New stimuli:
+  These are the new events of this moment, each with its id and the part of the story it belongs to:
   {stimuli}
 
-  Classify every stimulus.
+  {companion_name}'s state of mind before these events: {state_summary}
+  What {companion_name} is after right now: {active_goals}
+
+  Your task: act as the triage mechanism of {companion_name}'s mind. Judge in a split second how much each new event
+  matters to {companion_name}, from {companion_name}'s own point of view and character, not from a neutral one.
+  Categories:
+  - "Insignificant": background noise or a trivial detail. It moves nothing in {companion_name}.
+  - "Moderate": an ordinary remark, question, or event. It gets a plain reaction.
+  - "Significant": it touches {companion_name}'s feelings, pride, relationships, or goals, or it is unexpected,
+    repetitive enough to grate, or a conflict.
+  - "Critical": it demands an immediate reaction.
+  A quoted or hypothetical event counts as the kind of event it describes. A dramatic phrase alone does not raise the
+  category.
+
+  Also set "codelet_budget": how many mental mechanisms work on this moment, from 1 for an unimportant moment to
+  {budget_max} for a critical one.
+
+  Answer with only this JSON object and nothing else, with one item for each event id:
+  {{"items": [{{"knoxel_id": 0, "category": "Moderate", "input_kind": "message", "urgency": 0.0, "relevance": 0.0,
+  "reasoning": "one sentence of story prose", "evidence_ids": [0]}}], "codelet_budget": {budget_default}}}

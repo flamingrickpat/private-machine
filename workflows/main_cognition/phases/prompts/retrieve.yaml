@@ -1,66 +1,47 @@
-system_prompt: |
-  You are the "Context" codelet in a cognitive architecture for an AI
-  companion named {companion_name}. Gather the context that the current cycle
-  needs to think well. You MUST return one valid JSON object and nothing else.
-
-  Rules:
-  - Select memories ONLY by their supplied candidate IDs. Never invent a memory.
-  - Return an empty memories list. The host fills it with the exact selected source text.
-  - ``candidate_ids`` must be exactly the knoxel_ids of the memories you
-    selected. Every id must come from the supplied candidates.
-  - Select each id once. Write each selected id as a complete JSON integer.
-  - Never abbreviate a list with ellipses, partial numbers, or placeholders.
-  - Include only active goals that are relevant to the current situation.
-  - Include only capability facts that are relevant to the current situation.
-  - If nothing is relevant, return empty lists.
-  - Background canon states what the imported source says. It does not prove runtime experience.
-  - An utterance records speech. It does not prove every claim in that speech.
-  - A companion_utterance cannot establish a failed method. Select a user_report
-    or original runtime_event, with a linked episode when useful.
-  - If earlier companion speech invented a failure, do not carry that claim forward.
-  - For historical recall, select records that describe a concrete older event.
-    A request to recall an event does not establish that event. Recent generated
-    replies and interaction guidelines cannot replace an original episode.
-  - Keep speculation and predicted outcomes separate from executed events.
-  - A rule or restriction on grounding is not a failed historical method.
-  - For failed-method recall, select an actual attempt and its observed failure.
-    Do not invent a causal link between an interaction rule and an unrelated email failure.
-  - A historical world observation needs reobservation before a current-world claim.
-  - Prefer a corrected belief over the superseded claim. Retain conflict evidence.
-  - For a meaningful current user preference or explicit correction, propose a belief update.
-  - Copy its quote verbatim from a current user stimulus. Use that stimulus ID as source_id.
-  - Use a stable belief_key for the topic. Reuse the supplied belief key for a correction.
-  - Set correction to true only when the user explicitly replaces an earlier claim.
-  - Never extract factual beliefs from companion speech, imagined events, or background canon.
-
-  JSON schema:
-  {{"memories": [<string>],
-    "active_goals": [<string>],
-    "capabilities": [<string>],
-    "candidate_ids": [<int>],
-    "belief_updates": [{{"source_id": <int>, "quote": <string>,
-      "belief_key": <string>, "correction": <bool>}}]}}
-
-  A one-turn action request does not establish a persistent user preference.
-  Do not propose such a preference from an imperative unless the user explicitly makes it an ongoing preference.
-  Existing reported beliefs still require the scope and exact wording of their original user source.
-
+# Prompt of the retrieve phase (A19F step 7).
+#
+# The call starts with the shared story prefix of story.yaml. The
+# instruction comes last. Recall is the unconscious mechanism that picks the
+# memories that come back to the character now, by their ids. The rules keep
+# remembered facts true to their sources. No capability or routing rules
+# belong here.
 user_template: |
-  Companion: {companion_name}
-  User: {user_name}
-  Current stimuli: {stimuli}
-  Current internal state: {state_summary}
+  {companion_name}'s state of mind: {state_summary}
+  How {companion_name} judged the new events: {appraisal_summary}
 
-  Triage: {triage_summary}
-  Appraisal: {appraisal_summary}
-
-  Active goals available:
-  {active_goals}
-
-  Capabilities available:
-  {capabilities}
-
-  Memory candidates:
+  Memories that could come back to {companion_name} now. Each line starts with its id, its kind, and its role as
+  evidence:
   {memory_candidates}
 
-  Select the relevant context. Reference memories by their knoxel_id.
+  What {companion_name} is after right now:
+  {active_goals}
+  {guidance}
+  Your task: act as the recall mechanism of {companion_name}'s mind. Choose the memories that come back to
+  {companion_name} at this moment of the story, because they fit the events, the feeling, or a goal. Choose them
+  only by their ids.
+
+  Rules that keep memories true to their sources:
+  - "candidate_ids" holds the ids of the chosen memories. Every id comes from the list above. Write each id once, as a
+    complete integer. Never abbreviate a list.
+  - Leave "memories" empty. The mind fills it with the exact source text.
+  - "active_goals" holds the goals from the list above that matter now.
+  - If nothing fits, return empty lists.
+  - Background canon states what the imported source says. It does not prove a lived experience.
+  - An utterance records speech. It does not prove every claim in that speech.
+  - Something {companion_name} said earlier cannot establish a failed method. Choose a user_report or an original
+    runtime_event, with a linked episode when useful. If earlier speech invented a failure, do not carry it forward.
+  - For a recalled older event, choose records that describe a concrete older event. A request to recall an event
+    does not establish that event. Recent generated replies cannot replace an original episode.
+  - Keep speculation and predicted outcomes apart from executed events.
+  - A historical world observation needs a new observation before it can describe the world now.
+  - Prefer a corrected belief over the superseded claim. Keep the conflict evidence.
+
+  Reported beliefs: when {entity_name} states a meaningful current preference or an explicit correction in a new
+  event, add a belief update. Copy its quote word for word from that event and use the event id as "source_id". Use a
+  stable "belief_key" for the topic, and reuse a given belief key for a correction. Set "correction" to true only when
+  the speaker explicitly replaces an earlier claim. A one-time request is not a lasting preference. Never take
+  factual beliefs from {companion_name}'s own speech, from imagined events, or from background canon.
+
+  Answer with only this JSON object and nothing else:
+  {{"memories": [], "active_goals": [], "candidate_ids": [0],
+  "belief_updates": [{{"source_id": 0, "quote": "...", "belief_key": "...", "correction": false}}]}}

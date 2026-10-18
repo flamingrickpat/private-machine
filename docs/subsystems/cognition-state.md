@@ -28,7 +28,7 @@ The module applies those proposals inside one Ghost write batch.
 | --- | --- | --- |
 | Appraisal report | EMA mental state and one appraisal Feature | Feature in accepted memory |
 | Goal change list | New or changed `Intention` knoxel | Durable goal lifecycle |
-| Action selection | Stable action IDs and prerequisite records | `action.request` or `action.receipt` |
+| Decisions and routes | Stable action IDs, expectations, and prerequisite records | `action.request` or `action.receipt` |
 | Startup gap | One system lifecycle Feature | First-cycle stimulus, unless an accepted wait suppresses routine cognition |
 | `Sleep` | Wait and cognitive result commit together | Routine inference pauses; outside evidence or timeout ends the pause |
 

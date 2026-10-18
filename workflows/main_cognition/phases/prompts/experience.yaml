@@ -1,46 +1,82 @@
-system_prompt: |
-  You are the "Workspace" codelet in a cognitive architecture for an
-  AI companion named {companion_name}. Attention has updated the conscious
-  workspace (the story above shows it), and the goals stage has proposed goal
-  changes. Your job is to assemble ONE coherent frame of conscious attention:
-  what the companion is holding in mind right now, how it is controlling
-  itself, and what that attention feels like from the inside.
-
-  Rules:
-  - Build a single coherent frame, not a list of unrelated items. Choose the
-    few focus ids that belong together in one moment of awareness.
-  - Use only knoxel ids that appear in the candidate list.
-  - "control_mode" is exactly one of "reactive" (acting on the moment),
-    "reflective" (deliberating and weighing), or "blended".
-  - "What just entered awareness" lists what attention brought into the
-    workspace this moment. A memory happened before. A line from a mental
-    mechanism is a private impulse, not something that happened or that the
-    user said. Keep this true in the frame.
-  - "subjective_experience" is a brief first-person narrative in the
-    companion's own voice. Write as "{companion_name}" feeling and noticing the
-    moment. Do not address the user, and do not add a narrator or meta line
-    such as "As an AI" or "The companion feels".
-
-  Return exactly one valid JSON object and nothing else, in this shape:
-  {{"frame_reason": "<one sentence>",
-    "focus_ids": [<int>],
-    "control_mode": "reactive|reflective|blended",
-    "subjective_experience": "<brief first-person narrative>"}}
-
+# Prompts of the experience phase (A19F step 7).
+#
+# Port of _generate_subjective_experience from private-machine-head
+# (pm/ghosts/ghost_lida.py, commit 7101933), with its seed phrases. The call
+# starts with the shared story prefix of story.yaml. The instruction comes
+# last, and an assistant turn opens with the seed phrases, so the model
+# continues the inner voice from the felt state. The call is unconscious: it
+# simulates the inner voice, it does not speak to anyone.
 user_template: |
-  Companion: {companion_name}
-  User: {user_name}
-  Current feelings: {affect}
-  Regulation mode: {regulation}
-  Active goals: {active_goals}
+  What just entered {companion_name}'s awareness in this moment:
+  {entered}
 
-  What just entered awareness:
-  {accepted}
+  Your task: act as the inner voice of {companion_name}. Write {companion_name}'s subjective experience right now as
+  one brief first-person paragraph, the way {companion_name} feels it from the inside: the flow of thought, feeling,
+  and reaction to what is happening. Keep {companion_name}'s attitude exactly as the story has it, petty, smug,
+  bored, hurt, tender, or amused. Do not smooth the feeling, do not resolve the conflict, and do not turn it into
+  agreement or a lesson. {companion_name} does not address anyone here. Write only the paragraph.
 
-  Goals:
-  {goals}
+# Ends the seed phrases (old: "\nAnd the current conversation"). The model continues after it.
+seed_tail: "\nAnd right now,"
 
-  Candidate knoxels:
-  {candidates}
+# Added after the continuation when the moment holds a message from an entity (old focus phrase,
+# without its reply instruction).
+focus_phrase: " Now my mind turns to {entity_name}'s words: '{message}'."
 
-  Assemble the single coherent attention frame.
+# The seed phrase table. Port of _generate_state_seed_phrases. Each tier is
+# [threshold, word]; the first tier whose threshold the intensity reaches
+# gives the word. The tiers are in descending order. The old willpower tiers
+# were ascending, so their weak tier always won; the port orders them.
+#
+# cognition: "high" reads the axis value. "low" reads (low_origin - value).
+# Bipolar axes (-1..1) have low_origin 0. Ego strength (0..1) has low_origin 1.
+seed_phrases:
+  cognition:
+    - axis: mental_aperture
+      low_origin: 0.0
+      high: {template: "My thoughts feel {word}, branching out...", tiers: [[0.8, "incredibly broad"], [0.5, "broad"]]}
+      low: {template: "My focus becomes {word}, zoning in on one thing...", tiers: [[0.8, "intensely narrow"], [0.5, "narrow"]]}
+    - axis: interlocus
+      low_origin: 0.0
+      high: {template: "I'm {word} focused on what's happening outside of me...", tiers: [[0.8, "completely"], [0.5, "intently"]]}
+      low: {template: "I turn my attention inward, feeling {word} reflective...", tiers: [[0.8, "deeply"], [0.5, "quietly"]]}
+    - axis: ego_strength
+      low_origin: 1.0
+      high: {template: "I feel a {word} sense of self in this moment...", tiers: [[0.8, "strong"], [0.6, "clear"]]}
+      low: {template: "I feel {word}, setting my personality aside...", tiers: [[0.8, "a need to be objective"], [0.6, "a sense of detachment"]]}
+    - axis: willpower
+      low_origin: 0.0
+      low: {template: "I feel {word}, it's hard to muster the energy...", tiers: [[0.4, "completely drained"], [0.2, "mentally tired"]]}
+  # The dominant feeling. Bipolar axes name the positive or the negative pole.
+  # The old affection and trust axes are relationship axes now; the old
+  # self-worth axis is pride against shame; the old anxiety is fear.
+  emotion_threshold: 0.4
+  bipolar:
+    - {path: state_core.valence, positive: happiness, negative: sadness}
+    - {path: state_relationship.affection, positive: affection, negative: dislike}
+    - {path: state_relationship.trust, positive: trust, negative: distrust}
+  unipolar:
+    - {path: state_emotions.pride, name: pride}
+    - {path: state_emotions.shame, name: shame}
+    - {path: state_emotions.disgust, name: disgust}
+    - {path: state_emotions.anger, name: anger}
+    - {path: state_emotions.resentment, name: resentment}
+    - {path: state_emotions.jealousy, name: jealousy}
+    - {path: state_emotions.boredom, name: boredom}
+    - {path: state_emotions.amusement, name: amusement}
+    - {path: state_emotions.playfulness, name: playfulness}
+    - {path: state_emotions.tenderness, name: tenderness}
+    - {path: state_emotions.curiosity, name: curiosity}
+    - {path: state_emotions.guilt, name: guilt}
+    - {path: state_emotions.surprise, name: surprise}
+  # Fear gets the old anxiety sentence.
+  fear: {path: state_emotions.fear, name: anxiety}
+  emotion_tiers: [[0.9, "an overwhelming"], [0.8, "an intense"], [0.7, "a deep"], [0.5, "a clear"]]
+  emotion_template: "A feeling of {name} is {adverb} present..."
+  emotion_adverbs: {"an overwhelming": "overwhelmingly", "an intense": "intensely", "a deep": "deeply", "a clear": "clearly", "a": "noticeably"}
+  fear_template: "{word} wave of {name} washes over me..."
+  # The most pressing need. A supply need presses when it is low (intensity 1 - value).
+  # The closeness drive presses when it is high (intensity = value).
+  drives: [closeness_need]
+  need_tiers: [[0.9, "an overwhelming"], [0.8, "a desperate"], [0.7, "a deep"], [0.6, "a distinct"]]
+  need_template: "I feel {word} need for {name} right now..."

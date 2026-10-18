@@ -17,12 +17,13 @@ Runtime: [`workflows.cognitive_control.host.CognitiveControl`][].
 
 | Choice | Effect |
 | --- | --- |
-| Empty actions, `Ignore`, or `Idle` | No external action now. Routine private thought can continue |
+| No decision, or a route to `Ignore` or `Idle` | No external action now. Routine private thought can continue |
 | Quiet private work | Active inference without public speech |
 | `Sleep` | Suspend routine main and private inference until a qualifying stimulus or deadline |
 
-Action selection can supply `arguments.timeout_seconds`.
-[`workflows.main_cognition.schemas.ActionIntent.validate_wait`][] rejects nonnumeric, nonfinite, boolean, zero, negative, or excessive durations.
+A decision to wait can route to `Sleep`. The route call can supply `arguments.timeout_seconds`.
+[`RouteAnswer`][workflows.main_cognition.schemas.RouteAnswer] rejects nonnumeric, nonfinite, boolean, zero, negative, or excessive durations.
+The decision text becomes the reason of the wait. See [decisions, routing, and expectations](decisions-and-routing.md).
 Allowed values span 1 through 86,400 seconds.
 Invalid stage output enters the existing format-repair boundary.
 The host also enforces the operator maximum before committing a wait.

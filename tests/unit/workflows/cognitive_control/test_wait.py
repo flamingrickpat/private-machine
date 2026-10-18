@@ -23,7 +23,7 @@ from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, scr
 from tests.unit.workflows.main_cognition.test_cognition_state import _module as main_module, _reports, _store
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
-from workflows.main_cognition.schemas import ActionIntent
+from workflows.main_cognition.schemas import RouteAnswer
 
 
 class WaitTests(unittest.TestCase):
@@ -218,8 +218,9 @@ class WaitTests(unittest.TestCase):
     def test_sleep_rejects_bad_timeouts_inside_the_typed_stage_boundary(self):
         for value in (0, -1, 86401, float("inf"), float("nan"), True, "later", None):
             with self.subTest(value=value), self.assertRaises(ValidationError):
-                ActionIntent(action_type="Sleep", arguments={"timeout_seconds": value})
-        self.assertEqual(ActionIntent(action_type="Sleep", arguments={"timeout_seconds": 30}).arguments.timeout_seconds, 30)
+                RouteAnswer.model_validate({"action_type": "Sleep", "arguments": {"timeout_seconds": value}})
+        answer = RouteAnswer.model_validate({"action_type": "Sleep", "arguments": {"timeout_seconds": 30}})
+        self.assertEqual(answer.arguments.timeout_seconds, 30)
 
 
 class KernelWaitTests(unittest.TestCase):

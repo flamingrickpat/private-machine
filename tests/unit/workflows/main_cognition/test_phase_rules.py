@@ -5,13 +5,13 @@ import unittest
 
 from workflows.main_cognition.dispatch import resolve_same_cycle
 from workflows.main_cognition.phases.route import stable_action_id
-from workflows.main_cognition.schemas import ActionDispatch, ActionIntent
+from workflows.main_cognition.schemas import ActionDispatch
 
 
 class ActionDependencyTests(unittest.TestCase):
     def test_real_model_workflow_labels_resolve_to_parent_action_ids(self):
         capture = json.loads(Path("test_data/captures/alpha/action-workflow-dependencies.json").read_text(encoding="utf-8"))
-        dispatches = [ActionDispatch.model_validate({**item, "action_id": stable_action_id(ActionIntent.model_validate(item), index)})
+        dispatches = [ActionDispatch.model_validate({**item, "action_id": stable_action_id(ActionDispatch.model_validate(item), index)})
                       for index, item in enumerate(capture["actions"])]
         resolved = resolve_same_cycle(dispatches)
         self.assertEqual([item.status for item in resolved], ["dispatched", "dispatched"])

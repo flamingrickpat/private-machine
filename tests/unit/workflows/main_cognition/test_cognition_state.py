@@ -301,17 +301,13 @@ class GoalLifecycleTests(unittest.TestCase):
 
 class PrerequisiteTests(unittest.TestCase):
     def test_queued_prerequisite_is_not_released_by_dispatch(self):
-        reports = _reports(11, actions=[
-            {"action_id": "start", "action_type": "ToolCall", "workflow_name": "self_management",
-             "content": "start the house", "arguments": {}, "depends_on": []},
-            {"action_id": "celebrate", "action_type": "Reply", "workflow_name": "dialogue_story",
-             "content": "the house is done", "arguments": {}, "requires_completed": ["start"]},
-        ])
-
-        from workflows.main_cognition.phases.route import action_dispatches
-        from workflows.main_cognition.schemas import ActionIntent
-        intents = [ActionIntent.model_validate(item) for item in reports["action_selection"]["actions"]]
-        report = resolve_prerequisites(resolve_same_cycle(action_dispatches(intents)), {})
+        proposals = [
+            ActionDispatch(action_id="start", action_type="ToolCall", workflow_name="self_management",
+                           content="start the house"),
+            ActionDispatch(action_id="celebrate", action_type="Reply", workflow_name="dialogue_story",
+                           content="the house is done", requires_completed=["start"]),
+        ]
+        report = resolve_prerequisites(resolve_same_cycle(proposals), {})
         by_id = {dispatch.action_id: dispatch for dispatch in report}
         self.assertEqual(by_id["start"].status, "dispatched")
         self.assertEqual(by_id["celebrate"].status, "queued")

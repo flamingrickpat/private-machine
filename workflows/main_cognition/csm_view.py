@@ -19,6 +19,7 @@ from pathlib import Path
 from pm.constants import (
     CSM_CANDIDATE_ACTIVATION,
     CSM_DIALOGUE_ACTIVATION,
+    CSM_EXPECTATION_ACTIVATION,
     CSM_GOAL_ACTIVATION,
     CSM_NARRATIVE_ACTIVATION,
     CSM_SELECTED_MEMORY_ACTIVATION,
@@ -37,6 +38,8 @@ from workflows.main_cognition.workspace_selection import MatchContext, protected
 
 #: The endorser name of retrieval entries.
 RETRIEVAL = "retrieval"
+#: The endorser name of open expectations.
+EXPECTATION = "expectation"
 #: The content requirements of the shards and the CSM.
 WORKSPACE_FILE = Path(__file__).resolve().with_name("workspace.yaml")
 
@@ -93,6 +96,8 @@ def _entity_facts(record, record_class: str) -> tuple[list[int], str]:
         return list(record.about_entity_ids), record.belief_kind
     if record_class in {"Feature", "Stimulus", "Intention"}:
         return [record.entity_id] if record.entity_id else [], ""
+    if record_class == "ExpectationRecord":
+        return list(record.about_entity_ids), record.status
     return [], ""
 
 
@@ -102,7 +107,8 @@ def record_view(record) -> RecordView:
     A dialogue turn names its speaker. Another feature names its source and
     its feature type, so a private thought never reads like speech. A
     codelet percept names its codelet. A narrative names its type and the
-    entity it is about. Other records name their type. The view also holds
+    entity it is about. An expectation names its status. Other records name
+    their type. The view also holds
     the facts that the workspace requirements match (see ``RecordView``).
     """
     kind = persisted_type_name(type(record))
@@ -117,6 +123,8 @@ def record_view(record) -> RecordView:
         source = record.codelet_name
     elif record_class == "Narrative":
         source = f"narrative ({category}) about {record.target_name}"
+    elif record_class == "ExpectationRecord":
+        source = f"expectation ({category})"
     return RecordView(record_id=record.id, kind=kind, source=source, content=record.content,
                       timestamp=record.timestamp_world_begin, record_class=record_class,
                       entity_ids=entity_ids, category=category, feature_type=feature_type)
@@ -175,7 +183,7 @@ def render_story(records: dict[int, RecordView], record_ids: Iterable[int], *, w
     return "\n".join(story_line(view, with_id=with_id) for view in [*timed, *untimed])
 
 
-def enter_retrieval(work: CycleWork, embedder: Embedder) -> list[int]:
+def enter_retrieval(work: CycleWork, embedder: Embedder, expectation_ids: Iterable[int] = ()) -> list[int]:
     """Add the retrieval candidates of this cycle to the CSM. Return the removed ids.
 
     Entries and their start activation:
@@ -188,7 +196,10 @@ def enter_retrieval(work: CycleWork, embedder: Embedder) -> list[int]:
     - each other memory candidate: ``CSM_CANDIDATE_ACTIVATION``;
     - each narrative of the self and of the group entities:
       ``CSM_NARRATIVE_ACTIVATION``;
-    - each active goal: ``CSM_GOAL_ACTIVATION``.
+    - each active goal: ``CSM_GOAL_ACTIVATION``;
+    - each open expectation of ``expectation_ids``:
+      ``CSM_EXPECTATION_ACTIVATION``, with the endorser ``expectation``, so
+      attention can see what the companion still waits for.
 
     An item that the CSM already holds gets a boost instead (see
     ``SituationalModel.add_or_boost``). Then the CSM is pruned. Prune keeps
@@ -217,11 +228,15 @@ def enter_retrieval(work: CycleWork, embedder: Embedder) -> list[int]:
     entries.extend(SituationalItem(record_id=goal.knoxel_id, entered_tick=tick, last_boost_tick=tick,
                                    activation=CSM_GOAL_ACTIVATION)
                    for goal in request.active_goal_records)
-    embedder.prefetch_records([*csm.items, *(entry.record_id for entry in entries)])
+    expected = [SituationalItem(record_id=record_id, entered_tick=tick, last_boost_tick=tick,
+                                activation=CSM_EXPECTATION_ACTIVATION) for record_id in expectation_ids]
+    embedder.prefetch_records([*csm.items, *(entry.record_id for entry in [*entries, *expected])])
     for entry in entries:
         csm.add_or_boost(entry, RETRIEVAL, embedder.record)
+    for entry in expected:
+        csm.add_or_boost(entry, EXPECTATION, embedder.record)
     return csm.prune(csm_protected(work))
 
 
-__all__ = ["Embedder", "RETRIEVAL", "WORKSPACE_FILE", "csm_protected", "enter_retrieval", "match_context",
+__all__ = ["EXPECTATION", "Embedder", "RETRIEVAL", "WORKSPACE_FILE", "csm_protected", "enter_retrieval", "match_context",
            "record_tokens", "record_view", "render_story", "story_line", "story_tokens", "workspace_requirements"]

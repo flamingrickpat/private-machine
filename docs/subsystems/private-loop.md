@@ -228,6 +228,10 @@ caller's open batch:
 The absence of a user reply is not evidence.
 A pending expectation stays pending until an accepted record resolves it.
 
+Main cognition records its own expectations for routed actions and checks them in its appraisal.
+It uses the provenance reference `main_cognition` and does not check the expectations of the private loop.
+See [decisions, routing, and expectations](decisions-and-routing.md).
+
 ## Felt-state channels
 
 `workflows.inner_thought.felt_state` projects five deterministic channels

@@ -6,8 +6,9 @@ words into small vectors, and ``codelet_agent`` returns a fixed answer. The
 script finds the phase of each call from a marker phrase and answers with
 the JSON object that the test supplied for that phase. A story-framed call
 starts with the shared story system prompt, so its marker is in the last
-turn. Other calls have their marker in the system prompt. A phase without a
-supplied answer gets a neutral default.
+user turn. (The experience call ends with an open assistant turn, the seed
+phrases.) Other calls have their marker in the system prompt. A phase
+without a supplied answer gets a neutral default.
 """
 from __future__ import annotations
 
@@ -21,25 +22,30 @@ from pm.llm.prompt_encoding import normalize_turns
 from workflows.main_cognition.codelet_percepts import HEADER_FIELDS, MODEL_BY_TYPE, CodeletPerceptType
 from workflows.main_cognition.schemas import AgentCodeletAnswer
 
-#: A phrase of each system prompt that only that phase uses.
+#: A phrase of each system prompt that only that call uses. These calls are not story-framed.
 PHASE_MARKERS = (
-    ("triage", '"Triage" codelet'),
-    ("appraise", '"Appraisal" codelet'),
-    ("retrieve", '"Context" codelet'),
-    ("goals", '"Goals" codelet'),
-    ("experience", '"Workspace" codelet'),
-    ("decide", '"Action Selection" codelet'),
     ("focus", "deliberate focus proposal"),
 )
+# The focus check is story-framed in main cognition, so its marker is in the
+# last user turn too (see CODELET_MARKERS).
 
-#: Markers in the last turn of the story-framed calls. Their system prompt is shared.
-#: The goals, experience, and decide calls keep their old markers in the last turn.
+#: Markers in the last user turn of the story-framed calls. Their system prompt is shared.
 CODELET_MARKERS = (
+    ("triage", "act as the triage mechanism"),
+    ("expectation_check", "act as the expectation check"),
+    ("appraise", "act as the appraisal mechanism"),
+    ("retrieve", "act as the recall mechanism"),
     ("codelet_select", "act as a selector"),
     ("codelet_percepts", "put the result of your analysis into JSON"),
     ("codelet_story", "act as one mental mechanism"),
     ("structures", "act as the structure-building mechanism"),
     ("attention", "act as the attention mechanism"),
+    ("experience", "act as the inner voice"),
+    ("goals", "act as the goal mechanism"),
+    ("decide", "act as the choice mechanism"),
+    ("route", "act as the mechanism that turns"),
+    ("anticipate", "act as the anticipation mechanism"),
+    ("focus", "act as the focus check"),
 )
 STORY_SYSTEM_MARKER = "expert story writer"
 
@@ -60,6 +66,18 @@ def default_ratings(messages) -> dict:
     return {"ratings": [{"structure": label, "reasoning": "scripted", "rating": 0.7} for label in labels]}
 
 
+def default_check(messages) -> dict:
+    """Rate every offered expectation as unrelated: fulfillment 0.5, directness 0."""
+    ids = re.findall(r"^\[id (-?[0-9]+)\]", last_user_text(messages), re.MULTILINE)
+    return {"fulfillments": [{"expectation_id": int(key), "fulfillment_score": 0.5, "directness_score": 0.0}
+                             for key in ids]}
+
+
+def last_user_text(messages) -> str:
+    """Return the text of the last user turn."""
+    return next(turn for turn in reversed(normalize_turns(messages)) if turn.role.value == "user").content.text
+
+
 DEFAULT_ANSWERS = {
     "triage": {"items": []},
     "appraise": {"feeling": "calm"},
@@ -71,8 +89,11 @@ DEFAULT_ANSWERS = {
     "structures": {"structures": []},
     "attention": default_ratings,
     "goals": {"changes": []},
-    "experience": {"frame_reason": "reply", "focus_ids": [], "control_mode": "reactive"},
-    "decide": {"actions": []},
+    "expectation_check": default_check,
+    "experience": "and it sits there, a small itch I can't stop scratching.",
+    "decide": {"variants": []},
+    "route": {"action_type": "Reply", "workflow_name": "dialogue_story"},
+    "anticipate": {"expectations": [{"content": "They answer soon.", "affective_valence": 0.2, "urgency": 0.3}]},
     "focus": {"accept": False, "reason": "not now"},
 }
 
@@ -82,8 +103,8 @@ def phase_of(messages) -> str:
     turns = normalize_turns(messages)
     system = turns[0].content.text
     if STORY_SYSTEM_MARKER in system:
-        last = turns[-1].content.text
-        return next(name for name, marker in (*CODELET_MARKERS, *PHASE_MARKERS) if marker in last)
+        last = last_user_text(turns)
+        return next(name for name, marker in CODELET_MARKERS if marker in last)
     return next(name for name, marker in PHASE_MARKERS if marker in system)
 
 
@@ -103,7 +124,8 @@ class ScriptedModel:
     An answer is a mapping, or a callable that receives the messages and
     returns a mapping. ``reports`` is an old stage report fixture. The model
     reads it at each call, so a test can change it between cycles.
-    ``calls`` lists the phase of every call in order.
+    ``calls`` lists the phase of every call in order, and ``messages`` the
+    turns of each call at the same index.
     """
 
     def __init__(self, answers: dict[str, object] | None = None, *, reports: dict | None = None):
@@ -126,8 +148,13 @@ class ScriptedModel:
         return answer if isinstance(answer, str) else json.dumps(answer)
 
     def agent(self, context, job) -> AgentCodeletAnswer:
-        """Answer one agent codelet session from the script."""
+        """Answer one agent codelet session from the script.
+
+        The session has no chat turns. An empty entry in ``messages`` keeps
+        ``messages`` aligned with ``calls``.
+        """
         self.calls.append("codelet_agent")
+        self.messages.append([])
         answer = self.answer_for("codelet_agent")
         if isinstance(answer, Callable):
             answer = answer(job)
@@ -147,20 +174,41 @@ def scripted_tools(model: ScriptedModel):
     return lambda environment, batch: model.tools()
 
 
+def decision_answers(actions: list[dict]) -> dict:
+    """Map an old action list to the decide and route answers of its first action.
+
+    The decision text is the content of the first action. A quiet action
+    without content gets a short in-character decision, because a decision
+    text cannot be empty. An empty list makes no decision.
+    """
+    if not actions:
+        return {"decide": {"variants": []}}
+    first = actions[0]
+    route = {key: first[key] for key in ("action_type", "workflow_name", "arguments", "presentation") if key in first}
+    return {"decide": {"variants": [first["content"] if "content" in first and first["content"]
+                                    else "Stay quiet for now and let it sit."]},
+            "route": route}
+
+
 def answers_from_reports(reports: dict) -> dict:
     """Map old stage report fixtures to phase answers.
 
     Codelet and attention fixtures are not mapped: the real codelets,
-    structures, and attention phases run with the scripted defaults.
+    structures, and attention phases run with the scripted defaults. The
+    workspace fixture gives the experience prose. The action selection
+    fixture gives the decide and route answers of its first action.
     """
-    names = {"triage": "triage", "appraisal": "appraise", "context": "retrieve", "goals": "goals",
-             "workspace": "experience", "action_selection": "decide"}
+    names = {"triage": "triage", "appraisal": "appraise", "context": "retrieve", "goals": "goals"}
     answers = {}
     for stage, phase in names.items():
         if stage in reports:
             answers[phase] = {key: value for key, value in reports[stage].items() if key != "summary"}
+    if "workspace" in reports and "subjective_experience" in reports["workspace"]:
+        answers["experience"] = reports["workspace"]["subjective_experience"]
+    if "action_selection" in reports:
+        answers.update(decision_answers(reports["action_selection"]["actions"]))
     return answers
 
 
-__all__ = ["CODELET_MARKERS", "DEFAULT_ANSWERS", "fake_embedding", "default_ratings", "PHASE_MARKERS", "ScriptedModel",
-           "answers_from_reports", "phase_of", "scripted_tools"]
+__all__ = ["CODELET_MARKERS", "DEFAULT_ANSWERS", "fake_embedding", "default_check", "default_ratings", "PHASE_MARKERS",
+           "ScriptedModel", "answers_from_reports", "decision_answers", "last_user_text", "phase_of", "scripted_tools"]

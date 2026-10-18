@@ -58,6 +58,7 @@ nav:
       - Observed world events: subsystems/world-events.md
       - Codelets: subsystems/codelets.md
       - Structures, attention, and the workspace: subsystems/workspace.md
+      - Decisions, routing, and expectations: subsystems/decisions-and-routing.md
       - Codelet pathways: subsystems/codelet-pathways.md
       - The private thought loop: subsystems/private-loop.md
       - Private reflection experiments: subsystems/reflection.md

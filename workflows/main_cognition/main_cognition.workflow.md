@@ -47,14 +47,14 @@ phases:
   - name: attention
     kind: role
     role: phase
-    on_status: {done: goals}
-    on_invalid: {action: stop}
-  - name: goals
-    kind: role
-    role: phase
     on_status: {done: experience}
     on_invalid: {action: stop}
   - name: experience
+    kind: role
+    role: phase
+    on_status: {done: goals}
+    on_invalid: {action: stop}
+  - name: goals
     kind: role
     role: phase
     on_status: {done: decide}
@@ -80,14 +80,24 @@ phases:
 
 One cycle runs as one sequence of typed phases. All phases share one
 `CycleWork` object (see `workflows/main_cognition/cycle_work.py`). Each phase
-validates it at entry and writes it back. The retrieve phase and the codelets
-fill the current situational model (CSM). Codelets nominate; attention scores
-the nominations and runs the competition. The route phase assigns action IDs.
-The commit phase writes the final report. The module, not this workflow,
-commits the write batch and publishes the dispatches.
+validates it at entry and writes it back. Every model call of the cycle is
+an unconscious story and choice simulator: it starts with the shared story
+prefix and ends with its instruction.
 
-The phase order follows the data that each ported phase reads. The retrieve
-phase reads the appraisal, and the experience phase reads the goal changes.
+- intake groups the stimuli by entity, workflow, or self.
+- triage rates each group; appraise checks the open expectations and
+  appraises the events.
+- retrieve and the codelets fill the current situational model (CSM). The
+  structure builders bind its items, and attention moves them into the
+  workspace shards.
+- experience writes the subjective experience into the self shard tail.
+  goals reads it.
+- decide makes zero or one in-character decision for each significant
+  group. route maps each decision to an action, checks conflicts, and
+  records the expected reactions.
+- commit writes the final report. The module, not this workflow, commits
+  the write batch and publishes the dispatches.
+
 A role with a Markdown skill runs as a pm-coder agent, so a later item can
 insert an agent phase between two phases.
 

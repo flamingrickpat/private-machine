@@ -14,14 +14,17 @@ from workflows.main_cognition.stage_commits import apply_goal_changes
 
 class GameChoiceTests(unittest.TestCase):
     def test_real_quiet_choice_is_accepted_without_starting_a_workflow(self):
-        from workflows.main_cognition.phases.decide import validate_actions
         from workflows.main_cognition.phases.route import action_dispatches
-        from workflows.main_cognition.schemas import ActionSelectionResult, WorkflowOption
+        from workflows.main_cognition.schemas import RouteAnswer, RouteCheck, RouteChoice, RoutedDecision
         original = json.loads(Path("test_data/captures/alpha/game-quiet-choice.json").read_text(encoding="utf-8"))["result"]
-        result = ActionSelectionResult.model_validate(original)
-        validate_actions(result, [WorkflowOption(name="minecraft")])
-        self.assertEqual(action_dispatches(result.actions), [])
-        self.assertEqual(result.actions[0].content, original["actions"][0]["content"])
+        action = original["actions"][0]
+        # The captured quiet action, read as a route answer of the current schema.
+        answer = RouteAnswer.model_validate(
+            {key: action[key] for key in ("action_type", "workflow_name", "arguments", "presentation")},
+            context=RouteCheck(workflow_names=["minecraft"]).model_dump())
+        routed = RoutedDecision(decision=action["content"], route=RouteChoice.model_validate(answer.model_dump()))
+        self.assertEqual(action_dispatches([routed]), [])
+        self.assertEqual(routed.decision, action["content"])
 
     def test_negative_affect_round_trips_without_changing_vector_size(self):
         baseline = FullMentalState()

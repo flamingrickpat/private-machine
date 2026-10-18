@@ -335,11 +335,14 @@ def reinforce_entries(work: CycleWork, result: AttentionResult) -> list[str]:
 
 def run(context, work: CycleWork) -> CycleWork:
     prompts = phase_prompts("attention")
-    focus = resolve_focus(context, work.request.active_focus, work.request.focus_proposals, focus_evidence(work))
+    # The prefix reads the workspace and the feeling only. The focus check
+    # changes neither, so the rating calls get the same prefix bytes.
+    prefix = StoryPrefix(work)
+    focus = resolve_focus(context, work.request.active_focus, work.request.focus_proposals, focus_evidence(work),
+                          prefix.turns)
     danger = work.appraisal.general().bodily_threat >= THREAT_APPRAISAL_THRESHOLD
     bonus = apply_focus(work, focus, Embedder(context, work.records), danger=danger)
     structures = work.structures.structures
-    prefix = StoryPrefix(work)
     jobs = [shard_job(work, prefix, prompts, shard, structures) for shard in shown_shards(work)] if structures else []
     answers = ordered_parallel_map(lambda job: rate(context, work, prefix, job), jobs,
                                    workers=ATTENTION_WORKERS, cancel=context.runtime.stop_event)

@@ -24,7 +24,7 @@ Related: [codelets](codelets.md), [emotional dynamics](emotional-dynamics.md), [
 
 ```mermaid
 flowchart LR
-    I[intake: tails] --> R[retrieve] --> K[codelets] --> S[structures] --> N[attention] --> G[goals] --> E[experience] --> D[decide]
+    I[intake: tails] --> R[retrieve] --> K[codelets] --> S[structures] --> N[attention] --> E[experience] --> G[goals] --> D[decide]
     R -- stimuli, memories, narratives, goals --> CSM[(CSM)]
     K -- percepts --> CSM
     CSM --> S
@@ -51,8 +51,8 @@ The host offers the newest stream records of each shard ([`ShardStream`][workflo
 
 | Shard | Stream |
 | --- | --- |
-| Self | The companion's thoughts and experiences (`Thought`, `ExternalThought`, `InnerMonologue`, and `SubjectiveExperience` features). |
-| Entity | The dialogue with the entity. Dialogue records name no partner yet, so the user's shard holds all dialogue. |
+| Self | The companion's thoughts and experiences (`Thought`, `ExternalThought`, `InnerMonologue`, and `SubjectiveExperience` features). The experience phase adds the experience of the current cycle at once. |
+| Entity | The dialogue with the entity. Dialogue records name no partner yet, so the user's shard holds all dialogue. The shard of another entity holds that entity's dialogue lines. |
 | Workflow | The `WorldEvent` features that the workflow reported. |
 
 The intake phase keeps the newest unbroken stretch of each stream within `WORKSPACE_TAIL_TOKENS` ([`select_tail`][workflows.main_cognition.workspace_selection.select_tail]).
@@ -157,9 +157,10 @@ Each shard shows its items and then its tail, each in world-time order.
 The feeling in words and the new stimuli follow.
 The prefix holds no record ids and no embeddings.
 All calls that read the same workspace get the same bytes, so the provider can reuse its cache.
-The codelets, structures, and attention calls read the workspace before attention.
-The goals, experience, and decide calls build the prefix again and read the updated shards.
-Until steps 7 and 8 of A19F rewrite them, those three calls put their old instruction text after the prefix.
+The triage, appraise, retrieve, codelets, structures, and attention calls read the workspace before attention.
+The experience, goals, decide, and route calls build the prefix again and read the updated shards.
+The goals, decide, and route calls also read the subjective experience of this cycle in the self tail.
+Each entity shard is named by the entity name (`CycleRequest.entity_names`).
 
 ## Turn record
 

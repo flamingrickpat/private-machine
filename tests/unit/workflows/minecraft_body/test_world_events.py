@@ -123,7 +123,10 @@ class WorldEventTests(unittest.TestCase):
         self.assertNotEqual(world_conditions(changed), world_conditions(self.observation))
 
     def test_world_event_never_becomes_user_speech(self):
-        from workflows.main_cognition.phases.codelets import stimulus_label
+        from pm.records.workspace import ShardKey
+        from workflows.main_cognition.cycle_work import CycleRequest
+        from workflows.main_cognition.phases.intake import group_key
         from workflows.main_cognition.schemas import Stimulus
-        self.assertEqual(stimulus_label(Stimulus(kind="minecraft.world"), "Jesse"),
-                         ("Minecraft observation", "outside", "observed"))
+        # A world observation belongs to the minecraft workflow group, never to the user's group.
+        stimulus = Stimulus(kind="minecraft.world", source="minecraft_world")
+        self.assertEqual(group_key(stimulus, CycleRequest(user_entity_id=1)), ShardKey(kind="workflow", ref="minecraft"))

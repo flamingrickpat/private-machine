@@ -22,29 +22,30 @@ from workflows.main_cognition.model_json import write_report
 def apply_reactive_override(work: CycleWork) -> None:
     """Make the frame reactive when the regulation mode of the cycle is reactive.
 
-    Game danger preempts slow regulation. The experience phase validated its
-    own mode first, and the decide phase read that frame. This override
-    changes only the committed frame.
+    Game danger preempts slow regulation. The experience phase set the
+    frame fields first. This override changes only the committed attention
+    frame.
     """
     if work.affect.regulation != REGULATION_REACTIVE:
         return
-    workspace = work.workspace
-    workspace.control_mode = "reactive"
-    reason = workspace.frame_reason.strip()
-    workspace.frame_reason = (f"{reason} Danger preempts contemplation.".strip()
-                              if "preempt" not in reason.lower() else reason)
+    frame = work.experience
+    frame.control_mode = "reactive"
+    reason = frame.frame_reason.strip()
+    frame.frame_reason = (f"{reason} Danger preempts contemplation.".strip()
+                          if "preempt" not in reason.lower() else reason)
 
 
 def wait_request(work: CycleWork) -> WaitRequest | None:
-    """Return the wait of the first Sleep choice, or None.
+    """Return the wait of the first decision that routing mapped to Sleep, or None.
 
-    A Sleep choice without a duration waits for the configured default.
+    A Sleep route without a duration waits for the configured default. The
+    reason of the wait is the decision text.
     """
-    for action in work.action_selection.actions:
-        if action.action_type == "Sleep":
-            seconds = action.arguments.timeout_seconds
+    for item in work.routes:
+        if item.route.action_type == "Sleep":
+            seconds = item.route.arguments.timeout_seconds
             return WaitRequest(seconds=float(seconds if seconds is not None else work.request.wait_default_seconds),
-                               reason=action.content or "Wait for a new stimulus.")
+                               reason=item.decision or "Wait for a new stimulus.")
     return None
 
 

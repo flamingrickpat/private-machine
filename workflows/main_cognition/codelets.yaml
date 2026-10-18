@@ -76,7 +76,7 @@ codelets:
       - "Identify the specific goal that is currently blocked. What was {companion_name} trying to achieve?"
       - "Determine the nature of the obstacle preventing goal attainment. Is it an external constraint, an internal limitation, a conflicting priority, or a lack of resources?"
       - "Assess the perceived value and importance of the blocked goal to {companion_name}'s current intentions and self-narrative."
-      - "Retrieve analogous episodes where similar goals were blocked, noting the resulting emotional responses and coping strategies."
+      - "Retrieve analogous episodes where similar goals were blocked, noting the resulting emotional responses and what {companion_name} did with them."
       - "Check current state_emotions and state_needs for indicators of frustration, disappointment, or anger."
       - "Examine recent interactions with {entity_name} for potential sources of conflict or misalignment regarding the blocked goal."
       - "Identify any secondary goals or intentions that are now at risk due to the blocked goal."
@@ -106,17 +106,17 @@ codelets:
     reality: internal
     families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, MetaMonitoringIdentity]
     description: >-
-      Detects and attributes disrespect or disregard for {companion_name}'s boundaries, values, or status, and
+      Detects and attributes disrespect or disregard for {companion_name}'s pride, values, or status, and
       produces a narrative snippet. The snippet names the slight, its source, and {companion_name}'s immediate
       emotional response.
     data_aquisation:
       - "Extract the triggering event: what was said/done, by whom, and in what context."
-      - "Assess the valence of the event relative to {companion_name}'s known values, boundaries, and self-narrative."
+      - "Assess the valence of the event relative to {companion_name}'s known values, pride, and self-narrative."
       - "Check for prior interactions with the same individual or exhibiting similar patterns of behavior."
-      - "Scan narratives for similar past experiences of disrespect or boundary violations, noting coping strategies."
+      - "Scan narratives for similar past experiences of disrespect, noting how {companion_name} struck back or swallowed it."
       - "Read current state_emotions (e.g., anger, hurt, disappointment) and note intensity and triggers."
       - "Consider the power dynamics and relational history between {companion_name} and the perceived offender."
-      - "Retrieve relevant declarative facts about {companion_name}'s values and boundaries."
+      - "Retrieve relevant declarative facts about {companion_name}'s values and pride."
       - "Determine the potential impact of the perceived disrespect on {companion_name}'s sense of self and relationships."
     prompt: |
       Compose 2–4 sentences of third-person narrative that convey {companion_name}'s internal verdict on the event.
@@ -124,7 +124,7 @@ codelets:
       {companion_name}'s standing.
 
       Convey: (a) the slight and who committed it, (b) the sting it leaves in {companion_name} (indignation, hurt
-      pride, a flare of defiance), and (c) the value, boundary, or status that was stepped on. Judge it. End with
+      pride, a flare of defiance), and (c) the value, pride, or status that was stepped on. Judge it. End with
       what {companion_name} wants to make {entity_name} feel or admit.
 
       Mini-example:
