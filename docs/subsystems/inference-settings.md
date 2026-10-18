@@ -123,12 +123,11 @@ The first failure sets the invocation's cancellation signal.
 Sibling model requests use that signal to leave HTTP and retry waits.
 The original failure propagates after cleanup.
 Queued cancelled callbacks do not start external work.
-An invalid model response can remain a failed codelet receipt under the existing policy.
 A completion tool that returns the wrong Python type is a programming error and propagates.
 Schema-repair exhaustion retains its last validation error; Python exception-variable cleanup cannot erase it.
 
-Codelets receive one frozen request.
-Their proposals merge in catalogue order before the runtime assigns nomination IDs.
+Codelets of one wave run in parallel.
+Their results apply to the CSM in run order before the next wave starts, and nomination IDs follow that order.
 Attention batches receive disjoint nominations.
 Their results merge before the existing competition and tie-breaking rules run.
 The eight main stages keep their causal order.
@@ -139,15 +138,15 @@ Every admitted request releases its slot after cleanup.
 
 ## Shared prompt prefix
 
-Codelet messages use three turns:
+Every codelet call starts with three shared turns:
 
-1. Shared system rules.
-2. Shared workspace data: accepted affect, current events, attributed memories and goals.
-3. The concrete codelet job and its reality rule.
+1. The story-simulator system prompt.
+2. The story: character card, recent dialogue, memories, goals, the feeling in words, and the new stimuli.
+3. The acknowledgement of the story.
 
-The first two turns remain equal across codelets in one stage.
-Concrete jobs no longer break the reusable prefix near its beginning.
-Facts, guesses, memories and private thoughts retain their separate labels.
+The codelets phase renders these turns once per cycle, so they stay equal across all its calls.
+The codelet's view of the CSM and its instruction come last.
+See [codelets](codelets.md#prompt-frame).
 The public Story voice prompt retains its existing contract.
 
 ## Evidence

@@ -9,7 +9,7 @@ The target Q3 build on the operator's home computer is not verified.
 
 Parent: [codelets and attention competition](../../subsystems/codelets.md).
 Work item: [A15](../alpha-plan/work-items/a15.md).
-Gate: `dev/work_items/alpha_a15_codelet_gate.py`.
+Gate: `dev/work_items/alpha_a15_codelet_gate.py` (removed in A19F step 5 with the catalogue it tested; see git history).
 
 ## Foundation and contract tests
 
@@ -34,7 +34,7 @@ Three live runs were stopped before completion. Their evidence remains under `.r
 1. **Reasoning stayed on through OpenRouter.** OpenRouter ignores `chat_template_kwargs.enable_thinking`. Every "no thinking" call reasoned. The repair is [`provider_generation`][pm.llm.activation.provider_generation]. Run `20261013-112833` shows the slow path.
 2. **The gate submitted "Jesse: " before each message.** The terminal and the console submit plain text. The gate now does the same. Run `20261013-114529`.
 3. **The current event was recalled as a memory.** Retrieval returned the just-stored user message. `context_recall` nominated it as "I remember". The codelets stage now excludes the current stimuli and records derived only from them.
-4. **The danger bypass used the `reactive` regulation mode.** A disappointment produced `aversive_pressure` 0.8. A07 maps that value to `reactive`. All LLM codelets were then skipped at the most emotional moment. The bypass now uses [`in_danger`][workflows.main_cognition.codelet_schedule.in_danger]. Run `20261013-114654`.
+4. **The danger bypass used the `reactive` regulation mode.** A disappointment produced `aversive_pressure` 0.8. A07 maps that value to `reactive`. All LLM codelets were then skipped at the most emotional moment. The bypass then used `in_danger` (removed in A19F step 5; the attention phase now reads the appraised `bodily_threat` directly). Run `20261013-114654`.
 5. **Fear counted as danger.** The first `in_danger` also treated fear of 0.55 or more as danger. In run `20261013-120904`, the private thought raised fear past that value, and `thought_echo` was skipped with `danger_budget`. `in_danger` now uses the appraised bodily threat only.
 
 ## Immersion finding outside A15

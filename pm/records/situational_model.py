@@ -45,10 +45,32 @@ def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
-def _cosine(left: list[float], right: list[float]) -> float:
+def cosine(left: list[float], right: list[float]) -> float:
     """Return the cosine similarity. A zero vector raises ZeroDivisionError."""
     dot = math.fsum(a * b for a, b in zip(left, right, strict=True))
     return dot / (math.hypot(*left) * math.hypot(*right))
+
+
+def affect_term(valence: float, salience: float, attention_bias: tuple[float, float]) -> float:
+    """Return the affect weight of one percept in [0, 1].
+
+    Port of the affect part of ``GhostCodelets.get_snapshot``. The weight is
+    the mean of two terms:
+
+    - The valence term favors positive content when the valence focus bias
+      is positive and negative content when it is negative.
+    - The salience term is ``salience ** (1 + 4 * salience_bias)``. A high
+      salience bias makes only very salient content count.
+
+    ``attention_bias`` is ``(valence_focus_bias, salience_bias)`` from
+    ``pm.records.mental_state.compute_attention_bias``. The snapshot uses
+    this weight, and the codelets phase uses it as the CSM activation of a
+    new percept.
+    """
+    valence_focus_bias, salience_bias = attention_bias
+    valence_term = _clamp01((1.0 - abs(valence_focus_bias)) * 0.5 + valence_focus_bias * valence * 0.5 + 0.5)
+    salience_term = math.pow(max(salience, 0.0), 1.0 + 4.0 * salience_bias)
+    return 0.5 * valence_term + 0.5 * salience_term
 
 
 class SituationalItem(BaseModel):
@@ -88,6 +110,22 @@ class SituationalModel(BaseModel):
     """
 
     items: dict[int, SituationalItem] = Field(default_factory=dict)
+
+    def rekey(self, mapping: dict[int, int]) -> None:
+        """Replace record ids by the ids in ``mapping``.
+
+        The codelets phase adds percepts under pending ids, because the
+        memory store assigns record ids only at commit. The commit calls this
+        method with ``{pending id: record id}``. Ids that are not in
+        ``mapping`` stay unchanged. This changes item keys, ``record_id``,
+        and ``merged_ids``.
+        """
+        items: dict[int, SituationalItem] = {}
+        for item in self.items.values():
+            item.record_id = mapping.get(item.record_id, item.record_id)
+            item.merged_ids = [mapping.get(merged, merged) for merged in item.merged_ids]
+            items[item.record_id] = item
+        self.items = items
 
     def decay_step(self) -> None:
         """Decay all items by one cycle.
@@ -131,7 +169,7 @@ class SituationalModel(BaseModel):
             embedding = embedding_of(item.record_id)
             best_score = CSM_MERGE_SIMILARITY
             for existing in self.items.values():
-                score = _cosine(embedding, embedding_of(existing.record_id))
+                score = cosine(embedding, embedding_of(existing.record_id))
                 if score >= best_score:
                     target, best_score = existing, score
             if target is not None:
@@ -205,17 +243,14 @@ class SituationalModel(BaseModel):
         story. ``rng`` supplies all randomness, so a seeded generator gives a
         repeatable view. The method does not change the CSM.
         """
-        valence_focus_bias, salience_bias = attention_bias
+        _, salience_bias = attention_bias
         sharp = 1.0 + 4.0 * salience_bias
         ratings: dict[int, float] = {}
         for record_id, item in self.items.items():
             affect = CSM_DEFAULT_AFFECT_TERM
             if item.salience is not None:
-                valence = item.valence or 0.0
-                valence_term = _clamp01((1.0 - abs(valence_focus_bias)) * 0.5 + valence_focus_bias * valence * 0.5 + 0.5)
-                salience_term = math.pow(max(item.salience, 0.0), sharp)
-                affect = 0.5 * valence_term + 0.5 * salience_term
-            relevance = _clamp01(_cosine(query_embedding, embedding_of(record_id)))
+                affect = affect_term(item.valence or 0.0, item.salience, attention_bias)
+            relevance = _clamp01(cosine(query_embedding, embedding_of(record_id)))
             bonus = CSM_PRECURSOR_BONUS if record_id in precursor_ids else 0.0
             noise = rng.uniform(-CSM_SNAPSHOT_NOISE, CSM_SNAPSHOT_NOISE) * (1.0 - salience_bias)
             ratings[record_id] = _clamp01(relevance * affect + bonus + noise)

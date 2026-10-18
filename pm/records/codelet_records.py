@@ -167,6 +167,9 @@ class CodeletRuntimeState(BaseModel):
     ``cooldown_ticks`` is the number of ticks after a run in which the codelet
     has a lower score. ``last_fired_tick`` is None until the first run.
     ``last_percept_ids`` holds the record ids of the percepts of the last run.
+    ``precursor_ids`` holds the record ids of percepts from upstream pathway
+    codelets (port of ``precursor_dict``). The CSM view of this codelet
+    favors them. A run of the codelet clears them.
     """
 
     name: str = ""
@@ -176,13 +179,32 @@ class CodeletRuntimeState(BaseModel):
     last_fired_tick: int | None = None
     total_runs: int = 0
     last_percept_ids: List[int] = Field(default_factory=list)
+    precursor_ids: List[int] = Field(default_factory=list)
+
+    def rekey(self, mapping: Dict[int, int]) -> None:
+        """Replace pending percept ids by record ids. See ``SituationalModel.rekey``."""
+        self.last_percept_ids = [mapping.get(item, item) for item in self.last_percept_ids]
+        self.precursor_ids = [mapping.get(item, item) for item in self.precursor_ids]
 
 
 class CodeletRegistryState(BaseModel):
     """The runtime state of every registered codelet, keyed by codelet name.
 
     Port of ``CodeletState``. The cycle state owns it and saves it with each
-    cycle. The codelet definitions themselves are code and are not saved.
+    cycle. The codelet definitions are data in
+    ``workflows/main_cognition/codelets.yaml`` and are not saved here. A
+    codelet without an entry has the default runtime state.
     """
 
     codelets: Dict[str, CodeletRuntimeState] = Field(default_factory=dict)
+
+    def runtime(self, name: str) -> CodeletRuntimeState:
+        """Return the runtime state of ``name``. Create the default state on first use."""
+        if name not in self.codelets:
+            self.codelets[name] = CodeletRuntimeState(name=name)
+        return self.codelets[name]
+
+    def rekey(self, mapping: Dict[int, int]) -> None:
+        """Replace pending percept ids by record ids in every runtime state."""
+        for state in self.codelets.values():
+            state.rekey(mapping)

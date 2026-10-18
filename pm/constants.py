@@ -39,9 +39,44 @@ CCQ_LENGTH = 8  # Number of recent broadcasts that the cycle state keeps.
 # Codelets and decisions.
 CODELET_OUTPUT_VARIANTS = 1  # Number of output variants that each codelet returns.
 DECISION_VARIANTS = 1  # Number of decision variants for each stimulus group.
-CODELET_BASE_ACTIVATION = 0.5  # Initial base-level activation of a codelet. Step 5 tunes the activation formula.
+CODELET_BASE_ACTIVATION = 0.5  # Initial base-level activation of a codelet.
 CODELET_COOLDOWN_TICKS = 2  # Ticks after a run with a reduced activation score (old CodeletRuntime default).
 PATHWAY_SKIP_DECAY = 0.5  # Pathway strength factor for each unregistered codelet that a chain skips.
+PATHWAY_BOOST_SCALE = 0.25  # Stored activation that a pathway step of strength 1.0 adds. Old strengths are 1.4 to 1.9.
+
+# Codelet activation score (port of ActivationFactors in private-machine-head/pm/codelets/codelet.py).
+# score = W_ACTIVATION * stored + W_STIMULUS * stimulus + W_STATE * state + W_VECTOR * cosine
+#         + W_BASE * base - W_RECENCY * recency + W_RANDOM * noise, then the cooldown factor, clamped to [0, 1].
+CODELET_W_ACTIVATION = 1.0  # Weight of the stored activation (selector ratings and pathway boosts).
+CODELET_W_STIMULUS = 0.35  # Weight of the stimulus match (1 when a current stimulus kind fits the codelet).
+CODELET_W_STATE = 0.2  # Weight of the match between the mental state and the codelet families.
+CODELET_W_VECTOR = 0.25  # Weight of the cosine similarity of signature and situation embeddings.
+CODELET_W_BASE = 0.2  # Weight of the base-level activation (attentional learning).
+CODELET_W_RECENCY = 0.05  # Weight of the recency penalty 1 / (1 + ticks since the last run).
+CODELET_W_RANDOM = 0.05  # Weight of the uniform noise in [0, 1) that prevents deadlocks.
+CODELET_COOLDOWN_FACTOR = 0.25  # Score factor while a codelet is in its cooldown.
+CODELET_ACTIVATION_DECAY = 0.5  # Factor for each cycle on the stored activation.
+CODELET_MAX_ACTIVATION = 1.0  # Upper bound of the stored activation.
+CODELET_BASE_LEARN_RATE = 0.1  # Part of the distance to 1.0 that a workspace entry adds to base-level activation.
+CODELET_BASE_FORGET = 0.995  # Factor for each cycle that slowly lowers base-level activation.
+CODELET_SELECTOR_WEIGHT = 0.5  # Stored activation that a selector rating of 1.0 adds.
+CODELET_SELECTOR_CANDIDATES = 12  # Number of top-scored codelets that the LLM selector rates.
+CODELET_BUDGET_DEFAULT = 4  # Codelet runs of a cycle when triage sets no budget.
+CODELET_BUDGET_MAX = 12  # Most codelet runs that triage can grant to one cycle.
+CODELET_WAVES = 2  # Waves of one cycle. A later wave sees the CSM after the earlier waves.
+CODELET_VIEW_TOKENS = 1500  # Token budget of one codelet's view of the CSM.
+CODELET_PERCEPT_TYPES = 3  # Percept types that one percept conversion call offers.
+CODELET_PERCEPT_TEMPERATURE = 0.2  # Randomness of the percept type sample: 0 is the top types, 1 is weighted random.
+CODELET_TEXT_ATTEMPTS = 10  # Attempts for one prose call that returns empty text.
+CODELET_AGENT_ATTEMPTS = 3  # Sessions for one agent codelet whose answer fails validation.
+CODELET_AGENT_TIMEOUT_SECONDS = 600  # Deadline of one agent codelet session.
+
+# What the retrieve phase puts into the CSM, with the endorser "retrieval".
+CSM_STIMULUS_ACTIVATION = 1.0  # Activation of a current stimulus.
+CSM_DIALOGUE_ACTIVATION = 0.6  # Activation of one of the last dialogue turns.
+CSM_SELECTED_MEMORY_ACTIVATION = 0.7  # Activation of a memory that the retrieve phase selected.
+CSM_CANDIDATE_ACTIVATION = 0.4  # Activation of a retrieved memory candidate that was not selected.
+CSM_RECENT_DIALOGUE_TURNS = 8  # Number of dialogue turns before the stimuli that the host supplies.
 
 # Deliberate focus.
 FOCUS_ACTIVATION_WEIGHT = 0.3  # Maximum activation that one focus endorsement adds to an item.

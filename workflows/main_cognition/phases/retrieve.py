@@ -9,6 +9,10 @@ conversation can continue without false memory references.
 
 The selected memory text always comes from the supplied snapshot. A model
 paraphrase cannot replace the source text.
+
+At the end, the phase adds the stimuli, the last dialogue turns, and the
+memory candidates to the CSM with the endorser ``retrieval``
+(:func:`~workflows.main_cognition.csm_view.enter_retrieval`).
 """
 from __future__ import annotations
 
@@ -17,6 +21,7 @@ import json
 from pm.context_render import render_context
 from pm.context_render.turns import Role, Turn, format_content
 
+from workflows.main_cognition.csm_view import Embedder, enter_retrieval
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import PhasePrompts, StageOutputError
 from workflows.main_cognition.phases.model import complete, phase_prompts
@@ -130,8 +135,10 @@ def run(context, work: CycleWork) -> CycleWork:
     result.memories = [item.text for item in selected]
     work.context = result
     work.selected_memories = selected
+    removed = enter_retrieval(work, Embedder(context, work.records))
     work.receipt("retrieve", f"selected {len(result.candidate_ids)} memories and "
-                             f"{len(result.active_goals)} goals")
+                             f"{len(result.active_goals)} goals; CSM holds {len(work.state.csm.items)} items, "
+                             f"pruned {len(removed)}")
     return work
 
 

@@ -10,6 +10,8 @@ from pm_workflows.runtime import WorkflowRuntime
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.phases import retrieve
 from workflows.main_cognition.phases.model import phase_prompts
+from workflows.main_cognition.schemas import RecordView
+from tests.unit.workflows.main_cognition.cycle_support import fake_embedding
 
 ROOT = Path(__file__).resolve().parents[4]
 
@@ -26,8 +28,18 @@ class ContextRecoveryTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             environment = FolderEnvironment(Path(directory) / "workspace", "bash")
             runtime = WorkflowRuntime(environment, Event(),
-                {"llm_complete": lambda *args, **kwargs: next(responses)}, propagate_python_errors=True)
-            work = CycleWork(request=CycleRequest.model_validate(capture["request"]))
+                {"llm_complete": lambda *args, **kwargs: next(responses),
+                 "embed_texts": lambda texts: [fake_embedding(text) for text in texts]},
+                propagate_python_errors=True)
+            request = CycleRequest.model_validate(capture["request"])
+            # The capture predates record views. The host builds them from the
+            # store; here they come from the captured stimuli and candidates.
+            request.records = {
+                **{item.knoxel_id: RecordView(record_id=item.knoxel_id, kind="Feature", content=item.text)
+                   for item in request.stimuli},
+                **{item.knoxel_id: RecordView(record_id=item.knoxel_id, kind=item.memory_kind, content=item.text)
+                   for item in request.memory_candidates}}
+            work = CycleWork(request=request, records=dict(request.records))
             work = retrieve.run(_Context(runtime), work)
             candidates = work.request.memory_candidates
             retrieve.validate_selection(work.context, candidates)

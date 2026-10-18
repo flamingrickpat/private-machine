@@ -25,8 +25,8 @@ The module commits accepted state in one write batch and publishes action envelo
 | --- | --- | --- |
 | Triage | Classify the incoming situation | [`workflows.main_cognition.phases.triage.run`][] |
 | Appraise | Evaluate the situation | [`workflows.main_cognition.phases.appraise.run`][] |
-| Retrieve | Select supplied memory candidates | [`workflows.main_cognition.phases.retrieve.run`][] |
-| Codelets | Schedule codelets and collect typed proposals | [`workflows.main_cognition.phases.codelets.run`][] |
+| Retrieve | Select supplied memory candidates and add them to the CSM | [`workflows.main_cognition.phases.retrieve.run`][] |
+| Codelets | Run codelets in waves, fill the CSM, and collect nominations | [`workflows.main_cognition.phases.codelets.run`][] |
 | Attention | Score proposals, then select winners in Python | [`workflows.main_cognition.phases.attention.run`][] |
 | Goals | Produce goal proposals | [`workflows.main_cognition.phases.goals.run`][] |
 | Experience | Form the workspace frame and subjective experience | [`workflows.main_cognition.phases.experience.run`][] |
@@ -34,7 +34,7 @@ The module commits accepted state in one write batch and publishes action envelo
 
 ## Asynchronous boundary
 
-[`workflows.main_cognition.host.build_main_cognition_tools`][] grants each run its model tool. All phases run in one manifest and share one typed [`workflows.main_cognition.cycle_work.CycleWork`][].
+[`workflows.main_cognition.host.build_main_cognition_tools`][] grants each run its model, embedding, and agent codelet tools. All phases run in one manifest and share one typed [`workflows.main_cognition.cycle_work.CycleWork`][].
 The workflow does not need its own module thread or bus subscription.
 [`workflows.main_cognition.host.MainCogLoop`][] connects the cycle to the bus and the memory store.
 
@@ -61,7 +61,7 @@ Parent workflow timings include child timings.
 
 ## Go deeper
 
-Read [codelets and attention competition](codelets.md) for scheduling, scoring, and committed nominations.
+Read [codelets and attention competition](codelets.md) for the registry, the waves, the percepts, and the committed nominations.
 
 Read [experienced memory](experienced-memory.md) for retrieval, attribution, and source constraints.
 

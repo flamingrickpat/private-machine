@@ -11,27 +11,30 @@ The phase works in two steps:
 
 Fresh deliberate focus proposals are accepted or rejected here, before the
 competition, and bias it within bounds. Target ids come only from proposals.
-The codelets phase already limited them to supplied stimuli, memories, and
-goals. The id guard here repeats that check at the phase boundary.
+The codelets phase limited them to records of the CSM and their percepts.
+The id guard here repeats that check at the phase boundary.
 
-Step 6 of A19F replaces this phase with attention into workspace shards.
+A codelet whose nomination wins gets a higher base-level activation (LIDA
+attentional learning). Step 6 of A19F replaces this phase with attention
+into workspace shards, and then a percept that enters a shard does this.
 """
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from pm.constants import THREAT_APPRAISAL_THRESHOLD
 from pm.context_render.turns import Role, Turn, format_content
 from pm.llm.concurrency import ordered_parallel_map
 
 from workflows.cognitive_control.attention import attention_bias, resolve_focus
 from workflows.inference_settings import ATTENTION_WORKERS
 from workflows.main_cognition.attention_competition import compete
-from workflows.main_cognition.codelet_schedule import in_danger
+from workflows.main_cognition.codelet_registry import reinforce
 from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import PhasePrompts, StageOutputError
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import (
-    AppraisalView, AttentionNomination, AttentionResult, CodeletProposal, CodeletsResult, NominationScore,
+    AppraisalView, AttentionNomination, AttentionResult, CodeletProposal, NominationScore,
     NominationScores, Stimulus,
 )
 
@@ -40,14 +43,18 @@ class FocusEvidence(BaseModel):
     """The cycle context that the focus decision reads beside each proposal."""
 
     appraisal: AppraisalView = Field(default_factory=AppraisalView)
-    codelets: CodeletsResult = Field(default_factory=CodeletsResult)
+    codelet_notes: list[str] = Field(default_factory=list)
     goals: list[str] = Field(default_factory=list)
     stimuli: list[Stimulus] = Field(default_factory=list)
 
 
 def candidate_ids(work: CycleWork) -> set[int]:
-    """Return the ids that attention may select: selected memories, stimuli, and goals."""
-    ids = set(work.context.candidate_ids)
+    """Return the ids that attention may select.
+
+    These are the selected memories, the stimuli, the active goals, and every
+    record that the CSM of this cycle can name, new percepts included.
+    """
+    ids = set(work.context.candidate_ids) | set(work.records)
     ids |= {item.knoxel_id for item in work.request.stimuli}
     ids |= {goal.knoxel_id for goal in work.request.active_goal_records}
     return ids
@@ -147,8 +154,8 @@ def run(context, work: CycleWork) -> CycleWork:
                                    workers=ATTENTION_WORKERS, cancel=context.runtime.stop_event)
     for result in results:
         scores.update(result)
-    danger = in_danger(work.codelets.signals)
-    evidence = FocusEvidence(appraisal=work.appraisal_view(), codelets=work.codelets,
+    danger = work.appraisal.general().bodily_threat >= THREAT_APPRAISAL_THRESHOLD
+    evidence = FocusEvidence(appraisal=work.appraisal_view(), codelet_notes=[item.text for item in proposals],
                              goals=work.request.active_goals, stimuli=work.request.stimuli)
     focus = resolve_focus(context, work.request.active_focus, work.request.focus_proposals, evidence)
     nominations = nominations_from(proposals, scores)
@@ -157,6 +164,8 @@ def run(context, work: CycleWork) -> CycleWork:
     result.competition.focus = focus
     result.competition.scoring_calls = len(batches)
     ensure_candidate_ids(result, candidate_ids(work))
+    for name in dict.fromkeys(item.codelet for item in result.nominations if item.status == "selected"):
+        reinforce(work.state.codelets.runtime(name))
     work.attention = result
     winners = sum(1 for item in result.nominations if item.status == "selected")
     work.receipt("attention", f"scored {len(scores)} of {len(proposals)} nominations and selected {winners}")

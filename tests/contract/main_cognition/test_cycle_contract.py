@@ -30,6 +30,9 @@ def example_request() -> dict:
         stimuli=[{"knoxel_id": 11, "source": "user_input", "kind": "user.input", "text": "the kitchen is on fire",
                   "correlation_id": "c-1"}],
         memory_candidates=[{"knoxel_id": 42, "text": "User owns a fire extinguisher."}],
+        # The host supplies a view of every record that the CSM can hold.
+        records={11: {"record_id": 11, "kind": "Feature", "source": "User", "content": "the kitchen is on fire"},
+                 42: {"record_id": 42, "kind": "DeclarativeFactKnoxel", "content": "User owns a fire extinguisher."}},
         capabilities=["I can communicate via text."],
         available_workflows=[{"name": "dialogue_story", "description": "reply"},
                              {"name": "self_management", "description": "runs"}],
@@ -59,7 +62,7 @@ def answers(actions=ACTIONS) -> dict:
 def run_cycle(model: ScriptedModel, run_id: str) -> CycleWork:
     environment = MemoryBashEnvironment({}, {}, "read")
     runtime = WorkflowRuntime(environment=environment, stop_event=threading.Event(),
-                              tools={"llm_complete": model}, propagate_python_errors=True)
+                              tools=model.tools(), propagate_python_errors=True)
     with TemporaryDirectory() as tmp:
         runner = WorkflowRunner(MANIFEST, Path(tmp), namespace="main_cognition", base_dir=PROJECT_ROOT)
         result = runner.invoke(WorkflowRequest(run_id, example_request()), runtime)

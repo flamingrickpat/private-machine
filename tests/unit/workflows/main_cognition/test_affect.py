@@ -46,7 +46,6 @@ from workflows.main_cognition.affect import (
     describe_mental_state,
     regulation_mode,
 )
-from workflows.main_cognition.codelet_schedule import state_signals
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.host import MainCogLoop
 from workflows.main_cognition.phases.appraise import update_affect
@@ -227,26 +226,6 @@ class DescribeTests(unittest.TestCase):
         self.assertIn("Companion wants to go quiet and pull back.", text)
         self.assertIn("Companion's attention drifts toward threat and loss.", text)
         self.assertIn("Toward User there is strong distrust", text)
-
-
-class SchedulerSignalTests(unittest.TestCase):
-    def test_signals_read_the_typed_state_and_the_attention_bias(self):
-        state = FullMentalState()
-        state.state_emotions.sadness = 0.6
-        state.state_core.valence = -0.4
-        derive_expression(state)
-        flat = state_signals(state)
-        self.assertEqual(flat["emotion.sadness"], 0.6)
-        self.assertEqual(flat["core.negative_valence"], 0.4)
-        self.assertEqual(flat["emotion.negative_strongest"], 0.6)
-        self.assertLess(flat["bias.valence_focus"], 0.0)
-        self.assertIn("bias.salience", flat)
-        self.assertIn("expression.disengage_silence", flat)
-        self.assertNotIn("relationship.trust", flat)
-        state.state_relationship = StateRelationship(entity_id=4, trust=0.5)
-        flat = state_signals(state)
-        self.assertEqual(flat["relationship.trust"], 0.5)
-        self.assertNotIn("relationship.entity_id", flat)
 
 
 class UpdateAffectTests(unittest.TestCase):

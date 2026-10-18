@@ -25,10 +25,12 @@ from typing import Callable
 from pydantic import BaseModel
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
-from pm.constants import CCQ_LENGTH, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS
+from pm.constants import CCQ_LENGTH, CSM_RECENT_DIALOGUE_TURNS, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS
 from pm.llm.completion import TextCompletion
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.memory.snapshot import GhostCancelled
+from pm.records.base import Provenance
+from pm.records.codelet_records import AffectMeta, CodeletPercept
 from pm.records.cognitive_records import AttentionFrameRecord, AttentionRecord
 from pm.records.cycle_records import ActionDispatchRef, BroadcastRef
 from pm.records.cycle_state import CycleState
@@ -40,21 +42,21 @@ from pm.records.memory_records import ActionSchemaRecord, new_feature
 from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.cognitive_control.schemas import FocusState, MentalPlan
 from workflows.inference_settings import REASONING
-from workflows.main_cognition.codelet_schedule import LoadedCatalogue, load_catalogue
-from workflows.main_cognition.cycle_work import CycleRequest, CycleWork, primary_group
+from workflows.main_cognition.codelet_agent import build_codelet_agent
+from workflows.main_cognition.csm_view import record_view
+from workflows.main_cognition.cycle_work import CycleRequest, CycleWork, primary_group, provisional_tick
 from workflows.main_cognition.experience import consolidate_cycle, update_beliefs
 from workflows.main_cognition.model_json import ModelFormatError
+from workflows.main_cognition.phases.codelets import RECOMMENDATION
 from workflows.main_cognition.phases.goals import proposal_consumers
 from workflows.main_cognition.schemas import (
-    CodeletHistory,
-    CodeletRun,
     FocusProposalRef,
     GoalChange,
     GoalRecordView,
     ManagedRunView,
     MemoryCandidate,
     MentalProposal,
-    PathwayPrecursor,
+    RecordView,
     ReflectionGuidance,
     Stimulus,
     WorkflowOption,
@@ -71,15 +73,27 @@ def build_main_cognition_tools(
     llm_complete: TextCompletion,
     *,
     cancel_provider: Callable[[], threading.Event] | None = None,
+    embeddings=None,
 ) -> Callable[[object, object], dict]:
     """Return the ``tools_factory(environment, batch)`` of the main module.
 
-    The factory grants one ``llm_complete`` tool to each run. The tool turns
-    hidden reasoning off, because a reasoning budget exhausted real
-    completions before. It passes the run's cancellation signal, so a failed
-    parallel call or a cancelled run also stops its sibling calls.
-    ``ghost`` and ``runtime_root`` stay in the signature for the application
-    wiring. Phases never read the store through the tool.
+    The factory grants these tools to each run:
+
+    - ``llm_complete``: one model call. It turns hidden reasoning off,
+      because a reasoning budget exhausted real completions before. It passes
+      the run's cancellation signal, so a failed parallel call or a
+      cancelled run also stops its sibling calls.
+    - ``embed_texts``: the embeddings of a list of texts, through
+      ``embeddings`` (a ``pm.memory.embeddings.EmbeddingService``). The
+      service caches vectors by text.
+    - ``codelet_agent``: one agent codelet session over the frozen grant of
+      the run (:func:`~workflows.main_cognition.codelet_agent.build_codelet_agent`).
+
+    Without ``embeddings`` the factory grants ``llm_complete`` only. The
+    codelets phase then fails, so real cognition must pass the service.
+    ``runtime_root`` stays in the signature for the application wiring.
+    Phases never read the store through these tools; the agent session reads
+    the frozen grant only.
     """
 
     def factory(environment, batch) -> dict:
@@ -89,7 +103,17 @@ def build_main_cognition_tools(
             generation["reasoning_budget"] = REASONING["off"]
             return llm_complete(normalize_turns(messages), cancel=stop, **generation)
 
-        return {"llm_complete": complete}
+        tools = {"llm_complete": complete}
+        if embeddings is not None:
+            async def embed_all(texts: list[str]) -> list[list[float]]:
+                return [await embeddings.embed(text, cancel=stop) for text in texts]
+
+            def embed_texts(texts: list[str]) -> list[list[float]]:
+                return asyncio.run(embed_all(list(texts)))
+
+            tools["embed_texts"] = embed_texts
+            tools["codelet_agent"] = build_codelet_agent(ghost, environment, embeddings, stop)
+        return tools
 
     return factory
 
@@ -138,81 +162,6 @@ def _state_summary(ghost) -> str:
     if not turns:
         return ""
     return turns[max(turns)].summary
-
-
-def codelet_history(ghost) -> dict[str, CodeletHistory]:
-    """Return per-codelet run history from committed attention frames.
-
-    Each committed main ``AttentionFrameRecord`` stores the codelets that ran
-    in its cycle under ``metadata["codelet_runs"]``. Frames of the private
-    loop have no such entry. Runs that stayed silent count too, so a quiet LLM
-    codelet still waits out its cooldown and does not spend a model call every
-    cycle. The history is derived, never stored separately, so it survives
-    restart and has one owner: the MemoryStore.
-    """
-    frames = sorted(ghost.all_attention_frames, key=lambda item: (item.tick_id, item.id))
-    if not frames:
-        return {}
-    latest_tick = max(int(item.tick_id) for item in frames)
-    now = datetime.utcnow()
-    history: dict[str, CodeletHistory] = {}
-    for frame in frames:
-        if "codelet_runs" not in frame.metadata:
-            continue
-        for entry in frame.metadata["codelet_runs"]:
-            run = CodeletRun.model_validate(entry)
-            if not run.codelet or run.status not in {"ran", "silent", "failed"}:
-                continue
-            record = history.setdefault(run.codelet, CodeletHistory())
-            record.runs += 1
-            record.last_tick = int(frame.tick_id)
-            record.cycles_since = latest_tick - int(frame.tick_id)
-            record.seconds_since = max(0.0, (now - frame.timestamp_creation).total_seconds())
-    return history
-
-
-def pathway_precursors(ghost, loaded: LoadedCatalogue) -> tuple[list[PathwayPrecursor], int]:
-    """Derive fresh pathway precursor evidence from committed attention.
-
-    A precursor is a committed ``AttentionRecord`` that attention accepted
-    (``selected``) from a codelet that belongs to a pathway. The records are
-    re-read from the MemoryStore on every cycle, so a restart keeps the
-    pathway state and no cycle can reuse stale pathway state. Each precursor
-    carries the record's revision at read time; the trace keeps it visible.
-
-    Returns ``(precursors, latest_tick)`` where ``latest_tick`` is the newest
-    committed attention tick. The codelets phase measures tick age from it,
-    not from the newest precursor, so an old precursor keeps its true age.
-    """
-    pathways = loaded.catalogue.pathway_map()
-    membership: dict[str, list[str]] = {}
-    window = 1
-    for name, pathway in pathways.items():
-        window = max(window, int(pathway.window_ticks))
-        for codelet in pathway.members:
-            membership.setdefault(codelet, []).append(name)
-    records = [record for record in ghost.all_attention_knoxels if record.selected]
-    if not records or not membership:
-        return [], 0
-    latest_tick = max(int(record.tick_id) for record in records)
-    precursors = []
-    with ghost.lock:
-        for record in records:
-            codelet = str(record.from_codelet)
-            if codelet not in membership:
-                continue
-            tick = int(record.tick_id)
-            if latest_tick - tick >= window:
-                continue
-            # The main commit writes reality and family on every codelet record.
-            precursors.append(PathwayPrecursor(
-                codelet=codelet, record_id=int(record.id), tick_id=tick,
-                attention_kind=str(record.attention_kind),
-                reality=str(record.metadata["reality"]), family=str(record.metadata["family"]),
-                pathways=list(membership[codelet]), selected=True,
-                revision=int(ghost.revisions[int(record.id)]),
-            ))
-    return precursors, latest_tick
 
 
 def seconds_since_user_input(ghost, exclude_ids) -> float | None:
@@ -270,11 +219,11 @@ class MainCogLoop(CognitiveWorkflow):
     })
 
     def __init__(self, *args, workflow_catalogue=None, embedding_config_path=None,
-                 codelet_catalogue=None, **kwargs):
+                 codelet_definitions=None, **kwargs):
         super().__init__(*args, **kwargs)
-        # The codelet catalogue is a workflow resource. ``None`` selects the
-        # default file; a gate or persona can name another one.
-        self.codelet_catalogue = str(codelet_catalogue) if codelet_catalogue else ""
+        # The codelet definitions are a workflow resource. ``None`` selects
+        # codelets.yaml; a gate or persona can name another file.
+        self.codelet_definitions = str(codelet_definitions) if codelet_definitions else ""
         # Configuration supplies the action space. The decide phase uses its
         # default action space when this list is empty.
         self.workflow_catalogue = [WorkflowOption.model_validate(item) for item in workflow_catalogue or []]
@@ -530,6 +479,7 @@ class MainCogLoop(CognitiveWorkflow):
         public = build_public_context(self.ghost, {"stimuli": [item.model_dump(mode="json") for item in stimuli]},
                                       capabilities=capabilities)
         user_entity_id = self.ghost.get_entity_id(self.ghost.get_user_name())
+        records, recent_dialogue = self._record_views(memory_view, sources, matches, previous)
         request = CycleRequest(
             run_id=self.invocation_id or "",
             correlation_id=correlation,
@@ -561,16 +511,37 @@ class MainCogLoop(CognitiveWorkflow):
                                revision=int(memory_view.revisions[int(item.id)]))
                 for item in active_intentions(memory_view)[:8]
             ],
-            codelet_history=codelet_history(self.ghost),
             seconds_since_user_input=seconds_since_user_input(self.ghost, self._stimulus_ids),
-            codelet_catalogue=self.codelet_catalogue,
+            character_card=self.ghost.ghost_config.character_card_story,
+            codelet_definitions=self.codelet_definitions,
+            records=records,
+            recent_dialogue_ids=recent_dialogue,
         )
-        # The pathway catalogue is the same file the codelets phase reads. A
-        # broken catalogue stops the cycle here, exactly as it would in the
-        # phase, rather than silently running without pathways.
-        loaded = load_catalogue(self.codelet_catalogue or None)
-        request.pathway_precursors, request.pathway_latest_tick = pathway_precursors(self.ghost, loaded)
         return request.model_dump(mode="json")
+
+    def _record_views(self, memory_view, sources, matches: list[MemoryCandidate],
+                      previous: CycleState | None) -> tuple[dict[int, RecordView], list[int]]:
+        """Return the record views that the CSM can hold, and the recent dialogue ids.
+
+        The views cover the records of the previous CSM, the stimuli, the
+        last ``CSM_RECENT_DIALOGUE_TURNS`` dialogue turns before the stimuli,
+        and the memory candidates. The previous CSM holds committed records
+        only, so each of them is in the frozen view. A missing record is a
+        bug and raises KeyError.
+        """
+        views = {source.id: record_view(source) for source in sources}
+        stimulus_ids = set(views)
+        with self.ghost.lock:
+            dialogue = sorted((item for item in self.ghost.all_features
+                               if item.feature_type == FeatureType.Dialogue and item.id in memory_view.revisions
+                               and item.id not in stimulus_ids),
+                              key=lambda item: (item.timestamp_world_begin, item.id))[-CSM_RECENT_DIALOGUE_TURNS:]
+        recent = [item.id for item in dialogue]
+        held = list(previous.csm.items) if previous is not None else []
+        for key in [*recent, *held, *(item.knoxel_id for item in matches)]:
+            if key not in views:
+                views[key] = record_view(memory_view.get(key))
+        return views, recent
 
     def _stimulus_from(self, envelope: Envelope) -> tuple[int | None, str, str]:
         """Resolve one envelope to ``(record id, text, kind)``.
@@ -708,6 +679,10 @@ class MainCogLoop(CognitiveWorkflow):
         belief_receipt = update_beliefs(changes, work.context.belief_updates, user_name=self.ghost.get_user_name(),
                                         permitted_source_ids=set(self._stimulus_ids))
         experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, work.affect.felt)
+        # Codelet percepts and recommendations become records now. The CSM,
+        # the codelet state, and the nominations held pending ids until here.
+        pending = stage_percepts(changes, work)
+        remap_pending(work, pending)
 
         # Commit every nomination, winner or not, as an AttentionRecord. A
         # nomination whose read sources changed since the cycle began is
@@ -724,7 +699,7 @@ class MainCogLoop(CognitiveWorkflow):
             changes, nominations,
             companion_name=self.ghost.get_companion_name(),
             stale_ids=stale,
-            catalogue_version=codelets.catalogue_version,
+            catalogue_version=codelets.definitions_version,
         )
         # The winning nominations are the workspace focus that the public
         # workflows plan their memory context from. Stale ones never win.
@@ -756,8 +731,8 @@ class MainCogLoop(CognitiveWorkflow):
                     "topic": nomination.topic,
                     "consumers": proposal_consumers(nomination.attention_kind) if status == "selected" else [],
                     "loop": codelets.loop,
-                    "catalogue_version": codelets.catalogue_version,
-                    "catalogue_digest": codelets.catalogue_digest,
+                    "definitions_version": codelets.definitions_version,
+                    "definitions_digest": codelets.definitions_digest,
                 },
             ))
             attention_ids.append(record.id)
@@ -774,19 +749,23 @@ class MainCogLoop(CognitiveWorkflow):
             control_mode=workspace.control_mode,
             frame_reason=workspace.frame_reason or work.summary,
             metadata={
-                "codelet_runs": [run.model_dump(mode="json", include={"codelet", "kind", "status", "reason",
-                                                                      "activation", "calls"})
+                "codelet_runs": [run.model_dump(mode="json", include={"codelet", "mode", "wave", "status",
+                                                                      "reason", "score", "calls"})
                                  for run in codelets.runs],
                 "codelet_cost": codelets.cost.model_dump(mode="json"),
-                "catalogue_version": codelets.catalogue_version,
-                "catalogue_digest": codelets.catalogue_digest,
+                "codelet_budget": codelets.budget,
+                "codelet_ratings": dict(codelets.ratings),
+                "definitions_version": codelets.definitions_version,
+                "definitions_digest": codelets.definitions_digest,
+                "percept_ids": sorted(pending.values()),
                 "stale_nominations": sorted(stale),
                 "attention_record_ids": attention_ids,
                 "belief_proposals": codelet_beliefs,
-                "pathway_signals": dict(codelets.pathway_signals),
+                "pathway_boosts": [item.model_dump(mode="json") for item in codelets.pathway_boosts],
             },
         ))
         created_order: list[int] = [frame.id, appraisal_feature.id, *created_goal_ids, *experience_ids,
+                                    *pending.values(),
                                     *belief_receipt["accepted_ids"], *codelet_beliefs["accepted_ids"],
                                     *winning_ids]
         from pm.records.lineage import RecordLineage
@@ -958,6 +937,14 @@ class MainCogLoop(CognitiveWorkflow):
         ``CCQ_LENGTH`` turns.
         """
         state = work.state
+        # The phases used the provisional tick. Items and codelets that this
+        # cycle touched get the real tick.
+        expected = provisional_tick(work)
+        for item in state.csm.items.values():
+            item.entered_tick = tick if item.entered_tick == expected else item.entered_tick
+            item.last_boost_tick = tick if item.last_boost_tick == expected else item.last_boost_tick
+        for runtime in state.codelets.codelets.values():
+            runtime.last_fired_tick = tick if runtime.last_fired_tick == expected else runtime.last_fired_tick
         state.tick_id = tick
         state.timestamp = datetime.utcnow()
         state.attention_frame_id = frame_id
@@ -1059,5 +1046,60 @@ class InnerThoughtLoop(CognitiveWorkflow):
         ))
 
 
-__all__ = ["InnerThoughtLoop", "MainCogLoop", "build_main_cognition_tools", "codelet_history",
-           "pathway_precursors", "seconds_since_user_input", "stale_nominations"]
+def stage_percepts(changes, work: CycleWork) -> dict[int, int]:
+    """Stage one ``CodeletPercept`` record for each percept and recommendation.
+
+    Returns ``{pending id: record id}``. Each percept record stores its
+    appraisal state and its delta (the mini-appraisal). It is not a Feature,
+    so the EMA history never reads its delta. A recommendation record stores
+    the mean appraisal state and the summed delta of its percepts.
+    """
+    mapping: dict[int, int] = {}
+    companion = work.request.companion_name
+    # Outputs are in run order. A variant can be about a percept of an
+    # earlier run, and that percept already has its record id here.
+    for output in work.codelets.outputs:
+        for index, variant in enumerate(output.variants):
+            shared = {"codelet": output.codelet, "mode": output.mode, "wave": output.wave, "variant": index,
+                      "target_shard": variant.target_shard.model_dump(mode="json"), "source": companion}
+            recommendation = changes.create(CodeletPercept(
+                content=variant.recommendation, codelet_name=output.codelet,
+                explanation=variant.recommendation, reasoning_trace=variant.recommendation,
+                affect=AffectMeta(affective_valence=variant.valence, incentive_salience=variant.salience),
+                mental_state_appraisal_vec=list(variant.recommendation_vec),
+                mental_state_delta_vec=list(variant.recommendation_delta_vec),
+                provenance=Provenance(source_kind=SourceKind.Self, source_ref=f"codelet:{output.codelet}"),
+                metadata={**shared, "percept_type": RECOMMENDATION,
+                          "about_ids": [mapping.get(key, key) for key in variant.about_ids]}))
+            mapping[variant.recommendation_id] = recommendation.id
+            for percept in variant.percepts:
+                record = changes.create(CodeletPercept(
+                    content=percept.text, codelet_name=output.codelet,
+                    explanation=variant.recommendation, reasoning_trace=variant.recommendation,
+                    affect=AffectMeta(affective_valence=percept.valence, incentive_salience=percept.salience),
+                    mental_state_appraisal_vec=list(percept.appraisal_vec),
+                    mental_state_delta_vec=list(percept.delta_vec),
+                    provenance=Provenance(source_kind=SourceKind.Self, source_ref=f"codelet:{output.codelet}"),
+                    metadata={**shared, "percept_type": percept.percept_type, "details": dict(percept.details),
+                              "recommendation_id": recommendation.id,
+                              "appraisal_general": percept.appraisal_general.model_dump(mode="json"),
+                              "appraisal_social": percept.appraisal_social.model_dump(mode="json"),
+                              "csm_activation": percept.activation}))
+                mapping[percept.record_id] = record.id
+    return mapping
+
+
+def remap_pending(work: CycleWork, mapping: dict[int, int]) -> None:
+    """Replace pending percept ids by record ids in the state, the trace, and the nominations."""
+    work.state.csm.rekey(mapping)
+    work.state.codelets.rekey(mapping)
+    for boost in work.codelets.pathway_boosts:
+        boost.precursor_ids = [mapping.get(key, key) for key in boost.precursor_ids]
+    for nomination in work.attention.nominations:
+        nomination.target_ids = [mapping.get(key, key) for key in nomination.target_ids]
+    work.attention.selected_ids = [mapping.get(key, key) for key in work.attention.selected_ids]
+    work.workspace.focus_ids = [mapping.get(key, key) for key in work.workspace.focus_ids]
+
+
+__all__ = ["InnerThoughtLoop", "MainCogLoop", "build_main_cognition_tools", "remap_pending",
+           "seconds_since_user_input", "stage_percepts", "stale_nominations"]

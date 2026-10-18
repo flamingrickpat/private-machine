@@ -2,317 +2,279 @@
 
 ## Summary
 
-Codelets are small, declared processes that offer proposals to attention.
-A pure scheduler selects a relevant subset of codelets for each cycle.
-The model scores the proposals. Python then selects the winners with fixed rules.
-Every proposal is committed as an `AttentionRecord`, the winners and the losers, with a status and a reason.
-A codelet cannot change accepted state or start an action.
+Codelets are small unconscious processes of the companion's mind.
+Each codelet has one narrow concern, for example boredom, wounded pride, or a joke.
+A codelet reads the story and its own view of the current situational model (CSM).
+It writes a recommendation for the character and converts it into typed percepts.
+The percepts enter the CSM. They do not change the mental state.
 
-A15 supplies the scheduler and the competition. A16 grows the repertoire to 38 codelets in ten families, adds versioned [pathways](codelet-pathways.md), and connects every proposal kind to a consumer that produces a durable effect.
+A19F step 5 replaced the A15 catalogue scheduler and the A16 repertoire.
+The registry now holds twelve codelets of the old generation as data.
+Each codelet keeps a persistent activation between cycles.
+An LLM selector, pathways, a cooldown, and base-level activation change that activation.
+Codelets run in waves, and a later wave sees the CSM after the earlier waves.
+
+Until step 6 of A19F, attention still uses the A15 competition.
+Each recommendation and each percept becomes one nomination for it.
 
 Parent: [cognitive pipeline](cognition.md).
-Design: [codelets and shared attention](../work_items/alpha-plan/cognition.md#codelets-and-shared-attention).
-Work items: [A15](../work_items/alpha-plan/work-items/a15.md), [A16](../work_items/alpha-plan/work-items/a16.md).
-Evidence: [A15 verification](../work_items/verification/a15-codelets.md), [A16 verification](../work_items/verification/a16-codelets.md).
+Plan: [A19F](../work_items/alpha-plan/work-items/a19f.md), sections "Codelets", "Prompt frame", and "Current situational model".
+Decisions: D25 and D26 in the [decision register](../work_items/alpha-plan/decision-register.md).
+Related: [codelet pathways](codelet-pathways.md), [emotional dynamics](emotional-dynamics.md).
+Earlier evidence: [A15 verification](../work_items/verification/a15-codelets.md), [A16 verification](../work_items/verification/a16-codelets.md). These records describe the removed catalogue.
 
 ## Where codelets run in the cycle
 
-The main cycle runs as one manifest of typed phases (A19F).
-The `codelets` phase runs after `retrieve` and before `attention`.
+The `codelets` phase runs after `retrieve` and before `structures` and `attention`.
 
 ```mermaid
 flowchart LR
-    T[triage] --> A[appraisal] --> C[context] --> K[codelets] --> N[attention] --> G[goals] --> W[workspace] --> S[action selection]
-    K -- proposals --> N
-    N -- winners with reality labels --> W
+    T[triage] --> A[appraise] --> R[retrieve] --> K[codelets] --> S[structures] --> N[attention] --> G[goals]
+    R -- stimuli, dialogue, memories --> CSM[(CSM)]
+    K -- percepts, recommendations, endorsements --> CSM
+    K -- nominations --> N
 ```
 
-The codelets stage reads the affect projection that appraisal just accepted.
-Thus an emotion that the current event caused can already activate a codelet.
-[`workflows.main_cognition.phases.codelets.collect`][] merges the flattened state into the scheduler signals.
+The retrieve phase fills the CSM first ([`enter_retrieval`][workflows.main_cognition.csm_view.enter_retrieval]).
+It adds the current stimuli, the last dialogue turns, and the memory candidates with the endorser `retrieval`.
+The codelets phase reads the mental state that the appraise phase accepted.
+So an emotion that the current event caused can already activate a codelet.
 
-The codelets and attention calls omit the public grounding block.
-Each call is one small question for a small model.
-The workspace and all later stages still receive the grounding block before any text can reach public speech.
-Independent codelets and disjoint attention batches now use bounded parallel calls.
-Their results merge in the original order before nomination IDs and competition.
-Read [inference settings](inference-settings.md) for shared prefixes, worker limits and cancellation ownership.
+## Definitions
 
-## The catalogue
-
-The catalogue is a workflow resource: `workflows/main_cognition/phases/codelet_catalogue.yaml`.
-[`workflows.main_cognition.codelet_schedule.load_catalogue`][] validates it.
-An invalid or missing catalogue stops the cycle with an error.
-A silent empty catalogue would hide the defect.
-
-The catalogue has four parts since A16:
-
-- `version`: a name for the behavior of this file. Change it when behavior changes. The A16 catalogue is `a16.1`.
-- `policy`: one [`AttentionPolicy`][workflows.main_cognition.codelet_schedule.AttentionPolicy] per loop. The main loop uses `main`. The `inner` policy is prepared for the A17 second conscious loop and is not used yet.
-- `codelets`: one [`CodeletDefinition`][workflows.main_cognition.codelet_schedule.CodeletDefinition] per codelet.
-- `pathways`: one [`PathwayDefinition`][workflows.main_cognition.pathways.PathwayDefinition] per pathway. See [codelet pathways](codelet-pathways.md).
-
-Each cycle trace and each committed record stores the version and a 16-character SHA-256 digest of the catalogue bytes.
-Thus evidence from two configurations stays distinguishable.
-
-### Codelet fields
+The definitions are data in `workflows/main_cognition/codelets.yaml`.
+[`load_definitions`][workflows.main_cognition.codelet_registry.load_definitions] validates the file into [`CodeletDefinition`][workflows.main_cognition.codelet_registry.CodeletDefinition] models.
+An unknown field or a duplicate name stops the cycle.
 
 | Field | Meaning |
 | --- | --- |
-| `name` | Stable identity. Cooldown history and `AttentionRecord.from_codelet` use it. |
-| `family` | Codelet family. A16 uses the ten families: `attention`, `memory`, `appraisal`, `imagination`, `valuation`, `identity`, `coping`, `needs`, `action`, `narratives`. |
-| `kind` | `pure` runs a Python function. `llm` makes one model call. |
-| `proposal` | `attention`, `memory_access`, `appraisal`, `simulation`, `regulation`, `action_tendency`, or `belief`. |
-| `origin` | Default origin of the content: `outside`, `thought`, `memory`, or `state`. |
-| `reality` | Default reality label: `observed`, `remembered`, `internal`, `inferred`, or `imagined`. |
-| `pathway` | The codelet's primary pathway. Empty when it serves all of them. |
-| `context` | Declared context requirements: state fields, source categories, and temporal scope. |
-| `consequence` | The expected accepted consequence. A declaration names what the codelet reads, never what it may invent. |
-| `base_activation` | Start value of activation, 0 to 1. |
-| `when` | Gate conditions. Every condition must hold. |
-| `boost` | Signals that add `weight * value` to activation. |
-| `cooldown_ticks` | Committed cycles to wait after the codelet ran. |
-| `cooldown_seconds` | Seconds to wait after the codelet ran. |
-| `instructions` | The job of an `llm` codelet. It can use `{companion_name}` and `{user_name}`. |
+| `name` | Stable identity. The registry state, the percept records, and `AttentionRecord.from_codelet` use it. |
+| `description` | What the codelet is about. The selector and the signature embedding read it. |
+| `families` | The old `CodeletFamily` values. They select the percept types and the state match. |
+| `data_aquisation` | The old retrieval list. An agent codelet reads it as its retrieval plan. |
+| `prompt` | The instruction of the codelet. |
+| `execution` | `chain` or `agent`. An omitted value means `agent` when `MemoryAccessors` is the first family. |
+| `nomination_kind`, `reality` | Labels for the A15 attention competition until step 6. |
+| `stimulus_kinds` | Stimulus kinds that match. An empty list matches every stimulus. |
 
-The validator rejects an unknown `proposal`, `origin`, or `reality`, a `pathway` that the catalogue does not declare, and a pathway member that does not exist.
-A test asserts that every shipped definition declares its `context` and its `consequence`.
+Texts use the placeholders `{companion_name}` and `{entity_name}`.
+No persona name appears in the file.
+Owner review can swap codelets: add any old definition in the same format.
 
-### Signals
+### The twelve codelets
 
-[`request_signals`][workflows.main_cognition.codelet_schedule.request_signals] and [`state_signals`][workflows.main_cognition.codelet_schedule.state_signals] compute the signals.
-They are pure functions.
+| Codelet | Role | Mode |
+| --- | --- | --- |
+| `AffectiveDeltaSpike` | Sudden shifts in feeling | chain |
+| `BlockedGoalFrustration` | Anger at a blocked goal | chain |
+| `DisrespectAttribution` | Slights and status threats | chain |
+| `SelfWorthSensitivity` | Pride and bruised ego | chain |
+| `AbandonmentFearAppraisal` | Rejection fear from relationship history | agent |
+| `DivertedAttentionDetector` | Jealousy and loss of attention | chain |
+| `BoredomThresholdCross` | Repetition and impatience | chain |
+| `AbsurditySampler` | Funny incongruity | chain |
+| `HumorousRemarkPlanner` | A concrete joke, tease, or jab | chain |
+| `AnalogousEpisodeRecall` | Past episodes of the same dynamic | agent |
+| `ToMVignetteSimulator` | What the other character wants or hides | agent |
+| `IdentitySpecialNarrative` | The self narrative facet that fits now | agent |
 
-| Signal | Source |
-| --- | --- |
-| `stimulus.user`, `stimulus.thought`, `stimulus.workflow`, `stimulus.system`, `stimulus.world`, `stimulus.count` | The kinds of the cycle's stimuli. A thought and a user message are separate signals. |
-| `emotion.<field>`, `emotion.strongest`, `emotion.negative_strongest` | The accepted emotions after this cycle's appraisal. `negative_strongest` is the strongest of the unpleasant emotions. |
-| `core.valence`, `core.arousal`, `core.negative_valence`, `core.positive_valence` | The accepted core affect. `negative_valence` is `max(0, -valence)`. |
-| `needs.<field>` | The accepted needs. |
-| `relationship.<field>` | The partner state, when the cycle carries one. For example `relationship.conflict_tension`. |
-| `appraisal.<axis>`, `appraisal.disappointment`, `appraisal.pleasant_surprise` | The appraisal report. Disappointment is a negative expectation error. |
-| `appraisal.unfairness`, `appraisal.exclusion`, `appraisal.uncertainty` | Derived inverses of `fairness`, `inclusion_exclusion`, and `certainty`. A gate can then rise when something is missing. |
-| `goals.active` | The number of active goals. |
-| `memories.selected` | The number of memories that the context stage selected. |
-| `time.idle_hours` | Hours since the newest earlier user message. |
-| `regulation.reactive` | 1 when the affect regulation is `reactive`. Strong emotional pain can also cause this mode, so it is not a danger signal. |
-| `pathway.<name>` | Activation from accepted precursor proposals. See [codelet pathways](codelet-pathways.md). |
+### Prompt policy
 
-An absent signal counts as 0.
-A gate on an unavailable value therefore stays closed.
+The prompts follow the plan section "Prompt policy for codelets":
 
-## Scheduling rules
+- The softeners of the old prompts are removed, for example "if it feels disruptive, generate a neutral observation instead".
+- Each codelet expresses its concern at full strength. It does not balance its view. Other codelets and attention supply the balance.
+- The output is a recommendation for the character in a creative story, never advice to an assistant.
+- Codelet prompts hold no capability or routing rules.
 
-[`workflows.main_cognition.codelet_schedule.schedule`][] returns one decision for each catalogue codelet.
-The rules are applied in this order:
+`ToMVignetteSimulator` kept its name, but its old purpose was an idealized vignette of respected boundaries.
+That purpose was a softener, so the definition now simulates what the other character wants or hides.
 
-1. If a `when` condition does not hold, the codelet is skipped with reason `gate`.
-2. Activation is `base_activation` plus the boosts, clamped to 0..1.
-3. If the codelet is inside its cooldown, it is skipped with reason `cooldown`.
-4. If activation is less than `activation_threshold`, it is skipped with reason `threshold`.
-5. LLM codelets run in activation order until `max_llm_codelets` is spent. The rest get reason `budget`.
-6. In danger, the LLM budget is `danger_llm_codelets`, normally 0. Those codelets get reason `danger_budget`.
+## Registry state and activation
 
-Pure codelets cost no model call and the budget does not limit them.
-The danger rule exists because urgent body control must not wait for codelet models.
-[`in_danger`][workflows.main_cognition.codelet_schedule.in_danger] decides danger: an appraised `bodily_threat` of 0.6 or more.
-This is the A07 threat threshold.
-The rule does not use the `reactive` regulation mode or fear.
-In the first live run, a disappointment produced `aversive_pressure` 0.8, and A07 maps that value to `reactive`.
-A bypass on that mode switched off every emotional codelet at the most emotional moment of the conversation.
-In a later run, a private thought about losing Jesse raised fear above 0.55 with no threat, and a fear rule also blocked `thought_echo`.
-The design does not start one thread per codelet.
+The cycle state holds the runtime state of every codelet in [`CodeletRegistryState`][pm.records.codelet_records.CodeletRegistryState].
+It survives from cycle to cycle. Each [`CodeletRuntimeState`][pm.records.codelet_records.CodeletRuntimeState] holds:
 
-### Cooldown history
+- `activation`: the stored activation. It decays by `CODELET_ACTIVATION_DECAY` in every cycle and returns to 0 after a run.
+- `base_activation`: the base-level activation. It rises when a nomination of the codelet wins attention, and it falls slowly in every cycle (LIDA attentional learning).
+- `cooldown_ticks`, `last_fired_tick`, `total_runs`, `last_percept_ids`.
+- `precursor_ids`: percepts of an upstream pathway codelet. The codelet's CSM view favors them.
 
-[`workflows.main_cognition.host.codelet_history`][] derives the history from committed attention frames.
-Each `AttentionFrameRecord` stores `metadata["codelet_runs"]`.
-A run counts when its status is `ran`, `silent`, or `failed`.
-Thus a quiet LLM codelet also waits out its cooldown and does not spend a model call in every cycle.
-The history has one owner, the MemoryStore, and a restart keeps it.
+[`activation_score`][workflows.main_cognition.codelet_registry.activation_score] ports the old formula:
 
-## The current repertoire
+```text
+score = W_ACTIVATION * stored + W_STIMULUS * stimulus + W_STATE * state + W_VECTOR * cosine
+        + W_BASE * base - W_RECENCY * recency + W_RANDOM * noise
+```
 
-The A16 catalogue (`a16.1`) has 38 codelets: seven pure codelets and 31 LLM codelets.
-The main policy spends four LLM calls per cycle and fills five attention places.
-Definition count does not establish quality; the [A16 verification](../work_items/verification/a16-codelets.md) records which families traced to accepted behavior.
+- `stimulus` is 1 when a current stimulus kind fits the codelet.
+- `state` is the mean of the family readouts of the mental state ([`family_state_match`][workflows.main_cognition.codelet_registry.family_state_match]).
+- `cosine` is the similarity of the signature embedding and the situation embedding. The situation is the last four dialogue turns and the stimuli.
+- `recency` is `1 / (1 + ticks since the last run)`.
+- During the cooldown the score is multiplied by `CODELET_COOLDOWN_FACTOR`.
 
-| Family | Codelets |
-| --- | --- |
-| `attention` | `direct_stimulus`, `goal_reminder`, `novelty_spotlight` |
-| `memory` | `context_recall`, `disappointment_echo`, `thought_echo`, `promise_recall`, `preference_recall`, `repair_precedent` |
-| `appraisal` | `lingering_feeling`, `relationship_check`, `correction_reading`, `agency_reading`, `fairness_reading`, `achievement_reading`, `concern_reading`, `relief_reading` |
-| `imagination` | `curiosity_probe`, `outcome_preview`, `perspective_shift`, `rejection_preview` |
-| `valuation` | `motive_balance`, `effort_check` |
-| `identity` | `consistency_check` |
-| `coping` | `self_regulation`, `distance_offer`, `support_seek`, `expression_push` |
-| `needs` | `absence_return`, `connection_lack`, `boredom_probe`, `play_urge` |
-| `action` | `goal_pressure`, `refusal_edge`, `question_move`, `share_offer` |
-| `narratives` | `self_story`, `episode_link` |
+The weights are in `pm/constants.py`.
+The port fixes three old defects: the old score used the cosine distance, the old recency term penalized codelets that had not run for a long time, and the old state match always returned 0.
 
-Each definition in `workflows/main_cognition/phases/codelet_catalogue.yaml` declares its gates, its boosts, its pathway, its context requirements, and its expected consequence.
-The families follow the [A16 family coverage](../work_items/alpha-plan/work-items/a16.md#family-coverage).
-The [pathway page](codelet-pathways.md) lists which members feed which pathway.
+## Selection and waves
 
-Pure proposal text uses words, not numbers, for intensity ("a strong feeling of sadness").
-Numbers in the text would invite the workspace to quote internal values in speech.
+[`collect`][workflows.main_cognition.phases.codelets.collect] runs these steps:
 
-## LLM codelet calls
+1. Score every codelet.
+2. The selector call rates the top `CODELET_SELECTOR_CANDIDATES` codelets from 0 to 1 for this moment of the story. Each rating adds `CODELET_SELECTOR_WEIGHT * rating` to the stored activation. The old code iterated the ratings without `.items()`. This port reads every rating.
+3. Triage sets the codelet budget of the cycle, from 1 to 12 (`TriageResult.codelet_budget`, default 4).
+4. [`wave_sizes`][workflows.main_cognition.codelet_registry.wave_sizes] splits the budget into `CODELET_WAVES` waves. A budget of 4 gives two waves of two.
+5. Each wave scores the codelets that did not run yet and runs the best ones in parallel.
+6. After each run, the phase applies the percepts, the endorsements, and the pathway boosts. The next wave then sees the changed CSM and the boosted activation.
 
-[`run_llm_codelet`][workflows.main_cognition.phases.codelets.run_llm_codelet] makes one call per scheduled LLM codelet.
-All codelets share one template in `phases/prompts/codelets.yaml`.
-The codelet adds its `instructions` and its reality rule.
+Model calls run in worker threads (`CODELET_WORKERS`).
+Embeddings and every change of the CSM or the registry happen in the phase thread, in run order.
 
-The target deployment is a quantized `qwen3.8-flash` model (Q3) on the operator's home computer.
-The prompt is therefore long and plain:
+## Prompt frame
 
-- It lists five numbered steps.
-- It separates current events, memories, and goals into labelled lists with ids.
-- It asks for four fields only: `fires`, `text`, `topic`, and `target_ids`. Only a belief codelet fills `topic`; every other codelet leaves it empty, and the stage drops it.
-- It forbids narrator lines, "as an AI", and any mention of codelets, scores, or ids.
-- It permits a sad or angry note. It does not force a happy ending.
+Every call of the phase starts with the same three turns:
 
-[`CodeletAnswer`][workflows.main_cognition.schemas.CodeletAnswer] validates the answer.
-`fires: false` makes the run `silent` with no proposal.
-If the model never returns a valid answer, the run is `failed` and the cycle continues.
-A model transport error (`ModelError`) still stops the cycle, because every later stage needs the same model.
+1. The system prompt: an expert story writer who simulates the mind of the character.
+2. The story: the character card, the recent dialogue in world-time order, the memories, the goals, the feeling in words, and the new stimuli.
+3. The acknowledgement of the story.
 
-## Proposals
+[`CodeletFrame`][workflows.main_cognition.phases.codelets.CodeletFrame] renders these turns once per cycle.
+So the bytes are equal for every call, and the provider can reuse the cached prefix.
+The codelet's CSM view and its instruction come last.
+The prompts are in `workflows/main_cognition/phases/prompts/codelets.yaml`.
 
-A [`CodeletProposal`][workflows.main_cognition.schemas.CodeletProposal] carries:
+## Execution modes
 
-- `nomination_id`: `n1`, `n2`, and so on, unique in the cycle.
-- `codelet`, `family`, `proposal_kind`, `origin`, `reality`, and `text`.
-- `target_ids`: only ids of supplied stimuli, selected memories, and active goals. Other ids go to `dropped_target_ids`.
-- `cause`: the gate conditions and boosts that activated the codelet.
-- `source_revisions`: the revision of each target id at the time the cycle read it.
-- `topic`: the stable belief key of a `belief` proposal. Every other kind carries an empty topic, and the stage enforces this.
+### Chain
 
-If only a private thought started the cycle, no proposal can have the origin `outside` or `state`.
-The codelets stage changes that origin to `thought`.
-Thus rumination stays distinguishable from an outside event.
+A `chain` codelet makes two calls, as the old `AgentSimpleCodelet` did:
 
-## Scoring and competition
+1. Call 1 returns the recommendation as prose (2 to 4 sentences, third person).
+2. Call 2 continues the same conversation. It converts the recommendation into typed percepts. It also names the target shard and the view records that the result is about.
 
-The attention stage scores proposals in batches of `score_batch_size` (8).
+### Agent
+
+An `agent` codelet runs one pm-coder session through the `codelet_agent` tool ([`build_codelet_agent`][workflows.main_cognition.codelet_agent.build_codelet_agent]).
+The session follows the `focus_management` pattern:
+
+- A `MemoryReadSession` over the frozen grant of the run serves the memory tools through a loopback MCP server.
+- A second loopback server offers `mind_view`, the codelet's CSM view.
+- The prompt holds the shared story, the view, the instruction, and the `data_aquisation` list as retrieval plan.
+- Every cited id must be a line of the view or a record that the memory tools read.
+
+The session returns the recommendation and its evidence ids.
+Call 2 then converts the recommendation into percepts, as in a chain.
+The cited memory records enter the CSM with an endorsement from the codelet.
+
+The session runs inside the codelets phase. A separate pm-coder phase was not needed: the Python phase can open a pm-coder session, as `focus_management` does.
+Sessions of one run take turns, because they share the in-memory Bash machine of the run.
+An invalid answer starts a fresh session, up to `CODELET_AGENT_ATTEMPTS` sessions.
+Then the phase raises `ModelFormatError`, and the host retries the whole cycle.
+
+## Output and percepts
+
+Each run returns a [`CodeletOutput`][workflows.main_cognition.schemas.CodeletOutput] with `CODELET_OUTPUT_VARIANTS` variants (now 1).
+A [`CodeletVariant`][workflows.main_cognition.schemas.CodeletVariant] holds `recommendation`, `percepts`, `target_shard`, and `about_ids`.
+
+[`sample_percept_types`][workflows.main_cognition.codelet_percepts.sample_percept_types] offers `CODELET_PERCEPT_TYPES` percept types that fit the codelet families.
+Each type has one pydantic model in `workflows/main_cognition/codelet_percepts.py`.
+[`MODEL_BY_TYPE`][workflows.main_cognition.codelet_percepts.MODEL_BY_TYPE] maps each type explicitly.
+The old `model_for_percept` discarded its overrides and matched types by fuzzy names.
+
+Every percept carries `salience`, `valence`, `appraisal_general`, and `appraisal_social`.
+An unknown appraisal axis or a value outside its bounds is invalid model output and gets a repair turn.
+
+## Mini-appraisal
+
+For each percept, [`percept_affect`][workflows.main_cognition.affect.percept_affect] copies the current mental state, sets the percept's appraisal axes, and calls `compute_state_delta` with the group entity.
+The percept stores the resulting state and the delta on the EMA axes.
+The current mental state does not change.
+A percept becomes causal only when attention puts it into a workspace shard (step 6 of A19F).
+
+The recommendation gets a record of its own.
+It stores the mean appraisal state and the summed delta of its percepts, as the old `CodeletOutput` feature did.
+
+## The CSM
+
+Each percept and each recommendation enters the CSM through `SituationalModel.add_or_boost` with the codelet as endorser.
+Its activation is [`affect_term`][pm.records.situational_model.affect_term] of its valence and salience under the attention bias of the mental state.
+A similar existing item absorbs the new record and gets a boost instead.
+Each record that a variant is about gets an endorsement from the codelet.
+So content that several codelets pick gains activation and lists several endorsers.
+
+New records have no store id before the commit.
+They enter the CSM under pending ids below -1 ([`CycleWork.allocate_pending_id`][workflows.main_cognition.cycle_work.CycleWork.allocate_pending_id]).
+The commit stages one `CodeletPercept` record for each of them and replaces the pending ids ([`stage_percepts`][workflows.main_cognition.host.stage_percepts], [`remap_pending`][workflows.main_cognition.host.remap_pending]).
+
+Each codelet sees its own view of the CSM through `SituationalModel.snapshot_for`.
+The query is the codelet's signature embedding. The view favors the codelet's precursor percepts.
+The view holds at most `CODELET_VIEW_TOKENS` tokens and is rendered in world-time order, with record ids.
+Embeddings never appear in a prompt.
+
+## Nominations and attention competition
+
+[`proposals`][workflows.main_cognition.phases.codelets.proposals] turns each recommendation and each percept into one [`CodeletProposal`][workflows.main_cognition.schemas.CodeletProposal].
+A recommendation targets its own record and the records it is about. A percept targets its own record.
+
+The attention phase scores the proposals in batches of `score_batch_size` (8).
 The model gives four integers from 0 to 10 per proposal: `urgency`, `novelty`, `goal_relevance`, and `reportability`.
-Small quantized models handle a coarse integer scale more reliably than floats.
-If a batch misses ids, the stage asks once more for only the missing ids.
+If a batch misses ids, the phase asks once more for only the missing ids.
 A proposal that still has no score is `rejected` with reason `unscored`.
 
 [`workflows.main_cognition.attention_competition.compete`][] then selects the winners:
 
-1. The score is the weighted sum of the four values divided by 10. The `main` weights are 0.35, 0.15, 0.3, and 0.2.
-2. In danger, urgency gets a bonus of 0.3 (`danger_urgency_bonus`).
-3. Reserved codelets win first. The `main` policy reserves one place for `direct_stimulus`. The companion always notices the event that started the cycle.
-4. The remaining places go to the highest scores at or above `min_score` (0.3), up to `capacity` (5).
-5. Every loser is `deferred`. Its reason is `capacity` or `below_min_score`, with the numbers.
+1. The score is the weighted sum of the four values divided by 10. The weights are 0.35, 0.15, 0.3, and 0.2.
+2. In danger (an appraised `bodily_threat` of at least `THREAT_APPRAISAL_THRESHOLD`), urgency gets a bonus of 0.3.
+3. The places go to the highest scores at or above `min_score` (0.3), up to `capacity` (5).
+4. Every loser is `deferred`. Its reason is `capacity` or `below_min_score`, with the numbers.
 
-`selected_ids` lists the target ids of the winners.
-The workspace can focus only on those ids.
-The workspace prompt also receives the winning texts with plain labels: "memory", "possibility", "my own feeling or thought", "guess", and "happening now".
-Since A16 each accepted note also carries its kind label, for example "interpretation" or "want".
-It must keep these labels true. A possibility or a private worry must not become something that happened.
+A codelet with a winning nomination gets a higher base-level activation ([`reinforce`][workflows.main_cognition.codelet_registry.reinforce]).
+Step 6 of A19F replaces this competition with attention into workspace shards.
 
 ## Proposal consumers
 
 A typed nomination without a consumer does not establish a cognitive effect.
-[`PROPOSAL_CONSUMERS`][workflows.main_cognition.schemas.PROPOSAL_CONSUMERS] names the consumer and the durable effect of every kind.
-[`proposal_consumers`][workflows.main_cognition.phases.goals.proposal_consumers] is the executable form of that map, and the host writes it on each committed `AttentionRecord` under `metadata.consumers`.
+[`PROPOSAL_CONSUMERS`][workflows.main_cognition.schemas.PROPOSAL_CONSUMERS] names the consumer of every kind.
+[`proposal_consumers`][workflows.main_cognition.phases.goals.proposal_consumers] is the executable form of that map. The host writes it on each committed `AttentionRecord` under `metadata.consumers`.
+[`inner_proposals`][workflows.main_cognition.phases.goals.inner_proposals] filters the accepted nominations: the goals phase reads `action_tendency` and `belief`, and the decide phase reads `action_tendency`, `regulation`, and `simulation`.
+The experience phase reads every accepted nomination.
 
-| Kind | Consumer | Durable effect |
-| --- | --- | --- |
-| `attention` | Workspace frame; dialogue context planning | The frame focus and the `attention` block of the dispatch payload. Winning target ids become required records for the reply. |
-| `memory_access` | Dialogue context planning | Winning target ids become required records for the reply. |
-| `appraisal` | Workspace frame; goals stage | The frame reason and, through the goals commit boundary, an `Intention` change. |
-| `simulation` | Workspace frame; action selection | A possibility can steer a choice while its imagined reality label keeps it distinguishable from events. |
-| `regulation` | Workspace frame; action selection | A way to stay steady changes the chosen action. It does not erase the appraisal. |
-| `action_tendency` | Goals stage; action selection | A motive can become a durable `Intention` change or a concrete choice, at the owner's discretion. |
-| `belief` | Belief owner in the main module | A revisable subjective `BeliefRecord`. See below. |
+The twelve codelets make no `belief` nominations.
+The belief owner, [`apply_belief_proposals`][workflows.main_cognition.stage_commits.apply_belief_proposals], stays for definitions that use that kind.
 
-[`inner_proposals`][workflows.main_cognition.phases.goals.inner_proposals] filters the accepted nominations per owner: the goals stage reads `action_tendency` and `belief`, and action selection reads `action_tendency`, `regulation`, and `simulation`.
-Both prompts state that these are proposals, never commands and never user statements.
-Each consumer runs inside the same cycle, so a nomination cannot apply its effect twice.
-The belief dedupe below prevents the one durable case of repetition.
+## Commit
 
-## Subjective beliefs
+[`MainCogLoop.publish_output`][workflows.main_cognition.host.MainCogLoop.publish_output] commits in one write batch:
 
-Accepted `belief` proposals reach the belief owner, [`apply_belief_proposals`][workflows.main_cognition.stage_commits.apply_belief_proposals], in the same commit batch.
+- one `CodeletPercept` record for each percept and each recommendation, with its appraisal vector, its delta vector, its percept type, its story fields, and its target shard;
+- one `AttentionRecord` per nomination, winners and losers;
+- the `AttentionFrameRecord`. Its `metadata` holds `codelet_runs`, `codelet_cost`, `codelet_budget`, `codelet_ratings`, the definitions version and digest, `percept_ids`, and `pathway_boosts`;
+- the cycle state with the CSM and the registry state.
 
-- The belief key is the codelet plus its `topic` (or the normalized text).
-- An identical repeat retains the existing record. It adds no second belief and no confidence. New supporting ids can join.
-- A changed text under the same key supersedes the old record: the old one becomes inactive, keeps its evidence, and points to the new one through `superseded_by_id`. A `BeliefShiftRecord` records the revision.
-- Repeated generated interpretations of one source therefore do not count as independent evidence.
-- A belief cites the observed records through `supporting_knoxel_ids`. It never rewrites them. A belief with no evidence starts weaker, and the missing evidence stays visible in `metadata.dropped_target_ids`.
-- A belief proposal whose reality is not `inferred` or `internal` is rejected. A subjective reading cannot enter storage as an observed fact.
-
-## Commit and stale rejection
-
-[`MainCogLoop.publish_output`][workflows.main_cognition.host.MainCogLoop.publish_output] commits the attention evidence in the same batch as the frame and the GWT turn:
-
-- One `AttentionRecord` per nomination. `selected` is true only for winners. `from_codelet` names the codelet. `metadata` holds the status, the reason, the origin, the reality label, the attention kind, the topic, the cause, the activation, the source revisions, the consumers of an accepted nomination, and the catalogue identity.
-- `AttentionFrameRecord.winning_attention_ids` lists the ids of the winning `AttentionRecord`s. Before A15 it listed candidate knoxel ids.
-- The frame's `metadata` holds `codelet_runs`, `codelet_cost`, the catalogue identity, `stale_nominations`, `attention_record_ids`, the belief receipt `belief_proposals`, and the `pathway_signals` of the cycle.
-
-Before the commit, [`stale_nominations`][workflows.main_cognition.host.stale_nominations] compares each nomination's `source_revisions` with the batch's current revisions.
-A changed or removed source makes the nomination `stale`.
-A stale nomination is committed as evidence, but it cannot win.
-The cycle continues, so one stale proposal does not cost the user a reply.
-
-Stimuli and selected memories already have a stronger guard.
-The module expects their revisions for the whole batch, as A08 requires.
-A change to one of them rejects the complete cycle with `GhostConflict`.
-Thus nomination-level stale rejection applies to sources outside that guard, for example active goals.
-A17 cross-loop proposals will use the same check.
-
-## Cost accounting
-
-Each `CodeletRun` records `calls`, `input_tokens_estimate`, `output_tokens_estimate`, and `seconds`.
-The estimate uses `tiktoken` (`measurement: estimated.tiktoken`), because OpenRouter has no tokenizer route.
-The provider bill is authoritative.
-The attention trace records `scoring_calls`.
-
-## Change the configuration
-
-To compare two configurations:
-
-1. Copy `catalogue.yaml` to a new file.
-2. Change the `version` string and the codelets or the policy.
-3. Set `MainCogLoop.codelet_catalogue` to the new path, or pass `codelet_catalogue` to the `MainCogLoop` constructor.
-4. Run the same input on a fresh checkpoint.
-5. Compare the committed `AttentionRecord` statuses and the frame's `catalogue_digest`.
-
-The A15 gate does this with a variant that removes `disappointment_echo`, raises `curiosity_probe`, and allows two places.
-The A16 gate does this with a variant that removes `refusal_edge`, raises `curiosity_probe`, and allows three places.
+The phases use the provisional tick `previous tick + 1`.
+The commit replaces it with the real tick in the CSM and the registry.
+[`stale_nominations`][workflows.main_cognition.host.stale_nominations] marks a nomination whose read sources changed before commit. A stale nomination cannot win.
 
 ## Inspect a real cycle
 
-The stage reports live in the in-memory working target, so they are not files.
-The durable evidence is the committed state in the checkpoint.
-
-1. Open `runtime/codelets/kernel/<run>/results/work_attempt1_python.json`. Its `summary` names the codelets that ran, the proposal count, and the model calls.
-2. In the checkpoint (`ghost.json`), find the `AttentionFrameKnoxel` of the tick.
-3. Read its `metadata.codelet_runs`. Each entry gives the status and the reason of one codelet decision.
-4. Read the `AttentionKnoxel` records in `metadata.attention_record_ids`. `metadata.status` and `metadata.reason` explain each outcome.
-5. For a gate run, read the `turn-<n>-<name>.json` files. They also hold the signals, the competition ranking, and the replies.
+1. Open the prompt logs (`PM_PROMPT_LOG_DIR`). The selector call ends with "act as a selector". Call 1 ends with the codelet instruction. Call 2 ends with the percept types.
+2. Agent sessions keep their transcripts under `llm-logs/agents/<run>-<codelet>_<attempt>/`.
+3. In the checkpoint, read the last cycle state: `csm.items` with endorsers and `codelets.codelets` with the runtime state.
+4. Read the `CodeletPercept` records of the tick and the frame metadata.
 
 ## Failure modes
 
 | Symptom | Cause | Diagnosis |
 | --- | --- | --- |
-| The cycle stops at the codelets stage | Invalid catalogue, or a pure codelet without a Python function | Read the stage error. Validate the catalogue with `load_catalogue`. |
-| A codelet never runs | A closed gate, a cooldown, the threshold, or the budget | Read `runs[].reason` in the codelets report. |
-| A codelet run is `failed` | The model never returned a valid three-field answer | Read `runs[].reason`. The cycle continued without that proposal. |
-| A nomination is `rejected: unscored` | The scoring model skipped its id twice | Read the attention stage messages in the run directory. |
-| A nomination is `stale` | A read source changed before commit | Compare `source_revisions` with the current revision. |
-| The whole cycle is rejected as stale | A stimulus or a selected memory changed | This is the A08 guard, not codelet stale rejection. |
+| The cycle stops at the codelets phase | Invalid definitions file | Validate it with `load_definitions`. |
+| The cycle retries after a delay | Ten invalid answers of one call, or `CODELET_AGENT_ATTEMPTS` invalid agent sessions | Read the `model-output-rejection` files and the agent traces. |
+| `KeyError: 'embed_texts'` | The run has no embedding service | Pass `embeddings` to `build_main_cognition_tools`. |
+| An agent codelet raises "need workflow models" | The module has no classification sessions | Pass `workflow_models` to `MainCogLoop`. |
+| A codelet never runs | Low score, cooldown, or a small budget | Read `codelets.scores`, `codelets.ratings`, and `runs` in the report. |
 
 ## Limits
 
-- Definition count and reply speed do not establish quality. The [A16 verification](../work_items/verification/a16-codelets.md) records which definitions traced to accepted behavior and which stayed inactive.
-- The inner policy is configured but unused until A17.
-- The live evidence uses `qwen/qwen3.8-flash` on OpenRouter at provider precision. The Q3 run on the home computer is pending.
-- Minecraft complications were not tested, because no Minecraft server was available.
+- The family readouts of the state match are an engineering choice of A19F step 5. Tune them with replays.
+- The pathway boost is additive. Few old pathway chains link two of the twelve codelets. See [codelet pathways](codelet-pathways.md).
+- Agent sessions of one run take turns, so a wave with two agent codelets is slower than a wave of chains.
 - Token counts are estimates.
-- A pathway raises activation only. It does not sequence codelets or guarantee a reply style.
-- Belief supersession keys on the codelet topic. Two belief codelets that write about the same subject under different topics keep separate beliefs until a later revision links them.

@@ -9,9 +9,13 @@ The request and the shared phase state are in
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
+from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX
 from pm.records.mental_state import AppraisalGeneral, AppraisalSocial, FullMentalState, StateEmotions, StateNeeds
+from pm.records.workspace import ShardKey
 from workflows.cognitive_control.schemas import FocusProposal, FocusState, WaitRequest
 from workflows.public_speech.public_context import Presentation
 
@@ -95,7 +99,10 @@ class TriageItem(BaseModel):
 
 
 class TriageResult(BaseModel):
+    """The triage answer. ``codelet_budget`` is the number of codelet runs of this cycle."""
+
     items: list[TriageItem] = Field(default_factory=list)
+    codelet_budget: int = Field(default=CODELET_BUDGET_DEFAULT, ge=1, le=CODELET_BUDGET_MAX)
 
 
 class AppraisalResult(BaseModel):
@@ -222,6 +229,93 @@ PROPOSAL_CONSUMERS = {
 }
 
 
+class RecordView(BaseModel):
+    """One record that the CSM can hold, as the codelet prompts render it.
+
+    The host builds a view from the memory store for every record that the
+    CSM of the previous cycle holds and for every stimulus, dialogue turn, and
+    memory candidate of this cycle. The codelets phase adds views for new
+    percepts. ``kind`` is the persisted record type or the memory kind.
+    ``source`` is the speaker of a dialogue turn or the codelet of a percept.
+    ``timestamp`` is the world time (naive UTC), or None when unknown.
+    """
+
+    record_id: int = 0
+    kind: str = ""
+    source: str = ""
+    content: str = ""
+    timestamp: datetime | None = None
+
+    def story_line(self) -> str:
+        """Return the record as one line of story text.
+
+        The codelets phase also embeds this text, so it never contains the
+        record id or the time. The same record therefore gets the same
+        embedding in every cycle.
+        """
+        return f"{self.source or self.kind}: {self.content}"
+
+
+class VariantPercept(BaseModel):
+    """One typed percept of a codelet variant, with its mini-appraisal.
+
+    The conversion call fills the type, the story fields, and the header
+    (salience, valence, appraisal axes). The codelets phase then copies the
+    current mental state, sets the appraisal axes, and calls
+    ``compute_state_delta``. ``appraisal_vec`` is the resulting state and
+    ``delta_vec`` is the change from the copied state. A percept is not
+    causal: neither vector changes the mental state until attention puts the
+    percept into a workspace shard (step 6 of A19F).
+
+    ``record_id`` is a pending id below -1 until the commit stages the
+    ``CodeletPercept`` record. ``activation`` is its activation when it
+    entered the CSM.
+    """
+
+    record_id: int = 0
+    percept_type: str = ""
+    text: str = ""
+    details: dict[str, str | list[str]] = Field(default_factory=dict)
+    salience: float = 0.0
+    valence: float = 0.0
+    appraisal_general: AppraisalGeneral = Field(default_factory=AppraisalGeneral)
+    appraisal_social: AppraisalSocial = Field(default_factory=AppraisalSocial)
+    appraisal_vec: list[float] = Field(default_factory=list)
+    delta_vec: list[float] = Field(default_factory=list)
+    activation: float = 0.0
+
+
+class CodeletVariant(BaseModel):
+    """One output variant of one codelet run.
+
+    ``recommendation`` is what the companion should feel, think, or do in the
+    story, from the narrow concern of the codelet. ``recommendation_id`` is
+    the pending id of the record that holds it in the CSM. Its vectors are
+    the mean appraisal state and the summed delta of the percepts, as in the
+    old ``CodeletOutput`` feature. ``about_ids`` are the CSM records that the
+    variant is about. Each of them gets an endorsement from the codelet.
+    """
+
+    recommendation: str = ""
+    recommendation_id: int = 0
+    recommendation_vec: list[float] = Field(default_factory=list)
+    recommendation_delta_vec: list[float] = Field(default_factory=list)
+    salience: float = 0.0
+    valence: float = 0.0
+    percepts: list[VariantPercept] = Field(default_factory=list)
+    target_shard: ShardKey = Field(default_factory=ShardKey)
+    about_ids: list[int] = Field(default_factory=list)
+
+
+class CodeletOutput(BaseModel):
+    """The output of one codelet run: ``CODELET_OUTPUT_VARIANTS`` variants."""
+
+    codelet: str = ""
+    mode: str = ""
+    wave: int = 0
+    variants: list[CodeletVariant] = Field(default_factory=list)
+
+
 class CodeletProposal(BaseModel):
     """One typed nomination that a codelet offers to attention competition.
 
@@ -230,6 +324,10 @@ class CodeletProposal(BaseModel):
     ``source_revisions`` maps each knoxel id that the codelet read to the
     revision it saw. The module rejects the proposal as stale when one of
     those revisions changed before commit.
+
+    Until step 6 of A19F replaces attention, the codelets phase makes one
+    proposal for each variant recommendation and each percept. ``target_ids``
+    can hold pending percept ids. The commit replaces them by record ids.
     """
 
     nomination_id: str = ""
@@ -247,25 +345,58 @@ class CodeletProposal(BaseModel):
     topic: str = Field(default="", description="Stable topic key of a belief proposal. Other kinds leave it empty.")
 
 
-class CodeletRun(BaseModel):
-    """Evidence for one scheduled codelet decision in one cycle.
+class ActivationScore(BaseModel):
+    """The activation score of one codelet and its parts, for the trace.
 
-    ``status`` is ``ran`` (it produced proposals), ``silent`` (it ran and found
-    nothing), or ``skipped`` (it was not scheduled). ``reason`` names why, for
-    example ``cooldown`` or ``budget``.
+    See ``workflows.main_cognition.codelet_registry.activation_score``.
     """
 
     codelet: str = ""
-    kind: str = ""
-    family: str = ""
-    status: str = ""
+    score: float = 0.0
+    stored: float = 0.0
+    stimulus: float = 0.0
+    state: float = 0.0
+    vector: float = 0.0
+    base: float = 0.0
+    recency: float = 0.0
+    noise: float = 0.0
+    cooling: bool = False
+
+
+class PathwayBoost(BaseModel):
+    """One pathway boost: ``source`` ran, and ``target`` got ``strength``.
+
+    ``skipped`` names the unregistered codelets between them. Each skipped
+    codelet multiplied the strength by ``PATHWAY_SKIP_DECAY``.
+    ``precursor_ids`` are the percepts of ``source`` that the CSM view of
+    ``target`` favors.
+    """
+
+    pathway: str = ""
+    source: str = ""
+    target: str = ""
+    strength: float = 0.0
+    skipped: list[str] = Field(default_factory=list)
+    precursor_ids: list[int] = Field(default_factory=list)
+
+
+class CodeletRun(BaseModel):
+    """Evidence for one codelet run in one cycle.
+
+    ``score`` is the activation score that chose it in its wave. ``view_ids``
+    are the CSM records of its view, in story order. ``calls`` counts model
+    calls; an agent session counts as one call.
+    """
+
+    codelet: str = ""
+    mode: str = ""
+    wave: int = 0
+    status: str = "ran"
     reason: str = ""
-    activation: float = 0.0
-    cause: list[str] = Field(default_factory=list)
-    proposal_ids: list[str] = Field(default_factory=list)
+    score: float = 0.0
+    view_ids: list[int] = Field(default_factory=list)
+    precursor_ids: list[int] = Field(default_factory=list)
     calls: int = 0
-    input_tokens_estimate: int = 0
-    output_tokens_estimate: int = 0
     seconds: float = 0.0
 
 
@@ -280,20 +411,14 @@ class CodeletCost(BaseModel):
 
 
 class AttentionPolicy(BaseModel):
-    """Per-loop attention settings from the codelet catalogue.
+    """Attention competition settings of the main loop.
 
-    The main loop uses ``main``. A17 adds an ``inner`` policy for the second
-    conscious loop without a code change. The codelets phase records the
-    policy in its result. The attention phase uses that recorded copy, so both
-    phases of one cycle apply one catalogue read.
+    Step 6 of A19F replaces this competition with attention into shards.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    activation_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
-    max_llm_codelets: int = Field(default=3, ge=0)
-    danger_llm_codelets: int = Field(default=0, ge=0)
-    capacity: int = Field(default=4, ge=1)
+    capacity: int = Field(default=5, ge=1)
     min_score: float = Field(default=0.3, ge=0.0, le=1.0)
     score_batch_size: int = Field(default=8, ge=1)
     weights: dict[str, float] = Field(default_factory=lambda: {
@@ -303,19 +428,74 @@ class AttentionPolicy(BaseModel):
 
 
 class CodeletsResult(BaseModel):
-    """Result of the codelets phase: proposals plus the full schedule trace."""
+    """Result of the codelets phase: outputs, proposals, and the full trace.
 
-    proposals: list[CodeletProposal] = Field(default_factory=list)
+    ``budget`` is the number of codelet runs that triage granted.
+    ``scores`` are the activation scores before the selector. ``ratings``
+    are the selector ratings, by codelet name. ``outputs`` hold the variants
+    in run order.
+    """
+
+    definitions_version: str = ""
+    definitions_digest: str = ""
+    budget: int = 0
+    scores: list[ActivationScore] = Field(default_factory=list)
+    ratings: dict[str, float] = Field(default_factory=dict)
     runs: list[CodeletRun] = Field(default_factory=list)
-    catalogue_version: str = ""
-    catalogue_digest: str = ""
+    outputs: list[CodeletOutput] = Field(default_factory=list)
+    pathway_boosts: list[PathwayBoost] = Field(default_factory=list)
+    proposals: list[CodeletProposal] = Field(default_factory=list)
     loop: str = "main"
     policy: AttentionPolicy = Field(default_factory=AttentionPolicy)
-    signals: dict[str, float] = Field(default_factory=dict)
-    # Pathway activation values without the ``pathway.`` prefix, so a trace
-    # shows which accepted precursors drove this cycle.
-    pathway_signals: dict[str, float] = Field(default_factory=dict)
     cost: CodeletCost = Field(default_factory=CodeletCost)
+
+
+class CodeletRatings(BaseModel):
+    """The answer of the codelet selector: a rating from 0 to 1 for each candidate."""
+
+    ratings: dict[str, float] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _bounded(self):
+        outside = sorted(name for name, value in self.ratings.items() if not 0.0 <= value <= 1.0)
+        if outside:
+            raise ValueError(f"Ratings must be between 0 and 1. Fix: {', '.join(outside)}.")
+        return self
+
+
+class AgentCodeletJob(BaseModel):
+    """The task of one agent codelet session.
+
+    ``story`` is the shared story prefix as text. ``instruction`` is the
+    codelet instruction, and ``retrieval_plan`` is its ``data_aquisation``
+    list. ``view`` is the codelet's CSM view as story lines with record ids,
+    and ``view_ids`` are those ids. ``known_ids`` are the other records that
+    the cycle already holds, for example the stimuli and the memory
+    candidates. A session may cite them without reading them again.
+    """
+
+    codelet: str = ""
+    story: str = ""
+    instruction: str = ""
+    retrieval_plan: list[str] = Field(default_factory=list)
+    view: str = ""
+    view_ids: list[int] = Field(default_factory=list)
+    known_ids: list[int] = Field(default_factory=list)
+
+
+class AgentCodeletAnswer(BaseModel):
+    """The validated result of one agent codelet session.
+
+    ``evidence_ids`` are records that the session cited. Each one is in the
+    CSM view, is a known record of the cycle, or was read through the memory
+    tools. ``records`` holds a view of
+    each cited memory record, so the CSM can hold it.
+    """
+
+    recommendation: str = Field(default="", min_length=1)
+    evidence_ids: list[int] = Field(default_factory=list)
+    records: list[RecordView] = Field(default_factory=list)
+    session_ref: str = ""
 
 
 class AttentionNomination(BaseModel):
@@ -400,19 +580,6 @@ class NominationScore(BaseModel):
 
 class NominationScores(BaseModel):
     scores: list[NominationScore] = Field(default_factory=list)
-
-
-class CodeletAnswer(BaseModel):
-    """The small answer that one LLM codelet returns.
-
-    ``topic`` is the stable belief label that a ``belief``-kind codelet
-    supplies. Every other codelet leaves it empty.
-    """
-
-    fires: bool
-    text: str = ""
-    topic: str = ""
-    target_ids: list[int] = Field(default_factory=list)
 
 
 class GoalChange(BaseModel):
@@ -502,37 +669,6 @@ class GoalRecordView(BaseModel):
     revision: int = 1
 
 
-class CodeletHistory(BaseModel):
-    """Run history of one codelet, derived from committed attention frames.
-
-    ``cycles_since`` counts committed cycles after the last run.
-    ``seconds_since`` is the wall time since that frame was created.
-    """
-
-    runs: int = 0
-    last_tick: int = 0
-    cycles_since: int | None = None
-    seconds_since: float | None = None
-
-
-class PathwayPrecursor(BaseModel):
-    """One accepted codelet proposal from a recent cycle that feeds a pathway.
-
-    The host derives it fresh from a committed ``AttentionRecord`` in every
-    cycle. ``revision`` is the record revision at read time.
-    """
-
-    codelet: str = ""
-    record_id: int = 0
-    tick_id: int = 0
-    attention_kind: str = ""
-    reality: str = ""
-    family: str = ""
-    pathways: list[str] = Field(default_factory=list)
-    selected: bool = False
-    revision: int = 1
-
-
 class MentalProposal(BaseModel):
     """A private plan from deliberate mental work that a stimulus carries.
 
@@ -571,6 +707,9 @@ __all__ = [
     "ActionDispatch",
     "ActionIntent",
     "ActionSelectionResult",
+    "ActivationScore",
+    "AgentCodeletAnswer",
+    "AgentCodeletJob",
     "AppraisalAffect",
     "AppraisalResult",
     "AppraisalView",
@@ -578,11 +717,12 @@ __all__ = [
     "AttentionPolicy",
     "AttentionResult",
     "BeliefUpdate",
-    "CodeletAnswer",
     "CodeletCost",
-    "CodeletHistory",
+    "CodeletOutput",
     "CodeletProposal",
+    "CodeletRatings",
     "CodeletRun",
+    "CodeletVariant",
     "CodeletsResult",
     "CompetitionTrace",
     "ContextResult",
@@ -598,14 +738,16 @@ __all__ = [
     "PROPOSAL_CONSUMERS",
     "PROPOSAL_KINDS",
     "PROPOSAL_ORIGINS",
-    "PathwayPrecursor",
+    "PathwayBoost",
     "PhaseReceipt",
     "REALITY_LABELS",
+    "RecordView",
     "RankingEntry",
     "ReflectionGuidance",
     "Stimulus",
     "TriageItem",
     "TriageResult",
+    "VariantPercept",
     "WorkflowOption",
     "WorkspaceResult",
 ]

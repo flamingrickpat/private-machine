@@ -119,7 +119,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             bus = BusSystem()
             module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"llm_complete": failed_model},
+                tools_factory=lambda environment, batch: {**ScriptedModel().tools(), "llm_complete": failed_model},
                 runtime_root=Path(directory), ghost=ghost)
             receipts = Recorder(bus, "action.receipt")
             with self.assertRaisesRegex(StageOutputError, "protocol contract"):
@@ -152,7 +152,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             errors = []
             module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"llm_complete": model},
+                tools_factory=lambda environment, batch: {**scripted.tools(), "llm_complete": model},
                 runtime_root=Path(tmp), ghost=ghost)
             rejected = Recorder(bus, "cycle.rejected")
             requests = Recorder(bus, "action.request")
@@ -180,7 +180,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             bus = BusSystem()
             module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
-                tools_factory=lambda environment, batch: {"llm_complete": model},
+                tools_factory=lambda environment, batch: {**ScriptedModel().tools(), "llm_complete": model},
                 runtime_root=Path(tmp), ghost=ghost)
             requests = Recorder(bus, "action.request")
             module.handle_batch([Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",

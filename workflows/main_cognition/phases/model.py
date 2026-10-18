@@ -18,13 +18,13 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
-from pm.constants import Sampler
+from pm.constants import CODELET_TEXT_ATTEMPTS, Sampler
 from pm.context_render import ContextKind, render_context
 from pm.context_render.turns import Role, Turn
 from pm.llm.prompt_encoding import TurnInput
 
 from workflows.main_cognition.cycle_work import CycleWork
-from workflows.main_cognition.model_json import PhasePrompts, complete_json, load_prompts
+from workflows.main_cognition.model_json import PhasePrompts, complete_json, complete_text, load_prompts
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
@@ -89,4 +89,15 @@ def complete(context, work: CycleWork, messages: Sequence[TurnInput], schema: ty
                          temperature=Sampler.TempInstruct, enable_thinking=False)
 
 
-__all__ = ["EvidenceRow", "PROMPTS_DIR", "complete", "grounding_turn", "phase_prompts"]
+def complete_prose(context, messages: Sequence[TurnInput]) -> str:
+    """Call the model for prose and return the non-empty answer.
+
+    The settings match :func:`complete`. Codelet calls get no grounding turn,
+    so all codelet calls of one cycle share their prefix byte for byte. See
+    ``complete_text`` for retries and errors.
+    """
+    return complete_text(context, messages, attempts=CODELET_TEXT_ATTEMPTS,
+                         temperature=Sampler.TempInstruct, enable_thinking=False)
+
+
+__all__ = ["EvidenceRow", "PROMPTS_DIR", "complete", "complete_prose", "grounding_turn", "phase_prompts"]

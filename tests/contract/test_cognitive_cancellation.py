@@ -44,7 +44,8 @@ class CognitiveCancellationTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             root = Path(temp)
             runtime = WorkflowRuntime(MemoryBashEnvironment({}, {}, "read"), cancel,
-                                      {"llm_complete": no_completion}, propagate_python_errors=True)
+                                      {"llm_complete": no_completion, "embed_texts": no_completion,
+                                       "codelet_agent": no_completion}, propagate_python_errors=True)
             runner = WorkflowRunner(PROJECT_ROOT / "workflows/main_cognition/main_cognition.workflow.md", root,
                                     namespace="main_cognition")
             result = runner.invoke(WorkflowRequest("cancelled-cycle", {}), runtime)

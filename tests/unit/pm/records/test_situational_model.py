@@ -116,6 +116,35 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(sorted(views[0]), [1, 3, 4])
 
 
+class RekeyTests(unittest.TestCase):
+    def test_pending_ids_become_record_ids(self):
+        model = SituationalModel(items={
+            -2: SituationalItem(record_id=-2, activation=0.6, merged_ids=[-3, 9]),
+            9: SituationalItem(record_id=9, activation=0.4),
+        })
+        model.rekey({-2: 101, -3: 102})
+        self.assertEqual(sorted(model.items), [9, 101])
+        self.assertEqual(model.items[101].record_id, 101)
+        self.assertEqual(model.items[101].merged_ids, [102, 9])
+
+    def test_registry_rekeys_percept_and_precursor_ids(self):
+        from pm.records.codelet_records import CodeletRegistryState
+        registry = CodeletRegistryState()
+        runtime = registry.runtime("AbsurditySampler")
+        runtime.last_percept_ids, runtime.precursor_ids = [-2, 5], [-3]
+        registry.rekey({-2: 20, -3: 30})
+        self.assertEqual((runtime.last_percept_ids, runtime.precursor_ids), ([20, 5], [30]))
+        self.assertIs(registry.runtime("AbsurditySampler"), runtime)
+
+
+class AffectTermTests(unittest.TestCase):
+    def test_valence_focus_favors_matching_percepts_and_salience_counts(self):
+        from pm.records.situational_model import affect_term
+        negative_focus = (-0.8, 0.0)
+        self.assertGreater(affect_term(-0.9, 0.5, negative_focus), affect_term(0.9, 0.5, negative_focus))
+        self.assertGreater(affect_term(0.0, 0.9, (0.0, 0.5)), affect_term(0.0, 0.3, (0.0, 0.5)))
+
+
 class RoundTripTests(unittest.TestCase):
     def test_json_round_trip_restores_int_keys(self):
         model = SituationalModel()

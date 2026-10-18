@@ -7,7 +7,7 @@ failure_policy: {max_attempts_per_phase: 1}
 roles:
   phase:
     skill: workflows/main_cognition/steps.py
-    tools: [llm_complete]
+    tools: [llm_complete, embed_texts, codelet_agent]
     result_contract:
       type: json
       schema:
@@ -80,7 +80,8 @@ phases:
 
 One cycle runs as one sequence of typed phases. All phases share one
 `CycleWork` object (see `workflows/main_cognition/cycle_work.py`). Each phase
-validates it at entry and writes it back. Codelets nominate; attention scores
+validates it at entry and writes it back. The retrieve phase and the codelets
+fill the current situational model (CSM). Codelets nominate; attention scores
 the nominations and runs the competition. The route phase assigns action IDs.
 The commit phase writes the final report. The module, not this workflow,
 commits the write batch and publishes the dispatches.

@@ -11,7 +11,7 @@ The gate asserts mechanical contracts. Emotional quality stays a human review qu
 Parent: [codelets and attention competition](../../subsystems/codelets.md).
 Companion page: [codelet pathways](../../subsystems/codelet-pathways.md).
 Work item: [A16](../alpha-plan/work-items/a16.md).
-Gate: `dev/work_items/alpha_a16_codelet_gate.py`.
+Gate: `dev/work_items/alpha_a16_codelet_gate.py` (removed in A19F step 5 with the catalogue it tested; see git history).
 
 ## What A16 delivered
 

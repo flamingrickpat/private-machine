@@ -37,7 +37,6 @@ from workflows.main_cognition.schemas import (
     AppraisalResult,
     AppraisalView,
     AttentionResult,
-    CodeletHistory,
     CodeletsResult,
     ContextResult,
     FocusProposalRef,
@@ -46,8 +45,8 @@ from workflows.main_cognition.schemas import (
     ManagedRunView,
     MemoryCandidate,
     MentalProposal,
-    PathwayPrecursor,
     PhaseReceipt,
+    RecordView,
     ReflectionGuidance,
     Stimulus,
     TriageResult,
@@ -74,6 +73,9 @@ class CycleRequest(BaseModel):
     The EMA mental state measures elapsed time up to it. ``state_history``
     holds one sample for each causal feature in the store, oldest first.
     ``personality`` is the stable profile of the persona.
+
+    ``character_card`` is the story character card of the companion. The
+    codelet prompts open their shared story prefix with it.
     """
 
     run_id: str = ""
@@ -94,20 +96,19 @@ class CycleRequest(BaseModel):
     available_workflows: list[WorkflowOption] = Field(default_factory=list)
     public_context: PublicContext | None = None
     managed_runs: list[ManagedRunView] = Field(default_factory=list)
-    # A15 scheduler inputs. The module derives them from committed state.
+    # Inputs of the codelets phase. The module derives them from committed state.
     stimulus_revisions: dict[int, int] = Field(default_factory=dict)
     active_goal_records: list[GoalRecordView] = Field(default_factory=list)
-    codelet_history: dict[str, CodeletHistory] = Field(default_factory=dict)
     seconds_since_user_input: float | None = None
-    codelet_catalogue: str = ""
-    # Selects the catalogue's attention policy. A17 sets "inner".
-    attention_loop: str = "main"
-    # Accepted precursor proposals from recent committed cycles. The codelets
-    # phase turns them into pathway.<name> activation signals.
-    pathway_precursors: list[PathwayPrecursor] = Field(default_factory=list)
-    # The newest committed attention tick. Tick age is measured from it, not
-    # from the newest precursor, so an old precursor keeps its true age.
-    pathway_latest_tick: int = 0
+    character_card: str = ""
+    # Path of a codelet definitions file. Empty selects codelets.yaml.
+    codelet_definitions: str = ""
+    # A view of every record that the CSM can hold in this cycle: the items
+    # of the previous CSM, the stimuli, the recent dialogue, and the memory
+    # candidates. JSON stores the keys as text; validation restores ints.
+    records: dict[int, RecordView] = Field(default_factory=dict)
+    # The last dialogue turns before the stimuli, oldest first.
+    recent_dialogue_ids: list[int] = Field(default_factory=list)
     active_focus: FocusState | None = None
     focus_proposals: list[FocusProposalRef] = Field(default_factory=list)
     mental_proposals: list[MentalProposal] = Field(default_factory=list)
@@ -131,6 +132,11 @@ class CycleWork(BaseModel):
     partner, and the regulation mode. The commit stores them on the
     appraisal ``Feature``.
 
+    ``records`` holds the record views that the CSM can name. Intake copies
+    them from the request, and the codelets phase adds the views of new
+    percepts. ``last_pending_id`` is the last pending id that this cycle gave
+    to a new percept (see :meth:`allocate_pending_id`).
+
     Each phase result field holds an empty result until its phase runs.
     """
 
@@ -151,6 +157,8 @@ class CycleWork(BaseModel):
     dispatches: list[ActionDispatch] = Field(default_factory=list)
     wait_request: WaitRequest | None = None
     summary: str = ""
+    records: dict[int, RecordView] = Field(default_factory=dict)
+    last_pending_id: int = -1
 
     def appraisal_view(self) -> AppraisalView:
         """Return the appraisal with the accepted feeling in words, for prompts."""
@@ -159,6 +167,17 @@ class CycleWork(BaseModel):
     def receipt(self, name: str, summary: str) -> None:
         """Record that phase ``name`` ran."""
         self.phases.append(PhaseReceipt(name=name, summary=summary))
+
+    def allocate_pending_id(self) -> int:
+        """Return a new pending record id for a record that the commit creates.
+
+        The memory store assigns record ids only at commit. A new percept
+        needs an id earlier, because the CSM holds it by id. Pending ids
+        count down from -2: -1 is the store's "unassigned" id and 0 is no
+        record. The commit replaces each pending id by the record id.
+        """
+        self.last_pending_id -= 1
+        return self.last_pending_id
 
 
 def primary_group(work: CycleWork) -> StimulusGroup | None:
@@ -174,6 +193,16 @@ def primary_group(work: CycleWork) -> StimulusGroup | None:
     return next((group for group in groups if group.correlation_id == work.request.correlation_id), groups[0])
 
 
+def provisional_tick(work: CycleWork) -> int:
+    """Return the tick that this cycle expects: the previous tick plus one.
+
+    The host assigns the real tick at commit. Other modules can take ticks in
+    between, so the real tick can be higher. The commit replaces this value
+    in the CSM and the codelet state.
+    """
+    return work.state.tick_id + 1
+
+
 def read_work(environment) -> CycleWork:
     """Read and validate the shared phase state from the working target.
 
@@ -187,4 +216,4 @@ def write_work(environment, work: CycleWork) -> None:
     environment.write_text(WORK_FILE, work.model_dump_json())
 
 
-__all__ = ["CycleRequest", "CycleWork", "WORK_FILE", "primary_group", "read_work", "write_work"]
+__all__ = ["CycleRequest", "CycleWork", "WORK_FILE", "primary_group", "provisional_tick", "read_work", "write_work"]

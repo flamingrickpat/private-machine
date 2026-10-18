@@ -15,6 +15,10 @@ class WorkspaceGoalTests(unittest.TestCase):
     def test_an_attention_selected_goal_reaches_workspace_candidates(self):
         capture = json.loads(Path("test_data/captures/alpha/workspace-active-goal.json").read_text(encoding="utf-8"))
         request = capture["request"]
+        # The capture predates step 5 of A19F. These attention policy fields
+        # belonged to the removed codelet catalogue scheduler.
+        for name in ("activation_threshold", "max_llm_codelets", "danger_llm_codelets"):
+            del request["attention"]["competition"]["policy"][name]
         work = CycleWork(request=CycleRequest.model_validate(request),
                          attention=AttentionResult.model_validate(request["attention"]))
         candidates = candidate_texts(work)

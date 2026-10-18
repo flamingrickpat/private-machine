@@ -8,6 +8,7 @@ parts of that flow that are behavior, not runtime math:
 
 - :func:`appraise_state` turns one appraisal answer into the appraisal state
   and its delta,
+- :func:`percept_affect` mini-appraises one codelet percept the same way,
 - :func:`regulation_mode` maps the appraisal and the accepted state to a
   regulation mode,
 - :func:`describe_mental_state` renders the accepted state as short story
@@ -45,6 +46,8 @@ from pm.constants import (
     WITHDRAWAL_REFLECTIVE_THRESHOLD,
 )
 from pm.records.mental_state import (
+    AppraisalGeneral,
+    AppraisalSocial,
     FullMentalState,
     StateEmotions,
     StateExpressionExt,
@@ -108,10 +111,32 @@ def appraise_state(base: FullMentalState, appraisal: AppraisalResult, *, entity_
         target = "joy" if error > 0 else "sadness"
         setattr(emotions, target, _bounded(emotions, target, getattr(emotions, target)
                                            + EXPECTATION_EMOTION_GAIN * abs(error)))
+    return derived, ema_delta(derived, probe)
+
+
+def ema_delta(after: FullMentalState, before: FullMentalState) -> list[float]:
+    """Return ``after - before`` on the axes that the EMA sums. Other positions are 0."""
     axes = ema_axis_positions()
-    delta = [after - before if pos in axes else 0.0
-             for pos, (after, before) in enumerate(zip(derived.to_list(), probe.to_list()))]
-    return derived, delta
+    return [new - old if pos in axes else 0.0
+            for pos, (new, old) in enumerate(zip(after.to_list(), before.to_list()))]
+
+
+def percept_affect(base: FullMentalState, general: AppraisalGeneral, social: AppraisalSocial, *,
+                   entity_id: int | None) -> tuple[FullMentalState, list[float]]:
+    """Mini-appraise one codelet percept. Return its appraisal state and delta.
+
+    Port of the percept loop of ``ghost_codelets.cognitive_cycle``: copy the
+    current state, set the appraisal axes of the percept, and run
+    ``compute_state_delta`` with the group entity. ``base`` stays unchanged.
+    The delta is the result minus the copy, on the EMA axes only. A percept
+    does not change the mental state. Its delta can enter the EMA history
+    only after attention makes it causal (step 6 of A19F).
+    """
+    probe = base.model_copy(deep=True)
+    probe.appraisal_general = general.model_copy()
+    probe.appraisal_social = social.model_copy()
+    derived, _ = compute_state_delta(probe, relationship_entity_id=entity_id)
+    return derived, ema_delta(derived, probe)
 
 
 def regulation_mode(appraisal_state: FullMentalState, state: FullMentalState) -> str:
@@ -306,5 +331,7 @@ __all__ = [
     "REGULATION_REFLECTIVE",
     "appraise_state",
     "describe_mental_state",
+    "ema_delta",
+    "percept_affect",
     "regulation_mode",
 ]

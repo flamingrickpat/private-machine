@@ -108,8 +108,9 @@ It uses words, not numbers.
 The text goes into the triage-to-decide prompts, the appraisal Feature metadata (`affect_summary`), and the action request.
 The public speech context computes the same text from the newest accepted cycle state.
 
-[`workflows.main_cognition.codelet_schedule.state_signals`][] flattens the typed state into scheduler signals.
-It adds `bias.valence_focus` and `bias.salience` from the attention bias.
+The codelets phase reads the typed state directly.
+[`family_state_match`][workflows.main_cognition.codelet_registry.family_state_match] matches it to the codelet families, and [`percept_affect`][workflows.main_cognition.affect.percept_affect] mini-appraises each codelet percept.
+A percept does not change the mental state. See [codelets](codelets.md#mini-appraisal).
 
 ## State and side effects
 

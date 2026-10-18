@@ -48,6 +48,12 @@ class PhasePrompts(BaseModel):
     job_template: str = ""
     reality_labels: dict[str, str] = Field(default_factory=dict)
     reality_rules: dict[str, str] = Field(default_factory=dict)
+    # The codelets phase: the shared story prefix and its per-call parts.
+    story_template: str = ""
+    story_ack: str = ""
+    view_template: str = ""
+    conversion_template: str = ""
+    selector_template: str = ""
 
 
 def load_prompts(path: str | Path) -> PhasePrompts:
@@ -109,6 +115,29 @@ def complete_json(context, messages: Sequence[TurnInput], schema: type[BaseModel
     raise ModelFormatError(f"The stage model output failed validation after ten attempts: {last_error}") from None
 
 
+def complete_text(context, messages: Sequence[TurnInput], *, attempts: int, **generation: object) -> str:
+    """Return the stripped prose answer of one model call.
+
+    Prose has no schema, so the only invalid output is an empty answer. An
+    empty answer is retried with the same turns, up to ``attempts`` calls.
+    Each empty answer leaves a record in the role's scratch directory.
+    Exhaustion raises ModelFormatError. Cancellation, transport failures, and
+    tool errors propagate unchanged.
+    """
+    turns = normalize_turns(messages)
+    for attempt in range(1, attempts + 1):
+        raw = context.runtime.tools["llm_complete"](turns, **generation)
+        if not isinstance(raw, str):
+            raise TypeError("llm_complete must return the completion text as a string.")
+        if raw.strip():
+            return raw.strip()
+        context.runtime.environment.write_text(
+            f"scratch/model-output-empty-{attempt:02}.json",
+            json.dumps({"attempt": attempt, "raw": raw, "error": "empty prose answer"}, ensure_ascii=False),
+        )
+    raise ModelFormatError(f"The model returned empty prose {attempts} times.")
+
+
 def write_report(environment, report: BaseModel) -> None:
     environment.write_text(
         "scratch/report.yaml",
@@ -121,6 +150,7 @@ __all__ = [
     "StageOutputError",
     "ModelFormatError",
     "complete_json",
+    "complete_text",
     "extract_json",
     "PhasePrompts",
     "load_prompts",

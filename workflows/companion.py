@@ -111,7 +111,7 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
 
 def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
                       runtime_root, workflow_paths, stage_model, config_path,
-                      supervisor, codelet_catalogue=None, thought_period=30.0, embeddings=None,
+                      supervisor, codelet_definitions=None, thought_period=30.0, embeddings=None,
                       workflow_models=None):
     """Return the (main_cog, story, assistant, self_management, inner, mental) modules."""
     if cognition == "real":
@@ -134,12 +134,15 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md",
             tools_factory=build_main_cognition_tools(ghost, runtime_root, stage_model.complete,
-                                                   cancel_provider=lambda: main_cog.run_stop),
+                                                   cancel_provider=lambda: main_cog.run_stop,
+                                                   embeddings=embeddings),
             runtime_root=runtime_root,
             ghost=ghost,
             workflow_catalogue=_cognition_workflow_options(supervisor),
             embedding_config_path=config_path,
-            codelet_catalogue=codelet_catalogue,
+            codelet_definitions=codelet_definitions,
+            # Agent codelets open pm-coder sessions through classification sessions.
+            workflow_models=workflow_models,
         )
         story = StoryDialogue(
             "dialogue", bus, on_error, clock, None,
@@ -221,7 +224,7 @@ def build_app(
     record_lifecycle: bool = True,
     world_poll_seconds: float | None = 120.0,
     world_quiet_seconds: float = 120.0,
-    codelet_catalogue: str | None = None,
+    codelet_definitions: str | None = None,
     cognitive_control_config: ControlConfig | dict | None = None,
 ) -> Application:
     """Construct an application without service activation.
@@ -231,8 +234,8 @@ def build_app(
     owns application execution, shutdown, and its separate checkpoint path.
     Real cognition polls structured world facts after 120 seconds of silence.
     ``world_poll_seconds=None`` disables that source. Polling never chooses work.
-    ``codelet_catalogue`` names a codelet catalogue file for real cognition;
-    ``None`` uses the shipped default catalogue.
+    ``codelet_definitions`` names a codelet definitions file for real
+    cognition; ``None`` uses ``workflows/main_cognition/codelets.yaml``.
     ``cognitive_control_config`` supplies wait, focus, mental-session, and
     private-episode limits. A one-second scheduler checks waits without inference.
     """
@@ -325,7 +328,7 @@ def build_app(
         cognition, ghost=ghost, target=target, bus=bus, on_error=on_error,
         clock=clock, runtime_root=runtime_root, workflow_paths=workflow_paths,
         stage_model=stage_model, config_path=resolved_config, supervisor=supervisor,
-        codelet_catalogue=codelet_catalogue, thought_period=thought_period,
+        codelet_definitions=codelet_definitions, thought_period=thought_period,
         embeddings=context_embeddings, workflow_models=workflow_models,
     )
     scheduler = ScheduleSubprocesses(

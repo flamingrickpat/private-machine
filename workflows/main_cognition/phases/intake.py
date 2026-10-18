@@ -1,8 +1,9 @@
 """Intake phase: start the cycle from the request and the previous state.
 
 The phase changes the previous cycle state in place. It does not rebuild it.
-It decays the CSM by one cycle, groups the stimuli, and creates the
-workspace shards of new groups. It makes no model call.
+It decays the CSM and the codelet activations by one cycle, groups the
+stimuli, and creates the workspace shards of new groups. It makes no model
+call.
 """
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
 from pm.records.workspace import SELF_SHARD, ShardKey
 
+from workflows.main_cognition.codelet_registry import decay_registry
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.schemas import Stimulus
 
@@ -60,6 +62,7 @@ def start(request: CycleRequest) -> CycleWork:
     previous = request.previous_state
     state = previous.model_copy(deep=True) if previous is not None else CycleState(tick_id=0)
     state.csm.decay_step()
+    decay_registry(state.codelets)
     state.stimulus_groups = group_stimuli(request)
     for group in state.stimulus_groups:
         state.workspace.ensure_shard(group.key)
@@ -67,7 +70,8 @@ def start(request: CycleRequest) -> CycleWork:
     state.dispatches = []
     state.stimuli_ids = [item.knoxel_id for item in request.stimuli]
     state.qualia_channels = {}
-    work = CycleWork(request=request, state=state, state_summary=request.state_summary)
+    work = CycleWork(request=request, state=state, state_summary=request.state_summary,
+                     records=dict(request.records))
     work.receipt("intake", f"{len(request.stimuli)} stimuli in {len(state.stimulus_groups)} groups")
     return work
 
