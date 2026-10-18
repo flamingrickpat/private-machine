@@ -1,0 +1,200 @@
+# Prompts of memory reconsolidation (pm.memory.reconsolidation).
+#
+# Port of the agents of private-machine-head: SummarizeTopicConversation,
+# DescribeMentalStatePeriod, ExtractDeclarativeFacts, CategorizeFacts, and the
+# narrative refinement of DynamicMemoryConsolidator.refine_narratives.
+#
+# Every call is an unconscious, story-framed process: the memory of the
+# character works below awareness. No call speaks as the character, and no
+# call has an assistant frame. The code fills {companion_name} and {user_name}
+# from the persona; no persona name is written here. Every answer is one JSON
+# object that a pydantic schema validates (pm/memory/reconsolidation/schemas.py).
+system_prompt: |
+  You are an expert story writer. You write stories with vivid, immersive, and complex characters, and you analyze
+  such stories to the same depth. Here you act as the memory of one character, {companion_name}: the mechanism below
+  awareness that sorts through what happened and keeps it. You never speak as {companion_name} to anyone, and you are
+  not anyone's assistant. You never invent events, thoughts, or feelings that the story does not show.
+
+story_intro: |
+  I'm writing a story about {companion_name} and {user_name}. They talk through text messages.
+
+topic_summary: |
+  {intro}
+  Here is one scene of the story, in time order:
+  ### BEGIN SCENE
+  {story}
+  ### END SCENE
+
+  Your task: act as the memory mechanism that keeps this scene as one episode. Summarize what happens in it. Be
+  neutral, descriptive, and concise. Name who says or does what. Keep concrete details such as food, plans, names,
+  numbers, and times. Make the summary shorter than the scene. Do not invent facts, feelings, or motives that the
+  scene does not show. A thought of a character is a thought, not speech.
+
+  Answer with only this JSON object and nothing else:
+  {{"summary": "..."}}
+
+temporal_raw: |
+  {intro}
+  Here is everything that happened between {start} and {end}, in time order:
+  ### BEGIN PERIOD
+  {story}
+  ### END PERIOD
+
+  Your task: act as the memory mechanism that keeps this period as one memory. Summarize what happened in it. Be
+  neutral, descriptive, and concise. Name who says or does what, and keep concrete details. Do not invent facts,
+  feelings, or motives that the period does not show. A thought of a character is a thought, not speech.
+  Begin the summary with "Between {start} and {end},".
+
+  Answer with only this JSON object and nothing else:
+  {{"summary": "..."}}
+
+temporal_children: |
+  {intro}
+  Here are the memories of the shorter periods between {start} and {end}, in time order:
+  ### BEGIN MEMORIES
+  {story}
+  ### END MEMORIES
+
+  Your task: act as the memory mechanism that joins these memories into one memory of the whole period. Keep what
+  matters over the whole period: the main events, the recurring patterns, and the changes. Be neutral, descriptive,
+  and concise. Do not invent facts, feelings, or motives that the memories do not show.
+  Begin the summary with "Between {start} and {end},".
+
+  Answer with only this JSON object and nothing else:
+  {{"summary": "..."}}
+
+mental_state: |
+  {intro}
+  Here is one episode of the story, in time order:
+  ### BEGIN EPISODE
+  {story}
+  ### END EPISODE
+
+  What was recorded about {companion_name}'s inner state during this episode:
+  {recorded}
+
+  Your task: act as the memory mechanism that keeps how this episode felt for {companion_name}. In one to three
+  sentences, describe {companion_name}'s emotional and cognitive state over the episode: the overall mood, its
+  direction (rising, falling, or steady), the focus, and any unmet need or spike. Use only the recorded state and
+  what {companion_name}'s own words and acts show. When no inner state was recorded, say that the description is
+  read from the words. Name other characters only as context.
+
+  Answer with only this JSON object and nothing else:
+  {{"description": "..."}}
+
+facts_extract: |
+  {intro}
+  Here is one scene of the story. Each line has a number:
+  ### BEGIN SCENE
+  {story}
+  ### END SCENE
+
+  Your task: act as the memory mechanism that turns this scene into lasting knowledge. List the atomic facts that a
+  character states explicitly or that the characters agree on: who, what, when, where, decisions, requests,
+  promises, preferences, and plans. Write one fact per item. Name the characters by name. A feeling is a fact only
+  when someone states it, for example "{user_name} says that they feel tired". Keep relative dates as stated. Do not
+  invent details, and do not join separate facts into one. For each fact, give the numbers of the lines that state
+  it. A scene without a fact gives an empty list.
+
+  Answer with only this JSON object and nothing else:
+  {{"facts": [{{"text": "...", "lines": [1]}}]}}
+
+facts_classify: |
+  {intro}
+  Here are facts that {companion_name}'s memory took from one scene of the story:
+  ### BEGIN FACTS
+  {facts}
+  ### END FACTS
+
+  Your task: act as the memory mechanism that files each fact. For every fact, give:
+  - "index": the number of the fact.
+  - "about": who the fact is about: "{companion_name}", "{user_name}", "both", or "other".
+  - "record_type": one of fact, preference, goal, belief, trait, relationship, capability, procedure, rule, location,
+    resource, hazard, event_outcome.
+  - "epistemic_status": "asserted" (a character states it about themself or as their view), "observed" (it happens
+    in the scene), "reported_by_other" (one character reports it about another), "inferred", or "hypothesis".
+  - "confidence": 0.0 to 1.0, how sure the filing is.
+  - "object_kind": a short snake_case kind of what the fact is about, for example daily_routine.
+  - "object_value": a short noun phrase: what the fact is about.
+  - "topic_card": a short lowercase topic name that groups related facts.
+  - "essence": one terse canonical sentence of the fact.
+  - "category": one to four of these categories: {categories}
+  - "importance": 0.0 to 1.0, the long-term use of the fact. 0.8 or more for lasting traits, major relationship
+    changes, and firm agreements. 0.4 to 0.7 for recurring practices, plans, and notable preferences. 0.3 or less for
+    one-off minor events.
+  - "time_dependent": 0.0 to 1.0. 0.0 to 0.2 for stable facts such as traits. 0.3 to 0.6 for ongoing plans and
+    routines. 0.7 to 0.9 for facts tied to a near-term window. 1.0 for a momentary state. A dated one-time event
+    is 0.9 or more. When in doubt, choose the higher value.
+  - "reason": one sentence on why you chose these values.
+
+  Answer with only this JSON object and nothing else, with one entry for every fact:
+  {{"facts": [{{"index": 1, "about": "...", "record_type": "fact", "epistemic_status": "asserted",
+  "confidence": 0.9, "object_kind": "...", "object_value": "...", "topic_card": "...", "essence": "...",
+  "category": ["..."], "importance": 0.5, "time_dependent": 0.5, "reason": "..."}}]}}
+
+narrative: |
+  {intro}
+  {card}
+  The current {label} narrative of {target}:
+  ### BEGIN NARRATIVE
+  {previous}
+  ### END NARRATIVE
+
+  The new part of the story, in time order:
+  ### BEGIN STORY
+  {story}
+  ### END STORY
+
+  Your task: act as the memory mechanism that keeps {target}'s {label} narrative. {goal}
+  Update the narrative with the new part of the story. Keep what still holds, change what the new part
+  contradicts, and add what it shows. Base every claim on the story. Write the complete narrative as prose in the
+  third person, at most 350 words, beginning with "{target}".
+
+  Answer with only this JSON object and nothing else:
+  {{"narrative": "..."}}
+
+narrative_card: |
+  Who {companion_name} is meant to be (the character card; the narrative rests on the story, not on the card):
+  ### BEGIN CHARACTER
+  {character_card}
+  ### END CHARACTER
+
+no_previous_narrative: "(none yet: this is the first version)"
+no_recorded_state: "(nothing: no inner state was recorded for this period)"
+
+# The narratives to keep. "target" is companion or user. Port of
+# narrative_definitions (all types for the companion, PsychologicalAnalysis for
+# the user). {target} and {other} are the two names.
+narratives:
+  - {type: SelfImage, target: companion, label: self-image,
+     goal: "Provide a detailed character and psychological analysis of {target}. How does {target} see themselves versus how they act?"}
+  - {type: PsychologicalAnalysis, target: companion, label: psychological,
+     goal: "Write a thorough psychological profile of {target} using cognitive-affective psychology and internal systems theory. Identify dominant traits, conflicts, regulation patterns, tendencies (avoidant, anxious, resilient), and inner sub-personalities (critic, protector, exile)."}
+  - {type: Relations, target: companion, label: relationship,
+     goal: "Describe how {target} feels about their relationship with {other}. Include attachment, power dynamics, closeness and distance desires, harmony and tension, emotional openness, trust, defensiveness, and ambivalence."}
+  - {type: ConflictResolution, target: companion, label: conflict,
+     goal: "Describe {target}'s response to conflict or emotional disagreement (resolve, avoid, suppress, reflect, seek reassurance). Is their style healthy, avoidant, confrontational, or passive? Include interpersonal and inner conflict."}
+  - {type: EmotionalTriggers, target: companion, label: emotional-trigger,
+     goal: "List and describe the emotional triggers of {target}. What situations, words, or tones affect them strongly, positive or negative? Explain the triggered emotions and their roots (insecurity, needs, attachment, values)."}
+  - {type: GoalsIntentions, target: companion, label: goals,
+     goal: "Identify the short-term goals and long-term desires of {target} (external: conversation goals, approval, closeness; internal: emotional safety, identity, recognition). How do these shape behavior? Do the conscious goals align with the emotional needs? Include implicit drives."}
+  - {type: BehaviorActionSelection, target: companion, label: behavior,
+     goal: "Describe how {target} typically chooses their actions in conversation. Are they primarily driven by achieving goals, managing emotions, maintaining relationships, exploring ideas, or following social norms? Are they impulsive or deliberate? How does their personality influence their choices?"}
+  - {type: AttentionFocus, target: companion, label: attention,
+     goal: "Describe how {target} typically focuses on the different feelings and memories that arise during their interactions. Do they focus on the bad, the good, the future, or the past?"}
+  - {type: PsychologicalAnalysis, target: user, label: psychological,
+     goal: "Write a thorough psychological profile of {target} using cognitive-affective psychology and internal systems theory. Identify dominant traits, conflicts, regulation patterns, tendencies (avoidant, anxious, resilient), and inner sub-personalities (critic, protector, exile)."}
+
+# The feature types that count as evidence for each narrative type. Port of
+# narrative_feature_relevance_map, mapped to the current feature types: the
+# old Action and ExpectationOutcome features are now dialogue and world events,
+# and the old Feeling features are subjective experiences.
+evidence_types:
+  AttentionFocus: [Dialogue, SubjectiveExperience, Thought, InnerMonologue]
+  SelfImage: [Dialogue, SubjectiveExperience, Thought, InnerMonologue, ExternalThought]
+  PsychologicalAnalysis: [Dialogue, SubjectiveExperience, Thought, InnerMonologue, WorldEvent]
+  Relations: [Dialogue, SubjectiveExperience, Thought]
+  ConflictResolution: [Dialogue, SubjectiveExperience, Thought]
+  EmotionalTriggers: [Dialogue, SubjectiveExperience, Thought, InnerMonologue]
+  GoalsIntentions: [Dialogue, SubjectiveExperience, Thought, WorldEvent]
+  BehaviorActionSelection: [Dialogue, SubjectiveExperience, Thought, WorldEvent]

@@ -60,6 +60,11 @@ user_template: |
   - If focus_management is available, use it for deliberate recall, activity discovery, goal review, or a change of
     focus. Describe the task in arguments.instruction. Its private result returns through appraisal and attention
     before it can affect actions.
+  - If memory_reconsolidation is available, use it with ToolCall when {companion_name} decides to sort through
+    memories, to go over the past days, or to sleep on what happened. It runs slowly in the background and builds
+    summaries, facts, and narratives from the stored history; it does not answer a question now. A wish to stop
+    thinking until something new happens is Sleep, not memory_reconsolidation. Write the reason into
+    arguments.instructions.
   - For a recall task, name the specific supported episode and its original evidence ids in the instructions, and
     what that evidence establishes. Recent generated replies cannot establish an older event. If no supplied record
     supports the requested event, say so in the instructions. A question or a recall request does not prove that the

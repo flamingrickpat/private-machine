@@ -84,6 +84,26 @@ class WriteBatch:
         # read guard even when a later proposal also replaces the record.
         self._expected.setdefault(knoxel.id, self._snapshot.revisions[knoxel.id])
 
+    def revise(self, knoxel: RecordBase) -> None:
+        """Replace a record that this batch created and did not commit yet.
+
+        Two new records can point at each other, for example a fact and its
+        canonical semantic record. The second id exists only after the first
+        ``create``, so the first record needs this update. The class, the
+        scope, and the tick must stay the same. An id that this batch did not
+        create raises ValueError; use ``replace`` for accepted records.
+        """
+        self.check_cancelled()
+        if knoxel.id not in self._new:
+            raise ValueError("Revise requires a record created in this batch.")
+        raw = _serialize_knoxel(_deserialize_knoxel(_serialize_knoxel(knoxel)))
+        previous = self._new[knoxel.id]
+        if (raw["__type__"] != previous["__type__"]
+                or raw["data"]["scope"] != previous["data"]["scope"]
+                or raw["data"]["tick_id"] != previous["data"]["tick_id"]):
+            raise ValueError("Revise cannot change a knoxel's class, visibility scope, or creation tick.")
+        self._new[knoxel.id] = raw
+
     @property
     def created_ids(self) -> frozenset[int]:
         """Return IDs created in this batch, excluding replacements of old sources."""

@@ -73,6 +73,7 @@ nav:
       - Deliberate mental work: subsystems/deliberate-mental-work.md
       - Managed memory lifecycle: subsystems/agent-memory-lifecycle.md
       - Experience consolidation: subsystems/memory-consolidation.md
+      - Character import and memory reconsolidation: subsystems/character-import.md
       - Public dialogue: subsystems/public-dialogue.md
       - Public publication and recovery: subsystems/public-publication.md
       - Asynchronous conversation review: subsystems/async-conversation-review.md
@@ -94,6 +95,7 @@ nav:
       - Expected gameplay failures: subsystems/gameplay-recovery.md
       - Gameplay history and cognition: subsystems/gameplay-evidence.md
       - Operator service: subsystems/console.md
+      - Web chat: subsystems/web-chat.md
       - Ghost and bus: ghost.md
       - Models:
           - Connections and embeddings: models.md

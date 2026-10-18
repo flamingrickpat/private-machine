@@ -43,9 +43,10 @@ REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
 DEFAULT_SEED = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
-def _managed_workflows(stage_model=None, embeddings=None) -> dict:
+def _managed_workflows(stage_model=None, embeddings=None, ghost=None) -> dict:
     from workflows.minecraft.host import build_minecraft_module_tools, persona_context, project_memory_config
     from workflows.note_task.steps import build_note_tools
+    from workflows.memory_reconsolidation.host import build_reconsolidation_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
     return {
@@ -56,6 +57,14 @@ def _managed_workflows(stage_model=None, embeddings=None) -> dict:
         "note_task": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "note_task" / "note_task.workflow.md",
             namespace="note_task", tools_factory=build_note_tools(stage_model),
+        ),
+        # The character sorts through its memories ("sleeps on it"). The tool
+        # runs pm.memory.reconsolidation on the live store; one run at a time.
+        "memory_reconsolidation": WorkflowSpec(
+            PROJECT_ROOT / "workflows" / "memory_reconsolidation" / "memory_reconsolidation.workflow.md",
+            namespace="memory_reconsolidation",
+            tools_factory=build_reconsolidation_tools(ghost, stage_model, embeddings),
+            singleton=True,
         ),
         "minecraft": WorkflowSpec(
             PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md",
@@ -98,6 +107,7 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
     for name in sorted(supervisor.workflows):
         descriptions = {"local_task": "Control worker. Writes task telemetry; cannot execute arbitrary instructions or create a requested note.",
                         "note_task": "Real pm-coder note writer. Exact UTF-8 byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.",
+                        "memory_reconsolidation": "Sort through memories and sleep on them: builds topic and day summaries, facts, and updated self and relationship narratives from the stored history. Slow; runs in the background. Use ToolCall when the character decides to sort through memories, sleep on what happened, or reflect on the past days.",
                         "minecraft": "One sustained survival specialist leaf. Standalone completion requires an explicit supported verifier, currently wood_return. Use minecraft_project for other goals that need verified completion.",
                         "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals. Inventory questions use direct Assistant observation."}
         description = descriptions.get(name, f"Managed workflow {name}.")
@@ -283,7 +293,7 @@ def build_app(
     supervisor = ManagedRunSupervisor(
         ghost,
         runtime_root=runtime_root,
-        workflows=_managed_workflows(stage_model, context_embeddings),
+        workflows=_managed_workflows(stage_model, context_embeddings, ghost),
         clock=clock,
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,

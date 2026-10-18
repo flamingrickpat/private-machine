@@ -502,11 +502,13 @@ class Feature(RecordBase):
 
 
 def new_feature(ghost, content, feature_type, *, source, interlocus=None, causal=True, changes=None,
-             source_kind=None, metadata=None, lineage: RecordLineage | None = None):
+             source_kind=None, metadata=None, lineage: RecordLineage | None = None, entity_id: int = 0):
     """Create an attributed feature, optionally inside the caller's write batch.
 
     Lineage preserves original episode links. With a batch, the caller owns
     the commit and cancellation boundary. Without one, the store commits it.
+    ``entity_id`` names the speaker entity. Use it when the entity is new in
+    the same batch, because the batch resolves names only from its snapshot.
     """
     kwargs = {
         "content": content,
@@ -514,6 +516,7 @@ def new_feature(ghost, content, feature_type, *, source, interlocus=None, causal
         "causal": causal,
         "override_source": source,
         "lineage": lineage,
+        "entity_id": entity_id,
     }
     if interlocus is not None:
         kwargs["interlocus"] = interlocus

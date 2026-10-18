@@ -181,3 +181,58 @@ MOOD_AROUSAL_ALERT = 0.3  # Core arousal that reads as "alert".
 MOOD_DOMINANCE_THRESHOLD = 0.3  # Core dominance that reads as sure (+) or out of depth (-).
 BEHAVIOR_PRESSING = 0.5  # Expression tendency at which the text names the urge.
 ATTENTION_DRIFT_THRESHOLD = 0.2  # Valence focus bias at which attention drifts toward threat (-) or reward (+).
+
+# Web chat (pm.app.web_chat). The server binds to loopback only.
+WEB_CHAT_HOST = "127.0.0.1"  # Bind address. Other machines cannot connect.
+WEB_CHAT_PORT = 8770  # Default TCP port. `--web-port` changes it.
+WEB_CHAT_POLL_MS = 1500  # Milliseconds between two browser polls for new messages.
+WEB_CHAT_MAX_BODY_BYTES = 64_000  # Largest accepted POST body, in bytes.
+WEB_CHAT_MAX_NAME_CHARS = 64  # Longest accepted login name, in characters.
+
+# Character import (pm.app.chat_import). Times are naive UTC.
+IMPORT_MESSAGE_SPACING_SECONDS = 120  # Synthetic gap between two messages of a log without timestamps.
+IMPORT_SESSION_GAP_SECONDS = 3600  # The synthetic history ends this long before the import time, so live chat starts a new session.
+IMPORT_SESSION_SPLIT_SECONDS = 2 * 3600  # A silence of at least this long between two rows starts a new session id.
+IMPORT_SOURCE_PREFIX = "chat_import"  # Prefix of the provenance source_ref of an imported record.
+TRANSFER_EVENT_SOURCE = "memory_transfer"  # override_source of the synthetic transfer event.
+
+# Memory reconsolidation (pm.memory.reconsolidation). Port of DynamicMemoryConsolidator
+# in private-machine-head/pm/memory_consolidation.py; the old values are marked.
+RECONSOLIDATION_TRIGGER_EVENTS = 60  # Unclustered events that trigger an automatic run (old min_event_memory_consolidation_threshold).
+RECONSOLIDATION_MIN_EVENTS = 3  # Fewest unclustered events that a topical run processes (old min_events_for_processing).
+RECONSOLIDATION_CONTEXT_WINDOW = 3  # Neighbors on each side in the contextual embedding (old topical_clustering_context_window).
+RECONSOLIDATION_MIN_BLOCK = 8  # A topic block of at least twice this size splits into chunks of at least this size (old min_split_up_cluster_size).
+RECONSOLIDATION_CHUNK_EVENTS = 400  # Events per clustering window. The pure Python clustering is quadratic in this number.
+RECONSOLIDATION_OPEN_TOPIC_MINUTES = 60  # The newest topic block stays open while its last event is younger than this.
+RECONSOLIDATION_SUMMARY_TOKEN_LIMIT = 4000  # Raw story tokens up to which a temporal range is summarized from raw events (old hierchical_summary_token_limit).
+RECONSOLIDATION_NARRATIVE_MIN_TOKENS = 3000  # New evidence tokens that a narrative refinement needs (old narrative_rolling_tokens_min).
+RECONSOLIDATION_NARRATIVE_MAX_TOKENS = 4500  # Upper evidence size of one refinement (old narrative_rolling_tokens_nax). A buffer closes at the mean of min and max.
+RECONSOLIDATION_NARRATIVE_FIRST_TOKENS = 300  # Evidence tokens that the first version of a narrative needs. New in the port.
+RECONSOLIDATION_DAY_START_HOUR = 5  # A logical day runs from 05:00 to 05:00 (old _SHIFT_HOURS).
+RECONSOLIDATION_WORKERS = 4  # Parallel model calls in one stage.
+RECONSOLIDATION_EMBED_WORKERS = 8  # Parallel embedding requests.
+RECONSOLIDATION_REPAIRS = 4  # Repair turns for invalid model output before the run fails.
+RECONSOLIDATION_PROVIDER_RETRIES = 3  # Repeats of a call that the provider failed (ModelError). Transport errors retry inside JsonClient.
+RECONSOLIDATION_TEMPERATURE = 0.4  # Sampling temperature of the reconsolidation calls.
+RECONSOLIDATION_SESSION_GAP_MINUTES = 120  # Contextual embeddings do not blend events across a silence this long. New in the port.
+RECONSOLIDATION_COMMIT_GROUP = 16  # Clusters or ranges that one commit holds, so a long run keeps finished work.
+# Synthetic transfer records of a character import. {companion_name}, {user_name}, and {date} are filled at import.
+TRANSFER_EVENT_TEXT = ("{companion_name} moved from the earlier chat harness into pm by a memory transfer on {date}. "
+                       "The earlier conversations with {user_name} were imported from a chat log; inner thoughts and "
+                       "feelings of that time were not recorded and are reconstructed only as summaries.")
+TRANSFER_SELF_MODEL_TEXT = ("{companion_name} came into pm through a memory transfer on {date}. The conversations with "
+                            "{user_name} before that date come from an imported chat log, without recorded inner "
+                            "thoughts or feelings.")
+TRANSFER_NARRATIVE_LINE = ("On {date}, {companion_name} moved into pm through a memory transfer; the time with "
+                           "{user_name} before that is known from the imported chat log, and its inner life only from "
+                           "reconstructed summaries.")
+# Capabilities of a new character home when `character init` gets no --capabilities file.
+DEFAULT_SUPPORTED_CAPABILITIES = (
+    "I can talk with {user_name} through text messages in this chat.",
+    "I can sort through my memories and sleep on what happened (memory reconsolidation).",
+)
+DEFAULT_UNSUPPORTED_CAPABILITIES = (
+    "I cannot act in the physical world.",
+    "I cannot run external actions unless an integrated workflow exists for them.",
+)
+RECONSOLIDATION_TIME_FORMAT = "%A, %d %B %Y, %H:%M"  # Times in reconsolidation prompts. A numeric day.month.year format made the model read 01.05.26 as 5 January.

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div id="login" class="login" hidden>
+    <form id="login-form" class="login-card">
+      <h1>Log in</h1>
+      <p id="login-hint"></p>
+      <input id="login-name" type="text" autocomplete="username" placeholder="Your name" maxlength="64" required>
+      <button type="submit">Start chatting</button>
+      <p id="login-error" class="error"></p>
+    </form>
+  </div>
+  <div id="chat" class="chat" hidden>
+    <header class="top">
+      <div class="avatar" id="avatar"></div>
+      <div class="title">
+        <div id="companion-name" class="name"></div>
+        <div id="status" class="status"></div>
+      </div>
+      <button id="logout" class="link" type="button">Change name</button>
+    </header>
+    <main id="messages" class="messages"></main>
+    <form id="composer" class="composer">
+      <textarea id="text" rows="1" placeholder="Write a message…"></textarea>
+      <button id="send" type="submit" title="Send (Enter)">Send</button>
+    </form>
+  </div>
+</body>
+</html>
