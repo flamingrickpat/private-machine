@@ -15,7 +15,7 @@ from pathlib import Path
 
 def main(argv=None, *, assembly) -> int:
     """Run the terminal session of ``assembly`` until stdin closes or an error stops it."""
-    parser = argparse.ArgumentParser(description="Spamuel cognition shell")
+    parser = argparse.ArgumentParser(description="pm cognition shell")
     parser.add_argument("--seed", default=str(assembly.DEFAULT_SEED))
     parser.add_argument("--runtime-root", default=str(Path.cwd() / ".runtime"))
     parser.add_argument("--cognition", choices=["real", "dummy"], default="real",

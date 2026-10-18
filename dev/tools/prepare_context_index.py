@@ -51,7 +51,7 @@ def main(argv=None) -> int:
     source.add_argument("--seed", help="Persona seed YAML")
     source.add_argument("--checkpoint", help="MemoryStore checkpoint JSON")
     parser.add_argument("--config", default="config.local.yaml")
-    parser.add_argument("--plans", nargs="+", default=["story", "assistant"])
+    parser.add_argument("--plans", nargs="+", default=["story"])
     args = parser.parse_args(argv)
     ghost = MemoryStore.from_yaml(args.seed) if args.seed else MemoryStore.from_checkpoint(args.checkpoint)
     service = EmbeddingService(load_config(args.config).embedding)

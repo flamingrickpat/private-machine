@@ -8,6 +8,7 @@ import unittest
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import new_envelope
 from pm.records.global_workspace import GwtTurnRecord
+from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
 from tests.support import ManualClock, Recorder
 from tests.unit.test_design_contracts import small_ghost
@@ -45,8 +46,9 @@ class WorldEventTests(unittest.TestCase):
         self.module.step()
         original_id = self.module.pending_id
         accepted = self.ghost.begin_batch("accepted-world", new_tick=True)
-        accepted.set_gwt(GwtTurnRecord(tick_id=accepted.tick_id, knoxel_ids=[original_id]),
-                         CycleState(tick_id=accepted.tick_id, stimuli_ids=[original_id]))
+        accepted.set_gwt(GwtTurnRecord(tick_id=accepted.tick_id, stimulus_ids=[original_id], knoxel_ids=[original_id]),
+                         CycleState(tick_id=accepted.tick_id,
+                                    stimulus_groups=[StimulusGroup(stimulus_ids=[original_id])]))
         self.ghost.commit(accepted)
         self.module.handle_batch([new_envelope("main_cog", "data", "gwt.updated", "", {"gwt_tick": 1})])
         self.assertIsNone(self.module.pending_id)
@@ -99,8 +101,9 @@ class WorldEventTests(unittest.TestCase):
         self.module.step()
         original_id = self.module.pending_id
         accepted = self.ghost.begin_batch("accepted-baseline", new_tick=True)
-        accepted.set_gwt(GwtTurnRecord(tick_id=accepted.tick_id, knoxel_ids=[original_id]),
-                         CycleState(tick_id=accepted.tick_id, stimuli_ids=[original_id]))
+        accepted.set_gwt(GwtTurnRecord(tick_id=accepted.tick_id, stimulus_ids=[original_id], knoxel_ids=[original_id]),
+                         CycleState(tick_id=accepted.tick_id,
+                                    stimulus_groups=[StimulusGroup(stimulus_ids=[original_id])]))
         self.ghost.commit(accepted)
         self.module.handle_batch([new_envelope("main_cog", "data", "gwt.updated", "", {"gwt_tick": accepted.tick_id})])
         live = json.loads(Path("test_data/captures/alpha/world-active-project.json").read_text(encoding="utf-8"))["run_receipt"]

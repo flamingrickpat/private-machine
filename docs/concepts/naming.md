@@ -63,7 +63,7 @@ Not acceptable: `pm_core/utils/datetime_utils.py` (one function, generic folder 
 | `runtime/minecraft_actor.py` | Two different "actors". | `workflows/minecraft_body/gateway.py`. |
 | `pm_core/model/knoxel_state_change.py` | It holds record types, not state changes. | `pm/records/cognitive_records.py`. |
 | `workflows/main_cognition/engine.py` | "engine" says nothing. | `workflows/main_cognition/stage_runner.py`. |
-| `workflows/main_cognition/state_changes.py` | "state" has four meanings. | `workflows/main_cognition/stage_commits.py`. |
+| `workflows/main_cognition/state_changes.py` | "state" has four meanings. | `workflows/main_cognition/cycle_commits.py` (A19F renamed it again when the stages went away). |
 
 ## Classes and interfaces
 

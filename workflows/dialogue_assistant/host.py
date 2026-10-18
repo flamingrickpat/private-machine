@@ -17,6 +17,7 @@ from pm.bus.envelopes import Envelope
 from workflows.dialogue_assistant.schemas import AssistantMessage, AssistantReport, AssistantRequest
 from workflows.dialogue_assistant.steps import load_prompts, unsupported_management_claims
 from workflows.dialogue_assistant.tools import reply_tools
+from workflows.main_cognition.schemas import ActionRequest
 from workflows.public_speech.public_context import ability_lines, time_lines
 from workflows.public_speech.public_dialogue import PublicDialogue, _clip
 
@@ -85,26 +86,31 @@ class AssistantDialogue(PublicDialogue):
         return super().accepts(envelope)
 
     def prepare_input(self, batch: list[Envelope]) -> dict:
-        payload = batch[0].payload
-        action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
-        intent = str(action.content) if action is not None else str(payload.get("content", ""))
-        current = "\n".join(item["text"] for item in self.user_stimuli(payload))
-        # The "assistant" context plan picks the prior chat window and the
-        # memory lanes from the cycle's workspace (context_plans.yaml).
-        planned = self.plan_context(payload, "assistant")
-        public = self.public_context(payload, planned)
-        # A terminal receipt requests a report of existing work. It does not
-        # authorize another execution of the original user instruction.
-        tools = reply_tools(terminal_receipt=bool(payload.get("task_receipt")))
-        names = {"companion_name": self.ghost.get_companion_name(), "user_name": self.ghost.get_user_name()}
+        """Build the typed Assistant request from the typed action request.
+
+        The reply answers the partner of the request. The prior chat window,
+        the shard story, and the evidence come from the workspace shards of
+        the cycle that chose the reply (``reply_context``). A terminal task
+        receipt requests a report of existing work. It does not authorize
+        another execution of the original user instruction.
+        """
+        action_request = ActionRequest.model_validate(batch[0].payload)
+        action = (self.ghost.get_knoxel_by_id(action_request.knoxel_id)
+                  if action_request.knoxel_id is not None else None)
+        intent = str(action.content) if action is not None else action_request.content
+        current = "\n".join(item.text for item in self.partner_stimuli(action_request))
+        planned = self.reply_context(action_request)
+        public = self.public_context(action_request, planned)
+        tools = reply_tools(terminal_receipt=bool(action_request.task_receipt))
+        names = {"companion_name": self.ghost.get_companion_name(), "partner_name": public.partner_name}
         request = AssistantRequest(
             companion_name=self.ghost.get_companion_name(),
-            user_name=self.ghost.get_user_name(),
+            partner_name=public.partner_name,
             character_card=self.ghost.get_simple_character_story_block(),
             abilities="\n".join(ability_lines(public)),
             time="\n".join(time_lines(datetime.utcnow().isoformat(), planned.dialogue, load_prompts(), names)),
             feelings=public.feelings,
-            prior_dialogue=self._prior_dialogue(current, planned.dialogue),
+            prior_dialogue=self._prior_dialogue(current, planned.dialogue, public.partner_name),
             current_user_message=current,
             memories=public.memories,
             workspace=public.workspace,
@@ -112,19 +118,23 @@ class AssistantDialogue(PublicDialogue):
             tool_grant=[tool.name for tool in tools],
             selected_action=intent,
             public_context=public,
-            minecraft_read=payload.get("arguments", {}).get("minecraft_read", ""),
+            minecraft_read=action_request.arguments.minecraft_read,
         )
         return request.model_dump(mode="json")
 
-    def _prior_dialogue(self, current: str, turns) -> list[AssistantMessage]:
-        """Turn the planned speech window into user and assistant chat messages."""
+    def _prior_dialogue(self, current: str, turns, partner_name: str) -> list[AssistantMessage]:
+        """Turn the speech of the transcript into user and assistant chat messages.
+
+        A line of the partner becomes a user message. A line of the companion
+        becomes an assistant message. Private thoughts stay out.
+        """
         turns = [turn for turn in turns if turn.kind == "speech"]
         messages: list[AssistantMessage] = []
         for index, turn in enumerate(turns):
             is_last = index == len(turns) - 1
-            if is_last and turn.speaker == self.ghost.get_user_name() and turn.text == current:
+            if is_last and turn.speaker == partner_name and turn.text == current:
                 continue
-            role = "user" if turn.speaker == self.ghost.get_user_name() else "assistant"
+            role = "assistant" if turn.speaker == self.ghost.get_companion_name() else "user"
             messages.append(AssistantMessage(role=role, content=_clip(turn.text, 1500)))
         return messages
 

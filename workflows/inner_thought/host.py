@@ -3,13 +3,13 @@
 The host owns the loop's commit boundary. Each timer tick it freezes a
 permitted view, derives the deterministic private candidates and triggers,
 and runs the parent workflow. A cycle with no trigger performs nothing. An
-accepted cycle commits its thought into the inner GWT shard and publishes one
+accepted cycle commits its thought in an inner GWT turn and publishes one
 ``thought.created`` self-origin event, which the main loop appraises like any
 other internal event.
 
 Both loops share one MemoryStore and one companion identity. Every cross-loop
 read carries a revision, and the commit rejects a proposal whose source
-changed. The inner loop never writes the main loop's frame and never changes
+changed. The inner loop never writes the main loop's workspace and never changes
 mental state directly: only the main appraisal path does that.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ from workflows.cognitive_control.schemas import ControlConfig
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.memory.snapshot import GhostCancelled, GhostConflict
 from pm.records.enums import FeatureType, InterlocusType, SourceKind
-from pm.records.cognitive_records import AttentionFrameRecord, ExpectationRecord
+from pm.records.cognitive_records import ExpectationRecord
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.lineage import RecordLineage
@@ -34,7 +34,7 @@ from pm.runs.workflow_module import CognitiveWorkflow
 
 from workflows.main_cognition.host import seconds_since_user_input
 from workflows.main_cognition.model_json import ModelFormatError
-from workflows.main_cognition.stage_commits import active_intentions
+from workflows.main_cognition.cycle_commits import active_intentions
 from workflows.inner_thought.expectations import open_expectation, pending_expectations, resolve_expectation
 from workflows.inner_thought.felt_state import (
     is_reportable, notable_channels, previous_cycle_sample, project_channels,
@@ -101,8 +101,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         with self.ghost.lock:
             if control is not None and control.waiting():
                 return
-            appraised = {key for cycle in self.ghost.states if "main" in cycle.published_slots
-                         for key in cycle.stimuli_ids}
+            appraised = {key for cycle in self.ghost.states for key in cycle.claimed_ids()}
             pending = [item for item in self._inner_thoughts()
                        if item.id not in appraised and item.id not in self._published_thoughts
                        and (control is None or item.metadata.get("control_generation", control.generation)
@@ -160,7 +159,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         with self.ghost.lock:
             tick = self.ghost.current_tick_id
             states = list(self.ghost.states)
-            main_shard = self.ghost.gwt_shard("main", limit=3)
+            main_turns = self.ghost.gwt_turns_of("main", limit=3)
             thoughts = self._recent_private_thoughts()
             goals = active_intentions(view)
             expectations = pending_expectations(view)
@@ -183,8 +182,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
 
         main_frame: dict = {}
         frame_age = 0
-        if main_shard:
-            newest = main_shard[0]
+        if main_turns:
+            newest = main_turns[0]
             surprise = 0.0
             if latest_appraisal is not None:
                 surprise = float((latest_appraisal.metadata or {}).get("emotion_delta", {}).get(
@@ -194,11 +193,12 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             # outside material and start another cycle from it.
             frame_cycle = next((item for item in reversed(states)
                                 if item.tick_id == newest.tick_id), None)
-            self_feedback = bool(frame_cycle is not None and frame_cycle.stimuli_ids
-                                 and all(int(key) in private_thought_ids
-                                         for key in frame_cycle.stimuli_ids))
+            claimed = frame_cycle.claimed_ids() if frame_cycle is not None else []
+            self_feedback = bool(claimed and all(int(key) in private_thought_ids for key in claimed))
+            # The subjective experience of the newest main turn stands for
+            # the main workspace. Before A19F the attention frame did.
             main_frame = {
-                "tick": newest.tick_id, "frame_id": newest.attention_frame_id,
+                "tick": newest.tick_id, "frame_id": newest.experience_id,
                 "summary": newest.summary, "surprise": surprise,
                 "gap_seconds": startup_gap, "self_feedback": self_feedback,
             }
@@ -413,15 +413,6 @@ class PrivateThoughtLoop(CognitiveWorkflow):
                     revision=int(view.revisions.get(record.id, 1)),
                 )
 
-        frame = changes.create(AttentionFrameRecord(
-            content=parsed.summary or parsed.thought[:120],
-            tick_id=tick,
-            focus_knoxel_ids=[int(item) for item in parsed.candidate_ids][:5],
-            active_goal_ids=list(getattr(self, "_active_goal_ids", []) or []),
-            control_mode="reflective",
-            frame_reason=parsed.trigger_reason or f"private operation {parsed.operation}",
-        ))
-
         # The felt-state sample is deterministic math over the frozen accepted
         # state. Its drivers name the records that moved the state, and
         # reportability applies the causal gate: a driver that never won
@@ -448,13 +439,12 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             ))
             quale_ids.append(quale.id)
 
-        cycle = CycleState(
-            tick_id=tick, attention_frame_id=frame.id, published_slots=["inner"],
-            stimuli_ids=[], mental_state=state, qualia_channels=sample,
-        )
+        # A private cycle claims no stimuli and writes no attention frame.
+        # A19G moves the inner loop onto the shared cycle and its workspace.
+        cycle = CycleState(tick_id=tick, mental_state=state, qualia_channels=sample)
         changes.set_gwt(GwtTurnRecord(
-            tick_id=tick, slot_id="inner", attention_frame_id=frame.id,
-            knoxel_ids=[thought.id, frame.id, *quale_ids],
+            tick_id=tick, slot_id="inner",
+            knoxel_ids=[thought.id, *quale_ids],
             summary=parsed.summary or parsed.thought[:120],
         ), cycle)
         control = getattr(self, "cognitive_control", None)
@@ -541,8 +531,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
 
     def _thought_acknowledged(self, thought_id: int) -> bool:
         """Return whether an accepted main cycle appraised this thought."""
-        return any("main" in cycle.published_slots and thought_id in cycle.stimuli_ids
-                   for cycle in self.ghost.states)
+        return any(thought_id in cycle.claimed_ids() for cycle in self.ghost.states)
 
     def _parked_sources(self, now: datetime, latest_user) -> set[int]:
         """Return parked source ids whose review time has not arrived.
@@ -728,7 +717,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     def _state_summary(self, cycle) -> str:
         if cycle is None:
             return "(no accepted state yet)"
-        return f"tick {cycle.tick_id}, slots published: {', '.join(cycle.published_slots) or 'none'}"
+        turn = self.ghost.gwt_turns[cycle.tick_id] if cycle.tick_id in self.ghost.gwt_turns else None
+        return f"tick {cycle.tick_id}, loop: {turn.slot_id if turn is not None else 'none'}"
 
     def _candidates(self, view, goals, expectations, latest_appraisal, main_frame,
                     thoughts, latest_user) -> list[ThoughtCandidate]:

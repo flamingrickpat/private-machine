@@ -37,7 +37,6 @@ WORKSPACE_HOLD_BONUS = 0.1  # Activation bonus that keeps an incumbent item agai
 WORKSPACE_MIN_RATING = 0.5  # Lowest entry priority of a newcomer or an incumbent. Reserved places ignore it.
 WORKSPACE_HOME_BONUS = 0.05  # Priority bonus in the home shard of a record: the shard of the entity it is about, or the target shard of its structure.
 WORKSPACE_TAIL_CANDIDATES = 96  # Newest stream records that the host offers for each shard tail.
-WORKSPACE_PAYLOAD_ITEMS = 16  # Workspace items that an action request names as attention for the public workflows.
 CCQ_LENGTH = 8  # Number of recent broadcasts that the cycle state keeps.
 
 # Structure builders (port of _build_structures_get_coalitions) and attention into shards

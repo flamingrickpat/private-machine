@@ -284,7 +284,7 @@ class KernelWaitTests(unittest.TestCase):
             self.assertEqual(calls, [])
             self.assertEqual(ghost.state_dict(), before)
 
-    def test_kernel_commits_sleep_with_frame_and_wakes_on_new_input(self):
+    def test_kernel_commits_sleep_with_its_turn_and_wakes_on_new_input(self):
         ghost = small_ghost()
         key = _store(ghost, "leave me quiet for now")
         reports = _reports(key, actions=[{"action_type": "Sleep", "workflow_name": "", "content": "wait",
@@ -300,14 +300,14 @@ class KernelWaitTests(unittest.TestCase):
             self.assertTrue(control.waiting())
             self.assertEqual(errors, [])
             self.assertEqual(requests.events, [])
-            self.assertIn(key, ghost.states[-1].stimuli_ids)
-            self.assertEqual(len(ghost.gwt_shard("main")), 1)
+            self.assertIn(key, ghost.states[-1].claimed_ids())
+            self.assertEqual(len(ghost.gwt_turns_of("main")), 1)
             next_key = _store(ghost, "actually, hello again")
             reports.update(_reports(next_key))
             bus.put(new_envelope("user_input", "data", "user.input", "new", {"knoxel_id": next_key}))
             self.assertFalse(control.waiting())
             module.step()
-            self.assertIn(next_key, ghost.states[-1].stimuli_ids)
+            self.assertIn(next_key, ghost.states[-1].claimed_ids())
             self.assertEqual(len(requests.events), 1)
 
     def test_wait_after_private_work_also_parks_the_already_appraised_user_source(self):

@@ -80,7 +80,6 @@ def start(request: CycleRequest) -> CycleWork:
         state.workspace.ensure_shard(group.key)
     state.decisions = []
     state.dispatches = []
-    state.stimuli_ids = [item.knoxel_id for item in request.stimuli]
     state.qualia_channels = {}
     work = CycleWork(request=request, state=state, state_summary=request.state_summary,
                      records=dict(request.records))

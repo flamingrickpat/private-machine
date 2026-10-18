@@ -68,9 +68,9 @@ class ExperimentTests(unittest.TestCase):
     def test_prediction_commits_before_application_and_changes_no_advice(self):
         proposal = self.proposed()
         self.assertEqual(proposal.metadata["state"], "proposed")
-        self.assertEqual(active_focus(self.store), {})
+        self.assertIsNone(active_focus(self.store))
         applied = self.step("apply", proposal.id)
-        self.assertEqual(active_focus(self.store)["control_record_id"], applied.metadata["effective_record_id"])
+        self.assertEqual(active_focus(self.store).control_record_id, applied.metadata["effective_record_id"])
         self.assertLess(proposal.tick_id, applied.metadata["applied_tick"])
         self.assertEqual(applied.metadata["history"][0]["action"], "proposed")
 
@@ -81,7 +81,7 @@ class ExperimentTests(unittest.TestCase):
         self.store.commit(batch)
         with self.assertRaises(GhostConflict):
             self.step("apply", proposal.id)
-        self.assertEqual(active_focus(self.store), {})
+        self.assertIsNone(active_focus(self.store))
         self.assertEqual(self.store.get_knoxel_by_id(proposal.id).metadata["state"], "proposed")
 
     def test_concurrent_first_advice_rejects_empty_family_guard(self):
@@ -104,7 +104,7 @@ class ExperimentTests(unittest.TestCase):
         self.store.commit(batch)
         with self.assertRaises(GhostConflict):
             self.step("apply", proposal.id)
-        self.plan.intervention.expected_record_id = max(active_focus(self.store)["control_record_id"], 0)
+        self.plan.intervention.expected_record_id = max(active_focus(self.store).control_record_id, 0)
         applied = self.applied()
         batch = self.store.begin_batch("still-newer")
         stage_focus(batch, self.store.snapshot(), instruction="An urgent new focus.", focus={"accept": True},
@@ -129,7 +129,7 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(self.store.checkpoint.read_bytes(), before)
             reopened = MemoryStore.from_checkpoint(self.store.checkpoint)
             self.assertEqual(reopened.get_knoxel_by_id(proposal.id).metadata["state"], "proposed")
-            self.assertEqual(active_focus(reopened), {})
+            self.assertIsNone(active_focus(reopened))
 
     def test_no_observation_remains_unresolved(self):
         applied = self.applied()
@@ -179,7 +179,7 @@ class ExperimentTests(unittest.TestCase):
             self.assertEqual(result.metadata, reversed_record.metadata)
             self.assertEqual(result.metadata["result"], "contradicted")
             self.assertEqual(result.metadata["history"][-2]["action"], "evaluated")
-            self.assertEqual(active_focus(reopened), {})
+            self.assertIsNone(active_focus(reopened))
             self.assertGreater(result.metadata["reversal_record_id"], result.metadata["effective_record_id"])
 
     def test_belief_revision_keeps_original_report_and_reversal_is_a_new_belief(self):
@@ -191,8 +191,8 @@ class ExperimentTests(unittest.TestCase):
         effective = self.store.get_knoxel_by_id(applied.metadata["effective_record_id"])
         self.assertFalse(self.store.get_knoxel_by_id(belief.id).active)
         self.assertIn(self.source.id, effective.supporting_knoxel_ids)
-        inputs = effective_inputs(self.store.snapshot(), {})
-        self.assertEqual(inputs["versions"][str(applied.id)], effective.id)
+        inputs = effective_inputs(self.store.snapshot(), None)
+        self.assertEqual(inputs.versions[str(applied.id)], effective.id)
         self.assertEqual(self.store.get_knoxel_by_id(self.source.id).content, self.source.content)
         reversed_record = self.step("reverse", applied.id)
         restored = self.store.get_knoxel_by_id(reversed_record.metadata["reversal_record_id"])
@@ -210,7 +210,7 @@ class ExperimentTests(unittest.TestCase):
         applied = self.applied()
         interrupted = self.step("interrupt", applied.id)
         self.assertEqual(interrupted.metadata["state"], "interrupted")
-        self.assertEqual(interrupted.metadata["effective_record_id"], active_focus(self.store)["control_record_id"])
+        self.assertEqual(interrupted.metadata["effective_record_id"], active_focus(self.store).control_record_id)
 
     def test_unrelated_later_user_message_cannot_establish_an_outcome(self):
         applied = self.applied()
@@ -232,8 +232,8 @@ class ExperimentTests(unittest.TestCase):
         self.plan.intervention = Intervention(owner="belief", expected_record_id=belief.id, belief="A revised interpretation.")
         applied = self.applied()
         restored = self.step("reverse", applied.id)
-        inputs = effective_inputs(self.store.snapshot(), {})
-        self.assertEqual(inputs["versions"][str(applied.id)], restored.metadata["reversal_record_id"])
+        inputs = effective_inputs(self.store.snapshot(), None)
+        self.assertEqual(inputs.versions[str(applied.id)], restored.metadata["reversal_record_id"])
 
     def test_hypothesis_revision_keeps_failed_prediction_and_new_proposal_separate(self):
         applied = self.applied()

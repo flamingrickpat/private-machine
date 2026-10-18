@@ -167,7 +167,6 @@ class ActionSchemaRecord(RecordBase):
     tool_usage: str = Field(default="", description="MCP/skill/workflow usage hint for the executor.")
     execution_mode: ActionSchemaExecutionMode = Field(default=ActionSchemaExecutionMode.ProseExternal)
     verbalized_by: ActionSchemaVerbalization = Field(default=ActionSchemaVerbalization.Roleplay)
-    attention_frame_id: Optional[int] = Field(default=None, description="Attention frame that selected this schema.")
 
     def get_story_element(self) -> str:
         return f"[ActionSchema:{self.action_type.value}:{self.status.value}] {self.content}"
@@ -434,6 +433,8 @@ class Feature(RecordBase):
     causal: bool = Field(default=False, description="Did this feature ever enter workspace or stay 'virtual'?")
     entity_id: int = Field(default=0, description="Entity ID if the feature is caused by entity, otherwise 0.")
     override_source: str | None = Field(default=None, description="Override source for this feature, if there is no entity id (codelt or subsystem).")
+    addressee_entity_id: int = Field(default=0, description="Entity ID of the listener of a dialogue line, otherwise 0. "
+                                                            "A companion reply names the entity that it answers. 0 means the user or unknown.")
     mental_state_appraisal_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with the real appraisals and latent state (total, includes state at which feature was created).")
     mental_state_delta_vec: List[float] = Field(default_factory=create_empty_ms_vector, description="The state with no appraisals and the real delta from latent_state - previous_real_state (local delta, can be added up in EMA for 'state during'.")
 

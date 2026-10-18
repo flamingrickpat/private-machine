@@ -17,7 +17,7 @@ from pm.constants import CODELET_BUDGET_DEFAULT, CODELET_BUDGET_MAX, DECISION_VA
 from pm.records.mental_state import AppraisalGeneral, AppraisalSocial, FullMentalState, StateEmotions, StateNeeds
 from pm.records.codelet_records import StructureRelation
 from pm.records.global_workspace import ShardChange
-from pm.records.workspace import ShardKey
+from pm.records.workspace import ShardKey, WorkspaceShard
 from workflows.cognitive_control.schemas import FocusProposal, FocusState, WaitRequest
 from workflows.public_speech.public_context import Presentation
 
@@ -61,6 +61,9 @@ class ActionArguments(BaseModel):
     operation: str = ""
     run_id: str = ""
     workflow_name: str = ""
+    instructions: str = ""
+    instruction: str = ""
+    minecraft_read: str = ""
     timeout_seconds: float | None = Field(default=None, strict=True)
 
     @model_serializer(mode="wrap")
@@ -127,6 +130,117 @@ class ActionDispatch(BaseModel):
     stimulus_ids: list[int] = Field(default_factory=list)
     correlation_id: str = ""
     expectations: list[ExpectationDraft] = Field(default_factory=list)
+
+
+class RequestShard(BaseModel):
+    """One workspace shard that an action request carries, with its story name.
+
+    ``name`` is the label that the story prefix of the cycle used: ``self``,
+    the entity name, or the workflow name. The shard holds record ids only.
+    The target workflow reads the records from the memory store.
+    """
+
+    name: str = ""
+    shard: WorkspaceShard = Field(default_factory=WorkspaceShard)
+
+
+class ActionRequest(BaseModel):
+    """The typed payload of one ``action.request`` envelope.
+
+    Main cognition publishes one request for each released dispatch. The
+    host stores the same request in the action record
+    (``ActionMetadata.dispatch_payload``), so recovery can publish it again
+    without a change.
+
+    - ``knoxel_id`` is the id of the stored ``ActionSchemaRecord``.
+    - ``content`` is the in-character decision text, unchanged.
+    - ``group`` is the stimulus group of the decision. ``stimuli`` are the
+      stimuli of that group.
+    - ``partner_entity_id`` and ``partner_name`` name the entity that a reply
+      addresses: the entity of an entity group, else the user. A second
+      companion is an entity like the user.
+    - ``shards`` are the self shard, the partner's entity shard, and the
+      group's own shard when it is a workflow shard, each with its tail.
+      The public workflows build their context from these shards. They do
+      not retrieve memory again.
+    - ``workspace`` is the subjective experience of the cycle. ``affect`` and
+      ``regulation`` are the feeling in words and the regulation mode.
+
+    Recovery and task replies build requests without a cycle. They set
+    ``task_receipt`` (the managed-run receipt that the reply reports) and
+    ``recovery_outcome``. The receipt is an opaque record of the run
+    supervisor, so it stays a mapping.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    knoxel_id: int | None = None
+    gwt_tick: int | None = None
+    action_id: str = ""
+    workflow_name: str = ""
+    content: str = ""
+    arguments: ActionArguments = Field(default_factory=ActionArguments)
+    group: ShardKey = Field(default_factory=ShardKey)
+    partner_entity_id: int | None = None
+    partner_name: str = ""
+    stimuli: list[Stimulus] = Field(default_factory=list)
+    shards: list[RequestShard] = Field(default_factory=list)
+    presentation: Presentation = Field(default_factory=Presentation)
+    workspace: str = ""
+    affect: str = ""
+    regulation: str = ""
+    task_receipt: dict = Field(default_factory=dict)
+    recovery_outcome: str = ""
+
+    def payload(self) -> dict:
+        """Return the JSON payload of the envelope."""
+        return self.model_dump(mode="json")
+
+
+class ActionMetadata(BaseModel):
+    """The metadata fields of an ``ActionSchemaRecord`` that the runtime reads.
+
+    Record metadata is an open mapping. Several modules add their own keys,
+    for example the public reply id. This view reads the keys that main
+    cognition, dispatch recovery, and public speech use and ignores the
+    others. ``dispatch_status`` is ``pending`` until a workflow admits the
+    action. The stored request itself is read by :class:`PendingDispatch`,
+    only for a pending action, because actions of older checkpoints stored
+    another payload format.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    action_id: str = ""
+    workflow_name: str = ""
+    dispatch_status: str = ""
+    dispatch_target: str = ""
+    dispatch_correlation: str = ""
+    presentation: Presentation = Field(default_factory=Presentation)
+    affect_summary: str = ""
+    regulation: str = ""
+    public_reply_id: int | None = None
+
+
+class PendingDispatch(ActionMetadata):
+    """The metadata of a pending action, with its stored :class:`ActionRequest`."""
+
+    dispatch_payload: ActionRequest = Field(default_factory=ActionRequest)
+
+
+class RecordMetadataView(BaseModel):
+    """The general metadata keys of a memory record that main cognition reads.
+
+    Record metadata is an open mapping, so the other keys are ignored. An
+    empty ``memory_kind`` means that the record names no kind.
+    ``exchange_status`` is ``pending`` or ``resolved`` on a user message that
+    waits for or got a public reply, and empty on other records.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    memory_kind: str = ""
+    exchange_status: str = ""
 
 
 class TriageItem(BaseModel):
@@ -657,21 +771,11 @@ class ExperienceResult(BaseModel):
     alone. ``record_id`` is the pending id of the ``SubjectiveExperience``
     feature until the commit stores it. The record is in the tail of the
     self shard, so the goals, decide, and route calls read it.
-
-    ``control_mode`` is the regulation mode of the cycle (``reactive``,
-    ``reflective``, or ``blended``). ``focus_ids`` are the stimuli and the
-    items that entered a shown shard in this cycle. ``frame_reason`` is the
-    frame text of the attention frame record. The commit can add the danger
-    note to it. The attention frame record stays until step 10 of A19F
-    migrates its readers.
     """
 
     text: str = ""
     seed: str = ""
     record_id: int = 0
-    control_mode: str = "reactive"
-    focus_ids: list[int] = Field(default_factory=list)
-    frame_reason: str = ""
 
 
 #: The action types that routing can choose.
@@ -965,6 +1069,11 @@ class ReflectionGuidance(BaseModel):
 __all__ = [
     "ActionArguments",
     "ActionDispatch",
+    "ActionMetadata",
+    "ActionRequest",
+    "PendingDispatch",
+    "RecordMetadataView",
+    "RequestShard",
     "ActivationScore",
     "AgentCodeletAnswer",
     "AgentCodeletJob",

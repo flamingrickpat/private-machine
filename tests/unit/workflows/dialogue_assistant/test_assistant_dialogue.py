@@ -31,7 +31,7 @@ MANIFEST = PROJECT_ROOT / "workflows" / "dialogue_assistant" / "dialogue_assista
 def example_request(**overrides) -> AssistantRequest:
     values = dict(
         companion_name="Spamuel",
-        user_name="Jesse",
+        partner_name="Jesse",
         character_card="An acerbic, loyal companion.",
         abilities="- Cannot see, cannot move.",
         time="An ordinary evening.",

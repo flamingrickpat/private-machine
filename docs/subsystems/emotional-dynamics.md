@@ -21,7 +21,7 @@ When the expectation check of the same phase rated open expectations, their summ
 It sets `CycleState.mental_state` and returns an
 [`AppraisalAffect`][workflows.main_cognition.schemas.AppraisalAffect].
 Later phases read the feelings in words and the regulation mode.
-At commit, [`workflows.main_cognition.stage_commits.apply_appraisal`][] writes the appraisal `Feature`.
+At commit, [`workflows.main_cognition.cycle_commits.apply_appraisal`][] writes the appraisal `Feature`.
 The Feature carries the appraisal state and the delta.
 The next cycle reads that delta from the store as part of its history.
 

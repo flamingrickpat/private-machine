@@ -260,6 +260,9 @@ class BeliefShiftRecord(RecordBase):
 
 class AttentionRecord(RecordBase):
     """
+    Legacy record: an A15 attention nomination. No module creates it since
+    A19F step 6. The class stays so that old checkpoints still load.
+
     Candidate attention nomination for competition and ranking.
 
     This is the cheap bridge between raw percept/codelet outputs and later selection heuristics.
@@ -313,7 +316,12 @@ class AttentionRecord(RecordBase):
 
 class AttentionFrameRecord(RecordBase):
     """
-    Snapshot of what currently matters.
+    Legacy record: a snapshot of what mattered in one cycle before A19F.
+
+    No module creates this record since A19F step 10. The GWT turn record
+    (``pm.gwt-turn.v2``), the workspace shards, and the ``Structure``
+    records hold the attention decisions now. The class stays so that old
+    checkpoints and seeds still load. Old frames are not migrated.
 
     This is the cheap, temporally bounded object that says: these are the attention winners,
     these are the active goals around them, and this is the current control stance. It can serve

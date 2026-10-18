@@ -10,6 +10,7 @@ from pm.records.enums import ActionType, FeatureType, SourceKind
 from pm.records.memory_records import new_feature
 from workflows.dialogue_story.host import StoryDialogue
 from workflows.dialogue_story.schemas import StoryRequest
+from workflows.main_cognition.schemas import ActionRequest, Stimulus
 from workflows.dialogue_story.steps import build_story_messages, load_prompts
 from workflows.public_speech.public_context import build_public_context
 from workflows.public_speech.publication import commit_public_reply, exchange_record, acknowledge_reply
@@ -33,15 +34,15 @@ class AttributionTests(unittest.TestCase):
                               FeatureType.InnerMonologue, source="Spamuel", source_kind=SourceKind.Self)
         lifecycle = new_feature(self.ghost, "The previous stop was not clean.", FeatureType.SystemMessage,
                                 source="system", source_kind=SourceKind.System)
-        payload = {"stimuli": [{"knoxel_id": item.id, "text": str(item.content)}
-                               for item in (user, thought, lifecycle)]}
+        payload = ActionRequest(stimuli=[Stimulus(knoxel_id=item.id, text=str(item.content))
+                                         for item in (user, thought, lifecycle)])
         with TemporaryDirectory() as tmp:
             module = StoryDialogue("dialogue_story", self.bus, self.fail, lambda: 0, None,
                 working_target=MemoryBashTarget(self.ghost, "read"), workflow=MANIFEST,
                 tools_factory=lambda environment, batch: {}, runtime_root=Path(tmp), ghost=self.ghost)
-            self.assertEqual([item["knoxel_id"] for item in module.user_stimuli(payload)], [user.id])
-            self.assertEqual(module.user_stimuli({"stimuli": payload["stimuli"][1:]}), [])
-        request = StoryRequest(companion_name="Spamuel", user_name="Jesse", character_card_story="",
+            self.assertEqual([item.knoxel_id for item in module.partner_stimuli(payload)], [user.id])
+            self.assertEqual(module.partner_stimuli(ActionRequest(stimuli=payload.stimuli[1:])), [])
+        request = StoryRequest(companion_name="Spamuel", partner_name="Jesse", character_card_story="",
                                current_user_message="", selected_action="Reach out about the unfinished story.")
         transcript = build_story_messages(request, load_prompts())[-1].content.text
         self.assertNotIn("Jesse says:", transcript)
@@ -50,11 +51,11 @@ class AttributionTests(unittest.TestCase):
     def test_delivery_bookkeeping_does_not_invalidate_another_draft(self):
         correlation = self.proxy.submit("first message")
         source = exchange_record(self.ghost, correlation)
-        context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": source.id}]})
+        context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=source.id)]))
         commit_public_reply(self.ghost, "first answer", correlation, commit_id="first")
         # Another independent action can retain this source after resolution.
         reply_id = commit_public_reply(self.ghost, "a follow-up", "", commit_id="follow-up", context=context)
-        context2 = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": reply_id}]})
+        context2 = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=reply_id)]))
         acknowledge_reply(self.ghost, reply_id)
         self.proxy.submit("second message arrives while composing")
         new_id = commit_public_reply(self.ghost, "another follow-up", "", commit_id="last", context=context2)

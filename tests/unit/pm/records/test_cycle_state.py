@@ -65,8 +65,20 @@ class TurnRecordTests(unittest.TestCase):
         self.assertEqual(restored.schema_id, GWT_TURN_SCHEMA)
 
     def test_v1_turn_loads_with_empty_v2_fields(self):
+        # A v1 turn names an attention frame. The key is ignored; old frames are not migrated.
         turn = GwtTurnRecord.model_validate({"schema_id": "pm.gwt-turn.v1", "tick_id": 2, "attention_frame_id": 1})
-        self.assertEqual((turn.schema_id, turn.shard_changes, turn.experience_id), ("pm.gwt-turn.v1", [], None))
+        self.assertEqual((turn.schema_id, turn.shard_changes, turn.experience_id, turn.stimulus_ids),
+                         ("pm.gwt-turn.v1", [], None, []))
+
+    def test_old_ledger_fields_do_not_load(self):
+        # dev/tools/migrate_cycle_ledger_a19f.py removes them from saved data.
+        with self.assertRaises(ValueError):
+            CycleState.model_validate({"tick_id": 1, "published_slots": ["main"]})
+
+    def test_claimed_ids_follow_the_stimulus_groups(self):
+        state = CycleState(tick_id=3, stimulus_groups=[StimulusGroup(key=USER, stimulus_ids=[4, 5]),
+                                                       StimulusGroup(stimulus_ids=[6])])
+        self.assertEqual(state.claimed_ids(), [4, 5, 6])
 
 
 if __name__ == "__main__":

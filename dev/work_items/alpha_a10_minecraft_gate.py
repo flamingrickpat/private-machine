@@ -20,18 +20,13 @@ sys.path.insert(0, str(ROOT))
 
 def run(args) -> None:
     """Own the real stack, retain failures, and inspect actual actor effects."""
-    from workflows.companion import build_app, _cognition_workflow_options
+    from workflows.companion import build_app
     from pm.bus.envelopes import Envelope, new_id
-    from pm.records.memory_records import ActionSchemaRecord
-    from pm.records.enums import ActionType
     from workflows.minecraft_body.lease import BODY_LEASES
     from workflows.minecraft_body.gateway import READ_TOOLS
     from workflows.public_speech.publication import exchange_record
-    from pm.runs.workflow_runner import WorkflowRunner, WorkflowRequest
-    from pm_workflows.runtime import WorkflowRuntime
     from dev.work_items.alpha_minecraft_gate import RealServerStack
     from tests.live.minecraft_stack import load_env_file
-    from pm.host.folder_target import FolderEnvironment
 
     out = args.out.resolve()
     if not out.is_relative_to(ROOT / ".runtime"):
@@ -84,30 +79,17 @@ def run(args) -> None:
             """Exercise real chat while the monitor continues applying controls."""
             try:
                 prompt = "What is in your Minecraft inventory right now? Use one fresh observation, and keep the wood task running."
-                selection = {"companion_name": app.ghost.get_companion_name(), "user_name": app.ghost.get_user_name(),
-                    "available_workflows": _cognition_workflow_options(app.supervisor), "capabilities": ["Minecraft numeric observations"],
-                    "public_context": {"minecraft": {"status": "connected"}},
-                    "stimuli": [{"text": prompt}], "managed_runs": list(app.supervisor.receipts().values())}
-                environment = FolderEnvironment(out / "selection", "bash")
-                runtime = WorkflowRuntime(environment, threading.Event(), {})
-                from pm.llm.stage_model import LazyStageModel
-                from pm.llm.activation import ModelActivation
-                from pm.llm.config import load_config, resolve_connection
-                model = LazyStageModel(resolve_connection(load_config(args.config)), ModelActivation())
-                runtime.tools = {"llm_complete": model.complete}
-                selected = WorkflowRunner(ROOT / "workflows/main_cognition/stages/action_selection/action_selection.workflow.md",
-                    out / "routing-runtime").invoke(WorkflowRequest("a10-inventory-route", selection), runtime)
-                receipt["inventory_selection"] = selected.report
-                chosen = next(row for row in selected.report["actions"] if row["workflow_name"] == "dialogue_assistant")
+                # A19F: the real main cognition cycle decides and routes the
+                # request. The gate takes its published action request for
+                # the assistant dialogue and runs that dialogue directly.
+                published = []
+                app.bus.subscribe("a10-gate", lambda item: item.topic == "action.request", published.append)
                 correlation = app.user_input.submit(prompt, session="a10")
                 user = exchange_record(app.ghost, correlation)
-                batch = app.ghost.begin_batch("a10-inventory-action")
-                action = batch.create(ActionSchemaRecord(content=chosen["content"], action_type=ActionType.Reply,
-                                                        metadata={"selection_source": "live_action_selection"}))
-                app.ghost.commit(batch)
-                envelope = Envelope(id=new_id(), source="a10_gate", kind="data", topic="action.request", correlation_id=correlation,
-                    target="dialogue_assistant", payload={"knoxel_id": action.id, "arguments": chosen["arguments"],
-                    "stimuli": [{"knoxel_id": user.id, "text": prompt}]})
+                app.main_cog.handle_batch([Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                                                    correlation_id=correlation, payload={"knoxel_id": user.id})])
+                receipt["inventory_selection"] = [{"target": item.target, "payload": item.payload} for item in published]
+                envelope = next(item for item in published if item.target == "dialogue_assistant")
                 reports = []
                 publish = app.assistant.publish_output
                 def capture(report, batch):

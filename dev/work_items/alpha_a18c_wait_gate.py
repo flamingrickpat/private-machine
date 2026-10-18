@@ -85,16 +85,19 @@ def run(config_path: Path, out: Path, deadline_seconds: float = 1800, *, pause_o
             stage_model=model, workflow_models=models, checkpoint_path=out / "ghost.json",
             emit_reply=reply, world_poll_seconds=None,
             cognitive_control_config={"wait_seconds": 45, "maximum_wait_seconds": 60})
-        # Instrument real stage entry without replacing inference or results.
+        # Instrument real model entry without replacing inference or results.
+        # Main cognition phases call the model through ``llm_complete``
+        # (A19F). The inner loop still runs its stages through ``run_stage``.
         def instrument(factory):
             def tools(environment, batch):
                 bound = dict(factory(environment, batch))
-                original = bound["run_stage"]
-                def stage(name, payload):
+                name = "llm_complete" if "llm_complete" in bound else "run_stage"
+                original = bound[name]
+                def counted(*args, **kwargs):
                     with log_lock:
                         routine_calls[0] += 1
-                    return original(name, payload)
-                return {**bound, "run_stage": stage}
+                    return original(*args, **kwargs)
+                return {**bound, name: counted}
             return tools
         for module in (result.main_cog, result.inner_thought):
             module.tools_factory = instrument(module.tools_factory)
@@ -193,7 +196,7 @@ def run(config_path: Path, out: Path, deadline_seconds: float = 1800, *, pause_o
         correlation = submit("back! I changed my mind about reading. got a moment to chat?")
         until(lambda: replied(correlation), "correlated external-wake reply")
         source = next(item for item in app.ghost.all_features if item.metadata.get("exchange_correlation") == correlation)
-        if not any(source.id in cycle.stimuli_ids for cycle in app.ghost.states):
+        if not any(source.id in cycle.claimed_ids() for cycle in app.ghost.states):
             raise AssertionError("The wake message did not reach a committed cognition cycle.")
         facts["external_wake"] = {"source_id": source.id, "replies": replies[before:]}
         record = quiet("restart_wait")
@@ -214,7 +217,7 @@ def run(config_path: Path, out: Path, deadline_seconds: float = 1800, *, pause_o
             if item.metadata.get("control_kind") == "inference_wake"
             and item.metadata.get("source_event_ids") == [record.id]
             and item.metadata.get("wake_status") == "consumed"), None), "timeout appraisal commit")
-        if not any(wake.id in cycle.stimuli_ids for cycle in app.ghost.states):
+        if not any(wake.id in cycle.claimed_ids() for cycle in app.ghost.states):
             raise AssertionError("The timer wake has no accepted main cognition cycle.")
         facts["timeout"] = {"wake_record_id": wake.id, "metadata": dict(wake.metadata),
                             "source_kind": wake.provenance.source_kind.value}

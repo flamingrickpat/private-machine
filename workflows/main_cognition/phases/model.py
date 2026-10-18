@@ -32,13 +32,6 @@ PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 Result = TypeVar("Result", bound=BaseModel)
 
 
-class EvidenceRow(BaseModel):
-    """The two fields of one public-context evidence row that grounding reads."""
-
-    knoxel_id: int | None = None
-    text: str = ""
-
-
 def phase_prompts(name: str) -> PhasePrompts:
     """Load the prompt file of one phase from ``phases/prompts/<name>.yaml``."""
     return load_prompts(PROMPTS_DIR / f"{name}.yaml")
@@ -63,8 +56,7 @@ def grounding_turn(work: CycleWork, *, emotion: bool, capabilities: bool = False
     stimuli = {item.knoxel_id: item.text for item in work.request.stimuli}
     evidence = []
     for row in public.evidence:
-        parsed = EvidenceRow.model_validate(row)
-        if parsed.knoxel_id not in stimuli or parsed.text != stimuli[parsed.knoxel_id]:
+        if row.knoxel_id not in stimuli or row.text != stimuli[row.knoxel_id]:
             evidence.append(row)
     update = {"evidence": evidence, "memories": [] if public.evidence else public.memories}
     if not capabilities:
@@ -112,4 +104,4 @@ def complete_prose(context, messages: Sequence[TurnInput]) -> str:
                          temperature=Sampler.TempInstruct, enable_thinking=False)
 
 
-__all__ = ["EvidenceRow", "PROMPTS_DIR", "complete", "complete_prose", "grounding_turn", "phase_prompts"]
+__all__ = ["PROMPTS_DIR", "complete", "complete_prose", "grounding_turn", "phase_prompts"]

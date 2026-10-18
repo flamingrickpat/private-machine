@@ -22,9 +22,12 @@ class ReplyToolTests(unittest.TestCase):
 
     def test_captured_task_history_reaches_review_with_its_current_request(self):
         capture = json.loads(Path("test_data/captures/alpha/assistant-task-conversation.json").read_text(encoding="utf-8"))
-        request = AssistantRequest.model_validate(capture["request"])
+        # The capture predates A19F step 10: the partner was named user_name.
+        raw = dict(capture["request"])
+        raw["partner_name"] = raw.pop("user_name")
+        request = AssistantRequest.model_validate(raw)
         turns = review_conversation(request)
         self.assertEqual(turns[-1].text, request.current_user_message)
-        self.assertEqual(turns[-1].speaker, request.user_name)
+        self.assertEqual(turns[-1].speaker, request.partner_name)
         self.assertTrue(any("Run only local_task" in turn.text for turn in turns[:-1]))
         self.assertEqual(build_messages(request, load_prompts())[-1].content, request.current_user_message)

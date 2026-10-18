@@ -110,7 +110,7 @@ def store_action(
         metadata={"route": route, "task_id": task_id, "task_kind": task_kind},
     ))
     changes.set_gwt(GwtTurnRecord(
-        tick_id=tick, attention_frame_id=None, knoxel_ids=[action.id], summary="x",
+        tick_id=tick, knoxel_ids=[action.id], summary="x",
     ))
     ghost.commit(changes)
     correlation_id = new_id()

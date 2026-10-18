@@ -19,10 +19,6 @@ seed phrases (``_generate_state_seed_phrases``).
    the tail of the self shard, so the goals, decide, and route calls read
    it in the shared prefix. The commit stores the record, links it from the
    broadcast and the turn record, and makes it the cycle summary.
-
-The phase also fills the attention frame fields of ``ExperienceResult``
-from the regulation mode and the entered items. The attention frame record
-stays until step 10 of A19F migrates its readers.
 """
 from __future__ import annotations
 
@@ -41,7 +37,7 @@ from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import load_yaml
 from workflows.main_cognition.phases.model import PROMPTS_DIR, complete_prose
 from workflows.main_cognition.schemas import ExperienceResult, RecordView
-from workflows.main_cognition.story_prefix import StoryPrefix, shard_label, shown_shards
+from workflows.main_cognition.story_prefix import StoryPrefix, shard_label
 from workflows.main_cognition.workspace_selection import select_tail
 
 #: A tier is ``(threshold, word)``. The first tier whose threshold the intensity reaches gives the word.
@@ -246,13 +242,6 @@ def enter_self_tail(work: CycleWork, record_id: int) -> None:
     change.tail_ids = list(shard.tail_ids)
 
 
-def frame_fields(work: CycleWork) -> tuple[list[int], str]:
-    """Return the focus ids of the attention frame: the stimuli and the items that entered a shown shard."""
-    shown = {shard.key for shard in shown_shards(work)}
-    entered = [item.record_id for change in work.attention.changes if change.key in shown for item in change.entered]
-    return list(dict.fromkeys([*(item.knoxel_id for item in work.request.stimuli), *entered])), work.affect.regulation
-
-
 def run(context, work: CycleWork) -> CycleWork:
     prompts = load_experience_prompts()
     seed = seed_text(seed_phrases(work.state.mental_state, prompts.seed_phrases), prompts)
@@ -266,9 +255,7 @@ def run(context, work: CycleWork) -> CycleWork:
         source=f"{request.companion_name} ({FeatureType.SubjectiveExperience.value})", content=text,
         timestamp=request.cycle_time, record_class="Feature", feature_type=FeatureType.SubjectiveExperience.value)
     enter_self_tail(work, record_id)
-    focus_ids, mode = frame_fields(work)
-    work.experience = ExperienceResult(text=text, seed=seed, record_id=record_id, control_mode=mode,
-                                       focus_ids=focus_ids, frame_reason=text)
+    work.experience = ExperienceResult(text=text, seed=seed, record_id=record_id)
     work.receipt("experience", f"experience of {len(text)} characters, {len(seed)} seed characters")
     return work
 
@@ -285,7 +272,6 @@ __all__ = [
     "continuation",
     "enter_self_tail",
     "focus_phrase",
-    "frame_fields",
     "load_experience_prompts",
     "render_entered",
     "run",

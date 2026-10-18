@@ -44,7 +44,7 @@ The appraisal must also cite an original user stimulus from the current batch.
 An unrelated message preserves the relationship.
 Elapsed-time emotion decay does not automatically reset trust or conflict tension.
 
-[`workflows.main_cognition.stage_commits.apply_goal_changes`][] stages each accepted goal lifecycle change.
+[`workflows.main_cognition.cycle_commits.apply_goal_changes`][] stages each accepted goal lifecycle change.
 Its metadata now retains these fields:
 
 | Field | Meaning |

@@ -92,4 +92,4 @@ The [lifecycle guide](reflection-lifecycle.md) explains observation checks, reve
 - [`workflows.reflection.experiments.effective_inputs`][]
 - [`workflows.inner_thought.stages.reflection.steps.run`][]
 - [`workflows.cognitive_control.attention.stage_focus`][]
-- [`workflows.main_cognition.stage_commits.revise_reflected_belief`][]
+- [`workflows.main_cognition.cycle_commits.revise_reflected_belief`][]

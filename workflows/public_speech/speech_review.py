@@ -108,7 +108,7 @@ def build_review_messages(candidate: str, context: PublicContext, prompts: dict,
                           conversation: list[DialogueTurn] = (),
                           receipts: list[dict] | None = None) -> list[Turn]:
     """Return the two review messages. Pure: no model, no store."""
-    names = {"companion_name": context.companion_name, "user_name": context.user_name}
+    names = {"companion_name": context.companion_name, "partner_name": context.partner_name}
     presentation = context.presentation
     if presentation.mode == "deceive":
         presentation_text = (f"{context.companion_name} chose to deceive on purpose. "

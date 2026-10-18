@@ -1,4 +1,4 @@
-"""Turn accepted stage proposals into committed MemoryStore state.
+"""Turn accepted cycle proposals into committed MemoryStore state.
 
 Main cognition and the future inner loop share these helpers. They keep the
 accepted state path in one place:
@@ -10,8 +10,8 @@ accepted state path in one place:
   that has a stable identity and a lifecycle status.
 
 The functions operate on one open ``WriteBatch``. They never commit, send
-bus messages, or call a model. The caller commits after it adds the attention
-frame, GWT turn, and cycle receipt.
+bus messages, or call a model. The caller commits after it adds the GWT turn
+and the cycle state.
 """
 from __future__ import annotations
 

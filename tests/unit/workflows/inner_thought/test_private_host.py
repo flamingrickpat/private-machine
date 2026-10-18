@@ -129,9 +129,9 @@ class AcceptedCycleTests(unittest.TestCase):
             tick = created.events[0].payload["gwt_tick"]
             turn = ghost.gwt_turns[tick]
             self.assertEqual(turn.slot_id, "inner")
-            self.assertEqual(turn.attention_frame_id, thought.metadata.get("frame") or turn.attention_frame_id)
+            self.assertEqual(turn.knoxel_ids[0], thought.id)
             cycle = next(item for item in ghost.states if item.tick_id == tick)
-            self.assertEqual(cycle.published_slots, ["inner"])
+            self.assertEqual(cycle.stimulus_groups, [])
             self.assertEqual(thought.metadata["operation"], "curiosity_spark")
             self.assertTrue(cycle.qualia_channels)
             self.assertEqual(updated.events[0].payload["slot"], "inner")
@@ -148,8 +148,8 @@ class AcceptedCycleTests(unittest.TestCase):
             module, bus, errors = _module(ghost, _reports(), tmp)
             module.handle_batch([])
             self.assertEqual(errors, [])
-            self.assertEqual(ghost.gwt_shard("main"), [])
-            self.assertEqual([item.slot_id for item in ghost.gwt_shard("inner")], ["inner"])
+            self.assertEqual(ghost.gwt_turns_of("main"), [])
+            self.assertEqual([item.slot_id for item in ghost.gwt_turns_of("inner")], ["inner"])
 
     def test_expectation_open_and_resolve_use_the_lifecycle_helpers(self):
         ghost = small_ghost()
@@ -195,7 +195,7 @@ class RejectionTests(unittest.TestCase):
                 self.assertEqual(calls, ["trigger", "thought"])
                 self.assertEqual(ghost.state_dict(), before)
                 self.assertEqual(ghost.checkpoint.read_bytes(), checkpoint)
-                self.assertEqual(ghost.gwt_shard("inner"), [])
+                self.assertEqual(ghost.gwt_turns_of("inner"), [])
                 self.assertEqual([(item.kind, item.topic) for item in events.events],
                                  [("telemetry", "thought.rejected")])
                 rejection = events.events[0].payload
@@ -217,7 +217,7 @@ class RejectionTests(unittest.TestCase):
                 module.handle_batch([])
 
                 self.assertNotEqual(module.invocation_id, failed_invocation)
-                self.assertEqual(len(ghost.gwt_shard("inner")), 1)
+                self.assertEqual(len(ghost.gwt_turns_of("inner")), 1)
                 self.assertEqual([item.topic for item in events.events],
                                  ["thought.rejected", "thought.created", "gwt.updated"])
                 self.assertEqual(errors, [])
@@ -276,7 +276,7 @@ class RejectionTests(unittest.TestCase):
             module.publish_output(report.model_dump(mode="json"), [])
             self.assertEqual(rejected.events, [])
             self.assertEqual(created.events, [])
-            self.assertEqual(ghost.gwt_shard("inner"), [])
+            self.assertEqual(ghost.gwt_turns_of("inner"), [])
             self.assertEqual(errors, [])
 
 
@@ -305,7 +305,7 @@ class RestartTests(unittest.TestCase):
             module.handle_batch([])
             self.assertEqual(errors, [])
             reopened = MemoryStore.from_checkpoint(checkpoint)
-            inner = reopened.gwt_shard("inner")
+            inner = reopened.gwt_turns_of("inner")
             self.assertEqual(len(inner), 1)
             self.assertEqual(inner[0].slot_id, "inner")
             cycle = next(item for item in reopened.states

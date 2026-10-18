@@ -140,7 +140,7 @@ Vectors stay outside the review bundle.
 The browser opens the chatlog first. Ratings stay beside the captured activity.
 **Thoughts & routing** shows private thoughts and each later attention cycle.
 Expand codelet output to compare selected and unselected candidates.
-Read the attention frame's focus contents and the routing decision's actual explanation.
+Read the workspace shards of the turn record and the routing decision's actual explanation.
 The selected action names the public workflow that receives it.
 **Knoxel contents** searches exact record text and record numbers.
 Opening a knoxel shows its sources and the later records that reference it.

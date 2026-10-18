@@ -20,7 +20,7 @@ class StoryRequest(BaseModel):
 
     schema_version: Literal["pm.story-request.v1"] = "pm.story-request.v1"
     companion_name: str = Field(min_length=1)
-    user_name: str = Field(min_length=1)
+    partner_name: str = Field(min_length=1)
     character_card_story: str
     supported_capabilities: list[str] = Field(default_factory=list)
     unsupported_capabilities: list[str] = Field(default_factory=list)

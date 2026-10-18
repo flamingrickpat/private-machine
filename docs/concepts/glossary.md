@@ -71,7 +71,7 @@ A rename changes Python identifiers only.
 ### role
 
 - Definition: one named callable entry in a manifest. The kernel calls its skill.
-- Relations: a cognition **stage** is a child workflow with one role.
+- Relations: each **phase** of the main cognition manifest has one Python role.
 
 ### skill
 
@@ -167,12 +167,13 @@ A rename changes Python identifiers only.
 
 ### cognition cycle
 
-- Definition: one pass of the main cognition workflow over new stimuli, from triage to action selection, followed by one commit.
+- Definition: one pass of the main cognition workflow over new stimuli, from intake to routing, followed by one commit.
 - Old names: "tick" in some fields. `tick_id` stays as a persisted field.
 
-### stage
+### phase
 
-- Definition: one of the eight ordered child workflows of a cognition cycle: triage, appraisal, context, codelets, attention, goals, workspace, action selection.
+- Definition: one of the twelve ordered phases of the main cognition manifest: intake, triage, appraise, retrieve, codelets, structures, attention, experience, goals, decide, route, commit. The phases share one typed `CycleWork`.
+- Old names: "stage". A19F removed the eight child workflows (stages) of main cognition. The private loop still runs its own stages until A19G.
 - Not: a role or a skill file.
 
 ### mental state
@@ -198,8 +199,8 @@ A rename changes Python identifiers only.
 
 ### action intent
 
-- Definition: an action that the action-selection stage proposes.
-- Relations: an intent becomes a **dispatch** after dependency checks.
+- Definition: an in-character decision of the decide phase (`ActionDecision`). The route phase maps it to an action.
+- Relations: an intent becomes a **dispatch** after routing and the conflict check. The dispatch publishes a typed `ActionRequest`.
 - Not: an `Intention` record. That record is a goal.
 
 ### dispatch

@@ -50,20 +50,23 @@ An idle tick costs no model call.
 An accepted [inference wait](inference-wait.md) also prevents routine private work before snapshot construction.
 A18C also runs bounded private episodes on this timer.
 
-## Shards and cross-loop reads
+## Turns and cross-loop reads
 
 Both loops publish into the same keyed GWT turn map, one `GwtTurnRecord` per
 accepted cycle.
-A shard is the subsequence of turns that carry the loop's `slot_id`:
-`"main"` for the main loop, `"inner"` for the private loop.
-Read a shard with `MemoryStore.gwt_shard(slot_id, limit)`.
-The private loop reads the newest main frame this way before every cycle.
+The `slot_id` of a turn names its loop: `"main"` for the main loop, `"inner"`
+for the private loop.
+Read the newest turns of one loop with `MemoryStore.gwt_turns_of(slot_id, limit)`.
+The private loop reads the newest main turn this way before every cycle. Its
+subjective experience (`experience_id`) stands for the main workspace.
 
 Tick allocation is serialized under the store lock: `begin_batch(new_tick=True)`
 reserves the next free tick, so concurrent loops can never collide on one tick.
-Each `CycleState.published_slots` names the slot its cycle published.
-The private loop never writes the main loop's frame, and the main loop never
-writes the inner one.
+A main cycle claims its stimuli in `CycleState.stimulus_groups`
+(`CycleState.claimed_ids`). A private cycle claims none.
+The private loop never writes the main workspace. The workspace shards of
+main cognition are a different thing: see [structures, attention, and the
+workspace](workspace.md). A19G moves the private loop onto the shared cycle.
 
 Existing main-only checkpoints need no migration: every stored turn already
 carries `slot_id` with the default `"main"`.
@@ -158,12 +161,11 @@ A citation outside the supplied and retrieved records still fails before accepta
    Main appraisal and its goals stage own acceptance.
    [Deliberate mental work](deliberate-mental-work.md) uses the same proposal boundary.
 5. An expectation opens or resolves through the lifecycle helpers.
-6. One `AttentionFrameRecord` with `control_mode="reflective"` commits with
-   the frame's own tick.
+6. No attention frame is written since A19F step 10.
 7. The felt-state sample is computed (see below) and notable channels commit
    as `QualeRecord`s.
 8. `set_gwt` writes the turn with `slot_id="inner"` and a `CycleState` with
-   `published_slots=["inner"]`.
+   no stimulus groups.
 9. After the commit, the bus carries one `thought.created` self-origin event
    and one `gwt.updated`.
 

@@ -41,9 +41,9 @@ class DisclosureTests(unittest.TestCase):
         ghost = small_ghost()
         candid = private_thought(ghost, "I want to invite Jesse to co-write.", "candid")
         reportable = quale(ghost, True)
-        context = build_public_context(ghost, {"stimuli": []})
-        private = [item for item in context.evidence if item.get("lane") == "private_state"]
-        ids = {item["knoxel_id"] for item in private}
+        context = build_public_context(ghost)
+        private = [item for item in context.evidence if item.lane == "private_state"]
+        ids = {item.knoxel_id for item in private}
         self.assertIn(candid.id, ids)
         self.assertIn(reportable.id, ids)
         self.assertIn(candid.id, context.revisions)
@@ -58,10 +58,10 @@ class DisclosureTests(unittest.TestCase):
         ghost = small_ghost()
         withheld = private_thought(ghost, "I resented the silence more than I admitted.", "withhold")
         dormant = quale(ghost, False)
-        context = build_public_context(ghost, {"stimuli": []})
-        texts = [str(item.get("text", "")) for item in context.evidence]
+        context = build_public_context(ghost)
+        texts = [item.text for item in context.evidence]
         self.assertFalse(any("resented" in text for text in texts))
-        ids = {item["knoxel_id"] for item in context.evidence}
+        ids = {item.knoxel_id for item in context.evidence}
         self.assertNotIn(withheld.id, ids)
         self.assertNotIn(dormant.id, ids)
 

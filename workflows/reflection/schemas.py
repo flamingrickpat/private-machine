@@ -4,12 +4,26 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from workflows.cognitive_control.schemas import FocusProposal
+from workflows.main_cognition.schemas import ReflectionGuidance
 
 
 class Contract(BaseModel):
     """Reject unknown fields instead of accepting an unconsumed control."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+class EffectiveInputs(Contract):
+    """The experiment versions that are in effect for one main cycle.
+
+    ``versions`` maps an experiment id (as text) to its effective record id.
+    ``source_ids`` are the effective records and their original sources.
+    ``guidance`` holds one entry for each experiment in effect.
+    """
+
+    versions: dict[str, int] = Field(default_factory=dict)
+    source_ids: list[int] = Field(default_factory=list)
+    guidance: list[ReflectionGuidance] = Field(default_factory=list)
 
 
 class Hypothesis(Contract):

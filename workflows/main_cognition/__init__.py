@@ -1,1 +1,1 @@
-"""Main cognitive workflow: ordered child stages over one shared proposal batch."""
+"""Main cognitive workflow: one manifest with typed phases over one shared ``CycleWork``."""

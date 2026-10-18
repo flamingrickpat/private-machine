@@ -149,7 +149,16 @@ class Console:
         self.lock = threading.RLock()
 
     def deploy(self, settings):
-        seed = Path(settings.get("seed") or ROOT / "test_data/personas/spamuel/canon.yaml").resolve()
+        """Create one deployment from browser settings and return its info.
+
+        ``name`` and ``seed`` (a persona YAML file) are required. The console
+        holds no persona of its own. Invalid settings raise ValueError.
+        """
+        if not str(settings.get("name") or "").strip():
+            raise ValueError("Name the deployment.")
+        if not str(settings.get("seed") or "").strip():
+            raise ValueError("Select a persona YAML file.")
+        seed = Path(settings["seed"]).resolve()
         if not seed.is_file():
             raise ValueError("The persona YAML file does not exist.")
         cognition = settings.get("cognition", "real")
@@ -160,7 +169,7 @@ class Console:
             config = str(Path(config).resolve())
             if not Path(config).is_file():
                 raise ValueError("The model configuration file does not exist.")
-        settings = {"name": settings.get("name") or "Spamuel", "seed": str(seed),
+        settings = {"name": str(settings["name"]).strip(), "seed": str(seed),
                     "config": config, "cognition": cognition}
         with self.lock:
             root = self.root / uuid4().hex
@@ -285,7 +294,7 @@ def serve(root: Path, port: int = 8090):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Spamuel operator console")
+    parser = argparse.ArgumentParser(description="pm operator console")
     parser.add_argument("--port", type=int, default=8090)
     parser.add_argument("--root", type=Path, default=ROOT / ".runtime/console")
     args = parser.parse_args()

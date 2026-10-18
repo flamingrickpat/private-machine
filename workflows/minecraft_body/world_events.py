@@ -6,12 +6,20 @@ import json
 from pathlib import Path
 from typing import Callable
 
+from pydantic import BaseModel
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.host.application import BusModule
 from pm.memory.snapshot import GhostCancelled
 from pm.records.enums import FeatureType, SourceKind
 from pm.records.memory_records import new_feature
 from pm.runs.errors import TaskServiceError
+
+
+class GwtUpdate(BaseModel):
+    """The payload of a ``gwt.updated`` message: the tick of the new turn record."""
+
+    gwt_tick: int = 0
+    slot: str = "main"
 
 
 def world_conditions(observation: dict) -> dict:
@@ -86,8 +94,10 @@ class WorldEvents(BusModule):
         for envelope in batch:
             if envelope.topic == "gwt.updated" and self.pending_id is not None:
                 with self.ghost.lock:
-                    turn = self.ghost.gwt_turns.get(envelope.payload["gwt_tick"])
-                    if turn is not None and self.pending_id in turn.knoxel_ids:
+                    tick = GwtUpdate.model_validate(envelope.payload).gwt_tick
+                    turn = self.ghost.gwt_turns[tick] if tick in self.ghost.gwt_turns else None
+                    # The main cycle that claimed the observation acknowledges it.
+                    if turn is not None and self.pending_id in turn.stimulus_ids:
                         self.pending_id = None
             if (envelope.topic == "action.receipt" and self.pending_id is not None
                     and envelope.correlation_id == self.pending_correlation

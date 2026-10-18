@@ -187,7 +187,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 correlation_id="cancelled-user", payload={"knoxel_id": stimulus_id})])
             self.assertEqual(len(calls), 1)
             self.assertEqual(requests.events, [])
-            self.assertEqual(ghost.gwt_shard("main"), [])
+            self.assertEqual(ghost.gwt_turns_of("main"), [])
 
     def test_real_parent_commits_gwt_and_publishes_a_typed_dispatch(self):
         ghost = _small_ghost()
@@ -261,7 +261,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(errors, [])
             triage = model.messages[model.calls.index("triage")][-1].content.text
             self.assertIn("kind=workflow.question text='Start the task?'", triage)
-            feature = ghost.get_knoxel_by_id(ghost.states[-1].stimuli_ids[0])
+            feature = ghost.get_knoxel_by_id(ghost.states[-1].claimed_ids()[0])
             self.assertEqual(feature.feature_type, FeatureType.WorldEvent)
             self.assertIn("Start the task?", feature.content)
 
@@ -299,7 +299,6 @@ class StoryDialogueWiringTests(unittest.TestCase):
                 "action_id": "action-0",
                 "content": "answer Jesse",
                 "stimuli": [{"knoxel_id": stimulus_id, "text": "the kitchen is on fire"}],
-                "memories": ["Jesse owns a fire extinguisher."],
                 "workspace": "loud and urgent",
             },
         )

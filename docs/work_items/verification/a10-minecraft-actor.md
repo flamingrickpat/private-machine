@@ -113,3 +113,15 @@ uv run --locked --with-requirements requirements-docs.txt mkdocs build --strict
 Regenerate the whole site and inspect the actor guides and their API links.
 Local links must target actual HTML files and existing anchors.
 Generated HTML remains under ignored `site/`.
+
+## A19F step 10: gate port
+
+On 2026-10-18, A19F step 10 removed the `action_selection` child manifest.
+`dev/work_items/alpha_a10_minecraft_gate.py` ran that manifest directly to route the inventory question.
+The gate was **ported**, not deleted: no A19F gate exercises a sustained Minecraft task with chat during the actor run.
+
+- The inventory question now goes through the real main cognition cycle (`app.main_cog.handle_batch`).
+- The gate takes the published typed `action.request` for `dialogue_assistant` and runs that dialogue directly.
+- The receipt field `inventory_selection` now holds the published action requests.
+
+The port is **unverified**. The gate needs the real Minecraft server stack, which this step did not start.

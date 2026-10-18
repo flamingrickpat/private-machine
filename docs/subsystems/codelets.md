@@ -56,7 +56,6 @@ An unknown field or a duplicate name stops the cycle.
 | `data_aquisation` | The old retrieval list. An agent codelet reads it as its retrieval plan. |
 | `prompt` | The instruction of the codelet. |
 | `execution` | `chain` or `agent`. An omitted value means `agent` when `MemoryAccessors` is the first family. |
-| `nomination_kind`, `reality` | Old labels of the A15 attention competition. No phase reads them now. |
 | `stimulus_kinds` | Stimulus kinds that match. An empty list matches every stimulus. |
 
 Texts use the placeholders `{companion_name}` and `{entity_name}`.
@@ -221,7 +220,7 @@ Embeddings never appear in a prompt.
 
 - one `CodeletPercept` record for each percept and each recommendation, with its appraisal vector, its delta vector, its percept type, its story fields, its target shard, and `causal`;
 - the `Structure` records of the cycle (see [structures, attention, and the workspace](workspace.md));
-- the `AttentionFrameRecord`. Its `metadata` holds `codelet_runs`, `codelet_cost`, `codelet_budget`, `codelet_ratings`, the definitions version and digest, `percept_ids`, `structure_ids`, `causal_percept_ids`, `attention_ratings`, and `pathway_boosts`;
+- the GWT turn record. Its `trace` ([`CycleTrace`][pm.records.global_workspace.CycleTrace]) holds the codelet runs, the budget, the selector ratings, the pathway boosts, the definitions version and digest, the cost estimate, `percept_ids`, `structure_ids`, and `causal_percept_ids`. The attention scores are in the metadata of each `Structure` record;
 - the cycle state with the CSM, the workspace, and the registry state.
 
 The phases use the provisional tick `previous tick + 1`.
@@ -232,7 +231,7 @@ The commit replaces it with the real tick in the CSM, the registry, and the work
 1. Open the prompt logs (`PM_PROMPT_LOG_DIR`). The selector call ends with "act as a selector". Call 1 ends with the codelet instruction. Call 2 ends with the percept types.
 2. Agent sessions keep their transcripts under `llm-logs/agents/<run>-<codelet>_<attempt>/`.
 3. In the checkpoint, read the last cycle state: `csm.items` with endorsers and `codelets.codelets` with the runtime state.
-4. Read the `CodeletPercept` records of the tick and the frame metadata.
+4. Read the `CodeletPercept` records of the tick and the `trace` of the turn record.
 
 ## Failure modes
 

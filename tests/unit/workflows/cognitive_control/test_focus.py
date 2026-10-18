@@ -57,15 +57,15 @@ class ActiveFocusTests(unittest.TestCase):
         ghost = small_ghost()
         _focus_feature(ghost, strength=0.4)
         focus = active_focus(ghost, maximum_strength=0.2)
-        self.assertEqual(focus["strength"], 0.2)
-        self.assertEqual(focus["promote_ids"], [5])
-        self.assertFalse(focus["fresh"])
+        self.assertEqual(focus.strength, 0.2)
+        self.assertEqual(focus.promote_ids, [5])
+        self.assertFalse(focus.fresh)
 
     def test_expired_advice_has_no_effect(self):
         ghost = small_ghost()
         _focus_feature(ghost, seconds=1)
         focus = active_focus(ghost, now=datetime.utcnow() + timedelta(seconds=5))
-        self.assertEqual(focus, {})
+        self.assertIsNone(focus)
 
 
 class ResolveFocusTests(unittest.TestCase):

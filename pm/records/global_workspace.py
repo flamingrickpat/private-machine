@@ -1,30 +1,25 @@
-"""GWT cycle records: the attention frame factory and the turn record.
+"""GWT cycle records: the turn record of one accepted cycle.
 
 archetype: information-holder
-owns: the GWT turn record model (spec v2 §7), its YAML serialization, and
-  the attention frame factory the personality cycle uses once per tick.
-not own: GWT slot publishing (the loop engine writes gwt/ files), the
-  attention frame lifecycle after the cycle stores it, markdown shards.
-fails when: a turn record YAML file does not validate as a turn record.
-domain: one accepted cycle produces one AttentionFrameRecord (a knoxel in
-  the ghost) plus one GWT turn record (a projection file in gwt/). The
-  turn record references the frame and the causal knoxel ids of the cycle,
-  so readers can rebuild the broadcast from memory alone (decision D-M4-4).
-invariant: a turn record always names exactly one slot, one tick, and one
-  attention frame id.
+owns: the GWT turn record model (``pm.gwt-turn.v2``) and its YAML
+  serialization.
+not own: the workspace shards (``pm.records.workspace``), the cycle state
+  (``pm.records.cycle_state``), and the records that the turn names.
+domain: one accepted cycle of a loop produces one turn record. A main cycle
+  lists the shard changes, the claimed stimuli, the subjective experience,
+  and the trace of its codelets. An inner cycle (``slot_id="inner"``) lists
+  its thought and its qualia. Readers rebuild the broadcast from the store
+  alone.
+invariant: a turn record names exactly one slot and one tick.
 """
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 from typing import List, Optional
 
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm.records.base import RecordScope, Provenance
-from pm.records.enums import SourceKind
-from pm.records.cognitive_records import AttentionFrameRecord
 from pm.records.workspace import ShardKey, WorkspaceItem
 
 GWT_TURN_SCHEMA = "pm.gwt-turn.v2"
@@ -68,15 +63,72 @@ class ShardChange(BaseModel):
         self.tail_ids = [mapping.get(record_id, record_id) for record_id in self.tail_ids]
 
 
+class CodeletRunRef(BaseModel):
+    """One codelet run of a cycle, as the turn record keeps it.
+
+    ``score`` is the activation score that chose the codelet in its wave.
+    ``calls`` counts model calls; an agent session counts as one call.
+    ``status`` is ``ran`` or the reason that the run produced nothing.
+    """
+
+    codelet: str = ""
+    mode: str = ""
+    wave: int = 0
+    status: str = ""
+    reason: str = ""
+    score: float = 0.0
+    calls: int = 0
+
+
+class PathwayBoostRef(BaseModel):
+    """One pathway boost of a cycle: ``source`` ran, and ``target`` got ``strength``."""
+
+    pathway: str = ""
+    source: str = ""
+    target: str = ""
+    strength: float = 0.0
+    skipped: List[str] = Field(default_factory=list)
+
+
+class CycleTrace(BaseModel):
+    """The codelet trace of one main cycle.
+
+    ``percept_ids`` and ``structure_ids`` are the records that the cycle
+    created. ``causal_percept_ids`` are the percepts that entered a shard in
+    this cycle. The attention scores of each structure are in the metadata
+    of its ``Structure`` record. ``input_tokens_estimate`` and
+    ``output_tokens_estimate`` are tiktoken estimates of the codelet calls.
+    """
+
+    codelet_budget: int = 0
+    codelet_runs: List[CodeletRunRef] = Field(default_factory=list)
+    codelet_ratings: dict[str, float] = Field(default_factory=dict)
+    pathway_boosts: List[PathwayBoostRef] = Field(default_factory=list)
+    definitions_version: str = ""
+    definitions_digest: str = ""
+    percept_ids: List[int] = Field(default_factory=list)
+    structure_ids: List[int] = Field(default_factory=list)
+    causal_percept_ids: List[int] = Field(default_factory=list)
+    llm_calls: int = 0
+    input_tokens_estimate: int = 0
+    output_tokens_estimate: int = 0
+
+
 class GwtTurnRecord(BaseModel):
-    """One published GWT broadcast for one slot and one cycle (spec §7).
+    """One published GWT broadcast for one slot and one cycle.
 
-    Cycle publishes always name one attention frame. Hidden slot publishes
-    (dialogue, M5) carry no frame; the field stays None there.
+    ``slot_id`` names the loop: ``main`` for main cognition and ``inner`` for
+    the private loop. ``stimulus_ids`` are the stimuli that the cycle
+    claimed. ``knoxel_ids`` lists the stimuli, the created records, the
+    selected memories, and every workspace item and tail record.
+    ``shard_changes`` holds one change for each updated shard.
+    ``experience_id`` is the subjective experience of the cycle.
+    ``decision_id`` is the ``StateUpdate`` record that holds the decisions
+    and routes of the cycle. ``trace`` holds the codelet trace.
 
-    Schema v2 (A19F) adds ``shard_changes`` and ``experience_id``. Old v1
-    turns keep their schema id and load with empty v2 fields. They are not
-    migrated. ``timestamp`` is naive UTC, like the record timestamps in
+    Old v1 turns keep their schema id and load with empty v2 fields. Their
+    ``attention_frame_id`` key is ignored. They are not migrated.
+    ``timestamp`` is naive UTC, like the record timestamps in
     ``pm.records.base``.
     """
 
@@ -85,12 +137,14 @@ class GwtTurnRecord(BaseModel):
     schema_id: str = Field(default=GWT_TURN_SCHEMA, alias="schema")
     tick_id: int
     slot_id: str = "main"
-    attention_frame_id: Optional[int] = None
+    stimulus_ids: List[int] = Field(default_factory=list)
     knoxel_ids: List[int] = Field(default_factory=list)
     summary: str = ""
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     shard_changes: List[ShardChange] = Field(default_factory=list)
     experience_id: Optional[int] = None
+    decision_id: Optional[int] = None
+    trace: CycleTrace = Field(default_factory=CycleTrace)
 
     def to_yaml(self) -> str:
         data = self.model_dump(mode="json", by_alias=True)
@@ -99,39 +153,3 @@ class GwtTurnRecord(BaseModel):
     @classmethod
     def from_yaml(cls, text: str) -> "GwtTurnRecord":
         return cls.model_validate(yaml_util.safe_load(text))
-
-
-def load_turn_record(path: str | Path) -> GwtTurnRecord:
-    return GwtTurnRecord.from_yaml(Path(path).read_text(encoding="utf-8"))
-
-
-def build_attention_frame(
-    *,
-    tick_id: int,
-    content: str,
-    focus_knoxel_ids: List[int],
-    active_goal_ids: List[int],
-    frame_reason: str,
-    reality_id: int,
-    control_mode: str = "reactive",
-    winning_attention_ids: Optional[List[int]] = None,
-) -> AttentionFrameRecord:
-    """Build the one attention frame a cycle publishes (decision D-M4-4).
-
-    The caller assigns the knoxel id through the ghost service and stores
-    the frame together with the other cycle knoxels in one batch.
-    """
-    frame = AttentionFrameRecord(
-        content=content,
-        tick_id=tick_id,
-        focus_knoxel_ids=list(focus_knoxel_ids),
-        winning_attention_ids=list(winning_attention_ids or []),
-        active_goal_ids=list(active_goal_ids),
-        control_mode=control_mode,
-        frame_reason=frame_reason,
-    )
-    frame.scope = RecordScope(reality_id=reality_id)
-    frame.provenance = Provenance(
-        source_kind=SourceKind.Workflow, source_ref="personality-cycle"
-    )
-    return frame

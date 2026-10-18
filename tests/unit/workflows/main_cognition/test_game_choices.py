@@ -9,7 +9,7 @@ from pm.records.mental_state import FullMentalState
 from tests.unit.test_design_contracts import small_ghost
 from workflows.main_cognition.affect import appraise_state
 from workflows.main_cognition.schemas import AppraisalResult, GoalChange
-from workflows.main_cognition.stage_commits import apply_goal_changes
+from workflows.main_cognition.cycle_commits import apply_goal_changes
 
 
 class GameChoiceTests(unittest.TestCase):

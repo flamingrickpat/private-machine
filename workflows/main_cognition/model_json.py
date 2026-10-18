@@ -52,6 +52,8 @@ class ShardLabels(BaseModel):
     workflow_tail: str = ""
     empty_items: str = ""
     empty_tail: str = ""
+    # A public reply shows the verbatim lines of a tail in its transcript.
+    verbatim_tail: str = ""
     # The attention phase: what the awareness of each shard kind is about.
     self_focus: str = ""
     entity_focus: str = ""

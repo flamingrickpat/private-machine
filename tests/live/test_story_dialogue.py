@@ -28,7 +28,7 @@ from workflows.dialogue_story.schemas import StoryReport
 from workflows.dialogue_story.steps import build_story_messages, load_prompts, render_prior_dialogue
 
 SEED = engine.PROJECT_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
-SITUATION = engine.WORKFLOW_DIR / "situation.yaml"
+SITUATION = engine.PROJECT_ROOT / "test_data" / "situations" / "story_dialogue" / "situation.yaml"
 EVIDENCE_ROOT = (
     Path(".runtime/w4/live")
     / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8])

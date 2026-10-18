@@ -15,6 +15,7 @@ from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.records.enums import FeatureType
 from pm.records.memory_records import new_feature
+from workflows.main_cognition.schemas import ActionRequest, Stimulus
 from workflows.public_speech.context_planning import FocusInput, plan_reply_context
 from workflows.public_speech.public_context import build_public_context
 
@@ -39,16 +40,12 @@ class ContextPlanningTests(unittest.TestCase):
         self.assertNotIn(self.current.id, [turn.knoxel_id for turn in planned.dialogue])
         self.assertEqual(planned.trace["semantic"], {"status": "disabled"})
 
-    def test_assistant_window_keeps_thoughts_out_of_the_chat(self):
-        planned = self.plan("assistant")
-        self.assertEqual([turn.kind for turn in planned.dialogue], ["speech", "speech"])
-
     def test_workspace_targets_reach_the_focus_lane_and_the_public_context(self):
         fact = new_feature(self.ghost, "Jesse waters the plant on Sundays", FeatureType.WorldEvent, source="Jesse")
         planned = self.plan(required_ids=[fact.id])
-        self.assertEqual([(item["knoxel_id"], item["lane"]) for item in planned.evidence], [(fact.id, "focus")])
-        context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": self.current.id}]}, planned=planned)
-        lanes = {item["knoxel_id"]: item.get("lane") for item in context.evidence}
+        self.assertEqual([(item.knoxel_id, item.lane) for item in planned.evidence], [(fact.id, "focus")])
+        context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=self.current.id)]), planned=planned)
+        lanes = {item.knoxel_id: item.lane for item in context.evidence}
         self.assertEqual(lanes[fact.id], "focus")
         self.assertIn(self.current.id, lanes)
         self.assertEqual(context.plan["plan"], "story")

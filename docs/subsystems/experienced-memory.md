@@ -151,7 +151,7 @@ A fresh instance establishes the explicit canon baseline.
 1. Find the original record by its ID in the accepted snapshot.
 2. Inspect `memory_trace.coverage`, the frontier, and the allowed scopes.
 3. Inspect competing scores and boundary rejection examples.
-4. Inspect `context_selected_ids` and the action's `memory_evidence`.
+4. Inspect `context_selected_ids`, the action's `memory_evidence`, and the shards of its `dispatch_payload`.
 5. Compare the public claim with the original source text.
 
 Record-count equality establishes persistence only.

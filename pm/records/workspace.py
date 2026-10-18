@@ -119,6 +119,14 @@ class GlobalWorkspace(BaseModel):
             return self.entity_shards[int(key.ref)]
         return self.workflow_shards[key.ref]
 
+    def has_shard(self, key: ShardKey) -> bool:
+        """Return whether the shard for ``key`` exists. The self shard always exists."""
+        if key.kind == "self":
+            return True
+        if key.kind == "entity":
+            return int(key.ref) in self.entity_shards
+        return key.ref in self.workflow_shards
+
     def ensure_shard(self, key: ShardKey) -> WorkspaceShard:
         """Return the shard for ``key``. Create an empty shard when it does not exist.
 

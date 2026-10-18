@@ -1,16 +1,17 @@
-"""Plan the memory context of one public reply from the current workspace.
+"""Plan the memory context of one standalone public reply.
 
-Story and Assistant both call ``plan_reply_context``. The workspace decides
-what the plan looks for:
+A reply that main cognition chose reads the workspace shards of its cycle
+(:mod:`workflows.public_speech.shard_context`). It does not retrieve memory
+again. A standalone Story situation has no cycle, so it plans its context
+here. The focus decides what the plan looks for:
 
-- the subjective experience of the winning attention frame,
+- a workspace text of the situation,
 - the current message,
-- the texts of the winning attention nominations (A15),
+- optional attention texts,
 - the active goals,
 
-each as a weighted query. Records that the winning nominations target, and
-records that cognition already selected, are required in the ``focus`` lane.
-The lanes and budgets come from ``context_plans.yaml``.
+each as a weighted query. Required ids enter the ``focus`` lane. The lanes
+and budgets come from ``context_plans.yaml``.
 
 Network work: each focus text is embedded through the shared cache, and at
 most ``max_new_embeddings`` record vectors are fetched for records near the
@@ -20,42 +21,48 @@ recorded in the trace; it never stops the reply. Cancellation propagates.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 import tiktoken
+from pydantic import BaseModel, ConfigDict, Field
 from pm.utils import yaml_util
 
 from pm.llm.http_client import ModelError
 from pm.memory.context_plan import ContextPlan, Focus, PlanSpec, plan_context
 from pm.memory.retrieval import candidate, index_chunks, record_text, scoped_records
-from workflows.public_speech.public_context import DialogueTurn
+from workflows.public_speech.public_context import DialogueTurn, EvidenceItem
 
 PLANS_FILE = Path(__file__).resolve().parent / "context_plans.yaml"
 THOUGHT_TYPES = {"Thought", "InnerMonologue"}
 _ENCODING = tiktoken.get_encoding("o200k_base")
 
 
-@dataclass
-class FocusInput:
-    """Workspace content of the cycle that selected this reply."""
+class FocusInput(BaseModel):
+    """The texts and ids that a standalone context plan looks for."""
 
     workspace: str = ""
     current_message: str = ""
-    attention_texts: list[str] = field(default_factory=list)
-    goals: list[str] = field(default_factory=list)
-    required_ids: list[int] = field(default_factory=list)
-    exclude_ids: list[int] = field(default_factory=list)
+    attention_texts: list[str] = Field(default_factory=list)
+    goals: list[str] = Field(default_factory=list)
+    required_ids: list[int] = Field(default_factory=list)
+    exclude_ids: list[int] = Field(default_factory=list)
 
 
-@dataclass
-class PlannedContext:
-    """The planned dialogue window, lane-tagged evidence, and the plan trace."""
+class PlannedContext(BaseModel):
+    """The dialogue window, the lane-tagged evidence, and the trace of one reply context.
 
-    dialogue: list[DialogueTurn]
-    evidence: list[dict]
-    trace: dict
+    ``story`` is the rendered workspace shards of the cycle, or empty for a
+    standalone plan. ``trace`` is the diagnostic trace of the plan or the
+    shard selection. Prompts never read it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    dialogue: list[DialogueTurn] = Field(default_factory=list)
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    story: str = ""
+    trace: dict = Field(default_factory=dict)
 
 
 def load_plan(name: str, path: Path | None = None) -> tuple[PlanSpec, int]:
@@ -151,8 +158,8 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
         if lane.name in dialogue_names:
             continue
         for key in lane.ids:
-            item = candidate(view, key, records[key], score=lane.scores.get(key, 0.0))
-            item["lane"] = lane.name
+            item = EvidenceItem.model_validate(candidate(view, key, records[key], score=lane.scores.get(key, 0.0)))
+            item.lane = lane.name
             evidence.append(item)
     return PlannedContext(dialogue=dialogue, evidence=evidence, trace=_trace(plan, semantic, embedded))
 

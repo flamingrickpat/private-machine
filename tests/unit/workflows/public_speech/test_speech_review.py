@@ -118,7 +118,7 @@ class ReviewMessageTests(unittest.TestCase):
 
 class StorySingleGenerationTests(unittest.TestCase):
     def request(self) -> StoryRequest:
-        return StoryRequest(companion_name="Spamuel", user_name="Jesse", character_card_story="Brash.",
+        return StoryRequest(companion_name="Spamuel", partner_name="Jesse", character_card_story="Brash.",
                             prior_dialogue=[DialogueTurn(speaker="Jesse", text="hi")],
                             current_user_message="where were you?",
                             public_context=PublicContext(companion_name="Spamuel", user_name="Jesse"))
@@ -163,7 +163,7 @@ class StorySingleGenerationTests(unittest.TestCase):
 
 class NoContextReviewTests(unittest.TestCase):
     def test_request_context_keeps_abilities_and_memories(self):
-        request = StoryRequest(companion_name="Spamuel", user_name="Jesse", character_card_story="Brash.",
+        request = StoryRequest(companion_name="Spamuel", partner_name="Jesse", character_card_story="Brash.",
                                supported_capabilities=["I can talk in text."],
                                unsupported_capabilities=["I cannot see."],
                                current_user_message="hi", memories=["Jesse has a sink."])

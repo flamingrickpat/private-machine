@@ -9,6 +9,7 @@ from pm.records.memory_records import ActionSchemaRecord, Feature, MemoryCluster
 from pm.records.base import Provenance
 from pm.records.enums import ClusterType, FeatureType, SourceKind
 from pm.records.cognitive_records import BeliefRecord, BeliefShiftRecord
+from workflows.main_cognition.schemas import ActionMetadata, RecordMetadataView
 
 
 def consolidate_cycle(batch, source_ids: list[int], appraisal: Feature, affect_summary: str) -> list[int]:
@@ -27,7 +28,7 @@ def consolidate_cycle(batch, source_ids: list[int], appraisal: Feature, affect_s
         ids = [record.id for record in records]
         lines = []
         for record in records:
-            kind = record.metadata.get("memory_kind", "attributed_record")
+            kind = RecordMetadataView.model_validate(record.metadata).memory_kind or "attributed_record"
             lines.append(f"[{record.id}; {kind}] {record.override_source if isinstance(record, Feature) else 'source'}: {record.content}")
         # Affect is an accepted internal event, even when its cause is imagined.
         lines.append(f"Accepted internal consequence [{appraisal.id}]: {affect_summary}")
@@ -65,7 +66,7 @@ def update_beliefs(batch, updates, *, user_name: str, permitted_source_ids: set[
         source = view.get_knoxel_by_id(update.source_id)
         if (not isinstance(source, Feature) or source.feature_type != FeatureType.Dialogue
                 or source.override_source != user_name
-                or source.metadata.get("memory_kind") != "utterance"
+                or RecordMetadataView.model_validate(source.metadata).memory_kind != "utterance"
                 or source.provenance is None or source.provenance.source_kind != SourceKind.User
                 or update.quote not in source.content):
             rejected.append({"source_id": update.source_id, "reason": "requires an exact live user utterance"})
@@ -113,12 +114,9 @@ def utterance_metadata(view, action_id: int | None) -> dict:
     action = view.get_knoxel_by_id(action_id) if action_id is not None else None
     if isinstance(action, ActionSchemaRecord):
         result["action_schema_id"] = action.id
-        # Imported here: ``public_context`` imports the cycle commit helpers.
-        from workflows.public_speech.public_context import Presentation
         # Actions from the main cycle store their presentation. Other actions
         # have none and are candid.
-        presentation = (Presentation.model_validate(action.metadata["presentation"])
-                        if "presentation" in action.metadata else Presentation())
+        presentation = ActionMetadata.model_validate(action.metadata).presentation
         if presentation.mode == "deceive" and presentation.purpose and presentation.known_fact_ids:
             known = list(presentation.known_fact_ids)
             if all(view.get_knoxel_by_id(key) is not None for key in known):

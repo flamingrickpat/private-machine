@@ -25,8 +25,8 @@ Use `--root PATH` for another deployment directory.
 
 ## Deploy and chat
 
-1. Enter an instance name.
-2. Enter a persona YAML path, or keep the default seed.
+1. Enter an instance name. The name is required.
+2. Enter a persona YAML path. The path is required: the console has no persona of its own.
 3. Enter a model configuration path, or keep the default configuration.
 4. Select real cognition or the labeled dummy fixture.
 5. Select **Deploy**.
@@ -36,9 +36,9 @@ Use `--root PATH` for another deployment directory.
 9. Send a message.
 
 All sessions within an instance share accepted memory.
-Jesse is the default user.
-After startup, the console reads public Jesse–Spamuel dialogue from Ghost.
-Select **Jesse / accepted history** to see those records.
+The persona's user is the default user. The worker snapshot supplies the user and companion names.
+After startup, the console reads the public dialogue between them from Ghost.
+Select **<user> / accepted history** to see those records.
 Memory and dialogue controls require a running instance.
 The left panel disables operations that the current state does not support.
 The console permits one pending exchange per instance.
@@ -52,6 +52,7 @@ The worker rejects another exchange until the current reply arrives.
 4. Select an event to show its complete recorded payload.
 5. Open **Timing** to compare durations and error counts.
 6. Select **Read memory** to refresh accepted records and managed-run receipts.
+7. Open **Cycle** to read the newest accepted cycle: the workspace shards with items and tails, the CSM items by activation with their endorsers, the structures, the codelet runs, the stimulus groups, the decisions, and the routed actions. Embeddings are not shown.
 
 The timing table sorts work by total elapsed time.
 It does not assign a usefulness score.

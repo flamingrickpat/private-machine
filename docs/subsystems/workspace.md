@@ -52,7 +52,7 @@ The host offers the newest stream records of each shard ([`ShardStream`][workflo
 | Shard | Stream |
 | --- | --- |
 | Self | The companion's thoughts and experiences (`Thought`, `ExternalThought`, `InnerMonologue`, and `SubjectiveExperience` features). The experience phase adds the experience of the current cycle at once. |
-| Entity | The dialogue with the entity. Dialogue records name no partner yet, so the user's shard holds all dialogue. The shard of another entity holds that entity's dialogue lines. |
+| Entity | The dialogue with the entity: its own lines and the companion replies that address it (`Feature.addressee_entity_id`). Lines without a known partner belong to the user's shard. |
 | Workflow | The `WorldEvent` features that the workflow reported. |
 
 The intake phase keeps the newest unbroken stretch of each stream within `WORKSPACE_TAIL_TOKENS` ([`select_tail`][workflows.main_cognition.workspace_selection.select_tail]).
@@ -165,11 +165,12 @@ Each entity shard is named by the entity name (`CycleRequest.entity_names`).
 ## Turn record
 
 [`GwtTurnRecord`][pm.records.global_workspace.GwtTurnRecord] (`pm.gwt-turn.v2`) holds one [`ShardChange`][pm.records.global_workspace.ShardChange] for each updated shard: the entered items, the left items with reasons, the kept ids, and the tail ids.
+`stimulus_ids` names the claimed stimuli. `decision_id` names the decision record. `trace` ([`CycleTrace`][pm.records.global_workspace.CycleTrace]) holds the codelet runs, the ratings, the pathway boosts, and the created percepts and structures.
 `knoxel_ids` keeps its old meaning for its readers and now also holds every workspace item and tail record.
-The `AttentionFrameRecord` stays on the live path until step 10 migrates its consumers. Its `focus_knoxel_ids` are the focus ids of the experience frame.
+No attention frame exists since A19F step 10. Old checkpoints keep their `AttentionFrameKnoxel` records as read-only legacy records.
 
-The `attention` list of an `action.request` holds the first `WORKSPACE_PAYLOAD_ITEMS` items of the shown shards.
-The public workflows plan their memory context from it.
+Each `action.request` carries copies of the shards that its reply needs: the self shard, the partner's shard, and a workflow shard.
+The public workflows build their context from these shards ([public dialogue context](public-dialogue.md)).
 
 ## Departures from the base references
 
@@ -190,7 +191,7 @@ These are engineering choices, not LIDA parameters:
 
 ## Limits
 
-- Dialogue records name no partner, so every entity shard of the user holds all dialogue.
+- Dialogue records before A19F step 10 name no partner. They stay in the user's shard.
 - Goal records store entity 0. The self goal requirement therefore matches every goal.
 - A percept that merges into another CSM item is not a CSM key. It enters a shard only through the item that absorbed it.
 - The binder sees at most `STRUCTURE_VIEW_TOKENS` of the CSM.

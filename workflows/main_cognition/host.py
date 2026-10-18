@@ -27,24 +27,25 @@ from pydantic import BaseModel
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.constants import (
     CCQ_LENGTH, CSM_RECENT_DIALOGUE_TURNS, CYCLE_RETRY_DELAY_SECONDS, CYCLE_RETRY_MAX_DELAY_SECONDS,
-    EXPECTATION_OPEN_LIMIT, WORKSPACE_PAYLOAD_ITEMS, WORKSPACE_TAIL_CANDIDATES,
+    EXPECTATION_OPEN_LIMIT, WORKSPACE_TAIL_CANDIDATES,
 )
 from pm.llm.completion import TextCompletion
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.memory.snapshot import GhostCancelled
 from pm.records.base import Provenance
 from pm.records.codelet_records import AffectMeta, CodeletPercept, Structure
-from pm.records.cognitive_records import AttentionFrameRecord, ExpectationRecord
+from pm.records.cognitive_records import ExpectationRecord
 from pm.records.cycle_records import ActionDispatchRef, BroadcastRef
 from pm.records.cycle_state import CycleState
 from pm.records.mental_state import PersonalityProfile, features_to_history
 from pm.records.workspace import SELF_SHARD, ShardKey
 from pm.records.enums import ActionType, FeatureType, SourceKind
-from pm.records.global_workspace import GwtTurnRecord
+from pm.records.global_workspace import CodeletRunRef, CycleTrace, GwtTurnRecord, PathwayBoostRef
 from pm.records.memory_records import ActionSchemaRecord, new_feature
 from pm.runs.workflow_module import CognitiveWorkflow
-from workflows.cognitive_control.schemas import FocusState, MentalPlan
+from workflows.cognitive_control.schemas import MentalPlan
 from workflows.inference_settings import REASONING
+from workflows.main_cognition.action_request import partner_key, request_shards
 from workflows.main_cognition.codelet_agent import build_codelet_agent
 from workflows.main_cognition.csm_view import record_view
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork, provisional_tick
@@ -55,6 +56,8 @@ from workflows.main_cognition.phases.codelets import RECOMMENDATION
 from workflows.main_cognition.phases.intake import group_key
 from workflows.main_cognition.schemas import (
     ActionDispatch,
+    ActionMetadata,
+    ActionRequest,
     FocusProposalRef,
     GoalChange,
     GoalRecordView,
@@ -63,13 +66,12 @@ from workflows.main_cognition.schemas import (
     MentalProposal,
     OpenExpectation,
     RecordView,
-    ReflectionGuidance,
     ShardStream,
     Stimulus,
     WorkflowOption,
 )
-from workflows.main_cognition.story_prefix import shown_shards
-from workflows.main_cognition.stage_commits import (
+from workflows.main_cognition.story_prefix import shard_label
+from workflows.main_cognition.cycle_commits import (
     active_goal_texts, active_intentions, apply_appraisal, apply_goal_changes,
 )
 from workflows.inner_thought.expectations import pending_expectations
@@ -173,6 +175,25 @@ def _state_summary(ghost) -> str:
     return turns[max(turns)].summary
 
 
+def dialogue_partner(feature, entity_ids: dict[str, int], user_entity_id: int | None,
+                     self_entity_id: int | None) -> int | None:
+    """Return the entity that the companion talks with in one dialogue line.
+
+    Only a companion reply names an addressee (``addressee_entity_id``), so
+    a reply belongs to the entity that it answers. Another line belongs to
+    its speaker: ``feature.entity_id``, or the entity of the source name in
+    ``entity_ids`` (entity names and aliases). A line of the user, of the
+    companion without an addressee, or of an unknown speaker belongs to the
+    user, so dialogue without a partner stays in the user's shard.
+    """
+    if feature.addressee_entity_id:
+        return int(feature.addressee_entity_id)
+    speaker = feature.entity_id or (entity_ids[feature.source] if feature.source in entity_ids else 0)
+    if speaker and speaker not in {self_entity_id, user_entity_id}:
+        return int(speaker)
+    return user_entity_id
+
+
 def seconds_since_user_input(ghost, exclude_ids) -> float | None:
     """Return seconds since the newest earlier user message, or None.
 
@@ -194,7 +215,7 @@ class MainCogLoop(CognitiveWorkflow):
 
     The workflow owns the phase order and the dispatch ids. This module owns
     the bus and the store: it builds one typed request from the batch,
-    commits one attention frame, GWT turn, cycle state, subjective
+    commits one GWT turn, cycle state, subjective
     experience, and action schema with its expectations per released
     dispatch in one write batch, then publishes ``action.request`` targeted
     at each dispatch's workflow name. Each action carries the correlation of
@@ -422,12 +443,10 @@ class MainCogLoop(CognitiveWorkflow):
         from workflows.reflection.experiments import effective_inputs
         control = self.cognitive_control
         maximum_focus_bias = control.config.maximum_focus_bias if control is not None else None
-        # Reflection reads the stored advice mapping. The cycle reads it typed.
-        stored_focus = active_focus(self.ghost, maximum_strength=maximum_focus_bias)
-        focus = FocusState.model_validate(stored_focus) if stored_focus else None
+        focus = active_focus(self.ghost, maximum_strength=maximum_focus_bias)
         self._focus_family_revisions = focus_versions(memory_view)
-        reflection = effective_inputs(memory_view, stored_focus)
-        guidance = [ReflectionGuidance.model_validate(item) for item in reflection["guidance"]]
+        reflection = effective_inputs(memory_view, focus)
+        guidance = list(reflection.guidance)
         mental_proposals: list[MentalProposal] = []
         focus_proposals: list[FocusProposalRef] = []
         for source in sources:
@@ -448,7 +467,7 @@ class MainCogLoop(CognitiveWorkflow):
         # Deliberate recall can introduce sources that a literal stimulus
         # query missed. They remain original, revisioned memory candidates.
         focus_ids = set(focus.promote_ids + focus.reduce_ids) if focus is not None else set()
-        focus_ids.update(reflection["source_ids"])
+        focus_ids.update(reflection.source_ids)
         for item in mental_proposals:
             focus_ids.update(item.evidence_ids)
         for item in focus_proposals:
@@ -475,8 +494,7 @@ class MainCogLoop(CognitiveWorkflow):
         with self.ghost.lock:
             history = features_to_history(self.ghost.all_features, self.ghost.all_codelet_percepts)
         capabilities = self.capability_provider() if self.capability_provider is not None else None
-        public = build_public_context(self.ghost, {"stimuli": [item.model_dump(mode="json") for item in stimuli]},
-                                      capabilities=capabilities)
+        public = build_public_context(self.ghost, ActionRequest(stimuli=stimuli), capabilities=capabilities)
         user_entity_id = self.ghost.get_entity_id(self.ghost.get_user_name())
         keys = [group_key(item, CycleRequest(user_entity_id=user_entity_id)) for item in stimuli]
         group_entities = sorted({int(key.ref) for key in keys if key.kind == "entity"})
@@ -486,7 +504,11 @@ class MainCogLoop(CognitiveWorkflow):
         narrative_ids = self._narrative_ids(memory_view, [*([self_entity_id] if self_entity_id else []),
                                                           *group_entities])
         known = [shard.key for shard in previous.workspace.all_shards()] if previous is not None else [SELF_SHARD]
-        streams = self._streams(memory_view, list(dict.fromkeys([*known, *keys])), user_entity_id)
+        # The user's shard always gets a tail, so a reply to the user after a
+        # thought or a workflow event still reads the latest dialogue.
+        user_key = [ShardKey(kind="entity", ref=str(user_entity_id))] if user_entity_id is not None else []
+        streams = self._streams(memory_view, list(dict.fromkeys([*known, *user_key, *keys])),
+                                user_entity_id, self_entity_id)
         workspace_ids = ([*previous.workspace.item_ids(), *previous.workspace.tail_ids()]
                          if previous is not None else [])
         extra = [*narrative_ids, *workspace_ids, *(key for stream in streams for key in stream.record_ids),
@@ -583,17 +605,18 @@ class MainCogLoop(CognitiveWorkflow):
                     newest[key] = (rank, record.id)
         return [newest[key][1] for key in sorted(newest)]
 
-    def _streams(self, memory_view, keys: list[ShardKey], user_entity_id: int | None) -> list[ShardStream]:
+    def _streams(self, memory_view, keys: list[ShardKey], user_entity_id: int | None,
+                 self_entity_id: int | None) -> list[ShardStream]:
         """Return the newest stream records of each shard, oldest first.
 
         - Self shard: the companion's thoughts and experiences (``Thought``,
           ``ExternalThought``, ``InnerMonologue``, and ``SubjectiveExperience``
           features).
-        - Entity shard: the dialogue with that entity. Dialogue records name
-          no partner yet, so the user's shard holds all dialogue, and the
-          shard of another entity holds the dialogue features with its
-          entity id. A reply names no partner either, so a reply to a
-          second entity appears in the user's shard.
+        - Entity shard: the dialogue with that entity
+          (:meth:`_dialogue_partner`). A line of another speaker belongs to
+          the speaker. A companion reply belongs to the entity that it
+          addresses. Lines without a known partner belong to the user, so old
+          dialogue stays in the user's shard.
         - Workflow shard: the ``WorldEvent`` features that the workflow
           reported.
 
@@ -605,13 +628,16 @@ class MainCogLoop(CognitiveWorkflow):
         with self.ghost.lock:
             features = sorted((item for item in self.ghost.all_features if item.id in memory_view.revisions),
                               key=lambda item: (item.timestamp_world_begin, item.id))
+            names = {name: entity.id for entity in self.ghost.all_entities
+                     for name in [*entity.aliases, entity.content]}
+            partners = {item.id: dialogue_partner(item, names, user_entity_id, self_entity_id)
+                        for item in features if item.feature_type == FeatureType.Dialogue}
         streams = []
         for key in keys:
             if key.kind == "self":
                 chosen = [item for item in features if item.feature_type in inner]
             elif key.kind == "entity":
-                chosen = [item for item in features if item.feature_type == FeatureType.Dialogue
-                          and (key.ref == str(user_entity_id) or item.entity_id == int(key.ref))]
+                chosen = [item for item in features if item.id in partners and partners[item.id] == int(key.ref)]
             else:
                 chosen = [item for item in features
                           if item.feature_type == FeatureType.WorldEvent and item.source == key.ref]
@@ -728,7 +754,7 @@ class MainCogLoop(CognitiveWorkflow):
 
         The batch holds the appraisal, goal changes, beliefs, the episodic
         summary, the codelet percepts, the structures, the subjective
-        experience, the attention frame, the decision record, one action
+        experience, the decision record, one action
         schema per released dispatch with its expectations, the expectation
         check results, the GWT turn with the shard changes, and the cycle
         state. Bus events go out only after the commit. A stale source, a
@@ -739,7 +765,6 @@ class MainCogLoop(CognitiveWorkflow):
             return
         work = CycleWork.model_validate(report)
         request = work.request
-        stimulus_records = {item.knoxel_id: item.model_dump(mode="json") for item in request.stimuli}
         user_stimuli = {item.knoxel_id for item in request.stimuli if item.source == "user_input"}
         cause = batch[0].id if batch else None
         changes = self.ghost.begin_batch(
@@ -761,7 +786,7 @@ class MainCogLoop(CognitiveWorkflow):
                     changes.expect_revision(source_id, self._memory_view.revisions[source_id])
 
         # Apply the appraisal and goal proposals into this same batch before the
-        # frame. A failure here aborts the whole batch, so stale proposals never
+        # turn record. A failure here aborts the whole batch, so stale proposals never
         # partly update accepted state. The appraise phase already computed the
         # appraisal affect and the EMA mental state; the commit stores them.
         memory_trace = {**request.memory_trace,
@@ -785,10 +810,6 @@ class MainCogLoop(CognitiveWorkflow):
         belief_receipt = update_beliefs(changes, work.context.belief_updates, user_name=self.ghost.get_user_name(),
                                         permitted_source_ids=set(self._stimulus_ids))
         experience_ids = consolidate_cycle(changes, self._stimulus_ids, appraisal_feature, work.affect.felt)
-        # The public workflows plan their memory context from the conscious
-        # content. Read the item texts before the pending ids change.
-        attention_items = [(item.record_id, work.records[item.record_id])
-                           for shard in shown_shards(work) for item in shard.items][:WORKSPACE_PAYLOAD_ITEMS]
         # Codelet percepts, recommendations, and structures become records
         # now. The CSM, the codelet state, the workspace, and the attention
         # trace held pending ids until here. A percept that entered a shard
@@ -802,36 +823,8 @@ class MainCogLoop(CognitiveWorkflow):
         mapping = {**pending, **structure_ids, work.experience.record_id: experience_feature.id}
         remap_pending(work, mapping)
         caused = mark_causal(changes, view, work)
-        codelets = work.codelets
-        attention_focus = [{"text": record.content, "target_ids": [mapping.get(key, key)],
-                            "reality": "internal" if record.record_class == "CodeletPercept" else "remembered"}
-                           for key, record in attention_items]
         experience = work.experience
-        frame = changes.create(AttentionFrameRecord(
-            content=experience.frame_reason or work.summary,
-            tick_id=tick,
-            focus_knoxel_ids=list(experience.focus_ids),
-            winning_attention_ids=[],
-            active_goal_ids=goal_ids,
-            control_mode=experience.control_mode,
-            frame_reason=experience.frame_reason or work.summary,
-            metadata={
-                "codelet_runs": [run.model_dump(mode="json", include={"codelet", "mode", "wave", "status",
-                                                                      "reason", "score", "calls"})
-                                 for run in codelets.runs],
-                "codelet_cost": codelets.cost.model_dump(mode="json"),
-                "codelet_budget": codelets.budget,
-                "codelet_ratings": dict(codelets.ratings),
-                "definitions_version": codelets.definitions_version,
-                "definitions_digest": codelets.definitions_digest,
-                "percept_ids": sorted(pending.values()),
-                "structure_ids": sorted(structure_ids.values()),
-                "causal_percept_ids": caused,
-                "attention_ratings": [item.model_dump(mode="json") for item in work.attention.ratings],
-                "pathway_boosts": [item.model_dump(mode="json") for item in codelets.pathway_boosts],
-            },
-        ))
-        created_order: list[int] = [frame.id, appraisal_feature.id, *created_goal_ids, *experience_ids,
+        created_order: list[int] = [appraisal_feature.id, *created_goal_ids, *experience_ids,
                                     *pending.values(), *structure_ids.values(), experience_feature.id,
                                     *belief_receipt["accepted_ids"]]
         from pm.records.lineage import RecordLineage
@@ -853,7 +846,8 @@ class MainCogLoop(CognitiveWorkflow):
                     or item.owner == "belief" and effective_id in selected_ids):
                 reflection_versions[str(item.experiment_id)] = effective_id
         # The decision record keeps the operation name "action_selection",
-        # because reflection finds its experiments' effects by it.
+        # because reflection finds its experiments' effects by it. The turn
+        # record names it as ``decision_id``.
         decision_text = "\n".join(item.text for item in work.state.decisions)
         selection = new_feature(self.ghost, decision_text or work.summary,
             FeatureType.StateUpdate, source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
@@ -861,7 +855,8 @@ class MainCogLoop(CognitiveWorkflow):
                                        "decisions": [item.model_dump(mode="json") for item in work.state.decisions],
                                        "routes": [item.model_dump(mode="json") for item in work.routes],
                                        "reflection_versions": reflection_versions},
-            lineage=lineage.model_copy(update={"operation": "action_selection", "parent_record_ids": [frame.id]}))
+            lineage=lineage.model_copy(update={"operation": "action_selection",
+                                              "parent_record_ids": [experience_feature.id]}))
         created_order.append(selection.id)
         if focus is not None and focus.fresh and focus.accept:
             from workflows.cognitive_control.attention import stage_focus
@@ -872,12 +867,11 @@ class MainCogLoop(CognitiveWorkflow):
                 lineage=lineage.model_copy(update={"operation": "focus_acceptance"}))
             created_order.append(accepted_focus.id)
         memory_evidence = [item.model_dump(mode="json") for item in work.selected_memories]
-        memory_texts = [item.text for item in work.selected_memories]
-        experience_text = experience.text
         # The check results come first, so a superseded expectation keeps
         # its checked fulfillment.
         apply_expectation_outcomes(changes, view, work)
-        published: list[tuple] = []
+        stimuli = {item.knoxel_id: item for item in request.stimuli}
+        published: list[tuple[ActionDispatch, int, ActionRequest]] = []
         rejected = []
         queued = []
         duplicates = []
@@ -904,12 +898,20 @@ class MainCogLoop(CognitiveWorkflow):
                 or any(key not in view.revisions for key in presentation.known_fact_ids)
             ):
                 raise ValueError("The proposed deception lacks retained factual context.")
-            arguments = dispatch.arguments.payload()
-            group_records = [stimulus_records[key] for key in dispatch.stimulus_ids]
+            partner = partner_key(dispatch.group, request.user_entity_id)
+            action_request = ActionRequest(
+                action_id=dispatch.action_id, workflow_name=dispatch.workflow_name,
+                content=dispatch.content, arguments=dispatch.arguments, group=dispatch.group,
+                partner_entity_id=int(partner.ref) if partner is not None else None,
+                partner_name=shard_label(partner, request) if partner is not None else request.user_name,
+                stimuli=[stimuli[key] for key in dispatch.stimulus_ids],
+                shards=request_shards(work.state.workspace, dispatch.group, partner,
+                                      lambda key: shard_label(key, request)),
+                presentation=presentation, workspace=experience.text,
+                affect=work.affect.felt, regulation=work.affect.regulation)
             action = changes.create(ActionSchemaRecord(
                 content=dispatch.content,
                 action_type=ACTION_BY_NAME[dispatch.action_type],
-                attention_frame_id=frame.id,
                 intention_ids=list(goal_ids),
                 lineage=lineage.model_copy(update={"operation": "action_dispatch",
                                                   "parent_record_ids": [selection.id]}),
@@ -919,7 +921,7 @@ class MainCogLoop(CognitiveWorkflow):
                     "workflow_name": dispatch.workflow_name,
                     "depends_on": list(dispatch.depends_on),
                     "requires_completed": list(dispatch.requires_completed),
-                    "arguments": arguments,
+                    "arguments": dispatch.arguments.payload(),
                     "affect_summary": work.affect.felt,
                     "appraisal_id": appraisal_feature.id,
                     "evidence_ids": list(dispatch.stimulus_ids),
@@ -934,32 +936,41 @@ class MainCogLoop(CognitiveWorkflow):
                     "dispatch_status": "pending",
                     "dispatch_target": dispatch.workflow_name,
                     "dispatch_correlation": dispatch.correlation_id,
-                    "dispatch_payload": {"action_id": dispatch.action_id, "workflow_name": dispatch.workflow_name,
-                        "content": dispatch.content, "arguments": arguments,
-                        "stimuli": group_records, "memories": memory_texts,
-                        "memory_evidence": memory_evidence,
-                        "workspace": experience_text,
-                        "affect": work.affect.felt, "regulation": work.affect.regulation,
-                        "attention": attention_focus},
+                    "dispatch_payload": action_request.payload(),
                 },
             ))
             created_order.append(action.id)
             created_order.extend(stage_expectations(changes, view, work, dispatch, action.id))
-            published.append((dispatch, action.id))
+            published.append((dispatch, action.id, action_request))
         summary = experience.text.strip() or work.affect.felt.strip() or work.summary
-        state = self._accepted_state(work, tick, frame.id, summary, published, experience_feature.id)
-        # ``knoxel_ids`` keeps the old meaning for its readers: the stimuli,
-        # the created records, the selected memories, and now every workspace
-        # item and tail record. ``shard_changes`` is the v2 change record.
+        state = self._accepted_state(work, tick, summary, published, experience_feature.id)
+        codelets = work.codelets
+        trace = CycleTrace(
+            codelet_budget=codelets.budget,
+            codelet_runs=[CodeletRunRef.model_validate(run.model_dump(include=set(CodeletRunRef.model_fields)))
+                          for run in codelets.runs],
+            codelet_ratings=dict(codelets.ratings),
+            pathway_boosts=[PathwayBoostRef.model_validate(boost.model_dump(include=set(PathwayBoostRef.model_fields)))
+                            for boost in codelets.pathway_boosts],
+            definitions_version=codelets.definitions_version, definitions_digest=codelets.definitions_digest,
+            percept_ids=sorted(pending.values()), structure_ids=sorted(structure_ids.values()),
+            causal_percept_ids=caused, llm_calls=codelets.cost.llm_calls,
+            input_tokens_estimate=codelets.cost.input_tokens_estimate,
+            output_tokens_estimate=codelets.cost.output_tokens_estimate)
+        # ``knoxel_ids`` keeps its meaning for its readers: the stimuli, the
+        # created records, the selected memories, and every workspace item
+        # and tail record. ``shard_changes`` is the v2 change record.
         changes.set_gwt(
             GwtTurnRecord(
-                tick_id=tick, attention_frame_id=frame.id,
+                tick_id=tick, stimulus_ids=list(self._stimulus_ids),
                 knoxel_ids=list(dict.fromkeys([*self._stimulus_ids, *created_order,
                                              *(item.knoxel_id for item in work.selected_memories),
                                              *state.workspace.item_ids(), *state.workspace.tail_ids()])),
                 summary=summary,
                 shard_changes=[change.model_copy(deep=True) for change in work.attention.changes],
                 experience_id=experience_feature.id,
+                decision_id=selection.id,
+                trace=trace,
             ),
             state,
         )
@@ -969,34 +980,21 @@ class MainCogLoop(CognitiveWorkflow):
         else:
             receipt = control.commit(changes, work.wait_request, self._control_generation,
                 envelope_ids={item.id for item in batch},
-                wake_ids=[int(item.payload["knoxel_id"]) for item in batch if item.topic == "cognition.wake"],
+                wake_ids=[KnoxelPayload.model_validate(item.payload).knoxel_id
+                          for item in batch if item.topic == "cognition.wake"],
                 private_generation=self._control_generation if self._private_only else None,
                 source_ids=list(self._stimulus_ids))
         tick = receipt.tick_id
 
         self.bus.put(new_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))
-        for dispatch, created_id in published:
+        for dispatch, created_id, action_request in published:
             # A repeated commit returns the original receipt and does not apply
             # the new batch. Resolve the accepted action by durable identity and
             # tick so the published id is always committed.
             committed_id = self._committed_action_id(dispatch, tick) or created_id
             self.bus.put(new_envelope(
                 self.module_id, "data", "action.request", dispatch.correlation_id,
-                {
-                    "knoxel_id": committed_id,
-                    "gwt_tick": tick,
-                    "action_id": dispatch.action_id,
-                    "workflow_name": dispatch.workflow_name,
-                    "content": dispatch.content,
-                    "arguments": dispatch.arguments.payload(),
-                    "stimuli": [stimulus_records[key] for key in dispatch.stimulus_ids],
-                    "memories": memory_texts,
-                    "memory_evidence": memory_evidence,
-                    "workspace": experience_text,
-                    "affect": work.affect.felt,
-                    "regulation": work.affect.regulation,
-                    "attention": attention_focus,
-                },
+                action_request.model_copy(update={"knoxel_id": committed_id, "gwt_tick": tick}).payload(),
                 target=dispatch.workflow_name,
                 causation_id=cause,
             ))
@@ -1010,15 +1008,15 @@ class MainCogLoop(CognitiveWorkflow):
                 detail=f"active action {existing_id} has identity {dispatch.action_id}",
             )
 
-    def _accepted_state(self, work: CycleWork, tick: int, frame_id: int,
-                        summary: str, published: list[tuple], experience_id: int) -> CycleState:
+    def _accepted_state(self, work: CycleWork, tick: int, summary: str, published: list[tuple],
+                        experience_id: int) -> CycleState:
         """Finish the cycle state that the phases changed and return it.
 
         The phases changed the previous state in place. The appraise phase set
         the mental state, and the decide phase set the decisions. Here the
-        state gets its tick, time, frame, dispatch references, and the new
-        broadcast with the subjective experience. The broadcast queue keeps
-        the last ``CCQ_LENGTH`` turns. A dispatch reference exists only for a
+        state gets its tick, time, dispatch references, and the new broadcast
+        with the subjective experience. The broadcast queue keeps the last
+        ``CCQ_LENGTH`` turns. A dispatch reference exists only for a
         published action, with its action record id.
         """
         state = work.state
@@ -1036,15 +1034,11 @@ class MainCogLoop(CognitiveWorkflow):
             item.entered_tick = tick if item.entered_tick == expected else item.entered_tick
         state.tick_id = tick
         state.timestamp = datetime.utcnow()
-        state.attention_frame_id = frame_id
-        state.published_slots = ["main"]
-        state.stimuli_ids = list(self._stimulus_ids)
         state.control_generation = self._control_generation
-        state.commit_hash = None
         state.dispatches = [ActionDispatchRef(
             action_id=created_id, group=dispatch.group, correlation_id=dispatch.correlation_id,
             workflow=dispatch.workflow_name, action_type=dispatch.action_type,
-        ) for dispatch, created_id in published]
+        ) for dispatch, created_id, _ in published]
         state.broadcasts = [*state.broadcasts, BroadcastRef(tick_id=tick, summary=summary,
                                                             experience_id=experience_id)][-CCQ_LENGTH:]
         return state
@@ -1056,7 +1050,7 @@ class MainCogLoop(CognitiveWorkflow):
                 continue
             if int(knoxel.tick_id) != int(tick):
                 continue
-            if "action_id" in knoxel.metadata and knoxel.metadata["action_id"] == dispatch.action_id:
+            if ActionMetadata.model_validate(knoxel.metadata).action_id == dispatch.action_id:
                 return int(knoxel.id)
         return None
 
@@ -1096,7 +1090,7 @@ class MainCogLoop(CognitiveWorkflow):
         for knoxel in self.ghost.all_knoxels.values():
             if not isinstance(knoxel, ActionSchemaRecord):
                 continue
-            if "action_id" in knoxel.metadata and knoxel.metadata["action_id"] == dispatch.action_id:
+            if ActionMetadata.model_validate(knoxel.metadata).action_id == dispatch.action_id:
                 return int(knoxel.id)
         return None
 
@@ -1261,7 +1255,6 @@ def remap_pending(work: CycleWork, mapping: dict[int, int]) -> None:
     for pending_id, record_id in mapping.items():
         if pending_id in work.records:
             work.records[record_id] = work.records[pending_id].model_copy(update={"record_id": record_id})
-    work.experience.focus_ids = [mapping.get(key, key) for key in work.experience.focus_ids]
     work.experience.record_id = mapping.get(work.experience.record_id, work.experience.record_id)
 
 
@@ -1326,5 +1319,6 @@ def apply_expectation_outcomes(changes, view, work: CycleWork) -> None:
 
 
 __all__ = ["InnerThoughtLoop", "MainCogLoop", "apply_expectation_outcomes", "build_main_cognition_tools",
+           "dialogue_partner",
            "mark_causal", "remap_pending", "seconds_since_user_input", "stage_expectations", "stage_percepts",
            "stage_structures"]

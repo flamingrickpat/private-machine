@@ -29,7 +29,7 @@ from workflows.main_cognition.schemas import AppraisalResult, BeliefUpdate
 from pm.records.mental_state import FullMentalState
 from workflows.main_cognition.affect import appraise_state
 from workflows.main_cognition.schemas import AppraisalAffect
-from workflows.main_cognition.stage_commits import apply_appraisal
+from workflows.main_cognition.cycle_commits import apply_appraisal
 from workflows.dialogue_story.schemas import StoryRequest
 from workflows.dialogue_story.steps import build_story_messages, load_prompts
 
@@ -55,17 +55,24 @@ class ExperiencedMemoryTests(unittest.TestCase):
         current = self.say("Recall a past failed method.")
         memory = self.retrieve("wrong attachment", limit=1)["matches"][0]["text"]
         self.assertIn(original.metadata["executed_at"], memory)
+        # The user's shard tail holds the original report. The reply reads
+        # it from the shards of the request, not from a new retrieval.
+        from pm.records.workspace import SELF_SHARD, ShardKey, WorkspaceShard
+        from workflows.main_cognition.schemas import ActionRequest, RequestShard, Stimulus
+        user_shard = ShardKey(kind="entity", ref="1")
+        payload = ActionRequest(
+            knoxel_id=action.id, partner_name="Jesse",
+            stimuli=[Stimulus(knoxel_id=current.id, text=str(current.content))],
+            shards=[RequestShard(name="self", shard=WorkspaceShard(key=SELF_SHARD)),
+                    RequestShard(name="Jesse", shard=WorkspaceShard(key=user_shard, tail_ids=[original.id]))])
         request = StoryRequest.model_validate(module.prepare_input([new_envelope(
-            "main_cog", "data", "action.request", "recall-test",
-            {"knoxel_id": action.id, "stimuli": [{"knoxel_id": current.id, "text": str(current.content)}],
-             "memories": [memory]},
-        )]))
+            "main_cog", "data", "action.request", "recall-test", payload.payload())]))
         messages = build_story_messages(request, load_prompts())
         self.assertEqual(request.current_user_message, "Recall a past failed method.")
         self.assertEqual(request.selected_action, action.content)
         # The selected intent is derived context and lives in the user turn.
-        # The original report is a recent Jesse line: the context plan puts it
-        # verbatim into the assistant transcript, not into the memories.
+        # The original report is in the tail of the user's shard, so it is
+        # verbatim in the assistant transcript and not in the memories.
         context, story = messages[1].content.text, messages[2].content.text
         self.assertIn(action.content, context)
         self.assertIn(f'Jesse says: "{original.content}"', story)

@@ -1,9 +1,10 @@
 """Queryable cognitive episodes built from records the runtime already keeps.
 
 A18 does not install a second tracing framework. An episode is a read-side
-view over committed records that already exist: workspace turns, attention
-frames, private thoughts, action schemas, beliefs, expectations, and managed
-run receipts. The view adds the causal fields the records carry, and it
+view over committed records that already exist: workspace turns, private
+thoughts, action schemas, beliefs, expectations, and managed run receipts.
+A main turn (``pm.gwt-turn.v2``) names its claimed stimuli, its shard
+changes, its subjective experience, and its decision record. The view adds the causal fields the records carry, and it
 refuses to infer an execution fact from timestamp order.
 
 An episode stays queryable when it is incomplete. A cancelled cycle, a
@@ -20,12 +21,12 @@ from typing import Iterable
 
 from pm.memory.references import referenced_ids
 from pm.records.cognitive_records import (
-    AttentionFrameRecord,
     BeliefRecord,
     BeliefShiftRecord,
     ExpectationRecord,
 )
 from pm.records.enums import FeatureType
+from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import ActionSchemaRecord
 
 __all__ = [
@@ -116,7 +117,6 @@ class EpisodeIndex:
         if hasattr(store, "gwt_turns"):
             turns = store.gwt_turns
         else:
-            from pm.records.global_workspace import GwtTurnRecord
             turns = {tick: GwtTurnRecord.model_validate(raw) for tick, raw in store.serialize_gwt().items()}
         for tick, turn in turns.items():
             episodes.append(self._from_turn(tick, turn))
@@ -136,23 +136,35 @@ class EpisodeIndex:
     # ------------------------------------------------------------------
     # Anchor builders. Each reads only committed fields.
 
-    def _from_turn(self, tick: int, turn) -> Episode:
-        loop = str(getattr(turn, "slot_id", "main") or "main")
-        links = {"output": _ints(getattr(turn, "knoxel_ids", ()))}
-        if getattr(turn, "attention_frame_id", None) is not None:
-            links["cause"] = (int(turn.attention_frame_id),)
-        frame = self.store.get_knoxel_by_id(turn.attention_frame_id) if turn.attention_frame_id else None
-        operation = "cognition_cycle"
-        if isinstance(frame, AttentionFrameRecord):
-            links["evidence"] = _ints(frame.focus_knoxel_ids)
-            operation = f"frame:{frame.control_mode}"
+    def _from_turn(self, tick: int, turn: GwtTurnRecord) -> Episode:
+        """Return the episode of one turn record.
+
+        The claimed stimuli are the cause. The records that entered a shard
+        are the evidence. The subjective experience and the decision record
+        are the derivation. Every listed record is an output.
+        """
+        loop = turn.slot_id
+        links = {"output": _ints(turn.knoxel_ids)}
+        if turn.stimulus_ids:
+            links["cause"] = _ints(turn.stimulus_ids)
+        entered = [item.record_id for change in turn.shard_changes for item in change.entered]
+        if entered:
+            links["evidence"] = _ints(entered)
+        derived = [key for key in (turn.experience_id, turn.decision_id) if key is not None]
+        if derived:
+            links["derivation"] = _ints(derived)
         outcome = "committed" if links["output"] else "idle"
         return Episode(
             episode_id=int(tick), kind="gwt_turn", loop=loop, tick_id=int(tick),
-            operation=operation, owner="workflows.main_cognition" if loop == "main" else "workflows.inner_thought",
-            summary=str(getattr(turn, "summary", "")),
+            operation="cognition_cycle" if loop == "main" else "private_cycle",
+            owner="workflows.main_cognition" if loop == "main" else "workflows.inner_thought",
+            summary=turn.summary,
             outcome=outcome, revision=self._revision(turn),
-            inputs=links.get("evidence", ()), outputs=links["output"], links=links,
+            inputs=links.get("cause", ()), outputs=links["output"], links=links,
+            metadata={"shards": [change.key.model_dump(mode="json") for change in turn.shard_changes],
+                      "codelet_runs": [run.model_dump(mode="json") for run in turn.trace.codelet_runs],
+                      "structure_ids": list(turn.trace.structure_ids),
+                      "causal_percept_ids": list(turn.trace.causal_percept_ids)},
         )
 
     def _from_thought(self, record) -> Episode:
@@ -177,9 +189,10 @@ class EpisodeIndex:
         )
 
     def _from_action(self, record: ActionSchemaRecord) -> Episode:
-        links = {"evidence": _ints(getattr(record, "intention_ids", ()))}
-        if record.attention_frame_id is not None:
-            links["cause"] = (int(record.attention_frame_id),)
+        links = {"evidence": _ints(record.intention_ids)}
+        # The action follows from the decision record of its cycle.
+        if record.lineage is not None and record.lineage.parent_record_ids:
+            links["cause"] = _ints(record.lineage.parent_record_ids)
         status = str(getattr(record.status, "value", record.status))
         outcome = {"Executed": "committed", "Selected": "committed",
                    "Abandoned": "rejected", "Proposed": "unresolved"}.get(status, "unresolved")

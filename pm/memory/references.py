@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 REFERENCE_FIELDS = frozenset({
     "reality_id", "entity_id", "generated_expectation_ids", "intention_ids",
-    "attention_frame_id", "min_event_id", "max_event_id", "subject_entity_id",
+    "min_event_id", "max_event_id", "subject_entity_id",
     "semantic_record_id", "source_cluster_id", "superseded_by_ids", "source_knoxel_ids",
     "supersedes_record_ids", "contradicted_by_record_ids", "supports_record_ids", "related_record_ids",
     "precursor_ids", "owner_ids", "about_entity_ids", "supporting_knoxel_ids", "contradicting_knoxel_ids",
@@ -18,7 +18,7 @@ REFERENCE_FIELDS = frozenset({
     "concept_id", "source_id", "target_id", "parent_concept_id", "internal_knoxel_ids",
     "structure_ids", "predecessor_id", "produced_structure_ids", "primary_structure_id",
     "control_knoxel_id", "predecessor_output_ids", "last_driver_ids", "driver_ids",
-    "knoxel_ids", "stimuli_ids",
+    "knoxel_ids",
     "parent_record_ids",
 })
 

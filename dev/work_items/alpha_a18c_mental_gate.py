@@ -207,18 +207,22 @@ def run(config_path: Path, out: Path, *, exercise_cognition: bool = False, fault
                                         {"knoxel_id": proposal.id})]
             app.main_cog.handle_batch(incoming)
             report = app.main_cog.last_result.report
+            # A19F: the cycle report is the typed CycleWork. Deliberate focus
+            # is the attention result, and its endorsements are CSM boosts.
+            from workflows.main_cognition.cycle_work import CycleWork
+            from pm.constants import THREAT_APPRAISAL_THRESHOLD
+            work = CycleWork.model_validate(report)
+            focus = work.attention.focus
             receipt["main_appraisal"] = {"invocation": app.main_cog.invocation_id,
-                                          "focus_decision": report.get("focus_decision"),
-                                          "goal_changes": report.get("goal_changes")}
+                                          "focus_decision": focus.model_dump(mode="json") if focus is not None else None,
+                                          "goal_changes": [item.model_dump(mode="json") for item in work.goals.changes]}
             save(out / "main-report.json", report)
-            receipt["coverage"] = {"main_appraisal": True,
-                "focus_accepted": bool((report.get("focus_decision") or {}).get("accept"))}
-            competition = report.get("codelet_trace", {}).get("competition", {})
+            receipt["coverage"] = {"main_appraisal": True, "focus_accepted": bool(focus is not None and focus.accept)}
+            stimulus_ids = {item.knoxel_id for item in work.request.stimuli}
             receipt["coverage"].update(
-                nonzero_focus_bias=any(value != 0 for value in competition.get("deliberate_bias", {}).values()),
-                danger=competition.get("danger"),
-                direct_stimulus_selected=any(item["codelet"] == "direct_stimulus" and item["status"] == "selected"
-                    for item in report.get("nominations", [])))
+                nonzero_focus_bias=bool(work.attention.focus_ids),
+                danger=work.appraisal.general().bodily_threat >= THREAT_APPRAISAL_THRESHOLD,
+                direct_stimulus_selected=bool(stimulus_ids & set(work.state.csm.items)))
             receipt["episodes"] = []
             for number in range(episode_attempts):
                 before = set(app.ghost.all_knoxels)

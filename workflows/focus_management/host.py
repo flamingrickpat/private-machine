@@ -7,6 +7,9 @@ from pm.records.lineage import RecordLineage
 from pm.records.memory_records import new_feature
 from pm.runs.workflow_module import CognitiveWorkflow
 from workflows.cognitive_control.schemas import MentalPlan
+from workflows.focus_management.schemas import MentalWorkRequest
+from workflows.main_cognition.schemas import ActionRequest
+from workflows.public_speech.shard_context import shard_story
 
 
 class FocusManagement(CognitiveWorkflow):
@@ -30,7 +33,7 @@ class FocusManagement(CognitiveWorkflow):
             self.resume()
             return
         for envelope in batch:
-            action = self.ghost.get_knoxel_by_id(int(envelope.payload["knoxel_id"]))
+            action = self.ghost.get_knoxel_by_id(ActionRequest.model_validate(envelope.payload).knoxel_id)
             if action.metadata.get("mental_result_id") is not None:
                 self.resume()
                 continue
@@ -46,8 +49,7 @@ class FocusManagement(CognitiveWorkflow):
         with self.ghost.lock:
             if control is not None and control.waiting():
                 return
-            appraised = {key for cycle in self.ghost.states if "main" in cycle.published_slots
-                         for key in cycle.stimuli_ids}
+            appraised = {key for cycle in self.ghost.states for key in cycle.claimed_ids()}
             pending = [item for item in self.ghost.all_features
                        if item.metadata.get("mental_action_id") is not None
                        and item.id not in appraised and item.id not in self._published_results]
@@ -65,19 +67,28 @@ class FocusManagement(CognitiveWorkflow):
                 self._published_results.discard(envelope.payload.get("knoxel_id"))
 
     def prepare_input(self, batch: list[Envelope]) -> dict:
-        """Read the selected mental instruction and the accepted workspace context."""
-        payload = batch[0].payload
-        self._action_id = int(payload["knoxel_id"])
+        """Read the selected mental instruction and the shards of the cycle that chose it.
+
+        The instruction is ``arguments.instruction``, else
+        ``arguments.instructions``, else the decision text. The workspace is
+        the shard story of the choosing cycle, so the agent knows what was on
+        the companion's mind.
+        """
+        request = ActionRequest.model_validate(batch[0].payload)
+        self._action_id = request.knoxel_id
         self._correlation = batch[0].correlation_id
         control = getattr(self, "cognitive_control", None)
-        arguments = payload.get("arguments", {})
-        instruction = arguments.get("instruction", arguments.get("instructions", payload["content"]))
-        if not isinstance(instruction, str) or not instruction.strip():
+        instruction = request.arguments.instruction or request.arguments.instructions or request.content
+        if not instruction.strip():
             raise ValueError("Mental work requires a nonempty instruction.")
-        return {"instruction": instruction, "companion": self.ghost.get_companion_name(),
-                "timeout_seconds": control.config.mental_timeout_seconds if control is not None else 600,
-                "character": self.ghost.ghost_config.character_card_story,
-                "workspace": payload.get("workspace", ""), "affect": payload.get("affect", "")}
+        companion = self.ghost.get_companion_name()
+        return MentalWorkRequest(
+            instruction=instruction, companion=companion,
+            timeout_seconds=control.config.mental_timeout_seconds if control is not None else 600,
+            character=self.ghost.ghost_config.character_card_story,
+            workspace=shard_story(self.ghost.snapshot(), request, companion),
+            experience=request.workspace, affect=request.affect,
+        ).model_dump(mode="json")
 
     def _tools(self, environment, batch):
         ids = frozenset(environment.visible_knoxels)

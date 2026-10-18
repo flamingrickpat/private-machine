@@ -27,6 +27,11 @@ def _message_content(message: dict) -> str:
     return str(message.get("knoxel", {}).get("data", {}).get("content", ""))
 
 
+def _speaker(message: dict) -> str:
+    """Return the speaker name of a dialogue message. The persona supplies the name."""
+    return str(message.get("knoxel", {}).get("data", {}).get("override_source") or "")
+
+
 def main_cognition(context) -> dict:
     request = _read_request(context)
     messages = request.get("messages", [])
@@ -36,6 +41,7 @@ def main_cognition(context) -> dict:
             continue
         correlation_id = message.get("correlation_id", "")
         text = _message_content(message)
+        speaker = _speaker(message)
         lowered = text.strip().lower()
 
         if lowered.startswith("/status "):
@@ -48,10 +54,11 @@ def main_cognition(context) -> dict:
                 "task_kind": "",
             })
         elif lowered == "/memory":
+            # The tool dialogue searches memories about the speaker.
             decisions.append({
                 "correlation_id": correlation_id,
                 "route": "tool_dialogue",
-                "content": "",
+                "content": speaker,
                 "task_id": "",
                 "task_kind": "",
             })
@@ -89,7 +96,7 @@ def main_cognition(context) -> dict:
             decisions.append({
                 "correlation_id": correlation_id,
                 "route": "dialogue",
-                "content": "You are a dumb human, Jesse! Dumb and nasty.",
+                "content": f"You are a dumb human, {speaker}! Dumb and nasty.",
                 "task_id": "",
                 "task_kind": "",
             })
@@ -97,7 +104,7 @@ def main_cognition(context) -> dict:
             decisions.append({
                 "correlation_id": correlation_id,
                 "route": "dialogue",
-                "content": "I heard you, Jesse.",
+                "content": f"I heard you, {speaker}.",
                 "task_id": "",
                 "task_kind": "",
             })
@@ -121,7 +128,7 @@ def dialogue(context) -> dict:
 
 
 def inner_thought(context) -> dict:
-    _write_report(context, {"thought": "I wonder what Jesse will ask next."})
+    _write_report(context, {"thought": "I wonder what they will ask next."})
     return {"status": "done", "summary": "dummy inner thought completed"}
 
 
@@ -157,14 +164,13 @@ def status(context) -> dict:
 def tool_dialogue(context) -> dict:
     request = _read_request(context)
     tools = context.runtime.tools
-    count = len(tools["ghost_search"]("Jesse"))
-    replies = [
-        {
-            "correlation_id": m.get("correlation_id", ""),
-            "content": f"I found {count} memories about Jesse.",
-        }
-        for m in request.get("messages", [])
-    ]
+    replies = []
+    for message in request.get("messages", []):
+        # The demo main cognition put the speaker name into the action content.
+        name = _message_content(message)
+        count = len(tools["ghost_search"](name))
+        replies.append({"correlation_id": message.get("correlation_id", ""),
+                        "content": f"I found {count} memories about {name}."})
     _write_report(context, {"replies": replies})
     return {"status": "done", "summary": "dummy tool dialogue completed"}
 

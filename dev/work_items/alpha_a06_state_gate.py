@@ -26,7 +26,7 @@ from dev.work_items.shared.evidence import save_json
 from workflows.companion import build_app
 from pm.memory.store import MemoryStore
 from pm.app.lifecycle_records import record_shutdown
-from workflows.main_cognition.stage_commits import active_goal_texts, find_intention, normalize_goal_key
+from workflows.main_cognition.cycle_commits import active_goal_texts, find_intention, normalize_goal_key
 
 SEED = ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 

@@ -31,6 +31,7 @@ from workflows.main_cognition.csm_view import render_story
 from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
 from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import phase_prompts
+from workflows.main_cognition.schemas import RecordView
 
 
 def shard_label(key: ShardKey, request: CycleRequest) -> str:
@@ -85,6 +86,35 @@ def conscious_percepts(work: CycleWork) -> list[str]:
     return text.splitlines() if text else []
 
 
+def shard_block(prompts: PhasePrompts, key: ShardKey, name: str, companion: str,
+                records: dict[int, RecordView], item_ids: list[int], tail_ids: list[int],
+                *, verbatim_tail: bool = False) -> str:
+    """Render one shard as a story block: its title, its items, and its tail.
+
+    ``name`` is the shard label (see :func:`shard_label`). ``records`` holds
+    a view of each item and tail record. Items and tail render in world-time
+    order, without record ids. The public dialogue workflows call this
+    function too, so the reply reads the shard in the same words as the
+    cycle that chose it. A reply shows the dialogue of a tail verbatim in
+    its transcript. With ``verbatim_tail``, an empty ``tail_ids`` then says
+    so, instead of saying that nothing happened yet.
+    """
+    labels = prompts.shard_labels
+    if key.kind == "self":
+        title, tail_label = labels.self_title, labels.self_tail
+    elif key.kind == "entity":
+        title, tail_label = labels.entity_title, labels.entity_tail
+    else:
+        title, tail_label = labels.workflow_title, labels.workflow_tail
+    values = {"companion_name": companion, "entity_name": name, "workflow_name": name}
+    return format_content(prompts.shard_template,
+        title=title.format(**values), tail_label=tail_label.format(**values),
+        items=render_story(records, item_ids, with_id=False) or labels.empty_items,
+        tail=(render_story(records, tail_ids, with_id=False)
+              or (labels.verbatim_tail if verbatim_tail else labels.empty_tail)),
+    ).text.strip()
+
+
 class StoryPrefix:
     """The three shared turns of one cycle and the texts that build them.
 
@@ -99,22 +129,9 @@ class StoryPrefix:
         self.prompts = prompts or phase_prompts("story")
         self.companion = request.companion_name
         self.entity = story_entities(work)
-        labels = self.prompts.shard_labels
-        blocks = []
-        for shard in shown_shards(work):
-            name = shard_label(shard.key, request)
-            if shard.key.kind == "self":
-                title, tail_label = labels.self_title, labels.self_tail
-            elif shard.key.kind == "entity":
-                title, tail_label = labels.entity_title, labels.entity_tail
-            else:
-                title, tail_label = labels.workflow_title, labels.workflow_tail
-            values = {"companion_name": self.companion, "entity_name": name, "workflow_name": name}
-            blocks.append(format_content(self.prompts.shard_template,
-                title=title.format(**values), tail_label=tail_label.format(**values),
-                items=render_story(work.records, shard.item_ids(), with_id=False) or labels.empty_items,
-                tail=render_story(work.records, shard.tail_ids, with_id=False) or labels.empty_tail,
-            ).text.strip())
+        blocks = [shard_block(self.prompts, shard.key, shard_label(shard.key, request), self.companion,
+                              work.records, shard.item_ids(), shard.tail_ids)
+                  for shard in shown_shards(work)]
         system = self.fill(self.prompts.system_prompt).strip()
         story = format_content(self.fill(self.prompts.story_template),
             character_card=request.character_card.strip() or "(no character card)",
@@ -144,4 +161,4 @@ class StoryPrefix:
         return next(label for label, target in self.targets.items() if target == key)
 
 
-__all__ = ["StoryPrefix", "conscious_percepts", "shard_label", "shown_shards", "story_entities"]
+__all__ = ["StoryPrefix", "conscious_percepts", "shard_block", "shard_label", "shown_shards", "story_entities"]

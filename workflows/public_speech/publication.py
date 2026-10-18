@@ -27,11 +27,14 @@ def exchange_record(ghost, correlation: str):
 def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
                         action_id: int | None = None, context=None, recovery: str = "",
                         review_reason: str = "", review_judgment: str = "",
-                        cancel=None) -> int | None:
+                        addressee_entity_id: int | None = None, cancel=None) -> int | None:
     """Commit speech and exchange resolution together, or reject stale input.
 
-    Completed exchanges return no new utterance. Changed evidence raises
-    GhostConflict. New messages and later feelings do not cancel earlier speech.
+    ``addressee_entity_id`` is the entity that the reply answers, or None for
+    the user. The reply record stores it, so the dialogue with a second
+    entity stays in the shard of that entity. Completed exchanges return no
+    new utterance. Changed evidence raises GhostConflict. New messages and
+    later feelings do not cancel earlier speech.
     """
     with ghost.lock:
         exchange = exchange_record(ghost, correlation) if correlation else None
@@ -48,6 +51,7 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
         reply = batch.create(Feature(
             content=text, feature_type=FeatureType.Dialogue, interlocus=InterlocusType.Public,
             causal=True, override_source=ghost.get_companion_name(),
+            addressee_entity_id=addressee_entity_id or 0,
             provenance=Provenance(source_kind=SourceKind.Self, source_ref=str(action_id or "public_recovery")),
             metadata={**utterance_metadata(batch.view(), action_id),
                       "reply_correlation": correlation, "publication_status": "pending",

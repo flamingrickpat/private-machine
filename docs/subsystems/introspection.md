@@ -124,7 +124,7 @@ An episode is a read-side view over records the runtime already keeps.
 It adds no second trace store.
 [`pm.introspection.episodes.EpisodeIndex`][] builds episodes from:
 
-- committed GWT turns and their attention frames;
+- committed GWT turns: claimed stimuli, shard changes, codelet runs, the experience, and the decision record;
 - committed private thoughts;
 - action schemas;
 - managed-run receipts.

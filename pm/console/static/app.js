@@ -19,7 +19,7 @@ let chatRenderKey = "",
   searchBusy = false,
   vectorResults = null;
 const backgroundCursors = new Map();
-const sessions = JSON.parse(localStorage.getItem("spamuel.sessions") || "{}");
+const sessions = JSON.parse(localStorage.getItem("pm.sessions") || "{}");
 const pretty = (value) => JSON.stringify(value, null, 2);
 function text(tag, value, className = "") {
   const element = document.createElement(tag);
@@ -61,15 +61,19 @@ async function command(action, fields = {}) {
     updateControls();
   }
 }
+// The persona names come from the worker snapshot. The console has none.
+const userName = () => snapshot.user_name || "user";
+const companionName = () => snapshot.companion_name || "companion";
+const HISTORY_SESSION = "ghost-history";
 function sessionList() {
   if (!sessions[instanceId])
     sessions[instanceId] = [
-      { id: crypto.randomUUID(), user: "Jesse", label: "Jesse / 1" },
+      { id: crypto.randomUUID(), user: userName(), label: `${userName()} / 1` },
     ];
   return sessions[instanceId];
 }
 function saveSessions() {
-  localStorage.setItem("spamuel.sessions", JSON.stringify(sessions));
+  localStorage.setItem("pm.sessions", JSON.stringify(sessions));
 }
 function renderSessions() {
   const old = $("session").value;
@@ -175,7 +179,7 @@ document.querySelectorAll("[data-tab]").forEach(
 );
 $("new-session").onclick = () => {
   if (!instanceId) return;
-  const user = $("user").value.trim() || "Jesse";
+  const user = $("user").value.trim() || userName();
   const entry = {
     id: crypto.randomUUID(),
     user,
@@ -216,9 +220,9 @@ function renderChat() {
     chatRenderKey = "";
     return;
   }
-  if ($("session").value === "ghost-history:Jesse") {
+  if ($("session").value === HISTORY_SESSION) {
     const history = (snapshot.history || []).filter((row) =>
-      ["Jesse", "Spamuel"].includes(row.speaker),
+      [userName(), companionName()].includes(row.speaker),
     );
     const key = `${instanceId}/history/${history.length}/${history.at(-1)?.id}`;
     if (key === chatRenderKey) return;
@@ -228,7 +232,7 @@ function renderChat() {
       const entry = text(
         "div",
         "",
-        `chat-entry ${row.speaker === "Spamuel" ? "assistant" : "user"}`,
+        `chat-entry ${row.speaker === companionName() ? "assistant" : "user"}`,
       );
       entry.append(
         text(
@@ -263,7 +267,7 @@ function renderChat() {
     entry.append(
       text(
         "div",
-        `${e.user || "Spamuel"} Â· ${new Date(e.time * 1000).toLocaleTimeString()} Â· ${e.correlation_id || ""}`,
+        `${e.user || companionName()} Â· ${new Date(e.time * 1000).toLocaleTimeString()} Â· ${e.correlation_id || ""}`,
         "meta",
       ),
       text("div", e.text, "chat-text"),
@@ -658,9 +662,63 @@ $("run-control").onsubmit = async (event) => {
     error(exc);
   }
 };
+// One record line: id, type, and the start of its content.
+function recordLine(id) {
+  const wrapped = (snapshot.records || {})[id];
+  if (!wrapped) return `${id} (not in snapshot)`;
+  const content = String(wrapped.data.content || "").replace(/\s+/g, " ");
+  return `${id} ${wrapped.__type__}: ${content.slice(0, 160)}`;
+}
+function cycleSection(title, lines) {
+  const block = text("details", "");
+  block.append(text("summary", `${title} (${lines.length})`));
+  block.append(text("pre", lines.join("\n") || "(none)"));
+  return block;
+}
+// The newest cycle state and its turn record, as the worker snapshot holds them.
+function renderCycle() {
+  const view = $("cycle-view");
+  view.replaceChildren();
+  const cycle = snapshot.cycle;
+  if (!cycle) {
+    view.append(text("p", "No accepted cycle yet."));
+    return;
+  }
+  const turn = (snapshot.gwt || {})[cycle.tick_id] || {};
+  const workspace = cycle.workspace || {};
+  const shards = [
+    workspace.self_shard,
+    ...Object.values(workspace.entity_shards || {}),
+    ...Object.values(workspace.workflow_shards || {}),
+  ].filter(Boolean);
+  view.append(text("h3", `Tick ${cycle.tick_id}`));
+  for (const shard of shards) {
+    const name = `${shard.key.kind}${shard.key.ref ? ":" + shard.key.ref : ""}`;
+    view.append(
+      cycleSection(`Shard ${name} items`, shard.items.map(
+        (item) => `${recordLine(item.record_id)}  [${item.required_by || item.reason}]`)),
+      cycleSection(`Shard ${name} tail`, shard.tail_ids.map(recordLine)),
+    );
+  }
+  const csm = Object.values((cycle.csm || {}).items || {}).sort((a, b) => b.activation - a.activation);
+  view.append(
+    cycleSection("CSM items", csm.map((item) =>
+      `${item.activation.toFixed(2)}  ${recordLine(item.record_id)}  <- ${item.endorsers.join(", ")}`)),
+    cycleSection("Structures", (cycle.structure_ids || []).map(recordLine)),
+    cycleSection("Codelet runs", ((turn.trace || {}).codelet_runs || []).map((run) =>
+      `wave ${run.wave} ${run.codelet} (${run.mode}) ${run.status} score ${Number(run.score).toFixed(2)} ${run.reason}`)),
+    cycleSection("Stimulus groups", (cycle.stimulus_groups || []).map((group) =>
+      `${group.key.kind}:${group.key.ref} ${group.category} ${group.insignificant ? "insignificant" : ""} ` +
+      `stimuli ${group.stimulus_ids.join(", ")}`)),
+    cycleSection("Decisions", (cycle.decisions || []).map((item) => `${item.group.kind}:${item.group.ref}  ${item.text}`)),
+    cycleSection("Routed actions", (cycle.dispatches || []).map((item) =>
+      `${item.group.kind}:${item.group.ref} -> ${item.workflow} ${item.action_type} action ${item.action_id}`)),
+  );
+}
 function render() {
   updateControls();
   if (tab === "chat") renderChat();
+  if (tab === "cycle") renderCycle();
   if (tab === "network") renderGraph();
   if (tab === "memory") renderMemory();
   if (tab === "performance") renderTiming();
@@ -697,16 +755,16 @@ async function poll() {
       snapshot = data.snapshot;
     if (
       snapshot.history &&
-      !sessionList().some((s) => s.id === "ghost-history:Jesse")
+      !sessionList().some((s) => s.id === HISTORY_SESSION)
     ) {
       sessionList().unshift({
-        id: "ghost-history:Jesse",
-        user: "Jesse",
-        label: "Jesse / accepted history",
+        id: HISTORY_SESSION,
+        user: userName(),
+        label: `${userName()} / accepted history`,
       });
       renderSessions();
-      $("session").value = "ghost-history:Jesse";
-      $("user").value = "Jesse";
+      $("session").value = HISTORY_SESSION;
+      $("user").value = userName();
     }
     nodes = data.nodes;
     $("selected").textContent =

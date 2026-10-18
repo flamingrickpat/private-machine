@@ -75,22 +75,25 @@ def resolve_focus(context, active: FocusState | None, proposals: list[FocusPropo
     return effective
 
 
-def active_focus(store, now=None, *, maximum_strength: float | None = None) -> dict:
-    """Read the latest accepted advice. Expired advice has no effect.
+def active_focus(store, now=None, *, maximum_strength: float | None = None) -> FocusState | None:
+    """Read the latest accepted advice, or None. Expired advice has no effect.
 
-    A lower operator cap applies to stored advice too. Clamping here means an
-    old proposal cannot keep an influence the current configuration forbids.
+    The advice record stores a ``FocusState`` as ``metadata["focus"]``. The
+    result is not fresh and names the advice record as
+    ``control_record_id``. A lower operator cap applies to stored advice too.
+    Clamping here means an old proposal cannot keep an influence the current
+    configuration forbids.
     """
     now = now or datetime.utcnow()
     with store.lock:
         record = next((item for item in reversed(list(store.all_knoxels.values()))
                        if item.metadata.get("control_kind") == "attention_focus"), None)
         if record is None or now >= datetime.fromisoformat(record.metadata["expires_at"]):
-            return {}
-        focus = dict(record.metadata["focus"])
-        if maximum_strength is not None and focus.get("accept"):
-            focus["strength"] = min(float(focus.get("strength", 0.0)), float(maximum_strength))
-        return {**focus, "fresh": False, "control_record_id": record.id}
+            return None
+        focus = FocusState.model_validate(record.metadata["focus"])
+        if maximum_strength is not None and focus.accept:
+            focus.strength = min(focus.strength, float(maximum_strength))
+        return focus.model_copy(update={"fresh": False, "control_record_id": record.id})
 
 
 def focus_versions(view) -> dict[int, int]:

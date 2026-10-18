@@ -11,7 +11,7 @@ from pm.records.cycle_state import PersonaConfig, CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
-from pm.records.cognitive_records import AttentionFrameRecord
+from pm.records.codelet_records import Structure
 from pm.memory.yaml_codec import ghost_state_from_dict
 from tests.support import load_seed_state
 
@@ -30,15 +30,17 @@ class GhostCommitTests(unittest.TestCase):
     def test_proposals_stay_private_until_complete_commit(self):
         batch = self.ghost.begin_batch("turn", new_tick=True)
         feature = batch.create(Feature(feature_type=FeatureType.Dialogue, content="a memory"))
-        frame = batch.create(AttentionFrameRecord(content="focus", focus_knoxel_ids=[feature.id]))
+        structure = batch.create(Structure(content="focus", internal_knoxel_ids=[feature.id]))
         self.assertIsNone(self.ghost.get_knoxel_by_id(feature.id))
         self.assertEqual(batch.view().get(feature.id).content, "a memory")
-        batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, attention_frame_id=frame.id, knoxel_ids=[feature.id, frame.id]),
-                      CycleState(tick_id=batch.tick_id, attention_frame_id=frame.id))
+        batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, stimulus_ids=[feature.id],
+                                    knoxel_ids=[feature.id, structure.id]),
+                      CycleState(tick_id=batch.tick_id, structure_ids=[structure.id]))
         receipt = self.ghost.commit(batch)
         reopened = MemoryStore.from_checkpoint(self.path)
         self.assertEqual(reopened.get_knoxel_by_id(feature.id).content, "a memory")
-        self.assertEqual(reopened.gwt_turns[batch.tick_id].attention_frame_id, frame.id)
+        self.assertEqual(reopened.gwt_turns[batch.tick_id].stimulus_ids, [feature.id])
+        self.assertEqual(reopened.states[-1].structure_ids, [structure.id])
         self.assertEqual(reopened.revisions[feature.id], 1)
         self.assertEqual(self.ghost.commit(batch), receipt)
         self.assertEqual(reopened.commit(reopened.begin_batch("turn")), receipt)
@@ -92,7 +94,7 @@ class GhostCommitTests(unittest.TestCase):
     def test_invalid_reference_rejects_the_whole_batch(self):
         batch = self.ghost.begin_batch("bad-reference")
         feature = batch.create(Feature(feature_type=FeatureType.Dialogue, content="unpublished"))
-        batch.create(AttentionFrameRecord(content="bad focus", focus_knoxel_ids=[999999]))
+        batch.create(Structure(content="bad structure", internal_knoxel_ids=[999999]))
         with self.assertRaises(ValueError):
             self.ghost.commit(batch)
         self.assertIsNone(self.ghost.get_knoxel_by_id(feature.id))
@@ -156,10 +158,10 @@ class GhostCommitTests(unittest.TestCase):
         self.assertEqual(self.ghost.managed_runs["job"]["state"], "completed")
         self.assertNotIn("failed-run-only", self.ghost.applied_commits)
 
-    def test_narrow_batch_view_hides_revisions_and_attention_frame(self):
-        batch = self.ghost.begin_batch("frame", new_tick=True)
-        frame = batch.create(AttentionFrameRecord(content="hidden"))
-        batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, attention_frame_id=frame.id, knoxel_ids=[]))
+    def test_narrow_batch_view_hides_revisions_and_turn_records(self):
+        batch = self.ghost.begin_batch("turn", new_tick=True)
+        hidden = batch.create(Feature(feature_type=FeatureType.Dialogue, content="hidden"))
+        batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id, knoxel_ids=[hidden.id]))
         self.ghost.commit(batch)
         self.assertEqual(self.ghost.snapshot([]).serialize_gwt(), {})
         narrowed = self.ghost.begin_batch("read").view([])
@@ -185,7 +187,7 @@ class GhostCommitTests(unittest.TestCase):
         accepted = self.ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="accepted"))
         batch = self.ghost.begin_batch("bad-replacement")
         with self.assertRaises(ValueError):
-            batch.replace(AttentionFrameRecord(id=accepted.id, tick_id=accepted.tick_id, content="different type"))
+            batch.replace(Structure(id=accepted.id, tick_id=accepted.tick_id, content="different type"))
         replacement = batch.view().get(accepted.id)
         replacement.tick_id += 1
         with self.assertRaises(ValueError):

@@ -56,7 +56,7 @@ class AssistantRequest(BaseModel):
 
     schema_version: Literal["pm.assistant-request.v1"] = "pm.assistant-request.v1"
     companion_name: str = Field(min_length=1)
-    user_name: str = Field(min_length=1)
+    partner_name: str = Field(min_length=1)
     character_card: str = ""
     # Ability lines: configured, unavailable, and notes, one "- " line each.
     abilities: str = ""

@@ -18,10 +18,6 @@
 #                    with memory tools, then the percept conversion). An
 #                    omitted value means agent for the MemoryAccessors family
 #                    as first family, else chain.
-#   nomination_kind  Old label of the A15 attention competition: appraisal,
-#                    simulation, action_tendency, memory_access. No phase
-#                    reads it since A19F step 6.
-#   reality          Old label: internal, imagined, inferred, or remembered.
 #   stimulus_kinds   Stimulus kinds that match the codelet. Empty means all.
 #
 # Owner review can swap codelets. Add any other old definition in this
@@ -31,8 +27,6 @@ version: "a19f.5.1"
 codelets:
   - name: AffectiveDeltaSpike
     execution: chain
-    nomination_kind: appraisal
-    reality: internal
     families: [DriversHomeostatis, Appraisals, MemoryAccessors, ImaginationSimulation, RegulationCoping, MetaMonitoringIdentity]
     description: >-
       Detects a sudden, significant shift in {companion_name}'s affective state (positive or negative) and renders it
@@ -65,8 +59,6 @@ codelets:
 
   - name: BlockedGoalFrustration
     execution: chain
-    nomination_kind: appraisal
-    reality: internal
     families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, RegulationCoping, MetaMonitoringIdentity]
     description: >-
       Detects frustration and anger that arise from a blocked goal and generates a short narrative of
@@ -102,8 +94,6 @@ codelets:
 
   - name: DisrespectAttribution
     execution: chain
-    nomination_kind: appraisal
-    reality: internal
     families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, MetaMonitoringIdentity]
     description: >-
       Detects and attributes disrespect or disregard for {companion_name}'s pride, values, or status, and
@@ -134,8 +124,6 @@ codelets:
 
   - name: SelfWorthSensitivity
     execution: chain
-    nomination_kind: appraisal
-    reality: internal
     families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, MetaMonitoringIdentity]
     description: >-
       Appraises how strongly {companion_name}'s self-worth and pride are engaged, threatened, or inflated by the
@@ -166,8 +154,6 @@ codelets:
 
   - name: AbandonmentFearAppraisal
     execution: agent
-    nomination_kind: appraisal
-    reality: internal
     families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, MetaMonitoringIdentity]
     description: >-
       Appraises the presence and intensity of abandonment fear in {companion_name}, considering relational history,
@@ -200,8 +186,6 @@ codelets:
 
   - name: DivertedAttentionDetector
     execution: chain
-    nomination_kind: appraisal
-    reality: internal
     families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, MetaMonitoringIdentity]
     description: >-
       Detects when attention has shifted away from the primary topic, or away from {companion_name}, and assesses
@@ -231,8 +215,6 @@ codelets:
 
   - name: BoredomThresholdCross
     execution: chain
-    nomination_kind: appraisal
-    reality: internal
     families: [DriversHomeostatis, Appraisals, MemoryAccessors, ImaginationSimulation, MetaMonitoringIdentity]
     description: >-
       Detects when {companion_name} has crossed a boredom threshold and renders a short, evocative inner monologue.
@@ -262,8 +244,6 @@ codelets:
 
   - name: AbsurditySampler
     execution: chain
-    nomination_kind: simulation
-    reality: imagined
     families: [ImaginationSimulation, MemoryAccessors, Appraisals, RegulationCoping, MetaMonitoringIdentity]
     description: >-
       Scans the Current Situational Model (CSM) for unexpected juxtapositions, incongruities, and playful
@@ -293,8 +273,6 @@ codelets:
 
   - name: HumorousRemarkPlanner
     execution: chain
-    nomination_kind: action_tendency
-    reality: internal
     families: [Appraisals, ImaginationSimulation, ValuationTradeOffs, RegulationCoping, MetaMonitoringIdentity]
     description: >-
       Plans a concrete joke, tease, or jab that {companion_name} could throw into the conversation now, in
@@ -322,8 +300,6 @@ codelets:
 
   - name: AnalogousEpisodeRecall
     execution: agent
-    nomination_kind: memory_access
-    reality: remembered
     families: [MemoryAccessors, Appraisals, ImaginationSimulation, MetaMonitoringIdentity]
     description: >-
       Retrieves episodic memories of past episodes with the same emotional or relational dynamic as the current
@@ -357,8 +333,6 @@ codelets:
 
   - name: ToMVignetteSimulator
     execution: agent
-    nomination_kind: simulation
-    reality: inferred
     families: [ImaginationSimulation, MemoryAccessors, MetaMonitoringIdentity, ValuationTradeOffs]
     description: >-
       Simulates a short mental scene from inside {entity_name}'s head: what {entity_name} wants right now, what
@@ -392,8 +366,6 @@ codelets:
 
   - name: IdentitySpecialNarrative
     execution: agent
-    nomination_kind: appraisal
-    reality: internal
     families: [Appraisals, MemoryAccessors, ImaginationSimulation, MetaMonitoringIdentity]
     description: >-
       Constructs a short narrative fragment that shows the distinctive facet of {companion_name}'s identity that

@@ -2,10 +2,11 @@
 
 ## Summary
 
-The context planner decides which memory records go into one public reply, within a token budget.
-It divides the budget into lanes: verbatim dialogue, workspace focus, earlier times, facts, and narratives.
-The current workspace decides what the scored lanes look for.
-Story and Assistant use the same planner with different plans.
+The context planner decides which memory records go into one standalone public reply, within a token budget.
+It divides the budget into lanes: verbatim dialogue, focus, earlier times, facts, and narratives.
+Since A19F step 10, a reply that main cognition chose does not use the planner.
+It reads the workspace shards of its cycle ([shard context](#shard-context)).
+Only the standalone Story situation (`python -m workflows.dialogue_story.run`) still plans its context.
 
 Parent: [public dialogue](public-dialogue.md).
 Related: [Story speech](story-speech.md) and [codelets and attention](codelets.md).
@@ -24,25 +25,39 @@ The v2 planner keeps the lane design and adds the workspace focus.
 | Part | Location | Responsibility |
 | --- | --- | --- |
 | Planner | `pm/memory/context_plan.py` | Pure lane selection, scoring, boundaries, and redistribution. No store, model, or network. |
-| Plans | `workflows/public_speech/context_plans.yaml` | The `story` and `assistant` plans: budgets, lanes, weights. |
+| Plans | `workflows/public_speech/context_plans.yaml` | The `story` plan: budgets, lanes, weights. |
 | Integration | `workflows/public_speech/context_planning.py` | Scope, embedding cache, focus queries, bounded new embeddings, and conversion to dialogue turns and evidence. |
-| Callers | [`PublicDialogue.plan_context`][workflows.public_speech.public_dialogue.PublicDialogue.plan_context] | Builds the focus from the action payload and plans before the public context is frozen. |
+| Caller | [`plan_story_request`][workflows.dialogue_story.context.plan_story_request] | Plans the standalone Story situation. |
+| Shard context | [`shard_context`][workflows.public_speech.shard_context.shard_context] | Builds the context of a reply that a cycle chose, from the shards of its action request. |
 | Index tool | `dev/tools/prepare_context_index.py` | Embeds all score-lane records once into the shared cache. |
 
-## The focus
+## Shard context
 
-Main cognition sends the winning attention nominations with each dispatched action, under `attention`.
-[`PublicDialogue.plan_context`][workflows.public_speech.public_dialogue.PublicDialogue.plan_context] turns the payload into a [`FocusInput`][workflows.public_speech.context_planning.FocusInput]:
+[`PublicDialogue.reply_context`][workflows.public_speech.public_dialogue.PublicDialogue.reply_context] calls [`shard_context`][workflows.public_speech.shard_context.shard_context] with the typed [`ActionRequest`][workflows.main_cognition.schemas.ActionRequest]:
+
+| Part | Source | Goes to |
+| --- | --- | --- |
+| Transcript | The dialogue in the tail of the partner shard, and the private thoughts in the tail of the self shard, in world-time order | Story: assistant turn, verbatim. Assistant: chat messages, speech only. |
+| Shard story | Each shard, rendered with [`shard_block`][workflows.main_cognition.story_prefix.shard_block] as in the story prefix of the cycle, without the verbatim lines | User turn |
+| Evidence | Every item and tail record of the shards, with the lane `shard:<name>` | Speech review and the commit guard |
+
+The shards already have token budgets (`WORKSPACE_SHARD_TOKENS`, `WORKSPACE_TAIL_TOKENS`) and content requirements.
+So the reply reads the same conscious content as the decision, and no record is retrieved again.
+The current stimuli are not in any tail. The prompt shows them as the current line.
+
+## The focus of a standalone plan
+
+[`FocusInput`][workflows.public_speech.context_planning.FocusInput] holds the parts of the focus:
 
 | Part | Weight | Source |
 | --- | --- | --- |
-| Workspace experience | 1.0 | `workspace` in the action payload |
-| Current message | 1.0 | The last stimulus |
-| Winning nomination texts | 0.7 | `attention[].text` |
+| Workspace text | 1.0 | `workspace` of the situation |
+| Current message | 1.0 | The situation message |
+| Attention texts | 0.7 | Optional texts |
 | Active goals | 0.3 | The active intentions |
 
 Each part becomes a weighted query: an embedding (through the shared cache) and distinctive terms for lexical scoring.
-`attention[].target_ids` and the cognition-selected `memory_evidence` become required records of the `focus` lane.
+Required ids fill the `focus` lane.
 The current stimuli are excluded from every lane. The prompt shows them as the current line.
 
 ## Lanes
@@ -72,13 +87,6 @@ Further rules:
 | `facts` | 10% | Declarative facts and beliefs, with an importance weight | User turn |
 | `narratives` | 13% | The latest narrative of each kind and person | User turn |
 
-### The assistant plan (6,000 tokens)
-
-The assistant plan uses the same lanes with 35% dialogue (speech only), 15% focus, 20% history, 20% facts, and 10% narratives.
-Prior speech becomes ordinary user and assistant chat messages.
-Private thoughts stay out of the tool transcript.
-Assistant mode is the companion talking while it can also call tools: managed work, Minecraft, or a user-added MCP server such as mail.
-
 ## Embeddings
 
 Records score semantically only when their first index chunk has a cached vector.
@@ -104,9 +112,9 @@ On 2026-10-13 the Spamuel seed had 2,941 score-lane records, and 354 were cached
 
 ## Public context and commit guard
 
-[`build_public_context`][workflows.public_speech.public_context.build_public_context] accepts the plan as `planned`.
-The lane-tagged records then replace the cognition-selected evidence and the old 48-record source-chain expansion.
-Each evidence item keeps its `lane`.
+[`build_public_context`][workflows.public_speech.public_context.build_public_context] accepts the shard context or the plan as `planned`.
+Its records are the evidence ([`EvidenceItem`][workflows.public_speech.public_context.EvidenceItem]).
+Each evidence item keeps its `lane`. `PublicContext.shard_story` keeps the shard story.
 The revisions of the planned records and of their source records still guard the commit, as A08 requires.
 `PublicContext.plan` keeps the plan trace.
 
@@ -122,3 +130,4 @@ The revisions of the planned records and of their source records still guard the
 - Facts are many and short. Without cached vectors, lexical scoring selects them weakly.
 - Mood-similarity scoring from the old planner (`weighted_mental_state`) is not ported.
 - The plans are fixed per workflow. A per-persona plan is not configurable yet.
+- A shard context has no separate budget. A reply reads up to two full shards and their tails.

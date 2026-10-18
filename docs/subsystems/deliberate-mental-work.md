@@ -13,6 +13,8 @@ Related: [private episodes](private-loop.md), [waits](inference-wait.md), and [A
 ## Sources and acceptance
 
 [`workflows.focus_management.host.FocusManagement`][] binds the workflow to the shared memory store and model configuration.
+It reads the typed action request of main cognition. The task is `arguments.instruction`, else `arguments.instructions`, else the decision text.
+The request also carries the shards of the choosing cycle. The agent prompt adds their story text ([`MentalWorkRequest`][workflows.focus_management.schemas.MentalWorkRequest]), so the agent knows what was on the companion's mind.
 Its memory tools read a fixed grant.
 The goal tool records inspected goal revisions.
 Final validation reads that inspected set without adding a new inspection.
@@ -21,9 +23,10 @@ Source conflicts reject the proposal before acceptance.
 
 The accepted result is a private thought with source revisions and lineage.
 Main appraisal receives it through `thought.created`.
-The goals stage can accept, change, or decline proposed goals.
-Attention can accept or reject focus advice after appraisal and codelet processing.
-The configured bias cap bounds its influence.
+The goals phase can accept, change, or decline proposed goals.
+The attention phase can accept or reject focus advice after appraisal and the codelets.
+Accepted advice becomes CSM endorsements with the endorser `deliberate_focus` ([structures, attention, and the workspace](workspace.md)).
+`FOCUS_ACTIVATION_WEIGHT`, `FOCUS_MAX_SHARE`, and the configured bias cap bound its influence.
 Reserved outside stimuli and urgent concerns retain protection.
 
 ## Failures and restart

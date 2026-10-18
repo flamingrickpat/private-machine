@@ -339,7 +339,7 @@ class CycleTests(unittest.TestCase):
         self.assertIn(feature_state_sample(feature), samples)
         self.assertEqual(sparse_delta(feature.mental_state_delta_vec)[JOY], 0.5)
 
-    def test_danger_makes_the_frame_reactive_and_later_prompts_read_it(self):
+    def test_danger_makes_the_cycle_reactive_and_later_prompts_read_it(self):
         ghost = _small_ghost()
         stimulus_id = _store(ghost, "the kitchen is on fire")
         reports = _reports(stimulus_id, appraisal={
@@ -349,9 +349,8 @@ class CycleTests(unittest.TestCase):
         goals = model.messages[model.calls.index("goals")][-1].content.text
         self.assertIn(REGULATION_REACTIVE, goals)
         self.assertIn(work.affect.felt, goals)
-        frame = ghost.all_attention_frames[-1]
-        self.assertEqual(frame.control_mode, REGULATION_REACTIVE)
-        self.assertIn("preempt", frame.frame_reason.lower())
+        decide = model.messages[model.calls.index("decide")][-1].content.text
+        self.assertIn(REGULATION_REACTIVE, decide)
 
     def test_explicit_need_delta_reaches_the_ema_state(self):
         ghost = _small_ghost()

@@ -81,8 +81,12 @@ class ConsoleTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 console.deploy({"seed": str(ROOT / "missing.yaml")})
             with self.assertRaises(ValueError):
-                console.deploy({"cognition": "invalid"})
-            deployment = console.deploy({"name": "saved", "cognition": "dummy"})
+                console.deploy({"name": "saved", "seed": str(ROOT / "test_data/personas/spamuel/canon.yaml"),
+                                "cognition": "invalid"})
+            with self.assertRaises(ValueError):
+                console.deploy({"seed": str(ROOT / "test_data/personas/spamuel/canon.yaml"), "cognition": "dummy"})
+            deployment = console.deploy({"name": "saved", "cognition": "dummy",
+                                         "seed": str(ROOT / "test_data/personas/spamuel/canon.yaml")})
             restored = Console(Path(directory))
             self.assertEqual(restored.instances[deployment["id"]].info()["name"], "saved")
 

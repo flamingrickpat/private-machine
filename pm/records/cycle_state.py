@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, PrivateAttr, SerializeAsAny
 
@@ -23,10 +23,9 @@ class CycleState(BaseModel):
     ``timestamp`` is naive UTC, like the record timestamps in
     ``pm.records.base``. Local wall time corrupts restart-gap comparisons.
 
-    The ledger fields ``stimuli_ids``, ``published_slots``,
-    ``attention_frame_id``, and ``commit_hash`` remain for the current
-    consumers (spec v2 section 6, decision D-M4-5). A later A19F step
-    removes them.
+    A main cycle claims its stimuli in ``stimulus_groups``. A private cycle
+    of the inner loop claims none, so its groups are empty. The GWT turn
+    record of the same tick names the loop (``GwtTurnRecord.slot_id``).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -47,10 +46,9 @@ class CycleState(BaseModel):
     control_generation: int = Field(default=0, description="Cognitive control generation that admitted this cycle. It survives restarts.")
     qualia_channels: Dict[str, QualeChannelState] = Field(default_factory=dict, description="Qualia channel states of a private cycle, keyed by channel id.")
 
-    stimuli_ids: List[int] = Field(default_factory=list, description="Stimulus knoxel ids claimed by this cycle.")
-    published_slots: List[str] = Field(default_factory=list, description="GWT slot ids republished by this cycle (v1: main).")
-    attention_frame_id: Optional[int] = Field(default=None, description="AttentionFrameKnoxel id produced by this cycle.")
-    commit_hash: Optional[str] = Field(default=None, description="Git commit of this cycle (audit trail). Filled after the commit lands.")
+    def claimed_ids(self) -> List[int]:
+        """Return the ids of the stimuli that this cycle claimed, in group order."""
+        return [record_id for group in self.stimulus_groups for record_id in group.stimulus_ids]
 
 class PersonaConfig(BaseModel):
     user_name: str

@@ -12,7 +12,8 @@ from pm.records.cognitive_records import BeliefRecord
 from pm.records.enums import FeatureType, SourceKind
 from pm.records.memory_records import new_feature
 from workflows.cognitive_control.attention import focus_versions, stage_focus
-from workflows.reflection.schemas import ExperimentPlan, ReflectionDecision
+from workflows.cognitive_control.schemas import FocusState
+from workflows.reflection.schemas import EffectiveInputs, ExperimentPlan, ReflectionDecision
 
 SCHEMA = "pm.reflection-experiment.v1"
 OPEN_STATES = {"proposed", "applied", "awaiting_evidence", "evaluated"}
@@ -59,6 +60,14 @@ def context(view) -> dict:
               or getattr(item, "feature_type", None) == FeatureType.Dialogue
               or isinstance(item, BeliefRecord) and item.active]
     ids.update(item.id for item in sorted(recent, key=lambda item: item.id)[-24:])
+    # The newest main turns name their decision record, their subjective
+    # experience, and their claimed stimuli. Read them typed.
+    from pm.records.global_workspace import GwtTurnRecord
+    turns = sorted((GwtTurnRecord.model_validate(raw) for raw in view.serialize_gwt().values()),
+                   key=lambda turn: turn.tick_id)
+    for turn in [turn for turn in turns if turn.slot_id == "main"][-8:]:
+        ids.update(key for key in [turn.decision_id, turn.experience_id, *turn.stimulus_ids]
+                   if key is not None and key in records)
     observations = [item for item in records.values()
                     if item.metadata.get("reflection_versions")
                     or getattr(item, "feature_type", None) == FeatureType.Dialogue
@@ -81,21 +90,24 @@ def context(view) -> dict:
             "records": rows}
 
 
-def effective_inputs(view, focus: dict) -> dict:
+def effective_inputs(view, focus: FocusState | None) -> EffectiveInputs:
     """Return effective experiment versions and original sources for main cognition.
 
-    Expired or replaced attention advice contributes nothing. Inactive beliefs
+    ``focus`` is the advice in effect (``active_focus``), or None. Expired or
+    replaced attention advice contributes nothing. Inactive beliefs
     contribute nothing. Lifecycle interruption never pretends to undo a change.
     """
+    from workflows.main_cognition.schemas import ReflectionGuidance
     records = view.all_knoxels
     versions, sources, guidance = {}, set(), []
+    control_record_id = focus.control_record_id if focus is not None else None
     for item in experiments(view):
         effective_id = item.metadata.get("reversal_record_id") or item.metadata.get("effective_record_id")
         target = records.get(effective_id)
         if target is None:
             continue
         owner = item.metadata["plan"]["intervention"]["owner"]
-        if owner == "attention" and focus.get("control_record_id") != effective_id:
+        if owner == "attention" and control_record_id != effective_id:
             continue
         if owner == "belief" and (not isinstance(target, BeliefRecord) or not target.active):
             continue
@@ -104,11 +116,12 @@ def effective_inputs(view, focus: dict) -> dict:
         if owner == "belief":
             sources.update(target.supporting_knoxel_ids)
             sources.update(target.contradicting_knoxel_ids)
-        guidance.append({"experiment_id": item.id, "owner": owner, "effective_record_id": effective_id,
-                         "scope": item.metadata["plan"]["scope"],
-                         "instruction": (focus.get("instruction", "") if owner == "attention" else target.content),
-                         "status": item.metadata["state"]})
-    return {"versions": versions, "source_ids": sorted(sources), "guidance": guidance}
+        guidance.append(ReflectionGuidance(
+            experiment_id=item.id, owner=owner, effective_record_id=effective_id,
+            scope=item.metadata["plan"]["scope"],
+            instruction=focus.instruction if owner == "attention" else target.content,
+            status=item.metadata["state"]))
+    return EffectiveInputs(versions=versions, source_ids=sorted(sources), guidance=guidance)
 
 
 def source_payload(view, record) -> dict:
@@ -319,7 +332,7 @@ def _capture_previous(view, plan: ExperimentPlan) -> dict:
         return {"record_id": head, "focus": deepcopy(previous.get("focus", {})),
                 "expires_at": previous.get("expires_at")}
     record = view.get(change.expected_record_id)
-    from workflows.main_cognition.stage_commits import subjective_belief
+    from workflows.main_cognition.cycle_commits import subjective_belief
     if not subjective_belief(record):
         raise ValueError("The belief owner permits only active subjective interpretations.")
     return {"record_id": record.id, "text": record.content,
@@ -337,7 +350,7 @@ def _apply(batch, view, experiment_id, plan, data, companion, maximum_bias):
         return stage_focus(batch, view, instruction=focus["instruction"], focus=focus,
             companion_name=companion, experiment_id=experiment_id,
             expires_at=(datetime.utcnow() + timedelta(seconds=focus["seconds"])).isoformat())
-    from workflows.main_cognition.stage_commits import revise_reflected_belief
+    from workflows.main_cognition.cycle_commits import revise_reflected_belief
     return revise_reflected_belief(batch, view.get(change.expected_record_id), text=change.belief,
         evidence_ids=plan.hypotheses[0].supporting_ids, opposing_ids=plan.hypotheses[0].opposing_ids,
         experiment_id=experiment_id, companion_name=companion)
@@ -355,7 +368,7 @@ def _reverse(batch, view, experiment_id, data, plan, companion):
         return stage_focus(batch, view, instruction=previous.get("focus", {}).get("instruction", "Restore prior attention advice."),
             focus=previous.get("focus", {}), companion_name=companion, experiment_id=experiment_id,
             expires_at=previous.get("expires_at") or datetime.utcnow().isoformat())
-    from workflows.main_cognition.stage_commits import revise_reflected_belief
+    from workflows.main_cognition.cycle_commits import revise_reflected_belief
     return revise_reflected_belief(batch, view.get(effective_id), text=previous["text"],
         evidence_ids=previous["supporting_ids"], opposing_ids=previous["opposing_ids"],
         experiment_id=experiment_id, companion_name=companion)

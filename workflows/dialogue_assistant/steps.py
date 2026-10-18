@@ -52,15 +52,22 @@ def _bullets(items: list[str]) -> str:
 
 
 def render_memories(request: AssistantRequest, prompts: dict) -> str:
-    """Render the planned memory lanes, or the plain memory list without a plan.
+    """Render the shard story and the memory lanes, or the plain memory list without a context.
 
-    Lines already shown as prior chat turns or as the current message are left out.
+    A reply that main cognition chose shows the workspace shards of its
+    cycle in the words of the cycle's story prefix. Lines already shown as
+    prior chat turns or as the current message are left out of the lanes.
     """
     if request.public_context is None:
         return "## What comes back to you right now\n" + _bullets(request.memories)
+    context = request.public_context
     shown = [message.content for message in request.prior_dialogue if message.role in {"user", "assistant"}]
-    blocks = memory_sections(request.public_context, prompts["memory_lanes"],
+    blocks = memory_sections(context, prompts["memory_lanes"],
                              exclude_texts=[*shown, request.current_user_message])
+    if context.shard_story.strip():
+        title = prompts["shards_title"].format(companion_name=request.companion_name,
+                                               partner_name=request.partner_name)
+        blocks.insert(0, title + "\n" + context.shard_story.strip())
     return "\n\n".join(blocks) or "## What comes back to you right now\n(nothing in particular)"
 
 
@@ -74,13 +81,13 @@ def build_messages(request: AssistantRequest, prompts: dict) -> list[AssistantMe
     """
     system = prompts["system_prompt"].format(
         companion_name=request.companion_name,
-        user_name=request.user_name,
+        partner_name=request.partner_name,
         abilities=request.abilities.strip() or "- Text conversation only.",
     ).strip()
     tasks = task_lines(request.public_context) if request.public_context is not None else []
     user = prompts["user_template"].format(
         companion_name=request.companion_name,
-        user_name=request.user_name,
+        partner_name=request.partner_name,
         character_card=request.character_card.strip() or "(none)",
         time=request.time.strip() or "(unknown)",
         memories=render_memories(request, prompts),
@@ -276,11 +283,11 @@ def review_conversation(request: AssistantRequest) -> list[DialogueTurn]:
     Tool results travel separately as receipts. Earlier task instructions stay
     attributed to their own turn instead of becoming current instructions.
     """
-    turns = [DialogueTurn(speaker=request.user_name if message.role == "user" else request.companion_name,
+    turns = [DialogueTurn(speaker=request.partner_name if message.role == "user" else request.companion_name,
                           text=message.content)
              for message in request.prior_dialogue if message.role in {"user", "assistant"} and message.content.strip()]
     if request.current_user_message.strip():
-        turns.append(DialogueTurn(speaker=request.user_name, text=request.current_user_message))
+        turns.append(DialogueTurn(speaker=request.partner_name, text=request.current_user_message))
     return turns
 
 
@@ -341,7 +348,7 @@ def run(context) -> dict:
         messages.append(AssistantMessage(role="assistant", content=final_text))
 
     validate_public_speech(final_text)
-    final_text = strip_narrator_setup(final_text, request.user_name)
+    final_text = strip_narrator_setup(final_text, request.partner_name)
     accepted = bool(final_text)
     review = None
     if request.public_context is not None and final_text:

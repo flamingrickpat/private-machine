@@ -15,6 +15,33 @@ from pm.host.application import BusModule
 TERMINAL = frozenset({"completed", "failed", "cancelled", "interrupted"})
 
 
+def user_reply_request(ghost, *, knoxel_id: int, action_id: str, exchange, task_receipt: dict,
+                       workspace: str = ""):
+    """Return the typed request of a task reply to the user, outside a cycle.
+
+    The reply answers the user exchange ``exchange``. It carries the self
+    shard and the user's shard of the newest cycle state, so the reply reads
+    the same conscious content as a reply that a cycle chose. The caller
+    holds no store lock.
+    """
+    from pm.records.workspace import GlobalWorkspace, SELF_SHARD
+    from workflows.main_cognition.action_request import partner_key, request_shards
+    from workflows.main_cognition.schemas import ActionRequest, Stimulus
+    with ghost.lock:
+        workspace_state = ghost.states[-1].workspace if ghost.states else GlobalWorkspace()
+        user_entity_id = ghost.get_entity_id(ghost.get_user_name())
+        user_name = ghost.get_user_name()
+    partner = partner_key(SELF_SHARD, user_entity_id)
+    return ActionRequest(
+        knoxel_id=knoxel_id, action_id=action_id, workflow_name="dialogue_assistant",
+        partner_entity_id=user_entity_id, partner_name=user_name,
+        stimuli=[Stimulus(knoxel_id=exchange.id, text=str(exchange.content), source="user_input",
+                          entity_id=user_entity_id)],
+        shards=request_shards(workspace_state, SELF_SHARD, partner,
+                              lambda key: user_name if key.kind == "entity" else "self"),
+        task_receipt=task_receipt, workspace=workspace)
+
+
 def task_evidence(receipt: dict) -> dict:
     """Verify note bytes or retained Minecraft receipts before public dispatch."""
     result = dict(receipt)
@@ -111,12 +138,11 @@ class ReplyRecovery(BusModule):
             content="Explain the rejected task using its actual receipt, in your own voice.",
             metadata={"action_id": identity, "workflow_name": "dialogue_assistant"}))
         receipt = self.ghost.commit(changes)
+        request = user_reply_request(self.ghost, knoxel_id=receipt.added_ids[0], action_id=identity,
+            exchange=exchange, task_receipt={"workflow_name": "self_management", "state": "rejected",
+                                             "task_verified": False, "summary": text})
         self.bus.put(Envelope(id=new_id(), source=self.module_id, kind="data", topic="action.request",
-            correlation_id=correlation, target="dialogue_assistant",
-            payload={"knoxel_id": receipt.added_ids[0], "action_id": identity,
-                "stimuli": [{"knoxel_id": exchange.id, "text": str(exchange.content)}],
-                "task_receipt": {"workflow_name": "self_management", "state": "rejected",
-                                 "task_verified": False, "summary": text}}))
+            correlation_id=correlation, target="dialogue_assistant", payload=request.payload()))
 
     def reply_to_task(self, receipt):
         """Retain the original selected action as the cause of a receipt-based reply."""
@@ -139,7 +165,7 @@ class ReplyRecovery(BusModule):
                 action = changes.create(ActionSchemaRecord(
                     action_type=ActionType.Reply,
                     content="Answer the original request using this terminal task receipt. Explain verified work, failure, or uncertainty accurately.",
-                    attention_frame_id=source.attention_frame_id, intention_ids=list(source.intention_ids),
+                    intention_ids=list(source.intention_ids),
                     metadata={**source.metadata, "action_id": identity, "workflow_name": "dialogue_assistant",
                               "source_action_schema_id": source.id, "task_run_id": receipt["run_id"]},
                 ))
@@ -147,11 +173,12 @@ class ReplyRecovery(BusModule):
                 action_id = accepted.added_ids[0]
             else:
                 action_id = prior.id
+        request = user_reply_request(self.ghost, knoxel_id=action_id, action_id=identity, exchange=exchange,
+            task_receipt=evidence,
+            workspace="The selected task reached a terminal boundary. Its receipt does not imply unverified instruction execution.")
         self.bus.put(Envelope(
             id=new_id(), source=self.module_id, kind="data", topic="action.request", correlation_id=correlation,
-            target="dialogue_assistant", payload={"knoxel_id": action_id, "action_id": identity,
-                "task_receipt": evidence, "stimuli": [{"knoxel_id": exchange.id, "text": exchange.content}],
-                "workspace": "The selected task reached a terminal boundary. Its receipt does not imply unverified instruction execution."},
+            target="dialogue_assistant", payload=request.payload(),
         ))
 
     def resume(self):
@@ -179,4 +206,4 @@ class ReplyRecovery(BusModule):
                                      correlation_id=correlation, payload={"knoxel_id": item.id, "recovery_outcome": "redispatched"}))
 
 
-__all__ = ["ReplyRecovery", "task_evidence"]
+__all__ = ["ReplyRecovery", "task_evidence", "user_reply_request"]

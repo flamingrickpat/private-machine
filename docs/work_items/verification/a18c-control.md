@@ -245,3 +245,13 @@ This establishes bounded execution with real content. Human review of the altern
 
 Strict HTML regeneration and local inspection use `docs-resume-03-final.log` and `html-inspection-resume-03-final.log`.
 The browser follows the changed guides and their generated API links, including both private replay methods.
+
+## A19F step 10: gate ports
+
+On 2026-10-18, A19F step 10 removed the main cognition stages and their records.
+Both A18C gates were **ported**, not deleted. No A19F gate covers an accepted wait or deliberate mental work end to end.
+
+- `dev/work_items/alpha_a18c_mental_gate.py` read `focus_decision`, `codelet_trace.competition`, and `nominations` from the cycle report. It now reads the typed `CycleWork`: `attention.focus`, `attention.focus_ids` (the deliberate-focus endorsements), the appraised bodily threat, and the stimuli in the CSM.
+- `dev/work_items/alpha_a18c_wait_gate.py` counted routine work by wrapping the `run_stage` tool. Main cognition phases call the model through `llm_complete`, so the gate wraps `llm_complete` for main cognition and keeps `run_stage` for the private loop. It reads claimed stimuli with `CycleState.claimed_ids()`.
+
+Both ports are **unverified**. They need long real runs with the configured model, which this step did not repeat.

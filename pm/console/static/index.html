@@ -3,13 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Spamuel · Operator console</title>
+    <title>pm · Operator console</title>
     <link rel="stylesheet" href="/style.css" />
     <script defer src="/app.js"></script>
   </head>
   <body>
     <header>
-      <strong>SPAMUEL / OPERATOR CONSOLE</strong
+      <strong>PM / OPERATOR CONSOLE</strong
       ><span id="connection">Connecting</span
       ><button id="notify">Enable notifications</button>
     </header>
@@ -27,11 +27,11 @@
 
         <form id="deploy">
           <h2>Deploy an instance</h2>
-          <label>Name<input name="name" value="Spamuel" required /></label
+          <label>Name<input name="name" required /></label
           ><label
             >Persona YAML path<input
               name="seed"
-              placeholder="test_data/personas/spamuel/canon.yaml" /></label
+              placeholder="persona YAML file" required /></label
           ><label
             >Model configuration path<input
               name="config"
@@ -53,6 +53,7 @@
         <nav>
           <button data-tab="chat">Chat</button
           ><button data-tab="network">Network and workflow</button
+          ><button data-tab="cycle">Cycle</button
           ><button data-tab="memory">Knoxels</button
           ><button data-tab="performance">Timing</button
           ><button data-tab="runs">Managed runs</button
@@ -61,7 +62,7 @@
         </nav>
         <section id="chat" class="panel">
           <div class="toolbar">
-            <label>User name<input id="user" value="Jesse" /></label
+            <label>User name<input id="user" /></label
             ><label>Session<select id="session"></select></label
             ><button id="new-session">New session</button
             ><span id="unread"></span>
@@ -156,6 +157,13 @@
               aria-label="Knoxel JSON editor"
             ></textarea>
           </div>
+        </section>
+        <section id="cycle" class="panel" hidden>
+          <p>
+            The newest accepted cycle: workspace shards, CSM items, structures,
+            codelet runs, decisions, and routed actions. Embeddings stay hidden.
+          </p>
+          <div id="cycle-view"></div>
         </section>
         <section id="performance" class="panel" hidden>
           <p>

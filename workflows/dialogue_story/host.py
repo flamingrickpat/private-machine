@@ -12,6 +12,7 @@ from typing import Callable
 from functools import partial
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_story.schemas import StoryReport, StoryRequest
+from workflows.main_cognition.schemas import ActionRequest
 from workflows.public_speech.public_dialogue import PublicDialogue
 
 
@@ -42,27 +43,31 @@ class StoryDialogue(PublicDialogue):
         return super().accepts(envelope)
 
     def prepare_input(self, batch: list[Envelope]) -> dict:
-        payload = batch[0].payload
-        action = self.ghost.get_knoxel_by_id(payload["knoxel_id"]) if "knoxel_id" in payload else None
-        intent = str(action.content) if action is not None else str(payload.get("content", ""))
-        stimuli = self.user_stimuli(payload)
-        current = "\n".join(item["text"] for item in stimuli)
-        # The context plan picks the verbatim dialogue window and the memory
-        # lanes from the cycle's workspace (context_plans.yaml: story).
-        planned = self.plan_context(payload, "story")
-        public = self.public_context(payload, planned)
-        current_ids = [int(item["knoxel_id"]) for item in stimuli if "knoxel_id" in item]
+        """Build the typed Story request from the typed action request.
+
+        The reply answers the partner of the request: the user or another
+        entity. The intent is the decision text of the stored action. The
+        transcript, the shard story, and the evidence come from the
+        workspace shards of the cycle that chose the reply (``reply_context``).
+        """
+        action_request = ActionRequest.model_validate(batch[0].payload)
+        action = (self.ghost.get_knoxel_by_id(action_request.knoxel_id)
+                  if action_request.knoxel_id is not None else None)
+        intent = str(action.content) if action is not None else action_request.content
+        spoken = self.partner_stimuli(action_request)
+        planned = self.reply_context(action_request)
+        public = self.public_context(action_request, planned)
         request = StoryRequest(
             companion_name=self.ghost.get_companion_name(),
-            user_name=self.ghost.get_user_name(),
+            partner_name=public.partner_name,
             character_card_story=self.ghost.get_simple_character_story_block(),
             supported_capabilities=[str(item) for item in self.ghost.ghost_config.supported_capabilities],
             unsupported_capabilities=[str(item) for item in self.ghost.ghost_config.unsupported_capabilities],
             capability_notes=[str(item) for item in self.ghost.ghost_config.capability_notes],
             now=datetime.utcnow().isoformat(),
             prior_dialogue=planned.dialogue,
-            current_user_message=current,
-            current_message_id=current_ids[-1] if current_ids else None,
+            current_user_message="\n".join(item.text for item in spoken),
+            current_message_id=spoken[-1].knoxel_id if spoken else None,
             feelings=public.feelings,
             regulation=public.regulation,
             goals=list(public.goals),

@@ -43,11 +43,14 @@ The trace retains excluded IDs under `speech_only_excluded_ids`.
 Retrieval reserves eight of 24 slots for imported episodes and original user reports.
 This reserve prevents recent recall questions and generated answers from consuming the whole older-history pool.
 
-The [context planner](context-planning.md) selects the verbatim dialogue window and the memory lanes from the current workspace.
+A reply that main cognition chose reads the workspace shards of its cycle ([shard context](context-planning.md#shard-context)).
+The reply addresses the partner of the action request: the user, or another entity such as a second companion.
+The prompt names the partner, and the transcript is the dialogue with that partner.
+The [context planner](context-planning.md) selects the dialogue window and the memory lanes only for the standalone Story situation.
 The canonical records remain complete.
 This bound gives original evidence space beside conversational voice examples.
 Current input IDs are excluded from that prior transcript.
-Only actual user dialogue appears as the current user message. Private and system events keep their attribution.
+Only actual dialogue of the user or another agent appears as the current message ([`partner_stimuli`][workflows.public_speech.public_dialogue.PublicDialogue.partner_stimuli]). Private and system events keep their attribution.
 Both builders repeat original reports at the answer boundary after the voice context.
 The block includes each record's timestamp and the actual current clock.
 Selected reports form a partial snapshot, rather than an exhaustive record of every event.
@@ -59,9 +62,9 @@ Stable names, preferences, and plans remain usable until later evidence changes 
 For technical advice, missing object details or verified sources require an uncertainty statement or a question.
 The selected action cannot supply missing treatment evidence.
 
-With a context plan, the planned lane records replace the old source render.
-Without a plan, the source render contains at most 48 records of at most 1,200 characters each.
-Current stimuli, known deception facts, and startup events always precede the planned or selected records.
+The evidence holds the shard records or the planned lane records.
+Without either, it holds the stimuli, the startup events, and the disclosed private state.
+Current stimuli, known deception facts, and startup events always precede the shard or planned records.
 The revisions of planned records and of their sources guard the commit.
 
 Raw recent thoughts no longer become Story's `feelings` field.

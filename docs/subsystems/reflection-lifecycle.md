@@ -104,4 +104,4 @@ The [live-evidence page](../work_items/verification/a19/live-evidence.md) gives 
 - [`workflows.reflection.experiments.stage_decision`][]
 - [`workflows.reflection.experiments.observation_grant`][]
 - [`pm.memory.write_batch.WriteBatch.expect_metadata_version`][]
-- [`workflows.main_cognition.stage_commits.subjective_belief`][]
+- [`workflows.main_cognition.cycle_commits.subjective_belief`][]

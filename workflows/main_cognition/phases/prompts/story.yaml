@@ -59,3 +59,4 @@ shard_labels:
   workflow_tail: "The latest results in {workflow_name}"
   empty_items: "(nothing in particular)"
   empty_tail: "(nothing yet)"
+  verbatim_tail: "(the latest lines are in the story transcript)"

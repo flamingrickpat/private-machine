@@ -22,7 +22,7 @@ def record_links(record: dict) -> list[dict]:
     fields = {
         "focus_knoxel_ids": "focus", "winning_attention_ids": "selected codelet output",
         "supporting_knoxel_ids": "support", "opposing_knoxel_ids": "counterevidence",
-        "attention_frame_id": "attention frame", "source_knoxel_ids": "source",
+        "source_knoxel_ids": "source", "internal_knoxel_ids": "structure member",
     }
     for key, label in fields.items():
         value = record.get(key, [])
@@ -95,7 +95,7 @@ def present_packages(item: dict) -> dict:
     for package in item["packages"]:
         if package["schema_id"] != "pm.record-package.v1":
             raise ValueError("Unsupported runtime record package.")
-        if package["view"] not in {"records", "chat", "gwt"}:
+        if package["view"] not in {"records", "chat", "gwt", "cycle"}:
             raise ValueError("Unsupported record package display hint.")
         for wrapped in package["records"]:
             key = wrapped["data"]["id"]
@@ -121,8 +121,12 @@ def present_packages(item: dict) -> dict:
         thoughts = any(row["role"] == "Private thought" for row in rows)
         if not thoughts and not any(row["role"] == "Routing decision" for row in rows):
             continue
+        # A19F turn records keep the codelet runs of their cycle. Older
+        # captures kept them in the attention frame record.
         frames = [records[row["id"]]["data"] for row in rows if row["kind"] == "AttentionFrame"]
         schedule = [entry for frame in frames for entry in frame.get("metadata", {}).get("codelet_runs", [])]
+        schedule += [entry for package in item["packages"] if (package.get("gwt") or {}).get("tick_id") == tick
+                     for entry in (package["gwt"].get("trace") or {}).get("codelet_runs", [])]
         episodes.append({"tick": tick, "title": "Private reflection" if thoughts else "Attention and routing",
                          "records": [row["id"] for row in rows],
                          "codelets": [{key: entry[key] for key in ("codelet", "status", "reason")}

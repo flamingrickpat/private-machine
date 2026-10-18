@@ -38,7 +38,7 @@ The appraise phase computes the affect of the cycle (D27).
 [`workflows.main_cognition.phases.appraise.update_affect`][] reads the causal feature history of the request.
 It derives the appraisal state and its delta with [`workflows.main_cognition.affect.appraise_state`][].
 Then it sets the cycle `mental_state` to the EMA readout over the history and the new delta.
-[`workflows.main_cognition.stage_commits.apply_appraisal`][] stages one `Feature` with `feature_subtype=Appraisal`.
+[`workflows.main_cognition.cycle_commits.apply_appraisal`][] stages one `Feature` with `feature_subtype=Appraisal`.
 The Feature carries the appraisal state in `mental_state_appraisal_vec`.
 It carries the delta in `mental_state_delta_vec`.
 Its metadata carries the appraisal axes, the explicit deltas, the relationship entity id, the feeling in words, and the regulation mode.
@@ -53,7 +53,7 @@ The math clamps every value to its field bounds, so the state stays in range.
 
 ## Goal lifecycle
 
-[`workflows.main_cognition.stage_commits.apply_goal_changes`][] accepts these
+[`workflows.main_cognition.cycle_commits.apply_goal_changes`][] accepts these
 change kinds:
 
 - `add` starts an active goal.
@@ -115,7 +115,7 @@ The system never attributes an unknown stop cause to the user.
 
 The module opens one batch with `new_tick=True`.
 It stages the appraisal Feature, the goal intentions, the codelet percepts, the
-structures, the attention frame, and each action in that batch.
+structures, the turn record, and each action in that batch.
 The GWT turn record of that batch lists the shard changes of the cycle
 (see [structures, attention, and the workspace](workspace.md)).
 It commits once.
@@ -148,4 +148,4 @@ Read [A06 verification](../work_items/verification/a06-cognition-state.md) for t
 the receipts.
 Read [Cognition](cognition.md) for the stage order.
 Read [Ghost and bus](../ghost.md) for the commit boundary.
-Read [`workflows.main_cognition.stage_commits`][] for the exact helpers.
+Read [`workflows.main_cognition.cycle_commits`][] for the exact helpers.

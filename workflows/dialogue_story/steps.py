@@ -40,7 +40,7 @@ from pm.memory.retrieval import utc_time
 from workflows.public_speech.public_context import (
     ability_lines, memory_sections, plain_memory_text, task_lines, time_lines,
 )
-from workflows.public_speech.public_context import PublicContext
+from workflows.public_speech.public_context import Presentation, PublicContext
 from workflows.public_speech.speech_text import strip_narrator_setup
 from workflows.public_speech.speech_review import (
     finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
@@ -101,11 +101,10 @@ def _inner_lines(request: StoryRequest, prompts: dict, names: dict) -> list[str]
         lines.append(prompts["inner_mind"].format(workspace=request.workspace.strip(), **names))
     if request.selected_action.strip():
         lines.append(prompts["inner_intent"].format(intent=request.selected_action.strip(), **names))
-    presentation = request.public_context.presentation if request.public_context else None
-    mode = presentation.mode if presentation else "candid"
-    lines.append(prompts["presentation"][mode].format(
-        summary=getattr(presentation, "shareable_summary", "") or "nothing",
-        purpose=getattr(presentation, "purpose", "") or "unstated", **names))
+    presentation = request.public_context.presentation if request.public_context else Presentation()
+    lines.append(prompts["presentation"][presentation.mode].format(
+        summary=presentation.shareable_summary or "nothing",
+        purpose=presentation.purpose or "unstated", **names))
     return lines
 
 
@@ -114,13 +113,19 @@ def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = 
 
     Verbatim dialogue never appears here. Memories that duplicate a verbatim
     transcript line, or the current message, are left out.
+
+    A reply that main cognition chose shows the workspace shards of its
+    cycle in the words of the cycle's story prefix (``shard_story`` of the
+    public context). A standalone situation has no shards and shows its
+    planned memory lanes instead.
     """
-    names = {"companion_name": request.companion_name, "user_name": request.user_name}
+    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
     context = request.public_context
     shown = {turn.knoxel_id for turn in request.prior_dialogue if turn.knoxel_id is not None}
     if request.current_message_id is not None:
         shown.add(request.current_message_id)
     fallback_title = prompts["memory_lanes"][-1]["title"].format(**names)
+    shard_story = context.shard_story.strip() if context is not None else ""
     if context is not None:
         abilities = ability_lines(context)
         from workflows.public_speech.ontology import term_lines
@@ -128,7 +133,7 @@ def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = 
         transcript_texts = [turn.text for turn in request.prior_dialogue] + [request.current_user_message]
         memory_blocks = memory_sections(context, prompts["memory_lanes"], exclude_ids=shown,
                                         exclude_texts=transcript_texts)
-        if not memory_blocks:
+        if not memory_blocks and not shard_story:
             # Plain memory strings are the fallback when the action carried no
             # evidence records, for example in a standalone situation.
             shown_texts = {" ".join(text.split()) for text in transcript_texts}
@@ -156,6 +161,8 @@ def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = 
         _section(prompts["abilities_title"].format(**names), abilities),
         _section(prompts["ontology_title"].format(**names), ontology_terms),
         _section(prompts["time_title"], time_lines(request.now, request.prior_dialogue, prompts, names)),
+        _section(prompts["shards_title"].format(**names),
+                 [prompts["shards_note"].format(**names).strip(), shard_story]) if shard_story else "",
         *memory_blocks,
         _section(prompts["goals_title"].format(**names), [f"- {goal}" for goal in request.goals]),
         _section(prompts["tasks_title"], tasks),
@@ -168,9 +175,9 @@ def build_context_message(request: StoryRequest, prompts: dict, *, avoid: str = 
 
 def build_story_messages(request: StoryRequest, prompts: dict, *, avoid: str = "") -> list[Turn]:
     """Return the three contract messages: system, derived context, verbatim story."""
-    names = {"companion_name": request.companion_name, "user_name": request.user_name}
+    names = {"companion_name": request.companion_name, "partner_name": request.partner_name}
     transcript = render_prior_dialogue(request.prior_dialogue, prompts)
-    current = (prompts["speaker_line"].format(speaker=request.user_name, text=request.current_user_message)
+    current = (prompts["speaker_line"].format(speaker=request.partner_name, text=request.current_user_message)
                if request.current_user_message else "")
     story = "\n".join(part for part in [transcript, current, prompts["reply_prefix"].format(**names)] if part)
     return [
@@ -180,7 +187,7 @@ def build_story_messages(request: StoryRequest, prompts: dict, *, avoid: str = "
     ]
 
 
-def clean_reply(raw: str, companion_name: str, user_name: str) -> str:
+def clean_reply(raw: str, companion_name: str, partner_name: str) -> str:
     """Keep only the companion's continuation.
 
     The backend may echo the assistant prefill or may continue after it. Remove
@@ -200,8 +207,8 @@ def clean_reply(raw: str, companion_name: str, user_name: str) -> str:
     # preamble. A model-invented user turn is never kept, even when the model
     # later reopens the companion line.
     other_markers = [
-        f"\n{user_name} says:", f"{user_name} says:",
-        f"\n{user_name}:", f"{user_name}:",
+        f"\n{partner_name} says:", f"{partner_name} says:",
+        f"\n{partner_name}:", f"{partner_name}:",
         "\nStateUpdate:", "\nNarrative:", "\nFact:",
         # The transcript shows earlier private thoughts. A continuation that
         # starts a new thought line is not speech.
@@ -233,7 +240,7 @@ def clean_reply(raw: str, companion_name: str, user_name: str) -> str:
         reply = reply[1:-1].strip()
     elif reply.endswith('"') and reply.count('"') % 2 == 1:
         reply = reply[:-1].rstrip()
-    return strip_narrator_setup(reply, user_name)
+    return strip_narrator_setup(reply, partner_name)
 
 
 def review_context(request: StoryRequest) -> PublicContext:
@@ -245,8 +252,8 @@ def review_context(request: StoryRequest) -> PublicContext:
     abilities = [*request.supported_capabilities, *[f"Cannot: {item}" for item in request.unsupported_capabilities],
                  *[f"Note: {item}" for item in request.capability_notes]]
     return PublicContext(
-        companion_name=request.companion_name, user_name=request.user_name,
-        character=request.character_card_story, feelings=request.feelings,
+        companion_name=request.companion_name, user_name=request.partner_name,
+        partner_name=request.partner_name, character=request.character_card_story, feelings=request.feelings,
         capabilities={"configured": abilities, "unavailable": [], "notes": [], "human_body": False},
         memories=list(request.memories),
     )
@@ -255,7 +262,7 @@ def review_context(request: StoryRequest) -> PublicContext:
 def review_conversation(request: StoryRequest) -> list[DialogueTurn]:
     """Return the recent speech plus the current user line for the review."""
     recent = [turn for turn in request.prior_dialogue if turn.kind == "speech"][-6:]
-    return [*recent, *([DialogueTurn(speaker=request.user_name, text=request.current_user_message)]
+    return [*recent, *([DialogueTurn(speaker=request.partner_name, text=request.current_user_message)]
                       if request.current_user_message else [])]
 
 
@@ -275,7 +282,7 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextC
     raw = asyncio.run(generate(messages, **prompts.get("generation", {})))
     if not isinstance(raw, str):
         raise TypeError("story_complete must return the completion text as a string.")
-    candidate = clean_reply(raw, request.companion_name, request.user_name)
+    candidate = clean_reply(raw, request.companion_name, request.partner_name)
     review = asyncio.run(review_speech(review_complete, candidate, context, conversation=conversation,
                                        prompts=review_prompts))
     candidate = select_spoken_text(candidate, review)

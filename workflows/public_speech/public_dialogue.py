@@ -9,14 +9,12 @@ from __future__ import annotations
 from pm.utils import yaml_util
 
 from pm.bus.envelopes import Envelope, new_id
+from workflows.main_cognition.schemas import ActionMetadata, ActionRequest, Stimulus
 from workflows.public_speech.public_context import build_public_context
+from workflows.public_speech.shard_context import shard_context
 from workflows.public_speech.publication import commit_public_reply, publish_reply
 from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
-
-
-def _recency(knoxel) -> tuple:
-    return (getattr(knoxel, "tick_id", 0), getattr(knoxel, "id", 0))
 
 
 def _clip(text: str, limit: int = 500) -> str:
@@ -35,74 +33,58 @@ class PublicDialogue(CognitiveWorkflow):
     # without it, planning scores lexically.
     context_embeddings = None
 
-    def user_stimuli(self, payload: dict) -> list[dict]:
-        """Return actual user dialogue from the action's stimuli.
+    def partner_stimuli(self, request: ActionRequest) -> list[Stimulus]:
+        """Return the spoken lines of the request's stimuli, with their accepted text.
 
-        Resolve attribution from accepted records. Old pending actions can lack
-        the source fields added to newer dispatches. Private and system events
-        never become user speech, even when their text resembles dialogue.
+        A spoken line is a ``Dialogue`` feature from the user or another
+        agent, such as a second companion. Attribution comes from the
+        accepted record, not from the request. Private thoughts and system
+        events never become speech, even when their text resembles dialogue.
+        A stimulus that does not exist raises KeyError.
         """
         from pm.records.enums import FeatureType, SourceKind
         result = []
         with self.ghost.lock:
-            for item in payload.get("stimuli", []):
-                record = self.ghost.get_knoxel_by_id(int(item["knoxel_id"]))
+            for item in request.stimuli:
+                record = self.ghost.get_knoxel_by_id(item.knoxel_id)
                 if record is None:
-                    raise KeyError(f"Public stimulus does not exist: {item['knoxel_id']}")
+                    raise KeyError(f"Public stimulus does not exist: {item.knoxel_id}")
                 if (record.feature_type == FeatureType.Dialogue
                         and record.provenance is not None
-                        and record.provenance.source_kind == SourceKind.User):
-                    result.append({**item, "text": str(record.content)})
+                        and record.provenance.source_kind in {SourceKind.User, SourceKind.Agent}):
+                    result.append(item.model_copy(update={"text": str(record.content)}))
         return result
 
-    def public_context(self, payload, planned=None):
+    def public_context(self, request: ActionRequest, planned=None):
+        """Freeze the public context of one reply and keep it for the publication guard."""
         # Refresh the durable private ontology before the snapshot. The review
         # reads the terms and bindings from the frozen public context.
         from workflows.public_speech.ontology import observe_ontology
         observe_ontology(self.ghost)
         capabilities = self.capability_provider() if self.capability_provider else None
         with self.ghost.lock:
-            self._public_context = build_public_context(self.ghost, payload, capabilities=capabilities,
+            self._public_context = build_public_context(self.ghost, request, capabilities=capabilities,
                                                         planned=planned)
         return self._public_context
 
-    def plan_context(self, payload: dict, plan_name: str):
-        """Plan the reply's memory context from the cycle's workspace.
+    def reply_context(self, request: ActionRequest):
+        """Return the reply context from the workspace shards of the request.
 
-        The workspace experience, the current message, the winning attention
-        nominations, and the active goals form the focus. Records that the
-        nominations target, and records that cognition selected, are required.
-        The current stimuli are excluded; the prompt shows them as the current line.
-        Runs on the module thread; embedding calls happen outside the lock.
+        The context holds the verbatim transcript with the partner, the shard
+        story, and the evidence (:func:`~workflows.public_speech.shard_context.shard_context`).
+        No memory is retrieved again.
         """
-        import asyncio
-        from workflows.main_cognition.stage_commits import active_goal_texts
-        from workflows.public_speech.context_planning import FocusInput, plan_reply_context
-        stimuli = [item for item in payload.get("stimuli", []) if "knoxel_id" in item]
-        users = self.user_stimuli(payload)
-        attention = list(payload.get("attention", []))
         with self.ghost.lock:
             view = self.ghost.snapshot()
-            goals = active_goal_texts(self.ghost)[:6]
-        focus = FocusInput(
-            workspace=str(payload.get("workspace", "")),
-            current_message="\n".join(item["text"] for item in users),
-            attention_texts=[str(item.get("text", "")) for item in attention],
-            goals=goals,
-            required_ids=[int(key) for item in attention for key in item.get("target_ids", [])]
-                         + [int(item["knoxel_id"]) for item in payload.get("memory_evidence", [])],
-            exclude_ids=[int(item["knoxel_id"]) for item in stimuli],
-        )
-        return asyncio.run(plan_reply_context(view, plan_name, focus, self.context_embeddings,
-                                              cancel=getattr(self, "stop_event", None)))
+        return shard_context(view, request, self.ghost.get_companion_name())
 
     def handle_batch(self, batch: list[Envelope]) -> None:
         # Each public action owns one report and one exchange resolution.
         # A second envelope must not disappear inside a merged mailbox batch.
         for envelope in batch:
-            action_id = envelope.payload.get("knoxel_id")
-            action = self.ghost.get_knoxel_by_id(action_id) if action_id is not None else None
-            if action is not None and action.metadata.get("public_reply_id") is not None:
+            request = ActionRequest.model_validate(envelope.payload)
+            action = self.ghost.get_knoxel_by_id(request.knoxel_id) if request.knoxel_id is not None else None
+            if action is not None and ActionMetadata.model_validate(action.metadata).public_reply_id is not None:
                 continue
             # Preparation can fail before a new snapshot exists. A prior task
             # receipt must never become the recovery evidence for this action.
@@ -130,6 +112,7 @@ class PublicDialogue(CognitiveWorkflow):
         """
         from pm.memory.snapshot import GhostConflict
         envelope = batch[0]
+        request = ActionRequest.model_validate(envelope.payload)
         try:
             if self.capability_provider is not None:
                 current = self.capability_provider().get("minecraft", {})
@@ -149,7 +132,8 @@ class PublicDialogue(CognitiveWorkflow):
                     raise GhostConflict("Verified task bytes changed during public generation.")
             reply_id = commit_public_reply(
                 self.ghost, text, envelope.correlation_id, commit_id=self.invocation_id or new_id(),
-                action_id=None if recovery_outcome else envelope.payload.get("knoxel_id"), context=self._public_context,
+                action_id=None if recovery_outcome else request.knoxel_id, context=self._public_context,
+                addressee_entity_id=request.partner_entity_id,
                 recovery=recovery_outcome, review_reason=review_reason, review_judgment=review_judgment,
                 cancel=self.stop_event,
             )
@@ -158,7 +142,7 @@ class PublicDialogue(CognitiveWorkflow):
             return
         if reply_id is not None:
             publish_reply(self.bus, self.module_id, envelope.correlation_id, reply_id, cause=envelope.id,
-                          action_id=envelope.payload.get("action_id", ""), tool_receipts=tool_receipts or [],
+                          action_id=request.action_id, tool_receipts=tool_receipts or [],
                           recovery_outcome=recovery_outcome, review_reason=review_reason,
                           review_judgment=review_judgment)
 

@@ -18,7 +18,7 @@ The request contains the stimuli, the memory candidates, the open expectations, 
 One manifest runs the phases intake, triage, appraise, retrieve, codelets, structures, attention, experience, goals, decide, route, and commit.
 The phases share one typed cycle state and add their results to it.
 The commit phase hands the finished cycle to the application module.
-The module commits accepted state in one write batch and publishes action envelopes.
+The module commits accepted state in one write batch and publishes one typed action request for each released action.
 
 | Phase | Main responsibility | Implementation |
 | --- | --- | --- |
@@ -57,9 +57,9 @@ Capability limits and workflow rules appear only in the route call. The private 
 2. The call ends with an assistant turn that opens with the seed phrases. The model continues the inner voice.
 3. The text is the seed, the continuation, and a focus phrase for the newest message of an entity.
 4. The text becomes a `SubjectiveExperience` feature. It enters the self shard tail at once, so the goals, decide, and route calls read it.
-5. The commit links it from the broadcast (`BroadcastRef.experience_id`) and the turn record (`GwtTurnRecord.experience_id`). It is also the cycle summary and the `workspace` line of the dialogue request.
+5. The commit links it from the broadcast (`BroadcastRef.experience_id`) and the turn record (`GwtTurnRecord.experience_id`). It is also the cycle summary and the `workspace` field of the action request.
 
-The old "workspace frame" call is gone. The attention frame record still gets its fields from the experience: the regulation mode, the stimuli and entered items, and the experience text.
+The old "workspace frame" call and the `AttentionFrameRecord` are gone (A19F step 10). The turn record and the `Structure` records hold the attention decisions.
 
 ## Decisions and routing
 
@@ -80,19 +80,33 @@ These paths have separate contracts and prompts.
 They share the [public context and grounding contract](public-dialogue.md).
 Accepted public speech uses [durable publication and recovery](public-publication.md).
 
+## Action requests
+
+[`ActionRequest`][workflows.main_cognition.schemas.ActionRequest] is the payload of every `action.request` envelope. It holds:
+
+- the decision text (`content`), the workflow, the arguments, and the presentation;
+- the stimulus group and its stimuli;
+- the partner: the entity that a reply addresses. A reply to an entity group addresses that entity. A reply to the self group or a workflow group addresses the user;
+- the shards that the reply needs: the self shard, the partner's entity shard, and the group's workflow shard, each with its tail ([`request_shards`][workflows.main_cognition.action_request.request_shards]);
+- the subjective experience, the feeling in words, and the regulation mode.
+
+The host stores the same request in the action record. Dispatch recovery publishes it again after a restart ([`replay_intents`][workflows.main_cognition.dispatch_recovery.replay_intents]).
+The public workflows build their reply context from the shards. They do not retrieve memory again. Read [public dialogue context](public-dialogue.md).
+
 ## State and side effects
 
 Model calls occur outside the store commit lock.
 Accepted cognition records reach the checkpoint before action publication.
 Dialogue also stores accepted records before public replies.
 Context selection repairs an invalid memory id once. If the repair fails, it drops the unavailable ids and rebuilds the memory text from the supplied sources.
+The inner loop writes its own turn records with `slot_id="inner"` and claims no stimuli. A19G moves it onto the shared cycle.
 
 ## Traps
 
 Context selects supplied evidence from the scoped semantic and episodic retrieval pool.
 The accepted action and dialogue receive the same selected records and original ids.
 A scheduled action does not prove that an external task succeeded.
-Parent workflow timings include child timings.
+The cycle report lists the duration of each phase. The whole cycle is one workflow run.
 
 ## Go deeper
 

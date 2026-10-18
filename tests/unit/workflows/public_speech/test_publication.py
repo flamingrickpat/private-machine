@@ -9,6 +9,7 @@ import yaml
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import Envelope
+from workflows.main_cognition.schemas import ActionRequest, Stimulus
 from workflows.public_speech.user_input import UserInputProxy
 from pm.memory.snapshot import GhostConflict
 from pm.memory.store import MemoryStore
@@ -35,7 +36,7 @@ class PublicationTests(unittest.TestCase):
     def test_stale_revision_cannot_publish_candidate(self):
         correlation = self.proxy.submit("Keep this original report.")
         source = exchange_record(self.ghost, correlation)
-        context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": source.id}]})
+        context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=source.id)]))
         changes = self.ghost.begin_batch("change-source")
         source.content = "The report changed before publication."
         changes.replace(source)
@@ -47,7 +48,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_new_input_does_not_cancel_frozen_reply(self):
         correlation = self.proxy.submit("First request.")
-        context = build_public_context(self.ghost, {})
+        context = build_public_context(self.ghost)
         self.proxy.submit("Second request.")
         reply_id = commit_public_reply(self.ghost, "Old reply.", correlation, commit_id="old", context=context)
         reply = self.ghost.get_knoxel_by_id(reply_id)
@@ -67,7 +68,7 @@ class PublicationTests(unittest.TestCase):
                     working_target=MemoryBashTarget(self.ghost, "read"),
                     workflow=MANIFEST, tools_factory=lambda environment, batch: {},
                     runtime_root=Path(tmp), ghost=self.ghost)
-                module._public_context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": source.id}]})
+                module._public_context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=source.id)]))
                 module.invocation_id = "stale-" + status
                 changes = self.ghost.begin_batch("changed-" + status)
                 source.content = "Changed while the generation was running."
@@ -90,7 +91,7 @@ class PublicationTests(unittest.TestCase):
             module = StoryDialogue("dialogue", self.bus, self.fail, lambda: 0, None,
                 working_target=MemoryBashTarget(self.ghost, "read"), workflow=MANIFEST,
                 tools_factory=lambda environment, batch: {}, runtime_root=Path(tmp), ghost=self.ghost)
-            module._public_context = build_public_context(self.ghost, {"stimuli": [{"knoxel_id": source.id}]})
+            module._public_context = build_public_context(self.ghost, ActionRequest(stimuli=[Stimulus(knoxel_id=source.id)]))
             module.invocation_id = "protocol-failure"
             with self.assertRaisesRegex(RuntimeError, "HTTP 404"):
                 module.reject_reply([Envelope(id="protocol-failure", source="operator", kind="data",
@@ -125,7 +126,7 @@ class PublicationTests(unittest.TestCase):
         action = changes.create(ActionSchemaRecord(content="A deliberate joke with a false codeword.", action_type=ActionType.Reply,
             metadata={"presentation": {"mode": "deceive", "purpose": "A declared teasing presentation.", "known_fact_ids": [fact.id]}}))
         self.ghost.commit(changes)
-        context = build_public_context(self.ghost, {"knoxel_id": action.id})
+        context = build_public_context(self.ghost, ActionRequest(knoxel_id=action.id))
         reply_id = commit_public_reply(self.ghost, "Silver spoon.", correlation, commit_id="deceptive-reply", action_id=action.id, context=context)
         utterance = self.ghost.get_knoxel_by_id(reply_id)
         self.assertEqual(utterance.metadata["deception_intent_id"], action.id)

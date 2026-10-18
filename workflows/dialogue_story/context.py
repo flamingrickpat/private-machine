@@ -56,15 +56,16 @@ async def plan_story_request(
     planned = await plan_reply_context(ghost.snapshot(), "story", FocusInput(
         workspace=workspace, current_message=current, exclude_ids=[int(source.id)]), embedding, cancel=cancel)
     capabilities = await asyncio.to_thread(capability_snapshot, ghost, [])
-    public = build_public_context(ghost, {"content": "Answer the current user message in the established voice.",
-                                          "workspace": workspace,
-                                          "stimuli": [{"knoxel_id": source.id, "text": current}]},
-                                  capabilities=capabilities, planned=planned)
+    from workflows.main_cognition.schemas import ActionRequest, Stimulus
+    public = build_public_context(ghost, ActionRequest(
+        content="Answer the current user message in the established voice.", workspace=workspace,
+        partner_name=user, stimuli=[Stimulus(knoxel_id=source.id, text=current, source="user_input")]),
+        capabilities=capabilities, planned=planned)
     prior = planned.dialogue or prior
 
     return StoryRequest(
         companion_name=companion,
-        user_name=user,
+        partner_name=user,
         character_card_story=ghost.get_simple_character_story_block(),
         supported_capabilities=list(ghost.ghost_config.supported_capabilities),
         unsupported_capabilities=[str(item) for item in ghost.ghost_config.unsupported_capabilities],

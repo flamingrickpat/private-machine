@@ -47,8 +47,7 @@ class WriteBatch:
         if visible_ids is not None:
             records = {record_id: records[record_id] for record_id in visible_ids}
         gwt = {tick: raw for tick, raw in self._snapshot._gwt.items()
-               if set(raw["knoxel_ids"]).issubset(records)
-               and (raw["attention_frame_id"] is None or raw["attention_frame_id"] in records)}
+               if set(raw["knoxel_ids"]).issubset(records)}
         revisions = {record_id: revision for record_id, revision in self._snapshot.revisions.items() if record_id in records}
         return Snapshot(deepcopy(records), deepcopy(gwt), revisions)
 

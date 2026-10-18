@@ -152,8 +152,7 @@ class CognitiveControl(BusModule):
                     # appraised exchanges. Unprocessed input cannot enter this
                     # set and still blocks acceptance through pending input.
                     view = batch.view()
-                    appraised = {key for cycle in self.ghost.states if "main" in cycle.published_slots
-                                 for key in cycle.stimuli_ids}
+                    appraised = {key for cycle in self.ghost.states for key in cycle.claimed_ids()}
                     for key in appraised & set(view.revisions):
                         source = view.get(key)
                         if source.metadata.get("exchange_status") == "pending":

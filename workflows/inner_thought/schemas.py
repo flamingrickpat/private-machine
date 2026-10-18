@@ -144,6 +144,9 @@ class InnerRequest(BaseModel):
     mental_state_age_seconds: float = 0.0
     seconds_since_user_input: float | None = None
     tick_id: int = 0
+    #: The newest main turn: tick, summary, surprise, and ``frame_id``. Since
+    #: A19F step 10, ``frame_id`` is the subjective experience of that turn.
+    #: A19G gives the inner loop typed fields for this.
     main_frame: dict = Field(default_factory=dict)
     main_frame_age_ticks: int = 0
     active_goal_records: list[dict] = Field(default_factory=list)

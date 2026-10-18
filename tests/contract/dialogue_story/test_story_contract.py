@@ -31,7 +31,7 @@ from pm.memory.bash_view import MemoryBashEnvironment
 def example_request(**overrides) -> StoryRequest:
     base = dict(
         companion_name="Spamuel",
-        user_name="Jesse",
+        partner_name="Jesse",
         character_card_story="Spamuel is a brash, theatrical companion.",
         supported_capabilities=["I can communicate via text."],
         unsupported_capabilities=["I cannot directly act in the physical world."],

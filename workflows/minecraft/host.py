@@ -47,20 +47,41 @@ def project_memory_config(store, cancel, embeddings=None) -> MemoryToolConfig:
                             embeddings=embeddings, cancel=cancel, refresh_view=select)
 
 
+def workflow_shard_story(store, workflow: str = "minecraft") -> str:
+    """Render the workspace shard of ``workflow`` from the newest cycle state, or an empty text.
+
+    The story uses the words of the main cognition story prefix: the shard
+    items and the tail of the newest workflow results, without record ids.
+    The caller holds the memory-store lock.
+    """
+    from pm.records.workspace import ShardKey
+    from workflows.main_cognition.schemas import ActionRequest, RequestShard
+    from workflows.public_speech.shard_context import shard_story
+    key = ShardKey(kind="workflow", ref=workflow)
+    if not store.states or not store.states[-1].workspace.has_shard(key):
+        return ""
+    shard = store.states[-1].workspace.shard(key)
+    request = ActionRequest(shards=[RequestShard(name=workflow, shard=shard)])
+    return shard_story(store.snapshot(), request, store.get_companion_name())
+
+
 def persona_context(store) -> dict:
     """Return the companion identity that body workflows receive in their request.
 
-    The supervisor calls this under the memory-store lock at each launch.
+    ``workspace`` is the story of the Minecraft workflow shard of the newest
+    cycle (:func:`workflow_shard_story`). The supervisor calls this under the
+    memory-store lock at each launch.
     """
     from workflows.public_speech.public_context import build_public_context
     from pm.records.mental_state import create_empty_state
-    public = build_public_context(store, {}).model_dump(mode="json")
+    public = build_public_context(store).model_dump(mode="json")
     state = store.states[-1].mental_state if store.states else create_empty_state()
     return {"persona_context": {
         "companion_name": store.get_companion_name(),
         "user_name": store.get_user_name(),
         "character_card": store.get_simple_character_story_block(),
         "accepted_context": public,
+        "workspace": workflow_shard_story(store),
         "accepted_emotions": state.state_emotions.model_dump(),
         "accepted_relationship": state.state_relationship.model_dump() if state.state_relationship else None,
     }}

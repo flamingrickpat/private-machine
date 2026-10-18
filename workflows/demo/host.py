@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from threading import RLock
 
+from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.memory_records import ActionSchemaRecord
 from pm.records.enums import ActionType, FeatureType, InterlocusType
-from pm.records.cognitive_records import AttentionFrameRecord
 
 from pm.bus.envelopes import Envelope, new_id
 from pm.bus.envelopes import new_envelope
@@ -102,28 +102,23 @@ class DummyMainCogLoop(CognitiveWorkflow):
 
         changes = self.ghost.begin_batch(self.invocation_id or new_id(), new_tick=True, cancel=self.stop_event)
         tick = changes.tick_id
-        frame = changes.create(AttentionFrameRecord(
-            content=summary, tick_id=tick, focus_knoxel_ids=list(incoming_ids),
-            active_goal_ids=[], winning_attention_ids=[], control_mode="reactive", frame_reason=summary,
-        ))
         action_ids: list[int] = []
         for decision in decisions:
             action = changes.create(ActionSchemaRecord(
                 content=decision.get("content", ""), action_type=ACTION_TYPE[decision["route"]],
-                attention_frame_id=frame.id,
                 metadata={"route": decision["route"], "task_id": decision.get("task_id", ""),
                           "task_kind": decision.get("task_kind", "")},
             ))
             action_ids.append(action.id)
         changes.set_gwt(
-            GwtTurnRecord(tick_id=tick, attention_frame_id=frame.id,
-                          knoxel_ids=incoming_ids + [frame.id] + action_ids, summary=summary),
-            CycleState(tick_id=tick, attention_frame_id=frame.id, published_slots=["main"]),
+            GwtTurnRecord(tick_id=tick, stimulus_ids=list(incoming_ids),
+                          knoxel_ids=incoming_ids + action_ids, summary=summary),
+            CycleState(tick_id=tick, stimulus_groups=[StimulusGroup(stimulus_ids=list(incoming_ids))]),
         )
         receipt = self.ghost.commit(changes)
         # A repeated commit returns the original IDs, not this attempt's proposals.
         tick = receipt.tick_id
-        action_ids = list(receipt.added_ids[1:])
+        action_ids = list(receipt.added_ids)
 
         self.bus.put(new_envelope(
             self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick},

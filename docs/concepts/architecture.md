@@ -2,7 +2,7 @@
 
 ## Summary
 
-The system has three distinct lifetimes: application modules, workflow runs, and synchronous child stages.
+The system has three distinct lifetimes: application modules, workflow runs, and the typed phases of one run.
 Ghost owns shared state within one instance.
 The console owns worker processes and trace files.
 
@@ -17,9 +17,9 @@ Browser -> loopback HTTP service -> worker commands
                                          |
                                     MainCogLoop
                                          |
-          triage -> appraisal -> context -> attention
+      intake -> triage -> appraise -> retrieve -> codelets
                                          |
-                         goals -> workspace -> action_selection
+      structures -> attention -> experience -> goals -> decide -> route
                                          |
                               accepted Ghost commit
                                          |
@@ -35,7 +35,7 @@ Runtime evidence -> events.jsonl -> browser graph and details
 
 The arrows describe causality.
 They do not imply that all work runs on one thread.
-Child stages run inline inside the cognitive module.
+The phases of one cycle run inline inside the cognitive module, in one workflow run.
 Managed tasks can overlap dialogue.
 
 ## Ownership

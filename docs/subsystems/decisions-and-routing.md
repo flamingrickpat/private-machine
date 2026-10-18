@@ -113,13 +113,18 @@ Quiet routes (`Ignore`, `Idle`, `Sleep`) make no dispatch. A Sleep route sets th
 
 A rejected dispatch gets a reason. The host publishes an `action.receipt` with status `rejected` for it.
 
-## Dialogue intent
+## Dialogue intent and partner
 
 The host stores each released dispatch as an `ActionSchemaRecord` whose content is the decision text.
-The `action.request` envelope carries the same text in `content`, the group's stimuli, and the group's correlation.
+The `action.request` envelope carries a typed [`ActionRequest`][workflows.main_cognition.schemas.ActionRequest]: the same text in `content`, the group's stimuli, the group's correlation, the partner, and the shards.
 Story and Assistant dialogue read the intent from the stored action record (`action.content`).
 Story renders it as "What {companion} decided to do with this reply: …" in its context message.
 The workspace line of the dialogue prompt is the subjective experience of the cycle.
+
+The partner is the entity that the reply addresses ([`partner_key`][workflows.main_cognition.action_request.partner_key]).
+A reply to a second companion addresses that companion: its name, its shard, and its dialogue tail.
+The reply record stores the partner as `Feature.addressee_entity_id`.
+So the next cycle puts the reply into the tail of the partner's shard ([`dialogue_partner`][workflows.main_cognition.host.dialogue_partner]).
 
 ## Expectations
 
@@ -165,7 +170,6 @@ Attention can then move it into a shard. The entity requirement `interpersonal_e
 
 ## Limits
 
-- Public speech still addresses the user. A reply to a second entity uses the user's dialogue prompt until step 10 of A19F migrates the consumers.
 - The private loop keeps its own expectations. Main cognition does not check them.
 - `DECISION_VARIANTS` is 1. No selection among several variants exists yet.
 - A dispatch that depends on another dispatch of the same cycle is possible only across groups. The route answer has no `depends_on` field.

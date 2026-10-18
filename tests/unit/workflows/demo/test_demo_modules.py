@@ -215,7 +215,8 @@ class StatusTests(ModuleTests):
 class ToolDialogueTests(ModuleTests):
     def test_real_memory_search(self):
         app = make_app(self.seed_dict)
-        action = store_action(app.ghost, route="tool_dialogue")
+        # The demo main cognition puts the speaker name into the action content.
+        action = store_action(app.ghost, route="tool_dialogue", content="Jesse")
         app.bus.put(action)
         replies = Recorder(app.bus, topic="dialogue.reply")
         self.assertTrue(app.tool_dialogue.step(block=False))

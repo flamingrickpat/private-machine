@@ -9,7 +9,7 @@ from pm.records.memory_records import Action, CauseEffectRecord, DeclarativeFact
 from pm.records.base import RecordBase, RecordOwner, RecordKind
 from pm.records.enums import ActionType, ClusterType, EntityClass, FeatureSubtype, FeatureType, RecordSubtypeBase, NarrativeTypes, StimulusType
 from pm.records.graph_records import ConceptNode, GraphEdge, GraphNode
-from pm.records.cognitive_records import AttentionFrameRecord, AttentionRecord, BeliefRecord, BeliefShiftRecord, Intention, OntologyBindingRecord, OntologyTermRecord
+from pm.records.cognitive_records import AttentionRecord, BeliefRecord, BeliefShiftRecord, Intention, OntologyBindingRecord, OntologyTermRecord
 from pm.records.base import get_causal_datetime
 
 
@@ -148,8 +148,6 @@ class RecordIndex(RecordOwner):
         return self._knoxels_for_class(AttentionRecord)
 
     @property
-    def all_attention_frames(self) -> List[AttentionFrameRecord]:
-        return self._knoxels_for_class(AttentionFrameRecord)
 
     @property
     def all_ontology_terms(self) -> List[OntologyTermRecord]:

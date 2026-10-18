@@ -265,9 +265,10 @@ class CommitTests(unittest.TestCase):
         self.assertTrue(all(item.last_fired_tick == state.tick_id for item in fired.values()))
         self.assertTrue(all(set(item.last_percept_ids) <= ids for item in fired.values()))
         self.assertIn(stimulus_id, state.csm.items)
-        frame = ghost.all_attention_frames[-1]
-        self.assertEqual(sorted(frame.metadata["percept_ids"]), sorted(item.id for item in percepts))
-        self.assertTrue(all(key > 0 for boost in frame.metadata["pathway_boosts"] for key in boost["precursor_ids"]))
+        turn = ghost.gwt_turns[state.tick_id]
+        self.assertEqual(sorted(turn.trace.percept_ids), sorted(item.id for item in percepts))
+        self.assertEqual(len(turn.trace.codelet_runs), sum(item.total_runs for item in fired.values()))
+        self.assertTrue(all(key > 0 for item in state.codelets.codelets.values() for key in item.precursor_ids))
 
 
 if __name__ == "__main__":

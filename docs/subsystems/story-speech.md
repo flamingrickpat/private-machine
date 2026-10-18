@@ -53,17 +53,19 @@ A live check on 2026-10-13 confirmed that `qwen/qwen3.8-flash` on OpenRouter con
 | Abilities | Configured abilities, unavailable abilities, notes, and "no human body and no human senses". |
 | Words for inner state | The private ontology terms, from [`term_lines`][workflows.public_speech.ontology.term_lines]. Each word comes from an implemented mechanism. The companion may use these words and should not invent a state word that is not here. |
 | Time | The current time and the gap since the last prior turn, in words ("about 4 months ago, on 30 May 2026, 21:03"). |
-| Memories | One section per plan lane, from [`memory_sections`][workflows.public_speech.public_context.memory_sections]: dated plain lines, oldest first, without IDs or machine labels. Dialogue reads "Jesse said: …". Internal-state records with numbers do not render. |
+| Awareness | The workspace shards of the cycle that chose the reply: the self shard and the partner's shard, in the words of the cycle's story prefix (`PublicContext.shard_story`). The verbatim lines of the tails are in the transcript instead. |
+| Memories | The disclosed private state, and for a standalone situation one section per plan lane, from [`memory_sections`][workflows.public_speech.public_context.memory_sections]: dated plain lines, oldest first, without IDs or machine labels. Dialogue reads "<name> said: …". Internal-state records with numbers do not render. |
 | Goals | The active goals. |
 | Task and tool results | Worker state, effect verification, and the full durable task receipt. |
 | Inside the companion | Feelings in words from [`feelings_in_words`][workflows.public_speech.public_context.feelings_in_words], the regulation mode, the subjective experience of the cycle, the in-character decision text as the intent, and the presentation (candid, withhold, or deceive). |
 
-### Context plan
+### Transcript and partner
 
-The [context planner](context-planning.md) chooses the transcript window and the memory sections from the current workspace.
-The `dialogue` lane fills the assistant turn: speech and the companion's earlier private thoughts, oldest first.
-A thought renders as `Spamuel thinks: *...*`. A day marker such as `*(30 May 2026)*` starts each new day in the window.
-The other lanes fill the user turn as titled sections: earlier times, how the companion understands themselves and the user, what the companion knows, and what comes back right now.
+The reply addresses the partner of the action request. All `{partner_name}` texts of the prompt name that entity.
+A reply to a second companion therefore reads "<that companion> says: …" lines and is cut at that companion's next line.
+The [shard context](context-planning.md#shard-context) fills the assistant turn: the dialogue in the tail of the partner shard and the companion's private thoughts in the self tail, oldest first.
+A thought renders as `<companion> thinks: *...*`. A day marker such as `*(30 May 2026)*` starts each new day in the window.
+A standalone situation has no shards. Its context plan fills the transcript and the memory sections.
 
 ## Agentic review
 
@@ -107,7 +109,7 @@ A blocked draft reaches the host's rejection path. The host retains rejection te
 The report keeps the draft, its review, its reason, and its blocked flag.
 
 Assistant replies use the same review once, with their tool receipts and no regeneration loop.
-The Assistant prompt uses the same readable context sections from its own context plan, as ordinary chat messages followed by tool calls.
+The Assistant prompt uses the same shard context: the transcript as ordinary chat messages, then the shard story, then tool calls.
 Derived context has its own user turn. The final user turn carries the current message verbatim.
 An earlier drink question previously displaced a task request that appeared only inside the derived context.
 A second tool run could change the world. Only a false task result rejects an Assistant reply.

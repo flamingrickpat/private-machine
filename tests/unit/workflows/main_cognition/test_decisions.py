@@ -19,7 +19,8 @@ from pm.memory.store import MemoryStore
 from pm.records.cognitive_records import ExpectationRecord
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import PersonaConfig
-from pm.records.enums import EntityClass, FeatureSubtype, FeatureType
+from pm.records.base import Provenance
+from pm.records.enums import EntityClass, FeatureSubtype, FeatureType, SourceKind
 from pm.records.memory_records import ActionSchemaRecord, Entity, Feature
 from pm.records.mental_state import FullMentalState
 from pm.records.workspace import SELF_SHARD, ShardKey
@@ -28,10 +29,11 @@ from tests.support import ManualClock, Recorder
 from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, last_user_text, scripted_tools
 from workflows.dialogue_story.host import StoryDialogue
 from workflows.main_cognition.expectations import outcome_of
-from workflows.main_cognition.host import MainCogLoop
+from workflows.main_cognition.host import MainCogLoop, dialogue_partner
 from workflows.main_cognition.phases.experience import continuation, load_experience_prompts, seed_phrases
 from workflows.main_cognition.phases.route import body_lease, resolve_conflicts
-from workflows.main_cognition.schemas import ActionDispatch, DecisionAnswer, DecisionCheck, OpenExpectation
+from workflows.main_cognition.schemas import (ActionDispatch, ActionRequest, DecisionAnswer, DecisionCheck,
+                                              OpenExpectation)
 
 MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
 STORY_MANIFEST = PROJECT_ROOT / "workflows" / "dialogue_story" / "dialogue_story.workflow.md"
@@ -50,9 +52,14 @@ def ghost_with_entities() -> MemoryStore:
 
 
 def say(ghost, speaker: str, text: str) -> int:
-    """Store one dialogue line of ``speaker`` and return its id."""
+    """Store one dialogue line of ``speaker`` and return its id.
+
+    The user speaks as ``User``, another companion as ``Agent``.
+    """
+    kind = SourceKind.User if speaker == ghost.get_user_name() else SourceKind.Agent
     return ghost.store_knoxel(Feature(content=text, feature_type=FeatureType.Dialogue, causal=True,
-                                      override_source=speaker)).id
+                                      override_source=speaker,
+                                      provenance=Provenance(source_kind=kind, source_ref="test"))).id
 
 
 def module_for(ghost, model: ScriptedModel, tmp: str) -> tuple[MainCogLoop, BusSystem, list]:
@@ -175,6 +182,54 @@ class GroupDecisionTests(unittest.TestCase):
             self.assertEqual(errors, [])
         self.assertEqual(len(prompts), 1)
         self.assertIn(f"What Spamuel decided to do with this reply: {USER_DECISION}", prompts[0])
+
+
+class PartnerTests(unittest.TestCase):
+    def test_a_reply_to_a_second_entity_addresses_it_with_its_own_dialogue(self):
+        ghost = ghost_with_entities()
+        jesse = say(ghost, "Jesse", "Fine, I still won't pick an ending.")
+        mara = say(ghost, "Mara", "Can I add a third ending?")
+        model = ScriptedModel({"decide": decide_by_part, "route": route_reply})
+        prompts: list[str] = []
+
+        async def story_complete(messages, **generation):
+            prompts.append("\n".join(turn["content"] if isinstance(turn, dict) else turn.content.text
+                                     for turn in messages))
+            return 'Spamuel says: "Wait your turn."' if "Mara says:" in prompts[-1] else 'Spamuel says: "Coward."'
+
+        async def public_complete(messages, **generation):
+            return '{"judgment": "accept", "reason": "grounded", "false_task_result": false, "findings": []}'
+
+        with TemporaryDirectory() as tmp:
+            module, bus, errors = module_for(ghost, model, tmp)
+            requests = Recorder(bus, "action.request")
+            dialogue = StoryDialogue("dialogue", bus, errors.append, ManualClock(), None,
+                                     working_target=MemoryBashTarget(ghost, "read"), workflow=STORY_MANIFEST,
+                                     tools_factory=lambda environment, batch: {"story_complete": story_complete,
+                                                                               "public_complete": public_complete},
+                                     runtime_root=Path(tmp) / "story", ghost=ghost)
+            bus.subscribe(dialogue.module_id, dialogue.accepts, dialogue.deliver)
+            module.handle_batch([user(jesse, "c-jesse"),
+                                 Envelope(id=new_id(), source="mara", kind="data", topic="user.input",
+                                          correlation_id="c-mara", payload={"knoxel_id": mara})])
+            self.assertTrue(dialogue.step(block=False))
+            self.assertEqual(errors, [])
+        mara_id = ghost.get_entity_id("Mara")
+        request = ActionRequest.model_validate(requests.events[1].payload)
+        self.assertEqual((request.partner_entity_id, request.partner_name), (mara_id, "Mara"))
+        self.assertEqual([item.name for item in request.shards], ["self", "Mara"])
+        self.assertEqual(len(prompts), 2)
+        story = next(prompt for prompt in prompts if "Mara says:" in prompt)
+        self.assertIn('Mara says: "Can I add a third ending?"', story)
+        self.assertNotIn("I still won't pick an ending", story)
+        self.assertIn(f"What Spamuel decided to do with this reply: {OTHER_DECISION}", story)
+        self.assertIn("Spamuel AND Mara", story)
+        reply = next(item for item in ghost.all_features if item.content == "Wait your turn.")
+        self.assertEqual(reply.addressee_entity_id, mara_id)
+        names = {"Spamuel": ghost.get_entity_id("Spamuel"), "Jesse": ghost.get_entity_id("Jesse"), "Mara": mara_id}
+        self.assertEqual(dialogue_partner(reply, names, names["Jesse"], names["Spamuel"]), mara_id)
+        jesse_line = ghost.get_knoxel_by_id(jesse)
+        self.assertEqual(dialogue_partner(jesse_line, names, names["Jesse"], names["Spamuel"]), names["Jesse"])
 
 
 class ExperienceTests(unittest.TestCase):

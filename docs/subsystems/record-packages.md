@@ -42,10 +42,17 @@ The `chat` display hint rejects records whose type is not dialogue.
 It never copies private thoughts into a public view automatically.
 
 [`pm.introspection.record_packages.capture_gwt`][] captures the selected turn and its exact ordered member IDs.
-The package retains the complete GWT summary, timestamp, slot, and attention-frame reference.
+The package retains the complete turn record: the summary, timestamp, slot, claimed stimuli, shard changes, codelet trace, experience, and decision record.
 Capture at the tick boundary to preserve that tick's current record revisions.
 Exporting an older turn later uses the snapshot's current record payloads.
 It does not reconstruct prior versions of mutable records.
+
+[`pm.introspection.record_packages.capture_cycle`][] captures one accepted cycle state with the `cycle` display hint.
+Pass the snapshot and the cycle state of the same tick, for example `app.ghost.states[-1]`.
+The package field `cycle` holds the state: the CSM items with activation and endorsers, the workspace shards with items and tails, the codelet registry state, the stimulus groups, the decisions, and the dispatches.
+`gwt` holds the turn record of the tick.
+The members are every record that the state or the turn names ([`cycle_record_ids`][pm.introspection.record_packages.cycle_record_ids]): stimuli, shard items and tails, CSM items, structures, codelet percepts, actions, experiences, and the decision record.
+Step 11 of A19F builds the review package from these captures.
 
 [`pm.introspection.record_packages.dump_package`][] writes the detached package as UTF-8 JSON.
 The caller owns the destination and exposes it for review after the write returns.
@@ -63,8 +70,9 @@ The versioned schema is `pm.record-package.v1`.
 | `records` | Existing `__type__` and `data` serialization for members and related sources |
 | `revisions` | Captured accepted revision of each included record |
 | `gwt` | Complete selected GWT turn, or `null` |
+| `cycle` | The captured cycle state. Only the `cycle` display hint has it. |
 
-Display hints are `records`, `chat`, and `gwt`.
+Display hints are `records`, `chat`, `gwt`, and `cycle`.
 All serialized fields remain available except recursively named `embedding` and `embeddings` fields.
 Appraisal and mental-state vectors remain available because they are not embeddings.
 The package contains no model judgment or human rating.

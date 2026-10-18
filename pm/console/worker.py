@@ -148,7 +148,9 @@ def run(settings: dict, root: Path) -> None:
             record["data"]["embedding"] = []
         emit("snapshot", records=records, revisions=dict(view.revisions),
              gwt=view.serialize_gwt(), runs=app.supervisor.receipts(),
-             history=app.ghost.dialogue_history(), user_name="Jesse")
+             history=app.ghost.dialogue_history(), user_name=app.ghost.get_user_name(),
+             companion_name=app.ghost.get_companion_name(),
+             cycle=app.ghost.states[-1].model_dump(mode="json") if app.ghost.states else None)
 
     snapshot()
     search_active = threading.Event()

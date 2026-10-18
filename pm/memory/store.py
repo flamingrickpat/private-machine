@@ -121,8 +121,7 @@ class MemoryStore(RecordIndex):
             ids = set(self._all_knoxels) if visible_ids is None else set(visible_ids)
             records = {record_id: _serialize_knoxel(self._all_knoxels[record_id]) for record_id in sorted(ids)}
             gwt = {tick: record.model_dump(mode="json") for tick, record in self.gwt_turns.items()
-                   if set(record.knoxel_ids).issubset(ids)
-                   and (record.attention_frame_id is None or record.attention_frame_id in ids)}
+                   if set(record.knoxel_ids).issubset(ids)}
             return Snapshot(records, gwt, {record_id: self.revisions[record_id] for record_id in ids})
 
     def dialogue_history(self, *, visible_ids=None, user: str | None = None) -> list[dict]:
@@ -189,12 +188,12 @@ class MemoryStore(RecordIndex):
                 "matches": [{"id": key, "score": score, "record": records[key],
                              "revision": view.revisions[key]} for key, score in results[:max(1, min(limit, 250))]]}
 
-    def gwt_shard(self, slot_id: str, limit: int = 8) -> list[GwtTurnRecord]:
-        """Return the newest published turns of one GWT slot.
+    def gwt_turns_of(self, slot_id: str, limit: int = 8) -> list[GwtTurnRecord]:
+        """Return the newest published turns of one loop, newest first.
 
-        Both conscious loops publish into the same keyed tick map. A loop's
-        own workspace stream is the subsequence that carries its slot id, so
-        one loop can read the other's latest frame without a second store.
+        Both conscious loops publish into the same keyed tick map. The slot id
+        of a turn names its loop (``main`` or ``inner``), so one loop can read
+        the latest turn of the other without a second store.
         """
         with self.lock:
             turns = [record for record in self.gwt_turns.values() if record.slot_id == slot_id]

@@ -1,6 +1,6 @@
 """Cognitive episode queries over committed records.
 
-No model. The tests build real workspace turns, frames, thoughts, and an
+No model. The tests build real workspace turns, thoughts, and an
 action schema through the real MemoryStore commit boundary.
 """
 from __future__ import annotations
@@ -8,7 +8,7 @@ from __future__ import annotations
 import unittest
 
 from pm.memory.store import MemoryStore
-from pm.records.cognitive_records import AttentionFrameRecord
+from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState, PersonaConfig
 from pm.records.enums import ActionType, FeatureType, InterlocusType, SourceKind
 from pm.records.global_workspace import GwtTurnRecord
@@ -36,31 +36,25 @@ def _commit_thought(ghost, content="I keep wondering about the unfinished story.
                   "continuation": "summarize", "continuation_reason": "complete",
                   "disclosure": {"mode": "withhold"}, "summary": "a private recollection"},
     )
-    frame = batch.create(AttentionFrameRecord(
-        content="private focus on the story", tick_id=batch.tick_id, focus_knoxel_ids=[thought.id],
-        control_mode="reflective", frame_reason="private operation memory_search"))
     batch.set_gwt(
-        GwtTurnRecord(tick_id=batch.tick_id, slot_id="inner", attention_frame_id=frame.id,
-                      knoxel_ids=[thought.id, frame.id], summary="private recollection"),
-        CycleState(tick_id=batch.tick_id, published_slots=["inner"], attention_frame_id=frame.id),
+        GwtTurnRecord(tick_id=batch.tick_id, slot_id="inner",
+                      knoxel_ids=[thought.id], summary="private recollection"),
+        CycleState(tick_id=batch.tick_id),
     )
     ghost.commit(batch)
-    return thought.id, frame.id
+    return thought.id, batch.tick_id
 
 
-def _commit_main_frame(ghost, focus_ids):
+def _commit_main_turn(ghost, stimulus_ids):
+    """Commit one main turn that claims ``stimulus_ids``. Return its tick."""
     batch = ghost.begin_batch("main-1", new_tick=True)
-    frame = batch.create(AttentionFrameRecord(
-        content="main attention on the private thought", tick_id=batch.tick_id,
-        focus_knoxel_ids=list(focus_ids), control_mode="reactive",
-        frame_reason="a self-origin thought arrived"))
     batch.set_gwt(
-        GwtTurnRecord(tick_id=batch.tick_id, slot_id="main", attention_frame_id=frame.id,
-                      knoxel_ids=[frame.id, *focus_ids], summary="appraise the private thought"),
-        CycleState(tick_id=batch.tick_id, published_slots=["main"], attention_frame_id=frame.id),
+        GwtTurnRecord(tick_id=batch.tick_id, slot_id="main", stimulus_ids=list(stimulus_ids),
+                      knoxel_ids=list(stimulus_ids), summary="appraise the private thought"),
+        CycleState(tick_id=batch.tick_id, stimulus_groups=[StimulusGroup(stimulus_ids=list(stimulus_ids))]),
     )
     ghost.commit(batch)
-    return frame.id
+    return batch.tick_id
 
 
 class EpisodeIndexTests(unittest.TestCase):
@@ -77,7 +71,7 @@ class EpisodeIndexTests(unittest.TestCase):
     def test_cross_loop_link_uses_explicit_references_not_time(self):
         ghost = small_ghost()
         thought_id, _ = _commit_thought(ghost)
-        _commit_main_frame(ghost, [thought_id])
+        _commit_main_turn(ghost, [thought_id])
         pairs = EpisodeIndex(ghost).cross_loop_links()
         self.assertEqual(len(pairs), 1)
         self.assertEqual(pairs[0]["via_record_id"], thought_id)
@@ -98,7 +92,7 @@ class EpisodeIndexTests(unittest.TestCase):
     def test_parallel_loops_keep_distinct_episode_identities(self):
         ghost = small_ghost()
         thought_id, _ = _commit_thought(ghost)
-        _commit_main_frame(ghost, [thought_id])
+        _commit_main_turn(ghost, [thought_id])
         index = EpisodeIndex(ghost)
         loops = {episode.loop for episode in index.all()}
         self.assertEqual(loops, {"main", "inner"})

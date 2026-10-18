@@ -13,7 +13,7 @@ import unittest
 
 from pm.bus.bus import BusSystem
 from pm.memory.bash_view import MemoryBashTarget
-from pm.records.cognitive_records import AttentionFrameRecord
+from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
 from pm.records.enums import FeatureType
 from pm.records.global_workspace import GwtTurnRecord
@@ -80,11 +80,9 @@ def _module(ghost, tmp, reports, config=None):
 def _acknowledge(ghost, thought_id: int) -> None:
     """Commit one accepted main cycle whose stimuli include the private thought."""
     batch = ghost.begin_batch(f"ack-{thought_id}", new_tick=True)
-    frame = batch.create(AttentionFrameRecord(content="main frame", tick_id=batch.tick_id))
     batch.set_gwt(
-        GwtTurnRecord(tick_id=batch.tick_id, attention_frame_id=frame.id, knoxel_ids=[frame.id]),
-        CycleState(tick_id=batch.tick_id, attention_frame_id=frame.id,
-                   published_slots=["main"], stimuli_ids=[thought_id]),
+        GwtTurnRecord(tick_id=batch.tick_id, stimulus_ids=[thought_id], knoxel_ids=[thought_id]),
+        CycleState(tick_id=batch.tick_id, stimulus_groups=[StimulusGroup(stimulus_ids=[thought_id])]),
     )
     ghost.commit(batch)
 

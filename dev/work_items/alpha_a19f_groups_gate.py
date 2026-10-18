@@ -9,12 +9,18 @@ stimuli to the real main cognition module:
 3. a ``workflow.event`` from a Minecraft project run.
 
 The batch runs through the real kernel and the configured real model. The
-module is not started as a thread, so the three stimuli form one batch and
-no dialogue workflow runs. The gate records the stimulus groups, the
-decisions, the routes, the published ``action.request`` envelopes, and the
-expectations. It checks that there are up to three routed actions and that
-each published action has the correlation of its own group. A second
-cycle with a user follow-up then checks the recorded expectations.
+module is not started as a thread, so the three stimuli form one batch. The
+gate records the stimulus groups, the decisions, the routes, the published
+``action.request`` envelopes, and the expectations. It checks that there are
+up to three routed actions and that each published action has the
+correlation of its own group.
+
+When the second companion's group routes to Story dialogue, the gate runs
+that one dialogue with the real model (A19F step 10). The reply must address
+the second companion: the request names it as the partner, the prompt shows
+its line as the current line, and the reply record names it as the
+addressee. A second cycle with a user follow-up then checks the recorded
+expectations.
 
 Usage::
 
@@ -51,6 +57,43 @@ USER_TEXT = "ok, honest question: do you actually want to finish the story, or d
 SECOND_TEXT = "Can I pitch a third ending? Everyone dies, but politely."
 WORLD_DETAIL = "Found a coal vein at y 41 while the house walls are still half built."
 FOLLOW_TEXT = "fine. i'll answer it: i want to finish it. just not with you yelling at me about it."
+
+
+def run_second_dialogue(app, published: list, second_id: int) -> dict:
+    """Run the Story dialogue of the second companion's action and return its evidence.
+
+    The evidence holds the typed request (partner and shard names), the
+    three prompt messages that the dialogue built, the reply, and the
+    addressee of the reply record. A group that did not route to Story
+    dialogue gives ``status: skipped``.
+    """
+    from workflows.dialogue_story.schemas import StoryRequest
+    from workflows.dialogue_story.steps import build_story_messages, load_prompts
+    from workflows.main_cognition.schemas import ActionRequest
+    envelope = next((item for item in published if item.target == "dialogue_story"
+                     and second_id in [row["knoxel_id"] for row in item.payload["stimuli"]]), None)
+    if envelope is None:
+        return {"status": "skipped", "reason": "the second companion's group did not route to Story dialogue"}
+    request = ActionRequest.model_validate(envelope.payload)
+    before = set(app.ghost.all_knoxels)
+    # Keep the Story request that the dialogue built. The run workspace does
+    # not keep its inbox after the run.
+    built: list[dict] = []
+    prepare = app.dialogue.prepare_input
+    app.dialogue.prepare_input = lambda batch: built.append(prepare(batch)) or built[-1]
+    try:
+        app.dialogue.handle_batch([envelope])
+    finally:
+        app.dialogue.prepare_input = prepare
+    app.raise_if_error()
+    story = StoryRequest.model_validate(built[-1])
+    messages = build_story_messages(story, load_prompts())
+    reply = next(item for item in app.ghost.all_features if item.id not in before
+                 and item.feature_type.value == "Dialogue" and item.source == app.ghost.get_companion_name())
+    return {"status": "ran", "partner_name": request.partner_name, "partner_entity_id": request.partner_entity_id,
+            "shards": [item.name for item in request.shards], "decision": request.content,
+            "context": messages[1].content.text, "transcript": messages[2].content.text,
+            "reply": reply.content, "reply_id": reply.id, "addressee_entity_id": reply.addressee_entity_id}
 
 
 def main() -> Path:
@@ -100,6 +143,8 @@ def main() -> Path:
                                    if isinstance(item, ExpectationRecord) and item.tick_id == state.tick_id]
         receipt["experience"] = work.experience.text
         correlations = [item.correlation_id for item in published]
+        second_reply = run_second_dialogue(app, published, second.id)
+        receipt["second_reply"] = second_reply
         checks = {
             "three_groups": len(state.stimulus_groups) == 3,
             "at_most_one_action_per_group": len(correlations) == len(set(correlations)) <= 3,
@@ -109,6 +154,10 @@ def main() -> Path:
             "decision_text_unchanged": all(
                 item.content == next(decision.text for decision in state.decisions if decision.group == item.group)
                 for item in work.dispatches),
+            "second_reply_addresses_second": second_reply["status"] == "skipped" or (
+                second_reply["partner_name"] == SECOND
+                and second_reply["addressee_entity_id"] == ghost.get_entity_id(SECOND)
+                and f'{SECOND} says: "{SECOND_TEXT}"' in second_reply["transcript"]),
         }
         # A second cycle with a user follow-up exercises the expectation check.
         follow = new_feature(ghost, FOLLOW_TEXT, FeatureType.Dialogue, source=ghost.get_user_name(),

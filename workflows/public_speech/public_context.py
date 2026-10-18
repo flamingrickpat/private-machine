@@ -8,16 +8,20 @@ from __future__ import annotations
 import re
 import json
 import hashlib
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pm.records.memory_records import ActionSchemaRecord
+from pm.records.base import Provenance, RecordScope
 from pm.records.cognitive_records import OntologyBindingRecord
 from pm.context_render import ContextKind, render_context
 from pm.context_render.turns import Content
 from pathlib import Path
-from workflows.main_cognition.stage_commits import active_goal_texts
+from workflows.main_cognition.cycle_commits import active_goal_texts
+
+if TYPE_CHECKING:
+    # main_cognition.schemas imports Presentation from this module.
+    from workflows.main_cognition.schemas import ActionRequest
 
 
 class DialogueTurn(BaseModel):
@@ -46,13 +50,49 @@ class Presentation(BaseModel):
     shareable_summary: str = ""
 
 
+class EvidenceItem(BaseModel):
+    """One record of the public context, as ``pm.memory.retrieval.candidate`` renders it.
+
+    ``text`` starts with a machine label (kind, source, evidence id, time).
+    ``memory_lines`` turns the label into words. ``lane`` names where the
+    record came from: a context-plan lane, ``shard:<name>`` for a workspace
+    shard of the cycle, or ``private_state`` for a disclosed private state.
+    ``lifecycle_event`` is ``startup`` for a startup event of the runtime.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    knoxel_id: int = 0
+    text: str = ""
+    revision: int = 1
+    memory_kind: str = ""
+    scope: RecordScope = Field(default_factory=RecordScope)
+    provenance: Provenance | None = None
+    source_ids: list[int] = Field(default_factory=list)
+    timestamp: str | None = None
+    historical: bool = False
+    score: float = 0.0
+    reasons: list[str] = Field(default_factory=list)
+    deception_intent_id: int | None = None
+    evidence_role: str = ""
+    lane: str = ""
+    lifecycle_event: str = ""
+
+
 class PublicContext(BaseModel):
-    """Accepted context, source guards, and domain limits for one utterance."""
+    """Accepted context, source guards, and domain limits for one utterance.
+
+    ``partner_name`` is the entity that the utterance addresses: the user, or
+    another entity such as a second companion. ``user_name`` is the user of
+    the runtime. ``shard_story`` holds the workspace shards of the cycle that
+    chose the utterance, rendered as story without the verbatim dialogue.
+    """
 
     model_config = ConfigDict(extra="forbid")
     schema_version: Literal["pm.public-context.v1"] = "pm.public-context.v1"
     companion_name: str
     user_name: str
+    partner_name: str = ""
     character: str = ""
     affect: str = ""
     # The same accepted state in words, without numbers, for public prompts.
@@ -60,7 +100,8 @@ class PublicContext(BaseModel):
     regulation: str = ""
     goals: list[str] = Field(default_factory=list)
     memories: list[str] = Field(default_factory=list)
-    evidence: list[dict] = Field(default_factory=list)
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    shard_story: str = ""
     workspace: str = ""
     selected_action: str = ""
     temporal_context: str = ""
@@ -100,9 +141,11 @@ def render_public_context(context: PublicContext, kinds: ContextKind = ContextKi
 
     Evidence retains original IDs, scope, attribution, and chronology. The
     original context still owns revisions and publication guards. When a
-    cognitive stage supplies newer affect, it excludes this emotion section.
+    cognition phase supplies newer affect, it excludes this emotion section.
     """
     selected: dict = {"companion_name": context.companion_name, "user_name": context.user_name}
+    if context.partner_name and context.partner_name != context.user_name:
+        selected["partner_name"] = context.partner_name
     if kinds & ContextKind.Dialogue:
         selected.update(character=context.character, workspace=context.workspace,
                         selected_action=context.selected_action,
@@ -114,7 +157,7 @@ def render_public_context(context: PublicContext, kinds: ContextKind = ContextKi
         selected.update(capabilities=capabilities, goals=context.goals, temporal_context=context.temporal_context,
                         task_receipt=context.task_receipt)
     if kinds & ContextKind.Memories:
-        selected["evidence"] = context.evidence
+        selected["evidence"] = [item.model_dump(mode="json") for item in context.evidence]
         if not context.evidence:
             selected["memories"] = context.memories
     if kinds & ContextKind.Ontology:
@@ -122,22 +165,30 @@ def render_public_context(context: PublicContext, kinds: ContextKind = ContextKi
     return render_context(selected, kinds, schema_path=schema_path, dedupe=dedupe)
 
 
-def build_public_context(ghost, payload: dict, *, capabilities: dict | None = None, planned=None) -> PublicContext:
+def build_public_context(ghost, request: ActionRequest | None = None, *, capabilities: dict | None = None,
+                         planned=None) -> PublicContext:
     """Freeze one accepted snapshot without importing raw private thoughts.
 
-    Only an existing action can grant presentation intent. Invalid deception
-    intent raises ValueError before generation. Source revisions guard commit.
+    ``request`` is the typed action request of the utterance, or None for a
+    context without an action (the private grounding turn of main cognition,
+    a body workflow). Only an existing action can grant presentation intent:
+    the presentation comes from the stored action record, never from the
+    request. Invalid deception intent raises ValueError before generation.
+    Source revisions guard the commit.
 
-    ``planned`` is a ``PlannedContext`` from ``context_planning``. When it is
-    given, its lane-tagged records replace the cognition-selected evidence and
-    the 48-record source-chain expansion: the plan already budgeted them. The
-    revisions of their source records still guard the commit.
+    ``planned`` is a ``PlannedContext`` from ``context_planning``: the shard
+    context of the cycle, or the context plan of a standalone situation. Its
+    records are the evidence. Without it, the evidence holds the stimuli,
+    the startup events, and the disclosed private state only.
     """
+    from workflows.main_cognition.schemas import ActionMetadata, ActionRequest
+    request = request or ActionRequest()
     view = ghost.snapshot()
-    action = view.get_knoxel_by_id(payload.get("knoxel_id"))
-    metadata = action.metadata if isinstance(action, ActionSchemaRecord) else {}
+    action = view.get(request.knoxel_id) if request.knoxel_id is not None else None
+    metadata = ActionMetadata.model_validate(action.metadata) if action is not None else ActionMetadata()
+    action_id = action.id if action is not None else None
     records = view.serialize_knoxels()
-    presentation = Presentation.model_validate(metadata.get("presentation", {}))
+    presentation = metadata.presentation
     from pm.memory.retrieval import candidate, evidence_role
     if presentation.mode == "deceive" and (
         not presentation.purpose or not presentation.known_fact_ids
@@ -146,46 +197,36 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
                for key in presentation.known_fact_ids if key in view.revisions)
     ):
         raise ValueError("Deception requires a prior purpose and retained facts.")
-    evidence = (list(planned.evidence) if planned is not None
-                else list(metadata.get("memory_evidence", payload.get("memory_evidence", []))))
-    lanes = {int(item["knoxel_id"]): item["lane"] for item in evidence if item.get("lane")}
-    ids = {key for item in evidence for key in [item["knoxel_id"], *item.get("source_ids", [])]}
+    evidence: list[EvidenceItem] = list(planned.evidence) if planned is not None else []
+    lanes = {item.knoxel_id: item.lane for item in evidence if item.lane}
+    ids = {key for item in evidence for key in [item.knoxel_id, *item.source_ids]}
     ids.update(presentation.known_fact_ids)
-    ids.update(int(item["knoxel_id"]) for item in payload.get("stimuli", []) if "knoxel_id" in item)
+    stimulus_ids = [item.knoxel_id for item in request.stimuli]
+    ids.update(stimulus_ids)
     # Original startup events establish restart chronology beside retained facts.
     startup_ids = sorted(key for key, record in records.items()
                          if record["data"].get("metadata", {}).get("origin") == "lifecycle"
                          and record["data"]["metadata"].get("event") == "startup")[-3:]
     ids.update(startup_ids)
-    if action is not None:
-        ids.add(action.id)
-    originals = []
-    selected_ids = [int(item["knoxel_id"]) for item in evidence]
-    evidence_use = metadata.get("memory_trace", {}).get("query_rewrite", {}).get("evidence_use", "general")
-    stimulus_ids = [int(item["knoxel_id"]) for item in payload.get("stimuli", []) if "knoxel_id" in item]
-    # Reserve original leaves beside selected summaries. A long source chain
-    # must not turn one direct chat request into an unbounded history dump.
-    if planned is not None:
-        order = list(dict.fromkeys([*stimulus_ids, *presentation.known_fact_ids, *startup_ids, *selected_ids]))
-    else:
-        order = list(dict.fromkeys([*stimulus_ids, *presentation.known_fact_ids, *selected_ids, *startup_ids,
-                                   *sorted(ids - set(selected_ids))]))[:48]
-    for key in order:
-        if key in records and key != getattr(action, "id", None):
-            if (evidence_use == "event" and key not in selected_ids
-                    and evidence_role(view, records[key]) == "companion_utterance"):
-                continue
-            original = candidate(view, key, records[key])
+    if action_id is not None:
+        ids.add(action_id)
+    originals: list[EvidenceItem] = []
+    selected_ids = [item.knoxel_id for item in evidence]
+    # The planned context already budgeted its records. The stimuli, the
+    # known facts of a deception, and the startup events come first.
+    for key in dict.fromkeys([*stimulus_ids, *presentation.known_fact_ids, *startup_ids, *selected_ids]):
+        if key in records and key != action_id:
+            original = EvidenceItem.model_validate(candidate(view, key, records[key]))
             if key in startup_ids:
-                original["lifecycle_event"] = "startup"
+                original.lifecycle_event = "startup"
             if key in lanes:
-                original["lane"] = lanes[key]
+                original.lane = lanes[key]
             originals.append(original)
     # A17 disclosure: private state enters public context only through the
     # private loop's explicit choice. A reportable felt state names accepted
     # drivers, and a candid thought carries a disclosure recorded before any
     # dialogue generation. Withheld material never reaches this evidence.
-    private_state: list[dict] = []
+    private_state: list[EvidenceItem] = []
     for key, raw in sorted(records.items(),
                           key=lambda item: item[1]["data"].get("tick_id", -1), reverse=True):
         if len(private_state) >= 5:
@@ -198,16 +239,16 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
                              and (private_metadata.get("disclosure") or {}).get("mode") == "candid")
         if not (is_reportable_quale or is_candid_thought):
             continue
-        item = candidate(view, key, records[key])
-        item["lane"] = "private_state"
+        item = EvidenceItem.model_validate(candidate(view, key, records[key]))
+        item.lane = "private_state"
         private_state.append(item)
         ids.add(key)
     originals.extend(private_state)
     states = ghost.states
     state = states[-1] if states else None
-    affect = metadata.get("affect_summary") or payload.get("affect", "")
+    affect = metadata.affect_summary or request.affect
     feelings = ""
-    regulation = str(metadata.get("regulation") or payload.get("regulation", ""))
+    regulation = metadata.regulation or request.regulation
     if state is not None:
         from workflows.main_cognition.affect import describe_mental_state
         # The accepted cycle state is newer than the affect text of the
@@ -236,7 +277,6 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
             break
     users = [key for key, raw in records.items() if raw["data"].get("feature_type") == "Dialogue"
              and raw["data"].get("override_source") == ghost.get_user_name()]
-    ids.update(int(item["knoxel_id"]) for item in payload.get("stimuli", []) if "knoxel_id" in item)
     config = ghost.ghost_config
     domain_capabilities = capabilities or {
         "text": True, "persistent_memory": True, "human_senses": [], "human_body": False,
@@ -247,24 +287,25 @@ def build_public_context(ghost, payload: dict, *, capabilities: dict | None = No
     }
     if state is not None:
         domain_capabilities["emotion_state"] = state.mental_state.state_emotions.model_dump()
-    rendered_ids = {item["knoxel_id"] for item in originals}
+    rendered_ids = {item.knoxel_id for item in originals}
     domain_capabilities["evidence_limit"] = {"records": 48, "record_characters": 1200,
-        "source_use": evidence_use, "omitted_ids": sorted(ids - rendered_ids - {getattr(action, "id", None)})}
+        "omitted_ids": sorted(ids - rendered_ids - {action_id})}
     return PublicContext(
         companion_name=ghost.get_companion_name(), user_name=ghost.get_user_name(),
+        partner_name=request.partner_name or ghost.get_user_name(),
         character=ghost.get_simple_character_story_block(), affect=str(affect), feelings=feelings,
         regulation=regulation,
         goals=active_goal_texts(ghost)[:12],
-        memories=[item["text"] for item in originals if item["knoxel_id"] != getattr(action, "id", None)]
-                 or list(payload.get("memories", [])),
-        evidence=originals, workspace=str(payload.get("workspace", "")),
-        selected_action=str(action.content if action is not None else payload.get("content", "")),
+        memories=[item.text for item in originals],
+        evidence=originals, shard_story=planned.story if planned is not None else "",
+        workspace=request.workspace,
+        selected_action=str(action.content) if action is not None else request.content,
         temporal_context=ghost.build_body_and_situation_addendum(),
         capabilities=domain_capabilities, ontology=ontology, presentation=presentation,
-        action_schema_id=action.id if isinstance(action, ActionSchemaRecord) else None,
+        action_schema_id=action_id,
         revisions={key: view.revisions[key] for key in ids if key in view.revisions},
         source_fingerprints={key: source_fingerprint(view.get(key)) for key in ids if key in view.revisions},
-        user_frontier=max(users, default=None), task_receipt=dict(payload.get("task_receipt", {})),
+        user_frontier=max(users, default=None), task_receipt=dict(request.task_receipt),
         stimulus_user_ids=[key for key in stimulus_ids if key in users],
         state_tick=state.tick_id if state is not None else None,
         plan=dict(planned.trace) if planned is not None else {},
@@ -362,33 +403,31 @@ def memory_lines(context: PublicContext, *, exclude_ids=(), exclude_texts=(), la
     """
     excluded = {int(key) for key in exclude_ids}
     shown = {" ".join(str(text).split()) for text in exclude_texts}
-    people = {context.companion_name, context.user_name}
+    people = {context.companion_name, context.user_name, context.partner_name} - {""}
     rows = []
     for item in context.evidence:
-        if int(item["knoxel_id"]) in excluded or item.get("memory_kind") in _HIDDEN_KINDS:
+        if item.knoxel_id in excluded or item.memory_kind in _HIDDEN_KINDS:
             continue
-        if lanes is not None and item.get("lane", "focus") not in lanes:
+        if lanes is not None and (item.lane or "focus") not in lanes:
             continue
-        text = str(item.get("text", ""))
-        match = _LABEL.match(text)
+        match = _LABEL.match(item.text)
         label = match.group("label") if match else ""
-        body = " ".join((text[match.end():] if match else text).split())
+        body = " ".join((item.text[match.end():] if match else item.text).split())
         if not body or body in people or body in shown:
             continue
         source = _SOURCE.search(label)
         speaker = source.group(1).strip() if source else ""
-        kind = str(item.get("memory_kind", ""))
-        if item.get("lifecycle_event") == "startup":
+        if item.lifecycle_event == "startup":
             phrase = "What I know about my own time away"
-        elif speaker in people and item.get("evidence_role") in {"user_report", "companion_utterance"}:
+        elif speaker in people and item.evidence_role in {"user_report", "companion_utterance"}:
             phrase = f"{speaker} said"
         else:
             # The section title already says what a lane holds. Only kinds that
             # change how real the content is keep a label.
-            phrase = _KIND_WORDS.get(kind, "").format(user_name=context.user_name)
-        when = format_moment(item.get("timestamp"))
+            phrase = _KIND_WORDS.get(item.memory_kind, "").format(user_name=context.user_name)
+        when = format_moment(item.timestamp)
         label = ", ".join(part for part in (when, phrase) if part)
-        rows.append((str(item.get("timestamp") or ""), f"- {label + ': ' if label else ''}{body}"))
+        rows.append((item.timestamp or "", f"- {label + ': ' if label else ''}{body}"))
     return [line for _, line in sorted(rows, key=lambda row: row[0])]
 
 
@@ -396,9 +435,9 @@ def memory_sections(context: PublicContext, sections: list[dict], *, exclude_ids
     """Render one titled block per context-plan lane, skipping empty lanes.
 
     ``sections`` is the ordered list of ``{"lane", "title"}`` mappings from a
-    workflow prompt file. Titles may use ``{companion_name}`` and ``{user_name}``.
+    workflow prompt file. Titles may use ``{companion_name}`` and ``{partner_name}``.
     """
-    names = {"companion_name": context.companion_name, "user_name": context.user_name}
+    names = {"companion_name": context.companion_name, "partner_name": context.partner_name}
     blocks = []
     for section in sections:
         lines = memory_lines(context, exclude_ids=exclude_ids, exclude_texts=exclude_texts, lanes={section["lane"]})
@@ -459,5 +498,5 @@ def task_lines(context: PublicContext, receipts: list[dict] | None = None) -> li
     return lines
 
 
-__all__ = ["DialogueTurn", "Presentation", "PublicContext", "ability_lines", "build_public_context", "describe_elapsed", "feelings_in_words",
+__all__ = ["DialogueTurn", "EvidenceItem", "Presentation", "PublicContext", "ability_lines", "build_public_context", "describe_elapsed", "feelings_in_words",
            "format_moment", "memory_lines", "memory_sections", "plain_memory_text", "time_lines", "task_lines"]
