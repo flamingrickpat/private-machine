@@ -1031,17 +1031,17 @@ def features_to_history(features: List["Feature"]) -> List[MentalStateSample]:
     return sorted(samples, key=lambda sample: sample.timestamp)
 
 
-def reference_half_life_seconds(ego_strength: Optional[float]) -> float:
-    """Return the EMA half-life that ego strength sets, in seconds.
+def reference_half_life_seconds(ego_strength: Optional[float] = None) -> float:
+    """Return the EMA half-life of the mental state, in seconds.
 
     The old ``cognitive_cycle`` scaled the reference time frame by
-    ``|1 - ego_strength|`` of the previous state. A strong ego therefore
-    reacts to the newest events, and a weak ego keeps a long memory of mood.
-    ``ego_strength`` is None before the first cycle. Then the full frame applies.
+    ``|1 - ego_strength|`` of the previous state. That scaling is off for
+    now: nothing changes ego strength yet, so the full frame always applies.
     """
     minutes = float(MENTAL_STATE_REFERENCE_MINUTES)
-    if ego_strength is not None:
-        minutes *= abs(1.0 - ego_strength)
+    if False:  # Ego-strength scaling is disabled until ego strength has a source.
+        if ego_strength is not None:
+            minutes *= abs(1.0 - ego_strength)
     return max(1.0, minutes * 60.0)
 
 
@@ -1085,50 +1085,6 @@ def compute_mental_state(
     state = FullMentalState(state_personality=personality.model_copy())
     for part in (state.state_core, state.state_emotions, state.state_needs):
         part.from_vector(vector)
-    return state
-
-
-def compute_latent_state(
-    samples: List[MentalStateSample],
-    *,
-    personality: PersonalityProfile,
-    entity_id: Optional[int] = None,
-) -> FullMentalState:
-    """Return the raw latent state: the field defaults plus the sum of the deltas.
-
-    This is the ``level`` of :func:`compute_mental_state`, before the EMA
-    baseline. Appraisal works on it: the delta of a new appraisal is the
-    derived state minus this state. So the sum of all deltas stays the real
-    latent state, as the ``mental_state_delta_vec`` field of ``Feature``
-    describes. Each axis is clamped to its field bounds.
-
-    Core affect, emotions, and needs sum over all samples. The relationship
-    sums over the samples of ``entity_id`` only. Without ``entity_id`` the
-    state has no relationship. Other parts keep their field defaults.
-    """
-    bounds = _collect_axis_bounds()
-    relationship_axes = set(StateRelationship.get_vector_positions().values())
-    level = FullMentalState().to_list()
-    partner = [0.0] * VectorModelReservedSize
-    axes = ema_axis_positions()
-    for sample in samples:
-        own = entity_id is not None and entity_id in sample.entity_ids
-        for pos, value in sample.delta.items():
-            if pos in relationship_axes:
-                if own:
-                    partner[pos] += value
-            elif pos in axes:
-                level[pos] += value
-    for pos in axes:
-        low, high = bounds[pos]
-        level[pos] = _clip(level[pos], low, high)
-        partner[pos] = _clip(partner[pos], low, high)
-    state = FullMentalState(state_personality=personality.model_copy())
-    for part in (state.state_core, state.state_emotions, state.state_needs):
-        part.from_vector(level)
-    if entity_id is not None:
-        state.state_relationship = StateRelationship.init_from_vector(partner)
-        state.state_relationship.entity_id = entity_id
     return state
 
 

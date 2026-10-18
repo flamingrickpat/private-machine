@@ -73,8 +73,8 @@ def _bounded(container, name: str, value: float) -> float:
 def appraise_state(base: FullMentalState, appraisal: AppraisalResult, *, entity_id: int | None) -> tuple[FullMentalState, list[float]]:
     """Return the appraisal state and its delta vector for one appraisal answer.
 
-    ``base`` is the raw latent state at the start of the cycle
-    (:func:`~pm.records.mental_state.compute_latent_state`), with the
+    ``base`` is the EMA readout at the start of the cycle
+    (:func:`~pm.records.mental_state.compute_mental_state`), with the
     relationship toward ``entity_id`` when there is one.
 
     Steps:

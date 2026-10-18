@@ -13,7 +13,6 @@ from pm.records.mental_state import (
     StateEmotions,
     StateNeeds,
     StateRelationship,
-    compute_latent_state,
     compute_mental_state,
     compute_partner_expectation_profile,
     compute_relationship_state,
@@ -57,7 +56,8 @@ class EmaStateTests(unittest.TestCase):
         event = T0 + timedelta(hours=3)
         joyful = [*history, MentalStateSample(timestamp=event, delta={JOY: 0.5, SADNESS: -0.2})]
         state = _state(joyful, event)
-        self.assertGreater(state.state_emotions.joy, 0.9)
+        # One delta of 0.5 over the scale floor reads as tanh(1.0), about 0.76.
+        self.assertGreater(state.state_emotions.joy, 0.7)
         # An emotion cannot fall below its default of 0.
         self.assertEqual(state.state_emotions.sadness, 0.0)
         # An axis without deltas stays at its default.
@@ -73,7 +73,7 @@ class EmaStateTests(unittest.TestCase):
         samples = [*_noise(12), MentalStateSample(timestamp=event, delta={JOY: 0.5})]
         values = [_state(samples, event + timedelta(hours=hours)).state_emotions.joy for hours in (0, 6, 24, 96)]
         self.assertEqual(values, sorted(values, reverse=True))
-        self.assertGreater(values[0], 0.9)
+        self.assertGreater(values[0], 0.7)
         self.assertLess(values[-1], 0.1)
 
     def test_an_event_after_a_long_gap_still_shows(self):
@@ -81,20 +81,19 @@ class EmaStateTests(unittest.TestCase):
         # half-lives erased the new event at once.
         event = T0 + timedelta(days=30)
         samples = [*_noise(12), MentalStateSample(timestamp=event, delta={JOY: 0.5})]
-        self.assertGreater(_state(samples, event).state_emotions.joy, 0.9)
+        self.assertGreater(_state(samples, event).state_emotions.joy, 0.7)
 
     def test_a_longer_half_life_keeps_the_feeling_longer(self):
         event = T0 + timedelta(hours=3)
         samples = [*_noise(12), MentalStateSample(timestamp=event, delta={JOY: 0.5})]
         later = event + timedelta(hours=12)
-        short = _state(samples, later, half_life=reference_half_life_seconds(0.9)).state_emotions.joy
-        long = _state(samples, later, half_life=reference_half_life_seconds(0.1)).state_emotions.joy
+        short = _state(samples, later, half_life=6 * HOUR).state_emotions.joy
+        long = _state(samples, later, half_life=48 * HOUR).state_emotions.joy
         self.assertLess(short, long)
 
-    def test_ego_strength_sets_the_half_life(self):
+    def test_the_half_life_ignores_ego_strength_for_now(self):
         self.assertEqual(reference_half_life_seconds(None), 24 * HOUR)
-        self.assertEqual(reference_half_life_seconds(0.5), 12 * HOUR)
-        self.assertEqual(reference_half_life_seconds(1.0), 1.0)
+        self.assertEqual(reference_half_life_seconds(0.5), 24 * HOUR)
 
     def test_personality_comes_from_the_persona(self):
         profile = PersonalityProfile(neuroticism=0.9)
@@ -103,18 +102,6 @@ class EmaStateTests(unittest.TestCase):
 
 
 class LatentStateTests(unittest.TestCase):
-    def test_level_is_the_defaults_plus_the_deltas_inside_the_bounds(self):
-        certainty = 12  # AppraisalGeneral.certainty. The EMA does not sum appraisal axes.
-        samples = [MentalStateSample(timestamp=T0, entity_ids=[1], delta={JOY: 0.7, CONNECTION: -0.2, TRUST: 0.3}),
-                   MentalStateSample(timestamp=T0, entity_ids=[2], delta={JOY: 0.6, TRUST: -0.5, certainty: 0.4})]
-        state = compute_latent_state(samples, personality=PersonalityProfile(), entity_id=1)
-        self.assertEqual(state.state_emotions.joy, 1.0)
-        self.assertAlmostEqual(state.state_needs.connection, 0.3)
-        self.assertEqual(state.appraisal_general.certainty, 0.5)
-        self.assertEqual(state.state_relationship.entity_id, 1)
-        self.assertAlmostEqual(state.state_relationship.trust, 0.3)
-        self.assertIsNone(compute_latent_state(samples, personality=PersonalityProfile()).state_relationship)
-
     def test_appraisal_and_cognition_deltas_do_not_add_up(self):
         ego = 202  # StateCognition.ego_strength
         samples = [MentalStateSample(timestamp=T0 + timedelta(minutes=index), delta={ego: 0.1}) for index in range(5)]

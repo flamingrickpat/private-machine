@@ -28,11 +28,11 @@ The next cycle reads that delta from the store as part of its history.
 
 | Input | Change | Output |
 | --- | --- | --- |
-| Causal feature history | Field defaults plus the sum of the deltas | Raw latent state (base) |
+| Causal feature history | EMA readout at the cycle time | Current readout (base of the appraisal) |
 | Appraisal axes | `compute_state_delta` derives core affect, emotions, relationship, and expression | Appraisal state |
 | Explicit emotion and need deltas | Add to the derived values, inside the field bounds | Appraisal state |
 | Expectation error | Moves valence, and joy or sadness | Appraisal state |
-| Appraisal state minus base | New sample in the history | Delta on the appraisal Feature |
+| Appraisal state minus current readout | New sample in the history | Delta on the appraisal Feature |
 | History with the new sample | EMA readout up to the cycle time | `CycleState.mental_state` |
 | `PersonaConfig.personality_profile` | Stable traits of the state | Personality-dependent expression and attention bias |
 
@@ -40,18 +40,18 @@ The next cycle reads that delta from the store as part of its history.
 
 [`workflows.main_cognition.phases.appraise.update_affect`][] runs these steps:
 
-1. Compute the half-life from the ego strength of the previous state.
+1. Compute the half-life.
    [`pm.records.mental_state.reference_half_life_seconds`][] returns
-   `MENTAL_STATE_REFERENCE_MINUTES * 60 * |1 - ego_strength|` seconds.
-   This ports the reference time frame of `ghost_codelets.cognitive_cycle`.
-2. Compute the base: the raw latent state.
-   [`pm.records.mental_state.compute_latent_state`][] adds the deltas of all causal features to the field defaults, inside the field bounds.
-   The relationship part sums the deltas of the partner entity only.
-3. [`workflows.main_cognition.affect.appraise_state`][] copies the base and sets the appraisal axes.
+   `MENTAL_STATE_REFERENCE_MINUTES * 60` seconds.
+   The old `ghost_codelets.cognitive_cycle` scaled this time frame by `|1 - ego_strength|`.
+   That scaling is off, because nothing changes ego strength yet.
+2. Compute the current readout.
+   [`pm.records.mental_state.compute_mental_state`][] reads the EMA state of the history at the cycle time.
+   [`pm.records.mental_state.compute_relationship_state`][] adds the relationship toward the partner.
+3. [`workflows.main_cognition.affect.appraise_state`][] copies the current readout and sets the appraisal axes.
    [`pm.records.mental_state.compute_state_delta`][] derives core affect, emotions, expression, and the relationship toward the partner.
    The explicit deltas and the expectation error then add to the derived values.
-   The delta is the appraisal state minus that copy.
-   So the new raw level equals the appraisal state.
+   The delta is the appraisal state minus that copy: the step from the current readout to the appraised state.
 4. Add the delta as a new sample at the cycle time.
    The EMA readout of the extended history becomes the cycle mental state.
 5. [`pm.records.mental_state.derive_expression`][] sets the expression readouts from that state.
@@ -81,12 +81,12 @@ A sample concerns an entity when the Feature names it in `entity_id` or in the r
 
 ## Departures from the old code
 
-- The old `cognitive_cycle` derived the delta against the normalized start state. Then the raw level drifts without a bound, and a saturated readout turns a moderate appraisal into a large negative delta. The first replay with that rule showed dominance and warmth at -1 after a warm message. The port derives the delta against the raw level, as the `mental_state_delta_vec` field description says ("the real delta from latent_state - previous_real_state"). The sum of the deltas is then the real latent state.
+- The delta is the step from the current readout to the appraised state, as in the old `cognitive_cycle`. The raw level is the running sum of all deltas and has no bound. That is intended: only the deviation of the level from its EMA baseline is read out. An earlier port derived the delta against the raw level. Its sign flips came from the old scale floor of 0.001, not from this rule. With that floor, one small delta pinned the readout at a bound.
 - The EMA sums only the parts that an appraisal changes. Old features carry deltas on appraisal axes and cognition from the replaced A07 projection. Summed, they put ego strength at 1.0 and so the half-life at 1 second. In the old generation these axes never had deltas, so they read their baseline.
 - The old EMA moved after the new delta. After a gap of several half-lives a new event then read as no change. The port moves the EMA first, so a new event always shows.
 - The old readout put every 0..1 axis at 0.5 without deviation. The port uses the field default, so a calm emotion reads 0 and a need reads 0.5.
 - The old global state kept only the features of entity 2, which was written into the code. The port uses all causal features for the global state and filters by entity only for the relationship.
-- The old code used the ego-strength time frame for the start state only, and 24 hours for the final state. The port uses the ego-strength half-life for the cycle state. The base is the raw level, which has no time frame.
+- The ego-strength time frame is off. The current readout and the cycle state both use the 24-hour half-life.
 - The old code read no time after the newest feature. The port adds the catch-up step to the cycle time, so the time between cycles has an effect.
 - The relationship entity id is an identifier, not an axis. The delta keeps 0 in its slot, so ids never add up.
 - No appraisal axis derives resentment, jealousy, or boredom. `compute_state_delta` keeps their current values, so only an explicit delta changes them.

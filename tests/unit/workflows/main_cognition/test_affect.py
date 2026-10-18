@@ -27,9 +27,11 @@ from pm.records.mental_state import (
     MentalStateSample,
     StateEmotions,
     StateRelationship,
+    compute_mental_state,
     create_empty_state,
     derive_expression,
     feature_state_sample,
+    reference_half_life_seconds,
     sparse_delta,
 )
 from pm.records.workspace import ShardKey
@@ -290,14 +292,16 @@ class UpdateAffectTests(unittest.TestCase):
         self.assertGreater(later.state.mental_state.state_needs.connection,
                            soon.state.mental_state.state_needs.connection)
 
-    def test_the_delta_is_measured_from_the_raw_level(self):
+    def test_the_delta_is_measured_from_the_current_readout(self):
         history = [MentalStateSample(timestamp=datetime(2026, 1, 1, hour), delta={JOY: 0.3}) for hour in range(2)]
         work = self._work(history, entity=False)
+        current = compute_mental_state(history, now=work.request.cycle_time,
+                                       half_life_s=reference_half_life_seconds(), personality=work.request.personality)
         affect = update_affect(work, AppraisalResult(emotion_delta={"joy": 0.2}))
-        # The neutral axes derive no joy. The explicit delta sets it to 0.2,
-        # and the raw level was 0.6, so the delta is -0.4.
-        self.assertAlmostEqual(affect.delta_vec[JOY], -0.4)
+        # The neutral axes derive no joy, so the explicit delta sets it to
+        # 0.2. The delta is the step from the current readout to that value.
         self.assertAlmostEqual(affect.appraisal_state.state_emotions.joy, 0.2)
+        self.assertAlmostEqual(affect.delta_vec[JOY], 0.2 - current.state_emotions.joy)
         self.assertEqual(affect.delta_vec[CERTAINTY], 0.0)
 
     def test_the_persona_personality_reaches_the_state(self):
