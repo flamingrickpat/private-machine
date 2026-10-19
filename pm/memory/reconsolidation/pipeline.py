@@ -53,7 +53,9 @@ from pm.memory.reconsolidation.schemas import (FactFiling, FactsAnswer, FilingAn
                                                NarrativeAnswer, NarrativeDefinition, ReconsolidationConfig,
                                                ReconsolidationPrompts, ReconsolidationReport, SummaryAnswer,
                                                load_prompts)
-from pm.memory.reconsolidation.story import count_tokens, feature_line, render_story, render_summaries
+from pm.memory.reconsolidation.story import count_tokens, feature_line, feature_text, render_story, render_summaries
+from pm.memory.media_alt import complete_alt_text
+from pm.records.media import image_ids
 from pm.memory.reconsolidation.temporal import (BUILD_ORDER, CHILD_LEVEL, LEVEL_TOPICAL, TimeRange,
                                                 closed_ranges)
 from pm.records.base import Provenance
@@ -240,8 +242,9 @@ class _Run:
 
     def topical(self, events: list[Feature]) -> None:
         """Cluster the unclustered events into topic blocks and summarize each block."""
-        vectors = self.embed([event.content for event in events])
-        tokens = [count_tokens(event.content) for event in events]
+        texts = [feature_text(event, self.store.find_image) for event in events]
+        vectors = self.embed(texts)
+        tokens = [count_tokens(text) for text in texts]
         gap = timedelta(minutes=RECONSOLIDATION_SESSION_GAP_MINUTES)
         sessions = [0]
         for previous, event in zip(events, events[1:]):
@@ -274,7 +277,7 @@ class _Run:
 
             def summarize(plan):
                 _, features, low, high = plan
-                story = render_story(features, self.time_format)
+                story = render_story(features, self.time_format, resolve=self.store.find_image)
                 summary = self.calls.json(self.system, self.fill(self.prompts.topic_summary, intro=self.intro,
                                                                  story=story), SummaryAnswer).summary
                 return summary, self.describe_state(story, low, high)
@@ -355,7 +358,7 @@ class _Run:
         raised here, and dropping evidence is worse than a long prompt.
         """
         inside = [item for item in features if span.contains(item.timestamp_world_begin)]
-        story = render_story(inside, self.time_format)
+        story = render_story(inside, self.time_format, resolve=self.store.find_image)
         if count_tokens(story) < self.config.summary_token_limit:
             return span, inside, [], story
         level = CHILD_LEVEL[span.level]
@@ -394,7 +397,7 @@ class _Run:
                 cluster, scene = plan
                 if not scene:
                     return []
-                story = render_story(scene, self.time_format, numbered=True)
+                story = render_story(scene, self.time_format, numbered=True, resolve=self.store.find_image)
                 found = self.calls.json(self.system, self.fill(self.prompts.facts_extract, intro=self.intro, story=story),
                                         FactsAnswer, context={"lines": len(scene)}).facts
                 if not found:
@@ -535,7 +538,7 @@ class _Run:
             evidence = [item for item in features if item.tick_id > (latest.last_refined_with_tick or -1)]
         else:
             evidence = features
-        lines = [feature_line(item, self.time_format) for item in evidence]
+        lines = [feature_line(item, self.time_format, self.store.find_image) for item in evidence]
         costs = [count_tokens(line) for line in lines]
         created: list[int] = []
         limit = (self.config.narrative_min_tokens + self.config.narrative_max_tokens) // 2
@@ -611,6 +614,10 @@ def reconsolidate(store, *, complete: TextCompletion, embeddings, config: Recons
     report = ReconsolidationReport(run_id=uuid.uuid4().hex[:12], forced=force)
     run = _Run(store, calls, embeddings, config, prompts, report, now or datetime.utcnow(), cancel,
                log or (lambda message: None))
+    # Memory reads images only as alt text. Write the missing ones first,
+    # so no "no description yet" reaches a summary, fact, or narrative.
+    complete_alt_text(store, [image_id for feature in run.story_features() for image_id in image_ids(feature.content)],
+                      complete, cancel=cancel)
     events = unclustered_events(store, config)
     report.unclustered_events = len(events)
     if not force and len(events) < config.trigger_events:

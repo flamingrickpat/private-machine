@@ -42,6 +42,7 @@ from pm.constants import CODELET_AGENT_ATTEMPTS, CODELET_AGENT_TIMEOUT_SECONDS
 from pm.host.mcp_listeners import serve_services
 from pm.llm.prompt_log import log_directory
 from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryView
+from pm.records.media import alt_text_view
 
 from workflows.main_cognition.csm_view import record_view
 from workflows.main_cognition.model_json import ModelFormatError
@@ -57,12 +58,15 @@ def prompt_text(job: AgentCodeletJob, problems: list[str]) -> str:
 
     ``problems`` holds the reasons why earlier sessions of this job failed.
     The new session reads them last, so it can avoid the same mistake.
+
+    A pm-coder session sends this text through its own model client, which
+    does not resolve image tags. Each tag therefore becomes its alt text here.
     """
     plan = "\n".join(f"- {item}" for item in job.retrieval_plan) or "- (no plan; use your judgment)"
     text = f"{job.story}\n\n{job.view}\n\n{job.instruction}\n\nRetrieval plan:\n{plan}"
     if problems:
         text += "\n\nEarlier attempts of this task failed:\n" + "\n".join(f"- {item}" for item in problems)
-    return text
+    return alt_text_view(text)
 
 
 def build_codelet_agent(ghost, environment, embeddings, cancel: threading.Event) -> CodeletAgent:

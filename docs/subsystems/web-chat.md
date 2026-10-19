@@ -8,7 +8,7 @@ The server runs in the app process on `127.0.0.1` and reads the live memory stor
 Every message on the page is an accepted record, so a restart shows the same history.
 
 Parent: [operator service](console.md).
-Related: [public dialogue](public-dialogue.md) and [publication and recovery](public-publication.md).
+Related: [public dialogue](public-dialogue.md), [publication and recovery](public-publication.md), and [images in records](multimodal-records.md).
 Code: [`pm.app.web_chat`][], [`pm.app.cli`][], and [`workflows.public_speech.user_input.UserInputProxy`][].
 
 ## Start
@@ -25,6 +25,8 @@ You need a character home folder with a `ghost.json` checkpoint.
 2. Open the URL that the app prints, for example `Web chat: http://127.0.0.1:8770/`.
 3. Type your name and select **Start chatting**.
 4. Type a message. Push Enter to send it. Push Shift+Enter for a new line.
+   To send images, select **+**, paste an image, or drop image files on the chat.
+   Each image shows a preview chip. Select its **×** to remove it.
 5. To stop the app, push Ctrl+C in the terminal.
 
 `--web-port <port>` changes the port. The default is `WEB_CHAT_PORT` in `pm/constants.py`.
@@ -70,9 +72,17 @@ All bodies are JSON. The models are in [`pm.app.web_chat`][].
 | --- | --- |
 | `GET /api/session` | [`ChatSession`][pm.app.web_chat.ChatSession]: companion name, user name, poll interval |
 | `GET /api/messages?after=<id>` | [`MessagePage`][pm.app.web_chat.MessagePage]: messages with an ID above `after`, `last_id`, and `thinking` |
-| `POST /api/messages` with `{"name": ..., "text": ...}` | [`PostResult`][pm.app.web_chat.PostResult]: the exchange correlation ID |
+| `POST /api/messages` with `{"name": ..., "text": ..., "images": [...]}` | [`PostResult`][pm.app.web_chat.PostResult]: the exchange correlation ID |
+| `GET /api/media/<record_id>/<image_id>` | The bytes of one image of one public dialogue record, with its MIME type |
 
-Each [`ChatMessage`][pm.app.web_chat.ChatMessage] has `id`, `speaker`, `text`, `timestamp` (UTC), `from_companion`, and `exchange_status`.
+Each [`ChatMessage`][pm.app.web_chat.ChatMessage] has `id`, `speaker`, `text`, `timestamp` (UTC), `from_companion`, `exchange_status`, and `images`.
+`images` lists the image ids of the record. `text` is the content without the image tags. The history never contains base64.
+The page shows each image as a thumbnail from `/api/media/...`. A click opens the full image.
+
+Each entry of `images` in a POST is a [`PostImage`][pm.app.web_chat.PostImage]: `media_type`, `data_b64`, and an optional file `name`.
+A message needs text, images, or both. It holds at most `WEB_CHAT_MAX_IMAGES` images of at most `WEB_CHAT_MAX_IMAGE_BYTES` each.
+The server checks the magic bytes against `media_type`. Invalid data, a wrong type, or an image tag in the text gives status 400.
+The body limit is `WEB_CHAT_MAX_IMAGE_BODY_BYTES`, because base64 makes the data one third larger.
 The history contains every public Dialogue feature, imported history included.
 The order is world time, then ID.
 A new message always has a higher ID and a later time, so the page appends the lines after its `last_id`.
@@ -89,7 +99,8 @@ An exception in a request is a runtime bug: the server passes it to the applicat
 A commit holds the same lock while it validates, writes `ghost.json`, and installs the new records.
 So a read sees the state before or after a commit, never a part of one.
 
-A POST calls `UserInputProxy.submit(text, speaker=name)`.
+A POST calls `UserInputProxy.submit(text, speaker=name, images=[...])`.
+Submit attaches the images to the Dialogue feature and appends their tags (see [images in records](multimodal-records.md)).
 Submit commits the message before it puts the `user.input` event on the bus, so the next poll shows the message.
 The page polls every `WEB_CHAT_POLL_MS` milliseconds and once directly after a send.
 
@@ -123,3 +134,4 @@ The startup event records the offline gap.
 - Each poll scans all features under the store lock. A very large store makes each poll slower.
 - A closed console window gives Windows about 5 seconds for the stop. A long model call can cut it; the last commit still survives.
 - The page shows only public dialogue. It does not show thoughts, tasks, or workflow events.
+- Images in companion replies are not supported. Only human messages carry images.

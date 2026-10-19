@@ -1,0 +1,14 @@
+# Prompts of the alt-text call (pm.memory.media_alt). The call is unconscious
+# and neutral: it describes the image, it does not speak as any character.
+system_prompt: |
+  You write alt text for images. Alt text is a short, factual description
+  for a reader who cannot see the image. Describe only what is visible.
+  Do not guess names, intentions, or feelings. Do not address anyone.
+instruction: |
+  Describe what the image shows, in one or two short sentences of plain text.
+  Name the main subject first, then the most important details (colors,
+  setting, action). If the image contains readable text, add it at the end
+  as: Text in the image: "...". Answer with the alt text only.
+repair: |
+  That answer cannot be used: {problem}
+  Answer again with the alt text only: one or two short sentences of plain text.

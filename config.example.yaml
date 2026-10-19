@@ -19,3 +19,11 @@ embedding:
   dimensions: 1024
   legacy_cache_dir: ~/.pm/embeddings
   cache_dir: .runtime/embeddings
+# Optional MCP tools of the companion (docs/workflows/tool-call.md). Without servers, the
+# tool_call workflow is not registered. ${NAME} in a header reads the environment or .env.
+# tool_call:
+#   mcp_servers:
+#     - name: image_gen
+#       url: http://127.0.0.1:9877/mcp
+#       headers:
+#         Authorization: Bearer ${IMAGE_MCP_TOKEN}

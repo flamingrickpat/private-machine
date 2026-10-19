@@ -102,7 +102,9 @@ class ActionDispatch(BaseModel):
     exactly as the decide phase wrote it. The route phase never rewrites it.
     The target workflow reads it as the intent of the action: the public
     workflows read it from the stored action record. A tool workflow reads
-    its task from ``arguments.instructions`` when the route supplies it.
+    its task from ``arguments.instructions`` when the route supplies it. A
+    workflow in ``route.DECISION_GOAL_WORKFLOWS`` (``tool_call``) never gets
+    routed instructions: its goal is this decision text, unchanged.
 
     ``group``, ``stimulus_ids``, and ``correlation_id`` come from the
     stimulus group of the decision. The host publishes the action with that

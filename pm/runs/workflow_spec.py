@@ -46,6 +46,21 @@ class WorkflowSpec:
     resumable: bool = False
     #: Extra request fields, read from the memory store under its lock at each launch.
     request_context: Callable[[Any], Mapping[str, Any]] | None = None
+    #: Extra request fields from the memory store and the accepted run arguments.
+    #: The supervisor calls it under the store lock at each launch, after
+    #: ``request_context``. The arguments hold the dispatch identity that the
+    #: start pinned (for example ``_public_action_schema_id``), so a workflow
+    #: can read the context of the cycle that chose the action. Launch-time
+    #: context alone cannot name that cycle.
+    dispatch_context: Callable[[Any, Mapping[str, Any]], Mapping[str, Any]] | None = None
+    #: Called once for each run of this workflow that a restart found
+    #: interrupted, before its terminal hook. It receives the receipt and can
+    #: retain a terminal report in the artifact folder. It must not repeat an
+    #: external effect, and a repeated call must change nothing.
+    on_interrupted: Callable[[Mapping[str, Any]], None] | None = None
+    #: Re-reads retained evidence of a terminal run before a public reply. It
+    #: receives the receipt and returns fields that the reply evidence adds.
+    reply_evidence: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None
     #: The workflow selects an accepted memory view at each native decision group.
     memory_config_factory: Callable[[Any, Any], MemoryToolConfig] | None = None
     #: Admit one active run. A cancelled worker retains its slot through cleanup.

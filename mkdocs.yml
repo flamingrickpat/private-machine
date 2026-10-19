@@ -44,6 +44,7 @@ nav:
       - Artifact classification demo: workflows/classification-demo.md
       - Minecraft run: workflows/minecraft.md
       - Minecraft evidence and cleanup: workflows/minecraft-evidence.md
+      - MCP tools for one goal: workflows/tool-call.md
   - Concepts:
       - System map: concepts/architecture.md
       - Evidence and quality: concepts/evidence.md
@@ -74,6 +75,7 @@ nav:
       - Managed memory lifecycle: subsystems/agent-memory-lifecycle.md
       - Experience consolidation: subsystems/memory-consolidation.md
       - Character import and memory reconsolidation: subsystems/character-import.md
+      - Images in records: subsystems/multimodal-records.md
       - Public dialogue: subsystems/public-dialogue.md
       - Public publication and recovery: subsystems/public-publication.md
       - Asynchronous conversation review: subsystems/async-conversation-review.md

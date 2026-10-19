@@ -12,7 +12,9 @@ import tiktoken
 from pm.llm.http_client import ModelError, cancellable
 from pm.llm.config import Connection
 from pm.llm.workflow_sessions import serving_context
-from pm.llm.prompt_encoding import OpenAIChatEncoder, TurnInput, normalize_turns
+from pm.llm.prompt_encoding import TurnInput, normalize_turns
+from pm.llm.multimodal import encode_messages, prompt_image_count
+from pm.constants import PROMPT_IMAGE_TOKENS
 from pm.context_render.turns import Text
 
 
@@ -27,12 +29,13 @@ async def measure_context(connection: Connection, messages: Sequence[TurnInput],
     if cancel.is_set():
         raise asyncio.CancelledError
     context, source = await serving_context(connection, cancel)
-    has_media = any(any(not isinstance(part, Text) for part in turn.content.parts) for turn in normalize_turns(messages))
+    has_media = prompt_image_count(messages) > 0 or any(
+        any(not isinstance(part, Text) for part in turn.content.parts) for turn in normalize_turns(messages))
     parts = urlsplit(connection.base_url)
     root = urlunsplit((parts.scheme, parts.netloc, parts.path.removesuffix("/v1"), "", ""))
     key = connection.api_key.get_secret_value()
     headers = {"Authorization": "Bearer " + key} if key else {}
-    payload = {**OpenAIChatEncoder().encode(messages), "add_generation_prompt": True}
+    payload = {**encode_messages(messages), "add_generation_prompt": True}
     from pm.llm.activation import provider_generation
     generation = provider_generation(connection, generation)
     for field in ("chat_template_kwargs", "tools"):
@@ -81,13 +84,17 @@ def estimate_tokens(model: str, messages: Sequence[TurnInput]) -> tuple[int, str
     except KeyError:
         encoding = tiktoken.get_encoding("o200k_base")
     turns = normalize_turns(messages)
+    images = prompt_image_count(turns)
     media = any(any(not isinstance(part, Text) for part in turn.content.parts) for turn in turns)
-    count = 24
+    # Each image part (a resolved tag or a direct image) adds a fixed planning
+    # estimate. Image tags outside the last-N rule are text and count as text.
+    count = 24 + images * PROMPT_IMAGE_TOKENS
     for turn in turns:
         values = [turn.role.value, *turn.content.notes, *(part.text for part in turn.content.parts if isinstance(part, Text))]
         values.extend(str(value) for value in (turn.tool_calls, turn.tool_call_id, turn.name) if value)
         count += 12 + sum(len(encoding.encode(value, disallowed_special=())) for value in values)
-    # Binary size cannot establish image or audio token usage. Label the
-    # text-only lower bound instead of tokenizing base64 as ordinary prose.
-    label = "estimated.text_only.media_unmeasured." if media else "estimated.tiktoken."
+    # Binary size cannot establish image or audio token usage. Images use the
+    # constant estimate above; other media stay unmeasured and are labelled.
+    label = ("estimated.text_only.media_unmeasured." if media and not images else
+             "estimated.images_by_constant." if images else "estimated.tiktoken.")
     return count, label + encoding.name

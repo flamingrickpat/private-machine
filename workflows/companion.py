@@ -32,6 +32,7 @@ from pm.runs.workflow_module import PROJECT_ROOT, WorkflowModule
 from pm.app.operator_config import default_config_path
 from pm.paths import REPO_ROOT
 from workflows.cognitive_control.schemas import ControlConfig
+from pm.llm.mcp_config import ToolCallConfig
 
 
 BANNER = "DUMMY COGNITION \u2014 no LLM calls\n"
@@ -43,13 +44,24 @@ REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
 DEFAULT_SEED = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
-def _managed_workflows(stage_model=None, embeddings=None, ghost=None) -> dict:
+def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call: ToolCallConfig | None = None) -> dict:
+    """Return the managed workflow specifications by name.
+
+    ``tool_call`` is registered only when its configuration names at least
+    one MCP server. Without tools, routing never offers it, so the companion
+    cannot claim tools it lacks. A missing header variable raises
+    McpConfigError here, at application start.
+    """
     from workflows.minecraft.host import build_minecraft_module_tools, persona_context, project_memory_config
     from workflows.note_task.steps import build_note_tools
     from workflows.memory_reconsolidation.host import build_reconsolidation_tools
 
     base = PROJECT_ROOT / "workflows" / "local_task"
-    return {
+    optional = {}
+    if tool_call is not None and tool_call.mcp_servers:
+        from workflows.tool_call.host import WORKFLOW_NAME, build_workflow_spec
+        optional[WORKFLOW_NAME] = build_workflow_spec(tool_call)
+    return {**optional,
         "local_task": WorkflowSpec(base / "local_task.workflow.md", namespace="local_task"),
         "local_task_question": WorkflowSpec(
             base / "local_task_question.workflow.md", namespace="local_task_question",
@@ -91,12 +103,14 @@ def _managed_workflows(stage_model=None, embeddings=None, ghost=None) -> dict:
     }
 
 
-def _cognition_workflow_options(supervisor) -> list[dict]:
+def _cognition_workflow_options(supervisor, tool_catalogue=None) -> list[dict]:
     """Build the main-cognition action space from the live configuration.
 
     Dialogue and self-management are always available. Managed workflow names
     come from the supervisor, so a configured workflow can steer work without
-    a code change.
+    a code change. ``tool_catalogue`` (a ``ToolCatalogue``) lists the MCP
+    tools in the ``tool_call`` description. Only the route prompt shows the
+    descriptions; the decide prompt never names tools.
     """
     options = [
         {"name": "dialogue_story", "description": "Generate one in-character Story reply."},
@@ -111,6 +125,12 @@ def _cognition_workflow_options(supervisor) -> list[dict]:
                         "minecraft": "One sustained survival specialist leaf. Standalone completion requires an explicit supported verifier, currently wood_return. Use minecraft_project for other goals that need verified completion.",
                         "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals. Inventory questions use direct Assistant observation."}
         description = descriptions.get(name, f"Managed workflow {name}.")
+        if name == "tool_call":
+            from workflows.tool_call.host import WORKFLOW_DESCRIPTION
+            # Without a catalogue (the static list at construction), no
+            # discovery runs; the route-time provider adds the tools.
+            description = WORKFLOW_DESCRIPTION + ("\n" + tool_catalogue.describe() if tool_catalogue is not None
+                                                  else " (listed at route time)")
         spec = supervisor.workflows[name]
         if spec.singleton:
             description += (f" One active run for {spec.singleton_key or name}. "
@@ -236,6 +256,7 @@ def build_app(
     world_quiet_seconds: float = 120.0,
     codelet_definitions: str | None = None,
     cognitive_control_config: ControlConfig | dict | None = None,
+    tool_call: ToolCallConfig | None = None,
 ) -> Application:
     """Construct an application without service activation.
 
@@ -248,6 +269,9 @@ def build_app(
     cognition; ``None`` uses ``workflows/main_cognition/codelets.yaml``.
     ``cognitive_control_config`` supplies wait, focus, mental-session, and
     private-episode limits. A one-second scheduler checks waits without inference.
+    ``tool_call`` gives the companion MCP tools. ``None`` reads the
+    ``tool_call`` section of the model configuration in real cognition;
+    dummy cognition has no tools.
     """
     if cognition not in {"real", "dummy"}:
         raise ValueError("cognition must be 'real' or 'dummy'.")
@@ -276,6 +300,12 @@ def build_app(
             ghost = MemoryStore.from_checkpoint(checkpoint)
         else:
             ghost = MemoryStore.from_yaml(Path(seed_path), checkpoint=checkpoint)
+    # Image tags in prompts and embeddings resolve through this store. Alt
+    # text comes from the same stage model as cognition. Without a model
+    # (dummy cognition), no lookup is installed and tags stay unresolved.
+    from pm.memory.media_alt import MediaLibrary
+    from pm.records.media import install_media_lookup
+    install_media_lookup(MediaLibrary(ghost, stage_model.complete) if stage_model is not None else None)
     target = MemoryBashTarget(ghost, mode="read")
     bus = BusSystem()
     tasks = TaskTable(clock)
@@ -289,11 +319,14 @@ def build_app(
     if cognition == "real":
         from pm.llm.config import load_config
         from pm.memory.embeddings import EmbeddingService
-        context_embeddings = EmbeddingService(load_config(resolved_config).embedding)
+        loaded = load_config(resolved_config)
+        context_embeddings = EmbeddingService(loaded.embedding)
+        if tool_call is None:
+            tool_call = loaded.tool_call
     supervisor = ManagedRunSupervisor(
         ghost,
         runtime_root=runtime_root,
-        workflows=_managed_workflows(stage_model, context_embeddings, ghost),
+        workflows=_managed_workflows(stage_model, context_embeddings, ghost, tool_call),
         clock=clock,
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,
@@ -428,6 +461,14 @@ def build_app(
             return snapshot
 
         main_cog.capability_provider = provider
+        if "tool_call" in supervisor.workflows:
+            # The tool list is discovered at route time and cached, so a
+            # server that starts later becomes visible without a restart.
+            from workflows.main_cognition.schemas import WorkflowOption
+            from workflows.tool_call.catalogue import ToolCatalogue
+            catalogue = ToolCatalogue(tool_call)
+            main_cog.workflow_catalogue_provider = lambda: [
+                WorkflowOption.model_validate(item) for item in _cognition_workflow_options(supervisor, catalogue)]
         def retrieval_query(text):
             from workflows.main_cognition.model_json import StageOutputError, extract_json
             raw = stage_model.complete([
@@ -537,6 +578,9 @@ def build_app(
         # Queue original pending requests before the startup cycle. Otherwise
         # startup can retrieve that request and execute it without its cause,
         # while asynchronous recovery dispatches it again in another cycle.
+        # Interrupted runs get their terminal report and consolidation first,
+        # so a recovered task reply reads the retained report.
+        supervisor.recover_interrupted()
         recovery.resume()
         inner_thought.resume()
         if focus_management is not None:

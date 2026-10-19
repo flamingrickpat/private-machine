@@ -156,6 +156,12 @@ class ReplyRecovery(BusModule):
         if not isinstance(source, ActionSchemaRecord) or source.action_type != ActionType.ToolCallAndReply:
             raise ValueError(f"Task reply lost its selected action: {source_id}")
         evidence = task_evidence(receipt)
+        # A workflow can re-read its own evidence (for example local artifact
+        # bytes) before the reply. This library imports no task workflow, so
+        # the check comes from the workflow's managed-run specification.
+        workflows = self.supervisor.workflows
+        if receipt["workflow_name"] in workflows and workflows[receipt["workflow_name"]].reply_evidence is not None:
+            evidence = {**evidence, **workflows[receipt["workflow_name"]].reply_evidence(receipt)}
         identity = f"task-reply:{receipt['run_id']}:{receipt['revision']}:{source.id}"
         with self.ghost.lock:
             prior = next((item for item in self.ghost.all_knoxels.values()

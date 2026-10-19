@@ -110,6 +110,10 @@ The report retains expected and actual hexadecimal bytes, SHA-256, session refer
 
 [`workflows.public_speech.reply_recovery.task_evidence`][] reads the report and verifies note bytes again before public dispatch.
 A changed file or extra newline invalidates task verification.
+A workflow can also declare `reply_evidence` in its specification.
+[`ReplyRecovery`][workflows.public_speech.reply_recovery.ReplyRecovery] adds its fields to the reply evidence.
+For `tool_call`, [`reply_evidence`][workflows.tool_call.report.reply_evidence] reads the report again and checks the bytes of each reported local file.
+`task_verified` stays false. See the [tool goal guide](../workflows/tool-call.md).
 The control worker always lacks that independent note verification.
 Expected input, model protocol, timeout, and file errors produce rejected note reports.
 Cancellation propagates to the worker, and unexpected logic errors keep their traceback.

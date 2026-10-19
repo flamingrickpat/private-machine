@@ -16,6 +16,8 @@ import yaml
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt, field_validator, model_validator
 
+from pm.llm.mcp_config import ToolCallConfig
+
 
 class LlmPreset(StrEnum):
     Default = "Default"
@@ -88,10 +90,17 @@ class EmbeddingConfig(ConnectionConfig):
 
 
 class ModelConfig(BaseModel):
+    """The model configuration file: chat connections, embeddings, and the companion's MCP tools.
+
+    ``tool_call`` is optional. Without it the companion has no MCP tools
+    (:class:`pm.llm.mcp_config.ToolCallConfig`).
+    """
+
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     chat: dict[LlmPreset, ConnectionConfig]
     embedding: EmbeddingConfig
+    tool_call: ToolCallConfig = Field(default_factory=ToolCallConfig)
 
     @model_validator(mode="after")
     def required_presets(self):

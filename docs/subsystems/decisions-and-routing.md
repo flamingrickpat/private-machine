@@ -89,6 +89,11 @@ Only this call gets the capability section of the private grounding turn.
 The route prompt holds every capability, Minecraft, task, and presentation rule of the old action selection prompt.
 It tells the model to keep the intent and the attitude of the decision.
 A tool workflow reads its task from `arguments.instructions`, so the route writes the task there.
+The [`tool_call`](../workflows/tool-call.md) workflow is the exception: its goal is the decision text itself.
+For a workflow in `DECISION_GOAL_WORKFLOWS` of the route phase, [`decision_goal_arguments`][workflows.main_cognition.phases.route.decision_goal_arguments] removes routed `instructions`.
+Other arguments, such as a short `tool_goal`, stay.
+The MCP tool list is in the `tool_call` workflow description. Only the route prompt shows that description.
+The decide prompt never names a tool.
 
 The answer is a [`RouteAnswer`][workflows.main_cognition.schemas.RouteAnswer].
 Validation rejects an unknown action type, an unavailable workflow, and an invalid Sleep duration.

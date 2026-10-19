@@ -421,6 +421,23 @@ class ManagedRunSupervisor:
                 raise
             self.on_error(error)
 
+    def recover_interrupted(self) -> None:
+        """Offer each interrupted run to its workflow and then to the terminal hook.
+
+        A checkpoint restart marks active runs ``interrupted``
+        (``MemoryStore.from_checkpoint``); no worker finished them, so no
+        terminal hook ran. A workflow with ``on_interrupted`` can retain its
+        terminal report first. Nothing resumes, and no external effect
+        repeats. The hook and consolidation are idempotent, so each restart
+        can call this method again.
+        """
+        for run_id, receipt in self.receipts().items():
+            spec = self.workflows[receipt["workflow_name"]] if receipt["workflow_name"] in self.workflows else None
+            if receipt["state"] != "interrupted" or spec is None or spec.on_interrupted is None:
+                continue
+            spec.on_interrupted(receipt)
+            self._notify_terminal(run_id)
+
     def _environment(self, receipt: ManagedRunReceipt) -> Any:
         spec = self.workflows[receipt.workflow_name]
         if spec.environment_factory is not None:
@@ -441,6 +458,9 @@ class ManagedRunSupervisor:
         if spec is not None and spec.request_context is not None:
             with self.ghost.lock:
                 payload.update(spec.request_context(self.ghost))
+        if spec is not None and spec.dispatch_context is not None:
+            with self.ghost.lock:
+                payload.update(spec.dispatch_context(self.ghost, dict(receipt.arguments)))
         return payload
 
     def _finish(self, run_id: str, result: WorkflowResult, environment: Any) -> None:
@@ -469,18 +489,22 @@ class ManagedRunSupervisor:
                            question=result.question)
                 return
             if result.status is WorkflowStatus.Completed:
+                # The report summary travels with the terminal event, so a
+                # private ToolCall result reaches cognition as words, not as
+                # a bare state. The summary is the workflow's claim, not proof.
+                summary = str(result.report["summary"]) if "summary" in result.report else ""
                 if result.report.get("accepted") is False:
                     self._transition(
                         run_id, state="failed",
                         latest_event=str(result.report.get("rejection_reason") or "workflow rejected its result"),
                         evidence=self._artifact_evidence(run_id, environment),
                     )
-                    self._emit(run_id, "failed")
+                    self._emit(run_id, "failed", detail=summary)
                     self._notify_terminal(run_id)
                     return
                 self._transition(run_id, state="completed", latest_event="completed",
                                  evidence=self._artifact_evidence(run_id, environment))
-                self._emit(run_id, "completed")
+                self._emit(run_id, "completed", detail=summary)
                 self._notify_terminal(run_id)
                 return
             self._transition(run_id, state="failed",

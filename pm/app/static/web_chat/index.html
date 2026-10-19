@@ -27,7 +27,10 @@
       <button id="logout" class="link" type="button">Change name</button>
     </header>
     <main id="messages" class="messages"></main>
+    <div id="attachments" class="attachments" hidden></div>
     <form id="composer" class="composer">
+      <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+      <button id="attach" class="attach" type="button" title="Attach images (or paste, or drop them here)">+</button>
       <textarea id="text" rows="1" placeholder="Write a message…"></textarea>
       <button id="send" type="submit" title="Send (Enter)">Send</button>
     </form>

@@ -20,6 +20,7 @@ An explicit [singleton setting](managed-singletons.md) limits active runs for a 
 A busy start returns its owner as workflow evidence. Cognition chooses the next management action.
 
 The configured targets include `local_task`, `local_task_question`, `note_task`, `minecraft`, and `minecraft_project`.
+The [`tool_call`](../workflows/tool-call.md) target exists only when the model configuration names MCP servers.
 `local_task` is a control worker and cannot execute arbitrary note instructions.
 `note_task` uses the real pm-coder driver and verifies exact UTF-8 file bytes.
 `minecraft_project` runs [durable subtasks](minecraft-tasks.md) with fresh actors and independent world verification.
@@ -37,6 +38,14 @@ Updates after the final instruction boundary fail.
 
 Checkpoint restoration changes active receipts to `interrupted`.
 It does not resume an external task automatically.
+At start, [`pm.runs.supervisor.ManagedRunSupervisor.recover_interrupted`][] gives each interrupted run with an `on_interrupted` hook to its workflow, then to the terminal hook.
+The `tool_call` workflow uses this hook to keep an `interrupted` report, so consolidation and a recovered reply can read it.
+
+A [`WorkflowSpec`][pm.runs.workflow_spec.WorkflowSpec] can declare `dispatch_context`.
+The supervisor calls it at launch with the store and the accepted run arguments.
+The arguments hold the action record id that self-management pinned at start.
+So a workflow can read the context of the cycle that chose the action, not only the store at launch time.
+A terminal event carries the report summary as its `detail`.
 [`workflows.memory_consolidation.artifact_consolidation.Consolidator`][] stores evidence from terminal artifacts.
 Repeated consolidation keys do not duplicate accepted memory.
 Changed inventories also reuse unchanged artifact memories through their proposal keys.

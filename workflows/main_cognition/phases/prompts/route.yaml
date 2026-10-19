@@ -51,8 +51,16 @@ user_template: |
     evidence arrives.
   - "workflow_name" is one of the workflows above. Never invent a workflow. A quiet type can leave it empty.
   - A tool workflow reads its task from "arguments". Write the concrete task into arguments.instructions, in plain
-    words, so the worker knows what to do. A dialogue workflow reads the decision itself: leave its arguments empty
-    unless a rule below names an argument. Never copy the decision into the arguments.
+    words, so the worker knows what to do. tool_call is the exception: it reads the decision itself (see its rule).
+    A dialogue workflow reads the decision itself: leave its arguments empty unless a rule below names an argument.
+    Never copy the decision into the arguments.
+  - If tool_call is available, use it when {companion_name} decides to make, find, look up, or change something that
+    one of its listed tools can do, for example to make an image or to look something up. Choose ToolCallAndReply
+    when {companion_name} will speak about the result, and ToolCall when the result stays private. The decision text
+    is the goal of the tool session; leave arguments.instructions empty. You may put one short concrete goal for the
+    tools into arguments.tool_goal, for example "an image of a cat on skis". Only the listed tools exist. A server
+    marked unavailable cannot help now, and a goal without a matching tool is not a tool action. A started tool
+    session is not a result: the later task receipt reports what really happened.
   - Never claim a capability that is not in the capability list. If {companion_name} cannot see, the action cannot
     rely on sight.
   - Honor an explicitly requested workflow. Do not silently add a second worker to a control-only request.

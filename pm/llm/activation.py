@@ -22,7 +22,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from pm.llm.http_client import JsonClient, ModelError, cancellable
 from pm.llm.config import Connection
 from collections.abc import Sequence
-from pm.llm.prompt_encoding import OpenAIChatEncoder, TurnInput, tool_calls_from_wire
+from pm.llm.multimodal import encode_messages
+from pm.llm.prompt_encoding import TurnInput, tool_calls_from_wire
 from pm.llm.completion import Completion, Reasoning
 from pm.llm.reasoning import ReasoningOptions
 from pm.context_render.turns import Role, Turn
@@ -245,7 +246,8 @@ class ChatClient:
                     measured = messages
                 input_tokens, _ = estimate_tokens(self.connection.model, measured)
                 generation.update(budget.generation(context_window=context, input_tokens=input_tokens, max_output_tokens=maximum))
-        encoded = OpenAIChatEncoder().encode(messages)
+        # Image tags become image parts or alt text here, and only here.
+        encoded = encode_messages(messages)
         outbound = provider_generation(self.connection, generation)
         with self.activation.use(self.connection):
             response = await self.client.request("POST", "chat/completions", payload={

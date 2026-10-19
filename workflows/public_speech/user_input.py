@@ -1,6 +1,7 @@
 """``UserInputProxy``: the bus module that turns terminal, console, or web input into records."""
 from __future__ import annotations
 
+from collections.abc import Sequence
 
 from pm.records.enums import EntityClass, FeatureType, InterlocusType, SourceKind
 
@@ -9,6 +10,7 @@ from pm.host.application import BusModule
 from workflows.public_speech.publication import acknowledge_reply
 from pm.bus.envelopes import new_envelope
 from pm.records.base import Provenance
+from pm.records.media import RecordImage, attach_images, with_tags
 from pm.records.memory_records import Entity, new_feature
 
 
@@ -22,7 +24,8 @@ class UserInputProxy(BusModule):
         self.ghost = ghost
         self.emit_reply = emit_reply
 
-    def submit(self, text: str, *, session: str = "", speaker: str | None = None) -> str:
+    def submit(self, text: str, *, session: str = "", speaker: str | None = None,
+               images: Sequence[RecordImage] = ()) -> str:
         """Commit one public message of a human speaker and announce it on the bus.
 
         ``speaker`` is the name of the person who speaks. ``None`` or the
@@ -35,9 +38,14 @@ class UserInputProxy(BusModule):
         The record commits before the bus event, so a crash after the commit
         keeps the pending exchange for recovery. Returns the exchange
         correlation ID.
+
+        ``images`` are attached to the dialogue record, and their tags follow
+        the text, one per line. With images, ``text`` may be empty.
         """
         correlation_id = new_id()
         metadata = {"exchange_correlation": correlation_id, "exchange_status": "pending", "session": session}
+        if images:
+            text = with_tags(text, attach_images(metadata, images))
         if speaker is None or speaker == self.ghost.get_user_name():
             feature = new_feature(
                 self.ghost, text, FeatureType.Dialogue,

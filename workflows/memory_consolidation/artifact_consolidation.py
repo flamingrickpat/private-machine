@@ -7,9 +7,15 @@ inventory hash. Repeating the request returns the original receipt instead of
 duplicating memories. A failed read or commit preserves the artifacts and
 leaves no partial accepted state.
 
-Text content is the only thing that may reach an embedding or a dialogue
-prompt. Screenshot base64 lives in knoxel ``evidence`` metadata and is never
-placed in a knoxel's ``content``.
+Screenshots use the shared record media (``pm.records.media``). A body
+episode stores every screenshot of its run as a :class:`RecordImage` in its
+metadata, with ``provenance.source="tool"``, the MCP server name, the tool
+name from the actor journal, the run id, and the artifact path. Its content
+ends with the tags of the newest ``BODY_EPISODE_TAGGED_IMAGES`` screenshots.
+The embedding path writes their alt text; prompts show them as real images
+under the last-N rule. ``evidence["images"]`` keeps the links to the source
+files (path, digest, image id), without base64. Base64 never enters
+``content``.
 """
 from __future__ import annotations
 
@@ -20,7 +26,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from pm.constants import BODY_EPISODE_TAGGED_IMAGES, MINECRAFT_MCP_SERVER
+from pm.records.media import MediaProvenance, RecordImage, attach_images, image_from_bytes, with_tags
 from pm.utils import yaml_util
+from workflows.minecraft_body.journal import read_actor_journal
 
 from pm.records.memory_records import Feature
 from pm.records.base import Provenance
@@ -123,6 +132,7 @@ class Consolidator:
                     continue
                 media_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
                 items.append({
+                    "artifact_root": str(root),
                     "path": f"{directory}/{path.name}",
                     "media_type": media_type,
                     "sha256": hashlib.sha256(raw).hexdigest(),
@@ -148,8 +158,15 @@ class Consolidator:
         run_id: str,
         inventory: list[dict],
         images: list[dict] | None = None,
+        root: Path | None = None,
     ) -> list[Any]:
-        """Convert the inventory into typed knoxels. No model is involved."""
+        """Convert the inventory into typed knoxels. No model is involved.
+
+        ``root`` is the run folder. A tool-call report
+        (``pm.tool-call-report.v1``) gets its own outcome record with the
+        typed report, the source action links, and the tool images
+        (:func:`workflows.tool_call.consolidation.tool_call_outcome`).
+        """
         images = images or []
         by_path = {item["path"]: item for item in inventory}
         metadata = {"run_id": run_id, "evidence": [item["path"] for item in inventory],
@@ -157,7 +174,10 @@ class Consolidator:
         proposals: list[Any] = []
 
         report = by_path.get("outbox/report.yaml")
-        if report is not None:
+        from workflows.tool_call.consolidation import is_tool_call_report, tool_call_outcome
+        if report is not None and root is not None and is_tool_call_report(self._parsed(report["text"])):
+            proposals.append(tool_call_outcome(run_id, report["text"], root))
+        elif report is not None:
             summary = self._report_summary(report["text"])
             proposals.append(Feature(
                 content=f"Task {run_id} outcome: {summary}",
@@ -253,28 +273,64 @@ class Consolidator:
             ]
             if not attached and images:
                 attached = [self._image_evidence(item) for item in images]
+            media = self._record_images(run_id, [images_by_path[item["source_artifact"]] for item in attached])
+            metadata = {"run_id": run_id, "kind": "episode"}
+            tags = attach_images(metadata, media)[-BODY_EPISODE_TAGGED_IMAGES:] if media else []
+            for item, image in zip(attached, media):
+                item["image_id"] = image.id
             proposals.append(BodyEpisodeRecord(
-                content=self._clip(
+                content=with_tags(self._clip(
                     f"Body episode for {episode.get('body_id', 'body')}: "
                     f"{episode.get('outcome', 'observed')}. {episode.get('goal', '')}{consequence}"
-                ),
+                ), tags),
                 body_id=str(episode.get("body_id", "body")),
                 goal=episode.get("goal"),
                 outcome=str(episode.get("outcome", "unknown")),
                 action_count=int(episode.get("action_count", 0)),
                 evidence={"images": attached, "run_id": run_id, "gameplay": episode.get("gameplay", {})},
-                metadata={"run_id": run_id, "kind": "episode"},
+                metadata=metadata,
             ))
         return proposals
 
     def _image_evidence(self, item: dict) -> dict:
+        """Return the link from a record to one screenshot file. The pixels go to the record media."""
         return {
             "media_type": item["media_type"],
-            "base64": item["base64"],
             "source_artifact": item["path"],
             "sha256": item["sha256"],
             "observed_at": item["observed_at"],
         }
+
+    @staticmethod
+    def _image_tools(root: Path) -> dict[str, str]:
+        """Map each screenshot path of the actor journal to the tool call that produced it.
+
+        The body gateway writes one result row per call, with the tool name
+        and the paths of its images. Files that no row names map to nothing.
+        """
+        return {frame["path"]: row["tool"] for row in read_actor_journal(root / "scratch" / "actor-journal.jsonl")
+                if row["event"] == "result" for frame in row["images"]}
+
+    def _record_images(self, run_id: str, items: list[dict]) -> list[RecordImage]:
+        """Return the screenshots as record images with tool provenance.
+
+        The magic bytes decide the MIME type, so a WebP file that the gateway
+        named ``.jpg`` still gets ``image/webp``. Invalid image data raises
+        ValueError: a screenshot that is not an image is a body tool bug.
+        """
+        tools = self._image_tools(Path(items[0]["artifact_root"])) if items else {}
+        return [image_from_bytes(base64.b64decode(item["base64"]), provenance=MediaProvenance(
+                    source="tool", server=MINECRAFT_MCP_SERVER, tool=tools.get(item["path"], ""),
+                    run_id=run_id, artifact_path=item["path"]))
+                for item in items]
+
+    @staticmethod
+    def _parsed(text: str) -> object:
+        """Return parsed report YAML, or None when the text is not YAML."""
+        try:
+            return yaml_util.safe_load(text)
+        except yaml_util.YAMLError:
+            return None
 
     @staticmethod
     def _report_summary(text: str) -> str:
@@ -316,7 +372,7 @@ class Consolidator:
         batch.guard_consolidation_run(run_id)
         existing_keys = {memory_key for receipt in batch._initial_consolidations.values()
                          if receipt.get("run_id") == run_id for memory_key in receipt.get("memory_keys", [])}
-        proposals = self.proposals(run_id, inventory, images)
+        proposals = self.proposals(run_id, inventory, images, root=Path(artifact_path))
         memory_ids: list[int] = []
         memory_keys: list[str] = []
         for proposal in proposals:

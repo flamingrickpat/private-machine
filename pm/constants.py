@@ -236,3 +236,23 @@ DEFAULT_UNSUPPORTED_CAPABILITIES = (
     "I cannot run external actions unless an integrated workflow exists for them.",
 )
 RECONSOLIDATION_TIME_FORMAT = "%A, %d %B %Y, %H:%M"  # Times in reconsolidation prompts. A numeric day.month.year format made the model read 01.05.26 as 5 January.
+
+# The tool_call workflow and its MCP servers (pm.llm.mcp_config, workflows.tool_call).
+TOOL_CALL_SESSION_SECONDS = 1800  # Deadline of one native tool session, in seconds. A timeout can follow a completed external effect.
+TOOL_CALL_REQUEST_SECONDS = 600  # Default deadline of one MCP tool request, in seconds.
+TOOL_CALL_TURN_LIMIT = 8  # Newest complete GWT turns, up to the source cycle, that the tool session reads.
+TOOL_DISCOVERY_SECONDS = 5.0  # Deadline of one MCP tool listing for the route prompt, in seconds (as the Minecraft discovery).
+TOOL_DISCOVERY_RETRY_SECONDS = 60.0  # A server that did not answer is asked again after this many seconds, so a down server does not delay every cycle.
+
+# Images in records (pm.records.media, pm.llm.multimodal, pm.memory.media_alt).
+MEDIA_MAX_IMAGE_BYTES = 8 * 1024 * 1024  # Largest decoded image that a record accepts, in bytes.
+PROMPT_MAX_IMAGES = 8  # Only the last this-many image tags of one prompt become real image parts; earlier tags become alt text.
+PROMPT_IMAGE_TOKENS = 1024  # Token estimate for one image part in context measurement. Providers bill images by tiles; this is a planning bound, not a count.
+ALT_TEXT_MAX_CHARS = 400  # Longest accepted alt text. A longer answer counts as invalid output and is retried.
+ALT_TEXT_ATTEMPTS = 4  # Model calls for one alt text before the error propagates (provider errors and invalid output).
+ALT_TEXT_TEMPERATURE = 0.2  # Sampling temperature of the alt-text call.
+WEB_CHAT_MAX_IMAGES = 6  # Most images in one web chat message.
+WEB_CHAT_MAX_IMAGE_BYTES = 5 * 1024 * 1024  # Largest decoded image in one web chat upload, in bytes.
+WEB_CHAT_MAX_IMAGE_BODY_BYTES = 48 * 1024 * 1024  # Largest POST body of a message with images (base64 grows the data by a third).
+MINECRAFT_MCP_SERVER = "pm-minecraft"  # Server name in the provenance of a Minecraft screenshot (pm.records.media.MediaProvenance.server).
+BODY_EPISODE_TAGGED_IMAGES = 3  # Newest screenshots of a body episode that get a tag in its content. All screenshots stay in the record's media.

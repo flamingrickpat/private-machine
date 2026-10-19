@@ -22,6 +22,7 @@ from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunne
 from workflows.memory_consolidation.schemas import ConsolidationReport
 from pm.memory.bash_view import MemoryBashEnvironment
 from pm.records.base import persisted_type_name
+from pm.records.media import record_media
 
 LOCAL_TASK = PROJECT_ROOT / "workflows" / "local_task"
 CONSOLIDATION_MANIFEST = (
@@ -164,13 +165,18 @@ class ConsolidatorTests(unittest.TestCase):
         self.assertIn("WorldObjectKnoxel", kinds)
         self.assertIn("BodyEpisodeKnoxel", kinds)
         episode = next(k for k in knoxels if persisted_type_name(type(k)) == "BodyEpisodeKnoxel")
-        image = episode.evidence["images"][0]
-        self.assertEqual(image["media_type"], "image/png")
-        self.assertEqual(image["source_artifact"], "screenshots/step-01.png")
-        self.assertTrue(image["base64"])
+        link = episode.evidence["images"][0]
+        self.assertEqual(link["media_type"], "image/png")
+        self.assertEqual(link["source_artifact"], "screenshots/step-01.png")
+        self.assertNotIn("base64", link)
+        # The pixels live in the shared record media, with tool provenance.
+        image = record_media(episode).images[0]
+        self.assertEqual((image.id, image.data(), image.provenance.source, image.provenance.artifact_path),
+                         (link["image_id"], png, "tool", "screenshots/step-01.png"))
+        self.assertTrue(episode.content.endswith(image.tag))
         # Base64 never enters textual content or a text embedding.
         for knoxel in knoxels:
-            self.assertNotIn("base64", str(getattr(knoxel, "content", "")))
+            self.assertNotIn(image.data_b64, str(getattr(knoxel, "content", "")))
             self.assertEqual(getattr(knoxel, "embedding", []) or [], [])
         # A repeated request reuses the same receipt and memory ids.
         again = self.consolidator.consolidate("world-run", artifact)

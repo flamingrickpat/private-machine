@@ -245,6 +245,10 @@ class MainCogLoop(CognitiveWorkflow):
         # Configuration supplies the action space. The decide phase uses its
         # default action space when this list is empty.
         self.workflow_catalogue = [WorkflowOption.model_validate(item) for item in workflow_catalogue or []]
+        # An optional provider rebuilds the action space at each cycle, for
+        # example with the MCP tools that are reachable now. Only the route
+        # prompt renders the descriptions.
+        self.workflow_catalogue_provider: Callable[[], list[WorkflowOption]] | None = None
         self.embedding_config_path = embedding_config_path
         self._embeddings = None
         self._cancelled_invocation_id: str | None = None
@@ -543,7 +547,8 @@ class MainCogLoop(CognitiveWorkflow):
             reflection_guidance=guidance,
             wait_default_seconds=control.config.wait_seconds if control is not None else 1800,
             capabilities=_capabilities(self.ghost),
-            available_workflows=self.workflow_catalogue,
+            available_workflows=(self.workflow_catalogue_provider() if self.workflow_catalogue_provider is not None
+                                 else self.workflow_catalogue),
             public_context=public,
             managed_runs=[ManagedRunView.model_validate(run)
                           for run in list(self.ghost.managed_runs.values())[-16:]],

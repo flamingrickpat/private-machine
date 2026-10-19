@@ -174,6 +174,10 @@ A provider failure (`ModelError`) repeats the call (at most three times).
 Transport errors and HTTP 429/5xx retry inside `JsonClient`.
 At most four calls of one stage run in parallel.
 
+Images in records reach reconsolidation only as alt text: a tag reads `[image: <alt text>]` in each story line.
+Before the first stage, `reconsolidate` writes the missing alt texts with `complete_alt_text`.
+See [images in records](multimodal-records.md).
+
 ### Mapping to the old code
 
 | Old principle (`DynamicMemoryConsolidator`) | New implementation | Change |

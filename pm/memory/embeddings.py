@@ -20,6 +20,17 @@ from threading import Event
 
 from pm.llm.http_client import JsonClient, ModelError
 from pm.llm.config import EmbeddingConfig
+from pm.records.media import alt_text_view, image_ids, media_lookup
+
+
+def embedding_text(text: str) -> str:
+    """Return the text that is embedded for ``text``: each image tag becomes its alt text.
+
+    The base64 data of an image is never embedded. A tag whose image has no
+    alt text yet reads ``[image: no description yet]``; ``embed`` completes
+    the alt text first, so a stored vector always uses the description.
+    """
+    return alt_text_view(text) if image_ids(text) else text
 
 
 def valid_vector(vector: list[float], dimensions: int) -> list[float]:
@@ -159,8 +170,21 @@ class EmbeddingService:
         self.last_response_model: str | None = None
 
     async def embed(self, text: str, *, cancel: Event | None = None) -> list[float]:
+        """Return the vector of ``text``, from the cache or from the endpoint.
+
+        Every embedding of record text passes here. If the text holds image
+        tags, the installed media lookup first writes the missing alt texts
+        (one multimodal model call per new image). The vector then belongs to
+        the text with the alt texts in place of the tags.
+        """
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError
+        ids = image_ids(text)
+        if ids:
+            lookup = media_lookup()
+            if lookup is not None:
+                await lookup.complete_alt_text(ids, cancel=cancel)
+            text = embedding_text(text)
         cached = self.cache.get(text)
         if cached is not None:
             return cached
@@ -175,7 +199,7 @@ class EmbeddingService:
     def inspect_index(self, visible_text: dict[int, str]) -> IndexPlan:
         plan = IndexPlan(hits=[], missing=[])
         for record_id, text in visible_text.items():
-            (plan.hits if self.cache.get(text) is not None else plan.missing).append(record_id)
+            (plan.hits if self.cache.get(embedding_text(text)) is not None else plan.missing).append(record_id)
         return plan
 
     async def prepare_index(self, visible_text: dict[int, str], *, cancel: Event | None = None, progress=None) -> IndexPlan:
@@ -190,7 +214,7 @@ class EmbeddingService:
         return plan
 
     async def search(self, query: str, visible_text: dict[int, str], *, cancel: Event | None = None) -> list[tuple[int, float]]:
-        vectors = {record_id: self.cache.get(text) for record_id, text in visible_text.items()}
+        vectors = {record_id: self.cache.get(embedding_text(text)) for record_id, text in visible_text.items()}
         if any(vector is None for vector in vectors.values()):
             raise ValueError("The scoped index is incomplete. Inspect and prepare it before search.")
         query_vector = await self.embed(query, cancel=cancel)

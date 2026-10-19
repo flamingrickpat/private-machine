@@ -22,6 +22,8 @@ from workflows.minecraft.schemas import MinecraftReport, MinecraftRequest
 from pm.host.folder_target import FolderEnvironment
 from workflows.minecraft_body.lease import BODY_LEASES
 from pm.records.base import persisted_type_name
+from pm.records.media import record_media
+from pm.constants import MINECRAFT_MCP_SERVER
 
 MANIFEST = PROJECT_ROOT / "workflows" / "minecraft" / "minecraft.workflow.md"
 PNG = b"\x89PNG\r\n\x1a\n" + b"deterministic-minecraft-frame"
@@ -153,9 +155,13 @@ class MinecraftConsolidationTests(MinecraftTestBase):
             self.assertIn("BodyEpisodeKnoxel", kinds)
             episode = next(k for k in knoxels if persisted_type_name(type(k)) == "BodyEpisodeKnoxel")
             self.assertEqual(episode.evidence["images"][0]["media_type"], "image/png")
-            self.assertEqual(
-                base64.b64decode(episode.evidence["images"][0]["base64"]), PNG,
-            )
+            # The screenshot is a record image with the tool that took it.
+            image = record_media(episode).images[0]
+            self.assertEqual(image.data(), PNG)
+            self.assertEqual((image.provenance.source, image.provenance.server, image.provenance.tool,
+                              image.provenance.run_id),
+                             ("tool", MINECRAFT_MCP_SERVER, "minecraft_observe", "minecraft-1"))
+            self.assertIn(image.tag, episode.content)
             # The task folder is preserved after durable storage succeeds.
             self.assertTrue((root / "task" / "outbox" / "world.yaml").is_file())
 

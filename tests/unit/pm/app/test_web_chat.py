@@ -5,6 +5,7 @@ dialogue input does. No model, bus, or application runs.
 """
 from __future__ import annotations
 
+import base64
 import json
 import shutil
 import tempfile
@@ -17,9 +18,12 @@ from pm.app.character_home import CharacterHome
 from pm.app.web_chat import STATIC_ROOT, WebChatServer, read_messages
 from pm.paths import REPO_ROOT
 from pm.records.enums import FeatureType, InterlocusType
+from pm.records.media import attach_images, record_media, with_tags
 from pm.records.memory_records import new_feature
 
 PERSONA = REPO_ROOT / "test_data" / "personas" / "cheerful" / "config.yaml"
+#: A real 1x1 PNG.
+PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
 
 def make_home(root: Path) -> CharacterHome:
@@ -42,11 +46,13 @@ class WebChatServerTests(unittest.TestCase):
         self.server.start()
         self.addCleanup(self.server.stop)
 
-    def submit(self, text: str, *, speaker: str) -> str:
+    def submit(self, text: str, *, speaker: str, images=()) -> str:
         """Commit the message as a pending public exchange, like the dialogue input."""
         self.calls.append((speaker, text))
+        metadata = {"exchange_correlation": f"c{len(self.calls)}", "exchange_status": "pending"}
+        text = with_tags(text, attach_images(metadata, images)) if images else text
         new_feature(self.store, text, FeatureType.Dialogue, source=speaker, interlocus=InterlocusType.Public,
-                    metadata={"exchange_correlation": f"c{len(self.calls)}", "exchange_status": "pending"})
+                    metadata=metadata)
         return f"c{len(self.calls)}"
 
     def reply(self, text: str) -> int:
@@ -129,6 +135,46 @@ class WebChatServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("script-src 'self'", headers["Content-Security-Policy"])
         self.assertIn(b'<script src="/app.js"', page)
+
+    def test_an_image_message_is_stored_served_and_listed_without_base64(self):
+        encoded = base64.b64encode(PNG).decode("ascii")
+        status, _, _ = self.request("/api/messages", {"name": "Jesse", "text": "what is this?",
+                                                      "images": [{"media_type": "image/png", "data_b64": encoded}]})
+        self.assertEqual(status, 200)
+        status, _, raw = self.request("/api/messages")
+        self.assertNotIn(encoded.encode("ascii"), raw)
+        message = json.loads(raw)["messages"][0]
+        self.assertEqual(message["text"], "what is this?")
+        self.assertEqual(len(message["images"]), 1)
+        record = self.store.get_knoxel_by_id(message["id"])
+        image = record_media(record).images[0]
+        self.assertEqual(record.content, "what is this?\n" + image.tag)
+        self.assertEqual((image.id, image.media_type, image.provenance.source),
+                         (message["images"][0], "image/png", "user_upload"))
+        self.assertEqual((image.width, image.height), (1, 1))
+        status, headers, body = self.request(f"/api/media/{message['id']}/{image.id}")
+        self.assertEqual((status, headers["Content-Type"], body), (200, "image/png", PNG))
+        self.assertEqual(self.request(f"/api/media/{message['id']}/img-unknown")[0], 404)
+        self.assertEqual(self.request(f"/api/media/x/{image.id}")[0], 404)
+
+    def test_an_image_only_message_is_accepted_and_bad_images_are_rejected(self):
+        encoded = base64.b64encode(PNG).decode("ascii")
+        status, _, _ = self.request("/api/messages", {"name": "Jesse",
+                                                      "images": [{"media_type": "image/png", "data_b64": encoded}]})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.calls[-1][1], "")
+        junk = base64.b64encode(b"not an image at all").decode("ascii")
+        status, _, body = self.request("/api/messages", {"name": "Jesse", "text": "x",
+                                                         "images": [{"media_type": "image/png", "data_b64": junk}]})
+        self.assertEqual(status, 400)
+        self.assertIn(b"Invalid image", body)
+        status, _, _ = self.request("/api/messages", {"name": "Jesse", "text": "x",
+                                                      "images": [{"media_type": "image/jpeg", "data_b64": encoded}]})
+        self.assertEqual(status, 400)
+        status, _, _ = self.request("/api/messages", {"name": "Jesse", "text": "see [image:img-0000]"})
+        self.assertEqual(status, 400)
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.errors, [])
 
     def test_session_names_the_companion_and_the_user(self):
         session = self.get_json("/api/session")

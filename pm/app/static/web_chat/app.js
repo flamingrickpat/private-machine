@@ -5,7 +5,12 @@
 const NAME_KEY = "pm.web_chat.name";
 // gen changes at each login, so a poll that started before it is discarded.
 const state = { session: null, name: "", lastId: 0, lastDate: "", typing: null, timer: null,
-                polling: false, again: false, gen: 0 };
+                polling: false, again: false, gen: 0, images: [] };
+// Matches WEB_CHAT_MAX_IMAGES and WEB_CHAT_MAX_IMAGE_BYTES in pm/constants.py.
+// The server checks the same limits; these give an early, clear message.
+const MAX_IMAGES = 6;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
 const $ = (id) => document.getElementById(id);
 
 function el(tag, className, text) {
@@ -41,11 +46,76 @@ function addMessage(message) {
   const row = el("div", "row " + (mine ? "mine" : "other") + (message.from_companion ? " companion" : ""));
   const bubble = el("div", "bubble");
   if (!mine) bubble.appendChild(el("div", "speaker", message.speaker));
-  bubble.appendChild(el("div", "text", message.text));
+  if (message.images.length) {
+    const strip = el("div", "images");
+    message.images.forEach((imageId) => {
+      const img = el("img");
+      img.src = "/api/media/" + message.id + "/" + encodeURIComponent(imageId);
+      img.alt = "image";
+      img.addEventListener("click", () => openViewer(img.src));
+      strip.appendChild(img);
+    });
+    bubble.appendChild(strip);
+  }
+  if (message.text) bubble.appendChild(el("div", "text", message.text));
   bubble.appendChild(el("div", "time", when.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })));
   bubble.title = when.toLocaleString();
   row.appendChild(bubble);
   box.insertBefore(row, state.typing);
+}
+
+function openViewer(src) {
+  const viewer = el("div", "viewer");
+  const img = el("img");
+  img.src = src;
+  viewer.appendChild(img);
+  viewer.addEventListener("click", () => viewer.remove());
+  document.body.appendChild(viewer);
+}
+
+function renderAttachments() {
+  const box = $("attachments");
+  box.replaceChildren();
+  state.images.forEach((image, index) => {
+    const chip = el("div", "chip");
+    const img = el("img");
+    img.src = image.url;
+    img.alt = image.name;
+    img.title = image.name;
+    const remove = el("button", "", "×");
+    remove.type = "button";
+    remove.title = "Remove";
+    remove.addEventListener("click", () => { state.images.splice(index, 1); renderAttachments(); });
+    chip.append(img, remove);
+    box.appendChild(chip);
+  });
+  box.hidden = state.images.length === 0;
+}
+
+function addFiles(files) {
+  for (const file of files) {
+    if (!IMAGE_TYPES.includes(file.type)) {
+      $("status").textContent = file.name + ": only PNG, JPEG, WebP, or GIF images.";
+      continue;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      $("status").textContent = file.name + ": larger than " + (MAX_IMAGE_BYTES >> 20) + " MB.";
+      continue;
+    }
+    if (state.images.length >= MAX_IMAGES) {
+      $("status").textContent = "At most " + MAX_IMAGES + " images per message.";
+      break;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      // A data URL is "data:<type>;base64,<data>". The server gets the data part.
+      const url = String(reader.result);
+      state.images.push({ name: file.name || "pasted image", media_type: file.type, url: url,
+                          data_b64: url.slice(url.indexOf(",") + 1) });
+      renderAttachments();
+    };
+    reader.readAsDataURL(file);
+  }
 }
 
 function setThinking(thinking) {
@@ -85,17 +155,20 @@ async function send(event) {
   event.preventDefault();
   const box = $("text");
   const text = box.value.trim();
-  if (!text) return;
+  if (!text && !state.images.length) return;
   $("send").disabled = true;
   try {
+    const images = state.images.map((image) => ({ media_type: image.media_type, data_b64: image.data_b64, name: image.name }));
     const response = await fetch("/api/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: state.name, text: text }),
+      body: JSON.stringify({ name: state.name, text: text, images: images }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error);
     box.value = "";
+    state.images = [];
+    renderAttachments();
     resize();
     scrollDown();
     poll();
@@ -160,6 +233,20 @@ async function start() {
     showLogin();
   });
   $("composer").addEventListener("submit", send);
+  $("attach").addEventListener("click", () => $("file").click());
+  $("file").addEventListener("change", () => { addFiles($("file").files); $("file").value = ""; });
+  $("text").addEventListener("paste", (event) => {
+    const files = [...event.clipboardData.items].filter((item) => item.kind === "file").map((item) => item.getAsFile());
+    if (files.length) { event.preventDefault(); addFiles(files); }
+  });
+  const chat = $("chat");
+  chat.addEventListener("dragover", (event) => { event.preventDefault(); chat.classList.add("dropping"); });
+  chat.addEventListener("dragleave", (event) => { if (event.target === chat || !chat.contains(event.relatedTarget)) chat.classList.remove("dropping"); });
+  chat.addEventListener("drop", (event) => {
+    event.preventDefault();
+    chat.classList.remove("dropping");
+    addFiles(event.dataTransfer.files);
+  });
   $("text").addEventListener("input", resize);
   $("text").addEventListener("keydown", (event) => {
     // Enter sends. Shift+Enter adds a line. An IME composition keeps Enter.

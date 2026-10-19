@@ -13,7 +13,10 @@ API:
 - ``GET /api/session`` returns :class:`ChatSession`.
 - ``GET /api/messages?after=<id>`` returns :class:`MessagePage`.
 - ``POST /api/messages`` with :class:`PostMessage` JSON calls the submit
-  callable and returns :class:`PostResult`.
+  callable and returns :class:`PostResult`. A message can carry images as
+  base64 (:class:`PostImage`); they are stored in the dialogue record.
+- ``GET /api/media/<record_id>/<image_id>`` returns the bytes of one image
+  of one public dialogue record, with its MIME type. History never holds base64.
 
 The server binds to ``127.0.0.1`` and has no authentication. The login name
 only selects the speaker. Anyone who can open the URL can speak as any name.
@@ -27,11 +30,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from pm.constants import WEB_CHAT_HOST, WEB_CHAT_MAX_BODY_BYTES, WEB_CHAT_MAX_NAME_CHARS, WEB_CHAT_POLL_MS
+from pm.constants import (WEB_CHAT_HOST, WEB_CHAT_MAX_BODY_BYTES, WEB_CHAT_MAX_IMAGE_BODY_BYTES, WEB_CHAT_MAX_IMAGE_BYTES,
+                          WEB_CHAT_MAX_IMAGES, WEB_CHAT_MAX_NAME_CHARS, WEB_CHAT_POLL_MS)
 from pm.memory.store import MemoryStore
 from pm.records.enums import FeatureType, InterlocusType
+from pm.records.media import IMAGE_TAG, MediaProvenance, RecordImage, image_from_base64, image_ids, record_media
+from pm.records.memory_records import Feature
 
 STATIC_ROOT = Path(__file__).resolve().parent / "static" / "web_chat"
 
@@ -47,8 +53,8 @@ STATIC_FILES = {
 CONTENT_SECURITY_POLICY = ("default-src 'self'; style-src 'self'; script-src 'self'; "
                            "connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'")
 
-#: Submit callable: ``submit(text, speaker=name)`` commits one message and
-#: returns its exchange correlation ID.
+#: Submit callable: ``submit(text, speaker=name, images=[RecordImage, ...])``
+#: commits one message and returns its exchange correlation ID.
 Submit = Callable[..., str]
 
 
@@ -57,7 +63,9 @@ class ChatMessage(BaseModel):
 
     ``timestamp`` is the world time of the record in UTC. ``exchange_status``
     is ``pending`` or ``resolved`` on a human message that waits for or got a
-    reply, and empty on other messages.
+    reply, and empty on other messages. ``images`` holds the image ids of the
+    record, in tag order; ``text`` is the content without the image tags.
+    The page loads each image from ``/api/media/<id>/<image id>``.
     """
 
     id: int
@@ -66,6 +74,7 @@ class ChatMessage(BaseModel):
     timestamp: datetime
     from_companion: bool
     exchange_status: str = ""
+    images: list[str] = Field(default_factory=list)
 
 
 class MessagePage(BaseModel):
@@ -90,13 +99,42 @@ class ChatSession(BaseModel):
     poll_ms: int
 
 
+class PostImage(BaseModel):
+    """One image of a posted message: its MIME type and its bytes as base64.
+
+    The server checks the bytes (:func:`pm.records.media.image_from_bytes`):
+    the magic bytes must match ``media_type``, and the decoded size must be
+    at most :data:`pm.constants.WEB_CHAT_MAX_IMAGE_BYTES`.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    media_type: str = Field(min_length=1)
+    data_b64: str = Field(min_length=1, repr=False)
+    name: str = ""
+
+
 class PostMessage(BaseModel):
-    """The body of ``POST /api/messages``. Names and text are stripped."""
+    """The body of ``POST /api/messages``. Names and text are stripped.
+
+    A message needs text, images, or both. It holds at most
+    :data:`pm.constants.WEB_CHAT_MAX_IMAGES` images. The text cannot hold
+    an image tag, so a user cannot point at another record's image.
+    """
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     name: str = Field(min_length=1, max_length=WEB_CHAT_MAX_NAME_CHARS)
-    text: str = Field(min_length=1)
+    text: str = Field(default="", max_length=WEB_CHAT_MAX_BODY_BYTES)
+    images: list[PostImage] = Field(default_factory=list, max_length=WEB_CHAT_MAX_IMAGES)
+
+    @model_validator(mode="after")
+    def _not_empty(self) -> "PostMessage":
+        if not self.text and not self.images:
+            raise ValueError("A message needs text or an image.")
+        if IMAGE_TAG.search(self.text):
+            raise ValueError("The text must not contain an image tag. Attach the image instead.")
+        return self
 
 
 class PostResult(BaseModel):
@@ -144,7 +182,8 @@ def read_messages(store: MemoryStore, after: int = 0) -> MessagePage:
                 continue
             speaker = feature.source
             lines.append(ChatMessage(
-                id=feature.id, speaker=speaker, text=feature.content,
+                id=feature.id, speaker=speaker, text=IMAGE_TAG.sub("", feature.content).strip(),
+                images=image_ids(feature.content),
                 timestamp=_utc(feature.timestamp_world_begin),
                 from_companion=speaker == companion,
                 exchange_status=_DialogueMetadata.model_validate(feature.metadata).exchange_status,
@@ -212,8 +251,29 @@ class WebChatServer:
             return name == companion or (companion_id is not None and self.store.get_entity_id(name) == companion_id)
 
     def post(self, message: PostMessage) -> PostResult:
-        """Hand one checked message to the submit callable."""
-        return PostResult(correlation_id=self.submit(message.text, speaker=message.name))
+        """Check the images of one message and hand it to the submit callable.
+
+        Invalid image data raises ValueError; the handler answers 400 then.
+        """
+        images = [self.image(item) for item in message.images]
+        return PostResult(correlation_id=self.submit(message.text, speaker=message.name, images=images))
+
+    @staticmethod
+    def image(item: PostImage) -> RecordImage:
+        """Return the validated record image of one upload. Bad data raises ValueError."""
+        image = image_from_base64(item.data_b64, item.media_type,
+                                  provenance=MediaProvenance(source="user_upload", artifact_path=item.name))
+        if image.size_bytes > WEB_CHAT_MAX_IMAGE_BYTES:
+            raise ValueError(f"The image has {image.size_bytes} bytes; the limit is {WEB_CHAT_MAX_IMAGE_BYTES}.")
+        return image
+
+    def media(self, record_id: int, image_id: str) -> RecordImage | None:
+        """Return one image of one public dialogue record, or None when the pair does not exist."""
+        record = self.store.get_knoxel_by_id(record_id)
+        if (not isinstance(record, Feature) or record.feature_type != FeatureType.Dialogue
+                or record.interlocus != InterlocusType.Public):
+            return None
+        return next((image for image in record_media(record).images if image.id == image_id), None)
 
 
 def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
@@ -270,6 +330,12 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
                 if not after.isdigit():
                     return self._json(ErrorResult(error="after must be a non-negative integer."), 400)
                 return self._json(read_messages(chat.store, int(after)))
+            if path.path.startswith("/api/media/"):
+                parts = path.path.removeprefix("/api/media/").split("/")
+                image = chat.media(int(parts[0]), parts[1]) if len(parts) == 2 and parts[0].isdigit() else None
+                if image is None:
+                    return self._json(ErrorResult(error="Unknown image."), 404)
+                return self._send(200, image.data(), image.media_type)
             if path.path in STATIC_FILES:
                 name, content_type = STATIC_FILES[path.path]
                 return self._send(200, (STATIC_ROOT / name).read_bytes(), content_type)
@@ -281,14 +347,20 @@ def _handler(chat: WebChatServer) -> type[BaseHTTPRequestHandler]:
             if not self._same_origin():
                 return self._json(ErrorResult(error="Cross-origin requests are rejected."), 403)
             length = self.headers["Content-Length"]
-            if length is None or not length.isdigit() or not 0 < int(length) <= WEB_CHAT_MAX_BODY_BYTES:
-                return self._json(ErrorResult(error=f"The body must have 1 to {WEB_CHAT_MAX_BODY_BYTES} bytes."), 413)
+            # Images arrive as base64 inside the JSON body, so the body limit
+            # covers several images. PostMessage limits the text separately.
+            if length is None or not length.isdigit() or not 0 < int(length) <= WEB_CHAT_MAX_IMAGE_BODY_BYTES:
+                return self._json(ErrorResult(error=f"The body must have 1 to {WEB_CHAT_MAX_IMAGE_BODY_BYTES} bytes."), 413)
             try:
                 message = PostMessage.model_validate_json(self.rfile.read(int(length)))
             except ValidationError as exc:
                 return self._json(ErrorResult(error=str(exc)), 400)
             if chat.names_the_companion(message.name):
                 return self._json(ErrorResult(error="This name belongs to the companion. Choose another name."), 400)
-            return self._json(chat.post(message))
+            try:
+                images = [chat.image(item) for item in message.images]
+            except ValueError as exc:
+                return self._json(ErrorResult(error=f"Invalid image: {exc}"), 400)
+            return self._json(PostResult(correlation_id=chat.submit(message.text, speaker=message.name, images=images)))
 
     return Handler

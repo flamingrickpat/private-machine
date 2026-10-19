@@ -22,6 +22,7 @@ from pm.records.global_workspace import GwtTurnRecord
 from pm.records.base import RecordBase
 from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel, ghost_state_from_dict, load_ghost_state_from_yaml
 from pm.memory.checkpoint import CommitReceipt, Checkpoint, read_checkpoint, write_checkpoint
+from pm.records.media import MEDIA_KEY, RecordImage, merge_alt_text, metadata_media
 
 
 serialize_knoxel = _serialize_knoxel
@@ -257,7 +258,12 @@ class MemoryStore(RecordIndex):
             state = self.state_dict()
             records = {raw["data"]["id"]: raw for raw in state["knoxels"]}
             records.update(deepcopy(batch._new))
-            records.update(deepcopy(batch._replacements))
+            for record_id, raw in batch._replacements.items():
+                replacement = deepcopy(raw)
+                # Alt text arrives after acceptance (annotate_alt_text). A
+                # replacement from an older view must not erase it.
+                merge_alt_text(replacement["data"]["metadata"], self._all_knoxels[record_id].metadata)
+                records[record_id] = replacement
             # Semantic vectors belong in the shared cache, not each checkpoint.
             for raw in records.values():
                 raw["data"]["embedding"] = []
@@ -311,6 +317,57 @@ class MemoryStore(RecordIndex):
                 knoxel._owner = self
             batch._closed = True
             return receipt
+
+    def find_image(self, image_id: str) -> RecordImage | None:
+        """Return the image with this id from the newest accepted record that holds it.
+
+        Image ids are content addressed, so every record that holds the id
+        holds the same bytes. The newest record has the newest alt text.
+        Returns None when no accepted record holds the image.
+        """
+        with self.lock:
+            for record_id in sorted(self._all_knoxels, reverse=True):
+                metadata = self._all_knoxels[record_id].metadata
+                if MEDIA_KEY not in metadata:
+                    continue
+                for image in metadata_media(metadata).images:
+                    if image.id == image_id:
+                        return image
+        return None
+
+    def annotate_alt_text(self, image_id: str, alt_text: str, source: str) -> list[int]:
+        """Store an alt text in every accepted record that holds the image, and save.
+
+        The alt text is a derived description, like an embedding: it does not
+        change what the record says. The write therefore keeps the record
+        revisions, so open write batches that read these records stay valid.
+        Their later replacements keep this alt text (see ``commit``). An
+        image that already has an alt text keeps it. Returns the changed ids.
+        """
+        changed = []
+        with self.lock:
+            for record_id, record in self._all_knoxels.items():
+                if MEDIA_KEY not in record.metadata:
+                    continue
+                media = metadata_media(record.metadata)
+                hit = False
+                for image in media.images:
+                    if image.id == image_id and not image.alt_text:
+                        image.alt_text, image.alt_text_source = alt_text, source
+                        hit = True
+                if hit:
+                    record.metadata = {**record.metadata, MEDIA_KEY: media.model_dump(mode="json")}
+                    changed.append(record_id)
+            if changed and self.checkpoint is not None:
+                state = self.state_dict()
+                for raw in state["knoxels"]:
+                    raw["data"]["embedding"] = []
+                write_checkpoint(self.checkpoint, Checkpoint(
+                    state=state, current_knoxel_id=self.current_knoxel_id, current_tick_id=self.current_tick_id,
+                    reserved_tick_id=self._reserved_tick_id, revisions=dict(self.revisions), gwt_turns=dict(self.gwt_turns),
+                    applied_commits=dict(self.applied_commits), managed_runs=deepcopy(self.managed_runs),
+                    consolidations=deepcopy(self.consolidations)), lambda: None)
+        return changed
 
     def store_knoxel(self, knoxel: RecordBase) -> RecordBase:
         """Commit one trusted host input through the same batch boundary."""

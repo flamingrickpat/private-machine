@@ -49,6 +49,7 @@ from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.phases.triage import CATEGORIES
 from workflows.main_cognition.schemas import (
     QUIET_ACTIONS,
+    ActionArguments,
     ActionDispatch,
     RouteAnswer,
     RouteCheck,
@@ -59,6 +60,10 @@ from workflows.main_cognition.story_prefix import StoryPrefix, shard_label
 
 #: Workflows that hold a body lease for their whole run, by the body they claim.
 BODY_WORKFLOWS = {"minecraft": "minecraft", "minecraft_project": "minecraft"}
+#: Workflows whose goal is the decision text itself. Their dispatch drops a
+#: routed ``instructions`` or ``instruction`` argument, so the start uses the
+#: decision text unchanged. Other arguments (for example ``tool_goal``) stay.
+DECISION_GOAL_WORKFLOWS = frozenset({"tool_call"})
 
 
 def stable_action_id(dispatch: ActionDispatch, index: int) -> str:
@@ -151,11 +156,26 @@ def action_dispatches(routes: list[RoutedDecision]) -> list[ActionDispatch]:
             continue
         dispatch = ActionDispatch(
             workflow_name=answer.workflow_name, action_type=answer.action_type, content=item.decision,
-            arguments=answer.arguments.model_copy(deep=True), presentation=answer.presentation.model_copy(deep=True),
+            arguments=decision_goal_arguments(answer.workflow_name, answer.arguments),
+            presentation=answer.presentation.model_copy(deep=True),
             group=item.group, stimulus_ids=list(item.stimulus_ids), correlation_id=item.correlation_id)
         dispatch.action_id = stable_action_id(dispatch, index)
         dispatches.append(dispatch)
     return dispatches
+
+
+def decision_goal_arguments(workflow_name: str, arguments: ActionArguments) -> ActionArguments:
+    """Return a copy of the routed arguments, without instructions for a decision-goal workflow.
+
+    A direct target in ``DECISION_GOAL_WORKFLOWS`` and a self-management start
+    of one both lose ``instructions`` and ``instruction``. Self-management then
+    starts the run with the decision text, unchanged (decision D28).
+    """
+    target = arguments.workflow_name if workflow_name == "self_management" and arguments.operation == "start" else workflow_name
+    if target not in DECISION_GOAL_WORKFLOWS:
+        return arguments.model_copy(deep=True)
+    return ActionArguments.model_validate({key: value for key, value in arguments.payload().items()
+                                           if key not in {"instructions", "instruction"}})
 
 
 def body_lease(dispatch: ActionDispatch) -> str:
@@ -262,11 +282,13 @@ def run(context, work: CycleWork) -> CycleWork:
 
 __all__ = [
     "BODY_WORKFLOWS",
+    "DECISION_GOAL_WORKFLOWS",
     "action_dispatches",
     "anticipate",
     "anticipation_job",
     "body_lease",
     "build_messages",
+    "decision_goal_arguments",
     "group_of",
     "render_group_stimuli",
     "render_memories",
