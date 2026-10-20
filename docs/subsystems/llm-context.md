@@ -32,6 +32,17 @@ The original request remains exact, and the agent resumes from retained work.
 A single oversized initial request with no execution history requires input selection rather than agent-history compaction.
 Long-file classification uses scoped agent reads and preserves required conclusions through compaction.
 
+## Embedding inputs fit the serving context
+
+A llama.cpp embedding server rejects input that is larger than its `n_ctx`.
+[`pm.memory.embeddings.EmbeddingService.embed`][] discovers that limit from `/props` for longer record text.
+[`pm.memory.embeddings.fit_embedding_text`][] then uses the server tokenizer to keep the longest prefix that fits.
+It counts the special tokens that the server adds, so the sent input stays inside the limit.
+
+A token cannot represent less than one UTF-8 byte.
+Inputs below 128 bytes therefore skip the tokenizer probe because they cannot fill a practical serving context.
+The cache key stays the full record text. The stored vector represents the fitted prefix.
+
 ## Direct project decisions use token percentages
 
 [`pm.llm.context_window.measure_context`][] measures the selected connection before each Minecraft project decision.

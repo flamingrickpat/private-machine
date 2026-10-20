@@ -142,8 +142,9 @@ Run the index tool once per seed so that every candidate has a vector:
 uv run --locked python dev/tools/prepare_context_index.py --seed test_data/personas/spamuel/canon.yaml
 ```
 
-The cache uses the configured `embedding.cache_dir` and the exact record text as its key.
+The cache uses the configured `embedding.cache_dir` and the full record text as its key.
 A checkpoint and its seed therefore share entries.
+A long record is embedded from the prefix that fits the serving context, but the key stays the full text.
 On 2026-10-13 the Spamuel seed had 2,941 score-lane records, and 354 were cached before the first run of the tool.
 
 ## Public context and commit guard

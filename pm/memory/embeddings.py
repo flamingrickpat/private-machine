@@ -17,11 +17,21 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
+from urllib.parse import urlsplit, urlunsplit
 
-from pm.llm.http_client import JsonClient, ModelError
+import httpx
+
+from pm.llm.http_client import JsonClient, ModelError, cancellable
 from pm.llm.cache import model_directory
-from pm.llm.config import EmbeddingConfig
+from pm.llm.config import Connection, EmbeddingConfig
+from pm.llm.workflow_sessions import serving_context
 from pm.records.media import alt_text_view, image_ids, media_lookup
+
+
+# A token cannot represent less than one UTF-8 byte. Inputs below this byte
+# length cannot fill a practical serving context, so they skip the tokenizer
+# probe. Servers with a context below this size are not supported targets.
+_SHORT_TEXT_BYTES = 128
 
 
 def embedding_text(text: str) -> str:
@@ -49,6 +59,64 @@ def cosine_similarity(left: list[float], right: list[float]) -> float:
     valid_vector(right, len(left))
     left_norm, right_norm = math.hypot(*left), math.hypot(*right)
     return math.fsum((a / left_norm) * (b / right_norm) for a, b in zip(left, right))
+
+
+async def fit_embedding_text(connection: Connection, text: str, cancel: Event | None = None) -> tuple[str, dict]:
+    """Cut text to the serving context before an embedding request.
+
+    llama.cpp rejects an embedding when the tokenized input is larger than
+    ``n_ctx``. The server's own tokenizer decides the length, so the count
+    matches inference. A server can add special tokens around the input; the
+    raw prefix keeps only the tokens that belong to the caller's text.
+
+    The return value is the text to send and a receipt with the discovered
+    context, original count, sent count, and truncation flag. If the endpoint
+    has no serving context or tokenizer route, the text stays unchanged. A
+    transport or protocol failure raises ModelError without prompt text.
+    """
+    try:
+        context, source = await serving_context(connection, cancel)
+    except ModelError:
+        return text, {"context_window": None, "context_source": None,
+                      "original_tokens": None, "input_tokens": None, "truncated": False}
+    parts = urlsplit(connection.base_url)
+    root = urlunsplit((parts.scheme, parts.netloc, parts.path.removesuffix("/v1"), "", ""))
+    key = connection.api_key.get_secret_value()
+    headers = {"Authorization": "Bearer " + key} if key else {}
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            special = await cancellable(client.post(root + "/tokenize", headers=headers, json={
+                "content": text, "add_special": True, "parse_special": True}), cancel)
+            if special.status_code in {404, 405, 501}:
+                return text, {"context_window": context, "context_source": source,
+                              "original_tokens": None, "input_tokens": None, "truncated": False}
+            special.raise_for_status()
+            special_tokens = special.json()["tokens"]
+            if not isinstance(special_tokens, list):
+                raise ValueError("Invalid token sequence.")
+            if len(special_tokens) <= context:
+                return text, {"context_window": context, "context_source": source,
+                              "original_tokens": len(special_tokens),
+                              "input_tokens": len(special_tokens), "truncated": False}
+            raw = await cancellable(client.post(root + "/tokenize", headers=headers, json={
+                "content": text, "add_special": False, "parse_special": True}), cancel)
+            raw.raise_for_status()
+            raw_tokens = raw.json()["tokens"]
+            if not isinstance(raw_tokens, list) or any(type(token) is not int for token in raw_tokens):
+                raise ValueError("Invalid token sequence.")
+            keep = context - (len(special_tokens) - len(raw_tokens))
+            if keep <= 0:
+                raise ValueError("The serving context cannot hold embedding input.")
+            response = await cancellable(client.post(root + "/detokenize", headers=headers,
+                json={"tokens": raw_tokens[:keep]}), cancel)
+            response.raise_for_status()
+            clipped = response.json()["content"]
+            if not isinstance(clipped, str):
+                raise ValueError("Invalid detokenized text.")
+    except (httpx.HTTPError, ValueError, KeyError, TypeError):
+        raise ModelError("Embedding context fit failed. Check the selected embedding endpoint and tokenizer.") from None
+    return clipped, {"context_window": context, "context_source": source,
+                     "original_tokens": len(special_tokens), "input_tokens": keep, "truncated": True}
 
 
 def parse_embedding_response(response: dict, config: EmbeddingConfig) -> list[float]:
@@ -82,7 +150,11 @@ class EmbeddingCache:
         self.misses = 0
 
     def content_key(self, text: str) -> str:
-        """Identify the exact embedding input, endpoint, model, and dimensions."""
+        """Identify the source record text, endpoint, model, and dimensions.
+
+        A long record keeps its cache entry under the full text. The stored
+        vector comes from the prefix that fits the serving context.
+        """
         return hashlib.sha256(json.dumps([self.endpoint, self.model, self.dimensions, text],
                                         ensure_ascii=False).encode("utf-8")).hexdigest()
 
@@ -180,7 +252,9 @@ class EmbeddingService:
         Every embedding of record text passes here. If the text holds image
         tags, the installed media lookup first writes the missing alt texts
         (one multimodal model call per new image). The vector then belongs to
-        the text with the alt texts in place of the tags.
+        the text with the alt texts in place of the tags. Text that exceeds
+        the serving context is cut to the longest prefix that fits. The cache
+        entry keeps the full source text as its key.
         """
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError
@@ -193,8 +267,13 @@ class EmbeddingService:
         cached = self.cache.get(text)
         if cached is not None:
             return cached
+        # Keep the cache key on the full record text. The vector then belongs
+        # to that record even when the endpoint sees only its prefix.
+        input_text = text
+        if len(text.encode("utf-8")) > _SHORT_TEXT_BYTES:
+            input_text, _ = await fit_embedding_text(self.client.connection, text, cancel)
         response = await self.client.request("POST", "embeddings", payload={
-            "model": self.client.connection.model, "input": text, "encoding_format": "float",
+            "model": self.client.connection.model, "input": input_text, "encoding_format": "float",
         }, cancel=cancel)
         vector = parse_embedding_response(response, self.config)
         self.last_response_model = response["model"]

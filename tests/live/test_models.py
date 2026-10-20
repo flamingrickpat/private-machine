@@ -10,9 +10,11 @@ import os
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Event
 from uuid import uuid4
 
-from pm.memory.embeddings import EmbeddingService, cosine_similarity
+from pm.memory.embeddings import EmbeddingService, cosine_similarity, fit_embedding_text
+from pm.llm.workflow_sessions import serving_context
 from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.http_client import ModelError
 from pm.llm.config import LlmPreset, load_config, resolve_connection
@@ -81,6 +83,28 @@ class LiveModelTests(unittest.IsolatedAsyncioTestCase):
             "response_model": service.last_response_model,
             "requests": service.client.request_count, "ranked_results": results,
             "new_cache_dir": str(service.cache.directory),
+        })
+
+    async def test_oversized_embedding_is_cut_to_serving_context(self):
+        service = EmbeddingService(self.config.embedding, live_test=True)
+        connection = service.client.connection
+        context, source = await serving_context(connection, Event())
+        long_text = f"Spamuel remembers a long cabin story. {uuid4().hex}. " * (context // 4 + 100)
+        fitted, receipt = await fit_embedding_text(connection, long_text, Event())
+        self.assertTrue(receipt["truncated"])
+        self.assertEqual(receipt["context_window"], context)
+        self.assertGreater(receipt["original_tokens"], context)
+        self.assertLessEqual(receipt["input_tokens"], context)
+        self.assertLess(len(fitted), len(long_text))
+        vector = await service.embed(long_text)
+        self.assertEqual(len(vector), self.config.embedding.dimensions)
+        self.assertEqual(service.client.request_count, 1)
+        self.assertEqual(service.cache.get(long_text), vector)
+        record_evidence("embedding-context-fit", {
+            "context_window": context, "context_source": source, "receipt": receipt,
+            "model": self.config.embedding.model, "dimensions": len(vector),
+            "requests": service.client.request_count,
+            "cache_key_is_full_text": service.cache.get(long_text) == vector,
         })
 
     async def test_generation_then_evaluator_and_activation_guards(self):
