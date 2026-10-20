@@ -1,14 +1,19 @@
 """The tool_call workflow: configuration, registration, routing, pinned dispatch, report, and memory.
 
-No test calls a model or an MCP server. The dispatch test runs the real
-kernel, supervisor, and consolidator; without a model connection the
-session stops at its ``blocked`` boundary before any external effect.
+No test calls a model. The probe test opens one real HTTP listener on the
+loopback interface; it does not speak the MCP protocol. The dispatch test
+runs the real kernel, supervisor, and consolidator; without a model
+connection the session stops at its ``blocked`` boundary before any
+external effect.
 """
 from __future__ import annotations
 
 import hashlib
 import os
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import socket
 import struct
+import threading
 import time
 import zlib
 from pathlib import Path
@@ -43,7 +48,7 @@ from workflows.tool_call.consolidation import tool_call_outcome
 from workflows.tool_call.host import WORKFLOW_DESCRIPTION, build_workflow_spec
 from workflows.tool_call.report import dump_report, reply_evidence, retain_interrupted_report
 from workflows.tool_call.schemas import ArtifactClaim, ArtifactEvidence, ToolCallReport, ToolImage
-from workflows.tool_call.steps import keep_tool_images, session_activity, split_tool_name
+from workflows.tool_call.steps import keep_tool_images, probe_mcp_servers, session_activity, split_tool_name
 
 MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
 SELF_MANAGEMENT = PROJECT_ROOT / "workflows" / "self_management" / "self_management.workflow.md"
@@ -243,6 +248,49 @@ def report_with_image(root: Path, run_id: str = "run-1") -> ToolCallReport:
         artifacts=[ArtifactEvidence(claim=ArtifactClaim(path="outbox/red.png", media_type="image/png", server="demo"),
                                     file_verified=True, sha256=digest, size_bytes=len(data))],
         action_id="action-1", action_schema_id=7, correlation_id="c-1")
+
+
+class McpProbeTests(unittest.TestCase):
+    """The reachability probe splits answering servers from unreachable ones."""
+
+    def test_a_listening_server_is_live_and_a_refused_port_is_dead(self):
+        server = HTTPServer(("127.0.0.1", 0), _RefuseHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            live_url = f"http://127.0.0.1:{server.server_port}/mcp"
+            dead_url = f"http://127.0.0.1:{_closed_port()}/mcp"
+            config = ToolCallConfig.model_validate({"mcp_servers": [
+                {"name": "up", "url": live_url}, {"name": "down", "url": dead_url}]})
+            self.assertEqual(probe_mcp_servers(config.mcp_servers, timeout_seconds=2.0), (["up"], ["down"]))
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    def test_report_keeps_configured_live_and_dead_server_names(self):
+        report = ToolCallReport(run_id="r", instruction="i", outcome="blocked", summary="s",
+                                mcp_server_names=["image_gen", "pm_minecraft"],
+                                mcp_live_servers=["pm_minecraft"], mcp_dead_servers=["image_gen"])
+        self.assertEqual(ToolCallReport.model_validate(yaml_util.safe_load(dump_report(report))).mcp_dead_servers,
+                         ["image_gen"])
+
+
+class _RefuseHandler(BaseHTTPRequestHandler):
+    """Answer every request with 400. Any HTTP status means the server listens."""
+
+    def do_GET(self) -> None:  # noqa: N802 - the http.server name
+        self.send_response(400)
+        self.end_headers()
+
+    def log_message(self, *args) -> None:
+        """Keep the test output clean."""
+
+
+def _closed_port() -> int:
+    """Return a loopback port that no process listens on."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
 
 
 class ReportAndMemoryTests(unittest.TestCase):

@@ -42,6 +42,33 @@ from workflows.tool_call.schemas import (
 IMAGE_SUFFIXES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}
 SKILL = Path(__file__).with_name("resources") / "execute.md"
 
+#: Seconds to wait for one MCP server to answer the reachability probe.
+MCP_PROBE_TIMEOUT_SECONDS = 3.0
+
+
+def probe_mcp_servers(servers: list[Any], timeout_seconds: float = MCP_PROBE_TIMEOUT_SECONDS) -> tuple[list[str], list[str]]:
+    """Return the names of the MCP servers that answer, and the names of those that do not.
+
+    The probe sends one HTTP request to each server URL and reads only the
+    transport result. Any HTTP status means the server listens. A connect
+    error or a connect timeout means it does not. The probe does not run the
+    MCP handshake, so it cannot prove that a server offers usable tools.
+
+    The native session opens every server in its MCP file at once, and one
+    server that refuses the connection stops the whole session. The caller
+    therefore keeps only the servers this probe returns as live.
+    """
+    live: list[str] = []
+    dead: list[str] = []
+    for server in servers:
+        try:
+            httpx.get(server.url, timeout=timeout_seconds)
+        except httpx.TransportError:
+            dead.append(server.name)
+        else:
+            live.append(server.name)
+    return live, dead
+
 
 def inspect_artifacts(environment: Any, claims: list[ArtifactClaim]) -> list[ArtifactEvidence]:
     """Read local file metadata after the agent stops. Never fetch external URIs.
@@ -224,13 +251,15 @@ def _execute(context: Any, report: ToolCallReport) -> None:
         report.correlation_id = source.correlation_id
         report.stimulus_ids = [item.knoxel_id for item in source.stimuli]
     config: ToolCallConfig = runtime.tools["tool_call_settings"]()
-    servers = [server.name for server in config.mcp_servers]
-    report.mcp_server_names = servers
-    if not servers:
+    report.mcp_server_names = [server.name for server in config.mcp_servers]
+    if not config.mcp_servers:
         report.outcome = "blocked"
         report.summary = "No MCP servers are configured for this tool goal."
         report.rejection_reason = report.summary
         return
+    # One unreachable server stops the native session before it makes any
+    # tool call. Probe after the cheap checks, keep the live servers, and
+    # name the dead ones in the report.
     instructions = runtime.tools["managed_instructions"]()
     report.instruction_revision = instructions["revision"]
     report.instruction = instructions["instruction"] or request.instruction
@@ -240,6 +269,18 @@ def _execute(context: Any, report: ToolCallReport) -> None:
         report.summary = "The tool goal needs a configured model connection."
         report.rejection_reason = report.summary
         return
+    live, dead = probe_mcp_servers(config.mcp_servers)
+    report.mcp_live_servers = live
+    report.mcp_dead_servers = dead
+    if not live:
+        report.outcome = "blocked"
+        report.summary = ("No configured MCP server answers: " + ", ".join(report.mcp_server_names)
+                          + (f". Unreachable: {', '.join(dead)}." if dead else "."))
+        report.rejection_reason = report.summary
+        return
+    if dead:
+        config = config.model_copy(update={"mcp_servers": [s for s in config.mcp_servers if s.name in live]})
+    servers = live
 
     mcp_file = context.kernel_data / "tool-call-mcp.json"
     log_root = context.kernel_data / "tool-call-agent"

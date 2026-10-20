@@ -270,6 +270,11 @@ class ToolCallReport(BaseModel):
     instruction_revision: int | None = None
     final_instruction_revision: int | None = None
     mcp_server_names: list[str] = Field(default_factory=list)
+    #: Servers that answered the reachability probe, and servers that did not.
+    #: The session opens only the live ones. A dead server is named here so a
+    #: reader can tell a missing tool from an unreachable server.
+    mcp_live_servers: list[str] = Field(default_factory=list)
+    mcp_dead_servers: list[str] = Field(default_factory=list)
     agent_session: str = ""
     trace_path: str = ""
     error_type: str = ""
