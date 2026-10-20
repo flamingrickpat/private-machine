@@ -96,14 +96,6 @@ If the MCP service already runs for this character, continue at step 3.
      probe_timeout_seconds: 5
    ```
 
-   ```powershell
-   Set-Location C:\source\pm\private-machine
-   $env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
-   $env:PM_MINECRAFT_HOST = '127.0.0.1'
-   $env:PM_MINECRAFT_PORT = '12345'
-   uv run --locked python main.py --home .runtime/characters/sunny --config <your-config>.yaml
-   ```
-
    Put the `minecraft` section in the file that you give with `--config`.
    `mcp_url` uses the MCP HTTP port, not the game port.
    pm asks the endpoint once at startup and exits when nothing answers.
