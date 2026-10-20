@@ -95,7 +95,7 @@ class ModelConfigTests(unittest.TestCase):
     def test_relative_script_and_cache_paths_use_config_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "models.yaml"
-            text = Path("config.example.yaml").read_text(encoding="utf-8")
+            text = Path("config.example.yaml").read_text(encoding="utf-8").replace("cache_dir: ~/.pm/private-machine/cache", "cache_dir: .runtime/embeddings")
             text = text.replace('startup_script: ""', 'startup_script: "start.ps1"')
             path.write_text(text, encoding="utf-8")
             config = load_config(path)

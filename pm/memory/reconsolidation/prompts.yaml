@@ -65,10 +65,10 @@ temporal_children: |
 
 mental_state: |
   {intro}
-  Here is one episode of the story, in time order:
-  ### BEGIN EPISODE
+  Here is one scene of the story, in time order:
+  ### BEGIN SCENE
   {story}
-  ### END EPISODE
+  ### END SCENE
 
   What was recorded about {companion_name}'s inner state during this episode:
   {recorded}
@@ -135,20 +135,20 @@ facts_classify: |
 narrative: |
   {intro}
   {card}
-  The current {label} narrative of {target}:
-  ### BEGIN NARRATIVE
-  {previous}
-  ### END NARRATIVE
-
   The new part of the story, in time order:
   ### BEGIN STORY
   {story}
   ### END STORY
 
+  The current {label} narrative of {target}:
+  ### BEGIN NARRATIVE
+  {previous}
+  ### END NARRATIVE
+
   Your task: act as the memory mechanism that keeps {target}'s {label} narrative. {goal}
   Update the narrative with the new part of the story. Keep what still holds, change what the new part
   contradicts, and add what it shows. Base every claim on the story. Write the complete narrative as prose in the
-  third person, at most 350 words, beginning with "{target}".
+  third person, at most 350 words and 6000 characters, beginning with "{target}".
 
   Answer with only this JSON object and nothing else:
   {{"narrative": "..."}}

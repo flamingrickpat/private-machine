@@ -283,7 +283,10 @@ def run_specialist_session(context) -> dict:
                     work_dir=context.workspace, runtime=agent_runtime, mcp_config=config,
                     trace_file=context.kernel_data / "actor-agent-trace.jsonl")
             runtime.check_cancelled()
-            outcome = ActorOutcome.model_validate(result.result_json)
+            from pm.llm.structured import repair_agent_result
+            outcome = repair_agent_result(result, ActorOutcome, model,
+                instruction="Report the completed Minecraft leaf: " + json.dumps(current_leaf, ensure_ascii=False),
+                cancel=runtime.stop_event)
             final_instruction = runtime.tools["managed_instructions"](close=True)
             if final_instruction["revision"] != gateway.revision:
                 outcome.status = "yield"

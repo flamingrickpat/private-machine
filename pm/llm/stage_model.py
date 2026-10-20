@@ -23,6 +23,7 @@ from pm.llm.http_client import ModelError
 from pm.llm.config import Connection
 from pm.llm.completion import AsyncTextCompletion, Completion, ToolCompletion
 from pm.llm.prompt_encoding import TurnInput
+from pm.llm.concurrency import inference_admission
 
 
 async def complete_with_retry(
@@ -58,6 +59,7 @@ class LazyStageModel:
         self.connection = connection
         self.owner = owner
         self.live_test = live_test
+        self.admission = inference_admission(connection.base_url)
         self._lock = Lock()
         self._client: ChatClient | None = None
         self._slots = BoundedSemaphore(max_concurrency)
@@ -144,6 +146,7 @@ class LazyStageModel:
         async def complete_async(messages: Sequence[TurnInput], **generation: object) -> str:
             return await self._complete(messages, generation)
 
+        complete_async.measure_context = self.measure_context
         return complete_async
 
     def build_tool_completion(self) -> ToolCompletion:

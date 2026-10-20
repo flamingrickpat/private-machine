@@ -3,7 +3,7 @@
 ## Summary
 
 Shared constants control direct PM reasoning and independent cognition calls.
-Each private operation receives a bounded reasoning allowance.
+All inner-thought stages disable reasoning.
 Codelets and attention batches run concurrently, then merge in a stable order.
 Public answers keep their separate generation and review steps.
 
@@ -17,7 +17,10 @@ Evidence: [reasoning and speed verification](../work_items/verification/inferenc
 [`pm.llm.reasoning.ReasoningBudget`][] supplies the arithmetic without importing companion behavior.
 [`pm.llm.activation.ChatClient`][] translates the resulting controls at the provider boundary.
 
-| Private operation group | Fraction of remaining output | Reasoning ceiling |
+The inner-thought runner selects the `off` profile for every stage, including reflection.
+The following profiles remain available for other explicit callers.
+
+| Reserved operation group | Fraction of remaining output | Reasoning ceiling |
 | --- | ---: | ---: |
 | notice | 2% | 512 tokens |
 | remember | 3% | 768 tokens |
@@ -115,7 +118,8 @@ Local wire translation has deterministic boundary checks; local inference remain
 ## Parallel execution and cancellation
 
 `CODELET_WORKERS` and `ATTENTION_WORKERS` each default to two.
-`CHAT_CONCURRENCY` defaults to four for the application-owned direct model.
+`CHAT_CONCURRENCY` bounds application workers at four.
+A shared HTTP admission gate admits one direct completion per endpoint at a time.
 The independent Jesse model and native worker sessions have separate owners.
 
 [`pm.llm.concurrency.ordered_parallel_map`][] joins all owned workers before returning.
@@ -183,3 +187,19 @@ Checkpoints continue to omit record embeddings, which live in the external embed
 An isolated 36 MB encoding benchmark produced identical bytes with both JSON writers.
 The single-write version took about 0.87 seconds; the streaming version took 2.79–4.26 seconds.
 This measures encoding and syncing, not the complete commit or conversation.
+
+## Foreground priority
+
+The private loop already runs on its own thread.
+[`pm.llm.concurrency.InferenceAdmission`][] controls direct completion admission across those threads.
+An active private completion finishes normally.
+Queued main cognition and dialogue events reserve foreground priority until their workflows finish.
+The reply reservation starts during dispatch, before the main reservation ends.
+Private inference resumes after the foreground reservations drain.
+Cancellation removes a waiting request from the queue.
+
+The shared story prefix remains unchanged.
+Reconsolidation summaries and state descriptions now share their scene prefix.
+Narrative evidence precedes the specific narrative and its instructions.
+Mental-work prompts place the shared workspace before the task instruction.
+These changes retain the supplied evidence and its order.

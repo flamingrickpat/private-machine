@@ -90,7 +90,7 @@ class EmbeddingTests(unittest.IsolatedAsyncioTestCase):
     def test_open_cache_reader_does_not_require_replacement(self):
         vector = [3.0, 4.0] + [0.0] * 1022
         self.service.cache.put("shared model input", vector)
-        target = self.service.cache.directory / f"emb_hash_{EmbeddingCache.content_key('shared model input')}.json"
+        target = self.service.cache.directory / f"cache_emb_{self.service.cache.content_key('shared model input')}.json"
         before = target.read_bytes()
         timestamp = target.stat().st_mtime_ns
         with target.open("r", encoding="utf-8") as reader:

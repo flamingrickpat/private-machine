@@ -19,6 +19,7 @@ from pathlib import Path
 from threading import Event
 
 from pm.llm.http_client import JsonClient, ModelError
+from pm.llm.cache import model_directory
 from pm.llm.config import EmbeddingConfig
 from pm.records.media import alt_text_view, image_ids, media_lookup
 
@@ -69,26 +70,28 @@ def parse_embedding_response(response: dict, config: EmbeddingConfig) -> list[fl
 class EmbeddingCache:
     def __init__(self, config: EmbeddingConfig):
         self.model = config.model
+        self.endpoint = config.base_url
         self.dimensions = config.dimensions
         self.legacy_dir = config.legacy_cache_dir.expanduser().resolve()
         cache_dir = config.cache_dir.expanduser().resolve()
         if cache_dir == self.legacy_dir or self.legacy_dir in cache_dir.parents:
             raise ValueError("Keep the writable application cache outside the read-only legacy cache.")
-        model_key = hashlib.sha256(self.model.encode("utf-8")).hexdigest()
-        self.directory = cache_dir / "v1" / model_key
+        self.directory = model_directory(self.model, cache_dir)
         self.hits = 0
         self.legacy_hits = 0
         self.misses = 0
 
-    @staticmethod
-    def content_key(text: str) -> str:
-        return hashlib.md5(text.encode("utf-8")).hexdigest()
+    def content_key(self, text: str) -> str:
+        """Identify the exact embedding input, endpoint, model, and dimensions."""
+        return hashlib.sha256(json.dumps([self.endpoint, self.model, self.dimensions, text],
+                                        ensure_ascii=False).encode("utf-8")).hexdigest()
 
     def _read(self, text: str, *, legacy: bool) -> list[float] | None:
-        key = self.content_key(text)
+        key = hashlib.md5(text.encode("utf-8")).hexdigest() if legacy else self.content_key(text)
         directory = self.legacy_dir if legacy else self.directory
         try:
-            meta = json.loads((directory / f"emb_hash_{key}.json").read_text(encoding="utf-8"))
+            filename = f"emb_hash_{key}.json" if legacy else f"cache_emb_{key}.json"
+            meta = json.loads((directory / filename).read_text(encoding="utf-8"))
             if meta["input"] != text or meta["model"] != self.model or meta["dimensions"] != self.dimensions:
                 return None
             if legacy:
@@ -99,6 +102,8 @@ class EmbeddingCache:
                 vector = list(struct.unpack_from(f"<{count}d", data, 8))
             else:
                 if meta["schema_version"] != 1:
+                    return None
+                if meta["endpoint"] != self.endpoint:
                     return None
                 vector = meta["vector"]
             return valid_vector(vector, self.dimensions)
@@ -129,7 +134,7 @@ class EmbeddingCache:
             return
         payload = {
             "schema_version": 1, "model": self.model, "input": text,
-            "dimensions": self.dimensions, "vector": vector,
+            "dimensions": self.dimensions, "vector": vector, "endpoint": self.endpoint,
         }
         self.directory.mkdir(parents=True, exist_ok=True)
         temporary = None
@@ -140,7 +145,7 @@ class EmbeddingCache:
                 stream.flush()
                 os.fsync(stream.fileno())
             try:
-                target = self.directory / f"emb_hash_{self.content_key(text)}.json"
+                target = self.directory / f"cache_emb_{self.content_key(text)}.json"
                 os.link(temporary, target)
             except FileExistsError:
                 if self._read(text, legacy=False) is None:

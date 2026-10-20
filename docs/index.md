@@ -1,9 +1,9 @@
-# Spamuel engineering manual
+# private-machine engineering manual
 
 ## Summary
 
-Spamuel connects cognitive workflows through an in-memory bus.
-Ghost owns accepted memory and checkpoints.
+private-machine connects cognitive workflows through an in-memory bus.
+The memory store owns accepted memory and checkpoints.
 The operator console controls isolated instances and records their execution evidence.
 This manual explains current behavior, test procedures, and the earlier implementation plan.
 
@@ -11,6 +11,7 @@ This manual explains current behavior, test procedures, and the earlier implemen
 
 | Task | Guide |
 | --- | --- |
+| Create a character and optionally import a sample history | [Example characters](workflows/example-characters.md) |
 | Run your own test Spamuel with a local LLM and Minecraft | [Jesse quickstart](workflows/jesse-quickstart.md) |
 | Start an instance and send a message | [Operator console](workflows/console.md) |
 | Change code and compare results | [Development loop](workflows/development.md) |

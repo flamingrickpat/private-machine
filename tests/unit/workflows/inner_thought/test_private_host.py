@@ -6,9 +6,12 @@ stands in for the kernel, exactly as the main cognition state tests do.
 from __future__ import annotations
 
 import json
+import asyncio
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from pm.bus.bus import BusSystem
 from pm.memory.bash_view import MemoryBashTarget
@@ -90,6 +93,75 @@ def _report(reports) -> dict:
                                                 "urgency": 0.25, "operations": ["curiosity_spark"],
                                                 "reason": "test"}])
     return run_cycle(request, lambda name, payload: reports[name]).model_dump(mode="json")
+
+
+class PriorityYieldTests(unittest.TestCase):
+    def test_user_input_finishes_active_inference_before_cancelling_private_work(self):
+        from pm.llm.concurrency import InferenceAdmission, background_inference
+        ghost = small_ghost()
+        with TemporaryDirectory() as directory:
+            module, _, _ = _module(ghost, _reports(), directory)
+            module.inference_admission = InferenceAdmission()
+            completed = []
+
+            def complete(messages, **generation):
+                async def call():
+                    with background_inference():
+                        async with module.inference_admission.slot(module.run_stop):
+                            module.yield_run()
+                            self.assertFalse(module.run_stop.is_set())
+                            completed.append("finished")
+                            return "answer"
+                return asyncio.run(call())
+
+            factory = build_inner_thought_tools(ghost, directory, complete,
+                cancel_provider=lambda: module.run_stop,
+                yield_provider=module.yield_requested.is_set)
+            with patch("workflows.inner_thought.host.build_inner_stage_runner",
+                       side_effect=lambda ghost, complete, *args, **kwargs: complete):
+                tools = factory(module.working_target.open("private"), None)
+            with self.assertRaises(asyncio.CancelledError):
+                tools["run_stage"]([])
+            self.assertEqual(completed, ["finished"])
+            self.assertTrue(module.run_stop.is_set())
+
+    def test_user_input_cancels_private_work_without_an_active_completion(self):
+        from pm.llm.concurrency import InferenceAdmission
+        with TemporaryDirectory() as directory:
+            module, _, _ = _module(small_ghost(), _reports(), directory)
+            module.inference_admission = InferenceAdmission()
+            module.yield_run()
+            self.assertTrue(module.run_stop.is_set())
+            self.assertTrue(module.yield_requested.is_set())
+
+
+class PrivateInferenceTests(unittest.TestCase):
+    def test_every_private_stage_disables_thinking(self):
+        from workflows.inner_thought.stage_runner import build_inner_stage_runner
+        from workflows.inner_thought.pipeline import STAGE_ORDER
+        from pm.runs.workflow_runner import WorkflowStatus
+        calls = []
+
+        def complete(messages, **generation):
+            calls.append(generation)
+            return "private output"
+
+        def invoke(request, runtime):
+            runtime.tools["llm_complete"]([], enable_thinking=True)
+            return SimpleNamespace(status=WorkflowStatus.Completed, report={})
+
+        with TemporaryDirectory() as directory, patch(
+                "workflows.inner_thought.stage_runner.WorkflowRunner.invoke", side_effect=invoke):
+            run_stage = build_inner_stage_runner(small_ghost(), complete, Path(directory))
+            for stage in STAGE_ORDER:
+                run_stage(stage, {"operation": {"group": "plan"}})
+
+        self.assertEqual(len(calls), len(STAGE_ORDER))
+        for generation in calls:
+            with self.subTest(generation=generation):
+                self.assertEqual(generation["reasoning_budget"].fraction, 0)
+                self.assertEqual(generation["reasoning_budget"].generation(
+                    context_window=8192, input_tokens=1000, max_output_tokens=4096), {"enable_thinking": False})
 
 
 class IdleCycleTests(unittest.TestCase):

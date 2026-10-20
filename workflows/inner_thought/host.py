@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import json
+from threading import Event
 import traceback
 
 from workflows.cognitive_control.schemas import ControlConfig
@@ -34,6 +35,8 @@ from pm.runs.workflow_module import CognitiveWorkflow
 
 from workflows.main_cognition.host import seconds_since_user_input
 from workflows.main_cognition.model_json import ModelFormatError
+from pm.llm.concurrency import background_inference
+from pm.llm.structured import context_measure
 from workflows.main_cognition.cycle_commits import active_intentions
 from workflows.inner_thought.expectations import open_expectation, pending_expectations, resolve_expectation
 from workflows.inner_thought.felt_state import (
@@ -49,7 +52,8 @@ from workflows.inner_thought.triggers import evaluate_triggers
 RECENT_THOUGHT_LIMIT = 8
 
 
-def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provider=None, embeddings=None):
+def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provider=None, embeddings=None,
+                              yield_provider=None):
     """Bind stages and bounded recall to the invocation's frozen read grant."""
     from pathlib import Path
 
@@ -60,6 +64,20 @@ def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provi
         scopes = {(raw["data"]["scope"]["reality_id"], raw["data"]["scope"]["frame"])
                   for raw in view.serialize_knoxels().values()}
         cancel = cancel_provider() if cancel_provider is not None else None
+
+        def complete(messages, **generation):
+            def check_yield():
+                if yield_provider is not None and yield_provider():
+                    if cancel is not None:
+                        cancel.set()
+                    raise asyncio.CancelledError
+
+            check_yield()
+            result = llm_complete(messages, **generation)
+            check_yield()
+            return result
+
+        complete.measure_context = context_measure(llm_complete)
 
         def retrieve_memory(query: str) -> dict:
             if not query.strip():
@@ -73,7 +91,7 @@ def build_inner_thought_tools(ghost, runtime_root, llm_complete, *, cancel_provi
             return result
 
         return {"run_stage": build_inner_stage_runner(
-            ghost, llm_complete, Path(runtime_root), read_environment=environment, cancel=cancel),
+            ghost, complete, Path(runtime_root), read_environment=environment, cancel=cancel),
             "retrieve_memory": retrieve_memory}
 
     return factory
@@ -83,6 +101,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     """The second conscious loop: scheduled private thought with its own shard."""
 
     WORKFLOW_NAME = "inner_thought"
+    inference_admission = None
     # The loop is timer-driven. It never reacts to bus traffic, so a main
     # cycle cannot cascade into an inner cycle into another main cycle.
     DATA_TOPICS = frozenset()
@@ -90,6 +109,17 @@ class PrivateThoughtLoop(CognitiveWorkflow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._published_thoughts: set[int] = set()
+        self.yield_requested = Event()
+
+    def yield_run(self) -> None:
+        """Finish active inference before yielding. Cancel queued work now.
+
+        The generation fence still rejects stale private proposals. Shutdown
+        continues to use cancel_run and interrupts in-flight I/O immediately.
+        """
+        self.yield_requested.set()
+        if self.inference_admission is None or not self.inference_admission.background_active:
+            self.cancel_run()
 
     def resume(self) -> None:
         """Replay unappraised accepted thoughts after interrupted delivery.
@@ -126,6 +156,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         retains its diagnostic beside the parent kernel artifacts and emits
         telemetry only. It is not an idle cycle. Other errors propagate.
         """
+        self.yield_requested.clear()
         control = getattr(self, "cognitive_control", None)
         if control is not None:
             with self.ghost.lock:
@@ -135,7 +166,8 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         self._end_expired_episode()
         self.resume()
         try:
-            super().handle_batch(batch)
+            with background_inference():
+                super().handle_batch(batch)
         except (ModelProposalError, ModelFormatError) as error:
             diagnostic = {
                 "invocation_id": self.invocation_id,

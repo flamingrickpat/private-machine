@@ -26,7 +26,9 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ModelError):
                     await client.request("POST", "chat/completions", payload=payload)
             prompt = next(Path(directory).glob("*.md"))
-            self.assertEqual(json.loads(prompt.with_suffix(".json").read_text())["payload"], payload)
+            logged = json.loads(prompt.with_suffix(".json").read_text())["payload"]
+            self.assertIsInstance(logged.pop("seed"), int)
+            self.assertEqual(logged, payload)
             self.assertIn("error", json.loads(prompt.with_suffix(".response.json").read_text())["event"])
             self.assertNotIn("private-credential-marker", "".join(
                 path.read_text() for path in Path(directory).iterdir()))

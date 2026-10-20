@@ -190,6 +190,10 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             runtime_root=runtime_root,
             ghost=ghost,
         )
+        admission = getattr(stage_model, "admission", None)
+        main_cog.inference_admission = admission
+        story.inference_admission = admission
+        assistant.inference_admission = admission
         self_management = SelfManagement(
             "self_management", bus, on_error, clock, None,
             working_target=target,
@@ -207,10 +211,12 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             workflow=PROJECT_ROOT / "workflows" / "inner_thought" / "inner_thought.workflow.md",
             tools_factory=build_inner_thought_tools(ghost, runtime_root, stage_model.complete,
                                                   cancel_provider=lambda: inner_thought.run_stop,
-                                                  embeddings=embeddings),
+                                                  embeddings=embeddings,
+                                                  yield_provider=lambda: inner_thought.yield_requested.is_set()),
             runtime_root=runtime_root,
             ghost=ghost,
         )
+        inner_thought.inference_admission = admission
         # The deliberate mental-work agent runs one scoped pm-coder session and
         # returns advice. Main appraisal still owns every accepted change.
         from workflows.focus_management.host import FocusManagement
@@ -409,7 +415,7 @@ def build_app(
             "cognitive_control", bus, on_error, clock, 1.0, ghost=ghost,
             config=ControlConfig.model_validate(cognitive_control_config or {}),
         )
-        control.cancel_private = inner_thought.cancel_run
+        control.cancel_private = inner_thought.yield_run
         main_cog.cognitive_control = control
         inner_thought.cognitive_control = control
         def release_private_results(envelopes):

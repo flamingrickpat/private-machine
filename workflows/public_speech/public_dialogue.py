@@ -28,6 +28,7 @@ class PublicDialogue(CognitiveWorkflow):
     """Shared evidence guards and visible failures for public workflows."""
 
     capability_provider = None
+    inference_admission = None
 
     # Shared embedding service for context planning. The assembly sets it;
     # without it, planning scores lexically.
@@ -78,7 +79,22 @@ class PublicDialogue(CognitiveWorkflow):
             view = self.ghost.snapshot()
         return shard_context(view, request, self.ghost.get_companion_name())
 
+    def deliver(self, envelope: Envelope) -> None:
+        """Reserve reply priority before queueing the action."""
+        if self.inference_admission is not None and envelope.kind != "control":
+            self.inference_admission.reserve(envelope.id)
+        super().deliver(envelope)
+
     def handle_batch(self, batch: list[Envelope]) -> None:
+        """Release reply reservations even after rejection or cancellation."""
+        try:
+            self._handle_priority_batch(batch)
+        finally:
+            if self.inference_admission is not None:
+                for envelope in batch:
+                    self.inference_admission.release(envelope.id)
+
+    def _handle_priority_batch(self, batch: list[Envelope]) -> None:
         # Each public action owns one report and one exchange resolution.
         # A second envelope must not disappear inside a merged mailbox batch.
         for envelope in batch:

@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from pm.bus.envelopes import Envelope, new_envelope, new_id
 from pm.constants import (
@@ -31,6 +31,7 @@ from pm.constants import (
 )
 from pm.llm.completion import TextCompletion
 from pm.llm.http_client import ModelError
+from pm.llm.structured import context_measure
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.memory.snapshot import GhostCancelled
 from pm.records.base import Provenance
@@ -116,6 +117,9 @@ def build_main_cognition_tools(
             return llm_complete(normalize_turns(messages), cancel=stop, **generation)
 
         tools = {"llm_complete": complete}
+        measure = context_measure(llm_complete)
+        if measure is not None:
+            complete.measure_context = measure
         if embeddings is not None:
             async def embed_all(texts: list[str]) -> list[list[float]]:
                 return [await embeddings.embed(text, cancel=stop) for text in texts]
@@ -229,6 +233,7 @@ class MainCogLoop(CognitiveWorkflow):
     """
 
     WORKFLOW_NAME = "main_cognition"
+    inference_admission = None
     DATA_TOPICS = frozenset({
         "user.input", "thought.created", "task.telemetry", "workflow.question", "workflow.event",
         "system.lifecycle",
@@ -281,11 +286,22 @@ class MainCogLoop(CognitiveWorkflow):
 
     def deliver(self, envelope: Envelope) -> None:
         """Record external wake causes before queueing the next cognition cycle."""
+        if self.inference_admission is not None and envelope.kind != "control":
+            self.inference_admission.reserve(envelope.id)
         if self.cognitive_control is not None:
             self.cognitive_control.observe(envelope)
         super().deliver(envelope)
 
     def handle_batch(self, batch: list[Envelope]) -> None:
+        """Hold foreground priority through the cycle and its reply dispatch."""
+        try:
+            self._handle_priority_batch(batch)
+        finally:
+            if self.inference_admission is not None:
+                for envelope in batch:
+                    self.inference_admission.release(envelope.id)
+
+    def _handle_priority_batch(self, batch: list[Envelope]) -> None:
         """Honor a wait and reject obsolete private stimuli before inference."""
         control = self.cognitive_control
         original = batch
@@ -461,13 +477,21 @@ class MainCogLoop(CognitiveWorkflow):
         for source in sources:
             if "mental_plan" not in source.metadata:
                 continue
-            plan = MentalPlan.model_validate(source.metadata["mental_plan"])
+            try:
+                plan = MentalPlan.model_validate(source.metadata["mental_plan"])
+                goal_changes = [GoalChange.model_validate(item) for item in plan.goal_changes]
+            except ValidationError as error:
+                # Old generated records can predate validation at the producer.
+                # Preserve them as evidence and reject only their proposal.
+                self.bus.put(new_envelope(self.module_id, "telemetry", "mental.rejected", correlation,
+                    {"record_id": source.id, "reason": str(error)}))
+                continue
             if plan.disposition != "propose":
                 continue
             mental_proposals.append(MentalProposal(
                 record_id=source.id, instruction=plan.instruction, summary=plan.summary,
                 disposition=plan.disposition, evidence_ids=list(plan.evidence_ids),
-                goal_changes=[GoalChange.model_validate(item) for item in plan.goal_changes]))
+                goal_changes=goal_changes))
             if plan.focus is not None:
                 advice = plan.focus
                 if maximum_focus_bias is not None:

@@ -1,6 +1,6 @@
 # Model connections and embedding cache
 
-## Current scope
+## Summary
 
 The model runtime provides connections, explicit activation, direct chat calls, and one embedding service.
 The terminal uses these connections for real dialogue and cognitive workflows.
@@ -31,18 +31,18 @@ The process environment wins. The `.env` file is the fallback.
 A Windows environment variable and a repository `.env` file are both valid credential sources.
 Use the environment variable on one machine and the `.env` file on another.
 
-### Current models
+### Local models
 
-Development selects `config.alpha.openrouter.yaml` and uses `qwen/qwen3.8-flash` for chat and
-`perplexity/pplx-embed-v1-0.6b` for embeddings.
-OpenRouter returns `pplx-embed-v1-0.6b` in its response.
-The explicit `response_model` field permits that alias. Another model name fails validation.
-The request model remains the cache identity, so existing vectors stay compatible.
+The example configuration uses chat on `http://127.0.0.1:8080/v1` and embeddings on `http://127.0.0.1:8081/v1`.
+Its aliases are `qwen` and `pplx-embed-v1-0.6b`, with 1,024 embedding dimensions.
+Set those values to match your servers.
+The example requires no remote API credential.
+Existing local configuration takes precedence unless you select a file explicitly.
 
-The embedding service accepts any OpenAI-compatible embedding model.
-A server that returns the requested model name needs no alias field.
-The unused local embedding endpoint on port 8081 has a recorded invalid-vector defect.
-Read [A08 verification](work_items/verification/a08-experienced-memory.md) for the real failure and recovery evidence.
+The embedding service validates dimensions, finite values, nonzero length, and the response model.
+A server with another response alias needs an explicit `response_model`.
+Historical invalid-vector receipts remain in [A08 verification](work_items/verification/a08-experienced-memory.md).
+These older receipts do not establish the current endpoint's behavior.
 
 ### Local setup
 
@@ -175,7 +175,8 @@ The shared HTTP path uses [HTTPX timeout controls](https://www.python-httpx.org/
 
 A reasoning backend emits hidden reasoning tokens before the visible answer.
 The application sends no `max_tokens` cap, so the backend can finish its reasoning and its answer.
-Direct private-thought calls now use separate [reasoning allowances](subsystems/inference-settings.md), with visible-answer reserves and explicit token ceilings.
+Direct inner-thought calls disable thinking, including reflection.
+The shared [reasoning allowances](subsystems/inference-settings.md) remain available for other explicit callers.
 A cap sized for the visible answer alone can stop a JSON stage mid-object and report a stage output error.
 There is no generation deadline.
 The model stops when it is done.
@@ -191,8 +192,9 @@ This [prompt-scope rule](work_items/alpha-plan/model-policy.md#prompt-scope-and-
 ## Embeddings and scoped retrieval
 
 The old cache remains read-only at `~/.pm/embeddings` by default.
-New entries use `.runtime/embeddings/v1/<model-hash>/`.
-Each new JSON entry contains its format version, request model, exact input, dimensions, and vector.
+The example writes new entries to `~/.pm/private-machine/cache/<modelname>/cache_emb_<hash>.json`.
+`embedding.cache_dir` can select another root.
+Each new JSON entry contains its format version, endpoint, request model, exact input, dimensions, and vector.
 An atomic hard link publishes each complete new entry without overwriting an existing file.
 Atomic replacement repairs an incompatible old entry.
 The writable cache filesystem must support hard links.
@@ -201,7 +203,7 @@ Concurrent writers retain an existing valid publication instead of replacing an 
 An unrelated filesystem error still propagates.
 [`pm.memory.embeddings.EmbeddingCache.put`][] owns this publication boundary.
 
-Cache hits require the exact text, model, dimensions, and valid vector values.
+Cache hits require the exact text, endpoint, model, dimensions, and valid vector values.
 The adapter preserves whitespace and reads the old little-endian float64 binary format.
 It rejects zero and nonfinite vectors.
 Cosine comparison divides by both vector norms.
@@ -264,3 +266,36 @@ It includes live model, cognition, conversation, and Minecraft checks. Each suit
 ## Related guides
 
 Read the [system map](concepts/architecture.md) and [development loop](workflows/development.md).
+
+## Completion replay and output repair
+
+Direct runtime chat uses `~/.pm/private-machine/cache/<modelname>/cache_comp_<hash>_<cnt>.json`.
+`PM_CACHE_DIR` selects another completion cache root.
+The key includes the endpoint, model, messages, tools, and generation controls. It excludes the sampling seed.
+Each uncached logical completion receives a random seed. Transport retries keep that seed and cache position.
+
+Each prompt hash has a thread-safe counter that starts at 1 in each process.
+Cache hits advance that counter too. Other prompts and embedding hits do not affect it.
+An invalid generated answer remains cached, so its repair sequence can replay too.
+The files contain complete wire responses and stay separate from prompt logs.
+
+Key normalization removes generated record timestamp prefixes and structured timestamp metadata.
+The actual prompt, memory, and logs retain their original values.
+Dates inside conversation text remain significant.
+Reordering inputs, changing tools, or changing prompt content can still cause a miss.
+A model alias is part of the key. Reusing an alias for different weights requires a separate cache root or cleared entries.
+
+Set `PM_COMPLETION_CACHE=0` for fresh direct completions during prompt comparisons.
+Embedding caching remains enabled. Cache hits do not establish that a model endpoint works.
+Native pm-coder sessions retain their own provider transport; the direct runtime cache does not intercept those sessions.
+
+[`pm.llm.structured.complete_json`][] and [`pm.llm.structured.complete_json_async`][] own generated JSON repair.
+Each rejected answer adds an assistant turn and a user turn with its validation error.
+Repairs retain all earlier turns and continue while the model's input budget permits another attempt.
+The budget reserves output space. Context exhaustion raises `ModelFormatError` without accepting an invalid answer.
+Cancellation and programming errors propagate.
+
+[`pm.llm.structured.repair_agent_result`][] uses the same policy for an agent's final answer.
+A correction has no tools and does not repeat completed external actions.
+Valid final answers need no extra completion.
+Configuration, checkpoint, and protocol validation remain ordinary validation boundaries.

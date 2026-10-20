@@ -169,7 +169,9 @@ Each call is an unconscious, story-framed process of the character's memory, wit
 The code fills the names from the persona.
 Times in the prompts use `RECONSOLIDATION_TIME_FORMAT` (`Friday, 01 May 2026, 20:10`), not the persona format.
 In the first real run, the numeric format `01.05.26` became "January 5" in a summary.
-Each answer is one JSON object. A pydantic model validates it, and an invalid answer gets a repair turn (at most four).
+Each answer is one JSON object. Pydantic validates it.
+Invalid answers receive repair turns until context space runs out, through the [shared runtime repair loop](../models.md#completion-replay-and-output-repair).
+Narratives must contain 50 to 6,000 characters. Length errors receive the same repair turns.
 A provider failure (`ModelError`) repeats the call (at most three times).
 Transport errors and HTTP 429/5xx retry inside `JsonClient`.
 At most four calls of one stage run in parallel.

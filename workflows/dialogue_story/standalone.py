@@ -129,15 +129,20 @@ async def evaluate_candidate(
         prior_dialogue=prior_dialogue or "(none)",
         memories=memories or "(none)",
     )
-    result = await evaluator.complete(
-        [
-            {"role": "system", "content": evaluator_prompt["system_prompt"]},
-            {"role": "user", "content": user},
-        ],
-        temperature=Sampler.TempReasoning,
-    )
-    text = result.choices[0].message.content or ""
-    return StoryQualityScore.model_validate(extract_json(text))
+    from pm.llm.structured import complete_json_async
+    from pm.llm.context_window import measure_context
+    from threading import Event
+
+    async def complete(turns, **generation):
+        return (await evaluator.complete(turns, **generation)).text
+
+    async def measure(turns, *, cancel=None, **generation):
+        return await measure_context(evaluator.connection, turns, cancel or Event(), **generation)
+
+    return await complete_json_async(complete,
+        [{"role": "system", "content": evaluator_prompt["system_prompt"]}, {"role": "user", "content": user}],
+        StoryQualityScore, measure=measure, temperature=Sampler.TempReasoning)
+
 
 
 def save_json(path: Path, payload: Any) -> None:

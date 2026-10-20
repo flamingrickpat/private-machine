@@ -18,3 +18,4 @@ os.environ.setdefault(
     "PM_PROMPT_LOG_DIR",
     tempfile.mkdtemp(prefix="pm-test-prompt-log-"),
 )
+os.environ.setdefault("PM_CACHE_DIR", tempfile.mkdtemp(prefix="pm-test-cache-"))

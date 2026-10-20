@@ -211,7 +211,6 @@ RECONSOLIDATION_NARRATIVE_FIRST_TOKENS = 300  # Evidence tokens that the first v
 RECONSOLIDATION_DAY_START_HOUR = 5  # A logical day runs from 05:00 to 05:00 (old _SHIFT_HOURS).
 RECONSOLIDATION_WORKERS = 4  # Parallel model calls in one stage.
 RECONSOLIDATION_EMBED_WORKERS = 8  # Parallel embedding requests.
-RECONSOLIDATION_REPAIRS = 4  # Repair turns for invalid model output before the run fails.
 RECONSOLIDATION_PROVIDER_RETRIES = 3  # Repeats of a call that the provider failed (ModelError). Transport errors retry inside JsonClient.
 RECONSOLIDATION_TEMPERATURE = 0.4  # Sampling temperature of the reconsolidation calls.
 RECONSOLIDATION_SESSION_GAP_MINUTES = 120  # Contextual embeddings do not blend events across a silence this long. New in the port.

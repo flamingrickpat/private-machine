@@ -17,8 +17,8 @@ the ``focus_management`` pattern:
   already holds (``known_ids``), or a record that the memory tools read
   (``memory.accessed``).
 
-Invalid answers (no JSON, a failed validation, or an uninspected cited id)
-and a session deadline count as invalid model output. The tool then starts a
+Invalid final JSON receives repair turns without another tool session.
+An uninspected cited id or a session deadline starts a
 fresh session with the reason in its prompt, up to
 ``CODELET_AGENT_ATTEMPTS`` sessions, and then raises ``ModelFormatError``. The host retries the whole cycle after that. Provider
 and cancellation errors propagate.
@@ -36,7 +36,6 @@ from typing import Callable
 
 from fastmcp import FastMCP
 from pm_workflows.drivers import PmCoderDriver
-from pydantic import ValidationError
 
 from pm.constants import CODELET_AGENT_ATTEMPTS, CODELET_AGENT_TIMEOUT_SECONDS
 from pm.host.mcp_listeners import serve_services
@@ -118,11 +117,9 @@ def build_codelet_agent(ghost, environment, embeddings, cancel: threading.Event)
                         problems.append(f"attempt {attempt}: {error}")
                         continue
                     runtime.check_cancelled()
-                    try:
-                        answer = AgentCodeletAnswer.model_validate(result.result_json or {})
-                    except ValidationError as error:
-                        problems.append(f"attempt {attempt}: {error}")
-                        continue
+                    from pm.llm.structured import repair_agent_result
+                    answer = repair_agent_result(result, AgentCodeletAnswer, model,
+                        instruction=prompt_text(job, problems), cancel=cancel)
                     permitted = set(memory.accessed) | set(job.view_ids) | set(job.known_ids)
                     uninspected = sorted(set(answer.evidence_ids) - permitted)
                     if uninspected:

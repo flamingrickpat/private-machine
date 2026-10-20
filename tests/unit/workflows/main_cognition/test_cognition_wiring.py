@@ -68,6 +68,27 @@ def _fake_reports(stimulus_id: int, candidate_id: int) -> dict:
 
 
 class MainCogLoopWiringTests(unittest.TestCase):
+    def test_invalid_saved_mental_plan_rejects_only_its_proposal(self):
+        from unittest.mock import patch
+        ghost = _small_ghost()
+        source = Feature(content="Retained mental result", feature_type=FeatureType.Thought,
+                         causal=True, metadata={"mental_plan": {"disposition": "invalid"}})
+        source = ghost.store_knoxel(source)
+        with TemporaryDirectory() as directory:
+            bus = BusSystem()
+            module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+                working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
+                tools_factory=lambda *args: {}, runtime_root=Path(directory), ghost=ghost)
+            module.last_environment = module.working_target.open("request")
+            rejected = Recorder(bus, "mental.rejected")
+            envelope = Envelope(id=new_id(), source="focus_management", kind="data", topic="thought.created",
+                                correlation_id="request", payload={"knoxel_id": source.id})
+            with patch.object(module, "_retrieve", return_value=([], {})):
+                request = module.prepare_input([envelope])
+            self.assertEqual(request["mental_proposals"], [])
+            self.assertEqual(len(rejected.events), 1)
+            self.assertEqual(ghost.get_knoxel_by_id(source.id).metadata["mental_plan"]["disposition"], "invalid")
+
     def test_original_game_progress_cannot_start_a_second_run_for_its_active_request(self):
         from workflows.main_cognition.schemas import ActionDispatch
         capture = json.loads((PROJECT_ROOT / "test_data/captures/alpha/game-progress-duplicate-request.json").read_text(encoding="utf-8"))

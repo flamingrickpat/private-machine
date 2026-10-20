@@ -18,7 +18,7 @@ Gate: `dev/work_items/alpha_a16_codelet_gate.py` (removed in A19F step 5 with th
 - The catalogue grew from 11 codelets (`a15.3`) to 38 codelets (`a16.1`) across the ten required families.
 - Eleven versioned pathways connect accepted precursor proposals to later activation. See [codelet pathways](../../subsystems/codelet-pathways.md).
 - Every definition declares its context requirements and its expected consequence.
-- Every proposal kind has a named consumer with a durable effect. See the [consumer map](../../subsystems/codelets.md#proposal-consumers).
+- Every proposal kind has a named consumer with a durable effect. See the [consumer map](../../subsystems/codelets.md#output-and-percepts).
 - Accepted `belief` proposals stage revisable subjective `BeliefRecord`s with dedupe, supersession, and evidence links.
 - The main LLM budget rose from 3 to 4 calls, and attention capacity from 4 to 5 places, for the larger repertoire.
 

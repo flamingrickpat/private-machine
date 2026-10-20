@@ -234,7 +234,7 @@ class KernelWaitTests(unittest.TestCase):
             control = CognitiveControl("cognitive_control", BusSystem(), self.fail, ManualClock(), 1, ghost=ghost)
             control.commit(ghost.begin_batch("accepted-wait"), WaitRequest(seconds=300), 0, source_ids=[source.id])
             app = build_app(None, Path(tmp), ghost=ghost, cognition="real",
-                            config_path="config.alpha.openrouter.yaml", record_lifecycle=False, world_poll_seconds=None)
+                            config_path="config.example.yaml", record_lifecycle=False, world_poll_seconds=None)
             try:
                 self.assertTrue(app.cognitive_control.waiting())
                 self.assertEqual(app.main_cog.mailbox.take_batch(app.main_cog.stop_event, 0), [])
@@ -255,7 +255,7 @@ class KernelWaitTests(unittest.TestCase):
         control.handle_batch([])
         with TemporaryDirectory() as tmp:
             app = build_app(None, Path(tmp), ghost=ghost, cognition="real",
-                            config_path="config.alpha.openrouter.yaml", record_lifecycle=False, world_poll_seconds=None)
+                            config_path="config.example.yaml", record_lifecycle=False, world_poll_seconds=None)
             try:
                 self.assertEqual(app.user_input.mailbox.take_batch(app.user_input.stop_event, 0), [])
                 self.assertEqual(app.main_cog.mailbox.take_batch(app.main_cog.stop_event, 0), [])

@@ -26,6 +26,7 @@ from pm_workflows.inputs import InputError
 from pm_workflows.runtime import WorkflowTerminated
 
 from pm.llm.http_client import ModelError
+from pm.llm.structured import repair_agent_result
 from pm.llm.mcp_config import ToolCallConfig
 from pm.records.media import IMAGE_TYPES
 from pm.runs.errors import TaskServiceError
@@ -283,7 +284,7 @@ def _execute(context: Any, report: ToolCallReport) -> None:
         report.rejection_reason = report.summary
         return
 
-    outcome = AgentOutcome.model_validate(result.result_json)
+    outcome = repair_agent_result(result, AgentOutcome, model, instruction=prompt, cancel=runtime.stop_event)
     report.agent_outcome = outcome
     report.artifacts = inspect_artifacts(environment, outcome.artifacts)
     report.outcome = outcome.outcome

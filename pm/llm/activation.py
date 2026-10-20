@@ -234,7 +234,7 @@ class ChatClient:
                 if ((urlsplit(self.connection.base_url).hostname or "").lower() == OPENROUTER_HOST
                         and not (metadata.get("reasoning") or {}).get("supports_max_tokens")):
                     raise ModelError("The model does not advertise numeric reasoning-budget support.")
-                context = self.connection.context_window or metadata.get("context_length")
+                context = self.connection.context_window or metadata.get("context_length") or metadata["meta"]["n_ctx"]
                 if type(context) is not int or context <= 0:
                     raise ModelError("A reasoning budget needs a configured or advertised context window.")
                 maximum = (metadata.get("top_provider") or {}).get("max_completion_tokens") or context

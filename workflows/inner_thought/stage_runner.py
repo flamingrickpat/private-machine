@@ -15,6 +15,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from pm_workflows.runtime import WorkflowRuntime
+from pm.llm.structured import context_measure
 from pm.memory.bash_view import MemoryBashEnvironment
 from pm.runs.workflow_runner import PROJECT_ROOT, WorkflowRequest, WorkflowRunner, WorkflowStatus
 
@@ -56,14 +57,16 @@ def build_inner_stage_runner(ghost, llm_complete: Callable, runtime_root: Path,
         environment = (MemoryBashEnvironment(read_environment.visible_knoxels, read_environment.visible_gwt, "read")
                        if read_environment is not None else make_environment(ghost))
         def complete(messages, **generation):
-            profile = (payload["operation"]["group"] if name == "thought"
-                       else "evaluate" if name == "reflection" else "off")
-            return llm_complete(messages, cancel=stop, reasoning_budget=REASONING[profile], **generation)
+            return llm_complete(messages, cancel=stop, reasoning_budget=REASONING["off"], **generation)
 
+        tools = {"llm_complete": complete}
+        measure = context_measure(llm_complete)
+        if measure is not None:
+            complete.measure_context = measure
         runtime = WorkflowRuntime(
             environment=environment,
             stop_event=stop,
-            tools={"llm_complete": complete},
+            tools=tools,
             propagate_python_errors=True,
         )
         runner = WorkflowRunner(stage_manifest(name), Path(runtime_root) / name,

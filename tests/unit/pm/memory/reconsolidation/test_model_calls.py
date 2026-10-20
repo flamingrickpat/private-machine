@@ -13,6 +13,9 @@ class Script:
         self.answers = list(answers)
         self.requests = []
 
+    def measure_context(self, turns, **generation):
+        return {"input_tokens": len(turns), "input_budget_tokens": 9}
+
     def __call__(self, turns, **generation):
         self.requests.append(turns)
         answer = self.answers.pop(0)

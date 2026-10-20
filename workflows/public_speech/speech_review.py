@@ -195,24 +195,18 @@ async def review_speech(complete: AsyncTextCompletion, candidate: str, context: 
                         conversation: list[DialogueTurn] = (),
                         receipts: list[dict] | None = None,
                         prompts: dict | None = None, attempts: int = 2) -> SpeechReview:
-    """Review one reply, with one retry for an invalid review object.
+    """Repair an invalid review without changing the candidate reply.
 
-    The reply is never changed or generated again. A retry repeats the same
-    review when the model returns invalid JSON or invalid required fields.
-    Raises ValueError or StageOutputError after the last attempt. Model
-    transport errors and cancellation propagate from ``complete``.
+    ``attempts`` remains accepted for existing callers. Context capacity now
+    bounds repairs. The completion must provide context measurement.
     """
+    from pm.llm.structured import complete_json_async
     prompts = prompts or load_prompts()
     messages = build_review_messages(candidate, context, prompts, conversation=conversation, receipts=receipts)
-    last_error: ValueError | StageOutputError | None = None
-    for _ in range(max(1, int(attempts))):
-        raw = await complete(messages, temperature=REVIEW_TEMPERATURE,
-                             enable_thinking=False)
-        try:
-            return parse_review(extract_json(raw), raw=raw)
-        except (StageOutputError, ValueError) as error:
-            last_error = error
-    raise last_error
+    return await complete_json_async(complete, messages, SpeechReview,
+                                    validate=lambda payload, raw: parse_review(payload, raw=raw),
+                                    temperature=REVIEW_TEMPERATURE, enable_thinking=False)
+
 
 
 __all__ = [

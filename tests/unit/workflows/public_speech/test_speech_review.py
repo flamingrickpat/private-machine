@@ -71,6 +71,7 @@ class ParseReviewTests(unittest.TestCase):
             calls.append(messages[1].content.text)
             return "this is not json" if len(calls) == 1 else '{"judgment": "accept", "reason": "ok", "false_task_result": false}'
 
+        complete.measure_context = lambda *args, **kwargs: {"input_tokens": 100, "input_budget_tokens": 1000}
         context = PublicContext(companion_name="Spamuel", user_name="Jesse")
         review = asyncio.run(review_speech(complete, "hello", context,
                                            prompts=load_review_prompts(), attempts=2))

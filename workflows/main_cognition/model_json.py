@@ -11,24 +11,18 @@ the model tool and propagate unchanged.
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 from pm.utils import yaml_util
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 from collections.abc import Callable, Sequence
 from pm.llm.prompt_encoding import TurnInput, normalize_turns
 from pm.context_render.turns import Role, Turn
 
-_JSON_OBJECT = re.compile(r"\{.*\}", re.DOTALL)
-
-
-class StageOutputError(RuntimeError):
-    """The model did not return a valid JSON object for this stage."""
-
-
-class ModelFormatError(StageOutputError):
-    """Repeated model output failed syntax or schema validation before any commit."""
+from pm.llm.structured import (
+    JsonOutputError as StageOutputError, ModelFormatError,
+    complete_json as validated_json, extract_json, context_measure,
+)
 
 
 def load_yaml(path: str | Path) -> dict:
@@ -108,57 +102,40 @@ def read_request(environment) -> dict:
     return yaml_util.safe_load(environment.read_text("inbox/request.yaml"))
 
 
-def extract_json(text: str) -> dict:
-    match = _JSON_OBJECT.search(text or "")
-    if match is None:
-        raise StageOutputError("The stage model returned no JSON object.")
-    try:
-        payload = json.loads(match.group(0))
-    except json.JSONDecodeError as error:
-        raise StageOutputError(f"The stage model returned invalid JSON: {error}") from None
-    if not isinstance(payload, dict):
-        raise StageOutputError("The stage model returned JSON that is not an object.")
-    return payload
-
-
 def complete_json(context, messages: Sequence[TurnInput], schema: type[BaseModel], *,
                   transform: Callable[[list[Turn]], list[Turn]] | None = None,
                   validation_context: dict | None = None, **generation: object):
-    """Validate model JSON with at most ten syntax or schema attempts.
+    """Repair model output with the shared runtime policy. Keep each rejection.
 
-    Each repair keeps the original task and only the latest rejected answer.
-    ``transform`` changes the turns of every attempt just before the model
-    call, for example to insert private grounding context.
-    ``validation_context`` is the pydantic validation context of the schema,
-    for example the workflow names that a route answer may use.
-    Rejected answers and errors remain in the role's scratch directory.
-    Exhaustion raises ModelFormatError without a report or a state change.
-    Cancellation, transport failures, and tool errors propagate unchanged.
+    The transform runs before completion and measurement. It must retain all
+    task evidence. Context exhaustion raises ModelFormatError before a commit.
     """
-    original = normalize_turns(messages)
-    turns = original
-    last_error = None
-    for attempt in range(1, 11):
-        tool = context.runtime.tools["llm_complete"]
-        raw = tool(transform(list(turns)) if transform is not None else turns, **generation)
-        if not isinstance(raw, str):
-            raise TypeError("llm_complete must return the completion text as a string.")
-        try:
-            return schema.model_validate(extract_json(raw), context=validation_context)
-        except (StageOutputError, ValidationError) as error:
-            last_error = error
-            context.runtime.environment.write_text(
-                f"scratch/model-output-rejection-{attempt:02}.json",
-                json.dumps({"attempt": attempt, "schema": schema.__name__, "raw": raw,
-                            "error_type": type(error).__name__, "error": str(error)}, ensure_ascii=False),
-            )
-            # These roles propose data only. Repair repeats no accepted action.
-            # Keep the full task without accumulating ten rejected answers.
-            turns = [*original, Turn(Role.Assistant, raw), Turn(Role.User,
-                f"The answer failed validation: {error}\n"
-                "Return one corrected JSON object only. Preserve the task facts and source IDs. "
-                "Use short prose fields. Escape quotation marks inside strings. Do not use Markdown fences.")]
-    raise ModelFormatError(f"The stage model output failed validation after ten attempts: {last_error}") from None
+    tool = context.runtime.tools["llm_complete"]
+    cancel = generation.pop("cancel", context.runtime.stop_event if hasattr(context.runtime, "stop_event") else None)
+
+    def transformed(turns):
+        turns = normalize_turns(turns)
+        return transform(turns) if transform is not None else turns
+
+    def complete(turns, **settings):
+        settings.pop("cancel", None)
+        return tool(transformed(turns), **settings)
+
+    original_measure = context.runtime.tools.get("llm_measure_context") or context_measure(tool)
+
+    def measure(turns, **settings):
+        if original_measure is None:
+            raise ValueError("The model tool must provide context measurement for JSON repair.")
+        return original_measure(transformed(turns), **settings)
+
+    def rejected(attempt, raw, problem):
+        context.runtime.environment.write_text(
+            f"scratch/model-output-rejection-{attempt:02}.json",
+            json.dumps({"attempt": attempt, "schema": schema.__name__, "raw": raw,
+                        "error": problem}, ensure_ascii=False))
+
+    return validated_json(complete, messages, schema, measure=measure, cancel=cancel,
+                          validation_context=validation_context, on_rejection=rejected, **generation)
 
 
 def complete_text(context, messages: Sequence[TurnInput], *, attempts: int, **generation: object) -> str:

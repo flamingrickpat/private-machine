@@ -10,6 +10,7 @@ from pm.constants import Sampler
 from pm.context_render import render_context
 from pm.context_render.turns import Role, Turn
 from pm.llm.prompt_encoding import OpenAIChatEncoder
+from pm.llm.structured import complete_json
 
 from workflows.minecraft_project.schemas import Node, TaskTree
 from workflows.minecraft_project.tree_store import TreeStore, digest
@@ -136,12 +137,17 @@ def reason_once(context: RoleContext, store: TreeStore, role: str, contract: typ
         raise ValueError("Minecraft project decisions need the configured normal LLM.")
     # Use the same normal-chat mode as selection and native actor sessions.
     # Retain the setting with the decision; do not cap the output mid-object.
-    text = complete(messages, cancel=context.runtime.stop_event, **generation)
-    store.write(name + "/raw.json", {"text": text})
-    context.runtime.check_cancelled()
-    if text.strip().startswith("```"):
-        text = "\n".join(text.strip().splitlines()[1:-1])
-    result = contract.model_validate_json(text)
+    def rejected(attempt, raw, problem):
+        store.write(name + f"/rejection-{attempt:02d}.json", {"text": raw, "error": problem})
+
+    def send(turns, **settings):
+        text = complete(turns, **settings)
+        store.write(name + "/raw.json", {"text": text})
+        context.runtime.check_cancelled()
+        return text
+
+    result = complete_json(send, messages, contract, measure=measure, on_rejection=rejected,
+                           cancel=context.runtime.stop_event, **generation)
     store.write(name + "/output.json", result.model_dump(mode="json"))
     return result
 
