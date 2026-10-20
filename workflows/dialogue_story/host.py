@@ -49,14 +49,14 @@ class StoryDialogue(PublicDialogue):
         entity. The intent is the decision text of the stored action. The
         transcript, the shard story, and the evidence come from the
         workspace shards of the cycle that chose the reply (``reply_context``).
+        Partner lines that arrived after that cycle join the current message,
+        so the reply answers the newest line and not an older one.
         """
         action_request = ActionRequest.model_validate(batch[0].payload)
         action = (self.ghost.get_knoxel_by_id(action_request.knoxel_id)
                   if action_request.knoxel_id is not None else None)
         intent = str(action.content) if action is not None else action_request.content
-        spoken = self.partner_stimuli(action_request)
-        planned = self.reply_context(action_request)
-        public = self.public_context(action_request, planned)
+        spoken, planned, public = self.prepare_reply(action_request)
         request = StoryRequest(
             companion_name=self.ghost.get_companion_name(),
             partner_name=public.partner_name,

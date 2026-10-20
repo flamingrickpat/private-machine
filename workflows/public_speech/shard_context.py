@@ -63,10 +63,15 @@ def exchange_thoughts(dialogue: list[Feature], thoughts: list[Feature]) -> list[
     return ordered[-DIALOGUE_THOUGHT_LIMIT:]
 
 
-def _views(view, request: ActionRequest) -> dict[int, RecordView]:
-    """Return a record view of every item and tail record of the request shards."""
+def _views(view, request: ActionRequest, late_ids: list[int] = ()) -> dict[int, RecordView]:
+    """Return a record view of every item and tail record of the request shards.
+
+    ``late_ids`` are partner records that arrived after the cycle committed.
+    They get a view too, so the transcript can show them.
+    """
     return {record_id: record_view(view.get(record_id))
-            for item in request.shards for record_id in [*item.shard.item_ids(), *item.shard.tail_ids]}
+            for item in request.shards
+            for record_id in [*item.shard.item_ids(), *item.shard.tail_ids, *late_ids]}
 
 
 def shard_story(view, request: ActionRequest, companion_name: str) -> str:
@@ -82,7 +87,7 @@ def shard_story(view, request: ActionRequest, companion_name: str) -> str:
     return BLOCK_SEPARATOR.join(blocks)
 
 
-def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedContext:
+def shard_context(view, request: ActionRequest, companion_name: str, late_ids: list[int] = ()) -> PlannedContext:
     """Return the reply context of ``request`` from its shards.
 
     ``view`` is a frozen memory store view that holds every shard record.
@@ -90,8 +95,15 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
     and raises KeyError. The current stimuli are not in any tail.
     Empty history remains in evidence but supplies no transcript turn.
     This function does not change accepted records or call a model.
+
+    ``late_ids`` are partner dialogue records that arrived after the cycle
+    chose the action. The caller reads them from the live store, because the
+    frozen shard tail stops at that cycle. Without them the reply writer
+    never sees the newest line, and it answers an older one. A late record
+    joins the transcript and the evidence of the partner shard. It does not
+    join the shard story text, which stays the words of the deciding cycle.
     """
-    records = _views(view, request)
+    records = _views(view, request, late_ids)
     dialogue: list[Feature] = []
     all_thoughts: list[Feature] = []
     for item in request.shards:
@@ -101,6 +113,13 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
                 dialogue.append(record)
             elif item.shard.key.kind == "self" and record.feature_type in THOUGHT_TYPES:
                 all_thoughts.append(record)
+    # A late line belongs to the partner shard, never to the self shard.
+    partner_shard = next((item for item in request.shards if item.shard.key.kind == "entity"), None)
+    late: list[Feature] = []
+    if partner_shard is not None:
+        late = [view.get(record_id) for record_id in late_ids
+                if view.get(record_id).feature_type == FeatureType.Dialogue]
+        dialogue += late
     # Empty records can exist in imported or previously accepted history.
     # Filter before exchange selection so they cannot displace useful thoughts.
     empty = {record.id for record in [*dialogue, *all_thoughts] if not record.content.strip()}
@@ -122,7 +141,10 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
     serialized = view.serialize_knoxels()
     evidence = []
     for item in request.shards:
-        for record_id in dict.fromkeys([*item.shard.item_ids(), *item.shard.tail_ids]):
+        ids = [*item.shard.item_ids(), *item.shard.tail_ids]
+        if item is partner_shard:
+            ids += [record.id for record in late]
+        for record_id in dict.fromkeys(ids):
             if record_id in dropped:
                 continue
             entry = EvidenceItem.model_validate(candidate(view, record_id, serialized[record_id]))
@@ -132,7 +154,8 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
              "shards": [{"name": item.name, "key": item.shard.key.model_dump(mode="json"),
                          "items": len(item.shard.items), "tail": len(item.shard.tail_ids)}
                         for item in request.shards],
-             "transcript": len(transcript), "empty_transcript_ids": sorted(empty)}
+             "transcript": len(transcript), "empty_transcript_ids": sorted(empty),
+             "late_ids": sorted(record.id for record in late)}
     return PlannedContext(dialogue=[_turn(record) for record in transcript],
                           evidence=evidence, story=BLOCK_SEPARATOR.join(blocks), trace=trace)
 

@@ -98,9 +98,8 @@ class AssistantDialogue(PublicDialogue):
         action = (self.ghost.get_knoxel_by_id(action_request.knoxel_id)
                   if action_request.knoxel_id is not None else None)
         intent = str(action.content) if action is not None else action_request.content
-        current = "\n".join(item.text for item in self.partner_stimuli(action_request))
-        planned = self.reply_context(action_request)
-        public = self.public_context(action_request, planned)
+        current_lines, planned, public = self.prepare_reply(action_request)
+        current = "\n".join(item.text for item in current_lines)
         tools = reply_tools(terminal_receipt=bool(action_request.task_receipt))
         names = {"companion_name": self.ghost.get_companion_name(), "partner_name": public.partner_name}
         request = AssistantRequest(

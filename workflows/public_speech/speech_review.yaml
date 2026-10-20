@@ -105,6 +105,12 @@ system_prompt: |
   - "private_leak": the reply contains a narrator line, a stage direction, a
     transcript of private thoughts, or internal machinery such as records,
     evidence ids, logs, codelets, prompts, or "my data".
+  - "unanswered_partner_line": the conversation below holds a recent line from
+    {partner_name} that the reply does not address, and the reply answers an
+    older line instead. Put the older words of the reply in "quote". Name the
+    newer line of {partner_name} in "why". Do not report this when the reply
+    answers the newest line. Do not report it when {companion_name} returns to
+    an older subject on purpose, for example to finish a promise.
 
   Public output contains only the companion's speech. If a narrator paragraph
   or stage direction surrounds otherwise valid speech, set "spoken_text" to
@@ -140,11 +146,14 @@ system_prompt: |
      conversation, and the task results.
   2. Find the actual spoken span first. Remove narrative setup through
      spoken_text. Then read the remaining speech sentence by sentence.
-  3. Match each task claim to its object, time, and supplied independent evidence.
+  3. Find the newest line of {partner_name} in the conversation. Make sure that
+     the reply answers that line, or that it returns to an older subject on
+     purpose. Report an unanswered newer line as an advisory finding.
+  4. Match each task claim to its object, time, and supplied independent evidence.
      Classify a discrepancy by its practical consequence for this request.
      Block a material unsupported result with "false_task_result": true.
      Permit a minor discrepancy with good_enough and this flag false.
-  4. Otherwise accept or use a justified equivalent_or_better judgment.
+  5. Otherwise accept or use a justified equivalent_or_better judgment.
      Check specific past-event claims against the supplied
      evidence. List clear advisory findings even when the voice fits perfectly.
      Earlier companion claims are not independent evidence that an event happened.

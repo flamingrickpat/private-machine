@@ -166,7 +166,7 @@ def render_public_context(context: PublicContext, kinds: ContextKind = ContextKi
 
 
 def build_public_context(ghost, request: ActionRequest | None = None, *, capabilities: dict | None = None,
-                         planned=None) -> PublicContext:
+                         planned=None, late_ids: list[int] = ()) -> PublicContext:
     """Freeze one accepted snapshot without importing raw private thoughts.
 
     ``request`` is the typed action request of the utterance, or None for a
@@ -180,6 +180,10 @@ def build_public_context(ghost, request: ActionRequest | None = None, *, capabil
     context of the cycle, or the context plan of a standalone situation. Its
     records are the evidence. Without it, the evidence holds the stimuli,
     the startup events, and the disclosed private state only.
+
+    ``late_ids`` are partner dialogue records that arrived after the cycle
+    chose the action. They join the stimulus set, so the reply resolves them
+    and the commit guard covers them.
     """
     from workflows.main_cognition.schemas import ActionMetadata, ActionRequest
     request = request or ActionRequest()
@@ -201,7 +205,7 @@ def build_public_context(ghost, request: ActionRequest | None = None, *, capabil
     lanes = {item.knoxel_id: item.lane for item in evidence if item.lane}
     ids = {key for item in evidence for key in [item.knoxel_id, *item.source_ids]}
     ids.update(presentation.known_fact_ids)
-    stimulus_ids = [item.knoxel_id for item in request.stimuli]
+    stimulus_ids = [item.knoxel_id for item in request.stimuli] + list(late_ids)
     ids.update(stimulus_ids)
     # Original startup events establish restart chronology beside retained facts.
     startup_ids = sorted(key for key, record in records.items()

@@ -61,8 +61,13 @@ class PublicDialogue(CognitiveWorkflow):
                     result.append(item.model_copy(update={"text": str(record.content)}))
         return result
 
-    def public_context(self, request: ActionRequest, planned=None):
-        """Freeze the public context of one reply and keep it for the publication guard."""
+    def public_context(self, request: ActionRequest, planned=None, late_ids: list[int] = ()):
+        """Freeze the public context of one reply and keep it for the publication guard.
+
+        ``late_ids`` are partner lines that arrived after the deciding cycle.
+        They join the stimulus set of the context, so the commit resolves
+        them and the revision guard covers them.
+        """
         # Refresh the durable private ontology before the snapshot. The review
         # reads the terms and bindings from the frozen public context.
         from workflows.public_speech.ontology import observe_ontology
@@ -70,19 +75,117 @@ class PublicDialogue(CognitiveWorkflow):
         capabilities = self.capability_provider() if self.capability_provider else None
         with self.ghost.lock:
             self._public_context = build_public_context(self.ghost, request, capabilities=capabilities,
-                                                        planned=planned)
+                                                        planned=planned, late_ids=list(late_ids))
         return self._public_context
 
-    def reply_context(self, request: ActionRequest):
+    def reply_context(self, request: ActionRequest, late_ids: list[int] = ()):
         """Return the reply context from the workspace shards of the request.
 
         The context holds the verbatim transcript with the partner, the shard
         story, and the evidence (:func:`~workflows.public_speech.shard_context.shard_context`).
-        No memory is retrieved again.
+        The shard tail stops at the cycle that chose the action. Partner lines
+        that arrived after that cycle are read from the live store and added,
+        so the writer sees the newest line. No other memory is retrieved.
         """
         with self.ghost.lock:
             view = self.ghost.snapshot()
-        return shard_context(view, request, self.ghost.get_companion_name())
+        return shard_context(view, request, self.ghost.get_companion_name(), late_ids=list(late_ids))
+
+    def prepare_reply(self, request: ActionRequest) -> tuple[list[Stimulus], object, object]:
+        """Return the partner lines, the shard context, and the public context of one action.
+
+        The reply answers the stimuli of the action. Partner lines that
+        arrived after the deciding cycle join them, so a slow cycle does not
+        answer an old line. Both public workflows use this one path, so they
+        cannot drift apart.
+        """
+        late = self.late_partner_lines(request)
+        spoken = self.partner_stimuli(request) + self.late_stimuli(request, late)
+        planned = self.reply_context(request, late)
+        public = self.public_context(request, planned, late_ids=late)
+        return spoken, planned, public
+
+    def late_stimuli(self, request: ActionRequest, late_ids: list[int]) -> list[Stimulus]:
+        """Return a stimulus for each late partner line, oldest first.
+
+        The text comes from the accepted record, as in :meth:`partner_stimuli`.
+        """
+        result = []
+        with self.ghost.lock:
+            for record_id in late_ids:
+                record = self.ghost.get_knoxel_by_id(record_id)
+                if record is None:
+                    raise KeyError(f"Late partner line does not exist: {record_id}")
+                result.append(Stimulus(knoxel_id=record.id, source=str(record.source or ""),
+                                       text=" ".join(str(record.content).split()),
+                                       entity_id=request.partner_entity_id))
+        return result
+
+    def cycle_frontier(self, request: ActionRequest) -> int:
+        """Return the newest record id that the deciding cycle saw.
+
+        The stimuli and the shard contents of the request are all committed at
+        or before that cycle. Record ids increase with time, so the maximum is
+        the boundary between what the cycle knew and what arrived later.
+        """
+        ids = [item.knoxel_id for item in request.stimuli]
+        for item in request.shards:
+            ids += [*item.shard.item_ids(), *item.shard.tail_ids]
+        return max(ids, default=0)
+
+    def late_partner_lines(self, request: ActionRequest) -> list[int]:
+        """Return the partner Dialogue ids that arrived after the deciding cycle, oldest first.
+
+        The partner is the entity the reply addresses. Only spoken lines from
+        the user or another agent count, as in :meth:`partner_stimuli`. A
+        recovery or task reply has no cycle, so it has no late lines.
+        """
+        if request.recovery_outcome or not request.shards:
+            return []
+        frontier = self.cycle_frontier(request)
+        partner = request.partner_name or self.ghost.get_user_name()
+        from pm.records.enums import FeatureType, SourceKind
+        with self.ghost.lock:
+            return sorted(record.id for record in self.ghost.all_features
+                          if record.id > frontier and record.feature_type == FeatureType.Dialogue
+                          and record.override_source == partner and record.content.strip()
+                          and record.provenance is not None
+                          and record.provenance.source_kind in {SourceKind.User, SourceKind.Agent})
+
+    def stale_reply_reason(self, envelope: Envelope, request: ActionRequest) -> str:
+        """Return why this action must not produce a reply now, or an empty string.
+
+        Two rules protect the conversation:
+
+        - One reply per exchange per cycle. A cycle can release two actions
+          for the same partner line. The second one would answer a line the
+          first one already answered.
+        - A reply that answers nothing current. When every stimulus of the
+          action is already resolved and no newer partner line arrived, the
+          action has no open question left.
+
+        A newer partner line does not make the reply stale. The reply
+        re-anchors to that line instead (``late_partner_lines``).
+        """
+        from workflows.public_speech.publication import exchange_record
+        if request.recovery_outcome:
+            return ""
+        exchange = exchange_record(self.ghost, envelope.correlation_id) if envelope.correlation_id else None
+        if exchange is None:
+            return ""
+        resolver = exchange.metadata.get("public_reply_id")
+        if resolver and exchange.metadata.get("exchange_status") == "resolved":
+            reply = self.ghost.get_knoxel_by_id(int(resolver))
+            answered_tick = (reply.metadata.get("generation_state_tick") if reply is not None else None)
+            if answered_tick is not None and answered_tick == request.gwt_tick:
+                return (f"Exchange {envelope.correlation_id} already got its reply in cycle "
+                        f"{request.gwt_tick} (record {resolver}).")
+            answered = {int(key) for key in (reply.metadata.get("responding_to_ids") or [])} if reply else set()
+            open_ids = [item.knoxel_id for item in request.stimuli if item.knoxel_id not in answered]
+            if not open_ids and not self.late_partner_lines(request):
+                return (f"Every line of exchange {envelope.correlation_id} is already answered "
+                        f"(record {resolver}).")
+        return ""
 
     def deliver(self, envelope: Envelope) -> None:
         """Reserve reply priority before queueing the action."""
@@ -106,6 +209,13 @@ class PublicDialogue(CognitiveWorkflow):
             request = ActionRequest.model_validate(envelope.payload)
             action = self.ghost.get_knoxel_by_id(request.knoxel_id) if request.knoxel_id is not None else None
             if action is not None and ActionMetadata.model_validate(action.metadata).public_reply_id is not None:
+                continue
+            stale = self.stale_reply_reason(envelope, request)
+            if stale:
+                # Do not spend a model call on a line that is already answered.
+                self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
+                    {"status": "superseded", "workflow_name": self.WORKFLOW_NAME,
+                     "rejection_reason": stale, "recovery_outcome": "not_published"}, causation_id=envelope.id))
                 continue
             # Preparation can fail before a new snapshot exists. A prior task
             # receipt must never become the recovery evidence for this action.
