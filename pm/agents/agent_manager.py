@@ -1,2 +1,0 @@
-class AgentManager:
-    pass
