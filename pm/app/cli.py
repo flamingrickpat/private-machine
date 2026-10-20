@@ -16,6 +16,7 @@ Two ways to start:
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import sys
 import threading
@@ -90,6 +91,16 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
     )
 
 
+def set_prompt_log_dir(plan: LaunchPlan) -> None:
+    """Point prompt logs at ``<runtime-root>/llm_logs`` unless the environment says otherwise.
+
+    Without this, ``--home`` writes prompt logs to the default folder next to
+    the current directory instead of the home folder of the character. An
+    explicit ``PM_PROMPT_LOG_DIR`` always wins, so a caller can redirect logs.
+    """
+    os.environ.setdefault("PM_PROMPT_LOG_DIR", str(plan.runtime_root / "llm_logs"))
+
+
 def build_from_plan(plan: LaunchPlan, *, assembly):
     """Build the application of ``plan`` without starting it.
 
@@ -97,6 +108,7 @@ def build_from_plan(plan: LaunchPlan, *, assembly):
     ``FileNotFoundError`` when ``ghost.json`` is missing. Every accepted
     commit of that store saves ``ghost.json``.
     """
+    set_prompt_log_dir(plan)
     if plan.home is not None:
         from pm.app.character_home import CharacterHome
 
