@@ -241,6 +241,7 @@ TOOL_CALL_SESSION_SECONDS = 1800  # Deadline of one native tool session, in seco
 TOOL_CALL_REQUEST_SECONDS = 600  # Default deadline of one MCP tool request, in seconds.
 TOOL_CALL_TURN_LIMIT = 8  # Newest complete GWT turns, up to the source cycle, that the tool session reads.
 TOOL_DISCOVERY_SECONDS = 5.0  # Deadline of one MCP tool listing for the route prompt, in seconds (as the Minecraft discovery).
+MINECRAFT_REQUEST_SECONDS = 660  # Default deadline of one Minecraft body MCP request, in seconds. A long mining or building command needs room.
 TOOL_DISCOVERY_RETRY_SECONDS = 60.0  # A server that did not answer is asked again after this many seconds, so a down server does not delay every cycle.
 
 # Images in records (pm.records.media, pm.llm.multimodal, pm.memory.media_alt).

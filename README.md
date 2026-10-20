@@ -87,20 +87,29 @@ If the MCP service already runs for this character, continue at step 3.
 
    Keep this terminal open. The MCP creates missing character directories on its first start.
 
-3. In a second PowerShell terminal, select the MCP endpoint before you start pm:
+3. In a second PowerShell terminal, add the Minecraft body to your model configuration and start pm:
+
+   ```yaml
+   minecraft:
+     mcp_url: http://127.0.0.1:6767/mcp
+     request_timeout_seconds: 660
+     probe_timeout_seconds: 5
+   ```
 
    ```powershell
    Set-Location C:\source\pm\private-machine
    $env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
-   $env:MINECRAFT_MCP_URL = 'http://127.0.0.1:6767/mcp'
    $env:PM_MINECRAFT_HOST = '127.0.0.1'
    $env:PM_MINECRAFT_PORT = '12345'
-   uv run --locked python main.py --home .runtime/characters/sunny --config config.example.yaml
+   uv run --locked python main.py --home .runtime/characters/sunny --config <your-config>.yaml
    ```
 
-   Use your existing model configuration with `--config`.
+   Put the `minecraft` section in the file that you give with `--config`.
+   `mcp_url` uses the MCP HTTP port, not the game port.
+   pm asks the endpoint once at startup and exits when nothing answers.
+   Without the section, the character has no body: no world poll, no live inventory read, and no Minecraft route.
+   `MINECRAFT_MCP_URL` remains a test override and is not needed for normal operation.
    The `PM_MINECRAFT_HOST` and `PM_MINECRAFT_PORT` variables supply the game address for connection checks.
-   The MCP URL uses the MCP HTTP port, not the game port.
    Repeat these environment assignments in each new terminal before you start pm.
 
 4. Open the web address printed by pm.

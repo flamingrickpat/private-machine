@@ -15,14 +15,14 @@ from pm.memory.store_tools import build_mcp, build_tools
 from pm.runs.management_api import build_management_tools, management_mcp
 from pm.bus.envelopes import Envelope
 from workflows.dialogue_assistant.schemas import AssistantMessage, AssistantReport, AssistantRequest
-from workflows.dialogue_assistant.steps import load_prompts, unsupported_management_claims
+from workflows.dialogue_assistant.steps import ToolExecutionError, load_prompts, unsupported_management_claims
 from workflows.dialogue_assistant.tools import reply_tools
 from workflows.main_cognition.schemas import ActionRequest
 from workflows.public_speech.public_context import ability_lines, time_lines
 from workflows.public_speech.public_dialogue import PublicDialogue, _clip
 
 
-def build_assistant_tools(model, supervisor, *, cancel_provider=None) -> Callable[[object, object], dict]:
+def build_assistant_tools(model, supervisor, *, cancel_provider=None, minecraft_endpoint=None) -> Callable[[object, object], dict]:
     """Return ``tools_factory(environment, batch)`` for Assistant dialogue."""
 
     def factory(environment, batch) -> dict:
@@ -34,10 +34,20 @@ def build_assistant_tools(model, supervisor, *, cancel_provider=None) -> Callabl
             tools["public_complete"] = partial(tools["public_complete"], cancel=cancel)
         tools.update(build_management_tools(supervisor))
         tools.update(build_tools(environment, batch))
-        from workflows.minecraft_body.mcp_client import build_minecraft_tools, DEFAULT_MCP_URL
+        if minecraft_endpoint is None:
+            # The manifest always grants this tool name, so the role needs a
+            # callable. Without a body it fails as a tool receipt, and the
+            # assistant cannot claim an inventory that it never read.
+            def minecraft_observe(include_image: bool = False):
+                """Report that this character has no configured body."""
+                raise ToolExecutionError(
+                    "No Minecraft body is configured for this character. "
+                    "Add the minecraft section to the model config.")
+            tools["minecraft_observe"] = minecraft_observe
+            return tools
+        from workflows.minecraft_body.mcp_client import build_minecraft_tools
         from workflows.minecraft_body.lease import BODY_LEASES
-        import os
-        endpoint = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+        endpoint = minecraft_endpoint
         minecraft = build_minecraft_tools(endpoint)
         def minecraft_observe(include_image: bool = False):
             """Read current numeric state. The public text model gets no pixels."""

@@ -131,6 +131,8 @@ class CycleRequest(BaseModel):
     mental_proposals: list[MentalProposal] = Field(default_factory=list)
     reflection_guidance: list[ReflectionGuidance] = Field(default_factory=list)
     wait_default_seconds: float = 1800
+    #: Quiet window that a spoken reply arms. Zero means the operator disabled it.
+    post_reply_seconds: float = 0.0
 
 
 class CycleWork(BaseModel):

@@ -28,7 +28,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from pm.constants import TOOL_CALL_REQUEST_SECONDS, TOOL_CALL_SESSION_SECONDS, TOOL_CALL_TURN_LIMIT
+from pm.constants import (MINECRAFT_REQUEST_SECONDS, TOOL_CALL_REQUEST_SECONDS, TOOL_CALL_SESSION_SECONDS,
+                          TOOL_CALL_TURN_LIMIT)
 
 #: One environment reference in a header value. Group 1 is the variable name.
 ENV_REFERENCE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -115,4 +116,33 @@ class ToolCallConfig(BaseModel):
             server.resolved_headers()
 
 
-__all__ = ["ENV_REFERENCE", "McpConfigError", "McpServerConfig", "ToolCallConfig"]
+class MinecraftConfig(BaseModel):
+    """The ``minecraft`` section: the one Minecraft body endpoint of this character.
+
+    The section is optional. Without it the application starts no Minecraft
+    body: no world poll, no body tools in the assistant, and no body route.
+    With it the assembly asks the endpoint once at startup and stops when
+    nothing answers. A wrong URL then fails before the first cycle instead of
+    surfacing much later as an unverified task.
+
+    ``request_timeout_seconds`` limits one body request. A long mining or
+    building command needs room. ``probe_timeout_seconds`` limits only the
+    startup check, so a dead endpoint fails fast.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mcp_url: str = Field(min_length=1)
+    request_timeout_seconds: int = Field(default=MINECRAFT_REQUEST_SECONDS, gt=0, strict=True)
+    probe_timeout_seconds: float = Field(default=5.0, gt=0, le=120)
+
+    @field_validator("mcp_url")
+    @classmethod
+    def _http_url(cls, value: str) -> str:
+        parts = urlsplit(value)
+        if parts.scheme not in {"http", "https"} or not parts.hostname:
+            raise ValueError("The minecraft section needs an HTTP or HTTPS mcp_url.")
+        return value
+
+
+__all__ = ["ENV_REFERENCE", "McpConfigError", "McpServerConfig", "MinecraftConfig", "ToolCallConfig"]

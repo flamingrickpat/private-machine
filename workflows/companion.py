@@ -44,13 +44,18 @@ REAL_BANNER = "REAL COGNITION \u2014 model activates on first request\n"
 DEFAULT_SEED = REPO_ROOT / "test_data" / "personas" / "spamuel" / "canon.yaml"
 
 
-def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call: ToolCallConfig | None = None) -> dict:
+def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call: ToolCallConfig | None = None,
+                       minecraft_endpoint: str | None = None) -> dict:
     """Return the managed workflow specifications by name.
 
     ``tool_call`` is registered only when its configuration names at least
     one MCP server. Without tools, routing never offers it, so the companion
     cannot claim tools it lacks. A missing header variable raises
     McpConfigError here, at application start.
+
+    ``minecraft_endpoint`` is the body endpoint that the assembly resolved from
+    the ``minecraft`` section of the model configuration. The body workflows
+    take it as an argument, so a real run needs no environment variable.
     """
     from workflows.minecraft.host import build_minecraft_module_tools, persona_context, project_memory_config
     from workflows.note_task.steps import build_note_tools
@@ -84,6 +89,7 @@ def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call:
             tools_factory=build_minecraft_module_tools(
                 stage_model.complete if stage_model is not None else None,
                 stage_model.measure_context if stage_model is not None else None,
+                mcp_url=minecraft_endpoint,
             ),
             resumable=True,
             singleton=True, singleton_key="minecraft_body",
@@ -93,7 +99,7 @@ def _managed_workflows(stage_model=None, embeddings=None, ghost=None, tool_call:
             PROJECT_ROOT / "workflows" / "minecraft_project" / "minecraft_project.workflow.md",
             namespace="minecraft_project",
             tools_factory=build_minecraft_module_tools(stage_model.complete if stage_model is not None else None,
-                stage_model.measure_context if stage_model is not None else None),
+                stage_model.measure_context if stage_model is not None else None, mcp_url=minecraft_endpoint),
             resumable=True,
             singleton=True, singleton_key="minecraft_body",
             request_context=persona_context,
@@ -142,8 +148,12 @@ def _cognition_workflow_options(supervisor, tool_catalogue=None) -> list[dict]:
 def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
                       runtime_root, workflow_paths, stage_model, config_path,
                       supervisor, codelet_definitions=None, thought_period=30.0, embeddings=None,
-                      workflow_models=None):
-    """Return the (main_cog, story, assistant, self_management, inner, mental) modules."""
+                      workflow_models=None, minecraft_endpoint=None):
+    """Return the (main_cog, story, assistant, self_management, inner, mental) modules.
+
+    ``minecraft_endpoint`` is the resolved body endpoint, or None when this
+    character has no Minecraft body. The assistant reads the world through it.
+    """
     if cognition == "real":
         from workflows.dialogue_story.host import build_story_tools
         from workflows.dialogue_assistant.host import build_assistant_tools
@@ -186,7 +196,8 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
             "assistant", bus, on_error, clock, None,
             working_target=target,
             workflow=PROJECT_ROOT / "workflows" / "dialogue_assistant" / "dialogue_assistant.workflow.md",
-            tools_factory=build_assistant_tools(stage_model, supervisor, cancel_provider=lambda: assistant.run_stop),
+            tools_factory=build_assistant_tools(stage_model, supervisor, cancel_provider=lambda: assistant.run_stop,
+                                                minecraft_endpoint=minecraft_endpoint),
             runtime_root=runtime_root,
             ghost=ghost,
         )
@@ -243,6 +254,22 @@ def _cognition_modules(cognition, *, ghost, target, bus, on_error, clock,
     return main_cog, dialogue, None, None, inner_thought, None
 
 
+def _minecraft_endpoint(loaded) -> str | None:
+    """Return the Minecraft body endpoint for this run, or None for no body.
+
+    The ``minecraft`` section of the model configuration is the normal source,
+    so a real session needs no environment variable. ``MINECRAFT_MCP_URL``
+    stays a test override: the real gates and the live tests start their own
+    server on a random port and name it. A character with no body omits the
+    section and gets no world poll and no body tools.
+    """
+    import os
+    override = os.environ.get("MINECRAFT_MCP_URL")
+    if override:
+        return override
+    return loaded.minecraft.mcp_url if loaded.minecraft is not None else None
+
+
 def build_app(
     seed_path,
     runtime_root,
@@ -275,6 +302,8 @@ def build_app(
     cognition; ``None`` uses ``workflows/main_cognition/codelets.yaml``.
     ``cognitive_control_config`` supplies wait, focus, mental-session, and
     private-episode limits. A one-second scheduler checks waits without inference.
+    ``None`` reads the ``cognitive_control`` section of the model configuration,
+    and an empty section uses the operator defaults.
     ``tool_call`` gives the companion MCP tools. ``None`` reads the
     ``tool_call`` section of the model configuration in real cognition;
     dummy cognition has no tools.
@@ -322,6 +351,7 @@ def build_app(
 
     consolidator = Consolidator(ghost, clock=clock)
     context_embeddings = None
+    minecraft_endpoint = None
     if cognition == "real":
         from pm.llm.config import load_config
         from pm.memory.embeddings import EmbeddingService
@@ -329,10 +359,19 @@ def build_app(
         context_embeddings = EmbeddingService(loaded.embedding)
         if tool_call is None:
             tool_call = loaded.tool_call
+        if cognitive_control_config is None:
+            cognitive_control_config = loaded.cognitive_control
+        minecraft_endpoint = _minecraft_endpoint(loaded)
+        if loaded.minecraft is not None and minecraft_endpoint is not None:
+            # The operator named a body in the model configuration, so the
+            # endpoint must answer now. Failing here beats a session where
+            # every Minecraft task ends unverified.
+            from workflows.minecraft_body.mcp_client import probe_body
+            probe_body(minecraft_endpoint, timeout_seconds=loaded.minecraft.probe_timeout_seconds)
     supervisor = ManagedRunSupervisor(
         ghost,
         runtime_root=runtime_root,
-        workflows=_managed_workflows(stage_model, context_embeddings, ghost, tool_call),
+        workflows=_managed_workflows(stage_model, context_embeddings, ghost, tool_call, minecraft_endpoint),
         clock=clock,
         task_root=runtime_root / "managed_tasks",
         on_error=on_error,
@@ -379,6 +418,7 @@ def build_app(
         stage_model=stage_model, config_path=resolved_config, supervisor=supervisor,
         codelet_definitions=codelet_definitions, thought_period=thought_period,
         embeddings=context_embeddings, workflow_models=workflow_models,
+        minecraft_endpoint=minecraft_endpoint,
     )
     scheduler = ScheduleSubprocesses(
         "scheduler", bus, on_error, clock, task_period,
@@ -430,12 +470,11 @@ def build_app(
             app.focus_management = focus_management
         modules.append(control)
         app.cognitive_control = control
-        if world_poll_seconds is not None:
+        if world_poll_seconds is not None and minecraft_endpoint is not None:
             from workflows.minecraft_body.world_events import WorldEvents
-            from workflows.minecraft_body.mcp_client import build_minecraft_tools, DEFAULT_MCP_URL
+            from workflows.minecraft_body.mcp_client import build_minecraft_tools
             from workflows.minecraft_body.lease import BODY_LEASES
-            import os
-            endpoint = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+            endpoint = minecraft_endpoint
             transport = build_minecraft_tools(endpoint, request_timeout_seconds=30)["minecraft_call"]
 
             def observe_world():

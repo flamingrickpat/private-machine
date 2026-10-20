@@ -10,12 +10,16 @@ from workflows.minecraft_body.lease import BODY_LEASES
 from pm.memory.agent_tools import MemoryToolConfig, MemoryView
 
 
-def build_minecraft_module_tools(plan_model=None, context_measure=None) -> Callable[[str, object], dict]:
+def build_minecraft_module_tools(plan_model=None, context_measure=None, mcp_url: str | None = None) -> Callable[[str, object], dict]:
     """Return a ``tools_factory(run_id, environment)`` for managed runs.
 
-    ``MINECRAFT_MCP_URL`` selects the real pm-minecraft MCP endpoint.
+    ``mcp_url`` is the body endpoint that the assembly resolved from the
+    ``minecraft`` section of the model configuration. A real run therefore
+    needs no environment variable. When it is None, the old
+    ``MINECRAFT_MCP_URL`` override and then the default endpoint apply, which
+    is what a unit run that never calls a world tool relies on.
     """
-    url = os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
+    url = mcp_url or os.environ.get("MINECRAFT_MCP_URL", DEFAULT_MCP_URL)
 
     def factory(run_id: str, environment) -> dict:
         return {**build_minecraft_tools(url, plan_model=plan_model),

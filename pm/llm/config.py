@@ -16,7 +16,7 @@ import yaml
 from pm.utils import yaml_util
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt, field_validator, model_validator
 
-from pm.llm.mcp_config import ToolCallConfig
+from pm.llm.mcp_config import MinecraftConfig, ToolCallConfig
 
 
 class LlmPreset(StrEnum):
@@ -94,6 +94,17 @@ class ModelConfig(BaseModel):
 
     ``tool_call`` is optional. Without it the companion has no MCP tools
     (:class:`pm.llm.mcp_config.ToolCallConfig`).
+
+    ``minecraft`` is optional. Without it the companion has no Minecraft body:
+    no world poll, no live body read in the assistant, and no startup probe
+    (:class:`pm.llm.mcp_config.MinecraftConfig`). With it the assembly asks the
+    endpoint once at startup and stops when nothing answers.
+
+    ``cognitive_control`` holds the operator limits for waits, focus, and
+    mental sessions. It stays a plain mapping here because the runtime must
+    not import ``workflows``. ``workflows.cognitive_control.schemas.ControlConfig``
+    validates it when the assembly builds, so an unknown key fails at startup
+    rather than being ignored.
     """
 
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
@@ -101,6 +112,8 @@ class ModelConfig(BaseModel):
     chat: dict[LlmPreset, ConnectionConfig]
     embedding: EmbeddingConfig
     tool_call: ToolCallConfig = Field(default_factory=ToolCallConfig)
+    minecraft: MinecraftConfig | None = None
+    cognitive_control: dict = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def required_presets(self):

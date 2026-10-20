@@ -23,7 +23,10 @@ from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, scr
 from tests.unit.workflows.main_cognition.test_cognition_state import _module as main_module, _reports, _store
 from workflows.cognitive_control.host import CognitiveControl
 from workflows.cognitive_control.schemas import ControlConfig, WaitRequest
-from workflows.main_cognition.schemas import RouteAnswer
+from workflows.main_cognition.cycle_work import CycleRequest, CycleWork
+from workflows.main_cognition.phases.commit import wait_request
+from workflows.main_cognition.schemas import (ActionArguments, ActionDispatch, RouteAnswer, RoutedDecision,
+                                              RouteChoice)
 
 
 class WaitTests(unittest.TestCase):
@@ -356,6 +359,123 @@ class KernelWaitTests(unittest.TestCase):
             bus.put(duplicate)
             module.step()
             self.assertEqual(len(ghost.states), cycle_count)
+
+
+class QuietWindowTests(unittest.TestCase):
+    """The quiet window that a spoken reply arms. Scheduling only.
+
+    These checks do not establish that a model chooses to speak, nor that a
+    wait produces a better reply.
+    """
+
+    def work(self, post_reply_seconds, actions, statuses=(), routes=()):
+        work = CycleWork(request=CycleRequest(post_reply_seconds=post_reply_seconds))
+        work.dispatches = [ActionDispatch(action_type=action, status=status)
+                           for action, status in zip(actions, statuses or ["dispatched"] * len(actions))]
+        work.routes = list(routes)
+        return work
+
+    def test_a_spoken_reply_arms_the_window(self):
+        for action in ("Reply", "ToolCallAndReply"):
+            wait = wait_request(self.work(600, [action]))
+            self.assertIsNotNone(wait, action)
+            self.assertEqual(wait.seconds, 600)
+
+    def test_a_cycle_that_said_nothing_arms_no_window(self):
+        self.assertIsNone(wait_request(self.work(600, [])))
+        self.assertIsNone(wait_request(self.work(600, ["ToolCall"])))
+        # A rejected reply never reached the partner, so nothing is owed.
+        self.assertIsNone(wait_request(self.work(600, ["Reply"], ["rejected"])))
+
+    def test_the_operator_can_disable_the_window(self):
+        self.assertIsNone(wait_request(self.work(0, ["Reply"])))
+
+    def test_a_sleep_route_keeps_its_own_wait(self):
+        sleep = RoutedDecision(route=RouteChoice(action_type="Sleep",
+                                                 arguments=ActionArguments(timeout_seconds=90)))
+        wait = wait_request(self.work(600, ["Reply"], routes=[sleep]))
+        self.assertEqual(wait.seconds, 90)
+
+
+class WaitTierTests(unittest.TestCase):
+    """Which evidence ends a wait at once, and which a wait holds.
+
+    A 120 second world poll must not cut a 600 second quiet window down to
+    two minutes. Held evidence must still reach a later cycle, or the body
+    poller never clears its pending observation and stops polling.
+    """
+
+    def setUp(self):
+        self.ghost = small_ghost()
+        self.bus = BusSystem()
+        self.now = datetime(2026, 10, 17, 12)
+        self.events = Recorder(self.bus)
+        self.control = CognitiveControl("cognitive_control", self.bus, self.fail, ManualClock(), 1,
+                                        ghost=self.ghost, now=lambda: self.now)
+
+    def fail(self, module, error):
+        raise error
+
+    def poll(self):
+        key = _store(self.ghost, "Current Minecraft observation during user silence: {}")
+        return new_envelope("world_events", "data", "minecraft.world", "world-event:1", {"knoxel_id": key})
+
+    def run_event(self, state):
+        return new_envelope("minecraft", "data", "workflow.event", "run:1", {"event": state})
+
+    def test_a_world_poll_and_finished_work_do_not_end_a_wait(self):
+        batch = self.ghost.begin_batch("wait")
+        self.control.commit(batch, WaitRequest(seconds=600), self.control.generation)
+        self.assertTrue(self.control.waiting())
+        self.control.observe(self.poll())
+        self.control.observe(self.run_event("completed"))
+        self.control.observe(self.run_event("gameplay_progress"))
+        self.assertTrue(self.control.waiting())
+        self.assertEqual(self.events.events, [])
+
+    def test_held_evidence_returns_to_the_bus_when_the_wait_expires(self):
+        batch = self.ghost.begin_batch("wait")
+        self.control.commit(batch, WaitRequest(seconds=600), self.control.generation)
+        held = [self.poll(), self.run_event("completed")]
+        self.assertEqual(self.control.admit(held), ([], self.control.generation))
+        self.now += timedelta(seconds=600)
+        self.control.handle_batch([])
+        self.assertFalse(self.control.waiting())
+        topics = [event.topic for event in self.events.events]
+        self.assertEqual(topics.count("minecraft.world"), 1)
+        self.assertEqual(topics.count("workflow.event"), 1)
+        # The replayed poll names the same record, so the poller can clear it.
+        replayed = next(event for event in self.events.events if event.topic == "minecraft.world")
+        self.assertEqual(replayed.payload, held[0].payload)
+        self.assertNotEqual(replayed.id, held[0].id)
+
+    def test_held_evidence_returns_to_the_bus_on_an_early_wake(self):
+        batch = self.ghost.begin_batch("wait")
+        self.control.commit(batch, WaitRequest(seconds=600), self.control.generation)
+        self.assertEqual(self.control.admit([self.poll()]), ([], self.control.generation))
+        self.control.observe(self.external())
+        topics = [event.topic for event in self.events.events]
+        self.assertIn("minecraft.world", topics)
+
+    def test_a_failed_run_ends_the_wait_at_once(self):
+        batch = self.ghost.begin_batch("wait")
+        self.control.commit(batch, WaitRequest(seconds=600), self.control.generation)
+        self.control.observe(self.run_event("failed"))
+        self.assertFalse(self.control.waiting())
+
+    def test_a_wait_never_holds_evidence_twice(self):
+        batch = self.ghost.begin_batch("wait")
+        self.control.commit(batch, WaitRequest(seconds=600), self.control.generation)
+        poll = self.poll()
+        self.control.admit([poll])
+        self.control.admit([poll])
+        self.now += timedelta(seconds=600)
+        self.control.handle_batch([])
+        self.assertEqual([event.topic for event in self.events.events].count("minecraft.world"), 1)
+
+    def external(self):
+        key = _store(self.ghost, "a new message")
+        return new_envelope("user_input", "data", "user.input", "new-input", {"knoxel_id": key})
 
 
 if __name__ == "__main__":

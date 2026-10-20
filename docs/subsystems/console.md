@@ -81,6 +81,7 @@ It reads embedding overrides from `PM_ENV_FILE`, the repository `.env`, or the l
 An existing credential environment variable takes precedence over a legacy file credential.
 The service never includes credentials in connection reports.
 
-`MINECRAFT_MCP_URL` selects the MCP endpoint.
-Otherwise, `PM_MC_MCP_PORT` selects its port.
+The instance model configuration selects the MCP endpoint in its `minecraft` section.
+`MINECRAFT_MCP_URL` remains a test override.
+`PM_MC_MCP_PORT` selects a legacy probe port.
 `PM_MINECRAFT_HOST` and `PM_MINECRAFT_PORT` select the TCP probe target.

@@ -21,7 +21,9 @@ Dummy cognition does not enable it.
 `world_poll_seconds=None` disables this event source.
 A poll period must be positive; a silence interval cannot be negative.
 
-The endpoint is `MINECRAFT_MCP_URL`, with the normal local MCP endpoint as its fallback.
+The endpoint is `minecraft.mcp_url` in the model configuration.
+`MINECRAFT_MCP_URL` remains a test override.
+Without a `minecraft` section, the module does not start.
 Each poll calls only `minecraft_observe` with `include_image=false`.
 The read shares the cross-process command lock with actor calls.
 It never claims the body's mutation lease.

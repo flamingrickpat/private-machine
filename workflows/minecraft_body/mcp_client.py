@@ -15,10 +15,14 @@ from contextlib import asynccontextmanager
 from typing import Any, Callable
 
 import httpx
+from pm.constants import MINECRAFT_REQUEST_SECONDS
 from pm.runs.errors import TaskServiceError
 
 DEFAULT_MCP_URL = "http://127.0.0.1:6767/mcp"
-MCP_REQUEST_TIMEOUT_SECONDS = 660
+MCP_REQUEST_TIMEOUT_SECONDS = MINECRAFT_REQUEST_SECONDS
+#: A Minecraft body endpoint must offer this tool. Another MCP server on the
+#: same port does not pass the startup check.
+BODY_TOOL = "minecraft_call"
 
 
 @asynccontextmanager
@@ -50,6 +54,27 @@ def _extract_images(content: list) -> list[dict]:
             "base64": getattr(block, "data", "") or "",
         })
     return images
+
+
+def probe_body(mcp_url: str, *, timeout_seconds: float = 5.0) -> list[str]:
+    """Return the tool names of the Minecraft body at ``mcp_url``, or raise.
+
+    The assembly calls this once at startup, before any module thread runs.
+    The check runs the real MCP handshake and lists tools, so a port that
+    answers with something else fails too. ``TaskServiceError`` names the
+    endpoint and says what to do, so a wrong ``mcp_url`` is not mistaken for a
+    model or task failure later in the session.
+    """
+    try:
+        names = build_minecraft_tools(mcp_url, request_timeout_seconds=int(timeout_seconds))["minecraft_list_tools"]()
+    except TaskServiceError as error:
+        raise TaskServiceError(
+            f"No Minecraft body answers at {mcp_url}. Start the MCP server, or fix "
+            f"minecraft.mcp_url in the model config.") from error
+    if BODY_TOOL not in names:
+        raise TaskServiceError(f"{mcp_url} answers but offers no {BODY_TOOL} tool. "
+                               f"It is not a Minecraft body endpoint.")
+    return names
 
 
 def build_minecraft_tools(

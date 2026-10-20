@@ -9,6 +9,11 @@ class ControlConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     wait_seconds: float = Field(default=1800, ge=1, le=86400)
     maximum_wait_seconds: float = Field(default=86400, ge=1, le=86400)
+    #: Quiet window after a spoken reply, in seconds. The companion said
+    #: something, so the next cycle should wait for her partner to answer
+    #: instead of thinking on again at once. Private thought is suspended for
+    #: the window; managed runs keep working through it. Zero disables it.
+    post_reply_seconds: float = Field(default=600, ge=0, le=86400)
     focus_seconds: float = Field(default=900, ge=1, le=86400)
     maximum_focus_bias: float = Field(default=0.35, ge=0, le=0.5)
     episode_steps: int = Field(default=6, ge=1, le=32)

@@ -570,6 +570,7 @@ class MainCogLoop(CognitiveWorkflow):
             mental_proposals=mental_proposals,
             reflection_guidance=guidance,
             wait_default_seconds=control.config.wait_seconds if control is not None else 1800,
+            post_reply_seconds=control.config.post_reply_seconds if control is not None else 0.0,
             capabilities=_capabilities(self.ghost),
             available_workflows=(self.workflow_catalogue_provider() if self.workflow_catalogue_provider is not None
                                  else self.workflow_catalogue),

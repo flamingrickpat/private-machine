@@ -28,8 +28,18 @@ The isolated live-test harness can start its own server and MCP. This is a separ
 .venv/Scripts/python.exe main.py .env_real
 ```
 
-5. Set `MINECRAFT_MCP_URL` for Spamuel to the actual MCP URL, including `/mcp`.
-6. Start the Spamuel instance after you change its environment.
+5. Add the actual MCP URL, including `/mcp`, to Spamuel's model configuration:
+
+```yaml
+minecraft:
+  mcp_url: http://127.0.0.1:6767/mcp
+  request_timeout_seconds: 660
+  probe_timeout_seconds: 5
+```
+
+Use the file that you give with `--config`, or the file selected for the console instance.
+`MINECRAFT_MCP_URL` remains a test override. Normal operation reads the configuration section.
+6. Start the Spamuel instance. A wrong endpoint stops the start before the first cycle.
 7. Open **Connections** in the console and check each endpoint.
 
 The game port and MCP HTTP port are different ports.

@@ -145,7 +145,8 @@ Native actor sessions retain their own context discovery and compaction.
 The workflow kernel retains its existing 999-visit backstop for each cyclic phase.
 The project adds no actor tool-call ceiling or fixed leaf count.
 
-`MINECRAFT_MCP_URL` selects the real MCP endpoint.
+`minecraft.mcp_url` in the model configuration selects the real MCP endpoint.
+`MINECRAFT_MCP_URL` remains a test override.
 Specialists receive the live tool schemas and existing compiled survival resources.
 The resource compiler also appends local specialist guidance from `workflows/minecraft/guidance/` when that file exists.
 The manifest records its path and hash separately from the unchanged upstream skill sources.

@@ -21,3 +21,14 @@ embedding:
   dimensions: 1024
   legacy_cache_dir: ~/.pm/embeddings
   cache_dir: .runtime/embeddings
+# Optional Minecraft body (docs/subsystems/body-leases.md). Without this section the
+# character has no body. With it pm probes the endpoint once at startup.
+# minecraft:
+#   mcp_url: http://127.0.0.1:6767/mcp
+#   request_timeout_seconds: 660
+#   probe_timeout_seconds: 5
+
+# Optional operator limits for waits (docs/subsystems/inference-wait.md).
+# cognitive_control:
+#   post_reply_seconds: 600
+#   wait_seconds: 1800

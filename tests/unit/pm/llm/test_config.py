@@ -102,6 +102,18 @@ class ModelConfigTests(unittest.TestCase):
             self.assertEqual(resolve_connection(config).startup_script, Path(directory) / "start.ps1")
             self.assertEqual(config.embedding.cache_dir, Path(directory) / ".runtime" / "embeddings")
 
+    def test_cognitive_control_section_stays_a_plain_mapping(self):
+        # The runtime must not import workflows, so it keeps the section as it
+        # is. ControlConfig validates it during assembly and rejects an
+        # unknown key there rather than ignoring it.
+        self.assertEqual(self.config.cognitive_control, {})
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "models.yaml"
+            text = (Path("config.example.yaml").read_text(encoding="utf-8")
+                    + "cognitive_control:\n  post_reply_seconds: 900\n")
+            path.write_text(text, encoding="utf-8")
+            self.assertEqual(load_config(path).cognitive_control, {"post_reply_seconds": 900})
+
     def test_credentials_in_urls_are_rejected_without_echo(self):
         with self.assertRaises(ValidationError) as error:
             ConnectionConfig(base_url="http://user:private-marker@localhost/v1", model="qwen")

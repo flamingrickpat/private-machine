@@ -18,17 +18,33 @@ from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import write_report
 
 
-def wait_request(work: CycleWork) -> WaitRequest | None:
-    """Return the wait of the first decision that routing mapped to Sleep, or None.
+#: Action types that put words in front of the partner.
+SPOKEN_ACTIONS = frozenset({"Reply", "ToolCallAndReply"})
 
-    A Sleep route without a duration waits for the configured default. The
-    reason of the wait is the decision text.
+
+def wait_request(work: CycleWork) -> WaitRequest | None:
+    """Return the wait that ends this cycle, or None to run the next cycle at once.
+
+    A Sleep route wins. Its duration comes from the route, or from the
+    configured default when the route gives none, and its reason is the
+    decision text.
+
+    Otherwise a spoken reply arms the quiet window. The companion has just
+    said something, so the next thing worth reading is her partner's answer,
+    not another of her own thoughts. The window is the operator's
+    ``post_reply_seconds``; zero disables it. A cycle that only spoke, and a
+    cycle that spoke and started a managed run, both wait: a managed run is
+    not suspended by a wait, so the window gives the worker time to finish.
     """
     for item in work.routes:
         if item.route.action_type == "Sleep":
             seconds = item.route.arguments.timeout_seconds
             return WaitRequest(seconds=float(seconds if seconds is not None else work.request.wait_default_seconds),
                                reason=item.decision or "Wait for a new stimulus.")
+    if work.request.post_reply_seconds > 0 and any(
+            item.status == "dispatched" and item.action_type in SPOKEN_ACTIONS for item in work.dispatches):
+        return WaitRequest(seconds=float(work.request.post_reply_seconds),
+                           reason="I said something. Wait for an answer before I think again.")
     return None
 
 
@@ -41,4 +57,4 @@ def run(context, work: CycleWork) -> CycleWork:
     return work
 
 
-__all__ = ["run", "wait_request"]
+__all__ = ["run", "wait_request", "SPOKEN_ACTIONS"]

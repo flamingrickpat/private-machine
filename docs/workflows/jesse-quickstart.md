@@ -112,6 +112,19 @@ If your LLM requires a key, set `api_key` in this private file.
 Leave `startup_script` empty because you start the LLM yourself.
 The local LLM must support tool calls for Minecraft workflows.
 
+Add the Minecraft body endpoint to the same file. Use the MCP HTTP port,
+not the game port:
+
+```yaml
+minecraft:
+  mcp_url: http://127.0.0.1:6777/mcp
+  request_timeout_seconds: 660
+  probe_timeout_seconds: 5
+```
+
+pm asks this endpoint once at startup and stops when nothing answers.
+Without the section, Spamuel has no body and no Minecraft route.
+
 The runtime normally reads the serving context size from the local `/props` endpoint.
 If your server has no `/props`, add `context_window` to both chat entries.
 Use its actual configured context size, rather than the model's advertised maximum.
@@ -219,7 +232,6 @@ Use the window where you supplied the embedding key.
 ```powershell
 Set-Location C:\source\pm\pm_next_v2
 $env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
-$env:MINECRAFT_MCP_URL = 'http://127.0.0.1:6777/mcp'
 $env:PM_MINECRAFT_HOST = '127.0.0.1'
 $env:PM_MINECRAFT_PORT = '12345'
 uv run --locked python -m pm.console.server --port 8091 --root .runtime/jesse-test/console
@@ -297,7 +309,7 @@ Keep one active instance per Minecraft body.
 | Unknown model ID | Copy the actual `id` into both chat entries. |
 | Context discovery error | Set the actual `context_window` in both chat entries. |
 | Missing embedding credential | Supply the key before starting the console. |
-| Wrong MCP port | Set `MINECRAFT_MCP_URL` before starting the console and worker. |
+| Wrong MCP port | Fix `minecraft.mcp_url` in the model configuration, then restart the instance. |
 | Required body or browser file missing | Run `setup.ps1` and inspect the copied path entries. |
 | Babymode version error | Install or enable Agentic Babymode 0.5.0 or newer on the selected server. |
 | RCON connection error | Check its host, port, password, and `enable-rcon=true`. |

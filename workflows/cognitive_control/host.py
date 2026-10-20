@@ -45,14 +45,37 @@ class CognitiveControl(BusModule):
         self._pending_inputs: set[str] = set()
         self._seen_inputs: set[str] = set()
         self._enqueued_wakes: set[int] = set()
+        # Evidence that arrived during a wait and was held for the next cycle.
+        # This list is in memory only, like the poller that produced it.
+        self._deferred: list[Envelope] = []
+
+    #: Events that end a deliberate wait at once. Outside input and work that
+    #: needs a decision cannot wait for a quiet window to expire.
+    WAKING_EVENTS = frozenset({"failed", "cancelled", "interrupted", "waiting_for_input"})
+    #: Events that a wait holds for the next cycle instead of answering now.
+    DEFERRED_EVENTS = frozenset({"completed", "gameplay_progress"})
 
     @staticmethod
     def is_external(envelope: Envelope) -> bool:
-        """Identify evidence that can interrupt a deliberate wait."""
-        if envelope.topic in {"user.input", "minecraft.world", "workflow.question"}:
+        """Identify evidence that ends a deliberate wait at once."""
+        if envelope.topic in {"user.input", "workflow.question"}:
             return True
-        return envelope.topic == "workflow.event" and envelope.payload.get("event") in {
-            "completed", "failed", "cancelled", "interrupted", "waiting_for_input", "gameplay_progress"}
+        return envelope.topic == "workflow.event" and envelope.payload.get("event") in CognitiveControl.WAKING_EVENTS
+
+    @staticmethod
+    def is_deferred(envelope: Envelope) -> bool:
+        """Identify evidence that a wait holds instead of answering inside it.
+
+        A Minecraft poller observation and a finished managed run are new
+        facts, but none of them needs an answer during the quiet window after
+        a reply. Left in the waking tier, the 120 second world poll cut a
+        600 second window down to two minutes. :meth:`admit` parks these
+        envelopes and the wake path replays them, so the record still reaches
+        a cycle and the body poller can clear its pending observation.
+        """
+        if envelope.topic == "minecraft.world":
+            return True
+        return envelope.topic == "workflow.event" and envelope.payload.get("event") in CognitiveControl.DEFERRED_EVENTS
 
     def _record(self) -> Feature | None:
         return next((record for record in reversed(list(self.ghost.all_knoxels.values()))
@@ -84,6 +107,7 @@ class CognitiveControl(BusModule):
         """
         if not self.is_external(envelope):
             return
+        woke = False
         with self.ghost.lock:
             if envelope.id in self._seen_inputs:
                 return
@@ -93,7 +117,10 @@ class CognitiveControl(BusModule):
             record = self._record()
             if record is not None and record.metadata["status"] == "waiting":
                 self._wake(record, envelope.topic, timeout=False, now=self.now())
+                woke = True
         self.cancel_private()
+        if woke:
+            self._flush_deferred()
 
     def admit(self, envelopes: list[Envelope]) -> tuple[list[Envelope], int]:
         """Discard consumed wakes and private output from an older generation.
@@ -103,6 +130,12 @@ class CognitiveControl(BusModule):
         """
         with self.ghost.lock:
             if self.waiting():
+                # Hold routine evidence for the next cycle. The parked record
+                # stays unclaimed, so the body poller keeps its pending
+                # observation and clears it when a later cycle reads it.
+                for item in envelopes:
+                    if self.is_deferred(item) and item.id not in {held.id for held in self._deferred}:
+                        self._deferred.append(item)
                 return [], self.generation
             accepted = []
             for envelope in envelopes:
@@ -210,6 +243,21 @@ class CognitiveControl(BusModule):
                     parent_record_ids=[record.id], source_event_ids=[record.id]))
         self.ghost.commit(batch)
 
+    def _flush_deferred(self) -> None:
+        """Re-publish evidence that a wait held, so the next cycle reads it.
+
+        Each parked envelope goes back to the bus in arrival order with a
+        fresh envelope id and its original causation, so a reader can still
+        trace it to the module that produced it. The store already holds its
+        record, so a stop before republish loses only the delivery: the record
+        still reaches a later cycle through the shard tail of its group.
+        """
+        held, self._deferred = self._deferred, []
+        for envelope in held:
+            self.bus.put(new_envelope(envelope.source, envelope.kind, envelope.topic,
+                                      envelope.correlation_id, dict(envelope.payload),
+                                      target=envelope.target, causation_id=envelope.causation_id or envelope.id))
+
     def release_wakes(self, envelopes: list[Envelope]) -> None:
         """Permit replay after a cancelled or rejected main invocation."""
         with self.ghost.lock:
@@ -252,3 +300,5 @@ class CognitiveControl(BusModule):
                 with self.ghost.lock:
                     self._enqueued_wakes.discard(key)
                 raise
+        if not self.waiting():
+            self._flush_deferred()
