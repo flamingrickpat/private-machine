@@ -88,6 +88,8 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
     ``view`` is a frozen memory store view that holds every shard record.
     The shards hold committed records only, so a missing record is a bug
     and raises KeyError. The current stimuli are not in any tail.
+    Empty history remains in evidence but supplies no transcript turn.
+    This function does not change accepted records or call a model.
     """
     records = _views(view, request)
     dialogue: list[Feature] = []
@@ -99,12 +101,16 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
                 dialogue.append(record)
             elif item.shard.key.kind == "self" and record.feature_type in THOUGHT_TYPES:
                 all_thoughts.append(record)
-    thoughts = exchange_thoughts(dialogue, all_thoughts)
-    transcript = [*dialogue, *thoughts]
+    # Empty records can exist in imported or previously accepted history.
+    # Filter before exchange selection so they cannot displace useful thoughts.
+    empty = {record.id for record in [*dialogue, *all_thoughts] if not record.content.strip()}
+    spoken = [record for record in dialogue if record.id not in empty]
+    thoughts = exchange_thoughts(spoken, [record for record in all_thoughts if record.id not in empty])
+    transcript = [*spoken, *thoughts]
     # The story text leaves out every verbatim line. It also leaves out the
     # thoughts that the transcript drops, so they do not come back there.
     verbatim = {record.id for record in [*dialogue, *all_thoughts]}
-    dropped = {record.id for record in all_thoughts} - {record.id for record in thoughts}
+    dropped = {record.id for record in all_thoughts} - {record.id for record in thoughts} - empty
     shown_tail = {index: [record_id for record_id in item.shard.tail_ids if record_id not in verbatim]
                   for index, item in enumerate(request.shards)}
     moved = {index: len(shown_tail[index]) < len(item.shard.tail_ids) for index, item in enumerate(request.shards)}
@@ -126,7 +132,7 @@ def shard_context(view, request: ActionRequest, companion_name: str) -> PlannedC
              "shards": [{"name": item.name, "key": item.shard.key.model_dump(mode="json"),
                          "items": len(item.shard.items), "tail": len(item.shard.tail_ids)}
                         for item in request.shards],
-             "transcript": len(transcript)}
+             "transcript": len(transcript), "empty_transcript_ids": sorted(empty)}
     return PlannedContext(dialogue=[_turn(record) for record in transcript],
                           evidence=evidence, story=BLOCK_SEPARATOR.join(blocks), trace=trace)
 

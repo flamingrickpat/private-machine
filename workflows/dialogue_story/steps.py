@@ -187,15 +187,19 @@ def build_story_messages(request: StoryRequest, prompts: dict, *, avoid: str = "
     ]
 
 
-def clean_reply(raw: str, companion_name: str, partner_name: str) -> str:
+def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: str = "") -> str:
     """Keep only the companion's continuation.
 
-    The backend may echo the assistant prefill or may continue after it. Remove
-    an echoed prefix. Then cut the text at the first marker of any other
+    ``prefill`` is the exact transcript sent in the final assistant turn.
+    Remove its full echo before speaker and day-marker checks.
+    Then cut the text at the first marker of any other
     speaker or the start of a non-public state line. This prevents a
     model-invented next user turn from becoming stored dialogue.
     """
-    reply = (raw or "").strip()
+    reply = raw or ""
+    if prefill and reply.startswith(prefill):
+        reply = reply[len(prefill):]
+    reply = reply.strip()
     for prefix in (f"{companion_name} says:", f"{companion_name}:"):
         if reply.lower().startswith(prefix.lower()):
             reply = reply[len(prefix):].lstrip()
@@ -273,7 +277,8 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextC
     ``generate`` and ``review_complete`` are async completion callables. There
     is no regeneration loop: the model output is one attempt. The review
     returns a judgment, a reason, and advisory findings. Only a false task
-    result blocks. Model transport errors propagate.
+    result blocks. Model transport errors propagate. A completion without
+    new speech raises ModelError before review or publication.
     """
     context = review_deps.get("context") or request.public_context or review_context(request)
     review_prompts = review_deps.get("review_prompts") or load_review_prompts()
@@ -282,7 +287,13 @@ def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextC
     raw = asyncio.run(generate(messages, **prompts.get("generation", {})))
     if not isinstance(raw, str):
         raise TypeError("story_complete must return the completion text as a string.")
-    candidate = clean_reply(raw, request.companion_name, request.partner_name)
+    candidate = clean_reply(raw, request.companion_name, request.partner_name,
+                            prefill=messages[-1].content.text)
+    # A provider can return the supplied transcript with no new words.
+    # Keep the raw response in prompt logs, but never review or publish its date.
+    if not candidate:
+        from pm.llm.http_client import ModelError
+        raise ModelError("The Story completion returned no new speech after the transcript.")
     review = asyncio.run(review_speech(review_complete, candidate, context, conversation=conversation,
                                        prompts=review_prompts))
     candidate = select_spoken_text(candidate, review)

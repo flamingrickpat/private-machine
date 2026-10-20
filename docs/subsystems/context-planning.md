@@ -43,8 +43,38 @@ The v2 planner keeps the lane design and adds the workspace focus.
 
 A thought belongs to the exchange when it is not older than the oldest dialogue line of the transcript.
 Of these thoughts, the newest `DIALOGUE_THOUGHT_LIMIT` (12) stay.
-The other thoughts of the self tail do not appear in the reply context: not in the transcript, the shard story, or the evidence.
+Older thoughts outside this selection do not appear in the reply context.
 The self tail holds 6k tokens of thoughts. In the A19F step 10 replay, about 88 thoughts from earlier days filled the transcript and brought back their old wording, for example "she" for Jesse.
+
+### Empty history records
+
+The shard context omits empty dialogue, thoughts, and inner monologue from the transcript.
+Whitespace-only content, including Unicode whitespace, also supplies no turn.
+The filter runs before exchange selection, so empty records cannot displace useful thoughts or extend the exchange boundary.
+The context retains each empty record in evidence with its original ID, revision, and provenance.
+Publication guards therefore still detect changes to those records.
+The filter does not change accepted records or invent replacement text.
+Missing shard records still raise `KeyError`.
+
+`PlannedContext.trace.empty_transcript_ids` lists omitted record IDs.
+`trace.transcript` counts actual turns after selection.
+The standalone planner already excludes empty records through [`scoped_records`][pm.memory.retrieval.scoped_records].
+
+The focused live checks use the full Spamuel seed and the real Story host, kernel, review, commit, and bus delivery.
+The normal case runs separately from the case with added empty history records.
+The same module checks captured syntax repair through the cognitive tool grant and asynchronous schema repair.
+
+```powershell
+uv run --locked python -m unittest tests.live.test_runtime_stability -v -b
+```
+
+The default connection is `http://127.0.0.1:8080/v1`, model alias `qwen`.
+`PM_STABILITY_LLM_URL` and `PM_STABILITY_LLM_MODEL` select another running model.
+No startup script runs, and an unavailable endpoint fails the checks.
+Completion caching stays disabled during these checks.
+Prompts, rejected outputs, repaired outputs, public contexts, reports, and transport counts stay under a fresh `.runtime/stability/` directory.
+`PM_STABILITY_EVIDENCE` selects a new output directory explicitly.
+These checks establish execution boundaries. They supply no human quality rating or full-application acceptance.
 
 The shards already have token budgets (`WORKSPACE_SHARD_TOKENS`, `WORKSPACE_TAIL_TOKENS`) and content requirements.
 So the reply reads the same conscious content as the decision, and no record is retrieved again.

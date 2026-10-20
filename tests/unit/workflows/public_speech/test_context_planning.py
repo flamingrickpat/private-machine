@@ -50,6 +50,16 @@ class ContextPlanningTests(unittest.TestCase):
         self.assertIn(self.current.id, lanes)
         self.assertEqual(context.plan["plan"], "story")
 
+    def test_empty_history_does_not_enter_the_standalone_transcript(self):
+        blanks = [self.say(text, source="Spamuel", kind=kind).id
+                  for text in ("", " \t\r\n", "\u00a0\u2003")
+                  for kind in (FeatureType.Dialogue, FeatureType.Thought, FeatureType.InnerMonologue)]
+        planned = self.plan()
+        self.assertEqual([turn.knoxel_id for turn in planned.dialogue],
+                         [self.older.id, self.older.id + 1, self.thought.id])
+        self.assertTrue(set(blanks).isdisjoint(turn.knoxel_id for turn in planned.dialogue))
+        self.assertTrue(all(turn.text.strip() for turn in planned.dialogue))
+
 
 if __name__ == "__main__":
     unittest.main()

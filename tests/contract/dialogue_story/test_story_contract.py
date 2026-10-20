@@ -103,6 +103,14 @@ class CleanReplyTests(unittest.TestCase):
     def test_trailing_unmatched_quote_is_removed(self):
         self.assertEqual(clean_reply('Pathetic. Bed."', "Spamuel", "Jesse"), "Pathetic. Bed.")
 
+    def test_full_transcript_echo_is_removed_before_speaker_markers(self):
+        prefill = '*(30 May 2026)*\nJesse says: "hello"\nSpamuel says: "'
+        self.assertEqual(clean_reply(prefill + 'Hi."\nJesse says: "next"', "Spamuel", "Jesse", prefill=prefill), "Hi.")
+        self.assertEqual(clean_reply(prefill, "Spamuel", "Jesse", prefill=prefill), "")
+
+    def test_normal_continuation_does_not_require_an_echo(self):
+        self.assertEqual(clean_reply('Hi."', "Spamuel", "Jesse", prefill='Spamuel says: "'), "Hi.")
+
 
 class ReviewContextTests(unittest.TestCase):
     def test_no_context_review_keeps_abilities_and_memories(self):

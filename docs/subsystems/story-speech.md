@@ -67,6 +67,20 @@ The [shard context](context-planning.md#shard-context) fills the assistant turn:
 A thought renders as `<companion> thinks: *...*`. A day marker such as `*(30 May 2026)*` starts each new day in the window.
 A standalone situation has no shards. Its context plan fills the transcript and the memory sections.
 
+### Completion echoes
+
+Some local servers include the entire assistant prefill in the completion text.
+[`clean_reply`][workflows.dialogue_story.steps.clean_reply] removes that exact prefix before it searches for speaker or day markers.
+Otherwise, the first historical date can become the candidate instead of the new reply.
+The report and prompt logs retain the original completion text.
+The candidate contains only the new spoken words.
+A completion with no new speech raises `ModelError` before review or publication.
+This error does not trigger a second Story generation.
+
+The generation instruction asks for a reply to the current message and only the newly written words.
+The three message roles and the full transcript remain intact.
+The [focused local checks](context-planning.md#empty-history-records) cover normal history, empty history, and actual committed replies.
+
 ## Agentic review
 
 [`review_speech`][workflows.public_speech.speech_review.review_speech] makes one model call with thinking off and temperature 0.2.

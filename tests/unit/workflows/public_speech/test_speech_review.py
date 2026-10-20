@@ -147,6 +147,18 @@ class StorySingleGenerationTests(unittest.TestCase):
         self.assertEqual(chosen.review.reason, "in character")
         self.assertFalse(chosen.blocked)
 
+    def test_a_transcript_echo_without_new_speech_never_reaches_review(self):
+        from pm.llm.http_client import ModelError
+
+        async def generate(messages, **generation):
+            return messages[-1].content.text
+
+        async def review(messages, **generation):
+            self.fail("An unchanged transcript is not a draft reply.")
+
+        with self.assertRaisesRegex(ModelError, "no new speech"):
+            generate_reviewed(self.request(), load_prompts(), generate, review)
+
     def test_an_invented_ability_finding_does_not_block(self):
         attempts, chosen, _ = self.run_once(
             'I watched you through the camera."',

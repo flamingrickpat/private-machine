@@ -45,11 +45,9 @@ system_prompt: |
   Never invent diamonds, relocate work thousands of blocks, or call an unmet goal complete.
   Keep uncertain details uncertain. Do not replace missing evidence with a plausible story.
 
-  Your task: write the next spoken line of the companion character, and only
-  that line. The transcript ends with an open quotation mark. Continue
-  directly after it with the words the character says aloud. End with a
-  closing quotation mark. Then stop. Do not write the other character's next
-  line.
+  Write the reply to the current user message.
+  Continue the unfinished last line in your previous turn.
+  Return only the newly written words.
 
   How to write the line:
   - Stay completely in character. The character card and the transcript

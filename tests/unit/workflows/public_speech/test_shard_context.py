@@ -64,6 +64,48 @@ class ShardContextTests(unittest.TestCase):
         self.assertIn(self.current.id, lanes)
         self.assertEqual(context.shard_story, planned.story)
 
+    def test_empty_history_stays_in_evidence_without_becoming_a_turn(self):
+        for text in ("", " \t\r\n", "\u00a0\u2003"):
+            for kind, shard in ((FeatureType.Dialogue, self.request.shards[1]),
+                                (FeatureType.Thought, self.request.shards[0]),
+                                (FeatureType.InnerMonologue, self.request.shards[0])):
+                with self.subTest(text=text, kind=kind):
+                    blank = new_feature(self.ghost, text, kind, source="Kit")
+                    shard.shard.tail_ids.append(blank.id)
+        before = self.ghost.snapshot().serialize_knoxels()
+        planned = shard_context(self.ghost.snapshot(), self.request, "Kit")
+        self.assertEqual([turn.knoxel_id for turn in planned.dialogue],
+                         [self.line.id, self.reply.id, self.thought.id])
+        omitted = set(planned.trace["empty_transcript_ids"])
+        self.assertEqual(len(omitted), 9)
+        self.assertTrue(omitted <= {item.knoxel_id for item in planned.evidence})
+        self.assertEqual(planned.trace["transcript"], 3)
+        self.assertEqual(self.ghost.snapshot().serialize_knoxels(), before)
+        context = build_public_context(self.ghost, self.request, planned=planned)
+        self.assertTrue(omitted <= set(context.revisions))
+
+    def test_empty_recent_thoughts_do_not_displace_the_last_useful_thought(self):
+        for _ in range(DIALOGUE_THOUGHT_LIMIT + 1):
+            blank = new_feature(self.ghost, " \n", FeatureType.Thought, source="Kit")
+            self.request.shards[0].shard.tail_ids.append(blank.id)
+        planned = shard_context(self.ghost.snapshot(), self.request, "Kit")
+        self.assertIn(self.thought.id, [turn.knoxel_id for turn in planned.dialogue])
+
+    def test_missing_history_still_raises(self):
+        self.request.shards[1].shard.tail_ids.append(999999)
+        with self.assertRaises(KeyError):
+            shard_context(self.ghost.snapshot(), self.request, "Kit")
+
+    def test_an_empty_transcript_supplies_no_invented_turns(self):
+        for shard, kind in ((self.request.shards[0], FeatureType.Thought),
+                            (self.request.shards[1], FeatureType.Dialogue)):
+            blank = new_feature(self.ghost, " \n", kind, source="Kit")
+            shard.shard.tail_ids = [blank.id]
+        planned = shard_context(self.ghost.snapshot(), self.request, "Kit")
+        self.assertEqual(planned.dialogue, [])
+        self.assertEqual(planned.trace["transcript"], 0)
+        self.assertEqual(len(planned.trace["empty_transcript_ids"]), 2)
+
 
 class ExchangeThoughtTests(unittest.TestCase):
     """Only the thoughts of the recent exchange reach the reply transcript."""
