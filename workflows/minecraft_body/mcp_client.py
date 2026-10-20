@@ -20,9 +20,11 @@ from pm.runs.errors import TaskServiceError
 
 DEFAULT_MCP_URL = "http://127.0.0.1:6767/mcp"
 MCP_REQUEST_TIMEOUT_SECONDS = MINECRAFT_REQUEST_SECONDS
-#: A Minecraft body endpoint must offer this tool. Another MCP server on the
-#: same port does not pass the startup check.
-BODY_TOOL = "minecraft_call"
+#: A Minecraft body endpoint must offer this direct read tool. The server
+#: exposes its body actions under their real names; ``minecraft_call`` is the
+#: local wrapper, not a remote tool. Another MCP server on the same port does
+#: not pass the startup check.
+BODY_TOOL = "minecraft_observe"
 
 
 @asynccontextmanager
