@@ -5,7 +5,8 @@
 Story and Assistant share one accepted identity, affect, goals, evidence, and disclosure contract.
 Each candidate receives time interpretation and evidence review before publication.
 The Ghost commits public speech and exchange resolution together.
-Rejected or failed work retains its evidence and reaches application error handling.
+Exhausted model-output repair retains its evidence and leaves the exchange pending.
+Programming and filesystem errors still reach application error handling.
 
 Parent: [cognition](cognition.md).
 Related: [experienced memory](experienced-memory.md), [publication and recovery](public-publication.md), [the private ontology](private-ontology.md), and [A09 verification](../work_items/verification/a09-public-dialogue.md).
@@ -162,6 +163,54 @@ The accepted reply records `review.reason` beside its durable utterance and in t
 The A09 claim-by-claim review and its grounding recovery were removed on 2026-10-13.
 The [A09 verification](../work_items/verification/a09-public-dialogue.md) keeps their historical evidence.
 [A09R](../work_items/verification/a09r-private-ontology.md) replaced the weighted hallucination policy with this review.
+
+## Model-output failures
+
+The LLM boundary distinguishes unusable external output from faults in the application.
+[`EmptyCompletionError`][pm.llm.http_client.EmptyCompletionError] means that the provider returned no usable text or tool call.
+Whitespace-only content also counts as empty.
+A completion with tool calls remains valid even when it has no text.
+The shared text client retries declared empty output once.
+The tool-completion client permits two empty-output retries without repeating any tool execution.
+Other model errors do not enter these empty-output retries.
+HTTP transport retries keep their existing client policy.
+
+Story permits one [empty-output recovery](story-speech.md#completion-echoes) with the original context.
+Review syntax, findings, and speech-span errors enter the existing context-bounded JSON repair loop.
+The draft stays unchanged during review repair.
+The standalone Story adapter binds context measurement to the same active client as generation.
+Its reviews can therefore repair invalid JSON or speech spans without a missing-measurement error.
+Assistant stores completed tool receipts before requesting more model output.
+An empty Assistant result cannot cause those tools to run again.
+
+[`PublicDialogue.defer_reply`][workflows.public_speech.public_dialogue.PublicDialogue.defer_reply] handles only declared model-output exhaustion:
+
+- `EmptyCompletionError`: the empty-completion retries ended without usable output.
+- [`ProviderCompletionError`][pm.llm.http_client.ProviderCompletionError]: the provider failed or filtered generation. Partial text never reaches publication.
+- [`SpeechOutputError`][workflows.public_speech.speech_text.SpeechOutputError]: the speech workflow exhausted its usable-output attempts.
+- [`ModelFormatError`][pm.llm.structured.ModelFormatError]: JSON repair exhausted the available input context.
+
+The host writes `<runtime>/<module>/<invocation>/speech-failure.json` before it publishes a `generation_failed` action receipt.
+This file retains the request and scratch evidence, including Story attempts or completed Assistant tool receipts.
+No public reply commits. The exchange stays pending for a later action or restart recovery.
+The module continues with the next mailbox action and releases its inference reservation.
+The host does not publish an invented explanation as companion speech.
+
+This boundary does not catch ordinary `TypeError`, `KeyError`, `ValueError`, or filesystem errors.
+Faulty source lookup, broken callbacks, and failed evidence writes still stop the application with their original tracebacks.
+Cancellation also retains its existing signal boundary.
+A valid review that reports a false task result keeps the existing rejection policy.
+
+Focused checks:
+
+```powershell
+uv run --locked python -m unittest tests.unit.pm.llm.test_empty_completions tests.unit.workflows.public_speech.test_speech_recovery tests.unit.workflows.public_speech.test_speech_review -b
+uv run --locked python -m unittest tests.live.test_runtime_stability -v -b
+```
+
+The live checks use the synthetic Spamuel corpus and the explicit local model connection.
+They read no private character home or user configuration.
+They keep their prompts under their own fresh `.runtime/stability/` directory.
 
 ## Inspect a real exchange
 

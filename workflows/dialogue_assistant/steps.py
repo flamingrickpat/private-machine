@@ -23,7 +23,7 @@ from pm.context_render.turns import Turn
 from pm.utils import yaml_util
 import httpx
 from workflows.public_speech.public_context import DialogueTurn, memory_sections, task_lines
-from workflows.public_speech.speech_text import strip_narrator_setup
+from workflows.public_speech.speech_text import SpeechOutputError, strip_narrator_setup
 from workflows.public_speech.speech_review import (
     block_reason, is_blocked, load_prompts as load_review_prompts, review_speech,
     select_spoken_text,
@@ -274,7 +274,7 @@ async def execute_tool_calls(
 def validate_public_speech(text: str) -> None:
     """Reject captured raw tool protocol before claim review or publication."""
     if text.lstrip().startswith(("<tool_call>", "<function=")):
-        raise ValueError("The model returned tool protocol instead of public speech.")
+        raise SpeechOutputError("The model returned tool protocol instead of public speech.")
 
 
 def review_conversation(request: AssistantRequest) -> list[DialogueTurn]:
@@ -303,6 +303,8 @@ def run(context) -> dict:
     completion = context.runtime.tools["assistant_complete"]
 
     receipts: list[ToolReceipt] = []
+    # Retain completed tool effects before another completion can fail.
+    environment.write_text("scratch/tool-receipts.json", "[]")
     final_text = ""
     if request.minecraft_read in {"inventory", "state"}:
         # A body-state question needs one fresh observation, then speech.
@@ -311,6 +313,7 @@ def run(context) -> dict:
         messages.append(AssistantMessage(role="assistant", tool_calls=call["tool_calls"]))
         observed, tool_messages = asyncio.run(execute_tool_calls(context, call, request, servers))
         receipts.extend(observed)
+        environment.write_text("scratch/tool-receipts.json", json.dumps([item.model_dump(mode="json") for item in receipts]))
         messages.extend(tool_messages)
         schemas = []
     turns = request.max_tool_turns
@@ -333,6 +336,7 @@ def run(context) -> dict:
             )
             messages.extend(additions)
             receipts.extend(new_receipts)
+            environment.write_text("scratch/tool-receipts.json", json.dumps([item.model_dump(mode="json") for item in receipts]))
             continue
         final_text = str(message.get("content") or "").strip()
         if final_text:
@@ -349,6 +353,8 @@ def run(context) -> dict:
 
     validate_public_speech(final_text)
     final_text = strip_narrator_setup(final_text, request.partner_name)
+    if not final_text.strip():
+        raise SpeechOutputError("The Assistant completion returned no public speech after its final text attempt.")
     accepted = bool(final_text)
     review = None
     if request.public_context is not None and final_text:

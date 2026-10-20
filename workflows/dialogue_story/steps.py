@@ -17,7 +17,8 @@ anchored only by real dialogue, and summary wording cannot leak into it.
 
 The review (``speech_review.yaml``):
 
-- The companion line is generated once. There is no regeneration loop.
+- Empty output permits one recovery with the full original context.
+- A valid companion line receives one review and is never regenerated.
 - The one review returns a judgment, a reason, and advisory findings.
 - Only ``false_task_result`` blocks the reply. A finding such as an invented
   ability or an invented event stays in the receipt for review.
@@ -34,6 +35,7 @@ import asyncio
 from pathlib import Path
 from pm.context_render.turns import Role, Turn
 from pm.llm.completion import AsyncTextCompletion
+from pm.llm.http_client import EmptyCompletionError
 
 from pm.utils import yaml_util
 from pm.memory.retrieval import utc_time
@@ -41,7 +43,7 @@ from workflows.public_speech.public_context import (
     ability_lines, memory_sections, plain_memory_text, task_lines, time_lines,
 )
 from workflows.public_speech.public_context import Presentation, PublicContext
-from workflows.public_speech.speech_text import strip_narrator_setup
+from workflows.public_speech.speech_text import SpeechOutputError, strip_narrator_setup
 from workflows.public_speech.speech_review import (
     finding_summary, is_blocked, load_prompts as load_review_prompts, review_speech,
     select_spoken_text,
@@ -196,7 +198,7 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
     speaker or the start of a non-public state line. This prevents a
     model-invented next user turn from becoming stored dialogue.
     """
-    reply = raw or ""
+    reply = (raw or "").lstrip()
     if prefill and reply.startswith(prefill):
         reply = reply[len(prefill):]
     reply = reply.strip()
@@ -206,6 +208,10 @@ def clean_reply(raw: str, companion_name: str, partner_name: str, *, prefill: st
             if reply.startswith('"'):
                 reply = reply[1:]
             break
+
+    if reply.startswith((f"{companion_name} thinks:", "StateUpdate:", "Narrative:", "Fact:",
+                         "*(", "<tool_call>", "<function=")):
+        return ""
 
     # Cut at the first other-speaker or non-public marker before trimming any
     # preamble. A model-invented user turn is never kept, even when the model
@@ -272,34 +278,54 @@ def review_conversation(request: StoryRequest) -> list[DialogueTurn]:
 
 def generate_reviewed(request: StoryRequest, prompts: dict, generate: AsyncTextCompletion, review_complete: AsyncTextCompletion,
                       **review_deps) -> tuple[list[StoryAttempt], StoryAttempt]:
-    """Generate one companion line and review it once.
+    """Generate speech with one empty-output recovery, then review it once.
 
-    ``generate`` and ``review_complete`` are async completion callables. There
-    is no regeneration loop: the model output is one attempt. The review
-    returns a judgment, a reason, and advisory findings. Only a false task
-    result blocks. Model transport errors propagate. A completion without
-    new speech raises ModelError before review or publication.
+    Recovery appends a user instruction to the full original context. It avoids
+    another assistant prefill. Invalid output never becomes accepted speech.
+    Exhaustion raises SpeechOutputError. Transport, cancellation, recording,
+    and programming errors propagate. A reviewed draft is never regenerated.
+    ``on_attempt`` records each attempt before review and after its result.
     """
     context = review_deps.get("context") or request.public_context or review_context(request)
     review_prompts = review_deps.get("review_prompts") or load_review_prompts()
     conversation = review_deps.get("conversation") or review_conversation(request)
     messages = build_story_messages(request, prompts)
-    raw = asyncio.run(generate(messages, **prompts.get("generation", {})))
-    if not isinstance(raw, str):
-        raise TypeError("story_complete must return the completion text as a string.")
-    candidate = clean_reply(raw, request.companion_name, request.partner_name,
-                            prefill=messages[-1].content.text)
-    # A provider can return the supplied transcript with no new words.
-    # Keep the raw response in prompt logs, but never review or publish its date.
-    if not candidate:
-        from pm.llm.http_client import ModelError
-        raise ModelError("The Story completion returned no new speech after the transcript.")
+    prefill = messages[-1].content.text
+    on_attempt = review_deps.get("on_attempt")
+    attempts = []
+    for index in range(2):
+        error = ""
+        try:
+            raw = asyncio.run(generate(messages, **prompts.get("generation", {})))
+        except EmptyCompletionError as failure:
+            raw, error = "", str(failure)
+        if not isinstance(raw, str):
+            raise TypeError("story_complete must return the completion text as a string.")
+        candidate = clean_reply(raw, request.companion_name, request.partner_name, prefill=prefill)
+        attempt = StoryAttempt(raw_completion=raw, candidate=candidate,
+            message_roles=[message.role.value for message in messages],
+            generation_error=error or ("" if candidate else "The completion contains no new public speech."))
+        attempts.append(attempt)
+        if on_attempt is not None:
+            on_attempt(index + 1, attempt)
+        if candidate:
+            break
+        if index == 0:
+            # Only unusable output reaches recovery. Keep the original context
+            # intact and use a normal chat turn instead of another prefill.
+            messages = [*messages, Turn(Role.User, prompts["empty_completion_recovery"].format(
+                companion_name=request.companion_name, partner_name=request.partner_name))]
+    else:
+        raise SpeechOutputError("The Story completion returned no new speech after two generation attempts.")
     review = asyncio.run(review_speech(review_complete, candidate, context, conversation=conversation,
                                        prompts=review_prompts))
     candidate = select_spoken_text(candidate, review)
-    attempt = StoryAttempt(raw_completion=raw, candidate=candidate, review=review,
-                           blocked=is_blocked(review))
-    return [attempt], attempt
+    attempt.candidate = candidate
+    attempt.review = review
+    attempt.blocked = is_blocked(review)
+    if on_attempt is not None:
+        on_attempt(len(attempts), attempt)
+    return attempts, attempt
 
 
 def run(context) -> dict:
@@ -311,7 +337,12 @@ def run(context) -> dict:
     prompts = load_prompts()
     tools = context.runtime.tools
     review_complete = tools.get("public_complete") or tools["story_complete"]
-    attempts, chosen = generate_reviewed(request, prompts, tools["story_complete"], review_complete)
+
+    def record_attempt(number: int, attempt: StoryAttempt) -> None:
+        environment.write_text(f"scratch/story-attempt-{number:02}.json", attempt.model_dump_json(indent=2))
+
+    attempts, chosen = generate_reviewed(request, prompts, tools["story_complete"], review_complete,
+                                        on_attempt=record_attempt)
     accepted = bool(chosen.candidate) and not chosen.blocked
     review = chosen.review
     verdict = OntologyVerdict(
@@ -319,10 +350,9 @@ def run(context) -> dict:
         facts_checked=len(request.public_context.evidence) if request.public_context else len(request.memories),
         fact_conflicts=[finding_summary(review)] if review is not None and review.findings else [],
     )
-    messages = build_story_messages(request, prompts)
     report = StoryReport(
         companion_name=request.companion_name,
-        message_roles=[message.role.value for message in messages],
+        message_roles=chosen.message_roles,
         reply_prefix=prompts["reply_prefix"].format(companion_name=request.companion_name),
         raw_completion=chosen.raw_completion,
         candidate=chosen.candidate,
@@ -340,7 +370,7 @@ def run(context) -> dict:
     return {
         "status": "done",
         "summary": f"story candidate {'accepted' if accepted else 'blocked'} "
-                   f"after 1 attempt, review {review.judgment if review else 'none'}",
+                   f"after {len(attempts)} attempts, review {review.judgment if review else 'none'}",
     }
 
 

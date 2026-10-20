@@ -193,6 +193,12 @@ thought_line: '{speaker} thinks: *{text}*'
 day_marker: '*({date})*'
 reply_prefix: '{companion_name} says: "'
 
+empty_completion_recovery: |
+  The previous assistant turn is the supplied transcript. It contains no new reply.
+  Write {companion_name}'s reply to {partner_name}'s latest message.
+  Keep all facts, task results, and uncertainty from the full context above.
+  Return only the new spoken words. Do not repeat the transcript or add another speaker's turn.
+
 generation:
   # Matches Sampler.TempInstruct: thinking is off for this line.
   temperature: 0.7

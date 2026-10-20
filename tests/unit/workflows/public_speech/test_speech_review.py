@@ -85,6 +85,28 @@ class ParseReviewTests(unittest.TestCase):
             with self.subTest(payload=payload), self.assertRaises(ValueError):
                 parse_review(payload)
 
+    def test_invalid_findings_are_format_errors(self):
+        for findings in (4, "unsupported_label", {}, [4], [None]):
+            with self.subTest(findings=findings), self.assertRaises(ValueError):
+                parse_review({"reason": "ok", "false_task_result": False, "findings": findings})
+
+    def test_invalid_speech_extraction_is_repaired_with_the_same_draft(self):
+        calls = []
+        draft = "Jesse asks an honest question.\n\nI can talk to you."
+
+        async def complete(messages, **generation):
+            calls.append(messages)
+            return json.dumps({"reason": "ok", "false_task_result": False,
+                "spoken_text": "Invented words." if len(calls) == 1 else "I can talk to you."})
+
+        complete.measure_context = lambda *args, **kwargs: {"input_tokens": 100, "input_budget_tokens": 1000}
+        result = asyncio.run(review_speech(complete, draft,
+            PublicContext(companion_name="Spamuel", user_name="Jesse"), prompts=load_review_prompts()))
+        self.assertEqual(result.spoken_text, "I can talk to you.")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1][:2], calls[0])
+        self.assertIn("nonempty verbatim span", calls[1][-1]["content"])
+
 
 class ReviewMessageTests(unittest.TestCase):
     def test_review_input_is_plain_text_without_evidence_ids(self):
@@ -148,16 +170,62 @@ class StorySingleGenerationTests(unittest.TestCase):
         self.assertFalse(chosen.blocked)
 
     def test_a_transcript_echo_without_new_speech_never_reaches_review(self):
-        from pm.llm.http_client import ModelError
+        from workflows.public_speech.speech_text import SpeechOutputError
+        calls = []
 
         async def generate(messages, **generation):
-            return messages[-1].content.text
+            calls.append(messages)
+            return calls[0][-1].content.text
 
         async def review(messages, **generation):
             self.fail("An unchanged transcript is not a draft reply.")
 
-        with self.assertRaisesRegex(ModelError, "no new speech"):
+        with self.assertRaisesRegex(SpeechOutputError, "no new speech"):
             generate_reviewed(self.request(), load_prompts(), generate, review)
+        self.assertEqual(len(calls), 2)
+
+    def test_empty_prefill_recovers_once_without_dropping_context(self):
+        from pm.llm.http_client import EmptyCompletionError
+        for first in ("", " \n", "*(20 October 2026)*", "Spamuel thinks: *quiet*", "<tool_call></tool_call>", None):
+            with self.subTest(first=first):
+                calls, reviews = [], []
+
+                async def generate(messages, **generation):
+                    calls.append(messages)
+                    if len(calls) == 1:
+                        if first is None:
+                            raise EmptyCompletionError("No model text.")
+                        return first
+                    return "I was sulking, obviously."
+
+                async def review(messages, **generation):
+                    reviews.append(messages)
+                    return '{"reason": "ok", "false_task_result": false}'
+
+                attempts, chosen = generate_reviewed(self.request(), load_prompts(), generate, review)
+                self.assertEqual(len(attempts), 2)
+                self.assertTrue(attempts[0].generation_error)
+                self.assertEqual(calls[1][:3], calls[0])
+                self.assertEqual(chosen.message_roles, ["system", "user", "assistant", "user"])
+                self.assertEqual(chosen.candidate, "I was sulking, obviously.")
+                self.assertEqual(len(reviews), 1)
+
+    def test_logic_transport_and_recording_errors_do_not_receive_recovery(self):
+        from pm.llm.http_client import ModelError, ProviderCompletionError
+        for error in (TypeError("bug"), KeyError("bug"), ValueError("bug"),
+                      OSError("disk error"), ModelError("HTTP 401"), ProviderCompletionError("provider failure"),
+                      asyncio.CancelledError()):
+            with self.subTest(error=type(error).__name__):
+                calls = []
+
+                async def generate(*args, **kwargs):
+                    calls.append(1)
+                    raise error
+
+                with self.assertRaises(type(error)) as caught:
+                    generate_reviewed(self.request(), load_prompts(), generate, generate)
+                self.assertIs(caught.exception, error)
+                self.assertEqual(len(calls), 1)
 
     def test_an_invented_ability_finding_does_not_block(self):
         attempts, chosen, _ = self.run_once(
@@ -175,6 +243,30 @@ class StorySingleGenerationTests(unittest.TestCase):
 
 
 class NoContextReviewTests(unittest.TestCase):
+    def test_standalone_adapter_supplies_measurement_for_review_repair(self):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, patch
+        from pm.llm.activation import ModelActivation
+        from pm.llm.config import Connection
+        from workflows.dialogue_story.standalone import build_story_tools
+
+        connection = Connection(base_url="http://127.0.0.1:1/v1", model="fixture")
+        owner = ModelActivation()
+        owner._ready[connection.base_url] = connection.model
+        client = SimpleNamespace(connection=connection, activation=owner, complete=AsyncMock(side_effect=[
+            SimpleNamespace(text="bad JSON"),
+            SimpleNamespace(text='{"reason":"ok","false_task_result":false}'),
+        ]))
+        complete = build_story_tools(client)["public_complete"]
+        with patch("pm.llm.context_window.measure_context", new_callable=AsyncMock,
+                   return_value={"input_tokens": 100, "input_budget_tokens": 1000}) as measure:
+            result = asyncio.run(review_speech(complete, "hello",
+                PublicContext(companion_name="Spamuel", user_name="Jesse")))
+        self.assertEqual(result.reason, "ok")
+        self.assertEqual(client.complete.await_count, 2)
+        self.assertEqual(measure.await_count, 1)
+        self.assertIs(measure.call_args.args[0], connection)
+
     def test_request_context_keeps_abilities_and_memories(self):
         request = StoryRequest(companion_name="Spamuel", partner_name="Jesse", character_card_story="Brash.",
                                supported_capabilities=["I can talk in text."],

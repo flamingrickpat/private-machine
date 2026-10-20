@@ -1,17 +1,22 @@
 """``PublicDialogue``: the shared bus module of Story and Assistant replies.
 
 It validates evidence and commits each utterance before publication. Story
-and Assistant subclass it. Each workflow reviews its draft once. Errors reach
-the application; host failure strings never become companion speech.
+and Assistant subclass it. Each workflow reviews its draft once. Declared
+model-output exhaustion leaves the exchange pending. Other errors reach the
+application. Host failure strings never become companion speech.
 """
 from __future__ import annotations
 
+from pm.host.durable_files import atomic_json
+from pm.llm.http_client import EmptyCompletionError, ProviderCompletionError
+from pm.llm.structured import ModelFormatError
 from pm.utils import yaml_util
 
 from pm.bus.envelopes import Envelope, new_id
 from workflows.main_cognition.schemas import ActionMetadata, ActionRequest, Stimulus
 from workflows.public_speech.public_context import build_public_context
 from workflows.public_speech.shard_context import shard_context
+from workflows.public_speech.speech_text import SpeechOutputError
 from workflows.public_speech.publication import commit_public_reply, publish_reply
 from pm.bus.envelopes import new_envelope
 from pm.runs.workflow_module import CognitiveWorkflow
@@ -105,7 +110,30 @@ class PublicDialogue(CognitiveWorkflow):
             # Preparation can fail before a new snapshot exists. A prior task
             # receipt must never become the recovery evidence for this action.
             self._public_context = None
-            super().handle_batch([envelope])
+            try:
+                super().handle_batch([envelope])
+            except (EmptyCompletionError, ProviderCompletionError, SpeechOutputError, ModelFormatError) as error:
+                self.defer_reply(envelope, error)
+
+    def defer_reply(self, envelope: Envelope,
+                    error: EmptyCompletionError | ProviderCompletionError | SpeechOutputError | ModelFormatError) -> None:
+        """Retain exhausted model-output evidence and keep the exchange pending.
+
+        Only declared model-output errors reach this method. Snapshot, tool,
+        filesystem, cancellation, and programming errors keep their boundaries.
+        No reply commits, and no tool action repeats. A later action or restart
+        can retry the pending exchange. Saving evidence must succeed.
+        """
+        environment = self.last_environment
+        files = {"inbox/request.yaml": environment.read_text("inbox/request.yaml")}
+        files.update({path: environment.read_text(path) for path in environment.list_files("scratch")})
+        path = self.runtime_root / self.module_id / self.invocation_id / "speech-failure.json"
+        atomic_json(path, {"error_type": type(error).__name__, "reason": str(error),
+                           "correlation_id": envelope.correlation_id, "files": files})
+        self.bus.put(new_envelope(self.module_id, "telemetry", "action.receipt", envelope.correlation_id,
+            {"status": "generation_failed", "workflow_name": self.WORKFLOW_NAME,
+             "rejection_reason": str(error), "recovery_outcome": "not_published", "artifact_path": str(path)},
+            causation_id=envelope.id))
 
     def reject_reply(self, batch, reason: str, *, status: str = "rejected") -> None:
         """Retain a rejection and stop execution without invented speech.

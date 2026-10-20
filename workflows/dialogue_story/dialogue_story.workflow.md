@@ -22,11 +22,10 @@ phases:
 
 # Story dialogue
 
-One Story generation. The role builds the three-message sequence (story
-writer, derived context, verbatim transcript with the open companion prefill),
-continues the prefill, cleans the continuation, and reviews it once with the
-agentic persona-aware review. The review returns a judgment, a reason, and
-advisory findings. Only a false task result blocks the reply; there is no
-regeneration loop. The workflow requests no tool call from the generation
-model. It writes no memory; the caller decides what to do with an accepted
-candidate.
+The role builds three messages: the writer instruction, derived context, and
+the verbatim transcript with an open companion prefill. Empty output permits
+one recovery instruction after the full context. A valid draft receives one
+review and is never regenerated. The review returns a judgment, a reason,
+and advisory findings. Only a false task result blocks the draft. The model
+receives no tools. The workflow writes no memory. The caller handles the
+accepted draft or the declared model-output error.

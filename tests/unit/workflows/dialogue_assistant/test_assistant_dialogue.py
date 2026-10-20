@@ -267,6 +267,30 @@ class AssistantModuleTests(unittest.TestCase):
         bus.subscribe(module.module_id, module.accepts, module.deliver)
         return module, bus, ghost, supervisor
 
+    def test_empty_speech_keeps_completed_tool_receipts_without_replay(self):
+        import json
+        from pm.bus.envelopes import Envelope
+        from tests.support import Recorder
+
+        with TemporaryDirectory() as tmp:
+            module, bus, ghost, supervisor = self._module(Path(tmp), [
+                completion({"content": "", "tool_calls": [{"id": "list-once", "type": "function",
+                    "function": {"name": "managed_list", "arguments": "{}"}}]}),
+                *[completion({"content": ""}) for _ in range(8)],
+            ])
+            receipts = Recorder(bus, "action.receipt")
+            module.mailbox.put(Envelope("empty", "test", "data", "action.request", "empty", {},
+                                       target="dialogue_assistant"))
+            self.assertTrue(module.step())
+            failure = next(event for event in receipts.events if event.payload["status"] == "generation_failed")
+            evidence = json.loads(Path(failure.payload["artifact_path"]).read_text(encoding="utf-8"))
+            tools = json.loads(evidence["files"]["scratch/tool-receipts.json"])
+            self.assertEqual(len(tools), 1)
+            self.assertEqual(tools[0]["tool_call_id"], "list-once")
+            self.assertTrue(tools[0]["executed"])
+            self.assertEqual(ghost.all_features, [])
+            supervisor.join_all(timeout=10)
+
     def test_accepted_reply_is_committed_and_published(self):
         from pm.bus.envelopes import Envelope
         from tests.support import Recorder

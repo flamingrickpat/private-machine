@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from pm.llm.http_client import JsonClient, ModelError, cancellable
+from pm.llm.http_client import EmptyCompletionError, JsonClient, ModelError, cancellable
 from pm.llm.config import Connection
 from collections.abc import Sequence
 from pm.llm.multimodal import encode_messages
@@ -264,8 +264,8 @@ class ChatClient:
             raise ModelError("The model completion ended before a usable response: "
                              f"finish_reason={result.choices[0].finish_reason}; usage={response.get('usage', {})}.")
         message = result.choices[0].message
-        if not message.content and not message.tool_calls:
-            raise ModelError("The model returned no content or tool call. Inspect its generation config.")
+        if not (message.content or "").strip() and not message.tool_calls:
+            raise EmptyCompletionError("The model returned no content or tool call. Inspect its generation config.")
         if (outbound.get("reasoning") or {}).get("exclude"):
             # Local servers can retain reasoning in their wire response. Hide
             # it here too, while preserving final content, usage and raw logs.

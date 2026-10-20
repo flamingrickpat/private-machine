@@ -63,6 +63,7 @@ The standalone planner already excludes empty records through [`scoped_records`]
 The focused live checks use the full Spamuel seed and the real Story host, kernel, review, commit, and bus delivery.
 The normal case runs separately from the case with added empty history records.
 The same module checks captured syntax repair through the cognitive tool grant and asynchronous schema repair.
+It also reproduces an empty local prefill and an invalid review span with real inference, then checks their recovery.
 
 ```powershell
 uv run --locked python -m unittest tests.live.test_runtime_stability -v -b

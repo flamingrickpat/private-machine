@@ -2,6 +2,10 @@
 import re
 
 
+class SpeechOutputError(ValueError):
+    """Model output has no usable public speech after bounded recovery."""
+
+
 def strip_narrator_setup(text: str, user_name: str) -> str:
     """Remove a detached question setup before the companion's speech.
 

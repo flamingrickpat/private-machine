@@ -7,7 +7,8 @@ The prompt keeps verbatim speech and derived context in separate messages.
 One agentic review judges the draft against the persona, the accepted state,
 the abilities, the private ontology, and the task results.
 It returns a judgment, a reason, and advisory findings.
-Only a false task result blocks. There is no regeneration loop and no score.
+Only a false task result blocks a reviewed draft.
+Invalid output can receive repair. No quality score selects the draft.
 This design replaced the A09 claim-by-claim review and the weighted hallucination policy.
 
 Parent: [public dialogue](public-dialogue.md).
@@ -74,12 +75,20 @@ Some local servers include the entire assistant prefill in the completion text.
 Otherwise, the first historical date can become the candidate instead of the new reply.
 The report and prompt logs retain the original completion text.
 The candidate contains only the new spoken words.
-A completion with no new speech raises `ModelError` before review or publication.
-This error does not trigger a second Story generation.
+A completion with no new speech receives one recovery attempt before review.
+The recovery appends a user instruction after the three original turns.
+It preserves the full transcript, derived context, source IDs, task results, and uncertainty.
+The final user turn requests only the new spoken words, without an assistant prefill.
+The normal path still uses three messages. Recovery uses four.
+Leading date markers, private thoughts, state lines, and raw tool protocol do not count as public speech.
+
+Two unusable attempts raise [`SpeechOutputError`][workflows.public_speech.speech_text.SpeechOutputError].
+The [public host](public-dialogue.md#model-output-failures) saves the attempts and keeps the exchange pending without stopping the application.
+Programming, filesystem, and cancellation errors keep their original boundaries.
 
 The generation instruction asks for a reply to the current message and only the newly written words.
 The three message roles and the full transcript remain intact.
-The [focused local checks](context-planning.md#empty-history-records) cover normal history, empty history, and actual committed replies.
+The [focused local checks](context-planning.md#empty-history-records) cover normal history, empty history, empty-prefill recovery, review repair, and committed replies.
 
 ## Agentic review
 
@@ -119,10 +128,12 @@ The [prompt logs](prompt-log.md) show the actual request settings and provider u
 ## One generation
 
 [`generate_reviewed`][workflows.dialogue_story.steps.generate_reviewed] generates one draft and reviews it once.
-It returns one attempt. There is no threshold, no note, and no second generation.
+It normally returns one attempt. Only unusable output permits the recovery described above.
+A valid draft receives one review and is never regenerated because of a finding or judgment.
 The accepted draft is published unless it holds a false task result.
 A blocked draft reaches the host's rejection path. The host retains rejection telemetry and raises without public speech.
-The report keeps the draft, its review, its reason, and its blocked flag.
+The report keeps every attempt, its actual message roles, its generation error, and its raw completion.
+It also keeps the chosen draft, its review, its reason, and its blocked flag.
 
 Assistant replies use the same review once, with their tool receipts and no regeneration loop.
 The Assistant prompt uses the same shard context: the transcript as ordinary chat messages, then the shard story, then tool calls.
@@ -150,13 +161,14 @@ It expects the in-character exaggeration and tease to pass.
 ## Inspect a reply
 
 1. Open the run's Story `report.json` or the workflow report.
-2. Read `attempts` and `speech_review`. The one attempt has `candidate` and `blocked`; the review has `judgment`, `reason`, `false_task_result`, and `findings`.
-3. Read `review_reason` for the recorded reason of the accepted reply.
-4. Run `python -m workflows.dialogue_story.run show` to print the exact three messages for the fixed situation without generation.
+2. Read each attempt's `candidate`, `generation_error`, `message_roles`, and `blocked` fields.
+3. Read the review's `judgment`, `reason`, `false_task_result`, and `findings` fields.
+4. Read `review_reason` for the recorded reason of the accepted reply.
+5. Run `python -m workflows.dialogue_story.run show` to print the exact three messages for the fixed situation without generation.
 
 ## Limits
 
-- Changed evidence and failed model calls stop with a visible error. They never publish fixed recovery text.
+- Changed evidence and unexpected errors stop execution. Declared model-output failures leave a pending exchange and a diagnostic receipt.
 - Private thoughts in the transcript differ from the A09 rule that no raw thought enters a public prompt. They guide the voice and are never published; the review flags a thought transcript in a reply as a `private_leak` finding.
 - The private ontology is implemented as durable state in [the private ontology](private-ontology.md). It is advisory and grows only from implemented mechanisms.
 - Current development uses the operator's OpenRouter config. Receipts retain the configured model and the actual provider response.
@@ -181,6 +193,9 @@ The review writes a reason tied to actual evidence instead of copying a ready-ma
 
 The existing review can select `spoken_text` when explicit narration surrounds actual speech.
 The selected text must be a nonempty contiguous span of the draft.
+The reviewer validates this span inside the JSON repair boundary.
+An empty or invented span receives correction feedback with the unchanged draft.
+Invalid findings must also receive repair feedback instead of causing an iteration error in the host.
 [`workflows.public_speech.speech_review.select_spoken_text`][] rejects invented or paraphrased replacements.
 The raw completion, review, and advisory finding remain in the report.
 This selection adds no generation call or tool execution.

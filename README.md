@@ -43,6 +43,78 @@ An empty history works without an import.
 
 Spamuel is the synthetic development persona. Bare startup still selects it; use `--home` for your own character.
 
+## Connect a character to Minecraft
+
+Keep your existing Minecraft server running.
+The character uses a separate `pm-minecraft` MCP service for its Minecraft body.
+The current MCP requires Minecraft Java 1.19.4, Node.js 20 or newer, and RCON access to the same server.
+These examples use Sunny's existing character home and an installed MCP checkout at `C:/source/pm/pm-minecraft`.
+Replace the paths, player name, and ports for your character and server.
+If the MCP service already runs for this character, continue at step 3.
+
+1. In the MCP checkout, copy your working server configuration once:
+
+   ```powershell
+   Set-Location C:\source\pm\pm-minecraft
+   Copy-Item .env_real .env.sunny
+   ```
+
+   Edit these entries in `.env.sunny`:
+
+   ```dotenv
+   MINECRAFT_HOST=127.0.0.1
+   MINECRAFT_PORT=12345
+   MINECRAFT_VERSION=1.19.4
+   MINECRAFT_PLAYER=Sunny
+   MINECRAFT_RCON_HOST=127.0.0.1
+   MINECRAFT_RCON_PORT=25575
+   MINECRAFT_RCON_PASSWORD=your-server-rcon-password
+   MCMCP_AGENT_HOME=C:/source/pm/private-machine/.runtime/characters/sunny/minecraft
+   MCP_HOST=127.0.0.1
+   MCP_PORT=6767
+   MCMCP_BODY_PORT=6768
+   MCMCP_VIEWER_PORT=6769
+   ```
+
+   Keep the working `NODE_EXE`, `MCMCP_BODY_ENTRYPOINT`, and `BROWSER_EXECUTABLE_PATH` entries from the copied configuration.
+   `MINECRAFT_PLAYER` names the Minecraft body. `MCMCP_AGENT_HOME` holds its files separately from pm's character memory.
+
+2. In that terminal, start only the MCP service:
+
+   ```powershell
+   .venv/Scripts/python.exe main.py .env.sunny
+   ```
+
+   Keep this terminal open. The MCP creates missing character directories on its first start.
+
+3. In a second PowerShell terminal, select the MCP endpoint before you start pm:
+
+   ```powershell
+   Set-Location C:\source\pm\private-machine
+   $env:PATH = 'C:\Program Files\Git\bin;' + $env:PATH
+   $env:MINECRAFT_MCP_URL = 'http://127.0.0.1:6767/mcp'
+   $env:PM_MINECRAFT_HOST = '127.0.0.1'
+   $env:PM_MINECRAFT_PORT = '12345'
+   uv run --locked python main.py --home .runtime/characters/sunny --config config.example.yaml
+   ```
+
+   Use your existing model configuration with `--config`.
+   The `PM_MINECRAFT_HOST` and `PM_MINECRAFT_PORT` variables supply the game address for connection checks.
+   The MCP URL uses the MCP HTTP port, not the game port.
+   Repeat these environment assignments in each new terminal before you start pm.
+
+4. Open the web address printed by pm.
+   Ask the character: "What is in your Minecraft inventory?" or "Where are you in Minecraft?"
+   These requests use a live read. A successful read confirms more than an open server port.
+   Then ask for a Minecraft goal through the same chat.
+
+Use a separate player name, MCP configuration, and `MCMCP_AGENT_HOME` for each character.
+For simultaneous characters, also assign distinct MCP, body, and viewer ports.
+Give each pm process a distinct `--web-port`.
+Point each pm process at its character's MCP endpoint.
+Stopping pm leaves the MCP service and Minecraft server running.
+Read the [Minecraft workflow guide](docs/workflows/minecraft.md) for managed runs and cancellation.
+
 ## How it behaves
 
 The companion uses conversation, memory, and its internal state to choose a response or an action.

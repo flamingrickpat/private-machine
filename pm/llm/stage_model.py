@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from collections.abc import Sequence
 
 from pm.llm.activation import ChatClient, ModelActivation, OpenAICompletionBackend
-from pm.llm.http_client import ModelError
+from pm.llm.http_client import EmptyCompletionError
 from pm.llm.config import Connection
 from pm.llm.completion import AsyncTextCompletion, Completion, ToolCompletion
 from pm.llm.prompt_encoding import TurnInput
@@ -32,17 +32,17 @@ async def complete_with_retry(
     generation: dict,
 ) -> str:
     """One completion with a bounded empty-content retry."""
-    last: ModelError | None = None
+    last: EmptyCompletionError | None = None
     for attempt in range(2):
         try:
             result = await client.complete(messages, **generation)
-        except ModelError as error:
-            if "no content" not in str(error) or attempt == 1:
+        except EmptyCompletionError as error:
+            if attempt == 1:
                 raise
             last = error
             continue
         return result.text
-    raise last if last is not None else ModelError("The model returned no content.")
+    raise last if last is not None else EmptyCompletionError("The model returned no content.")
 
 
 class LazyStageModel:
@@ -160,18 +160,18 @@ class LazyStageModel:
         async def complete_tool(messages: Sequence[TurnInput], tools=None, **generation: object) -> Completion:
             if tools:
                 generation["tools"] = tools
-            last: ModelError | None = None
+            last: EmptyCompletionError | None = None
             for attempt in range(3):
                 try:
                     async with self.slot(generation.get("cancel")):
                         result = await client.complete(messages, **generation)
                     return result.completion()
-                except ModelError as error:
+                except EmptyCompletionError as error:
                     last = error
                     if attempt == 2:
                         raise
                     await asyncio.sleep(0.3 * (attempt + 1))
-            raise last if last is not None else ModelError("The model returned no content.")
+            raise last if last is not None else EmptyCompletionError("The model returned no content.")
 
         return complete_tool
 

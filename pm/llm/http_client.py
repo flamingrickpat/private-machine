@@ -50,6 +50,10 @@ class ModelError(RuntimeError):
     pass
 
 
+class EmptyCompletionError(ModelError):
+    """The provider returned neither usable text nor a tool call."""
+
+
 class ProviderCompletionError(ModelError):
     """The provider failed or filtered generation. Partial text is not a result."""
 

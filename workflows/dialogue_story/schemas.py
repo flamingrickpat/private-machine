@@ -61,11 +61,7 @@ class OntologyVerdict(BaseModel):
 
 
 class StoryAttempt(BaseModel):
-    """One generation attempt and its hallucination review.
-
-    ``avoid`` is the note that this attempt received from the previous
-    review. ``blocked`` marks a review that still holds a blocking kind.
-    """
+    """One completion layout, its output error, and its optional speech review."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -74,6 +70,8 @@ class StoryAttempt(BaseModel):
     review: SpeechReview | None = None
     avoid: str = ""
     blocked: bool = False
+    message_roles: list[str] = Field(default_factory=list)
+    generation_error: str = ""
 
 
 class StoryReport(BaseModel):

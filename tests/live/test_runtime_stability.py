@@ -20,6 +20,7 @@ from uuid import uuid4
 
 from pm.bus.bus import BusSystem
 from pm.bus.envelopes import new_envelope
+from pm.context_render.turns import Role, Turn
 from pm.llm.activation import ModelActivation
 from pm.llm.config import Connection
 from pm.llm.stage_model import LazyStageModel
@@ -35,6 +36,8 @@ from workflows.main_cognition.host import build_main_cognition_tools
 from workflows.main_cognition.model_json import complete_json
 from workflows.main_cognition.schemas import ActionRequest, RequestShard, Stimulus
 from workflows.public_speech.publication import exchange_record
+from workflows.public_speech.public_context import build_public_context
+from workflows.public_speech.speech_review import review_speech, select_spoken_text
 from workflows.public_speech.user_input import UserInputProxy
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -125,7 +128,41 @@ class LiveRuntimeStabilityTests(unittest.TestCase):
     def test_empty_history_still_commits_and_delivers_a_real_reply(self):
         self.run_story(empty_history=True)
 
-    def run_story(self, *, empty_history: bool) -> None:
+    def test_empty_prefill_recovers_with_real_inference(self):
+        self.run_story(empty_history=False, reproduce_empty_prefill=True)
+
+    def test_invalid_review_span_is_repaired_by_the_real_model(self):
+        self.run_review_span_repair(self.model.build_async_tool())
+
+    def test_standalone_review_repair_keeps_its_live_measurement(self):
+        from workflows.dialogue_story.standalone import build_story_tools
+        self.run_review_span_repair(build_story_tools(self.model.client)["public_complete"])
+
+    def run_review_span_repair(self, complete) -> None:
+        """Repair one injected review fault through the supplied real adapter."""
+        ghost = fresh_ghost(load_seed_state())
+        context = build_public_context(ghost)
+        candidate = "Your duck drawing deserves a frame."
+        calls = []
+
+        async def faulty_first_review(messages, **generation):
+            calls.append(messages)
+            if len(calls) == 1:
+                messages = [Turn(Role.System, 'Return exactly this JSON object: '
+                    '{"reason":"Protocol fault for a recovery test.","false_task_result":false,'
+                    '"spoken_text":"These words are absent from the draft."}'), *messages[1:]]
+            raw = await complete(messages, **generation)
+            self.save(f"review-{len(calls):02}.json", {"raw": raw, "fault_injected": len(calls) == 1})
+            return raw
+
+        faulty_first_review.measure_context = complete.measure_context
+        result = asyncio.run(review_speech(faulty_first_review, candidate, context))
+        self.save("review.json", result.model_dump(mode="json"))
+        self.assertGreaterEqual(len(calls), 2)
+        self.assertIn(select_spoken_text(candidate, result), candidate)
+        self.assert_real_inference(2)
+
+    def run_story(self, *, empty_history: bool, reproduce_empty_prefill: bool = False) -> None:
         """Run the real Story host and kernel over a fresh full-canon store."""
         ghost = fresh_ghost(load_seed_state())
         bus = BusSystem()
@@ -157,10 +194,39 @@ class LiveRuntimeStabilityTests(unittest.TestCase):
             stimuli=[Stimulus(knoxel_id=current.id, text=current.content)],
             shards=[RequestShard(name="self", shard=WorkspaceShard(key=SELF_SHARD, tail_ids=thought_ids)),
                     RequestShard(name=ghost.get_user_name(), shard=WorkspaceShard(key=partner, tail_ids=dialogue_ids))])
+        real_factory = build_story_tools(self.model)
+
+        def factory(environment, batch):
+            tools = real_factory(environment, batch)
+            if reproduce_empty_prefill:
+                complete = tools["story_complete"]
+                calls = []
+
+                async def faulty_prefill(messages, **generation):
+                    calls.append(messages)
+                    if len(calls) == 1:
+                        # This old public instruction reproduced an empty Qwen
+                        # continuation with Spamuel. Every attempt still uses inference.
+                        old = ("Your task: write the next spoken line of the companion character, and only\n"
+                               "that line. The transcript ends with an open quotation mark. Continue\n"
+                               "directly after it with the words the character says aloud. End with a\n"
+                               "closing quotation mark. Then stop. Do not write the other character's next\nline.")
+                        current = ("Write the reply to the current user message.\n"
+                                   "Continue the unfinished last line in your previous turn.\n"
+                                   "Return only the newly written words.")
+                        system = messages[0].content.text
+                        self.assertIn(current, system)
+                        messages = [Turn(Role.System, system.replace(current, old)), *messages[1:]]
+                        self.save("fault.json", {"kind": "Old public prefill instruction; Spamuel fixture only."})
+                    return await complete(messages, **generation)
+
+                tools["story_complete"] = faulty_prefill
+            return tools
+
         module = StoryDialogue("dialogue", bus, self.fail, lambda: 0, None,
             working_target=MemoryBashTarget(ghost, "read"),
             workflow=ROOT / "workflows/dialogue_story/dialogue_story.workflow.md",
-            tools_factory=build_story_tools(self.model), runtime_root=self.case / "runs", ghost=ghost)
+            tools_factory=factory, runtime_root=self.case / "runs", ghost=ghost)
         bus.subscribe(module.module_id, module.accepts, module.deliver)
         bus.subscribe(proxy.module_id, proxy.accepts, proxy.deliver)
         replies = Recorder(bus, "dialogue.reply")
@@ -190,6 +256,11 @@ class LiveRuntimeStabilityTests(unittest.TestCase):
         accepted = ghost.get_knoxel_by_id(reply_id)
         self.save("accepted-reply.json", accepted.model_dump(mode="json"))
         self.assertEqual(accepted.content, delivered[0])
+        if reproduce_empty_prefill:
+            attempts = module.last_result.report["attempts"]
+            self.assertEqual(len(attempts), 2)
+            self.assertTrue(attempts[0]["generation_error"])
+            self.assertEqual(attempts[-1]["message_roles"], ["system", "user", "assistant", "user"])
         self.assertEqual(set(context.plan["empty_transcript_ids"]), set(before))
         self.assertTrue(set(before) <= {item.knoxel_id for item in context.evidence})
         self.assertEqual({key: ghost.get_knoxel_by_id(key).model_dump(mode="json") for key in before}, before)

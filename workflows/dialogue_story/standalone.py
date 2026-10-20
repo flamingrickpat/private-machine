@@ -41,12 +41,23 @@ def read_yaml(path: str | Path) -> dict:
 
 
 def build_story_tools(client: ChatClient) -> dict[str, AsyncTextCompletion]:
-    """The scoped generation tool. Async so the sync role owns the event loop."""
+    """Bind generation and repair measurement to the same active client.
+
+    Empty output uses the shared bounded retry. Cancellation reaches both
+    inference and measurement. Programming and provider errors propagate.
+    """
 
     async def story_complete(messages: Sequence[TurnInput], **generation: object) -> str:
-        result = await client.complete(messages, **generation)
-        return result.text
+        from pm.llm.stage_model import complete_with_retry
+        return await complete_with_retry(client, messages, generation)
 
+    async def measure(messages: Sequence[TurnInput], *, cancel=None, **generation: object) -> dict:
+        from pm.llm.context_window import measure_context
+        with client.activation.use(client.connection):
+            return await measure_context(client.connection, messages,
+                                         cancel if cancel is not None else threading.Event(), **generation)
+
+    story_complete.measure_context = measure
     return {"story_complete": story_complete, "public_complete": story_complete}
 
 

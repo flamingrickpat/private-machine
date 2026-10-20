@@ -149,12 +149,19 @@ def parse_review(payload: dict, raw: str = "") -> SpeechReview:
     reason = payload.get("reason")
     if type(false_task_result) is not bool or not isinstance(reason, str) or not reason.strip():
         raise ValueError("A speech review requires a boolean false_task_result and a nonempty reason.")
+    items = payload.get("findings", [])
+    if items is None:
+        items = []
+    if not isinstance(items, list):
+        raise ValueError("Speech review findings must be a list.")
     findings = []
-    for item in payload.get("findings", []) or []:
+    for item in items:
         if isinstance(item, dict):
             findings.append(ReviewFinding.model_validate(item))
         elif isinstance(item, str) and item.strip():
             findings.append(ReviewFinding(kind=item.strip()))
+        else:
+            raise ValueError("Each speech review finding must be an object or a nonempty string.")
     judgment = str(payload.get("judgment", "") or "").strip().lower()
     if not judgment:
         judgment = "block" if false_task_result else "accept"
@@ -199,12 +206,19 @@ async def review_speech(complete: AsyncTextCompletion, candidate: str, context: 
 
     ``attempts`` remains accepted for existing callers. Context capacity now
     bounds repairs. The completion must provide context measurement.
+    Invalid speech spans receive repair feedback with the unchanged draft.
     """
     from pm.llm.structured import complete_json_async
     prompts = prompts or load_prompts()
     messages = build_review_messages(candidate, context, prompts, conversation=conversation, receipts=receipts)
+
+    def validate(payload: dict, raw: str) -> SpeechReview:
+        result = parse_review(payload, raw=raw)
+        select_spoken_text(candidate, result)
+        return result
+
     return await complete_json_async(complete, messages, SpeechReview,
-                                    validate=lambda payload, raw: parse_review(payload, raw=raw),
+                                    validate=validate,
                                     temperature=REVIEW_TEMPERATURE, enable_thinking=False)
 
 
