@@ -468,6 +468,9 @@ class CodeletVariant(BaseModel):
     valence: float = 0.0
     percepts: list[VariantPercept] = Field(default_factory=list)
     target_shard: ShardKey = Field(default_factory=ShardKey)
+    #: The target word the model wrote, when it named a shard that this cycle
+    #: does not have. Empty when the target needed no correction.
+    target_note: str = ""
     about_ids: list[int] = Field(default_factory=list)
 
 

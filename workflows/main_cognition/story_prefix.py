@@ -51,6 +51,29 @@ def shard_label(key: ShardKey, request: CycleRequest) -> str:
     return key.ref
 
 
+def resolve_target(value: str, targets: dict[str, ShardKey]) -> tuple[str, str]:
+    """Return the shard label that ``value`` names, and the word it corrected.
+
+    A model names a shard in its own words. It can write the partner name
+    when that partner has no shard in this cycle. An exact label passes
+    through. A label that differs only in case or spacing is corrected. Any
+    other word becomes ``self``, because the self shard always exists and a
+    percept of an absent partner still belongs there.
+
+    The second value is the original word, or an empty string when no
+    correction happened. A correction costs nothing. A rejected answer costs
+    one full repair round with the whole story prefix again, and a real
+    session burned about ninety of those in one hour for this field alone.
+    """
+    text = str(value or "").strip()
+    if text in targets:
+        return text, ""
+    for label in targets:
+        if label.casefold() == text.casefold():
+            return label, text
+    return "self", text
+
+
 def story_entities(work: CycleWork) -> str:
     """Return the names of the other characters of this moment, for ``{entity_name}``.
 
@@ -177,4 +200,5 @@ class StoryPrefix:
         return next(label for label, target in self.targets.items() if target == key)
 
 
-__all__ = ["StoryPrefix", "conscious_percepts", "shard_block", "shard_label", "shown_shards", "story_entities"]
+__all__ = ["StoryPrefix", "conscious_percepts", "resolve_target", "shard_block", "shard_label", "shown_shards",
+          "story_entities"]

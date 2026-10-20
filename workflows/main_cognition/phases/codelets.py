@@ -82,7 +82,7 @@ from workflows.main_cognition.schemas import (
     ActivationScore, AgentCodeletJob, CodeletOutput, CodeletRatings, CodeletRun, CodeletsResult, CodeletVariant,
     RecordView, VariantPercept,
 )
-from workflows.main_cognition.story_prefix import StoryPrefix
+from workflows.main_cognition.story_prefix import StoryPrefix, resolve_target
 
 #: Percept type name of the record that holds a variant recommendation.
 RECOMMENDATION = "Recommendation"
@@ -166,12 +166,14 @@ class CodeletFrame:
 
         The answer holds ``target``, ``about_ids``, and one optional field
         for each offered percept type, all at the top level.
-        """
-        targets = self.targets
 
+        An unknown ``target`` is not a repair case. The model often names the
+        partner instead of a shard label, and a repair round repeats the whole
+        story prefix for a word that carries no information. The caller
+        resolves the target instead. An id outside ``allowed_ids`` stays a
+        repair case, because the caller cannot choose the record for the model.
+        """
         def check(answer):
-            if answer.target not in targets:
-                raise ValueError(f"target must be one of {', '.join(targets)}.")
             unknown = sorted(set(answer.about_ids) - allowed_ids)
             if unknown:
                 raise ValueError(f"about_ids {unknown} are not in the MIND list. Use only ids from that list.")
@@ -204,8 +206,9 @@ def convert(context, work: CycleWork, frame: CodeletFrame, asked: list[Turn], pr
                                salience=percept.salience, valence=percept.valence,
                                appraisal_general=percept.general(), appraisal_social=percept.social())
                 for kind, percept in percept_items(answer)]
-    variant = CodeletVariant(recommendation=prose, percepts=percepts, target_shard=frame.targets[answer.target],
-                             about_ids=list(dict.fromkeys(answer.about_ids)))
+    target, corrected = resolve_target(answer.target, frame.targets)
+    variant = CodeletVariant(recommendation=prose, percepts=percepts, target_shard=frame.targets[target],
+                             target_note=corrected, about_ids=list(dict.fromkeys(answer.about_ids)))
     return variant, tokens(messages), tokens([Turn(Role.Assistant, answer.model_dump_json())])
 
 

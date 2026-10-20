@@ -35,10 +35,11 @@ conversion_template: |
   {schema}
 
   Also fill:
-  - "target": the part of the story that your result concerns. Use exactly one of: {targets}. Use "self" only
-    for a result about {companion_name} alone. A result about another character uses that character's name. When
-    the moment holds several characters or a world, choose the one part that the result is most about, and write
-    the percept texts about that part only: the mind keeps each relationship in its own place.
+  - "target": the part of the story that your result concerns. Use exactly one name from this list: {targets}.
+    No other name is valid. When your result is about a character that is not in the list, use "self". Use
+    "self" also for a result about {companion_name} alone. When the moment holds several characters or a
+    world, choose the one listed part that the result is most about, and write the percept texts about that
+    part only: the mind keeps each relationship in its own place.
   - "about_ids": the ids of the lines in the MIND list above that your result is about. Use only ids from that
     list. An empty list is allowed.
 

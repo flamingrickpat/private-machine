@@ -48,7 +48,7 @@ from workflows.main_cognition.cycle_work import CycleWork
 from workflows.main_cognition.model_json import PhasePrompts
 from workflows.main_cognition.phases.model import complete, phase_prompts
 from workflows.main_cognition.schemas import BinderAnswer, RecordView, StructureDraft, StructuresResult
-from workflows.main_cognition.story_prefix import StoryPrefix
+from workflows.main_cognition.story_prefix import StoryPrefix, resolve_target
 
 #: Returns the embedding of a record id.
 EmbeddingOf = Callable[[int], list[float]]
@@ -203,9 +203,9 @@ class StructureBinder:
     """Bind codelet percepts to memories and narratives with one story-framed call.
 
     The call reads the shared story prefix, then the CSM view with ids, the
-    recent broadcasts, and the instruction. Ids outside the view, an unknown
-    target, or a relation between records outside its structure are invalid
-    output and get a repair turn.
+    recent broadcasts, and the instruction. An id outside the view, or a
+    relation between records outside its structure, is invalid output and gets
+    a repair turn. An unknown target is corrected in place instead.
     """
 
     def __init__(self, work: CycleWork, prefix: StoryPrefix, prompts: PhasePrompts):
@@ -223,9 +223,12 @@ class StructureBinder:
                               targets=", ".join(f'"{label}"' for label in self.prefix.targets)).text
 
     def schema(self, view_ids: list[int]) -> type[BinderAnswer]:
-        """Return the answer model with the checks of this view."""
+        """Return the answer model with the checks of this view.
+
+        An unknown ``target`` is not a repair case. The caller resolves it, so
+        one wrong word does not repeat the whole story prefix in a repair turn.
+        """
         allowed = set(view_ids)
-        targets = self.prefix.targets
 
         def check(answer):
             if len(answer.structures) > STRUCTURE_BINDER_MAX:
@@ -234,8 +237,6 @@ class StructureBinder:
                 unknown = sorted(set(structure.record_ids) - allowed)
                 if unknown:
                     raise ValueError(f"record_ids {unknown} are not in the MIND list. Use only ids from that list.")
-                if structure.target not in targets:
-                    raise ValueError(f"target must be one of {', '.join(targets)}.")
                 for relation in structure.relations:
                     if {relation.source_id, relation.target_id} - set(structure.record_ids):
                         raise ValueError("A relation can link only ids of its own structure's record_ids.")
@@ -256,7 +257,7 @@ class StructureBinder:
             valence, salience = _affect(csm, members)
             drafts.append(StructureDraft(
                 builder=BINDER, kind="binding", theme=structure.theme.strip(), reason=structure.reason.strip(),
-                record_ids=members, target_shard=self.prefix.targets[structure.target],
+                record_ids=members, target_shard=self.prefix.targets[resolve_target(structure.target, self.prefix.targets)[0]],
                 relations=[StructureRelation(source_id=item.source_id, relation=item.relation,
                                              target_id=item.target_id) for item in structure.relations],
                 valence=valence, salience=salience))
