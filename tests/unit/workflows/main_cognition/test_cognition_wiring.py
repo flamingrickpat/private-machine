@@ -68,6 +68,56 @@ def _fake_reports(stimulus_id: int, candidate_id: int) -> dict:
 
 
 class MainCogLoopWiringTests(unittest.TestCase):
+    def test_backup_restores_completed_cycle_without_later_failed_input(self):
+        from pm.memory.checkpoint import read_checkpoint
+        from pm.memory.store import MemoryStore
+        from workflows.cognitive_control.host import CognitiveControl
+
+        for use_control in (False, True):
+            with self.subTest(use_control=use_control), TemporaryDirectory() as directory:
+                root = Path(directory)
+                ghost = _small_ghost()
+                ghost.checkpoint = root / "ghost.json"
+                stimulus_id = _store(ghost, "the kitchen is on fire")
+                bus = BusSystem()
+                module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
+                    working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
+                    tools_factory=scripted_tools(ScriptedModel(reports=_fake_reports(stimulus_id, stimulus_id))),
+                    runtime_root=root / "runtime", ghost=ghost)
+                if use_control:
+                    module.cognitive_control = CognitiveControl(
+                        "cognitive_control", bus, self.fail, ManualClock(), None, ghost=ghost)
+
+                def receive(envelope):
+                    backups = list(root.glob("ghost_*.json"))
+                    self.assertEqual(len(backups), 1)
+                    self.assertEqual(read_checkpoint(backups[0]), read_checkpoint(ghost.checkpoint))
+
+                bus.subscribe("backup-reader", lambda event: event.topic == "gwt.updated", receive)
+                module.deliver(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                    correlation_id="completed-user", payload={"knoxel_id": stimulus_id}))
+                self.assertTrue(module.step(block=False))
+                backups = list(root.glob("ghost_*.json"))
+                self.assertEqual(len(backups), 1)
+                completed = read_checkpoint(backups[0])
+                self.assertIn(ghost.current_tick_id, completed.gwt_turns)
+                self.assertEqual(completed.gwt_turns[ghost.current_tick_id].stimulus_ids, [stimulus_id])
+
+                later_id = _store(ghost, "a new message whose cycle will fail")
+                module.workflow = root / "missing.workflow.md"
+                module.deliver(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
+                    correlation_id="failed-user", payload={"knoxel_id": later_id}))
+                with self.assertRaises(FileNotFoundError):
+                    module.step(block=False)
+
+                self.assertEqual(list(root.glob("ghost_*.json")), backups)
+                restored = MemoryStore.from_checkpoint(backups[0])
+                self.assertEqual(restored.state_dict(), completed.state)
+                self.assertEqual(restored.gwt_turns, completed.gwt_turns)
+                self.assertEqual(restored.applied_commits, completed.applied_commits)
+                self.assertIsNone(restored.get_knoxel_by_id(later_id))
+                self.assertIsNotNone(MemoryStore.from_checkpoint(ghost.checkpoint).get_knoxel_by_id(later_id))
+
     def test_invalid_saved_mental_plan_rejects_only_its_proposal(self):
         from unittest.mock import patch
         ghost = _small_ghost()
@@ -169,6 +219,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             return scripted(messages, **generation)
 
         with TemporaryDirectory() as tmp:
+            ghost.checkpoint = Path(tmp) / "ghost.json"
             bus = BusSystem()
             errors = []
             module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
@@ -184,6 +235,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(len(requests.events), 1)
             self.assertEqual(requests.events[0].correlation_id, "retained-user")
             self.assertEqual(len(list(Path(tmp).rglob("model-output-rejection.json"))), 1)
+            self.assertEqual(len(list(Path(tmp).glob("ghost_*.json"))), 1)
             self.assertEqual(errors, [])
 
     def test_a_failed_provider_completion_retries_the_whole_cycle(self):
@@ -227,6 +279,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             raise ModelFormatError("Captured model syntax stayed invalid.")
 
         with TemporaryDirectory() as tmp:
+            ghost.checkpoint = Path(tmp) / "ghost.json"
             bus = BusSystem()
             module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
@@ -238,6 +291,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertEqual(requests.events, [])
             self.assertEqual(ghost.gwt_turns_of("main"), [])
+            self.assertEqual(list(Path(tmp).glob("ghost_*.json")), [])
 
     def test_real_parent_commits_gwt_and_publishes_a_typed_dispatch(self):
         ghost = _small_ghost()

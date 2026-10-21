@@ -6,7 +6,7 @@ A home folder has this layout::
       character.yaml    # PersonaConfig fields without personality_profile
       personality.json  # {"<PersonalityProfile field>": 0..1, ...}
       ghost.json        # accepted MemoryStore checkpoint
-      ghost_*.json      # stable memory before each main cognition attempt
+      ghost_*.json      # stable memory after each successful main cognition commit
       logs/             # process and thread diagnostics
       runtime/          # runtime root of the app
       import/           # copies of imported CSV files and import receipts

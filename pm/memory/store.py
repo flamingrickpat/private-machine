@@ -126,10 +126,11 @@ class MemoryStore(RecordIndex):
             return Snapshot(records, gwt, {record_id: self.revisions[record_id] for record_id in ids})
 
     def backup(self) -> Path | None:
-        """Save accepted memory beside the checkpoint before a cognition attempt.
+        """Save accepted memory beside the checkpoint and return its backup path.
 
+        Main cognition calls this method after a successful cycle commit.
         The commit lock keeps all fields at one stable revision. Backups have
-        no retention limit. An I/O error stops the attempt before it changes
+        no retention limit. I/O errors propagate without undoing accepted
         memory. An ephemeral store returns None and writes no file.
         """
         from datetime import datetime, timezone

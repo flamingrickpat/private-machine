@@ -100,8 +100,13 @@ class BusModule(ABC):
             logger.info("Module thread stopped module=%s invocation=%s", self.module_id, self.invocation_id)
 
     def _logged_batch(self, batch: list[Envelope]) -> None:
-        """Record work boundaries without copying private input into diagnostics."""
-        if not batch and not hasattr(self, "workflow"):
+        """Record work boundaries without copying private input into diagnostics.
+
+        Empty batches (timer ticks with no work) are processed silently so they
+        do not flood the debug log.  Only non-empty batches produce start/exit
+        entries.
+        """
+        if not batch:
             self.handle_batch(batch)
             return
         started = time.monotonic()

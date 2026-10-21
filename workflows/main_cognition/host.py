@@ -346,7 +346,6 @@ class MainCogLoop(CognitiveWorkflow):
         delay = CYCLE_RETRY_DELAY_SECONDS
         while not self.stop_event.is_set():
             try:
-                self.ghost.backup()
                 super().handle_batch(batch)
                 return
             except (ModelFormatError, ModelError) as error:
@@ -793,7 +792,8 @@ class MainCogLoop(CognitiveWorkflow):
         experience, the decision record, one action
         schema per released dispatch with its expectations, the expectation
         check results, the GWT turn with the shard changes, and the cycle
-        state. Bus events go out only after the commit. A stale source, a
+        state. The backup follows the commit and precedes all bus events.
+        A backup error propagates after memory acceptance. A stale source, a
         concurrently changed expectation, or a concurrent focus change aborts
         the whole batch.
         """
@@ -1030,6 +1030,8 @@ class MainCogLoop(CognitiveWorkflow):
                           for item in batch if item.topic == "cognition.wake"],
                 private_generation=self._control_generation if self._private_only else None,
                 source_ids=list(self._stimulus_ids))
+        # Failed attempts must leave the last completed cycle's backup intact.
+        self.ghost.backup()
         tick = receipt.tick_id
 
         self.bus.put(new_envelope(self.module_id, "data", "gwt.updated", "", {"gwt_tick": tick}))

@@ -12,7 +12,7 @@ from pm.records.memory_records import new_feature
 
 
 class BackupTests(unittest.TestCase):
-    def test_backup_restores_accepted_state_and_retains_each_attempt(self):
+    def test_backup_restores_accepted_state_and_retains_each_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "ghost.json"
             store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=path)

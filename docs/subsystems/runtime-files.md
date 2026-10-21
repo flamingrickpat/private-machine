@@ -17,7 +17,7 @@ Related: [model connections](../models.md), [character home](character-import.md
 | `~/.pm/private-machine/cache/<model>/` | Completion JSON, readable transcripts, and inference receipts. |
 | `~/.pm/private-machine/cache/embeddings/<model>/` | Embedding JSON, readable input, and inference receipts. |
 | `<home>/ghost.json` | Current accepted memory. Each accepted commit saves it. |
-| `<home>/ghost_<tick>_<UTC datetime>_<suffix>.json` | Stable memory before a main cognition attempt. |
+| `<home>/ghost_<tick>_<UTC datetime>_<suffix>.json` | Stable memory after a successful main cognition commit. |
 | `<home>/logs/runtime_<UTC datetime>_<pid>.log` | Process diagnostics and native crash traces. |
 | `<home>/runtime/` | Kernel journals, managed tasks, and workflow artifacts. |
 
@@ -56,9 +56,11 @@ Old cache files can lack the original request or timing data. Backfilled transcr
 
 [`pm.memory.store.MemoryStore.backup`][] holds the commit lock while it captures and writes a complete checkpoint.
 The backup includes records, revisions, GWT turns, cycle state, managed runs, and commit receipts.
-Its tick identifies the last accepted tick before the attempt.
-Retries retain separate files, including retries at the same tick.
-An I/O error stops the cognition attempt before it changes memory.
+Main cognition writes the backup after its cycle commit and before it publishes bus events.
+Its tick identifies that completed cycle.
+Failed attempts, retries, and cancellations before commit create no backup.
+If a later message's cycle crashes before commit, the previous backup excludes that message.
+A backup I/O error propagates after memory acceptance and prevents event publication. Earlier backups remain available.
 An explicitly ephemeral store writes no backup.
 
 1. Stop the agent and wait for its workers to exit.
