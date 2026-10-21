@@ -185,7 +185,7 @@ class AcceptedCycleTests(unittest.TestCase):
     def test_accepted_cycle_commits_inner_shard_and_self_origin_event(self):
         ghost = small_ghost()
         with TemporaryDirectory() as tmp:
-            ghost.checkpoint = Path(tmp) / "ghost.json"
+            ghost.checkpoint = Path(tmp) / "ghost.pickle"
             module, bus, errors = _module(ghost, _reports(), tmp)
             created = Recorder(bus, "thought.created")
             updated = Recorder(bus, "gwt.updated")
@@ -251,7 +251,7 @@ class RejectionTests(unittest.TestCase):
         for invalid in ({"evidence_ids": [812, 11295]}, {"reality": "unsupported"}):
             with self.subTest(invalid=invalid), TemporaryDirectory() as tmp:
                 ghost = small_ghost()
-                ghost.checkpoint = Path(tmp) / "ghost.json"
+                ghost.checkpoint = Path(tmp) / "ghost.pickle"
                 ghost.commit(ghost.begin_batch("initial-checkpoint"))
                 reports = _reports()
                 valid_thought = dict(reports["thought"])
@@ -371,7 +371,7 @@ class RestartTests(unittest.TestCase):
     def test_inner_shard_and_channels_survive_checkpoint_reopen(self):
         ghost = small_ghost()
         with TemporaryDirectory() as tmp:
-            checkpoint = Path(tmp) / "ghost.json"
+            checkpoint = Path(tmp) / "ghost.pickle"
             ghost.checkpoint = checkpoint
             module, bus, errors = _module(ghost, _reports(), tmp)
             module.handle_batch([])

@@ -12,6 +12,8 @@ A launch-time view of the store cannot name that cycle by itself.
 """
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 from collections.abc import Mapping
 from functools import partial
 from pathlib import Path
@@ -42,7 +44,7 @@ WORKFLOW_DESCRIPTION = (
 
 def _visible_request(request: ActionRequest, visible: set[int]) -> ActionRequest:
     """Return a copy of ``request`` whose shards keep only records that the store still holds."""
-    copy = request.model_copy(deep=True)
+    copy = pickle_copy(request)
     for item in copy.shards:
         item.shard.items = [entry for entry in item.shard.items if entry.record_id in visible]
         item.shard.tail_ids = [record_id for record_id in item.shard.tail_ids if record_id in visible]
@@ -114,7 +116,7 @@ def build_workflow_spec(config: ToolCallConfig) -> WorkflowSpec:
     that a replay would repeat.
     """
     config.check_environment()
-    selected = config.model_copy(deep=True)
+    selected = pickle_copy(config)
 
     def tools_factory(run_id: str, environment: Any) -> dict[str, Any]:
         def tool_call_settings() -> ToolCallConfig:

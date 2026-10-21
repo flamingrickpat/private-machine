@@ -173,7 +173,7 @@ class _Run:
         return template.format(companion_name=self.companion, user_name=self.user, **values)
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        """Return one vector for each text, through the shared embedding cache."""
+        """Return one vector for each temporary text through the embedding model."""
         async def gather():
             gate = asyncio.Semaphore(RECONSOLIDATION_EMBED_WORKERS)
 
@@ -435,7 +435,7 @@ class _Run:
                 key = MemoryTaxonomy.dedup_key(subject, filing.essence)
                 if key in existing:
                     record_id = existing[key]
-                    record = open_records[record_id] if record_id in open_records else view.get(record_id)
+                    record = open_records[record_id] if record_id in open_records else view.get(record_id).copy_for_edit()
                     record.source_knoxel_ids.append(fact.id)
                     if text not in record.source_texts and text != record.content:
                         record.source_texts.append(text)
@@ -457,7 +457,7 @@ class _Run:
                 fact.semantic_record_id = existing[key]
                 batch.revise(fact)
                 self.report.fact_ids.append(fact.id)
-            done = view.get(cluster.id)
+            done = view.get(cluster.id).copy_for_edit()
             done.facts_extracted = True
             batch.replace(done)
 
@@ -577,15 +577,12 @@ class _Run:
     # ------------------------------------------------------------- index
 
     def prepare_index(self, ids: Sequence[int]) -> None:
-        """Embed the retrieval chunks of the new records into the shared cache.
-
-        Live retrieval embeds at most 64 missing chunks per call. A prepared
-        cache lets it rank every new summary, fact, and narrative at once.
-        """
-        from pm.memory.retrieval import index_chunks
-        records = self.store.snapshot(set(ids)).serialize_knoxels()
-        chunks, _ = index_chunks(records)
-        self.embed([chunks[key] for key in sorted(chunks)])
+        """Store vectors on the new records and save their complete checkpoint."""
+        missing = [record for record in self.store.snapshot(set(ids)).all_knoxels.values() if not record.embedding]
+        vectors = self.embed([record.content or record.get_story_element() for record in missing])
+        for record, vector in zip(missing, vectors, strict=True):
+            record.embedding = vector
+        self.store.save()
 
 
 def reconsolidate(store, *, complete: TextCompletion, embeddings, config: ReconsolidationConfig | None = None,

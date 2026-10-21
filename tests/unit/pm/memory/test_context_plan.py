@@ -9,18 +9,23 @@ from __future__ import annotations
 import unittest
 from datetime import datetime
 
+from pm.records.base import RecordBase
+from pm.memory.yaml_codec import KNOXEL_TYPE_REGISTRY
 from pm.memory.context_plan import Focus, LaneSpec, LaneWeights, PlanSpec, plan_context
 
 NOW = datetime(2026, 10, 13, 12, 0)
 
 
-def record(kind: str, content: str, day: int, **data) -> dict:
-    stamp = f"2026-05-{day:02d}T20:00:00"
-    return {"__type__": kind, "data": {"content": content, "timestamp_world_begin": stamp,
-                                       "timestamp_world_end": stamp, **data}}
+def record(kind: str, content: str, day: int, **data) -> RecordBase:
+    stamp = datetime(2026, 5, day, 20)
+    cls = KNOXEL_TYPE_REGISTRY[kind]
+    for field in ("feature_type", "cluster_type", "narrative_type"):
+        if field in data:
+            data[field] = cls.model_fields[field].annotation(data[field])
+    return cls.model_construct(content=content, timestamp_world_begin=stamp, timestamp_world_end=stamp, **data)
 
 
-def records() -> dict[int, dict]:
+def records() -> dict[int, RecordBase]:
     return {
         1: record("Feature", "old line about soup", 1, feature_type="Dialogue"),
         2: record("Feature", "line about the plant", 20, feature_type="Dialogue"),

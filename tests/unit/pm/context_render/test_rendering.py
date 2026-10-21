@@ -1,5 +1,6 @@
 """Check record references, typed dispatch, and retained media."""
-import copy
+
+from pm.records.copying import pickle_copy
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18,8 +19,8 @@ class ContextRenderTests(unittest.TestCase):
         record = {"knoxel_id": 23456, "text": "original", "revision": 4,
                   "scope": {"frame": "in_world"}, "provenance": {"source_kind": "User"}}
         changed = {**record, "text": "correction", "revision": 5}
-        source = {"records": [record, copy.deepcopy(record), changed, record]}
-        before = copy.deepcopy(source)
+        source = {"records": [record, pickle_copy(record), changed, record]}
+        before = pickle_copy(source)
         rendered = self.data(render_context(source))
         self.assertEqual(rendered["records"][1], {"record_ref": 23456})
         self.assertEqual(rendered["records"][2]["text"], "correction")

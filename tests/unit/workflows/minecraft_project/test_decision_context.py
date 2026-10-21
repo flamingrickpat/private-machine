@@ -1,5 +1,6 @@
 """Check captured context size and exact material partitions."""
-import copy
+
+from pm.records.copying import pickle_copy
 import json
 from pathlib import Path
 import unittest
@@ -24,7 +25,7 @@ class DecisionContextTests(unittest.TestCase):
     def test_captured_repair_uses_projection_even_without_overflow(self):
         capture = json.loads((ROOT / "test_data/captures/alpha/a13-review-context.json").read_text(encoding="utf-8"))
         source = json.loads(capture["repair_budget"]["original_input"]["messages"][1]["content"])
-        before = copy.deepcopy(source)
+        before = pickle_copy(source)
         selected = decision_context(source)
         rendered = render_object_for_llm(selected, SCHEMA)
         self.assertNotIn("persona_context", selected)
@@ -49,7 +50,7 @@ class DecisionContextTests(unittest.TestCase):
         root = Node(id="goal", kind="goal", children=["walls"], instruction="Build the house.",
                     criteria=[Condition(id="wall-proof", description="Walls exist.", kind="accepted", node_id="walls")])
         tree = TaskTree(goal_id="goal", nodes=[root, leaf])
-        baseline = tree.model_copy(deep=True)
+        baseline = pickle_copy(tree)
         baseline.nodes[1].criteria[0].names = ["birch_planks"]
         with TemporaryDirectory() as directory:
             store = TreeStore(Path(directory))

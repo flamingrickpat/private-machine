@@ -107,7 +107,7 @@ def native_worker(args):
     out = args.out.resolve()
     scenario = read(out / "scenario.json")
     app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", cognition="real",
-        config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.json", record_lifecycle=False)
+        config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.pickle", record_lifecycle=False)
     app.supervisor.on_error = lambda error: print(f"Worker error: {type(error).__name__}: {error}", flush=True)
     previous = read(out / "task.json")
     if previous is None:

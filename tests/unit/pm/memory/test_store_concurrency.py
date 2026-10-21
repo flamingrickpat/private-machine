@@ -15,7 +15,7 @@ class GhostConcurrencyTests(unittest.TestCase):
     def setUp(self):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        self.path = Path(directory.name) / "ghost.json"
+        self.path = Path(directory.name) / "ghost.pickle"
         self.ghost = small_ghost(self.path)
 
     def together(self, prepare):
@@ -46,7 +46,7 @@ class GhostConcurrencyTests(unittest.TestCase):
         original = self.ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="original"))
 
         def prepare(batch, index):
-            record = batch.view().get(original.id)
+            record = batch.view().get(original.id).copy_for_edit()
             record.content = f"winner {index}"
             batch.replace(record)
             batch.create(Feature(feature_type=FeatureType.Dialogue, content=f"append {index}"))

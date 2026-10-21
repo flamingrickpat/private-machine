@@ -159,7 +159,7 @@ def reference_path(value: str) -> Path:
     name = path.relative_to(ROOT).as_posix()
     if any(part in {".git", ".venv"} or part.startswith(".env") for part in path.parts):
         raise ValueError("Credential and environment files are not review references.")
-    if path.name == "ghost.json":
+    if path.name == "ghost.pickle":
         raise ValueError("Use a captured receipt, not a live checkpoint, as a review reference.")
     if not name.startswith((".runtime/", "dev/", "docs/", "pm/", "workflows/", "tests/", "test_data/")):
         raise ValueError("Use an evidence, documentation, code, or test reference.")

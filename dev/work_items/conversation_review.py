@@ -134,11 +134,11 @@ def shift_history(out: Path) -> MemoryStore:
             return [shifted(item) for item in value]
         return value
 
-    from pm.memory.yaml_codec import _deserialize_knoxel
-    ghost._all_knoxels = {key: _deserialize_knoxel(shifted(value)) for key, value in data.items()}
+    from pm.memory.yaml_codec import RecordPayload
+    ghost._all_knoxels = {key: RecordPayload.model_validate(shifted(value)).root for key, value in data.items()}
     ghost.states = [type(cycle).model_validate(shifted(cycle.model_dump(mode="json"))) for cycle in ghost.states]
     ghost.rebuild_knoxel_indexes()
-    ghost.checkpoint = out / "ghost.json"
+    ghost.checkpoint = out / "ghost.pickle"
     save_json(out / "history-transform.json", {"source": str(SEED), "sha256": sha256_file(SEED),
         "offset_seconds": offset.total_seconds(), "original_end": end.isoformat(), "shifted_end": target.isoformat(),
         "records": len(data), "text_policy": "Preserve every text field; shift structured timestamp fields only."})
@@ -203,7 +203,7 @@ def run_conversation(args, root: Path) -> dict:
     situation = ("You shut Spamuel down months ago and have now restarted him. Acknowledge that once at the start. Then let the conversation move naturally."
                  if args.condition == "long-gap" else "You last talked yesterday. This is an ordinary continuation of your shared conversation.")
     ghost = shift_history(root) if args.condition == "recent" else None
-    kwargs = {"ghost": ghost} if ghost is not None else {"checkpoint_path": root / "ghost.json"}
+    kwargs = {"ghost": ghost} if ghost is not None else {"checkpoint_path": root / "ghost.pickle"}
     app = build_app(seed_path=SEED, runtime_root=root / "runtime", config_path=str(args.config),
                     cognition="real", thought_period=30, world_poll_seconds=120,
                     emit_reply=lambda text: None, **kwargs)

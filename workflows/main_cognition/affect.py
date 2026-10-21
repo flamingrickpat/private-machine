@@ -19,6 +19,8 @@ The functions are pure. They never call a model or touch the memory store.
 """
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 from typing import TYPE_CHECKING
 
 from pm.constants import (
@@ -94,7 +96,7 @@ def appraise_state(base: FullMentalState, appraisal: AppraisalResult, *, entity_
        appraisal axes, cognition, and the relationship entity id never add
        up in the history.
     """
-    probe = base.model_copy(deep=True)
+    probe = pickle_copy(base)
     probe.appraisal_general = appraisal.general()
     probe.appraisal_social = appraisal.social()
     derived, _ = compute_state_delta(probe, relationship_entity_id=entity_id)
@@ -133,7 +135,7 @@ def percept_affect(base: FullMentalState, general: AppraisalGeneral, social: App
     after attention puts the percept into a workspace shard. Then the commit
     stages it as causal.
     """
-    probe = base.model_copy(deep=True)
+    probe = pickle_copy(base)
     probe.appraisal_general = general.model_copy()
     probe.appraisal_social = social.model_copy()
     derived, _ = compute_state_delta(probe, relationship_entity_id=entity_id)

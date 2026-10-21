@@ -289,21 +289,6 @@ def finish_prompt_log(path: Path | None, *, response: dict | None = None,
 __all__ += ["start_prompt_log", "finish_prompt_log"]
 
 
-def write_embedding_cache_log(path: Path) -> None:
-    """Add a readable input and metadata file to an older vector cache entry."""
-    target = path.with_suffix(".md")
-    if target.exists() or not logging_enabled():
-        return
-    try:
-        entry = json.loads(path.read_text(encoding="utf-8"))
-        lines = ["# Embedding cache", "", "## Metadata", "",
-                 *[f"- {key}: {entry[key]}" for key in ("model", "endpoint", "dimensions")],
-                 "- usage: unknown (existing vector cache)", "", "## user", "", str(entry["input"])]
-        target.write_text("\n".join(wrap_text("\n".join(lines))), encoding="utf-8")
-    except (OSError, ValueError, KeyError) as error:
-        print(f"Embedding transcript write failed: {error}", file=sys.stderr)
-
-
 def backfill_cache_logs() -> None:
     """Add missing Markdown files to existing cache JSON without model calls.
 
@@ -320,7 +305,6 @@ def backfill_cache_logs() -> None:
         try:
             entry = json.loads(path.read_text(encoding="utf-8"))
             if path.name.startswith("cache_emb_"):
-                write_embedding_cache_log(path)
                 continue
             body = ["# Existing cache record", "", "- timing: unknown (existing cache)", ""]
             payload = (entry.get("payload") or {}) if isinstance(entry, dict) else {}

@@ -62,7 +62,7 @@ def run(args) -> None:
         stack.start()
         os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
         app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", cognition="real",
-                        config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.json", record_lifecycle=False)
+                        config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.pickle", record_lifecycle=False)
         app.supervisor.on_error = lambda error: print(f"Worker error: {type(error).__name__}: {error}", flush=True)
         task = app.supervisor.start(action_id="a10-five-trees", workflow_name="minecraft",
             instructions="Gather wood from five distinct trees and return to your starting position. "

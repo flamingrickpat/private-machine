@@ -67,12 +67,12 @@ def commit_public_reply(ghost, text: str, correlation: str, *, commit_id: str,
         if exchange is not None:
             resolved_ids.add(exchange.id)
         for key in resolved_ids:
-            source = ghost.snapshot({key}).get(key)
+            source = ghost.snapshot({key}).get(key).copy_for_edit()
             if source.metadata.get("exchange_status") == "pending":
                 source.metadata.update(exchange_status="resolved", public_reply_id=reply.id, recovery_outcome=recovery)
                 batch.replace(source)
         if action_id is not None and action_id in ghost.revisions:
-            action = ghost.snapshot({action_id}).get(action_id)
+            action = ghost.snapshot({action_id}).get(action_id).copy_for_edit()
             if action.metadata.get("dispatch_status") == "pending":
                 action.metadata["dispatch_status"] = "admitted"
             action.metadata["public_reply_id"] = reply.id
@@ -109,6 +109,7 @@ def acknowledge_reply(ghost, reply_id: int) -> None:
         if reply is None or reply.metadata.get("publication_status") != "pending":
             return
         batch = ghost.begin_batch(f"public-ack:{reply_id}")
+        reply = reply.copy_for_edit()
         reply.metadata["publication_status"] = "published"
         batch.replace(reply)
         ghost.commit(batch)

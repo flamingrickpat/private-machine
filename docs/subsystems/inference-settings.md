@@ -178,15 +178,12 @@ These small probes establish parameter wiring, not broad reasoning quality.
 ## Checkpoint serialization
 
 [`pm.memory.checkpoint.CheckpointSerializer`][] owns encoding and decoding.
-[`pm.memory.checkpoint.JsonCheckpointSerializer`][] retains the existing UTF-8 JSON schema.
-The default writer encodes once and writes the resulting bytes in one operation.
-File ownership, flush, fsync, cancellation and atomic replacement remain in [`pm.memory.checkpoint.write_checkpoint`][].
-
-The serializer does not select a database or change canonical YAML imports.
-Checkpoints continue to omit record embeddings, which live in the external embedding cache.
-An isolated 36 MB encoding benchmark produced identical bytes with both JSON writers.
-The single-write version took about 0.87 seconds; the streaming version took 2.79–4.26 seconds.
-This measures encoding and syncing, not the complete commit or conversation.
+The default [`pm.memory.checkpoint.PickleCheckpointSerializer`][] writes typed state directly.
+Every record retains its embedding. The save path does not convert records to JSON mappings.
+[`pm.memory.checkpoint.JsonCheckpointSerializer`][] remains available for explicit JSON export and old checkpoint imports.
+File ownership, flush, fsync, cancellation, and atomic replacement remain in [`pm.memory.checkpoint.write_checkpoint`][].
+Legacy YAML seeds remain readable. Normal application saves and backups use pickle.
+Read [memory ownership](../ghost.md) for shared records, isolated edits, and startup embedding.
 
 ## Foreground priority
 

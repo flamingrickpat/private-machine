@@ -38,7 +38,7 @@ def run(args):
         raise ValueError("Keep live publication evidence below .runtime.")
     out.mkdir(parents=True, exist_ok=args.resume)
     seed = ROOT / "test_data/personas/spamuel/canon.yaml"
-    checkpoint = out / "ghost.json"
+    checkpoint = out / "ghost.pickle"
     receipt = {"item": "A12", "status": "running", "checks": {},
                "canon_sha256": hashlib.sha256(seed.read_bytes()).hexdigest(),
                "scope": "real companion selection and speech; operator-selected real note task"}

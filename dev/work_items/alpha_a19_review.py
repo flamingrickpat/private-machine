@@ -30,10 +30,10 @@ def run(source: Path, out: Path, config: Path, *, drain_only: bool = False) -> d
     """
     out.mkdir(parents=True, exist_ok=False)
     snapshot(out, config)
-    shutil.copy2(source, out / "ghost.json")
+    shutil.copy2(source, out / "ghost.pickle")
     os.environ["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
     app = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(config),
-                    checkpoint_path=out / "ghost.json", thought_period=3600,
+                    checkpoint_path=out / "ghost.pickle", thought_period=3600,
                     world_poll_seconds=None, record_lifecycle=False, emit_reply=lambda text: None)
     chat = ChatCapture(app, out)
     parent_receipt = json.loads(source.with_name("receipt.json").read_text(encoding="utf-8"))

@@ -59,7 +59,7 @@ class AltTextTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
-                                 checkpoint=self.root / "ghost.json")
+                                 checkpoint=self.root / "ghost.pickle")
         self.image = image_from_bytes(png())
         metadata: dict = {}
         tags = attach_images(metadata, [self.image])
@@ -83,7 +83,7 @@ class AltTextTests(unittest.TestCase):
         self.assertEqual((stored.alt_text, stored.alt_text_source), ("A grey cat sits on a sofa.", "model"))
         # The description is derived data: the revision stays, the checkpoint keeps it.
         self.assertEqual(self.store.revisions[self.feature.id], revision)
-        reopened = MemoryStore.from_checkpoint(self.root / "ghost.json")
+        reopened = MemoryStore.from_checkpoint(self.root / "ghost.pickle")
         self.assertEqual(reopened.find_image(self.image.id).alt_text, "A grey cat sits on a sofa.")
         # A second call finds the alt text and asks nothing.
         complete_alt_text(self.store, [self.image.id], model)
@@ -91,7 +91,7 @@ class AltTextTests(unittest.TestCase):
 
     def test_a_stale_replacement_keeps_the_alt_text(self):
         batch = self.store.begin_batch("stale")
-        record = batch.view().get(self.feature.id)
+        record = batch.view().get(self.feature.id).copy_for_edit()
         complete_alt_text(self.store, [self.image.id], ScriptedVision("A grey cat."))
         record.metadata = {**record.metadata, "exchange_status": "resolved"}
         batch.replace(record)
@@ -107,16 +107,14 @@ class AltTextTests(unittest.TestCase):
                                  legacy_cache_dir=self.root / "legacy", cache_dir=self.root / "cache")
         service = EmbeddingService(config, live_test=True)
         expected = "what is this?\n[image: A grey cat.]"
-        # The cache holds only the alt-text form. A request to the endpoint
-        # would fail, so a returned vector proves which text was embedded.
-        service.cache.put(expected, [1.0, 0.0, 0.0, 0.0])
-        self.assertEqual(service.inspect_index({1: self.feature.content}).missing, [1])
-        vector = asyncio.run(service.embed(self.feature.content))
-        self.assertEqual(vector, [1.0, 0.0, 0.0, 0.0])
-        self.assertEqual(service.client.request_count, 0)
+        from pm.llm.http_client import ModelError
+        self.assertEqual(service.inspect_index({self.feature.id: self.feature}).missing, [self.feature.id])
+        with self.assertRaises(ModelError):
+            asyncio.run(service.record_embedding(self.feature))
+        self.assertGreater(service.client.request_count, 0)
+        self.assertEqual(self.feature.embedding, [])
         self.assertEqual(len(model.calls), 1)
         self.assertEqual(embedding_text(self.feature.content), expected)
-        self.assertEqual(service.inspect_index({1: self.feature.content}).hits, [1])
         self.assertNotIn(self.image.data_b64, embedding_text(self.feature.content))
 
     def test_reconsolidation_reads_images_as_alt_text_and_completes_them_first(self):

@@ -7,15 +7,18 @@ from __future__ import annotations
 
 import json
 import os
+import pickle
 import tempfile
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from pm.records.global_workspace import GwtTurnRecord
+from pm.records.cycle_state import CycleStateModel
+from pm.memory.yaml_codec import ghost_state_from_dict, ghost_state_to_dict
 
 
 class CommitReceipt(BaseModel):
@@ -29,7 +32,7 @@ class CommitReceipt(BaseModel):
 class Checkpoint(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_id: Literal["pm.ghost-snapshot.v1"] = "pm.ghost-snapshot.v1"
-    state: dict
+    state: CycleStateModel
     current_knoxel_id: int
     current_tick_id: int
     reserved_tick_id: int
@@ -38,6 +41,12 @@ class Checkpoint(BaseModel):
     applied_commits: dict[str, CommitReceipt]
     managed_runs: dict[str, dict] = Field(default_factory=dict)
     consolidations: dict[str, dict] = Field(default_factory=dict)
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def read_legacy_state(cls, value: CycleStateModel | dict) -> CycleStateModel:
+        """Parse legacy JSON state once. Typed pickle state keeps its records."""
+        return ghost_state_from_dict(value) if isinstance(value, dict) else value
 
 
 class CheckpointSerializer(ABC):
@@ -57,7 +66,9 @@ class JsonCheckpointSerializer(CheckpointSerializer):
 
     def dumps(self, checkpoint: Checkpoint) -> bytes:
         """Return UTF-8 JSON. Non-finite numbers raise ValueError."""
-        return json.dumps(checkpoint.model_dump(mode="json"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+        data = checkpoint.model_dump(mode="json", exclude={"state"})
+        data["state"] = ghost_state_to_dict(checkpoint.state)
+        return json.dumps(data, ensure_ascii=False, allow_nan=False).encode("utf-8")
 
     def loads(self, data: bytes) -> Checkpoint:
         """Validate UTF-8 checkpoint JSON without changing the stored schema."""
@@ -67,8 +78,23 @@ class JsonCheckpointSerializer(CheckpointSerializer):
 JSON_SERIALIZER = JsonCheckpointSerializer()
 
 
+class PickleCheckpointSerializer(CheckpointSerializer):
+    """Save typed records directly. Load pickle files from trusted character homes."""
+
+    def dumps(self, checkpoint: Checkpoint) -> bytes:
+        """Encode the complete state with the highest pickle protocol."""
+        return pickle.dumps(checkpoint, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def loads(self, data: bytes) -> Checkpoint:
+        """Restore the typed state without record conversion or validation loops."""
+        return pickle.loads(data)
+
+
+PICKLE_SERIALIZER = PickleCheckpointSerializer()
+
+
 def write_checkpoint(path: Path, checkpoint: Checkpoint, check_cancelled: Callable[[], None], *,
-                     serializer: CheckpointSerializer = JSON_SERIALIZER) -> None:
+                     serializer: CheckpointSerializer = PICKLE_SERIALIZER) -> None:
     """Sync encoded bytes before atomic replacement. Cancellation preserves the old file."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,6 +113,8 @@ def write_checkpoint(path: Path, checkpoint: Checkpoint, check_cancelled: Callab
             temporary.unlink(missing_ok=True)
 
 
-def read_checkpoint(path: Path, *, serializer: CheckpointSerializer = JSON_SERIALIZER) -> Checkpoint:
-    """Read through the selected serializer. File and validation errors propagate."""
-    return serializer.loads(Path(path).read_bytes())
+def read_checkpoint(path: Path, *, serializer: CheckpointSerializer | None = None) -> Checkpoint:
+    """Read pickle or legacy JSON bytes. An explicit serializer overrides detection."""
+    data = Path(path).read_bytes()
+    selected = serializer or (PICKLE_SERIALIZER if data.startswith(b"\x80") else JSON_SERIALIZER)
+    return selected.loads(data)

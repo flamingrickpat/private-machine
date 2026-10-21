@@ -225,8 +225,6 @@ class RecordIndex(RecordOwner):
         if generate_embedding and not knoxel.embedding and knoxel.content:
             if self.llm:
                 knoxel.embedding = self.llm.get_embedding(knoxel.content)
-            else:
-                knoxel.embedding = [0]
 
         return knoxel
 

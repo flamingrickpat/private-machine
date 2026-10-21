@@ -34,7 +34,7 @@ class LaunchPlanTests(unittest.TestCase):
         home = Path(tempfile.gettempdir()) / "pm-home"
         plan = launch_plan(["--home", str(home), "--config", "models.yaml", "--cognition", "dummy"], SEED)
         self.assertEqual(plan.home, home.resolve())
-        self.assertEqual(plan.checkpoint, home.resolve() / "ghost.json")
+        self.assertEqual(plan.checkpoint, home.resolve() / "ghost.pickle")
         self.assertEqual(plan.runtime_root, home.resolve() / "runtime")
         self.assertIsNone(plan.seed)
         self.assertEqual((plan.config, plan.cognition, plan.web, plan.web_port), ("models.yaml", "dummy", True, WEB_CHAT_PORT))
@@ -47,7 +47,7 @@ class LaunchPlanTests(unittest.TestCase):
     def test_terminal_mode_keeps_its_defaults(self):
         plan = launch_plan([], SEED)
         self.assertEqual((plan.home, plan.seed, plan.web), (None, SEED, False))
-        self.assertEqual(plan.checkpoint, Path.cwd() / ".runtime" / "ghost.json")
+        self.assertEqual(plan.checkpoint, Path.cwd() / ".runtime" / "ghost.pickle")
         plan = launch_plan(["--runtime-root", "r", "--ephemeral", "--web"], SEED)
         self.assertEqual((plan.runtime_root, plan.checkpoint, plan.web), (Path("r"), None, True))
 

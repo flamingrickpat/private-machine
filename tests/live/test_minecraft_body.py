@@ -107,7 +107,7 @@ class LiveMinecraftBodyTests(unittest.TestCase):
         root.mkdir(parents=True, exist_ok=True)
         ghost = MemoryStore(
             PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
-            checkpoint=root / "ghost.json",
+            checkpoint=root / "ghost.pickle",
         )
         consolidator = Consolidator(ghost, clock=time.monotonic)
         supervisor = ManagedRunSupervisor(
@@ -175,7 +175,7 @@ class LiveMinecraftBodyTests(unittest.TestCase):
 
         # Memory recovery from a reopened checkpoint.
         self.assertTrue(_wait_for(lambda: ghost.consolidations, timeout=30))
-        reopened = MemoryStore.from_checkpoint(root / "ghost.json")
+        reopened = MemoryStore.from_checkpoint(root / "ghost.pickle")
         self.assertTrue(reopened.consolidations)
         consolidation = next(iter(reopened.consolidations.values()))
         self.assertEqual(consolidation["run_id"], run_id)

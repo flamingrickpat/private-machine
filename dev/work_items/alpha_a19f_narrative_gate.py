@@ -63,13 +63,13 @@ def main() -> Path:
     config = json.loads((SITUATION / "situation.json").read_text(encoding="utf-8"))["config"]
     out = ROOT / ".runtime" / "alpha" / (datetime.now().strftime("%Y%m%d-%H%M%S") + "-a19f-narrative")
     out.mkdir(parents=True)
-    shutil.copy2(SITUATION / "ghost.json", out / "ghost.json")
+    shutil.copy2(SITUATION / "ghost.pickle", out / "ghost.pickle")
     os.environ["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
-    baseline_ghost = MemoryStore.from_checkpoint(args.baseline.resolve() / "ghost.json")
+    baseline_ghost = MemoryStore.from_checkpoint(args.baseline.resolve() / "ghost.pickle")
     receipt: dict = {"run_directory": str(out), "status": "started", "baseline": str(args.baseline),
                      "baseline_self_narratives": self_narratives(baseline_ghost, baseline_ghost.states[-1])}
     app = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(ROOT / config),
-                    checkpoint_path=out / "ghost.json", thought_period=3600, world_poll_seconds=None,
+                    checkpoint_path=out / "ghost.pickle", thought_period=3600, world_poll_seconds=None,
                     record_lifecycle=False, emit_reply=lambda text: None)
     try:
         ghost = app.ghost

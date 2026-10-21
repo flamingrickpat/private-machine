@@ -175,7 +175,7 @@ def phase_restart(root: Path, config: str, replies: list, stopped_at: datetime,
                   facts: dict, failures: list) -> None:
     """Restart: beliefs and revisions survive the checkpoint reopen."""
     from pm.memory.store import MemoryStore
-    reopened_store = MemoryStore.from_checkpoint(root / "ghost.json")
+    reopened_store = MemoryStore.from_checkpoint(root / "ghost.pickle")
     before = [(record.belief_key, record.metadata.get("evidence_revision"))
               for record in capability_beliefs(reopened_store)]
     reopened_at = utcnow()

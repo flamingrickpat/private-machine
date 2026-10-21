@@ -173,7 +173,7 @@ def run(args):
                 from pm.memory.store import MemoryStore
                 from pm.llm.config import load_config
                 from pm.memory.references import referenced_ids
-                ghost = MemoryStore.from_checkpoint(out / "instances" / instance / "ghost.json")
+                ghost = MemoryStore.from_checkpoint(out / "instances" / instance / "ghost.pickle")
                 service = EmbeddingService(load_config(args.config).embedding, live_test=True)
                 visible = sorted({preference_id, codeword_id,
                     *referenced_ids(ghost.get_knoxel_by_id(preference_id)),

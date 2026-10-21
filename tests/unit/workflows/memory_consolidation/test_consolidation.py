@@ -45,7 +45,7 @@ class ConsolidatorTests(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.ghost = MemoryStore(
             PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
-            checkpoint=self.root / "ghost.json",
+            checkpoint=self.root / "ghost.pickle",
         )
         self.clock_value = 5.0
         self.supervisor = ManagedRunSupervisor(
@@ -100,7 +100,7 @@ class ConsolidatorTests(unittest.TestCase):
         self.assertEqual(first["memory_ids"], second["memory_ids"])
         self.assertEqual(len(self.ghost.consolidations), 1)
         # The checkpoint persisted the ledger.
-        reopened = MemoryStore.from_checkpoint(self.root / "ghost.json")
+        reopened = MemoryStore.from_checkpoint(self.root / "ghost.pickle")
         self.assertIn(first["key"], reopened.consolidations)
 
     def test_changed_artifact_produces_a_new_receipt(self):

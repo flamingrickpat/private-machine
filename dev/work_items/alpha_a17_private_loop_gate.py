@@ -117,7 +117,7 @@ def replies_after(replies, count: int) -> list[str]:
 def run_app(root: Path, config: str, replies: list, *, period: float = 30.0):
     from workflows.companion import build_app
     app = build_app(
-        seed_path=SEED, runtime_root=root / "runtime", checkpoint_path=root / "ghost.json",
+        seed_path=SEED, runtime_root=root / "runtime", checkpoint_path=root / "ghost.pickle",
         emit_reply=replies.append, cognition="real", config_path=config,
         thought_period=period, world_poll_seconds=None,
     )
@@ -283,14 +283,14 @@ def phase_restart(root: Path, config: str, replies: list, stopped_at: datetime,
     from workflows.companion import build_app
     from pm.memory.store import MemoryStore
     # Survival is a property of the checkpoint, not of the reopened app.
-    reopened_store = MemoryStore.from_checkpoint(root / "ghost.json")
+    reopened_store = MemoryStore.from_checkpoint(root / "ghost.pickle")
     survived = sorted(record.tick_id for record in reopened_store.gwt_turns.values()
                      if record.slot_id == "inner")
     if survived != sorted(facts.get("shutdown", {}).get("inner_ticks", [])):
         failures.append("restart: the inner shard did not survive the checkpoint unchanged")
     reopen_time = utcnow()
     app = build_app(
-        seed_path=SEED, runtime_root=root / "runtime", checkpoint_path=root / "ghost.json",
+        seed_path=SEED, runtime_root=root / "runtime", checkpoint_path=root / "ghost.pickle",
         emit_reply=replies.append, cognition="real", config_path=config,
         thought_period=30.0, world_poll_seconds=None,
     )

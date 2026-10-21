@@ -9,7 +9,6 @@ from unittest.mock import patch
 from pm.llm.cache import publish
 from pm.llm.config import Connection, load_config
 from pm.llm.prompt_log import backfill_cache_logs, finish_prompt_log, start_prompt_log
-from pm.memory.embeddings import EmbeddingCache
 
 
 class CacheLogTests(unittest.TestCase):
@@ -50,21 +49,3 @@ class CacheLogTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), encoded)
             self.assertIn('"ok": true', path.with_suffix(".md").read_text(encoding="utf-8"))
             self.assertIn("unknown", path.with_suffix(".md").read_text(encoding="utf-8"))
-
-    def test_old_config_cache_promotes_valid_vectors_without_changing_source(self):
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"PM_CACHE_DIR": str(Path(directory) / "shared")}):
-            root = Path(directory)
-            config_path = root / "models.yaml"
-            config_path.write_text(Path("config.example.yaml").read_text(encoding="utf-8").replace(
-                "embedding:\n", "embedding:\n  cache_dir: old-vectors\n"), encoding="utf-8")
-            config = load_config(config_path).embedding
-            old = EmbeddingCache(config.model_copy(update={"cache_dir": root / "old-vectors"}))
-            vector = [1.0] * config.dimensions
-            old.put("preserved input", vector)
-            source = next(old.directory.glob("cache_emb_*.json"))
-            encoded = source.read_bytes()
-            new = EmbeddingCache(config)
-            self.assertEqual(new.get("preserved input"), vector)
-            self.assertEqual(source.read_bytes(), encoded)
-            self.assertTrue(next(new.directory.glob("cache_emb_*.md")).is_file())
-            self.assertEqual(new.directory.parent, (root / "shared" / "embeddings").resolve())

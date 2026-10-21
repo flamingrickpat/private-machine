@@ -1,6 +1,8 @@
 """Apply planner proposals to the task tree, and shape rejection feedback for the next attempt."""
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 import json
 
 from pydantic import ValidationError
@@ -158,9 +160,9 @@ def apply_node_updates(previous: TaskTree, updates: list[Node]) -> TaskTree:
                              f"Retain children {original.children!r} with their exact IDs. "
                              "Updates cannot delete or rename existing tasks. Repair the selected task's "
                              "instruction and conditions instead of removing it from its parent.")
-    nodes = [replacements.get(node.id, node).model_copy(deep=True) for node in previous.nodes]
-    nodes.extend(node.model_copy(deep=True) for node in updates if node.id not in old_ids)
-    return previous.model_copy(deep=True, update={"nodes": nodes})
+    nodes = [pickle_copy(replacements.get(node.id, node)) for node in previous.nodes]
+    nodes.extend(pickle_copy(node) for node in updates if node.id not in old_ids)
+    return pickle_copy(previous).model_copy(update={"nodes": nodes})
 
 
 def revision_candidate(previous: TaskTree, proposal: PlanProposal) -> TaskTree:
@@ -175,7 +177,7 @@ def revision_candidate(previous: TaskTree, proposal: PlanProposal) -> TaskTree:
     if proposal.updates:
         return apply_node_updates(previous, proposal.updates)
     if proposal.restore_nodes:
-        return previous.model_copy(deep=True)
+        return pickle_copy(previous)
     raise ValueError("A revision needs node updates or explicit proof restoration.")
 
 

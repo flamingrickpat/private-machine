@@ -1,4 +1,6 @@
 """Check record exports against real committed memory and frozen GWT turns."""
+
+from pm.records.copying import pickle_copy
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -93,7 +95,7 @@ class CyclePackageTests(unittest.TestCase):
         self.assertNotIn("embedding", json.dumps(package))
         self.assertEqual(SELF_SHARD.kind, package["cycle"]["workspace"]["self_shard"]["key"]["kind"])
         self.assertIsNone(package["mental_state_before"])
-        before = ghost.states[-1].model_copy(deep=True)
+        before = pickle_copy(ghost.states[-1])
         before.mental_state.state_emotions.joy = 0.25
         package = capture_cycle(ghost.snapshot(), ghost.states[-1], previous=before)
         self.assertEqual(package["mental_state_before"]["state_emotions"]["joy"], 0.25)

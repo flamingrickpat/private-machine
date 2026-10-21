@@ -8,7 +8,7 @@ Two ways to start:
 - ``--seed`` / ``--checkpoint`` / ``--ephemeral``: the terminal session as
   before. The runtime root defaults to ``./.runtime``.
 - ``--home DIR``: the character home folder. Memory loads from and saves to
-  ``DIR/ghost.json``, which must exist. The runtime root is ``DIR/runtime``.
+  ``DIR/ghost.pickle``, which must exist. The runtime root is ``DIR/runtime``.
   The persona comes from the home files. The web chat starts by default.
 
 ``--web`` starts the web chat in the terminal mode too.
@@ -35,7 +35,7 @@ class LaunchPlan(BaseModel):
     ``seed`` is the seed file of the terminal mode; it is None with a home.
     ``checkpoint`` is the accepted Ghost checkpoint; None means an explicit
     in-memory session without persistence (``--ephemeral``). With a home,
-    the checkpoint is ``home/ghost.json``.
+    the checkpoint is ``home/ghost.pickle``.
     """
 
     home: Path | None
@@ -57,8 +57,8 @@ def build_parser(default_seed: Path) -> argparse.ArgumentParser:
                         help="Real model-backed cognition, or the labeled dummy fixture.")
     parser.add_argument("--config", default=None, help="Model config path. Default: PM_MODEL_CONFIG or config.local.yaml")
     persistence = parser.add_mutually_exclusive_group()
-    persistence.add_argument("--home", type=Path, help="Character home folder. Loads and saves <home>/ghost.json.")
-    persistence.add_argument("--checkpoint", type=Path, help="Accepted Ghost checkpoint. Default: <runtime-root>/ghost.json")
+    persistence.add_argument("--home", type=Path, help="Character home folder. Loads and saves <home>/ghost.pickle.")
+    persistence.add_argument("--checkpoint", type=Path, help="Accepted Ghost checkpoint. Default: <runtime-root>/ghost.pickle")
     persistence.add_argument("--ephemeral", action="store_true", help="Run without Ghost persistence")
     parser.add_argument("--web", action="store_true", help="Start the web chat. Always on with --home.")
     parser.add_argument("--web-port", type=int, default=WEB_CHAT_PORT, help=f"Web chat port. Default: {WEB_CHAT_PORT}")
@@ -80,13 +80,13 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
         if args.runtime_root is not None:
             parser.error("--home excludes --runtime-root: the runtime root is <home>/runtime.")
         home = args.home.resolve()
-        return LaunchPlan(home=home, seed=None, runtime_root=home / "runtime", checkpoint=home / "ghost.json",
+        return LaunchPlan(home=home, seed=None, runtime_root=home / "runtime", checkpoint=home / "ghost.pickle",
                           cognition=args.cognition, config=args.config, web=True, web_port=args.web_port)
     runtime_root = Path(args.runtime_root) if args.runtime_root is not None else Path.cwd() / ".runtime"
     return LaunchPlan(
         home=None, seed=Path(args.seed) if args.seed is not None else Path(default_seed),
         runtime_root=runtime_root,
-        checkpoint=None if args.ephemeral else (args.checkpoint or runtime_root / "ghost.json"),
+        checkpoint=None if args.ephemeral else (args.checkpoint or runtime_root / "ghost.pickle"),
         cognition=args.cognition, config=args.config, web=args.web, web_port=args.web_port,
     )
 
@@ -95,8 +95,8 @@ def build_from_plan(plan: LaunchPlan, *, assembly):
     """Build the application of ``plan`` without starting it.
 
     With a home, the character home opens the store; it raises
-    ``FileNotFoundError`` when ``ghost.json`` is missing. Every accepted
-    commit of that store saves ``ghost.json``.
+    ``FileNotFoundError`` when ``ghost.pickle`` is missing. Every accepted
+    commit of that store saves ``ghost.pickle``.
     """
     if plan.home is not None:
         from pm.app.character_home import CharacterHome

@@ -62,14 +62,14 @@ Read [next experiments](../work_items/experiments.md) for broader evaluation cri
 3. Select **Search vectors**.
 
 The result includes cosine similarity and index coverage.
-Search uses the configured model and existing vector cache.
+Search uses the configured model, stored record vectors, and the in-memory FAISS index.
 Missing vectors do not silently become text matches.
 
 Select **Embed missing records and search** to prepare the accepted-text index for the selected type and subtype.
 This operation sends external embedding requests for missing records.
 The progress counter shows the indexed and total record counts.
 Select **Cancel search** to interrupt preparation without stopping Ghost.
-Completed vectors remain in the cache.
+Completed vectors remain on their records and are saved in the complete pickle checkpoint.
 
 [`pm.memory.store.MemoryStore.search_memory`][] owns scoped search.
 [`pm.memory.store.MemoryStore.dialogue_history`][] owns accepted public dialogue inspection.

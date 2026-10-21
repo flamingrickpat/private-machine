@@ -13,10 +13,11 @@ Artifacts are written to a real task folder and preserved after cancellation.
 """
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 import threading
 import asyncio
 from concurrent.futures import CancelledError as FutureCancelledError
-from copy import deepcopy
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -70,8 +71,6 @@ class ManagedRunSupervisor:
         self._threads: dict[str, threading.Thread] = {}
         self._pending: dict[str, dict] = {}
         self._worker_locks: dict[str, ProcessLock] = {}
-        self._checkpoint_stamp: int | None = None
-        self._checkpoint_runs: dict[str, dict] = {}
 
     # ------------------------------------------------------------- table
 
@@ -92,25 +91,15 @@ class ManagedRunSupervisor:
                 raise ManagedRunError(f"No managed run {run_id!r}.")
             # Control edits must enter a Ghost batch. Nested event acknowledgments
             # and request IDs cannot mutate the accepted in-memory row first.
-            receipt = deepcopy(receipt)
+            receipt = pickle_copy(receipt)
         if receipt.get("artifact_path"):
             path = Path(receipt["artifact_path"]) / "control.json"
             if path.is_file():
                 durable = read_json(path)
                 if durable.get("control_version", 0) > receipt.get("control_version", 0):
                     receipt = durable
-        # Ghost commits before its mirror. A different process can die between
-        # those writes. Read a changed checkpoint before authorizing old work.
-        # Cache only its managed rows; unchanged calls require one stat.
-        checkpoint = self.ghost.checkpoint
-        if checkpoint is not None and checkpoint.is_file():
-            stamp = checkpoint.stat().st_mtime_ns
-            if stamp != self._checkpoint_stamp:
-                self._checkpoint_runs = read_json(checkpoint).get("managed_runs", {})
-                self._checkpoint_stamp = stamp
-            committed = self._checkpoint_runs.get(run_id)
-            if committed and committed.get("control_version", 0) > receipt.get("control_version", 0):
-                receipt = deepcopy(committed)
+        # The central store owns accepted run state. External controls use the
+        # small control file. Reading a run never reloads the whole checkpoint.
         return receipt
 
     def _find_by_action(self, action_id: str) -> dict | None:

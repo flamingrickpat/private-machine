@@ -3,14 +3,14 @@
 Commands (run with ``uv run --locked python -m pm.app.character_cli <command>``):
 
 - ``init``: create the home folder, ``character.yaml``, ``personality.json``,
-  and a ``ghost.json`` without history.
+  and a ``ghost.pickle`` without history.
 - ``import``: import a ``name,message,timestamp`` chat log, run memory
-  reconsolidation, add the transfer records, save ``ghost.json``, and write
+  reconsolidation, add the transfer records, save ``ghost.pickle``, and write
   a receipt into ``import/``.
 - ``reconsolidate``: run memory reconsolidation on the saved home.
 
 ``import`` works on an in-memory copy of the store. Only a completed import
-saves ``ghost.json``. Any error writes a failed receipt and then raises, so
+saves ``ghost.pickle``. Any error writes a failed receipt and then raises, so
 no half-built checkpoint replaces the old one.
 
 The module is runtime code. It never imports ``workflows``.
@@ -152,8 +152,8 @@ def init_home(home: CharacterHome, *, companion_name: str, user_name: str, card:
 def build_models(config_path: str):
     """Return ``(stage_model, embeddings)`` for a model config file.
 
-    The stage model activates on its first call. The embedding cache is the
-    one of the config (``embedding.cache_dir``), which the app shares.
+    The stage model activates on its first call. Embedding vectors stay on
+    the records and in the complete pickle checkpoint.
     """
     from pm.llm.activation import ModelActivation
     from pm.llm.config import load_config, resolve_connection
@@ -175,8 +175,8 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
 
     The steps: copy the CSV into ``import/``, read and check it, write the
     exchanges, run reconsolidation, add the transfer records, embed the new
-    records, and save ``ghost.json``. Any error writes the failed receipt
-    and raises again; ``ghost.json`` keeps its old content then.
+    records, and save ``ghost.pickle``. Any error writes the failed receipt
+    and raises again; ``ghost.pickle`` keeps its old content then.
     """
     from pm.app.chat_import import (add_transfer_records, file_sha256, group_exchanges, import_exchanges,
                                     read_chat_csv, synthesize_times)
@@ -211,7 +211,7 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
             lived = [item.timestamp_world_begin for item in store.all_features if item.feature_type == FeatureType.Dialogue]
         if rows and lived and rows[0].timestamp < max(lived):
             raise ValueError("The log starts before the newest dialogue of this home. Import older logs first.")
-        # Work in memory. Only the final commit below writes ghost.json.
+        # Work in memory. Only the final commit below writes ghost.pickle.
         store.checkpoint = None
         exchanges = group_exchanges(rows)
         _print(f"{len(rows)} rows, {len(exchanges)} exchanges")
@@ -221,6 +221,7 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
         receipt.first_tick, receipt.last_tick = (imported.ticks[0], imported.ticks[-1]) if imported.ticks else (0, 0)
         receipt.imported_feature_ids = imported.feature_ids
         stage, embeddings = build_models(config_path)
+        store.initialize_embeddings(embeddings)
         if do_reconsolidate:
             receipt.reconsolidation = reconsolidate(store, complete=stage.complete, embeddings=embeddings, force=True,
                                                     now=now, log=_print)
@@ -230,7 +231,7 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
         receipt.model_requests = stage.request_count
         receipt.finished_at = datetime.utcnow()
         receipt.wall_seconds = round(time.monotonic() - started, 1)
-        store.checkpoint = home.ghost_json
+        store.checkpoint = home.ghost_pickle
         batch = store.begin_batch(f"{import_id}-save")
         batch.set_consolidation_receipt(f"chat_import:{import_id}", {
             "run_id": import_id, "kind": "chat_import", "source_sha256": sha, "rows": len(rows),
@@ -251,24 +252,19 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
 
 
 def _embed_records(store, embeddings, ids: list[int]) -> None:
-    """Put the retrieval chunks of ``ids`` into the shared embedding cache."""
+    """Store every missing vector on its record before the final import save."""
     import asyncio
-    from pm.memory.retrieval import index_chunks
-    chunks, _ = index_chunks(store.snapshot(set(ids)).serialize_knoxels())
-
-    async def run():
-        for key in sorted(chunks):
-            await embeddings.embed(chunks[key])
-    asyncio.run(run())
+    asyncio.run(embeddings.prepare_index(store.snapshot(set(ids)).all_knoxels))
 
 
 def reconsolidate_home(home: CharacterHome, config_path: str) -> ReconsolidationReport:
-    """Run reconsolidation on the saved home. Each committed group saves ``ghost.json``.
+    """Run reconsolidation on the saved home. Each committed group saves ``ghost.pickle``.
 
     The report goes to ``runtime/reconsolidation-<run_id>.json``.
     """
     store = home.open_store()
     stage, embeddings = build_models(config_path)
+    store.initialize_embeddings(embeddings)
     report = reconsolidate(store, complete=stage.complete, embeddings=embeddings, force=True, log=_print)
     home.runtime_root.mkdir(parents=True, exist_ok=True)
     (home.runtime_root / f"reconsolidation-{report.run_id}.json").write_text(report.model_dump_json(indent=2),

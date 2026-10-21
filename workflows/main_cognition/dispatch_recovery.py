@@ -24,7 +24,7 @@ def acknowledge_intent(ghost, action_id: int) -> None:
     with ghost.lock:
         if action_id not in ghost.revisions:
             return
-        action = ghost.snapshot({action_id}).get(action_id)
+        action = ghost.snapshot({action_id}).get(action_id).copy_for_edit()
         if (not isinstance(action, ActionSchemaRecord)
                 or ActionMetadata.model_validate(action.metadata).dispatch_status != "pending"):
             return

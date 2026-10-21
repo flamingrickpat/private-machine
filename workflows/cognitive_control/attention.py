@@ -1,4 +1,6 @@
 """Accept temporary focus advice through ordinary attention processing."""
+
+from pm.records.copying import pickle_copy
 from collections.abc import Sequence
 from datetime import datetime
 import json
@@ -50,7 +52,7 @@ def resolve_focus(context, active: FocusState | None, proposals: list[FocusPropo
     rejection under ``rejections``, so both receipts remain visible.
     Each proposal costs one model call through ``complete_json``.
     """
-    effective = active.model_copy(deep=True) if active is not None else None
+    effective = pickle_copy(active) if active is not None else None
     # Keep recent rejection receipts bounded across accepted advice revisions.
     rejections: list[FocusRejection] = list(effective.rejections)[-4:] if effective is not None else []
     for item in proposals:

@@ -1,6 +1,8 @@
 """Run A09 through the real console and retain original state and reply evidence."""
 from __future__ import annotations
 
+from pm.memory.checkpoint import read_checkpoint
+
 import argparse
 import hashlib
 import json
@@ -91,7 +93,7 @@ class ConsoleGate:
             "config": str(Path(config).resolve()), "cognition": "real"})["id"]
         self.receipt.update(instance=self.instance, persona=persona, seed_sha256=hashlib.sha256(seed.read_bytes()).hexdigest())
         if source:
-            destination = self.out / "instances" / self.instance / "ghost.json"
+            destination = self.out / "instances" / self.instance / "ghost.pickle"
             shutil.copy2(source, destination)
             original = hashlib.sha256(Path(source).read_bytes()).hexdigest()
             if hashlib.sha256(destination.read_bytes()).hexdigest() != original:
@@ -101,12 +103,12 @@ class ConsoleGate:
 
     def start(self):
         offset = len(self.events)
-        checkpoint = self.out / "instances" / self.instance / "ghost.json"
+        checkpoint = self.out / "instances" / self.instance / "ghost.pickle"
         pending = []
         if checkpoint.is_file():
-            state = json.loads(checkpoint.read_text(encoding="utf-8"))["state"]
-            pending = [item["data"]["metadata"]["exchange_correlation"] for item in state["knoxels"]
-                       if item["data"].get("metadata", {}).get("exchange_status") == "pending"]
+            state = read_checkpoint(checkpoint).state
+            pending = [item.metadata["exchange_correlation"] for item in state.knoxels
+                       if item.metadata.get("exchange_status") == "pending"]
         self.command("start")
         self.wait_for(lambda saved, info: any(item["kind"] == "ready" for item in saved[offset:]))
         self.wait_for(lambda saved, info: any(item["kind"] == "module.end" and item.get("node") == "main_cog"

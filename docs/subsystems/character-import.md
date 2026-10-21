@@ -44,7 +44,7 @@ Without it, the home gets the default lists of `pm.constants`.
 | --- | --- |
 | `character.yaml` | The `PersonaConfig` fields without `personality_profile`: names, timestamp format, cards, and capabilities. Unknown keys fail. |
 | `personality.json` | User-written traits: `{"<PersonalityProfile field>": 0..1}`. An unknown key fails and names the allowed keys. A missing key keeps 0.5. |
-| `ghost.json` | The accepted memory store checkpoint. `init` creates it. The app loads it and saves to it. |
+| `ghost.pickle` | The accepted memory store checkpoint. `init` creates it. The app loads it and saves to it. |
 | `ghost_<tick>_<UTC datetime>_<suffix>.json` | A stable backup after each successful main cognition commit. Backups have no retention limit. |
 | `logs/` | Process logs with UTC time, process ID, thread ID, thread name, and crash traces. |
 | `runtime/` | Kernel folders, managed tasks, and other runtime artifacts. |
@@ -53,9 +53,9 @@ Without it, the home gets the default lists of `pm.constants`.
 `pm.app.character_home.CharacterHome` holds the paths and the loaders.
 The shared cache and inference transcripts live outside the home. Read [runtime files and recovery](runtime-files.md).
 `load_persona()` merges `personality.json` into the persona.
-`open_store()` loads `ghost.json` and applies the persona files, so an edited card takes effect at the next start.
+`open_store()` loads `ghost.pickle` and applies the persona files, so an edited card takes effect at the next start.
 A changed companion or user name fails, because the stored entities and dialogue name the old speakers.
-`open_store()` fails with "Run `character init` first" when `ghost.json` is missing.
+`open_store()` fails with "Run `character init` first" when `ghost.pickle` is missing.
 
 ## CSV format
 
@@ -97,11 +97,11 @@ The provenance `source_ref` also starts with `chat_import:`.
 The store keeps one consolidation receipt `chat_import:<import id>` with the tick range.
 
 The import works on an in-memory copy of the store.
-Only a completed import saves `ghost.json`.
+Only a completed import saves `ghost.pickle`.
 The import writes a `running` receipt into `import/` at the start.
 On an error, it replaces it with a failed receipt and raises.
 A killed process (for example by a timeout) leaves the `running` receipt.
-`ghost.json` then keeps its old content.
+`ghost.pickle` then keeps its old content.
 A CSV file that this home already imported fails.
 A log that starts before the newest dialogue of the home also fails.
 
@@ -191,7 +191,7 @@ See [images in records](multimodal-records.md).
 | `_get_optimal_clusters`: agglomerative average linkage, thresholds 1.0 to 0.1, best silhouette for `max(2,n/20) < k < min(n,n/8)` | `clustering.average_linkage`, `cut`, `silhouette`, `optimal_labels` | Pure Python, one dendrogram (nearest-neighbor chain) for all 91 cuts. With too few events, the session numbers are the labels; the old code made no cluster. |
 | Label smoothing, `cluster_blocks_with_min_size`, `split_block_keep_order` (8) | `smooth_labels`, `topic_blocks`, `split_block` | A block also ends at a session change. Windows of 400 events keep the quadratic cost small; the last block of a window moves to the next window. The newest block stays open for 60 minutes. |
 | Topical summary of all causal features of the block's tick range (`SummarizeTopicConversation`) | `_Run.topical` | Reads only story features (dialogue, events, thoughts, experiences), not appraisal records. |
-| `_update_mental_state_of_cluster` (`DescribeMentalStatePeriod`) | `_Run.describe_state` | Reads the cycle states of the tick range (the old code compared ticks with event ids). A neutral imported state counts as "not recorded". The description vector goes to the shared cache, not the checkpoint. |
+| `_update_mental_state_of_cluster` (`DescribeMentalStatePeriod`) | `_Run.describe_state` | Reads the cycle states of the tick range (the old code compared ticks with event ids). A neutral imported state counts as "not recorded". The description vector stays on the record and in the checkpoint. |
 | `_generate_missing_closed_temporal_ranges` (05:00 day, TOD/day/week/month/year) | `temporal.closed_ranges`, `_Run.temporal` | Ranges come from the event times, not from every day since 2020. One NIGHT segment 22:00 to 05:00; the old two segments could share a key. A long range reads the nearest finer level (day from times of day, week and month from days, year from months), not always the topical clusters. |
 | `_extract_declarative_memory` + `_categorize_fact` (one call per fact) | `_Run.facts` | Facts come from the raw scene of topical clusters only (the canon facts also come only from topical clusters). Each fact cites its lines. One filing call per scene adds the semantic layer (subject, record type, epistemic status, essence) and the canonical `SemanticRecord`. |
 | `refine_narratives`: rolling buffers of 3000 to 4500 tokens since `last_refined_with_tick` | `_Run._narrative_chain` | The first version needs only 300 tokens, so a small import gets narratives; the old code started from placeholders. The cursor is the largest source id of the newest version. The companion card is shown as background. |

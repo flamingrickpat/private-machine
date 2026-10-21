@@ -15,7 +15,7 @@ from pm.records.memory_records import new_feature
 from workflows.dialogue_story.host import StoryDialogue
 from pm.bus.envelopes import new_envelope
 from pm.memory.snapshot import GhostConflict, Snapshot
-from pm.memory.retrieval import index_chunks, excerpt
+from pm.memory.retrieval import excerpt, record_text
 from pm.memory.store import MemoryStore
 from pm.records.cycle_state import PersonaConfig
 from pm.records.memory_records import ActionSchemaRecord, Feature, MemoryClusterRecord
@@ -82,7 +82,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
 
     def test_older_original_survives_distractors_and_restart(self):
         with TemporaryDirectory() as tmp:
-            self.ghost.checkpoint = Path(tmp) / "ghost.json"
+            self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
             original = self.say("Our project codeword is copper lantern.")
             for index in range(30):
                 self.say(f"The page counter is {index} today.")
@@ -114,7 +114,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
         original = self.say("copper lantern")
         view = self.ghost.snapshot()
         edit = self.ghost.begin_batch("edit")
-        record = edit.view().get(original.id)
+        record = edit.view().get(original.id).copy_for_edit()
         record.content = "different codeword"
         edit.replace(record)
         self.ghost.commit(edit)
@@ -196,7 +196,7 @@ class ExperiencedMemoryTests(unittest.TestCase):
     def test_progress_reuses_unchanged_artifacts_after_restart(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
-            self.ghost.checkpoint = root / "ghost.json"
+            self.ghost.checkpoint = root / "ghost.pickle"
             (root / "scratch").mkdir()
             (root / "outbox").mkdir()
             (root / "outbox/report.yaml").write_text("summary: method failed\n", encoding="utf-8")
@@ -210,12 +210,11 @@ class ExperiencedMemoryTests(unittest.TestCase):
             self.assertEqual(reopened.get_knoxel_by_id(second["memory_ids"][0]).metadata["kind"], "observation")
             self.assertEqual(len(first["memory_ids"]), 2)
 
-    def test_long_record_chunks_cover_the_late_original_evidence(self):
+    def test_long_record_excerpt_keeps_the_late_original_evidence(self):
         original = self.say("A long page. " * 800 + "Our project codeword is copper lantern.")
-        chunks, owners = index_chunks(self.ghost.snapshot().serialize_knoxels())
-        self.assertTrue(all(len(text) <= 2000 for text in chunks.values()))
-        self.assertTrue(any("copper lantern" in text for text in chunks.values()))
-        self.assertEqual(set(owners.values()), {original.id})
+        result = self.retrieve("project codeword", limit=1)
+        self.assertEqual(result["matches"][0]["knoxel_id"], original.id)
+        self.assertIn("copper lantern", result["matches"][0]["text"])
 
     def test_nested_summary_cannot_expose_an_unavailable_original(self):
         hidden = self.say("A hidden private plan.")
@@ -250,13 +249,13 @@ class ExperiencedMemoryTests(unittest.TestCase):
         original = self.say("I prefer ginger tea.")
         revision = self.ghost.revisions[original.id]
         edit = self.ghost.begin_batch("concurrent-edit")
-        record = edit.view().get(original.id)
+        record = edit.view().get(original.id).copy_for_edit()
         record.content = "I prefer mint tea."
         edit.replace(record)
         self.ghost.commit(edit)
         batch = self.ghost.begin_batch("stale-read-and-replace")
         batch.expect_revision(original.id, revision)
-        record = batch.view().get(original.id)
+        record = batch.view().get(original.id).copy_for_edit()
         record.metadata["reviewed"] = True
         batch.replace(record)
         with self.assertRaises(GhostConflict):
@@ -282,12 +281,12 @@ class ExperiencedMemoryTests(unittest.TestCase):
         self.assertIn(appraisal.metadata["affect_summary"], recalled["text"])
         self.assertNotIn("smell", recalled["text"])
         self.assertIn("smell", self.ghost.get_knoxel_by_id(appraisal.id).content)
-        chunks, owners = index_chunks(self.ghost.snapshot().serialize_knoxels())
-        self.assertTrue(all("smell" not in text for key, text in chunks.items() if owners[key] == appraisal.id))
+        self.assertNotIn("smell", record_text(appraisal.as_payload(include_embedding=False)))
         original_view = self.ghost.snapshot()
         legacy = original_view.serialize_knoxels()
-        legacy[appraisal.id]["data"]["metadata"].pop("memory_kind")
-        old_view = Snapshot(legacy, original_view.serialize_gwt(), dict(original_view.revisions))
+        legacy_record = original_view.get(appraisal.id).copy_for_edit()
+        legacy_record.metadata.pop("memory_kind")
+        old_view = Snapshot({**original_view.all_knoxels, appraisal.id: legacy_record}, original_view._gwt, dict(original_view.revisions))
         old_recall = self.retrieve("hardware sadness", view=old_view)
         old_state = next(item for item in old_recall["matches"] if item["knoxel_id"] == appraisal.id)
         self.assertEqual(old_state["memory_kind"], "internal_state")

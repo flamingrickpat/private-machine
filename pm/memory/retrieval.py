@@ -1,6 +1,6 @@
 """Scoped retrieval and activity queries over one accepted read snapshot.
 
-Network ranking uses the shared embedding cache outside the MemoryStore lock. Each
+FAISS ranks vectors stored on shared records outside the MemoryStore lock. Each
 result keeps its original ID, revision, scope, and evidence links. Background
 and simulated events remain available with explicit attribution.
 """
@@ -12,6 +12,10 @@ import math
 import re
 
 from pm.memory.references import referenced_ids
+from pm.records.base import RecordBase
+from pm.records.memory_records import Feature
+from pm.records.graph_records import GraphNode, GraphEdge, ConceptNode
+from pm.memory.snapshot import Snapshot
 from pm.llm.http_client import ModelError
 
 
@@ -52,33 +56,52 @@ MEMORY_TYPES = frozenset({
 GRAPH_TYPES = frozenset({"GraphNode", "GraphEdge", "ConceptNode"})
 
 
-def memory_kind(raw: dict) -> str:
+def memory_kind(raw: RecordBase | dict) -> str:
     """Return the evidence category without inferring truth from generated prose."""
-    data = raw["data"]
-    explicit = data.get("metadata", {}).get("memory_kind")
+    if isinstance(raw, RecordBase):
+        metadata = raw.metadata
+        feature_type = raw.feature_type.value if isinstance(raw, Feature) else ""
+        kind = raw.type.value
+    else:
+        metadata = raw["data"].get("metadata", {})
+        feature_type = raw["data"].get("feature_type", "")
+        kind = raw["__type__"]
+    explicit = metadata.get("memory_kind")
     if explicit:
         return explicit
-    if data.get("feature_type") == "StateUpdate" and data.get("metadata", {}).get("affect_summary"):
+    if feature_type == "StateUpdate" and metadata.get("affect_summary"):
         return "internal_state"
-    if raw["__type__"] in {"Narrative", "CauseEffectKnoxel"}:
+    if kind in {"Narrative", "CauseEffectKnoxel"}:
         return "interpretation"
-    if data.get("feature_type") == "Dialogue":
+    if feature_type == "Dialogue":
         return "utterance"
-    if data.get("feature_type") in {"Thought", "InnerMonologue"}:
+    if feature_type in {"Thought", "InnerMonologue"}:
         return "speculation"
-    if data.get("feature_type") in {"Feeling", "SubjectiveExperience"}:
+    if feature_type in {"Feeling", "SubjectiveExperience"}:
         return "interpretation"
-    if raw["__type__"] in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:
+    if kind in {"WorldPlaceKnoxel", "WorldObjectKnoxel", "BodyEpisodeKnoxel"}:
         return "observation"
     return "attributed_record"
 
 
-def record_text(raw: dict) -> str:
+def record_text(raw: RecordBase | dict) -> str:
     """Expose accepted affect values instead of generated sensory descriptions.
 
     The original appraisal content remains available by its evidence ID.
     Its free-form interpretation cannot establish another factual experience.
     """
+    if isinstance(raw, RecordBase):
+        if memory_kind(raw) == "internal_state":
+            return raw.metadata.get("affect_summary") or "Accepted internal state; no prepared affect summary."
+        if isinstance(raw, GraphNode):
+            fields = [raw.name, raw.content]
+        elif isinstance(raw, GraphEdge):
+            fields = [raw.fact_text, raw.content]
+        elif isinstance(raw, ConceptNode):
+            fields = [raw.description, raw.content]
+        else:
+            fields = [raw.content]
+        return "\n".join(dict.fromkeys(text for text in fields if text))
     if memory_kind(raw) == "internal_state":
         return raw["data"].get("metadata", {}).get("affect_summary") or "Accepted internal state; no prepared affect summary."
     data = raw["data"]
@@ -87,30 +110,29 @@ def record_text(raw: dict) -> str:
     return "\n".join(dict.fromkeys(str(data[field]) for field in fields if data.get(field)))
 
 
-def scoped_records(view, *, frontier: tuple[int, int] | None = None,
+def scoped_records(view: Snapshot, *, frontier: tuple[int, int] | None = None,
                    scopes: set[tuple[int, str]] | None = None,
-                   record_types=MEMORY_TYPES) -> tuple[dict, dict]:
+                   record_types=MEMORY_TYPES) -> tuple[dict[int, RecordBase], dict[int, str]]:
     """Filter before indexing. A scope contains a reality ID and a frame name.
 
     Linked summaries are eligible only when every original record is visible
     and within the frontier. This prevents a summary from exposing hidden data.
     """
-    all_records = view.serialize_knoxels()
+    all_records = view.all_knoxels
     eligible = {}
     rejected = {}
     for key, raw in all_records.items():
-        data = raw["data"]
-        position = (data.get("tick_id", 0), data.get("sub_tick_id", 0))
-        scope = data.get("scope", {})
+        position = (raw.tick_id, raw.sub_tick_id)
+        scope = raw.scope
         if frontier is not None and position > frontier:
             rejected[key] = "beyond_frontier"
-        elif scopes is not None and (scope.get("reality_id", -1), scope.get("frame", "in_world")) not in scopes:
+        elif scopes is not None and (scope.reality_id, scope.frame.value) not in scopes:
             rejected[key] = "different_scope"
         else:
             eligible[key] = raw
     records = {}
     for key, raw in eligible.items():
-        if raw["__type__"] not in record_types or not record_text(raw).strip():
+        if raw.type.value not in record_types or not record_text(raw).strip():
             continue
         # Legacy references can be incomplete. Such abstractions cannot supply
         # evidence in this invocation, but their visible originals still can.
@@ -144,27 +166,10 @@ def excerpt(text: str, terms: list[str], limit: int = 1200) -> str:
     return ("…" if start else "") + text[start:start + limit] + ("…" if start + limit < len(text) else "")
 
 
-def index_chunks(records: dict) -> tuple[dict[int, str], dict[int, int]]:
-    """Split long evidence into bounded cache texts and retain original IDs.
-
-    A chunk contains at most 2,000 characters with 200 characters of overlap.
-    No more than 8,000 UTF-8 bytes can reach the 8,192-token local endpoint.
-    The cache identity remains the exact chunk text and configured model.
-    """
-    texts, owners = {}, {}
-    for key, raw in sorted(records.items()):
-        text = record_text(raw)
-        for start in range(0, len(text), 1800):
-            chunk_id = len(texts)
-            texts[chunk_id] = text[start:start + 2000]
-            owners[chunk_id] = key
-            if start + 2000 >= len(text):
-                break
-    return texts, owners
-
-
-def candidate(view, key: int, raw: dict, *, terms=None, score=0.0, reasons=(), passage=None) -> dict:
+def candidate(view, key: int, raw: RecordBase | dict, *, terms=None, score=0.0, reasons=(), passage=None) -> dict:
     """Render one result with inspectable source and historical-status fields."""
+    if isinstance(raw, RecordBase):
+        raw = raw.as_payload(include_embedding=False)
     data = raw["data"]
     metadata = data.get("metadata", {})
     source_ids = set()
@@ -212,12 +217,14 @@ def candidate(view, key: int, raw: dict, *, terms=None, score=0.0, reasons=(), p
     }
 
 
-def evidence_role(view, raw: dict) -> str:
+def evidence_role(view, raw: RecordBase | dict) -> str:
     """Separate original reports, actual events, and generated speech.
 
     Imported reports retain attribution. A summary needs its original leaves.
     A companion utterance establishes speech, never its described event.
     """
+    if isinstance(raw, RecordBase):
+        raw = raw.as_payload(include_embedding=False)
     data = raw["data"]
     if data.get("scope", {}).get("frame", "in_world") != "in_world":
         return "imagined"
@@ -246,21 +253,16 @@ def evidence_role(view, raw: dict) -> str:
 
 async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=None,
                    limit: int = 24, cancel=None, record_types=MEMORY_TYPES,
-                   method: str = "combined", reserve_context: bool = True,
-                   prepare_limit: int = 64) -> dict:
-    """Rank older semantic and episodic evidence within one frozen snapshot.
+                   method: str = "combined", reserve_context: bool = True) -> dict:
+    """Rank visible evidence with stored record vectors and lexical terms.
 
-    Cached semantic ranking covers every eligible record. At most 64 missing
-    chunks receive embeddings per call. An explicit index preparation can
-    establish full coverage. Invalid provider output records a lexical fallback.
-    Cancellation and local cache errors propagate.
+    Missing vectors are embedded in full. Provider failures retain lexical
+    results. Cancellation propagates. No embedding files or chunk caches exist.
     """
     if not 1 <= limit <= 64:
         raise ValueError("The retrieval limit must be between 1 and 64.")
     if method not in {"lexical", "semantic", "combined"}:
         raise ValueError("Search method must be lexical, semantic, or combined.")
-    if not 0 <= prepare_limit <= 64:
-        raise ValueError("Embedding preparation must be between 0 and 64 chunks per search.")
     records, rejected = scoped_records(view, frontier=frontier, scopes=scopes, record_types=record_types)
     terms = distinctive_terms(query)
     if not reserve_context:
@@ -272,9 +274,7 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
     frequency = Counter(term for term in terms for text in texts.values() if term in text.casefold())
     lexical = {key: sum(math.log(1 + len(texts) / (1 + frequency[term]))
                         for term in terms if term in text.casefold()) for key, text in texts.items()}
-    recent = sorted(records, key=lambda key: (records[key]["data"].get("tick_id", 0), key), reverse=True)[:6]
-    lexical_ids = sorted(records, key=lambda key: (-lexical[key], -key))
-    important = sorted(records, key=lambda key: (-records[key]["data"].get("importance", 0), key))[:8]
+    recent = sorted(records, key=lambda key: (records[key].tick_id, key), reverse=True)[:6]
     semantic = {}
     semantic_passages = {}
     semantic_status = {"status": "disabled"}
@@ -282,39 +282,20 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
         semantic_status = {"status": "unavailable", "reason": "embedding_service_not_configured", "fallback": "lexical"}
     coverage = {"indexed": 0, "total": len(texts), "missing": len(texts)}
     if method != "lexical" and embeddings is not None and texts:
-        chunks, owners = index_chunks(records)
-        plan = embeddings.inspect_index(chunks)
-        missing = set(plan.missing)
-        pool = list(dict.fromkeys([*lexical_ids[:48], *recent, *important]))
-        pool_order = {key: index for index, key in enumerate(pool)}
-        pending = sorted((key for key in missing if owners[key] in pool_order),
-                         key=lambda key: (pool_order[owners[key]],
-                                          -sum(term in chunks[key].casefold() for term in terms), key))[:prepare_limit]
+        typed = records
         try:
-            await embeddings.prepare_index({key: chunks[key] for key in pending}, cancel=cancel)
-            indexed = set(plan.hits) | set(pending)
-            ranked = await embeddings.search(excerpt(query, terms, limit=2000),
-                                             {key: chunks[key] for key in indexed}, cancel=cancel)
+            ranked = await embeddings.search(excerpt(query, terms, limit=2000), typed,
+                                             index=view.embedding_index, cancel=cancel)
             semantic_status = {"status": "ready", "base_url": embeddings.config.base_url,
                                "model": embeddings.config.model}
         except ModelError as error:
-            # Invalid vectors remain rejected by the shared service. Preserve
-            # scoped lexical evidence so a provider error cannot stop cognition.
-            # Cancellation and filesystem failures retain their normal errors.
-            indexed = set(embeddings.inspect_index(chunks).hits)
             ranked = []
             semantic_status = {"status": "unavailable", "base_url": embeddings.config.base_url,
                                "model": embeddings.config.model, "error": str(error),
                                "fallback": "lexical_and_recent" if reserve_context else "lexical"}
-        for chunk_id, score in ranked:
-            owner = owners[chunk_id]
-            if score > semantic.get(owner, -1.0):
-                semantic[owner] = score
-                semantic_passages[owner] = chunks[chunk_id]
-        incomplete = {owners[key] for key in chunks if key not in indexed}
-        complete = set(records) - incomplete
-        coverage = {"indexed": len(complete), "total": len(texts), "missing": len(texts) - len(complete),
-                    "indexed_chunks": len(indexed), "total_chunks": len(chunks), "missing_chunks": len(chunks) - len(indexed)}
+        semantic = dict(ranked)
+        indexed = sum(bool(record.embedding) for record in typed.values())
+        coverage = {"indexed": indexed, "total": len(texts), "missing": len(texts) - indexed}
     lex_max = max(lexical.values(), default=1) or 1
     semantic_ready = semantic_status["status"] == "ready"
     scores = {key: (0.65 * semantic.get(key, 0) + 0.35 * lexical[key] / lex_max if reserve_context else
@@ -330,9 +311,9 @@ async def retrieve(view, query: str, embeddings=None, *, frontier=None, scopes=N
     # a separate source pool so recall can escape that feedback loop.
     source_reserve = min(8, limit // 3) if reserve_context else 0
     archive_ids = [key for key in ranked_ids
-                   if (records[key]["data"].get("provenance") or {}).get("source_kind") == "Migration"]
+                   if records[key].provenance is not None and records[key].provenance.source_kind == "Migration"]
     original_ids = [key for key in archive_ids if evidence_role(view, records[key]) == "user_report"]
-    episode_ids = [key for key in archive_ids if records[key]["__type__"] in {"MemoryClusterKnoxel", "CauseEffectKnoxel"}]
+    episode_ids = [key for key in archive_ids if records[key].type.value in {"MemoryClusterKnoxel", "CauseEffectKnoxel"}]
     source_pool = list(dict.fromkeys([*episode_ids[:source_reserve // 2], *original_ids]))[:source_reserve]
     selected = list(dict.fromkeys([*ranked_ids[:limit - reserve - source_reserve], *source_pool,
                                    *recent[:reserve], *ranked_ids]))[:limit]

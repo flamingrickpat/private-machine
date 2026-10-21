@@ -62,7 +62,7 @@ class ConsoleTests(unittest.TestCase):
                 instance.command({"action": "stop"})
                 instance.process.wait(timeout=20)
                 self.assertEqual(instance.process.returncode, 0)
-                self.assertTrue((instance.root / "ghost.json").is_file())
+                self.assertTrue((instance.root / "ghost.pickle").is_file())
                 instance.start()
                 self.wait_for(instance, lambda events: sum(e["kind"] == "ready" for e in events) == 2)
                 instance.command({"action": "snapshot"})

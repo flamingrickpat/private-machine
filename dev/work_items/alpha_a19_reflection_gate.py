@@ -58,7 +58,7 @@ def finish_evaluation(app, out: Path, receipt: dict) -> None:
         "Keep unresolved claims explicit. Do not infer public delivery or human approval from action selection.")
     receipt["private_steps"].append(step)
     from pm.memory.store import MemoryStore
-    reopened = MemoryStore.from_checkpoint(out / "ghost.json")
+    reopened = MemoryStore.from_checkpoint(out / "ghost.pickle")
     receipt["experiments"] = [{"id": item.id, **item.metadata} for item in experiments(reopened.snapshot())]
     accepted = reopened.get_knoxel_by_id(receipt["experiment_id"])
     if not any(event["action"] == "evaluated" for event in accepted.metadata["history"]):
@@ -75,7 +75,6 @@ def run(config_path: Path, out: Path, *, steps: int = 6,
     snapshot(out, config_path)
     import yaml
     effective = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    effective["embedding"]["cache_dir"] = str(out / "embeddings")
     effective_path = out / "effective-config.yaml"
     effective_path.write_text(yaml.safe_dump(effective, sort_keys=False), encoding="utf-8")
     model_config = load_config(effective_path)
@@ -92,13 +91,13 @@ def run(config_path: Path, out: Path, *, steps: int = 6,
             parent = json.loads(evaluation_checkpoint.with_name("receipt.json").read_text(encoding="utf-8"))
             if len(parent.get("later_choices", [])) < 2 or not parent.get("experiment_id"):
                 raise ValueError("Evaluation recovery needs an applied experiment and two real consuming choices.")
-            shutil.copy2(evaluation_checkpoint, out / "ghost.json")
+            shutil.copy2(evaluation_checkpoint, out / "ghost.pickle")
             save(out / "parent-receipt.json", parent)
             receipt["evaluation_parent"] = {"checkpoint": str(evaluation_checkpoint),
                 "sha256": hashlib.sha256(evaluation_checkpoint.read_bytes()).hexdigest(),
                 "parent_passed": parent.get("passed"), "parent_error": parent.get("error")}
         app = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(effective_path),
-                        stage_model=model, checkpoint_path=out / "ghost.json", world_poll_seconds=None,
+                        stage_model=model, checkpoint_path=out / "ghost.pickle", world_poll_seconds=None,
                         record_lifecycle=False)
         receipt["seed_records"] = len(app.ghost.all_knoxels)
         if receipt["seed_records"] < 11202:

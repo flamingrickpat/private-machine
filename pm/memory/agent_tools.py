@@ -15,12 +15,17 @@ import hashlib
 import json
 from threading import Event, RLock
 from typing import Callable, Iterator
+from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
 
 from pm.memory.references import referenced_ids
 from pm.memory.retrieval import GRAPH_TYPES, MEMORY_TYPES, evidence_role, memory_kind, retrieve, utc_time
 from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
+
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
+    from pm.memory.embeddings import EmbeddingService
 
 
 @contextmanager
@@ -59,7 +64,6 @@ class MemoryView:
     excerpt_limit: int = 1200
     page_size: int = 4000
     graph_page_size: int = 16
-    embedding_batch_limit: int = 8
 
     def __post_init__(self) -> None:
         if not self.scopes:
@@ -70,8 +74,6 @@ class MemoryView:
                 raise ValueError(f"Memory limits must be between 1 and {maximum}.")
         if self.start and self.end and utc_time(self.start) >= utc_time(self.end):
             raise ValueError("The memory interval must have an increasing start and end.")
-        if not 0 <= self.embedding_batch_limit <= 64:
-            raise ValueError("Embedding preparation must be between 0 and 64 chunks per search.")
 
 
 @dataclass(frozen=True)
@@ -84,12 +86,12 @@ class MemoryToolConfig:
     That selector must preserve the workflow's visibility policy.
     """
 
-    store: object
+    store: MemoryStore
     view: MemoryView
     semantic: bool = False
     lexical: bool = True
     graph: bool = False
-    embeddings: object | None = None
+    embeddings: EmbeddingService | None = None
     cancel: Event | None = None
     refresh_view: Callable[[], MemoryView] | None = None
     trace: Callable[[dict], None] | None = None
@@ -137,7 +139,8 @@ def _snapshot(config: MemoryToolConfig, grant: MemoryView) -> Snapshot:
             break
         for key in hidden:
             del allowed[key]
-    return Snapshot(allowed, {}, {key: original.revisions[key] for key in allowed})
+    return Snapshot({key: original.get(key) for key in allowed}, {},
+                    {key: original.revisions[key] for key in allowed}, original.embedding_index)
 
 
 class MemoryReadSession:
@@ -226,15 +229,14 @@ class MemoryReadSession:
                 "scopes": sorted(self.grant.scopes), "frontier": self.grant.frontier,
                 "tools": {"semantic": self.config.semantic, "lexical": self.config.lexical, "graph": self.config.graph},
                 "limits": {"results": self.grant.result_limit, "excerpt": self.grant.excerpt_limit,
-                           "characters": self.grant.page_size, "neighbors": self.grant.graph_page_size,
-                           "embedding_batch": self.grant.embedding_batch_limit},
+                           "characters": self.grant.page_size, "neighbors": self.grant.graph_page_size},
                 "accessed_revisions": dict(list(self.accessed.items())[:self.grant.result_limit]),
                 "accessed_count": len(self.accessed)})
 
     async def search(self, query: str, method: str = "auto", limit: int = 8) -> dict:
         """Rank permitted records and expose semantic coverage and fallback.
 
-        Provider errors use lexical ranking. Cancellation and local cache errors
+        Provider errors use lexical ranking. Cancellation and index errors
         propagate. No network request holds the memory-store lock.
         """
         with self._lock:
@@ -248,11 +250,10 @@ class MemoryReadSession:
                     or method == "lexical" and not (self.config.lexical or self.config.graph)
                     or method == "combined" and not (self.config.semantic and self.config.lexical)):
                 raise ValueError("Search method is not enabled in this view.")
-            snapshot, identity, prepare_limit = self.snapshot, self.snapshot_id, self.grant.embedding_batch_limit
+            snapshot, identity = self.snapshot, self.snapshot_id
             types = (MEMORY_TYPES if self.config.semantic or self.config.lexical else frozenset()) | (GRAPH_TYPES if self.config.graph else frozenset())
         task = asyncio.create_task(retrieve(snapshot, query, self.config.embeddings if self.config.semantic else None,
-            limit=limit, cancel=self.config.cancel, record_types=types, method=method, reserve_context=False,
-            prepare_limit=prepare_limit))
+            limit=limit, cancel=self.config.cancel, record_types=types, method=method, reserve_context=False))
         try:
             while not task.done():
                 # Closing a group must stop its requests without setting the

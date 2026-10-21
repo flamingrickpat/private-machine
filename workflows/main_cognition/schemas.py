@@ -409,6 +409,7 @@ class RecordView(BaseModel):
     category: str = ""
     feature_type: str = ""
     addressee_entity_id: int = 0
+    embedding: list[float] = Field(default_factory=list, repr=False)
 
     def story_line(self) -> str:
         """Return the record as one line of story text.

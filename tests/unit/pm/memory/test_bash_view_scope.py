@@ -12,7 +12,9 @@ from pm.memory.bash_view import MemoryBashEnvironment
 
 class AgentFileScopeTests(unittest.TestCase):
     def test_agent_tools_cannot_change_projected_memory(self):
-        record = {"__type__": "Feature", "data": {"id": 1, "content": "accepted memory"}}
+        from pm.records.memory_records import Feature
+        from pm.records.enums import FeatureType
+        record = Feature(id=1, content="accepted memory", feature_type=FeatureType.Dialogue).as_payload(include_embedding=False)
         environment = MemoryBashEnvironment({1: record}, {}, "read")
         with TemporaryDirectory() as folder:
             settings = build_settings(cwd=folder, model="unused", context_window=96_000)

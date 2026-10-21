@@ -198,7 +198,7 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
                 result = "retained"
         elif kind == "complete":
             if existing is not None:
-                replaced = existing
+                replaced = existing.copy_for_edit()
                 replaced.active = False
                 replaced.status = "completed"
                 replaced.fulfilment = 1.0
@@ -206,13 +206,13 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
                 result = "completed"
         elif kind == "reprioritize":
             if existing is not None:
-                replaced = existing
+                replaced = existing.copy_for_edit()
                 replaced.incentive_salience = _clamp01(float(change.priority))
                 batch.replace(replaced)
                 result = "reprioritized"
         elif kind == "defer":
             if existing is not None:
-                replaced = existing
+                replaced = existing.copy_for_edit()
                 replaced.active = False
                 replaced.status = "deferred"
                 batch.replace(replaced)
@@ -227,7 +227,7 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
                 result = "deferred"
         elif kind == "refuse":
             if existing is not None:
-                replaced = existing
+                replaced = existing.copy_for_edit()
                 replaced.active = False
                 replaced.status = "refused"
                 batch.replace(replaced)
@@ -244,7 +244,7 @@ def apply_goal_changes(batch, view, changes: list[GoalChange], *, evidence_ids=N
             result = "retained" if existing is not None else "missing"
         intention_id = created_id if created_id is not None else (int(existing.id) if existing is not None else None)
         if created_id is None and intention_id is not None and kind != "retain" and result != "missing":
-            intention = batch.view().get_knoxel_by_id(intention_id)
+            intention = batch.view().get_knoxel_by_id(intention_id).copy_for_edit()
             # Only intentions with earlier changes carry a choice history.
             history = list(intention.metadata["choice_history"]) if "choice_history" in intention.metadata else []
             history.append({"change": kind, "reason": change.reason,

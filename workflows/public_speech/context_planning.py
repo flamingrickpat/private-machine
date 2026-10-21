@@ -13,9 +13,8 @@ here. The focus decides what the plan looks for:
 each as a weighted query. Required ids enter the ``focus`` lane. The lanes
 and budgets come from ``context_plans.yaml``.
 
-Network work: each focus text is embedded through the shared cache, and at
-most ``max_new_embeddings`` record vectors are fetched for records near the
-cut of a score lane. Everything else scores from cached vectors or lexically.
+Network work embeds the temporary focus queries. Record vectors come from
+the central knoxels. Application startup embeds every missing record.
 An unavailable embedding service falls back to lexical scoring and is
 recorded in the trace; it never stops the reply. Cancellation propagates.
 """
@@ -29,8 +28,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from pm.utils import yaml_util
 
 from pm.llm.http_client import ModelError
+from pm.records.base import RecordBase
+from pm.records.memory_records import Feature
 from pm.memory.context_plan import ContextPlan, Focus, PlanSpec, plan_context
-from pm.memory.retrieval import candidate, index_chunks, record_text, scoped_records
+from pm.memory.retrieval import candidate, record_text, scoped_records
 from workflows.public_speech.public_context import DialogueTurn, EvidenceItem
 
 PLANS_FILE = Path(__file__).resolve().parent / "context_plans.yaml"
@@ -65,10 +66,10 @@ class PlannedContext(BaseModel):
     trace: dict = Field(default_factory=dict)
 
 
-def load_plan(name: str, path: Path | None = None) -> tuple[PlanSpec, int]:
-    """Return one named plan and the new-embedding bound."""
+def load_plan(name: str, path: Path | None = None) -> PlanSpec:
+    """Return one typed named plan from the selected YAML file."""
     data = yaml_util.safe_load((path or PLANS_FILE).read_text(encoding="utf-8"))
-    return PlanSpec.model_validate({"name": name, **data[name]}), int(data.get("max_new_embeddings", 32))
+    return PlanSpec.model_validate({"name": name, **data[name]})
 
 
 def focus_queries(focus: FocusInput) -> list[tuple[float, str]]:
@@ -88,13 +89,11 @@ def _scopes(view, ids) -> set[tuple[int, str]]:
     return scopes or {(-1, "in_world")}
 
 
-def _turn(view, key: int, raw: dict) -> DialogueTurn:
-    record = view.get(key)
-    data = raw["data"]
-    kind = "thought" if str(data.get("feature_type", "")) in THOUGHT_TYPES else "speech"
-    return DialogueTurn(speaker=str(getattr(record, "source", "") or data.get("override_source") or "unknown"),
-                        text=" ".join(str(data.get("content", "")).split()), knoxel_id=key,
-                        timestamp=str(data.get("timestamp_world_begin") or ""), kind=kind)
+def _turn(view, key: int, record: RecordBase) -> DialogueTurn:
+    kind = "thought" if isinstance(record, Feature) and record.feature_type.value in THOUGHT_TYPES else "speech"
+    speaker = record.source if isinstance(record, Feature) else "unknown"
+    return DialogueTurn(speaker=speaker, text=" ".join(record.content.split()), knoxel_id=key,
+                        timestamp=record.timestamp_world_begin.isoformat(), kind=kind)
 
 
 async def _embed_focus(embeddings, queries, cancel) -> tuple[list[tuple[float, list[float]]], dict]:
@@ -115,12 +114,8 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
     never enter. The current stimuli themselves are excluded from every lane;
     the prompt shows them as the current line.
     """
-    spec, max_new = load_plan(plan_name)
+    spec = load_plan(plan_name)
     records, _ = scoped_records(view, scopes=_scopes(view, focus.exclude_ids))
-    chunks, owners = index_chunks(records)
-    first_chunk: dict[int, str] = {}
-    for chunk_id in sorted(chunks):
-        first_chunk.setdefault(owners[chunk_id], chunks[chunk_id])
     token_cache: dict[int, int] = {}
 
     def tokens_of(key: int) -> int:
@@ -129,7 +124,7 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
         return token_cache[key]
 
     def vector_of(key: int):
-        return embeddings.cache.get(first_chunk[key]) if embeddings is not None and key in first_chunk else None
+        return view.get(key).embedding or None
 
     queries = focus_queries(focus)
     vectors, semantic = await _embed_focus(embeddings, queries, cancel)
@@ -137,19 +132,6 @@ async def plan_reply_context(view, plan_name: str, focus: FocusInput, embeddings
     now = now or datetime.utcnow()
     plan = plan_context(records, spec, focus_model, vector_of=vector_of, tokens_of=tokens_of, now=now)
     embedded = 0
-    if vectors:
-        # Embed records near each score lane's cut that lack a vector, then
-        # plan again, so the most relevant uncached records can compete.
-        near = [key for lane in plan.lanes if lane.scores
-                for key in [*lane.ids, *(item["id"] for item in lane.competing)]]
-        missing = [key for key in dict.fromkeys(near) if key in first_chunk and vector_of(key) is None][:max_new]
-        if missing:
-            try:
-                await embeddings.prepare_index({key: first_chunk[key] for key in missing}, cancel=cancel)
-                embedded = len(missing)
-            except ModelError as error:
-                semantic = {**semantic, "record_embedding_error": str(error)}
-            plan = plan_context(records, spec, focus_model, vector_of=vector_of, tokens_of=tokens_of, now=now)
     dialogue_lanes = [lane for lane in spec.lanes if lane.select == "recent"]
     dialogue_names = {lane.name for lane in dialogue_lanes}
     dialogue = [_turn(view, key, records[key]) for lane in plan.lanes if lane.name in dialogue_names for key in lane.ids]

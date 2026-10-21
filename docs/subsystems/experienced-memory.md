@@ -39,32 +39,26 @@ Missing legacy references therefore exclude an abstraction without discarding it
 
 The eligible classes include dialogue Features, declarative and semantic records, beliefs, narratives, clusters, causal patterns, and body evidence.
 The selector scans the whole eligible snapshot instead of only recent dialogue.
-It combines cached cosine similarity with weighted distinctive terms.
+It combines FAISS cosine ranking with weighted distinctive terms.
 Their weights are `0.65` and `0.35` respectively.
 Recent context reserves four positions in the default 24-result limit.
 
-Each invocation prepares at most 64 uncached chunks from the lexical, recent, and important pools.
-Already cached vectors participate across the full eligible snapshot.
-Missing coverage remains explicit in `memory_trace.coverage`.
-Incomplete coverage limits purely semantic recall of an unindexed record without matching terms.
-Full preparation removes that index limitation.
-[`pm.memory.retrieval.index_chunks`][] splits long records into 2,000-character chunks with 200 characters of overlap.
-Each chunk retains its original record ID.
-The record's semantic score uses its strongest matching chunk.
-Coverage counts distinguish complete records from indexed chunks.
+Startup embeds every missing knoxel and saves its vector on that record.
+Retrieval ranks the permitted records through the shared FAISS index.
+It does not split records into cached embedding chunks or limit preparation to a recent candidate pool.
+Missing vectors encountered outside normal startup are prepared before search.
+Coverage reports the number of stored record vectors.
 
 Each text excerpt contains at most 1,200 source characters, plus attribution.
 For long records, the excerpt starts near a rare matching term.
-A semantic-only match keeps its strongest matching chunk.
 The original record remains available by ID.
-Embedding vectors stay in the shared cache, outside checkpoints.
+Embedding vectors stay on the shared records and inside every pickle checkpoint.
 Network ranking never holds the Ghost commit lock.
 
-The active alpha configuration uses OpenRouter's `perplexity/pplx-embed-v1-0.6b` with 1,024 dimensions.
-`OPENROUTER_API_KEY` supplies its credential.
-The request model identifies its cache namespace.
-Local CPU comparison vectors use another namespace and cannot replace remote vectors.
-The gate uses OpenRouter's [embedding model catalogue](https://openrouter.ai/docs/api/api-reference/embeddings/list-embeddings-models) to verify the active model.
+The active configurations use `embeddinggemma-300m` on `http://127.0.0.1:8081/v1`, with 768 dimensions.
+The local embedding endpoint requires no credential.
+The checkpoint records the embedding model. A changed model or vector dimension requires new record vectors.
+The local `/v1/models` endpoint identifies the active embedding model.
 
 ## Attribution and selection
 
@@ -99,14 +93,14 @@ Appraisal, beliefs, experience summaries, goals, frame, and actions commit toget
 The checkpoint save precedes publication.
 
 Cancellation interrupts embedding requests through the workflow's stop event.
-Completed vectors remain cached.
-Invalid provider vectors never enter the cache.
+Completed vectors remain on their records.
+Invalid provider vectors are rejected before assignment.
 A permanent provider error switches retrieval to scoped lexical and recent evidence.
 `memory_trace.semantic` records the error and fallback.
 It also identifies the configured endpoint and request model.
 This fallback preserves dialogue while semantic ranking remains unavailable.
-Local cache errors and cancellation still propagate.
-Production retries transient transport errors five times, with a 30-second pause before each retry.
+Index errors and cancellation still propagate.
+Production retries transient transport errors until cancellation, with a 30-second pause before each retry.
 Cancellation interrupts requests and retry pauses.
 Explicit live-test clients fail immediately for service diagnosis.
 
@@ -125,7 +119,7 @@ Then add `--prepare` to fetch missing vectors.
 For remote preparation, `--workers 8` permits eight independent requests at a time.
 The default uses one worker.
 Every worker receives only a part of the same permitted snapshot.
-Cancellation or a failed request stops the preparation group and retains completed cache entries.
+Cancellation or a failed request stops the preparation group and retains completed record vectors.
 Add `--query TEXT` to retain a retrieval trace in the receipt.
 
 The console's existing **Embed missing records and search** operation remains available.

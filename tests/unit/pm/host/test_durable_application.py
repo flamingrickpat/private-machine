@@ -15,7 +15,7 @@ class DurableApplicationTests(unittest.TestCase):
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
-        self.path = self.root / "ghost.json"
+        self.path = self.root / "ghost.pickle"
         self.replies = []
         self.app = build_app(None, self.root / "runtime", ghost=small_ghost(self.path),
                              clock=ManualClock(), emit_reply=self.replies.append)

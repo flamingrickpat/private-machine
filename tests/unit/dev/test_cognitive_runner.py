@@ -51,7 +51,7 @@ class CognitiveRunnerTests(unittest.TestCase):
         control.handle_batch([])
         self.assertIsNone(accepted_pause(ghost, "pause-current"))
 
-    def test_cases_keep_model_settings_and_the_shared_embedding_cache(self):
+    def test_cases_keep_model_settings_without_an_embedding_cache(self):
         from pm.llm.config import load_config
         source = ROOT / "config.alpha.openrouter.yaml"
         original = load_config(source)
@@ -62,11 +62,10 @@ class CognitiveRunnerTests(unittest.TestCase):
                 root.mkdir()
                 configured = load_config(case_config(source, root))
                 self.assertEqual(configured.chat, original.chat)
-                self.assertEqual(configured.embedding.legacy_cache_dir, original.embedding.legacy_cache_dir)
                 self.assertEqual(configured.embedding.model, original.embedding.model)
                 self.assertEqual(configured.embedding.dimensions, original.embedding.dimensions)
-                self.assertEqual(configured.embedding.cache_dir, original.embedding.cache_dir)
-                paths.append(configured.embedding.cache_dir)
+                self.assertNotIn("cache_dir", configured.embedding.model_fields)
+                paths.append(configured.embedding.model)
             self.assertEqual(*paths)
 
     def test_parallel_groups_keep_minecraft_exclusive_and_normal_cases_first(self):

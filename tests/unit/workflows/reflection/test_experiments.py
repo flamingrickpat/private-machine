@@ -1,4 +1,6 @@
 """Exercise real checkpoint commits, stale owners, and experiment recovery."""
+
+from pm.records.copying import pickle_copy
 from datetime import datetime, timedelta
 from pathlib import Path
 import json
@@ -115,7 +117,7 @@ class ExperimentTests(unittest.TestCase):
 
     def test_cancelled_application_preserves_proposal_and_checkpoint(self):
         with TemporaryDirectory() as directory:
-            self.store.checkpoint = Path(directory) / "ghost.json"
+            self.store.checkpoint = Path(directory) / "ghost.pickle"
             proposal = self.proposed()
             before = self.store.checkpoint.read_bytes()
             view = self.store.snapshot()
@@ -169,7 +171,7 @@ class ExperimentTests(unittest.TestCase):
 
     def test_failed_prediction_and_reversal_survive_reopen(self):
         with TemporaryDirectory() as directory:
-            self.store.checkpoint = Path(directory) / "ghost.json"
+            self.store.checkpoint = Path(directory) / "ghost.pickle"
             applied = self.applied()
             observed = self.observation(applied, "I still chose a closed ending.")
             self.step("evaluate", applied.id, result="contradicted", observation_ids=[observed.id])
@@ -240,7 +242,7 @@ class ExperimentTests(unittest.TestCase):
         observed = self.observation(applied, "The correction did not help.")
         self.step("evaluate", applied.id, result="contradicted", observation_ids=[observed.id])
         restored = self.step("reverse", applied.id)
-        corrected = self.plan.model_copy(deep=True)
+        corrected = pickle_copy(self.plan)
         corrected.hypotheses[0].explanation = "The proposal needs a different focus."
         corrected.hypotheses[0].supporting_ids.append(observed.id)
         corrected.intervention.expected_record_id = restored.metadata["reversal_record_id"]

@@ -1,6 +1,8 @@
 """Validate task graphs and retain revisions, attempts, and acceptance receipts."""
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 from graphlib import TopologicalSorter, CycleError
 import hashlib
 import json
@@ -254,7 +256,7 @@ class TreeStore:
         Runtime code assigns revision counters. Complete validation precedes
         archive writes, so a rejected candidate cannot change retained state.
         """
-        proposed = proposed.model_copy(deep=True)
+        proposed = pickle_copy(proposed)
         self.check_revision(proposed, target=target)
         old = {node.id: node for node in self.load().nodes} if self.state["revision"] else {}
         new = {node.id: node for node in proposed.nodes}
@@ -359,7 +361,7 @@ class TreeStore:
         if missing:
             raise ValueError("No retained restoration candidate exists for: " + ", ".join(sorted(missing)))
         restored = {key: Node.model_validate(candidates[key]["specification"]) for key in keys}
-        proposed = proposed.model_copy(deep=True)
+        proposed = pickle_copy(proposed)
         proposed.nodes = [restored.get(node.id, node) for node in proposed.nodes]
         validate_tree(proposed)
         records = {**self.state["acceptances"], **{key: candidates[key]["certificate"] for key in keys}}

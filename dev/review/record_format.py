@@ -1,8 +1,9 @@
 """Format serialized runtime records without runtime imports or inference."""
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 from collections import defaultdict
-from copy import deepcopy
 
 def record_links(record: dict) -> list[dict]:
     """Return typed links from explicit record fields and consumed versions.
@@ -319,7 +320,7 @@ def present_packages(item: dict) -> dict:
     for package in item["packages"]:
         for key, value in (package.get("decoded_vectors") or {}).items():
             cards[int(key)]["decoded"] = value
-    result = {key: deepcopy(value) for key, value in item.items() if key != "packages"}
+    result = {key: pickle_copy(value) for key, value in item.items() if key != "packages"}
     result.update(conversation=conversation, cycles=cycles,
                   cognition={"episodes": episodes, "primary_ids": primary,
                              "records": {str(key): value for key, value in cards.items()}},

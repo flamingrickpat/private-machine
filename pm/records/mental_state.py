@@ -767,7 +767,8 @@ def compute_state_delta(current_ms: FullMentalState, relationship_entity_id: Opt
         resentment=prev_emotions.resentment, jealousy=prev_emotions.jealousy, boredom=prev_emotions.boredom,
     )
 
-    state_result = current_ms.copy(deep=True)
+    from pm.records.copying import pickle_copy
+    state_result = pickle_copy(current_ms)
     state_result.state_core = core
     state_result.state_emotions = emotions
 

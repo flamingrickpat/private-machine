@@ -61,7 +61,7 @@ def main(argv=None) -> int:
 
     root = Path(args.out)
     root.mkdir(parents=True, exist_ok=True)
-    checkpoint = root / "ghost.json"
+    checkpoint = root / "ghost.pickle"
     replies: list[str] = []
 
     app = build_app(

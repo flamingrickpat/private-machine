@@ -26,10 +26,10 @@ The v2 planner keeps the lane design and adds the workspace focus.
 | --- | --- | --- |
 | Planner | `pm/memory/context_plan.py` | Pure lane selection, scoring, boundaries, and redistribution. No store, model, or network. |
 | Plans | `workflows/public_speech/context_plans.yaml` | The `story` plan: budgets, lanes, weights. |
-| Integration | `workflows/public_speech/context_planning.py` | Scope, embedding cache, focus queries, bounded new embeddings, and conversion to dialogue turns and evidence. |
+| Integration | `workflows/public_speech/context_planning.py` | Scope, stored record vectors, focus queries, and conversion to dialogue turns and evidence. |
 | Caller | [`plan_story_request`][workflows.dialogue_story.context.plan_story_request] | Plans the standalone Story situation. |
 | Shard context | [`shard_context`][workflows.public_speech.shard_context.shard_context] | Builds the context of a reply that a cycle chose, from the shards of its action request. |
-| Index tool | `dev/tools/prepare_context_index.py` | Embeds all score-lane records once into the shared cache. |
+| Index tool | `dev/tools/prepare_context_index.py` | Embeds every missing record and saves a pickle checkpoint. |
 
 ## Shard context
 
@@ -92,7 +92,7 @@ The current stimuli are not in any tail. The prompt shows them as the current li
 | Attention texts | 0.7 | Optional texts |
 | Active goals | 0.3 | The active intentions |
 
-Each part becomes a weighted query: an embedding (through the shared cache) and distinctive terms for lexical scoring.
+Each part becomes a weighted query: an embedding from the model and distinctive terms for lexical scoring.
 Required ids fill the `focus` lane.
 The current stimuli are excluded from every lane. The prompt shows them as the current line.
 
@@ -125,27 +125,16 @@ Further rules:
 
 ## Embeddings
 
-Records score semantically only when their first index chunk has a cached vector.
-Without a vector, a record still competes lexically and by importance.
-After the first pass, at most `max_new_embeddings` (32) uncached records near each score lane's cut are embedded, and the plan runs again.
-If the embedding service fails, the plan scores lexically and records `semantic.status: unavailable`. The reply continues.
+Records score semantically from the vectors stored on their knoxels.
+Startup prepares every missing vector and saves the full state with pickle.
+The planner never reads vector cache files or embeds a bounded candidate subset.
+It embeds its temporary focus queries directly.
+If the query embedding fails, the plan uses lexical scoring and records `semantic.status: unavailable`.
 
-Each planner invocation reads a record vector once and normalizes it into a compact array.
-It reuses those vectors and semantic scores across lanes and redistribution rounds.
-The cache belongs to that frozen invocation. A later invocation reads fresh vectors, including records that previously lacked a vector.
-Duplicate comparisons use dot products of the unit vectors.
-The lane rules, weights, budgets, and rounded scores remain the same.
-
-Run the index tool once per seed so that every candidate has a vector:
-
-```powershell
-uv run --locked python dev/tools/prepare_context_index.py --seed test_data/personas/spamuel/canon.yaml
-```
-
-The cache uses the configured `embedding.cache_dir` and the full record text as its key.
-A checkpoint and its seed therefore share entries.
-A long record is embedded from the prefix that fits the serving context, but the key stays the full text.
-On 2026-10-13 the Spamuel seed had 2,941 score-lane records, and 354 were cached before the first run of the tool.
+Each invocation normalizes the supplied vectors for its lane calculations.
+It reuses these local calculations across lanes and budget rounds.
+The durable vector owner remains the knoxel. A later invocation reads the current record vector.
+Read [model connections](../models.md#embeddings-and-scoped-retrieval) for startup, FAISS, and persistence.
 
 ## Public context and commit guard
 
@@ -164,7 +153,7 @@ The revisions of the planned records and of their source records still guard the
 ## Limits
 
 - Token counts are `tiktoken` (`o200k_base`) estimates of the record text plus 12 tokens.
-- Facts are many and short. Without cached vectors, lexical scoring selects them weakly.
+- Facts are many and short. Without record vectors, lexical scoring selects them weakly.
 - Mood-similarity scoring from the old planner (`weighted_mental_state`) is not ported.
 - The plans are fixed per workflow. A per-persona plan is not configurable yet.
 - A shard context has no separate budget. A reply reads up to two full shards and their tails.

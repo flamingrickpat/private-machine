@@ -1,7 +1,8 @@
 """Edit a private task draft through small MCP operations."""
 from __future__ import annotations
 
-import copy
+from pm.records.copying import pickle_copy
+
 from itertools import product
 from typing import Callable, Literal
 
@@ -22,7 +23,7 @@ class CellBox(Contract):
 
 
 ConditionInput = create_model("ConditionInput", __base__=Contract, **{
-    **{name: (field.annotation, copy.deepcopy(field)) for name, field in Condition.model_fields.items()},
+    **{name: (field.annotation, pickle_copy(field)) for name, field in Condition.model_fields.items()},
     "id": (str, ""), "description": (str, ""), "box": (CellBox | None, None)})
 ConditionInput.__doc__ = "A condition edit with backend-owned defaults and an optional exact block box."
 
@@ -93,14 +94,14 @@ class TaskDraft:
         unknown = set(fields) - allowed
         if unknown:
             raise ValueError(f"These fields belong to the backend: {sorted(unknown)}. Editable fields: {sorted(allowed)}.")
-        self._node(node_id).update(copy.deepcopy(fields))
+        self._node(node_id).update(pickle_copy(fields))
         return {"node_id": node_id, "changed_fields": sorted(fields)}
 
     def condition(self, node_id: str, condition: dict, assumption: bool = False) -> dict:
         """Set one condition; expand an explicit block box into exact cells."""
         node = self._node(node_id)
         field = "assumptions" if assumption else "criteria"
-        value = copy.deepcopy(condition)
+        value = pickle_copy(condition)
         value.setdefault("id", f"condition_{len(node[field]) + 1}")
         value.setdefault("description", f"{value.get('kind', 'condition')} outcome for {node_id}.")
         box = value.pop("box", None)
@@ -121,7 +122,7 @@ class TaskDraft:
         source, target = self._node(source_id), self._node(target_id)
         selected = [row for row in source["criteria"] if not condition_ids or row["id"] in condition_ids]
         for row in selected:
-            copied = copy.deepcopy(row)
+            copied = pickle_copy(row)
             copied["id"] = source_id + "_" + row["id"]
             target["criteria"] = [old for old in target["criteria"] if old["id"] != copied["id"]] + [copied]
         return {"node_id": target_id, "copied_conditions": [source_id + "_" + row["id"] for row in selected]}
@@ -177,7 +178,7 @@ class TaskDraft:
         @server.tool()
         def task_get(node_id: str) -> dict:
             """Read one complete current task before editing it."""
-            return self._call(lambda: {"task": copy.deepcopy(self._node(node_id))})
+            return self._call(lambda: {"task": pickle_copy(self._node(node_id))})
 
         @server.tool()
         def task_add(kind: Literal["story", "leaf"], instruction: str, parent: str = "",

@@ -19,6 +19,9 @@ from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.http_client import ModelError
 from pm.llm.config import LlmPreset, load_config, resolve_connection
 from tests.support import fresh_ghost, load_seed_state
+from pm.memory.store import MemoryStore
+from pm.records.memory_records import Feature
+from pm.records.enums import FeatureType
 
 
 EVIDENCE_ROOT = Path(".runtime/w1") / (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + uuid4().hex[:8])
@@ -34,32 +37,20 @@ class LiveModelTests(unittest.IsolatedAsyncioTestCase):
         default = "config.local.yaml" if Path("config.local.yaml").is_file() else "config.example.yaml"
         self.config = load_config(os.environ.get("PM_MODEL_CONFIG", default))
 
-    async def test_actual_spamuel_cache_hit_without_requests(self):
+    async def test_actual_spamuel_vector_survives_pickle_without_another_request(self):
         ghost = fresh_ghost(load_seed_state())
         service = EmbeddingService(self.config.embedding, live_test=True)
-        records = {knoxel.content: knoxel.id for knoxel in ghost.all_knoxels.values()}
-        before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
-                  for path in service.cache.legacy_dir.glob("emb_hash_*.*")}
-        self.assertTrue(before, "The real legacy embedding cache is required.")
-        for path in sorted(service.cache.legacy_dir.glob("emb_hash_*.json")):
-            meta = json.loads(path.read_text(encoding="utf-8"))
-            text = meta["input"]
-            if text in records and service.cache.get(text) is not None:
-                break
-        else:
-            self.fail("No compatible cached input matches the Spamuel seed.")
-        vector = await service.embed(text)
-        self.assertEqual(len(vector), self.config.embedding.dimensions)
-        self.assertEqual(service.client.request_count, 0)
-        self.assertGreater(service.cache.legacy_hits, 0)
-        after = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
-                 for path in service.cache.legacy_dir.glob("emb_hash_*.*")}
-        self.assertEqual(before, after)
-        record_evidence("legacy-cache", {
-            "knoxel_id": records[text], "content_md5": service.cache.content_key(text),
-            "model": self.config.embedding.model, "dimensions": len(vector),
-            "embedding_requests": service.client.request_count, "legacy_files_unchanged": len(before),
-        })
+        record = next(record for record in ghost.all_knoxels.values() if record.content.strip())
+        vector = await service.record_embedding(record)
+        self.assertEqual(service.client.request_count, 1)
+        ghost.checkpoint = EVIDENCE_ROOT / "ghost.pickle"
+        ghost.save()
+        restored = MemoryStore.from_checkpoint(ghost.checkpoint)
+        fresh = EmbeddingService(self.config.embedding, live_test=True)
+        self.assertEqual(await fresh.record_embedding(restored.get_knoxel_by_id(record.id)), vector)
+        self.assertEqual(fresh.client.request_count, 0)
+        record_evidence("stored-vector", {"knoxel_id": record.id, "dimensions": len(vector),
+                                          "first_requests": 1, "restored_requests": 0})
 
     async def test_real_uncached_embedding_and_retrieval(self):
         service = EmbeddingService(self.config.embedding, live_test=True)
@@ -67,22 +58,22 @@ class LiveModelTests(unittest.IsolatedAsyncioTestCase):
         related = f"Jesse and Spamuel remember building a wooden cabin in Minecraft. Case {run_id}."
         unrelated = f"A chemistry textbook lists boiling temperatures of noble gases. Case {run_id}."
         query = f"Our shared memory of constructing a Minecraft house. Case {run_id}."
-        visible = {1: related, 2: unrelated}
+        visible = {1: Feature(id=1, content=related, feature_type=FeatureType.Dialogue),
+                   2: Feature(id=2, content=unrelated, feature_type=FeatureType.Dialogue)}
         plan = service.inspect_index(visible)
         self.assertEqual(plan.missing, [1, 2])
         self.assertEqual(service.client.request_count, 0)
         await service.prepare_index(visible)
         results = await service.search(query, visible)
         self.assertEqual(results[0][0], 1)
-        self.assertEqual(service.client.request_count, 3)
-        cached = await service.embed(related)
+        self.assertEqual(service.client.request_count, 2)
+        cached = await service.record_embedding(visible[1])
         self.assertAlmostEqual(cosine_similarity(cached, cached), 1)
-        self.assertEqual(service.client.request_count, 3)
+        self.assertEqual(service.client.request_count, 2)
         record_evidence("live-embedding", {
             "model": self.config.embedding.model, "dimensions": len(cached),
             "response_model": service.last_response_model,
             "requests": service.client.request_count, "ranked_results": results,
-            "new_cache_dir": str(service.cache.directory),
         })
 
     async def test_oversized_embedding_is_cut_to_serving_context(self):
@@ -99,12 +90,10 @@ class LiveModelTests(unittest.IsolatedAsyncioTestCase):
         vector = await service.embed(long_text)
         self.assertEqual(len(vector), self.config.embedding.dimensions)
         self.assertEqual(service.client.request_count, 1)
-        self.assertEqual(service.cache.get(long_text), vector)
         record_evidence("embedding-context-fit", {
             "context_window": context, "context_source": source, "receipt": receipt,
             "model": self.config.embedding.model, "dimensions": len(vector),
             "requests": service.client.request_count,
-            "cache_key_is_full_text": service.cache.get(long_text) == vector,
         })
 
     async def test_generation_then_evaluator_and_activation_guards(self):

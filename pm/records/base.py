@@ -10,9 +10,11 @@ invariant: RecordBase.type resolves through the public RecordKind registry, and 
 """
 
 from datetime import datetime
+import pickle
 import logging
 from enum import StrEnum
 from typing import Dict, Any
+from typing import Self
 from typing import List
 from typing import (
     Optional,
@@ -142,7 +144,7 @@ class RecordBase(BaseModel):
     tick_id: int = -1
     sub_tick_id: int = 0
     content: str
-    embedding: List[float] | None = Field(default=[], repr=False)
+    embedding: list[float] = Field(default_factory=list, repr=False)
     timestamp_creation: datetime = Field(default_factory=datetime.utcnow)
     timestamp_world_begin: datetime = Field(default_factory=get_causal_datetime)
     timestamp_world_end: datetime = Field(default_factory=get_causal_datetime)
@@ -189,11 +191,33 @@ class RecordBase(BaseModel):
     def to_json(self):
         return self.id
 
-    def __getattribute__(self, name):
-        # NOTE: last_accessed is intentionally NOT updated on content reads.
-        # Dumping/loading must never mutate state; access tracking is explicit
-        # (touch_last_accessed) and driven by retrieval/tooling layers later.
-        return super().__getattribute__(name)
+    def __getstate__(self) -> dict[str, Any]:
+        """Save this record without its runtime owner or the owner's lock."""
+        state = super().__getstate__()
+        state["__pydantic_private__"] = {**state["__pydantic_private__"], "_owner": None}
+        return state
+
+    def copy_for_edit(self) -> Self:
+        """Copy this record with pickle for an isolated edit. Keep its central owner."""
+        record = pickle.loads(pickle.dumps(self, protocol=pickle.HIGHEST_PROTOCOL))
+        record._owner = self._owner
+        return record
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        previous = self.__dict__.get("content") if name == "content" else None
+        super().__setattr__(name, value)
+        if name == "content" and previous is not None and previous != value:
+            self.embedding = []
+        elif name == "embedding" and self._owner is not None:
+            self._owner.index_embedding(self)
+
+    def as_payload(self, *, include_embedding: bool = True) -> dict[str, Any]:
+        """Render this record at a JSON or tool boundary, including its vector."""
+        data = self.model_dump(mode="json", serialize_as_any=True,
+                               exclude=None if include_embedding else {"embedding"})
+        if self.lineage is None:
+            data.pop("lineage", None)
+        return {"__type__": persisted_type_name(type(self)), "data": data}
 
     def touch_last_accessed(self) -> None:
         """Explicitly mark this knoxel as accessed (call from retrieval/tools, never from dumps)."""
@@ -230,6 +254,11 @@ class RecordBase(BaseModel):
 
 
 class RecordOwner:
+    """Own shared records. MemoryStore also indexes their embedding updates."""
+
+    def index_embedding(self, record: RecordBase) -> None:
+        """Accept a vector update. Plain record containers have no search index."""
+
     def __init__(self):
         self.all_knoxels: Dict[int, RecordBase] = {}
 

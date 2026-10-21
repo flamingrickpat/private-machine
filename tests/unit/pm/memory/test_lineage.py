@@ -6,7 +6,6 @@ import unittest
 from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryView
 from pm.memory.references import referenced_ids
 from pm.memory.store import MemoryStore
-from pm.memory.yaml_codec import _serialize_knoxel
 from pm.records.enums import FeatureType
 from pm.records.lineage import RecordLineage
 from pm.records.memory_records import new_feature
@@ -25,15 +24,15 @@ class LineageTests(unittest.TestCase):
 
     def test_lineage_survives_checkpoint_without_changing_reality_or_original(self):
         with TemporaryDirectory() as tmp:
-            self.ghost.checkpoint = Path(tmp) / "ghost.json"
-            original = _serialize_knoxel(self.ghost.get_knoxel_by_id(self.source.id))
+            self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
+            original = (self.ghost.get_knoxel_by_id(self.source.id)).as_payload()
             batch = self.ghost.begin_batch("new-imagined-record")
             thought = new_feature(self.ghost, "an imagined outcome", FeatureType.InnerMonologue,
                                   source="Spamuel", changes=batch, lineage=self.lineage())
             self.ghost.commit(batch)
             restored = MemoryStore.from_checkpoint(self.ghost.checkpoint)
             self.assertEqual(restored.get_knoxel_by_id(thought.id).lineage, self.lineage())
-            self.assertEqual(_serialize_knoxel(restored.get_knoxel_by_id(self.source.id)), original)
+            self.assertEqual((restored.get_knoxel_by_id(self.source.id)).as_payload(), original)
             self.assertEqual(referenced_ids(restored.get_knoxel_by_id(thought.id)), {self.source.id})
 
     def test_new_lineage_cannot_rewrite_an_existing_sources_history(self):
@@ -67,7 +66,7 @@ class LineageTests(unittest.TestCase):
             self.assertEqual(session.accessed, {})
 
     def test_old_records_omit_the_optional_field_on_serialization(self):
-        raw = _serialize_knoxel(self.ghost.get_knoxel_by_id(self.source.id))
+        raw = (self.ghost.get_knoxel_by_id(self.source.id)).as_payload()
         self.assertNotIn("lineage", raw["data"])
 
 

@@ -13,6 +13,8 @@ each run. The phases call the model only through that tool.
 """
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 import asyncio
 import json
 import threading
@@ -98,7 +100,7 @@ def build_main_cognition_tools(
       cancelled run also stops its sibling calls.
     - ``embed_texts``: the embeddings of a list of texts, through
       ``embeddings`` (a ``pm.memory.embeddings.EmbeddingService``). The
-      service caches vectors by text.
+      service embeds temporary texts directly. Record views carry stored vectors.
     - ``codelet_agent``: one agent codelet session over the frozen grant of
       the run (:func:`~workflows.main_cognition.codelet_agent.build_codelet_agent`).
 
@@ -1013,7 +1015,7 @@ class MainCogLoop(CognitiveWorkflow):
                                              *(item.knoxel_id for item in work.selected_memories),
                                              *state.workspace.item_ids(), *state.workspace.tail_ids()])),
                 summary=summary,
-                shard_changes=[change.model_copy(deep=True) for change in work.attention.changes],
+                shard_changes=[pickle_copy(change) for change in work.attention.changes],
                 experience_id=experience_feature.id,
                 decision_id=selection.id,
                 trace=trace,
@@ -1275,7 +1277,7 @@ def mark_causal(changes, view, work: CycleWork) -> list[int]:
             continue
         if work.records[record_id].record_class != "CodeletPercept":
             continue
-        record = view.get(record_id)
+        record = view.get(record_id).copy_for_edit()
         if not record.causal:
             record.causal = True
             changes.replace(record)

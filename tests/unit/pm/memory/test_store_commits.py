@@ -6,6 +6,7 @@ from pathlib import Path
 from threading import Event
 
 from pm.memory.store import MemoryStore
+from pm.memory.checkpoint import JSON_SERIALIZER, read_checkpoint
 from pm.memory.store import GhostConflict, GhostCancelled
 from pm.records.cycle_state import PersonaConfig, CycleState
 from pm.records.global_workspace import GwtTurnRecord
@@ -24,7 +25,7 @@ class GhostCommitTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.path = Path(self.directory.name) / "ghost.json"
+        self.path = Path(self.directory.name) / "ghost.pickle"
         self.ghost = small_ghost(self.path)
 
     def test_proposals_stay_private_until_complete_commit(self):
@@ -45,13 +46,14 @@ class GhostCommitTests(unittest.TestCase):
         self.assertEqual(self.ghost.commit(batch), receipt)
         self.assertEqual(reopened.commit(reopened.begin_batch("turn")), receipt)
 
-    def test_snapshot_is_stable_scoped_and_returns_copies(self):
+    def test_snapshot_shares_records_and_explicit_edit_keeps_old_membership(self):
         first = self.ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="visible"))
         hidden = self.ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="hidden"))
         view = self.ghost.snapshot([first.id])
-        view.get(first.id).content = "caller mutation"
+        self.assertIs(view.get(first.id), first)
+        self.assertIs(first._owner, self.ghost)
         batch = self.ghost.begin_batch("update")
-        replacement = batch.view().get(first.id)
+        replacement = batch.view().get(first.id).copy_for_edit()
         replacement.content = "new accepted text"
         batch.replace(replacement)
         self.ghost.commit(batch)
@@ -65,7 +67,7 @@ class GhostCommitTests(unittest.TestCase):
         first = self.ghost.begin_batch("first")
         stale = self.ghost.begin_batch("stale")
         for batch, text in ((first, "winner"), (stale, "loser")):
-            replacement = batch.view().get(original.id)
+            replacement = batch.view().get(original.id).copy_for_edit()
             replacement.content = text
             batch.replace(replacement)
         self.ghost.store_knoxel(Feature(feature_type=FeatureType.Dialogue, content="unrelated"))
@@ -188,11 +190,11 @@ class GhostCommitTests(unittest.TestCase):
         batch = self.ghost.begin_batch("bad-replacement")
         with self.assertRaises(ValueError):
             batch.replace(Structure(id=accepted.id, tick_id=accepted.tick_id, content="different type"))
-        replacement = batch.view().get(accepted.id)
+        replacement = batch.view().get(accepted.id).copy_for_edit()
         replacement.tick_id += 1
         with self.assertRaises(ValueError):
             batch.replace(replacement)
-        replacement = batch.view().get(accepted.id)
+        replacement = batch.view().get(accepted.id).copy_for_edit()
         replacement.scope.reality_id = 123
         with self.assertRaises(ValueError):
             batch.replace(replacement)
@@ -210,7 +212,7 @@ class GhostCommitTests(unittest.TestCase):
         batch.create(Feature(feature_type=FeatureType.Dialogue, content="accepted"))
         batch.set_gwt(GwtTurnRecord(tick_id=batch.tick_id))
         self.ghost.commit(batch)
-        original = self.path.read_text(encoding="utf-8")
+        original = JSON_SERIALIZER.dumps(read_checkpoint(self.path)).decode("utf-8")
         corruptions = [
             ("current_knoxel_id", 0), ("current_tick_id", 0), ("reserved_tick_id", 0),
             ("revisions", {}), ("schema_id", "unknown"),
@@ -231,7 +233,7 @@ class FullSeedCheckpointTests(unittest.TestCase):
     def test_full_spamuel_round_trip_preserves_models_and_state(self):
         seed = load_seed_state()
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "ghost.json"
+            path = Path(directory) / "ghost.pickle"
             ghost = MemoryStore.from_state(ghost_state_from_dict(seed), checkpoint=path)
             ghost.commit(ghost.begin_batch("checkpoint-seed", visible_ids=[]))
             reopened = MemoryStore.from_checkpoint(path)

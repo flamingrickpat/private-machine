@@ -109,7 +109,7 @@ class ManagedRunTests(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.ghost = MemoryStore(
             PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
-            checkpoint=self.root / "ghost.json",
+            checkpoint=self.root / "ghost.pickle",
         )
         self.clock_value = 1000.0
         self.events: list[dict] = []
@@ -241,7 +241,7 @@ class ManagedRunTests(unittest.TestCase):
         artifact = Path(receipt["artifact_path"]) / "scratch/started.md"
         self.assertTrue(_wait_for(artifact.is_file))
         self.supervisor.instructions_at_boundary(run_id)
-        checkpoint = self.root / "ghost.json"
+        checkpoint = self.root / "ghost.pickle"
         before = checkpoint.stat().st_mtime_ns
         for _ in range(5):
             self.supervisor.instructions_at_boundary(run_id)
@@ -316,7 +316,7 @@ class ManagedRunTests(unittest.TestCase):
         )
         run_id = receipt["run_id"]
         self.assertTrue(_wait_for(lambda: self.supervisor.status(run_id)["state"] == "completed"))
-        reopened = MemoryStore.from_checkpoint(self.root / "ghost.json")
+        reopened = MemoryStore.from_checkpoint(self.root / "ghost.pickle")
         self.assertEqual(reopened.managed_runs[run_id]["state"], "completed")
         self.assertEqual(reopened.managed_runs[run_id]["action_id"], "action-6")
 

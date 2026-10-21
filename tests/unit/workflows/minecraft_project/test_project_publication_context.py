@@ -1,7 +1,8 @@
 """Check publication repair against original failed native receipts."""
 from __future__ import annotations
 
-import copy
+from pm.records.copying import pickle_copy
+
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -29,7 +30,7 @@ class PublicationContextTests(unittest.TestCase):
             store.write(relative, original)
             store.state.update(project_check=relative, goal=capture["tree"]["nodes"][0]["instruction"],
                                feedback=capture["planner_payload"]["feedback"])
-            before = copy.deepcopy(store.state)
+            before = pickle_copy(store.state)
             check = project_check_context(store)
             self.assertEqual(check["errors"], original["result"]["errors"])
             self.assertFalse(check["checks"]["tested_saved_route"])
@@ -64,9 +65,9 @@ class PublicationContextTests(unittest.TestCase):
         # These translated positions test numeric tolerance only. They are
         # derived operands and do not claim a successful real Minecraft trip.
         start = observation(capture["observations"][0]["observations"][0])
-        returned = copy.deepcopy(start)
+        returned = pickle_copy(start)
         for distance, expected in ((7.9,False),(8,True),(10.3,True),(12,True),(12.1,False)):
-            excursion = copy.deepcopy(start)
+            excursion = pickle_copy(start)
             excursion["position"]["x"] += distance
             self.assertEqual(route_trial(start, excursion, returned), expected)
         excursion["position"]["x"] = start["position"]["x"] + 10

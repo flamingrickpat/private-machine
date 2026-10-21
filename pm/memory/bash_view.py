@@ -8,38 +8,42 @@ resolves each record lazily from the snapshot instead of copying it.
 from __future__ import annotations
 
 import posixpath
+import json
 import shlex
+from collections.abc import Mapping
 from pathlib import Path
 
-from pm.utils import yaml_util
+from pm.records.base import RecordBase
+from pm.records.global_workspace import GwtTurnRecord
+from pm.memory.snapshot import Snapshot, RecordPayloads
+from pm.memory.yaml_codec import RecordPayload
 
 from pm_bash_machine import Access, BashMachine
 from pm_workflows.working_target import AgentTarget, CommandResult, WorkingEnvironment, WorkingTarget
 
 
 class _LazyRecordFile:
-    """A BashMachine content entry that renders YAML only on first read."""
+    """Render a shared record as JSON when a tool reads the virtual file."""
 
-    def __init__(self, data: dict):
+    def __init__(self, data: RecordBase | GwtTurnRecord | dict):
         self._data = data
-        self._rendered: str | None = None
 
     def content(self) -> str:
-        if self._rendered is None:
-            self._rendered = yaml_util.safe_dump(
-                self._data, sort_keys=False, allow_unicode=True,
-            )
-        return self._rendered
+        data = self._data
+        if isinstance(data, RecordBase):
+            data = data.as_payload(include_embedding=False)
+        elif isinstance(data, GwtTurnRecord):
+            data = data.model_dump(mode="json")
+        return json.dumps(data, ensure_ascii=False, indent=2)
 
 
-def _index_entry(knoxel_id: int, record: dict) -> dict:
-    data = record["data"]
-    summary = str(data.get("content", ""))
+def _index_entry(knoxel_id: int, record: RecordBase) -> dict:
+    summary = record.content
     if len(summary) > 80:
         summary = summary[:77] + "..."
     return {
         "id": knoxel_id,
-        "type": record["__type__"],
+        "type": record.type.value,
         "summary": summary,
     }
 
@@ -47,17 +51,29 @@ def _index_entry(knoxel_id: int, record: dict) -> dict:
 class MemoryBashEnvironment(WorkingEnvironment):
     """One read-only MemoryStore projection inside a fresh in-memory BashMachine."""
 
+    records: dict[int, RecordBase]
+    turns: dict[int, GwtTurnRecord]
+    visible_knoxels: RecordPayloads
+    visible_gwt: dict[int, dict]
+    ghost_view: Snapshot | None
+
     def agent_target(self, artifact_workspace: Path) -> AgentTarget:
         return AgentTarget(artifact_workspace, self.machine, "workflow")
 
     def __init__(
         self,
-        visible_knoxels: dict[int, dict],
-        visible_gwt: dict[int, dict],
+        visible_knoxels: Mapping[int, RecordBase | dict],
+        visible_gwt: Mapping[int, GwtTurnRecord | dict],
         mode: str,
+        *, ghost_view: Snapshot | None = None,
     ):
-        self.visible_knoxels = visible_knoxels
-        self.visible_gwt = visible_gwt
+        self.records = {key: record if isinstance(record, RecordBase) else RecordPayload.model_validate(record).root
+                        for key, record in visible_knoxels.items()}
+        self.turns = {key: turn if isinstance(turn, GwtTurnRecord) else GwtTurnRecord.model_validate(turn)
+                      for key, turn in visible_gwt.items()}
+        self.visible_knoxels = RecordPayloads(self.records)
+        self.visible_gwt = {key: turn.model_dump(mode="json") for key, turn in self.turns.items()}
+        self.ghost_view = ghost_view
         self.machine = BashMachine()
 
         # Host-only skeleton setup in one bash call. The workflow user's first
@@ -71,14 +87,14 @@ class MemoryBashEnvironment(WorkingEnvironment):
 
         index = {"mode": mode, "knoxels": []}
         files = {}
-        for knoxel_id in sorted(visible_knoxels):
-            record = visible_knoxels[knoxel_id]
+        for knoxel_id in sorted(self.records):
+            record = self.records[knoxel_id]
             path = f"/work/ghost/knoxels/{knoxel_id}.yaml"
             files[path] = _LazyRecordFile(record)
             index["knoxels"].append(_index_entry(knoxel_id, record))
-        for tick in sorted(visible_gwt):
+        for tick in sorted(self.turns):
             path = f"/work/ghost/gwt/{tick}.yaml"
-            files[path] = _LazyRecordFile(visible_gwt[tick])
+            files[path] = _LazyRecordFile(self.turns[tick])
         files["/work/ghost/index.yaml"] = _LazyRecordFile(index)
         self.machine.write_texts(files, access=Access.R)
 
@@ -153,8 +169,7 @@ class MemoryBashTarget(WorkingTarget):
 
     def open(self, invocation_id: str) -> MemoryBashEnvironment:
         view = self.ghost.snapshot(self.visible_ids)
-        environment = MemoryBashEnvironment(view.serialize_knoxels(), view.serialize_gwt(), self.mode)
-        environment.ghost_view = view
+        environment = MemoryBashEnvironment(view.all_knoxels, view._gwt, self.mode, ghost_view=view)
         return environment
 
 

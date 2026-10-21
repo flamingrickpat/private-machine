@@ -42,7 +42,7 @@ class GameChoiceTests(unittest.TestCase):
         ghost = small_ghost()
         directory = TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        path = Path(directory.name) / "checkpoint.json"
+        path = Path(directory.name) / "checkpoint.pickle"
         ghost.checkpoint = path
         first = ghost.begin_batch("choose-house")
         added = apply_goal_changes(first, first.view(), [GoalChange(change="add", goal="build house",

@@ -1,7 +1,8 @@
 """Run states, run errors, and the durable receipt of one managed run."""
 from __future__ import annotations
 
-from copy import deepcopy
+from pm.records.copying import pickle_copy
+
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -90,6 +91,6 @@ class ManagedRunReceipt:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "ManagedRunReceipt":
-        known = {name: deepcopy(data[name]) for name in cls.__dataclass_fields__ if name in data}
+        known = {name: pickle_copy(data[name]) for name in cls.__dataclass_fields__ if name in data}
         return cls(**known)
 

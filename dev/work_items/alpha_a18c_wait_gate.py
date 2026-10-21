@@ -48,8 +48,6 @@ def run(config_path: Path, out: Path, deadline_seconds: float = 1800, *, pause_o
     out.mkdir(parents=True, exist_ok=False)
     config = load_config(config_path)
     effective = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    effective["embedding"]["cache_dir"] = str(out / "embeddings")
-    effective["embedding"]["legacy_cache_dir"] = str(config.embedding.legacy_cache_dir)
     effective_path = out / "effective-config.yaml"
     effective_path.write_text(yaml.safe_dump(effective, sort_keys=False), encoding="utf-8")
     config = load_config(effective_path)
@@ -82,7 +80,7 @@ def run(config_path: Path, out: Path, deadline_seconds: float = 1800, *, pause_o
 
     def start_app():
         result = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(effective_path),
-            stage_model=model, workflow_models=models, checkpoint_path=out / "ghost.json",
+            stage_model=model, workflow_models=models, checkpoint_path=out / "ghost.pickle",
             emit_reply=reply, world_poll_seconds=None,
             cognitive_control_config={"wait_seconds": 45, "maximum_wait_seconds": 60})
         # Instrument real model entry without replacing inference or results.

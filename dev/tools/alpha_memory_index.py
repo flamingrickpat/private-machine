@@ -1,7 +1,6 @@
-"""Inspect or prepare the accepted experience index with the real service.
+"""Inspect or prepare stored record vectors with the real embedding service.
 
-Preparation writes the shared embedding cache. It does not modify the seed or
-checkpoint. An existing checkpoint supplies the source instead of the seed.
+Preparation saves the full pickle checkpoint, including all completed vectors.
 """
 from __future__ import annotations
 
@@ -15,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from pm.memory.embeddings import EmbeddingService
-from pm.memory.retrieval import scoped_records, index_chunks
+from pm.memory.retrieval import scoped_records
 from pm.memory.store import MemoryStore
 from pm.llm.config import load_config
 
@@ -27,14 +26,13 @@ async def run(args) -> None:
     view = ghost.snapshot(ids)
     scopes = {(args.reality, args.frame)} if args.reality is not None else None
     records, rejected = scoped_records(view, scopes=scopes)
-    texts, owners = index_chunks(records)
+    texts = {key: view.get(key) for key in records}
     service = EmbeddingService(load_config(args.config).embedding, live_test=True)
     before = service.inspect_index(texts)
     receipt = {"records": len(records), "total_chunks": len(texts), "indexed_before": len(before.hits), "missing_before": len(before.missing),
                "rejected": rejected, "model": service.config.model, "prepared": args.prepare, "workers": args.workers}
     if args.prepare:
         # Each worker receives only a disjoint part of this permitted snapshot.
-        # Atomic cache writes preserve completed vectors after cancellation.
         shards = [{key: text for key, text in texts.items() if key % args.workers == worker}
                   for worker in range(args.workers)]
         completed = [0] * args.workers
@@ -49,6 +47,10 @@ async def run(args) -> None:
             for worker, shard in enumerate(shards):
                 tasks.create_task(service.prepare_index(shard, progress=lambda done, total, worker=worker:
                                                         progress(worker, done, total)))
+    if args.prepare:
+        ghost.checkpoint = Path(args.checkpoint).with_suffix(".pickle") if args.checkpoint else Path(args.out).with_suffix(".pickle")
+        ghost.previous_emb_model = service.config.model
+        ghost.save()
     after = service.inspect_index(texts)
     receipt.update(indexed_after=len(after.hits), missing_after=len(after.missing))
     if args.query:

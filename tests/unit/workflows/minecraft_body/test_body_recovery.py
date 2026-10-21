@@ -134,7 +134,7 @@ class RecoveryTests(unittest.TestCase):
 
     def test_checkpoint_commit_survives_a_crash_before_its_control_mirror(self):
         ghost = small_ghost()
-        ghost.checkpoint = self.root / "ghost.json"
+        ghost.checkpoint = self.root / "ghost.pickle"
         supervisor = ManagedRunSupervisor(ghost, runtime_root=self.root, clock=lambda: 1, workflows={})
         original = ManagedRunReceipt("run", "action", "minecraft", "exchange", "running", "active",
                                      str(self.root / "task"), instructions="original", applied_revision=0)
@@ -159,7 +159,7 @@ class RecoveryTests(unittest.TestCase):
 
     def test_pending_progress_replays_its_identity_without_starting_a_worker(self):
         ghost = small_ghost()
-        ghost.checkpoint = self.root / "ghost.json"
+        ghost.checkpoint = self.root / "ghost.pickle"
         supervisor = ManagedRunSupervisor(ghost, runtime_root=self.root, clock=lambda: 1, workflows={})
         receipt = ManagedRunReceipt("run", "action", "minecraft", "exchange", "interrupted", "effect uncertain",
                                     str(self.root / "task"))

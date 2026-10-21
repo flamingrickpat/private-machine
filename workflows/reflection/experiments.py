@@ -4,7 +4,8 @@ The ledger uses existing Feature records and the MemoryStore checkpoint.
 Every lifecycle step checks its source revisions. No helper commits or sends
 an event. The private host owns cancellation, persistence, and publication.
 """
-from copy import deepcopy
+
+from pm.records.copying import pickle_copy
 from datetime import datetime, timedelta
 
 from pm.memory.snapshot import GhostConflict
@@ -80,7 +81,7 @@ def context(view) -> dict:
     return {"experiments": [{"record_id": item.id, "revision": view.revisions[item.id],
                               "stale_source_ids": [int(key) for key, revision in item.metadata["source_revisions"].items()
                                                    if view.revisions.get(int(key)) != revision],
-                              **deepcopy(item.metadata),
+                              **pickle_copy(item.metadata),
                               "observation_grant": observation_grant(item.id, item.metadata, rows)} for item in selected],
             "omitted_experiments": len(all_items) - len(selected),
             "attention_head_id": max(focus) if focus else None,
@@ -128,12 +129,11 @@ def source_payload(view, record) -> dict:
     """Expose original content, provenance, and execution metadata with a revision."""
     from pm.memory.references import referenced_ids
     from pm.memory.retrieval import evidence_role
-    from pm.memory.yaml_codec import _serialize_knoxel
     return {"knoxel_id": record.id, "revision": view.revisions[record.id],
             "tick_id": record.tick_id, "text": str(record.content),
-            "kind": type(record).__name__, "metadata": deepcopy(record.metadata),
+            "kind": type(record).__name__, "metadata": pickle_copy(record.metadata),
             "reference_ids": sorted(referenced_ids(record)),
-            "evidence_role": evidence_role(view, _serialize_knoxel(record)),
+            "evidence_role": evidence_role(view, (record).as_payload()),
             "source": str(getattr(record, "source", "")),
             "provenance": record.provenance.model_dump(mode="json") if record.provenance else None,
             **({"belief_kind": record.belief_kind, "active": record.active,
@@ -258,7 +258,7 @@ def stage_decision(batch, view, decision: ReflectionDecision, payload: dict, *,
             source=companion_name, source_kind=SourceKind.Self, changes=batch, metadata=data)
     record = view.get(decision.experiment_id)
     batch.expect_revision(record.id, supplied[record.id])
-    data = deepcopy(record.metadata)
+    data = pickle_copy(record.metadata)
     data["reviewed_source_id"] = payload.get("newest_observation_id", 0)
     action = decision.action
     plan = ExperimentPlan.model_validate(data["plan"])
@@ -329,7 +329,7 @@ def _capture_previous(view, plan: ExperimentPlan) -> dict:
         if change.expected_record_id != head:
             raise GhostConflict("Attention advice changed before the experiment proposal.")
         previous = view.get(head).metadata if head is not None else {}
-        return {"record_id": head, "focus": deepcopy(previous.get("focus", {})),
+        return {"record_id": head, "focus": pickle_copy(previous.get("focus", {})),
                 "expires_at": previous.get("expires_at")}
     record = view.get(change.expected_record_id)
     from workflows.main_cognition.cycle_commits import subjective_belief

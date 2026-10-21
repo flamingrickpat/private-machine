@@ -81,7 +81,7 @@ def run(config_path: Path, out: Path, *, exercise_cognition: bool = False, fault
         parent = json.loads(recall_checkpoint.with_name("receipt.json").read_text(encoding="utf-8"))
         if not parent.get("passed"):
             raise ValueError("The source recall gate needs a completed passing receipt before checkpoint reuse.")
-        shutil.copy2(recall_checkpoint, out / "ghost.json")
+        shutil.copy2(recall_checkpoint, out / "ghost.pickle")
         save(out / "parent-receipt.json", parent)
         source_cache = recall_checkpoint.parent / "embeddings"
         if source_cache.is_dir():
@@ -97,8 +97,6 @@ def run(config_path: Path, out: Path, *, exercise_cognition: bool = False, fault
             connection.pop("api_key_env", None)
             connection["api_key"] = "a18c-deliberately-invalid-key"
             connection["context_window"] = 100000
-    effective["embedding"]["cache_dir"] = str(out / "embeddings")
-    effective["embedding"]["legacy_cache_dir"] = str(config.embedding.legacy_cache_dir)
     effective_path = out / "effective-config.yaml"
     effective_path.write_text(yaml.safe_dump(effective, sort_keys=False), encoding="utf-8")
     config = load_config(effective_path)
@@ -114,7 +112,7 @@ def run(config_path: Path, out: Path, *, exercise_cognition: bool = False, fault
     events = []
     try:
         app = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(effective_path),
-                        stage_model=model, workflow_models=models, checkpoint_path=out / "ghost.json",
+                        stage_model=model, workflow_models=models, checkpoint_path=out / "ghost.pickle",
                         world_poll_seconds=None, record_lifecycle=False,
                         cognitive_control_config={"episode_steps": 3, "stalled_steps": 2,
                                                   "wait_seconds": 45, "maximum_wait_seconds": 60,
@@ -159,7 +157,7 @@ def run(config_path: Path, out: Path, *, exercise_cognition: bool = False, fault
             receipt.update(passed=True, scope="real mental-agent failure and result recovery", fault=fault,
                            outcome_id=outcome.id, error_type=outcome.metadata["error_type"])
             reopened = build_app(DEFAULT_SEED, out / "reopened", cognition="real", config_path=str(effective_path),
-                stage_model=model, workflow_models=models, checkpoint_path=out / "ghost.json",
+                stage_model=model, workflow_models=models, checkpoint_path=out / "ghost.pickle",
                 world_poll_seconds=None, record_lifecycle=False)
             pending = reopened.main_cog.mailbox.take_batch(reopened.main_cog.stop_event, 0)
             if not any(item.payload.get("knoxel_id") == outcome.id for item in pending):

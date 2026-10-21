@@ -45,15 +45,13 @@ def case_config(source: Path, root: Path) -> Path:
     from pm.llm.config import load_config
     resolved = load_config(source)
     data = yaml.safe_load(source.read_text(encoding="utf-8"))
-    data["embedding"].update(cache_dir=str(resolved.embedding._previous_cache_dir or resolved.embedding.cache_dir),
-                             legacy_cache_dir=str(resolved.embedding.legacy_cache_dir))
     for preset, connection in resolved.chat.items():
         if connection.startup_script is not None:
             data["chat"][preset.value]["startup_script"] = str(connection.startup_script)
     path = root / "model-config.yaml"
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     save_json(root / "effective-config-origin.json", {"source_sha256": sha256_file(source),
-        "effective_sha256": sha256_file(path), "embedding_cache": str(resolved.embedding.cache_dir),
+        "effective_sha256": sha256_file(path), "embedding_model": resolved.embedding.model,
         "scope": "Model settings and the shared cache root stay unchanged; source-relative paths are resolved."})
     return path
 
@@ -439,7 +437,7 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
         if stack is not None:
             observe_world("initial")
         pending_facts.extend(capability_facts(scenario, now()))
-        ghost = shift_history(root) if scenario.chronology == "recent" else MemoryStore.from_yaml(SEED, checkpoint=root / "ghost.json")
+        ghost = shift_history(root) if scenario.chronology == "recent" else MemoryStore.from_yaml(SEED, checkpoint=root / "ghost.pickle")
         receipt["seed_records"] = len(ghost.all_knoxels)
         background = ghost.dialogue_history(user="Jesse")[-8:]
         rows.extend({"at": item["timestamp"], "speaker": item["speaker"], "text": item["text"]} for item in background)
@@ -532,7 +530,7 @@ def run_case(scenario: Scenario, suite: Suite, config: Path, root: Path, seed: i
                     # Offline time belongs to the case deadline. STOP must
                     # interrupt it before another application starts.
                     wait(scene.offline_seconds)
-                    ghost = MemoryStore.from_checkpoint(root / "ghost.json")
+                    ghost = MemoryStore.from_checkpoint(root / "ghost.pickle")
                     with row_lock:
                         postrestarts.append({"scene": index, "started_at": now(), "start_message_count": len(rows)})
                     start_episode(index)

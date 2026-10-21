@@ -11,6 +11,8 @@ and do no I/O. The caller supplies embeddings and token counts as functions.
 """
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 import math
 import random
 from typing import Callable, Collection
@@ -175,7 +177,7 @@ class SituationalModel(BaseModel):
             if target is not None:
                 target.merged_ids.append(item.record_id)
         if target is None:
-            added = item.model_copy(deep=True)
+            added = pickle_copy(item)
             if endorser not in added.endorsers:
                 added.endorsers.append(endorser)
             self.items[added.record_id] = added

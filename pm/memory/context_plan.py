@@ -28,7 +28,7 @@ Lane rules:
   plan runs again. This repeats at most ``redistribution_rounds`` times.
 
 The planner is pure. It never reads the MemoryStore, calls a model, or embeds
-text. The caller supplies serialized records (already filtered by frontier and
+text. The caller supplies typed record references (already filtered by frontier and
 scope), a vector lookup, and a token counter. Records without a vector score
 by their lexical and importance terms only.
 """
@@ -43,6 +43,8 @@ from typing import Callable, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from pm.memory.embeddings import valid_vector
+from pm.records.base import RecordBase
+from pm.records.memory_records import Feature, MemoryClusterRecord, DeclarativeFactRecord, SemanticRecord
 from pm.memory.retrieval import distinctive_terms, record_text, utc_time
 
 
@@ -131,33 +133,30 @@ class ContextPlan(BaseModel):
         return [key for lane in self.lanes for key in lane.ids]
 
 
-def _timestamp(raw: dict) -> datetime:
-    data = raw["data"]
-    return utc_time(data.get("timestamp_world_begin") or data.get("timestamp_creation") or "1970-01-01T00:00:00")
+def _timestamp(raw: RecordBase) -> datetime:
+    return utc_time(raw.timestamp_world_begin)
 
 
-def _end_timestamp(raw: dict) -> datetime:
-    data = raw["data"]
-    return utc_time(data.get("timestamp_world_end") or data.get("timestamp_world_begin") or "1970-01-01T00:00:00")
+def _end_timestamp(raw: RecordBase) -> datetime:
+    return utc_time(raw.timestamp_world_end)
 
 
-def _matches(raw: dict, lane: LaneSpec) -> bool:
-    data = raw["data"]
-    if lane.record_types and raw["__type__"] not in lane.record_types:
+def _matches(raw: RecordBase, lane: LaneSpec) -> bool:
+    if lane.record_types and raw.type.value not in lane.record_types:
         return False
-    if lane.feature_types and str(data.get("feature_type", "")) not in lane.feature_types:
+    if lane.feature_types and (not isinstance(raw, Feature) or raw.feature_type.value not in lane.feature_types):
         return False
-    if lane.cluster_types and str(data.get("cluster_type", "")) not in lane.cluster_types:
+    if lane.cluster_types and (not isinstance(raw, MemoryClusterRecord) or raw.cluster_type.value not in lane.cluster_types):
         return False
     return True
 
 
-def _latest_per(keys: list[int], records: dict, fields: list[str]) -> list[int]:
+def _latest_per(keys: list[int], records: dict[int, RecordBase], fields: list[str]) -> list[int]:
     if not fields:
         return keys
     newest: dict[tuple, int] = {}
     for key in keys:
-        group = tuple(str(records[key]["data"].get(field, "")) for field in fields)
+        group = tuple(str(getattr(records[key], field, "")) for field in fields)
         if group not in newest or (_timestamp(records[key]), key) > (_timestamp(records[newest[group]]), newest[group]):
             newest[group] = key
     kept = set(newest.values())
@@ -167,7 +166,7 @@ def _latest_per(keys: list[int], records: dict, fields: list[str]) -> list[int]:
 class _Scorer:
     """Score records against one focus. Lexical weights use inverse frequency."""
 
-    def __init__(self, records: dict, focus: Focus, vector_of: Callable[[int], list[float] | None], now: datetime):
+    def __init__(self, records: dict[int, RecordBase], focus: Focus, vector_of: Callable[[int], list[float] | None], now: datetime):
         self.records = records
         self.focus = focus
         self.vector_of = vector_of
@@ -222,7 +221,8 @@ class _Scorer:
                                    if vector is not None and self._queries else 0.0)
         semantic = self._semantic[key]
         lexical = self._lexical_raw(key) / self.lexical_max
-        importance = float(self.records[key]["data"].get("importance", 0.0) or 0.0)
+        record = self.records[key]
+        importance = record.importance if isinstance(record, (DeclarativeFactRecord, SemanticRecord)) else 0.0
         value = weights.semantic * semantic + weights.lexical * lexical + weights.importance * importance
         if weights.decay_per_day is not None:
             age = max(0.0, (self.now - _timestamp(self.records[key])).total_seconds() / 86400.0)
@@ -230,7 +230,7 @@ class _Scorer:
         return round(value, 6)
 
 
-def _run_pass(records: dict, spec: PlanSpec, budgets: dict[str, int], scorer: _Scorer,
+def _run_pass(records: dict[int, RecordBase], spec: PlanSpec, budgets: dict[str, int], scorer: _Scorer,
               tokens_of: Callable[[int], int]) -> list[LanePlan]:
     """Run every lane once with the given budgets."""
     excluded = {int(key) for key in scorer.focus.exclude_ids}
@@ -280,13 +280,13 @@ def _run_pass(records: dict, spec: PlanSpec, budgets: dict[str, int], scorer: _S
     return [results[lane.name] for lane in spec.lanes]
 
 
-def plan_context(records: dict[int, dict], spec: PlanSpec, focus: Focus, *,
+def plan_context(records: dict[int, RecordBase], spec: PlanSpec, focus: Focus, *,
                  vector_of: Callable[[int], list[float] | None], tokens_of: Callable[[int], int],
                  now: datetime) -> ContextPlan:
     """Plan all lanes, then move unused budget to priority lanes and plan again.
 
-    ``records`` maps record id to its serialized form. ``vector_of`` returns a
-    cached embedding or None. ``tokens_of`` returns the rendered token cost of
+    ``records`` maps each record ID to its shared typed record. ``vector_of`` returns a
+    stored record embedding or None. ``tokens_of`` returns the rendered token cost of
     one record. Raises ``ValueError`` for a lane name that appears twice or
     an unknown lane in ``priority`` or ``before_lane``.
     Vectors must remain fixed during this call. Each call owns its caches,

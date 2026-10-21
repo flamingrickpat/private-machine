@@ -1,6 +1,8 @@
 """Inspect actual folder and MemoryStore inputs, then run a bound-input agent."""
 from __future__ import annotations
 
+from pm.memory.checkpoint import read_checkpoint
+
 import argparse
 import asyncio
 import hashlib
@@ -101,8 +103,8 @@ def main() -> None:
     original_memory = virtual.read_text(memory_path)
     report = REPORT.read_text(encoding="utf-8")
     assert yaml.safe_load(report)["answer"] == ""
-    checkpoint = json.loads((REPORT.parents[3] / "ghost.json").read_text(encoding="utf-8"))
-    run_state = checkpoint["managed_runs"][REPORT.parent.parent.name]["state"]
+    checkpoint = read_checkpoint(REPORT.parents[3] / "ghost.pickle")
+    run_state = checkpoint.managed_runs[REPORT.parent.parent.name]["state"]
     assert run_state == "completed"
     virtual.write_text("reports/captured.yaml", report)
     connection = resolve_connection(load_config(args.config))

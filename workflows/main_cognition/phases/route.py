@@ -28,6 +28,8 @@ expectations at commit and publishes the released dispatches after it.
 """
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 import hashlib
 import json
 
@@ -157,7 +159,7 @@ def action_dispatches(routes: list[RoutedDecision]) -> list[ActionDispatch]:
         dispatch = ActionDispatch(
             workflow_name=answer.workflow_name, action_type=answer.action_type, content=item.decision,
             arguments=decision_goal_arguments(answer.workflow_name, answer.arguments),
-            presentation=answer.presentation.model_copy(deep=True),
+            presentation=pickle_copy(answer.presentation),
             group=item.group, stimulus_ids=list(item.stimulus_ids), correlation_id=item.correlation_id)
         dispatch.action_id = stable_action_id(dispatch, index)
         dispatches.append(dispatch)
@@ -173,7 +175,7 @@ def decision_goal_arguments(workflow_name: str, arguments: ActionArguments) -> A
     """
     target = arguments.workflow_name if workflow_name == "self_management" and arguments.operation == "start" else workflow_name
     if target not in DECISION_GOAL_WORKFLOWS:
-        return arguments.model_copy(deep=True)
+        return pickle_copy(arguments)
     return ActionArguments.model_validate({key: value for key, value in arguments.payload().items()
                                            if key not in {"instructions", "instruction"}})
 

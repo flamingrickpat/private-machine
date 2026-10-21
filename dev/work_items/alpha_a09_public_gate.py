@@ -46,7 +46,7 @@ def run(args):
     out.mkdir(parents=True, exist_ok=False)
     selected = set(getattr(args, "case", None) or CASE_NAMES)
     ghost = MemoryStore.from_checkpoint(args.checkpoint)
-    ghost.checkpoint = out / "ghost.json"
+    ghost.checkpoint = out / "ghost.pickle"
     receipt = {"ok": False, "scope": "operator-selected actions; real generation and publication",
                "source_checkpoint": str(args.checkpoint.resolve()),
                "source_sha256": hashlib.sha256(args.checkpoint.read_bytes()).hexdigest(),

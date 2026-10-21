@@ -208,7 +208,7 @@ def observe_ontology(ghost, *, threshold: float = BIND_THRESHOLD, max_bindings: 
                     continue
                 old_id = active.get(term_id)
                 if old_id is not None:
-                    old = batch.view().get(old_id)
+                    old = batch.view().get(old_id).copy_for_edit()
                     if (old is not None and list(old.bound_knoxel_ids) == support_ids
                             and abs(float(old.fit_score) - min(1.0, intensity)) < 0.02):
                         continue

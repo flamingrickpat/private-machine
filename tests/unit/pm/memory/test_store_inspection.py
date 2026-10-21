@@ -26,25 +26,25 @@ class GhostInspectionTests(unittest.TestCase):
         self.assertEqual(len(self.ghost.dialogue_history(visible_ids=[self.jesse.id])), 1)
         self.assertEqual(self.ghost.dialogue_history(visible_ids=[]), [])
 
-    def test_search_uses_real_cache_and_reports_incomplete_coverage(self):
+    def test_search_uses_stored_vectors_and_scoped_faiss(self):
         with tempfile.TemporaryDirectory() as directory:
             embeddings = EmbeddingService(EmbeddingConfig(base_url="http://127.0.0.1:1/v1", model="fixture",
                 dimensions=2, legacy_cache_dir=Path(directory)/"legacy", cache_dir=Path(directory)/"cache"))
-            embeddings.cache.put("hello", [1., 0.])
-            embeddings.cache.put("query", [1., 0.])
-            result = asyncio.run(self.ghost.search_memory("query", embeddings))
-            self.assertEqual(result["indexed"], 1)
-            self.assertEqual(result["missing"], 1)
+            self.jesse.embedding = [1.0, 0.0]
+            self.spamuel.embedding = [0.0, 1.0]
+            result = asyncio.run(self.ghost.search_memory("hello", embeddings))
+            self.assertEqual(result["indexed"], 2)
+            self.assertEqual(result["missing"], 0)
             self.assertEqual(result["matches"][0]["id"], self.jesse.id)
-            hidden = asyncio.run(self.ghost.search_memory("query", embeddings, visible_ids=[self.spamuel.id]))
-            self.assertEqual(hidden["matches"], [])
-            filtered = asyncio.run(self.ghost.search_memory("query", embeddings,
+            hidden = asyncio.run(self.ghost.search_memory("world", embeddings, visible_ids=[self.spamuel.id]))
+            self.assertEqual([row["id"] for row in hidden["matches"]], [self.spamuel.id])
+            filtered = asyncio.run(self.ghost.search_memory("hello", embeddings,
                 record_type="Feature", subtype="feature_type: Dialogue"))
             self.assertEqual(filtered["total"], 2)
-            excluded = asyncio.run(self.ghost.search_memory("query", embeddings,
+            excluded = asyncio.run(self.ghost.search_memory("hello", embeddings,
                 record_type="Action"))
             self.assertEqual(excluded["total"], 0)
-            excluded = asyncio.run(self.ghost.search_memory("query", embeddings,
+            excluded = asyncio.run(self.ghost.search_memory("hello", embeddings,
                 subtype="feature_type: WorldEvent", prepare=True))
             self.assertEqual(excluded["matches"], [])
             self.assertEqual(embeddings.client.request_count, 0)

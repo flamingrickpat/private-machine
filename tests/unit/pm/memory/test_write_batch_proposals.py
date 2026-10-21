@@ -11,7 +11,6 @@ from pm.memory.store_tools import build_tools
 from pm.records.cycle_state import PersonaConfig
 from pm.records.memory_records import Feature
 from pm.records.enums import FeatureType
-from pm.memory.yaml_codec import _serialize_knoxel
 from pm.memory.bash_view import MemoryBashEnvironment, MemoryBashTarget
 from pm.runs.workflow_module import WorkflowModule
 
@@ -21,7 +20,7 @@ def _ghost() -> MemoryStore:
 
 
 def _record(content: str) -> dict:
-    return _serialize_knoxel(Feature(feature_type=FeatureType.Dialogue, content=content))
+    return (Feature(feature_type=FeatureType.Dialogue, content=content)).as_payload()
 
 
 class GhostProposalTests(unittest.TestCase):

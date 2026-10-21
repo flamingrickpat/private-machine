@@ -370,7 +370,7 @@ def run(args) -> None:
             save()
         os.environ["MINECRAFT_MCP_URL"] = stack.mcp_url
         app = build_app(ROOT / "test_data/personas/spamuel/canon.yaml", out / "app", cognition="real",
-            config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.json", record_lifecycle=False)
+            config_path=str(args.config.resolve()), checkpoint_path=out / "ghost.pickle", record_lifecycle=False)
         app.supervisor.on_error = lambda error: print(type(error).__name__, str(error), flush=True)
         tools = build_minecraft_tools(stack.mcp_url)
         tools["managed_instructions"] = lambda **kwargs: {"instruction": "Observe actual fixture failures.", "revision": 0}

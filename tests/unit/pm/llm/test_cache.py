@@ -182,7 +182,7 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(json.loads(first.read_bytes())["choices"][0]["message"]["content"], '{"value": -1}')
         self.assertEqual(json.loads(second.read_bytes())["choices"][0]["message"]["content"], '{"value": 3}')
 
-    def test_embedding_miss_then_hit_uses_no_seed_or_completion_counter(self):
+    def test_embeddings_use_no_cache_seed_or_completion_counter(self):
         requests = []
         config = EmbeddingConfig(base_url="http://embedding/v1", model="fixture", dimensions=2,
                                  legacy_cache_dir=self.root / "legacy", cache_dir=self.root)
@@ -201,9 +201,9 @@ class CacheTests(unittest.TestCase):
         second = cache.completion_path("chat", self.payload("abc"))
         self.assertEqual(first.stem[:-1], second.stem[:-1])
         self.assertTrue(second.name.endswith("_2.json"))
-        self.assertEqual(len(requests), 1)
+        self.assertEqual(len(requests), 2)
         self.assertNotIn("seed", requests[0])
-        self.assertEqual(len(list((self.root / "fixture").glob("cache_emb_*.json"))), 1)
+        self.assertEqual(list(self.root.rglob("cache_emb_*.json")), [])
 
     def test_cancellation_before_admission_does_not_consume_a_response(self):
         connection = Connection(base_url="http://cancelled-fixture/v1", model="fixture")

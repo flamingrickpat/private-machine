@@ -1,104 +1,28 @@
-"""Real cache files and scoped retrieval inputs. No fake model endpoint."""
-import hashlib
-import json
-import math
-import struct
+"""Exercise real FAISS indexes and vectors stored on typed memory records."""
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 import tempfile
 import unittest
-from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
-from pathlib import Path
 
-from pm.memory.embeddings import EmbeddingCache, EmbeddingService, cosine_similarity, parse_embedding_response
-from pm.llm.http_client import ModelError
 from pm.llm.config import EmbeddingConfig
+from pm.llm.http_client import ModelError
+from pm.memory.embeddings import EmbeddingService, cosine_similarity, parse_embedding_response
+from pm.memory.store import MemoryStore
+from pm.memory.vector_index import VectorIndex
+from pm.records.cycle_state import PersonaConfig
+from pm.records.enums import FeatureType
+from pm.records.memory_records import Feature
 
 
 class EmbeddingTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name)
-        self.legacy = self.root / "legacy"
-        self.legacy.mkdir()
-        self.config = EmbeddingConfig(
-            base_url="http://127.0.0.1:1/v1", model="perplexity/pplx-embed-v1-0.6b",
-            api_key="unused-marker", dimensions=1024,
-            legacy_cache_dir=self.legacy, cache_dir=self.root / "new",
-        )
+        self.config = EmbeddingConfig(base_url="http://127.0.0.1:1/v1", model="stored-vectors", dimensions=2)
         self.service = EmbeddingService(self.config, live_test=True)
+        self.store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
 
-    def write_legacy(self, text="Spamuel remembers Jesse.", **overrides):
-        key = hashlib.md5(text.encode("utf-8")).hexdigest()
-        vector = [3.0, 4.0] + [0.0] * 1022
-        meta = {"input": text, "model": self.config.model, "dimensions": 1024, "emb_hash": key}
-        meta.update(overrides)
-        binary = self.legacy / f"emb_hash_{key}.bin"
-        binary.write_bytes(struct.pack("<Q1024d", 1024, *vector))
-        (self.legacy / f"emb_hash_{key}.json").write_text(json.dumps(meta), encoding="utf-8")
-        return text, vector, binary
-
-    async def test_cache_hit_preserves_raw_text_and_sends_zero_requests(self):
-        text, vector, binary = self.write_legacy("  Spamuel remembers Jesse.\n")
-        before = binary.read_bytes()
-        self.assertEqual(await self.service.embed(text), vector)
-        self.assertEqual(self.service.client.request_count, 0)
-        self.assertEqual(binary.read_bytes(), before)
-        self.assertIsNone(self.service.cache.get(text.strip()))
-        self.assertFalse(self.config.cache_dir.exists())
-
-    def test_model_input_and_dimension_mismatch_are_misses(self):
-        for values in ({"model": "wrong"}, {"input": "different"}, {"dimensions": 3}):
-            with self.subTest(values=values):
-                text, _, _ = self.write_legacy(**values)
-                self.assertIsNone(self.service.cache.get(text))
-
-    def test_corrupt_and_nonfinite_binary_are_misses(self):
-        text, _, binary = self.write_legacy()
-        binary.write_bytes(b"broken")
-        self.assertIsNone(self.service.cache.get(text))
-        binary.write_bytes(struct.pack("<Q1024d", 1024, math.nan, *([0.0] * 1023)))
-        self.assertIsNone(self.service.cache.get(text))
-
-    def test_new_cache_round_trip_never_changes_legacy(self):
-        text, vector, binary = self.write_legacy()
-        before = binary.read_bytes()
-        self.service.cache.put(text + " New memory.", vector)
-        reopened = EmbeddingCache(self.config)
-        self.assertEqual(reopened.get(text + " New memory."), vector)
-        self.assertEqual(binary.read_bytes(), before)
-        self.assertEqual(len(list(self.legacy.glob("*.bin"))), 1)
-
-    def test_cache_cannot_write_inside_legacy_directory(self):
-        with self.assertRaises(ValueError):
-            EmbeddingCache(self.config.model_copy(update={"cache_dir": self.legacy / "new"}))
-
-    def test_parallel_cache_publishers_keep_one_valid_entry(self):
-        vector = [3.0, 4.0] + [0.0] * 1022
-        barrier = Barrier(8)
-
-        def publish(index):
-            cache = EmbeddingCache(self.config)
-            barrier.wait()
-            cache.put("shared model input", vector)
-
-        with ThreadPoolExecutor(max_workers=8) as pool:
-            list(pool.map(publish, range(8)))
-        self.assertEqual(self.service.cache.get("shared model input"), vector)
-        self.assertEqual(list(self.service.cache.directory.glob("*.tmp")), [])
-
-    def test_open_cache_reader_does_not_require_replacement(self):
-        vector = [3.0, 4.0] + [0.0] * 1022
-        self.service.cache.put("shared model input", vector)
-        target = self.service.cache.directory / f"cache_emb_{self.service.cache.content_key('shared model input')}.json"
-        before = target.read_bytes()
-        timestamp = target.stat().st_mtime_ns
-        with target.open("r", encoding="utf-8") as reader:
-            self.service.cache.put("shared model input", [4.0, 3.0] + [0.0] * 1022)
-            self.assertEqual(json.loads(reader.read())["vector"], vector)
-        self.assertEqual(target.read_bytes(), before)
-        self.assertEqual(target.stat().st_mtime_ns, timestamp)
-        self.assertEqual(list(self.service.cache.directory.glob("*.tmp")), [])
+    def record(self, content, vector):
+        return self.store.store_knoxel(Feature(content=content, feature_type=FeatureType.Dialogue, embedding=vector))
 
     def test_cosine_uses_both_norms(self):
         self.assertAlmostEqual(cosine_similarity([3, 4], [30, 40]), 1)
@@ -106,33 +30,77 @@ class EmbeddingTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             cosine_similarity([0, 0], [1, 0])
 
-    def test_provider_alias_is_explicit_and_wrong_vectors_fail(self):
-        config = self.config.model_copy(update={"response_model": "pplx-embed-v1-0.6b"})
-        vector = [1.0] + [0.0] * 1023
-        response = {"model": "pplx-embed-v1-0.6b", "data": [{"index": 0, "embedding": vector}]}
-        self.assertEqual(parse_embedding_response(response, config), vector)
-        with self.assertRaises(ModelError):
-            parse_embedding_response(response, self.config)
-        with self.assertRaises(ModelError):
-            parse_embedding_response({**response, "model": "unrelated-model"}, config)
-        with self.assertRaises(ModelError):
-            parse_embedding_response({**response, "data": [{"index": 0, "embedding": [1.0]}]}, config)
+    def test_provider_alias_and_invalid_vectors(self):
+        config = self.config.model_copy(update={"response_model": "provider-alias"})
+        response = {"model": "provider-alias", "data": [{"index": 0, "embedding": [1.0, 0.5]}]}
+        self.assertEqual(parse_embedding_response(response, config), [1.0, 0.5])
+        for invalid in ({**response, "model": "wrong"}, {**response, "data": [{"index": 0, "embedding": [0.0, 0.0]}]},
+                        {**response, "data": [{"index": 0, "embedding": [1.0]}]}):
+            with self.assertRaises(ModelError):
+                parse_embedding_response(invalid, config)
 
-    async def test_explicit_index_plan_and_scoped_search(self):
-        text, vector, _ = self.write_legacy()
-        self.service.cache.put("related query", vector)
-        self.service.cache.put("unrelated", [4.0, -3.0] + [0.0] * 1022)
-        self.service.cache.put("hidden memory", vector)
-        visible = {1: text, 2: "unrelated"}
-        plan = self.service.inspect_index({**visible, 3: "new memory"})
-        self.assertEqual(plan.hits, [1, 2])
-        self.assertEqual(plan.missing, [3])
-        results = await self.service.search("related query", visible)
-        self.assertEqual([record_id for record_id, _ in results], [1, 2])
+    async def test_record_vectors_are_reused_and_search_respects_membership(self):
+        first = self.record("known query", [3.0, 4.0])
+        second = self.record("orthogonal", [-4.0, 3.0])
+        hidden = self.record("hidden", [3.0, 4.0])
+        records = {first.id: first, second.id: second}
+        plan = await self.service.prepare_index(records)
+        self.assertEqual(plan.missing, [])
+        self.assertIs(await self.service.record_embedding(first), first.embedding)
+        ranked = await self.service.search(first.content, records, index=self.store.embedding_index)
+        self.assertEqual([key for key, _ in ranked], [first.id, second.id])
+        self.assertNotIn(hidden.id, dict(ranked))
+        self.assertAlmostEqual(ranked[0][1], 1.0, places=6)
         self.assertEqual(self.service.client.request_count, 0)
-        with self.assertRaises(ValueError):
-            await self.service.search("related query", {3: "new memory"})
 
+    def test_assignment_and_explicit_replacement_update_faiss(self):
+        record = self.record("one", [1.0, 0.0])
+        record.embedding = [0.0, 1.0]
+        self.assertAlmostEqual(self.store.embedding_index.search([0, 1], [record.id])[0][1], 1)
+        record.content = "changed text"
+        self.assertEqual(record.embedding, [])
+        self.assertEqual(self.store.embedding_index.search([0, 1], [record.id]), [])
+        batch = self.store.begin_batch("edit")
+        edited = record.copy_for_edit()
+        edited.embedding = [1.0, 0.0]
+        batch.replace(edited)
+        self.store.commit(batch)
+        self.assertIs(self.store.get_knoxel_by_id(record.id), edited)
+        self.assertIs(edited._owner, self.store)
+        self.assertAlmostEqual(self.store.embedding_index.search([1, 0], [record.id])[0][1], 1)
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_pickle_restart_retains_every_vector_and_rebuilds_index(self):
+        record = self.record("durable", [1.0, 0.5])
+        with tempfile.TemporaryDirectory() as directory:
+            self.store.checkpoint = Path(directory) / "ghost.pickle"
+            self.store.save()
+            restored = MemoryStore.from_checkpoint(self.store.checkpoint)
+            loaded = restored.get_knoxel_by_id(record.id)
+            self.assertEqual(loaded.embedding, record.embedding)
+            self.assertIs(restored.snapshot().get(record.id), loaded)
+            self.assertIs(loaded._owner, restored)
+            self.assertAlmostEqual(restored.embedding_index.search(record.embedding, [record.id])[0][1], 1, places=6)
+
+    def test_native_index_reads_and_writes_share_a_lock(self):
+        index = VectorIndex()
+        records = [Feature(id=key, content=str(key), feature_type=FeatureType.Dialogue, embedding=[1.0, float(key)])
+                   for key in range(40)]
+        index.rebuild(records)
+        def change(record):
+            index.update(record)
+            return len(index.search([1, 0], range(40)))
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            self.assertEqual(list(workers.map(change, records)), [40] * 40)
+
+    def test_empty_index_accepts_the_next_models_dimension(self):
+        record = self.record("changing model", [1.0, 0.0])
+        record.embedding = []
+        record.embedding = [1.0, 0.0, 0.0]
+        self.assertAlmostEqual(self.store.embedding_index.search(record.embedding, [record.id])[0][1], 1.0)
+
+    async def test_unavailable_provider_keeps_the_record_unembedded(self):
+        record = self.record("needs inference", [])
+        with self.assertRaises(ModelError):
+            await self.service.prepare_index({record.id: record})
+        self.assertEqual(record.embedding, [])
+        self.assertEqual(self.service.inspect_index({record.id: record}).missing, [record.id])

@@ -77,7 +77,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             with self.subTest(use_control=use_control), TemporaryDirectory() as directory:
                 root = Path(directory)
                 ghost = _small_ghost()
-                ghost.checkpoint = root / "ghost.json"
+                ghost.checkpoint = root / "ghost.pickle"
                 stimulus_id = _store(ghost, "the kitchen is on fire")
                 bus = BusSystem()
                 module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
@@ -89,7 +89,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
                         "cognitive_control", bus, self.fail, ManualClock(), None, ghost=ghost)
 
                 def receive(envelope):
-                    backups = list(root.glob("ghost_*.json"))
+                    backups = list(root.glob("ghost_*.pickle"))
                     self.assertEqual(len(backups), 1)
                     self.assertEqual(read_checkpoint(backups[0]), read_checkpoint(ghost.checkpoint))
 
@@ -97,7 +97,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 module.deliver(Envelope(id=new_id(), source="user_input", kind="data", topic="user.input",
                     correlation_id="completed-user", payload={"knoxel_id": stimulus_id}))
                 self.assertTrue(module.step(block=False))
-                backups = list(root.glob("ghost_*.json"))
+                backups = list(root.glob("ghost_*.pickle"))
                 self.assertEqual(len(backups), 1)
                 completed = read_checkpoint(backups[0])
                 self.assertIn(ghost.current_tick_id, completed.gwt_turns)
@@ -110,7 +110,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
                 with self.assertRaises(FileNotFoundError):
                     module.step(block=False)
 
-                self.assertEqual(list(root.glob("ghost_*.json")), backups)
+                self.assertEqual(list(root.glob("ghost_*.pickle")), backups)
                 restored = MemoryStore.from_checkpoint(backups[0])
                 self.assertEqual(restored.state_dict(), completed.state)
                 self.assertEqual(restored.gwt_turns, completed.gwt_turns)
@@ -219,7 +219,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             return scripted(messages, **generation)
 
         with TemporaryDirectory() as tmp:
-            ghost.checkpoint = Path(tmp) / "ghost.json"
+            ghost.checkpoint = Path(tmp) / "ghost.pickle"
             bus = BusSystem()
             errors = []
             module = MainCogLoop("main_cog", bus, errors.append, ManualClock(), None,
@@ -235,7 +235,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(len(requests.events), 1)
             self.assertEqual(requests.events[0].correlation_id, "retained-user")
             self.assertEqual(len(list(Path(tmp).rglob("model-output-rejection.json"))), 1)
-            self.assertEqual(len(list(Path(tmp).glob("ghost_*.json"))), 1)
+            self.assertEqual(len(list(Path(tmp).glob("ghost_*.pickle"))), 1)
             self.assertEqual(errors, [])
 
     def test_a_failed_provider_completion_retries_the_whole_cycle(self):
@@ -279,7 +279,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             raise ModelFormatError("Captured model syntax stayed invalid.")
 
         with TemporaryDirectory() as tmp:
-            ghost.checkpoint = Path(tmp) / "ghost.json"
+            ghost.checkpoint = Path(tmp) / "ghost.pickle"
             bus = BusSystem()
             module = MainCogLoop("main_cog", bus, self.fail, ManualClock(), None,
                 working_target=MemoryBashTarget(ghost, "read"), workflow=REAL_MANIFEST,
@@ -291,7 +291,7 @@ class MainCogLoopWiringTests(unittest.TestCase):
             self.assertEqual(len(calls), 1)
             self.assertEqual(requests.events, [])
             self.assertEqual(ghost.gwt_turns_of("main"), [])
-            self.assertEqual(list(Path(tmp).glob("ghost_*.json")), [])
+            self.assertEqual(list(Path(tmp).glob("ghost_*.pickle")), [])
 
     def test_real_parent_commits_gwt_and_publishes_a_typed_dispatch(self):
         ghost = _small_ghost()

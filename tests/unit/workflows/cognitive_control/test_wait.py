@@ -57,7 +57,7 @@ class WaitTests(unittest.TestCase):
 
     def test_wait_is_durable_and_timer_makes_no_event_before_deadline(self):
         with TemporaryDirectory() as tmp:
-            self.ghost.checkpoint = Path(tmp) / "ghost.json"
+            self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
             self.arm()
             self.control.handle_batch([])
             reopened = MemoryStore.from_checkpoint(self.ghost.checkpoint)
@@ -113,7 +113,7 @@ class WaitTests(unittest.TestCase):
 
     def test_timeout_commits_once_and_replays_only_until_main_acknowledges(self):
         with TemporaryDirectory() as tmp:
-            self.ghost.checkpoint = Path(tmp) / "ghost.json"
+            self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
             self.arm()
             self.now += timedelta(seconds=50)
             self.control.handle_batch([])
@@ -134,7 +134,7 @@ class WaitTests(unittest.TestCase):
 
     def test_crash_after_wake_commit_before_delivery_does_not_lose_wake(self):
         with TemporaryDirectory() as tmp:
-            self.ghost.checkpoint = Path(tmp) / "ghost.json"
+            self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
             self.arm()
             self.now += timedelta(seconds=30)
             def broken_delivery(envelope, recipient):
@@ -236,6 +236,8 @@ class KernelWaitTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             control = CognitiveControl("cognitive_control", BusSystem(), self.fail, ManualClock(), 1, ghost=ghost)
             control.commit(ghost.begin_batch("accepted-wait"), WaitRequest(seconds=300), 0, source_ids=[source.id])
+            for record in ghost.all_knoxels.values():
+                record.embedding = [1.0] + [0.0] * 767
             app = build_app(None, Path(tmp), ghost=ghost, cognition="real",
                             config_path="config.example.yaml", record_lifecycle=False, world_poll_seconds=None)
             try:
@@ -257,6 +259,8 @@ class KernelWaitTests(unittest.TestCase):
         now[0] += timedelta(seconds=3)
         control.handle_batch([])
         with TemporaryDirectory() as tmp:
+            for record in ghost.all_knoxels.values():
+                record.embedding = [1.0] + [0.0] * 767
             app = build_app(None, Path(tmp), ghost=ghost, cognition="real",
                             config_path="config.example.yaml", record_lifecycle=False, world_poll_seconds=None)
             try:

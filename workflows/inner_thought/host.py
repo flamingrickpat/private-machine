@@ -14,6 +14,8 @@ mental state directly: only the main appraisal path does that.
 """
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 from datetime import datetime, timedelta
 import json
 from threading import Event
@@ -207,7 +209,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
         # unchanged. A typed copy keeps the personality and the expression
         # readouts, which a vector round trip would lose. Before the first
         # cycle the state is the EMA readout of an empty history: the defaults.
-        mental_state = (previous_cycle.mental_state.model_copy(deep=True)
+        mental_state = (pickle_copy(previous_cycle.mental_state)
                         if previous_cycle is not None else FullMentalState())
         age_seconds = max(0.0, (datetime.utcnow() - previous_cycle.timestamp).total_seconds()) \
             if previous_cycle is not None else 0.0
@@ -609,7 +611,7 @@ class PrivateThoughtLoop(CognitiveWorkflow):
             if reason is None:
                 return
             changes = self.ghost.begin_batch(f"episode-end:{thought.id}:{reason}", cancel=self.stop_event)
-            current = changes.view().get(thought.id)
+            current = changes.view().get(thought.id).copy_for_edit()
             current.metadata["episode"] = {**episode, "closed": True, "closed_reason": reason,
                                            "elapsed_seconds": elapsed}
             changes.replace(current)

@@ -73,7 +73,7 @@ def command_accept(args) -> int:
     embedding = EmbeddingService(config.embedding, live_test=args.live_test)
 
     run_root = _run_root(args.runtime_root)
-    ghost = MemoryStore.from_yaml(args.seed, checkpoint=run_root / "ghost.json")
+    ghost = MemoryStore.from_yaml(args.seed, checkpoint=run_root / "ghost.pickle")
     situation = engine.read_yaml(args.situation)
     request = _plan_request(ghost, embedding, situation)
     prompts = load_prompts()
@@ -106,7 +106,7 @@ def command_accept(args) -> int:
     print(f"accepted: {report.accepted}")
     print(f"candidate: {report.candidate!r}")
     if commit is not None:
-        print(f"committed knoxel {commit['knoxel_id']} under checkpoint {run_root / 'ghost.json'}")
+        print(f"committed knoxel {commit['knoxel_id']} under checkpoint {run_root / 'ghost.pickle'}")
     if not report.accepted:
         return 2
     return 0

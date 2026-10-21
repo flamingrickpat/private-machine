@@ -102,8 +102,8 @@ class ModelConfigTests(unittest.TestCase):
             config = load_config(path)
             self.assertEqual(resolve_connection(config).startup_script, Path(directory) / "start.ps1")
             from pm.llm.cache import cache_root
-            self.assertEqual(config.embedding.cache_dir, (cache_root() / "embeddings").resolve())
-            self.assertEqual(config.embedding._previous_cache_dir, Path(directory) / ".runtime" / "embeddings")
+            self.assertNotIn("cache_dir", config.embedding.model_fields)
+            self.assertNotIn("_previous_cache_dir", config.embedding.__private_attributes__)
 
     def test_cognitive_control_section_stays_a_plain_mapping(self):
         # The runtime must not import workflows, so it keeps the section as it

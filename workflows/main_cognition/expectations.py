@@ -101,10 +101,10 @@ def relevant_expectations(work: CycleWork, embedder: Embedder) -> list[OpenExpec
     candidates = recent_expectations(work)
     if not stimuli or not candidates:
         return []
-    embedder.prefetch([*stimuli, *(item.content for item in candidates)])
+    vectors = embedder.prefetch([*stimuli, *(item.content for item in candidates)])
     scored = []
     for item in candidates:
-        similarity = max(max(0.0, min(1.0, cosine(embedder.text(text), embedder.text(item.content))))
+        similarity = max(max(0.0, min(1.0, cosine(vectors[text], vectors[item.content])))
                          for text in stimuli)
         score = (recency(work, item) * 0.5 + similarity * 0.5) * (0.5 + item.urgency * 0.25 + salience(item) * 0.25)
         score = max(0.0, min(1.0, score))
@@ -240,12 +240,12 @@ def anticipate(context, work: CycleWork, prefix: StoryPrefix, prompts: PhaseProm
         decision=decision, action=action, target=target, count=count).text
     answer = complete(context, work, prefix.ask(instruction), ExpectationAnswer)
     open_items = recent_expectations(work)
-    embedder.prefetch([*(item.content for item in answer.expectations), *(item.content for item in open_items)])
+    vectors = embedder.prefetch([*(item.content for item in answer.expectations), *(item.content for item in open_items)])
     drafts = []
     for item in answer.expectations:
-        vector = embedder.text(item.content)
+        vector = vectors[item.content]
         same = [other.record_id for other in open_items
-                if cosine(vector, embedder.text(other.content)) >= EXPECTATION_SAME_SIMILARITY]
+                if cosine(vector, vectors[other.content]) >= EXPECTATION_SAME_SIMILARITY]
         drafts.append(ExpectationDraft(content=item.content, expected_valence=item.affective_valence,
                                        urgency=item.urgency, about_entity_ids=list(entity_ids),
                                        supersedes_ids=same))

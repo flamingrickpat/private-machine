@@ -1,4 +1,4 @@
-# Local chat and OpenRouter embeddings. Application defaults remain in config.example.yaml.
+# OpenRouter chat and local embeddings. Application defaults remain in config.example.yaml.
 chat:
   Default:
     base_url: https://openrouter.ai/api/v1
@@ -14,11 +14,10 @@ chat:
     api_key_env: OPENROUTER_API_KEY
     startup_script: ""
 embedding:
-  base_url: https://openrouter.ai/api/v1
-  model: perplexity/pplx-embed-v1-0.6b
-  response_model: pplx-embed-v1-0.6b
-  api_key_env: OPENROUTER_API_KEY
-  dimensions: 1024
+  base_url: http://127.0.0.1:8081/v1
+  model: embeddinggemma-300m
+  api_key: ""
+  dimensions: 768
 # Optional Minecraft body (docs/subsystems/body-leases.md). Without this section the
 # character has no body. With it pm probes the endpoint once at startup.
 # minecraft:

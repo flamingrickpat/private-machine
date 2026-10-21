@@ -134,7 +134,7 @@ class FocusManagement(CognitiveWorkflow):
         changes = self.ghost.begin_batch(self.invocation_id, new_tick=True, cancel=self.run_stop)
         for key, revision in {**report["source_revisions"], **self._goal_revisions}.items():
             changes.expect_revision(int(key), int(revision))
-        action = changes.view().get(self._action_id)
+        action = changes.view().get(self._action_id).copy_for_edit()
         changes.expect_revision(action.id, self.last_environment.ghost_view.revisions[action.id])
         proposal = new_feature(self.ghost, plan.summary, FeatureType.Thought,
             source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
@@ -162,7 +162,7 @@ class FocusManagement(CognitiveWorkflow):
         """Retain an expected failure without committing the rejected proposal."""
         with self.ghost.lock:
             changes = self.ghost.begin_batch(self.invocation_id + ":failure", new_tick=True, cancel=self.run_stop)
-            action = changes.view().get(self._action_id)
+            action = changes.view().get(self._action_id).copy_for_edit()
             failure = new_feature(self.ghost, "Mental work failed: " + report["reason"], FeatureType.Thought,
                 source=self.ghost.get_companion_name(), source_kind=SourceKind.Self,
                 interlocus=InterlocusType.PrivateInternal, changes=changes,

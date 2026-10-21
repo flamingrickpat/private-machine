@@ -102,7 +102,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_resolution_and_replay_survive_checkpoint(self):
         with TemporaryDirectory() as tmp:
-            self.ghost.checkpoint = Path(tmp) / "ghost.json"
+            self.ghost.checkpoint = Path(tmp) / "ghost.pickle"
             correlation = self.proxy.submit("One exchange.", session="original-session")
             reply_id = commit_public_reply(self.ghost, "One answer.", correlation, commit_id="reply")
             restored = MemoryStore.from_checkpoint(self.ghost.checkpoint)

@@ -6,32 +6,38 @@ host API, not an unrestricted tool grant. Role-scoped write tools belong to W3.
 """
 from __future__ import annotations
 
-from copy import deepcopy
+from pm.records.copying import pickle_copy
+
 from threading import Event
+from typing import TYPE_CHECKING
 
 from pm.records.cycle_state import CycleState
 from pm.records.global_workspace import GwtTurnRecord
-from pm.records.memory_records import Feature
+from pm.records.memory_records import Entity, Feature
 from pm.records.base import RecordBase
 from pm.records.lineage import RecordLineage
-from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel
 from pm.memory.snapshot import GhostCancelled, Snapshot
+
+if TYPE_CHECKING:
+    from pm.memory.store import MemoryStore
 
 
 class WriteBatch:
-    def __init__(self, ghost, commit_id: str, snapshot: Snapshot, tick_id: int, cancel: Event | None):
+    """Stage typed records. Callers copy accepted records before an isolated edit."""
+
+    def __init__(self, ghost: MemoryStore, commit_id: str, snapshot: Snapshot, tick_id: int, cancel: Event | None):
         self._ghost = ghost
         self.commit_id = commit_id
         self._snapshot = snapshot
         self.tick_id = tick_id
         self.cancel = cancel
-        self._new: dict[int, dict] = {}
-        self._replacements: dict[int, dict] = {}
+        self._new: dict[int, RecordBase] = {}
+        self._replacements: dict[int, RecordBase] = {}
         self._expected: dict[int, int] = {}
         self._metadata_guards: list[tuple[str, object, dict[int, int]]] = []
-        self._initial_runs = deepcopy(ghost.managed_runs)
+        self._initial_runs = dict(ghost.managed_runs)
         self._runs: dict[str, dict] = {}
-        self._initial_consolidations = deepcopy(ghost.consolidations)
+        self._initial_consolidations = dict(ghost.consolidations)
         self._consolidations: dict[str, dict] = {}
         self._consolidation_run_guards: set[str] = set()
         self._gwt: GwtTurnRecord | None = None
@@ -47,13 +53,13 @@ class WriteBatch:
         if visible_ids is not None:
             records = {record_id: records[record_id] for record_id in visible_ids}
         gwt = {tick: raw for tick, raw in self._snapshot._gwt.items()
-               if set(raw["knoxel_ids"]).issubset(records)}
+               if set(raw.knoxel_ids).issubset(records)}
         revisions = {record_id: revision for record_id, revision in self._snapshot.revisions.items() if record_id in records}
-        return Snapshot(deepcopy(records), deepcopy(gwt), revisions)
+        return Snapshot(records, gwt, revisions, self._snapshot.embedding_index)
 
     def create(self, knoxel: RecordBase) -> RecordBase:
         self.check_cancelled()
-        record = _deserialize_knoxel(_serialize_knoxel(knoxel))
+        record = knoxel
         if record.id != -1:
             raise ValueError("Create requires an unassigned knoxel ID.")
         if record.tick_id not in {-1, self.tick_id}:
@@ -64,22 +70,23 @@ class WriteBatch:
         if record.tick_id == -1:
             record.tick_id = self.tick_id
         if isinstance(record, Feature) and not record.entity_id and record.override_source:
-            for raw in self._snapshot._records.values():
-                if raw["__type__"] == "Entity" and raw["data"]["content"] == record.override_source:
-                    record.entity_id = raw["data"]["id"]
+            for entity in self._snapshot._records.values():
+                if isinstance(entity, Entity) and entity.content == record.override_source:
+                    record.entity_id = entity.id
                     break
-        self._new[record.id] = _serialize_knoxel(record)
+        record._owner = self._ghost
+        self._new[record.id] = record
         return record
 
     def replace(self, knoxel: RecordBase) -> None:
         self.check_cancelled()
-        raw = _serialize_knoxel(_deserialize_knoxel(_serialize_knoxel(knoxel)))
         previous = self._snapshot._records[knoxel.id]
-        if (raw["__type__"] != previous["__type__"]
-                or raw["data"]["scope"] != previous["data"]["scope"]
-                or raw["data"]["tick_id"] != previous["data"]["tick_id"]):
+        if (type(knoxel) is not type(previous) or knoxel.scope != previous.scope or knoxel.tick_id != previous.tick_id):
             raise ValueError("Replacement cannot change a knoxel's class, visibility scope, or creation tick.")
-        self._replacements[knoxel.id] = raw
+        if knoxel.content != previous.content:
+            knoxel.embedding = []
+        knoxel._owner = self._ghost
+        self._replacements[knoxel.id] = knoxel
         # A retrieved revision can predate this write batch. Keep its earlier
         # read guard even when a later proposal also replaces the record.
         self._expected.setdefault(knoxel.id, self._snapshot.revisions[knoxel.id])
@@ -96,13 +103,10 @@ class WriteBatch:
         self.check_cancelled()
         if knoxel.id not in self._new:
             raise ValueError("Revise requires a record created in this batch.")
-        raw = _serialize_knoxel(_deserialize_knoxel(_serialize_knoxel(knoxel)))
         previous = self._new[knoxel.id]
-        if (raw["__type__"] != previous["__type__"]
-                or raw["data"]["scope"] != previous["data"]["scope"]
-                or raw["data"]["tick_id"] != previous["data"]["tick_id"]):
+        if (type(knoxel) is not type(previous) or knoxel.scope != previous.scope or knoxel.tick_id != previous.tick_id):
             raise ValueError("Revise cannot change a knoxel's class, visibility scope, or creation tick.")
-        self._new[knoxel.id] = raw
+        self._new[knoxel.id] = knoxel
 
     @property
     def created_ids(self) -> frozenset[int]:
@@ -118,7 +122,7 @@ class WriteBatch:
         self.check_cancelled()
         if record_id not in self._new:
             raise ValueError("Lineage annotation requires a record created in this batch.")
-        self._new[record_id]["data"]["lineage"] = lineage.model_dump(mode="json")
+        self._new[record_id].lineage = lineage
 
     def expect_revision(self, record_id: int, revision: int) -> None:
         """Reject the whole commit if retrieved evidence changed after its read."""
@@ -135,25 +139,25 @@ class WriteBatch:
         This guard closes the gap that a revision check on the old head leaves.
         """
         self.check_cancelled()
-        self._metadata_guards.append((key, deepcopy(value), dict(revisions)))
+        self._metadata_guards.append((key, pickle_copy(value), dict(revisions)))
 
     def set_gwt(self, record: GwtTurnRecord, cycle: CycleState | None = None) -> None:
         self.check_cancelled()
         if record.tick_id != self.tick_id or (cycle is not None and cycle.tick_id != self.tick_id):
             raise ValueError("GWT and cycle ticks must match the batch tick.")
-        self._gwt = GwtTurnRecord.model_validate(record.model_dump())
-        self._cycle = CycleState.model_validate(cycle.model_dump()) if cycle is not None else None
+        self._gwt = record
+        self._cycle = cycle
 
     def set_run_receipt(self, run_id: str, receipt: dict) -> None:
         self.check_cancelled()
         if receipt["state"] not in {"accepted", "running", "waiting_for_input", "completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("Unknown managed-run state.")
-        self._runs[run_id] = deepcopy(receipt)
+        self._runs[run_id] = pickle_copy(receipt)
 
     def set_consolidation_receipt(self, key: str, receipt: dict) -> None:
         """Stage one consolidation receipt. Repeated keys reuse accepted state."""
         self.check_cancelled()
-        self._consolidations[key] = deepcopy(receipt)
+        self._consolidations[key] = pickle_copy(receipt)
 
     def guard_consolidation_run(self, run_id: str) -> None:
         """Require the run's artifact ledger to stay unchanged until commit."""

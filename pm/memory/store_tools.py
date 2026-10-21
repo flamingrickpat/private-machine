@@ -8,18 +8,19 @@ committed; this module never commits.
 """
 from __future__ import annotations
 
+
 from typing import Any, Callable, Mapping
-from copy import deepcopy
 
 from fastmcp import FastMCP
 
-from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel
+from pm.memory.yaml_codec import RecordPayload
 from pm.memory.agent_tools import MemoryReadSession
+from pm.memory.snapshot import RecordPayloads
 
 
-def _read_knoxels(environment, batch) -> dict[int, dict]:
+def _read_knoxels(environment, batch) -> Mapping[int, dict]:
     if batch is not None:
-        return batch.view().serialize_knoxels()
+        return RecordPayloads(batch.view().all_knoxels)
     return environment.visible_knoxels
 
 
@@ -45,7 +46,7 @@ def build_tools(environment, batch=None, *, memory: MemoryReadSession | None = N
         record = _read_knoxels(environment, batch).get(knoxel_id)
         if record is None:
             raise KeyError(knoxel_id)
-        return deepcopy(record)
+        return record
 
     def ghost_search(query: str) -> list[dict]:
         needle = query.casefold()
@@ -55,14 +56,14 @@ def build_tools(environment, batch=None, *, memory: MemoryReadSession | None = N
             record = records[knoxel_id]
             content = str(record.get("data", {}).get("content", ""))
             if needle in content.casefold():
-                matches.append(deepcopy(record))
+                matches.append(record)
         return matches
 
     def ghost_gwt(tick_id: int) -> dict:
         record = _read_gwt(environment, batch).get(tick_id)
         if record is None:
             raise KeyError(tick_id)
-        return deepcopy(record)
+        return record
 
     tools: dict[str, Callable[..., Any]] = {
         "ghost_get": ghost_get,
@@ -75,15 +76,15 @@ def build_tools(environment, batch=None, *, memory: MemoryReadSession | None = N
             """Stage a new knoxel. Returns the record with its reserved ID."""
             if not isinstance(record, dict):
                 raise ValueError("A proposed record must be a mapping.")
-            created = batch.create(_deserialize_knoxel(record))
-            return _serialize_knoxel(created)
+            created = batch.create(RecordPayload.model_validate(record).root)
+            return (created).as_payload()
 
         def ghost_propose_replace(record: dict) -> dict:
             """Stage a replacement for an existing knoxel by ID."""
             if not isinstance(record, dict):
                 raise ValueError("A proposed record must be a mapping.")
-            batch.replace(_deserialize_knoxel(record))
-            return deepcopy(record)
+            batch.replace(RecordPayload.model_validate(record).root)
+            return record
 
         tools["ghost_propose_create"] = ghost_propose_create
         tools["ghost_propose_replace"] = ghost_propose_replace

@@ -175,7 +175,7 @@ def package_run(out: Path) -> list[Path]:
     receipt = json.loads((out / "receipt.json").read_text(encoding="utf-8"))
     if not receipt["ok"]:
         raise ValueError("The run failed. Keep it as development evidence; do not package it for review.")
-    ghost = MemoryStore.from_checkpoint(out / "ghost.json")
+    ghost = MemoryStore.from_checkpoint(out / "ghost.pickle")
     return write_packages(ghost, out, [row["id"] for row in receipt["messages"]], receipt["start_tick"])
 
 
@@ -183,10 +183,10 @@ def run(out: Path, config: Path) -> dict:
     """Run the session and write its receipt and packages. Always stop the application."""
     out.mkdir(parents=True, exist_ok=False)
     snapshot(out, config)
-    shutil.copy2(SITUATION / "ghost.json", out / "ghost.json")
+    shutil.copy2(SITUATION / "ghost.pickle", out / "ghost.pickle")
     os.environ["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
     app = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(config),
-                    checkpoint_path=out / "ghost.json", thought_period=3600, world_poll_seconds=None,
+                    checkpoint_path=out / "ghost.pickle", thought_period=3600, world_poll_seconds=None,
                     record_lifecycle=False, emit_reply=lambda text: None)
     chat = PublicChat(app)
     app.bus.subscribe("a19f_review_chat", lambda event: event.topic in {"user.input", "dialogue.reply"}, chat.receive)
@@ -194,7 +194,7 @@ def run(out: Path, config: Path) -> dict:
     situation = json.loads((SITUATION / "situation.json").read_text(encoding="utf-8"))
     prior = [{"speaker": row["speaker"], "text": row["text"]} for row in situation["prior_chat"]][-6:]
     receipt = {"ok": False, "human_review": "pending", "started_at": datetime.now(timezone.utc).isoformat(),
-               "source": str(SITUATION / "ghost.json"), "turns": []}
+               "source": str(SITUATION / "ghost.pickle"), "turns": []}
     start_tick = 0
     try:
         with app.ghost.lock:

@@ -1,7 +1,8 @@
 """Shared helpers for the thread-free direct module tests."""
 from __future__ import annotations
 
-import copy
+from pm.records.copying import pickle_copy
+
 from functools import cache
 import tempfile
 from pathlib import Path
@@ -60,7 +61,7 @@ def load_seed_state():
 
 
 def fresh_ghost(seed_dict: dict) -> MemoryStore:
-    state = ghost_state_from_dict(copy.deepcopy(seed_dict))
+    state = ghost_state_from_dict(pickle_copy(seed_dict))
     return MemoryStore.from_state(state)
 
 

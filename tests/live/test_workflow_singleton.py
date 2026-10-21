@@ -58,7 +58,7 @@ class LiveWorkflowSingletonTests(unittest.TestCase):
                 from workflows.companion import build_app
                 from workflows.minecraft_body.lease import BODY_LEASES
                 from workflows.minecraft_body.mcp_client import build_minecraft_tools
-                ghost = MemoryStore.from_yaml(SEED, checkpoint=out / 'ghost.json')
+                ghost = MemoryStore.from_yaml(SEED, checkpoint=out / 'ghost.pickle')
                 receipt['seed_records'] = len(ghost.all_knoxels)
                 self.assertEqual(receipt['seed_records'], 11202)
                 app = build_app(SEED, ghost=ghost, runtime_root=out / 'runtime', cognition='real',

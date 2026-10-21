@@ -389,8 +389,8 @@ def collect(context, work: CycleWork, prompts: PhasePrompts) -> CodeletsResult:
     situation = embedder.text(render_story(
         work.records, [*request.recent_dialogue_ids[-4:], *(item.knoxel_id for item in request.stimuli)],
         with_id=False) or "(nothing happens)")
-    embedder.prefetch(item.signature_text(frame.companion, frame.entity) for item in definitions.values())
-    signatures = {name: embedder.text(item.signature_text(frame.companion, frame.entity))
+    vectors = embedder.prefetch(item.signature_text(frame.companion, frame.entity) for item in definitions.values())
+    signatures = {name: vectors[item.signature_text(frame.companion, frame.entity)]
                   for name, item in definitions.items()}
     codelets = CodeletsResult(definitions_version=loaded.definitions.version, definitions_digest=loaded.digest,
                               budget=work.triage.codelet_budget)

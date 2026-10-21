@@ -5,14 +5,14 @@ A home folder has this layout::
     <home>/
       character.yaml    # PersonaConfig fields without personality_profile
       personality.json  # {"<PersonalityProfile field>": 0..1, ...}
-      ghost.json        # accepted MemoryStore checkpoint
-      ghost_*.json      # stable memory after each successful main cognition commit
+      ghost.pickle      # complete accepted state, including embeddings
+      ghost_*.pickle    # complete backup after each successful main cognition commit
       logs/             # process and thread diagnostics
       runtime/          # runtime root of the app
       import/           # copies of imported CSV files and import receipts
 
 ``character init`` creates the folder. The app opens it with
-``CharacterHome(root).open_store()`` and saves to ``ghost_json``.
+``CharacterHome(root).open_store()`` and saves to ``ghost_pickle``.
 The persona files are the source of truth for the card text and the traits.
 The checkpoint is the source of truth for memory.
 """
@@ -90,6 +90,11 @@ class CharacterHome(BaseModel):
         return self.root / "ghost.json"
 
     @property
+    def ghost_pickle(self) -> Path:
+        """Return the complete binary checkpoint path."""
+        return self.root / "ghost.pickle"
+
+    @property
     def runtime_root(self) -> Path:
         return self.root / "runtime"
 
@@ -116,21 +121,22 @@ class CharacterHome(BaseModel):
     def open_store(self) -> MemoryStore:
         """Load the accepted checkpoint and apply the persona files.
 
-        The store saves later commits to ``ghost_json``. The card text,
+        The store saves later commits to ``ghost_pickle``. Legacy JSON remains readable. The card text,
         the capabilities, and the traits come from the persona files, so
         an edit there takes effect at the next start. A changed companion
         or user name raises ValueError, because the stored entities and
         dialogue name the old speakers.
         """
-        if not self.ghost_json.exists():
-            raise FileNotFoundError(f"{self.ghost_json} does not exist. Run `character init` first.")
-        store = MemoryStore.from_checkpoint(self.ghost_json)
+        checkpoint = self.ghost_pickle if self.ghost_pickle.exists() else self.ghost_json
+        if not checkpoint.exists():
+            raise FileNotFoundError(f"{self.ghost_pickle} does not exist. Run `character init` first.")
+        store = MemoryStore.from_checkpoint(checkpoint)
         persona = self.load_persona()
         stored = store.ghost_config
         if (persona.companion_name, persona.user_name) != (stored.companion_name, stored.user_name):
             raise ValueError(
                 f"character.yaml names {persona.companion_name!r}/{persona.user_name!r}, "
-                f"but ghost.json holds {stored.companion_name!r}/{stored.user_name!r}.")
+                f"but the checkpoint holds {stored.companion_name!r}/{stored.user_name!r}.")
         store.ghost_config = persona
         return store
 
@@ -145,7 +151,7 @@ class CharacterHome(BaseModel):
         from pm.app.chat_import import ensure_persona_entities
         from pm.records.import_marks import ImportMark, ImportOrigin
 
-        store = MemoryStore(self.load_persona(), checkpoint=self.ghost_json)
+        store = MemoryStore(self.load_persona(), checkpoint=self.ghost_pickle)
         store.commit(store.begin_batch("character-home-init"))
         ensure_persona_entities(store, ImportMark(origin=ImportOrigin.CharacterInit, import_id="character-init",
                                                   synthetic=True))

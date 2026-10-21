@@ -283,7 +283,7 @@ class GoalLifecycleTests(unittest.TestCase):
 
     def test_active_intention_survives_checkpoint_restart(self):
         with TemporaryDirectory() as tmp:
-            path = Path(tmp) / "ghost.json"
+            path = Path(tmp) / "ghost.pickle"
             ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=path)
             stimulus_id = _store(ghost, "let us build a house")
             reports = _reports(stimulus_id, goals=[{"change": "add", "goal": "build a house"}])

@@ -298,7 +298,7 @@ def run_scenario(
     result = ScenarioResult(name=scenario.name)
     root.mkdir(parents=True, exist_ok=True)
     ghost = fresh_ghost(load_seed_state())
-    ghost.checkpoint = root / "ghost.json"
+    ghost.checkpoint = root / "ghost.pickle"
     app = build_app(
         None, root / "runtime", ghost=ghost, cognition="real",
         stage_model=stage_model, clock=__import__("time").monotonic,

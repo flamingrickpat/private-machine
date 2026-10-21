@@ -78,7 +78,7 @@ def run(args) -> None:
     if not out.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Keep evidence below the workspace .runtime directory.")
     previous, resume_root = None, getattr(args, "resume_from", None)
-    runtime_root, checkpoint, character = out / "app", out / "ghost.json", out / "character"
+    runtime_root, checkpoint, character = out / "app", out / "ghost.pickle", out / "character"
     goal = args.goal or DEFAULT_GOAL
     generation_path = getattr(args, "decision_generation", None)
     decision_generation = json.loads(generation_path.read_text(encoding="utf-8")) if generation_path else {}
@@ -96,7 +96,7 @@ def run(args) -> None:
                 or retained["instructions"] != goal):
             raise ValueError("Resume must retain the server, execution mode, and original instructions.")
         runtime_root = Path(previous.get("runtime_root", resume_root / "app")).resolve()
-        checkpoint = Path(previous.get("checkpoint_path", resume_root / "ghost.json")).resolve()
+        checkpoint = Path(previous.get("checkpoint_path", resume_root / "ghost.pickle")).resolve()
         character = Path(previous.get("character_root", resume_root / "character")).resolve()
         for path in (runtime_root, checkpoint, character):
             if not path.is_relative_to(ROOT / ".runtime") or not path.exists():

@@ -15,9 +15,8 @@ Related: [model connections](../models.md), [character home](character-import.md
 | Path | Content |
 | --- | --- |
 | `~/.pm/private-machine/cache/<model>/` | Completion JSON, readable transcripts, and inference receipts. |
-| `~/.pm/private-machine/cache/embeddings/<model>/` | Embedding JSON, readable input, and inference receipts. |
-| `<home>/ghost.json` | Current accepted memory. Each accepted commit saves it. |
-| `<home>/ghost_<tick>_<UTC datetime>_<suffix>.json` | Stable memory after a successful main cognition commit. |
+| `<home>/ghost.pickle` | Current accepted memory. Each accepted commit saves it. |
+| `<home>/ghost_<tick>_<UTC datetime>_<suffix>.pickle` | Stable memory after a successful main cognition commit. |
 | `<home>/logs/runtime_<UTC datetime>_<pid>.log` | Process diagnostics and native crash traces. |
 | `<home>/runtime/` | Kernel journals, managed tasks, and workflow artifacts. |
 
@@ -28,10 +27,9 @@ Console workers use their instance root as the home.
 Legacy `PM_PROMPT_LOG_DIR` still redirects attempt logs. Cache transcripts remain beside their JSON files.
 `PM_PROMPT_LOG=0` disables inference transcripts. It does not disable process diagnostics.
 
-Old `embedding.cache_dir` values remain read sources. New writes always use the shared cache.
-Valid entries move into the shared cache when retrieval reads them. The old files stay unchanged.
-The binary cache at `~/.pm/embeddings` remains read-only.
-Startup adds missing Markdown files to existing JSON entries under the shared cache.
+Embeddings live on the knoxels inside `ghost.pickle`. There is no embedding cache.
+The application accepts legacy JSON checkpoints and YAML seeds. It saves subsequent state with pickle.
+Startup can add missing Markdown transcripts to existing completion response entries.
 
 ## Read an inference
 
@@ -64,8 +62,8 @@ A backup I/O error propagates after memory acceptance and prevents event publica
 An explicitly ephemeral store writes no backup.
 
 1. Stop the agent and wait for its workers to exit.
-2. Preserve the current `ghost.json` under another filename.
-3. Copy the selected backup over `ghost.json`.
+2. Preserve the current `ghost.pickle` under another filename.
+3. Copy the selected backup over `ghost.pickle`.
 4. Start the agent with the same home.
 
 A memory rollback does not reverse external actions or task artifacts.

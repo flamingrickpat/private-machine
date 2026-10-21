@@ -48,7 +48,7 @@ def main() -> None:
     servers = [dict(zip(("name", "url"), item.split("=", 1))) for item in args.mcp]
     tool_call = ToolCallConfig.model_validate({"mcp_servers": servers})
     config = load_config(args.config)
-    store = MemoryStore.from_yaml(SEED, checkpoint=out / "ghost.json")
+    store = MemoryStore.from_yaml(SEED, checkpoint=out / "ghost.pickle")
     consolidator = Consolidator(store, clock=time.time)
     consolidations = []
     supervisor = ManagedRunSupervisor(

@@ -1,6 +1,8 @@
 """Verify direct Python chat with real history beyond Laya's input limit."""
 from __future__ import annotations
 
+from pm.memory.checkpoint import read_checkpoint
+
 import argparse
 import asyncio
 from importlib import metadata
@@ -91,10 +93,10 @@ def main() -> None:
         history_tokens = tokens(prefix)
 
     report = args.report.read_text(encoding="utf-8")
-    checkpoint_path = args.report.parents[3] / "ghost.json"
-    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    checkpoint_path = args.report.parents[3] / "ghost.pickle"
+    checkpoint = read_checkpoint(checkpoint_path)
     run_id = args.report.parent.parent.name
-    state = checkpoint["managed_runs"][run_id]["state"]
+    state = checkpoint.managed_runs[run_id]["state"]
     if state != EXPECTED["run_state"] or yaml.safe_load(report)["answer"] != "":
         raise ValueError("The captured source no longer matches this gate's acceptance facts.")
     captured = json.dumps({"captured_run_state": state, "report_yaml": report}, ensure_ascii=False)

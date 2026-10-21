@@ -1,7 +1,8 @@
 """Check recovery boundaries with original real-server receipts."""
 from __future__ import annotations
 
-import copy
+from pm.records.copying import pickle_copy
+
 import base64
 import json
 from pathlib import Path
@@ -29,7 +30,7 @@ class GameplayTests(unittest.TestCase):
         store = TreeStore(root)
         for revision, specification in capture["specifications"].items():
             store.write(f"planning/specs/{int(revision):04d}.json", specification)
-        store.state = copy.deepcopy(capture["after"])
+        store.state = pickle_copy(capture["after"])
         store.save()
         return store, capture
 
@@ -80,7 +81,7 @@ class GameplayTests(unittest.TestCase):
     def test_real_certificate_revocation_cannot_be_undone_by_specification_repair(self):
         with TemporaryDirectory() as folder:
             store, capture = self.retained_certificate_case(Path(folder))
-            store.state = copy.deepcopy(capture["before"])
+            store.state = pickle_copy(capture["before"])
             store.save()
             store.archive_acceptances(store.state, "original-state.json")
             store.revoke("recovery_exit")
@@ -93,7 +94,7 @@ class GameplayTests(unittest.TestCase):
         with TemporaryDirectory() as folder:
             store, capture = self.retained_certificate_case(Path(folder))
             store.archive_acceptances(capture["before"], "retained-before-receipt.json")
-            before = copy.deepcopy(store.state)
+            before = pickle_copy(store.state)
             with self.assertRaisesRegex(ValueError, "recovery_exit"):
                 store.restore_specifications(store.load(), ["iron_mine"])
             self.assertEqual(store.state, before)
@@ -119,7 +120,7 @@ class GameplayTests(unittest.TestCase):
         with TemporaryDirectory() as folder:
             store, capture = self.retained_certificate_case(Path(folder))
             store.archive_acceptances(capture["before"], "retained-before-receipt.json")
-            before = copy.deepcopy(store.state)
+            before = pickle_copy(store.state)
             with self.assertRaisesRegex(ValueError, "recovery_exit"):
                 store.restore_specifications(store.load(), ["iron_mine", "iron_smelt", "iron_pickaxe"])
             with self.assertRaisesRegex(ValueError, "iron_smelt"):
@@ -136,7 +137,7 @@ class GameplayTests(unittest.TestCase):
         captured = json.loads((CAPTURE.parent / "a13-restored-publication-identity.json").read_text(encoding="utf-8"))
         with TemporaryDirectory() as folder:
             store, capture = self.retained_certificate_case(Path(folder))
-            store.state["attempts"] = copy.deepcopy(captured["attempts"])
+            store.state["attempts"] = pickle_copy(captured["attempts"])
             store.archive_acceptances(capture["before"], "retained-before-receipt.json")
             proposed = store.restore_specifications(
                 store.load(), ["recovery_exit", "iron_mine", "iron_smelt", "iron_pickaxe"])
@@ -282,7 +283,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(rejected["reason"], "method_paused")
         self.assertIn("cannot gather or craft", rejected["equipment_guidance"])
         self.assertIsNone(history.guard("minecraft_craft_item", {"item": "crafting_table"}))
-        improved = copy.deepcopy(rows[348])
+        improved = pickle_copy(rows[348])
         improved["result"]["equipped"] = {"name": "stone_pickaxe", "durability": 131, "max_durability": 131}
         self.assertTrue(classify(improved)["made_progress"])
         self.assertEqual(classify(improved)["quantities"]["equipment_changed"], 1)
@@ -311,7 +312,7 @@ class GameplayTests(unittest.TestCase):
         from workflows.minecraft_project.schemas import RevisionProposal
         capture = json.loads((CAPTURE.parent / "a13-historical-survey-budget.json").read_text(encoding="utf-8"))
         payload = capture["unscoped_context"]
-        before = copy.deepcopy(payload)
+        before = pickle_copy(payload)
         scoped = scoped_decision_context(payload)
         old = payload["requested_world_survey"]
         current = scoped["requested_world_survey"]
@@ -327,7 +328,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(capture["input"]["input_characters"], 124188)
         self.assertLess(len(system) + len(json.dumps(scoped, ensure_ascii=False, separators=(",", ":"))), capture["input"]["input_characters"])
         self.assertEqual(payload, before)
-        fresh = copy.deepcopy(payload)
+        fresh = pickle_copy(payload)
         fresh["requested_world_survey"]["identity"]["tree_revision"] = fresh["identity"]["tree_revision"]
         self.assertEqual(scoped_decision_context(fresh)["requested_world_survey"], fresh["requested_world_survey"])
 
@@ -336,7 +337,7 @@ class GameplayTests(unittest.TestCase):
         from workflows.minecraft_project.schemas import RevisionProposal
         capture = json.loads((CAPTURE.parent / "a13-planner-growth.json").read_text(encoding="utf-8"))
         payload = capture["unscoped_context"]
-        before = copy.deepcopy(payload)
+        before = pickle_copy(payload)
         selected = scoped_decision_context(payload)
         original = self.unpack_planning_history(capture["rejected_context"]["gameplay_history"])
         decoded = self.unpack_planning_history(selected["gameplay_history"])
@@ -365,7 +366,7 @@ class GameplayTests(unittest.TestCase):
     def test_current_recipes_and_unusual_search_shapes_stay_explicit(self):
         from workflows.minecraft_project.planning.decisions import scoped_decision_context
         capture = json.loads((CAPTURE.parent / "a13-planner-growth.json").read_text(encoding="utf-8"))
-        payload = copy.deepcopy(capture["unscoped_context"])
+        payload = pickle_copy(capture["unscoped_context"])
         for row in payload["previous_site_survey"]["recipes"]:
             row["time"] = payload["latest_attempt"]["started"]
         payload["gameplay_history"]["searches"][0]["coverage"] = {"center": None, "bounds": None, "legacy": True}
@@ -391,7 +392,7 @@ class GameplayTests(unittest.TestCase):
         self.assertIsNone(history.guard("minecraft_craft_item", {"item": "crafting_table"}))
         # Project the repaired inspector metadata at the next target. A
         # diagnosis cannot grant a dig when the actual tool is unsuitable.
-        inspect = copy.deepcopy(rows[311])
+        inspect = pickle_copy(rows[311])
         inspect.update(seq=400, time=action["time"] + 1)
         inspect["arguments"]["position"] = action["arguments"]["position"]
         inspect["result"].update(position=action["arguments"]["position"], can_harvest_with_held=False)
@@ -434,7 +435,7 @@ class GameplayTests(unittest.TestCase):
 
     def test_captured_death_counters_on_projected_action_receipt_stop_before_next_observation(self):
         capture = json.loads((CAPTURE.parent / "a13-staircase-death.json").read_text(encoding="utf-8"))
-        before, action, after = copy.deepcopy(capture["rows"])
+        before, action, after = pickle_copy(capture["rows"])
         # Add the new lifecycle fields from the original two body observations.
         # This checks the receipt boundary, not a retroactive repaired action.
         action["result"].update(body_session=before["result"]["body_session"],
@@ -476,7 +477,7 @@ class GameplayTests(unittest.TestCase):
     def test_captured_actor_refusals_keep_diagnosis_required_without_repeating_history(self):
         capture = json.loads((CAPTURE.parent / "a13-actor-refusal-context.json").read_text(encoding="utf-8"))
         history = GameplayEvidence()
-        history.methods = {history.method_key(row["tool"], row["arguments"]): copy.deepcopy(row)
+        history.methods = {history.method_key(row["tool"], row["arguments"]): pickle_copy(row)
                            for row in capture["paused_methods"]}
         source = capture["sources"]["journal"]["path"]
         # Use the actual first fifteen reads before the repeated equipment refusals.
@@ -484,7 +485,7 @@ class GameplayTests(unittest.TestCase):
         for row in capture["rows"]:
             if row.get("seq", 0) <= 15 and row["event"] != "diagnosis":
                 history.consume(row, source)
-        paused = copy.deepcopy(history.paused_methods())
+        paused = pickle_copy(history.paused_methods())
         denied = next(row for row in capture["rejections"] if row["tool"] == "minecraft_equip"
                       and row["arguments"] == {"item": "moss_block"})
         refusal = history.guard(denied["tool"], denied["arguments"])
@@ -535,10 +536,10 @@ class GameplayTests(unittest.TestCase):
         self.assertTrue(evaluate([health.model_copy(update={"minimum": 5})], [read])[health.id])
         self.assertFalse(evaluate([health.model_copy(update={"minimum": 6})], [read])[health.id])
         for value in (None, True, "11", -1, 21):
-            invalid = copy.deepcopy(read)
+            invalid = pickle_copy(read)
             invalid["result"]["player"]["health"] = value
             self.assertFalse(evaluate([health], [invalid])[health.id])
-        wrong_dimension = copy.deepcopy(read)
+        wrong_dimension = pickle_copy(read)
         wrong_dimension["result"]["player"]["dimension"] = "the_nether"
         self.assertFalse(evaluate([health.model_copy(update={"minimum": 5})], [wrong_dimension])[health.id])
         for operands in ({"minimum": 21}, {"names": ["stone"]}, {"position": {"x": 12, "y": 31, "z": 1}}):
@@ -552,7 +553,7 @@ class GameplayTests(unittest.TestCase):
         original = capture["input"]
         payload = json.loads(original["messages"][1]["content"])
         payload["latest_verification"]["verified"] = capture["verification"]["verified"]
-        before = copy.deepcopy(payload)
+        before = pickle_copy(payload)
         scoped = scoped_decision_context(payload)
         prior = self.unpack_planning_history(payload["gameplay_history"])
         current = self.unpack_planning_history(scoped["gameplay_history"])
@@ -623,7 +624,7 @@ class GameplayTests(unittest.TestCase):
         self.assertIsNone(history.guard("minecraft_fine_control", {}))
         self.assertIsNone(history.guard("minecraft_observe", {"include_image": False}))
         # Input release is a contract projection, not another world action.
-        released = copy.deepcopy(by_seq[104])
+        released = pickle_copy(by_seq[104])
         released["arguments"] = {}
         self.assertFalse(classify(released)["unsuccessful"])
         history.consume(by_seq[114], source)
@@ -710,7 +711,7 @@ class GameplayTests(unittest.TestCase):
         air = next(c for c in conditions if c.id == "ss_air_clear")
         foundation = next(c for c in conditions if c.id == "ss_foundation")
         reads = capture["verification"]["reads"]
-        before = copy.deepcopy(reads)
+        before = pickle_copy(reads)
         row = next(r for r in reads if r["criterion_id"] == air.id)
         self.assertEqual(row["result"]["blocks"], [])
         self.assertEqual(row["result"]["air_cells"], 75)
@@ -732,7 +733,7 @@ class GameplayTests(unittest.TestCase):
         all_variants = air.model_copy(update={"names": ["air", "cave_air", "void_air"]})
         original = next(r for r in capture["verification"]["reads"] if r["criterion_id"] == air.id)
         for counter in (None, True, -1, 76):
-            row = copy.deepcopy(original)
+            row = pickle_copy(original)
             row["result"]["air_cells"] = counter
             with self.subTest(counter=counter):
                 self.assertFalse(evaluate([all_variants], [row])[air.id])
@@ -743,7 +744,7 @@ class GameplayTests(unittest.TestCase):
         The original captures remain unchanged. This projection tests geometry
         with valid lifecycle operands; it cannot establish new native acceptance.
         """
-        result = copy.deepcopy(row)
+        result = pickle_copy(row)
         if row.get("event") == "result" and row.get("tool") == "minecraft_observe" and row["ok"]:
             probe = json.loads((CAPTURE.parent / "a13-respawn-boundary.json").read_text(encoding="utf-8"))["probe"]
             baseline = probe["rows"][0]["result"]
@@ -782,7 +783,7 @@ class GameplayTests(unittest.TestCase):
         self.assertEqual(state["revision"], 0)
         with TemporaryDirectory() as folder:
             store = TreeStore(Path(folder))
-            store.state = copy.deepcopy(state)
+            store.state = pickle_copy(state)
             first_source = state["decisions"][0]["path"] + "/raw.json"
             source = state["rejected_proposal"]
             self.assertNotEqual(first_source, source)
@@ -920,7 +921,7 @@ class GameplayTests(unittest.TestCase):
         invalid = next(row for row in entry["rows"] if row.get("event") == "uncertain")
         evidence = GameplayEvidence()
         evidence.consume(observation, entry["source"])
-        outcomes = copy.deepcopy(evidence.outcomes)
+        outcomes = pickle_copy(evidence.outcomes)
         # Derive the local rejection event from the actual malformed call.
         # The original upstream uncertainty remains in the captured fixture.
         evidence.consume({**invalid, "event": "arguments_rejected"}, entry["source"])
@@ -1000,7 +1001,7 @@ class GameplayTests(unittest.TestCase):
         after = capture["rows"][1]
         evidence.consume(after, source)
         # Derive an invalid counter from the original post-death observation.
-        invalid = copy.deepcopy(after)
+        invalid = pickle_copy(after)
         invalid["time"] += 1
         invalid["result"]["death_count"] = 0
         with self.assertRaisesRegex(ValueError, "cannot decrease"):
@@ -1072,7 +1073,7 @@ class GameplayTests(unittest.TestCase):
         original = capture["waiting_planner"]["planning_state"]
         with TemporaryDirectory() as folder:
             store = TreeStore(Path(folder))
-            store.state = copy.deepcopy(original)
+            store.state = pickle_copy(original)
             self.assertTrue(restart_review(store, "plan", original["instruction_revision"], ""))
             for key in ("revision", "acceptances", "decisions", "attempts", "feedback"):
                 self.assertEqual(store.state[key], original[key])
@@ -1183,7 +1184,7 @@ class GameplayTests(unittest.TestCase):
         capture = json.loads((CAPTURE.parent / "a13-resumed-context.json").read_text(encoding="utf-8"))
         original = capture["documents"]["planner_input"]
         payload = json.loads(original["messages"][1]["content"])
-        before = copy.deepcopy(payload)
+        before = pickle_copy(payload)
         expanded = self.unpack_planning_history(payload["gameplay_history"])
         history = {**expanded, "methods": [{"tool": row["tool"], "arguments": row["arguments"],
             "ineffective": row["ineffective"], "state": payload["gameplay_history"]["method_states"][row["state_index"]],
@@ -1251,7 +1252,7 @@ class GameplayTests(unittest.TestCase):
             store.write(relative, capture["constraint_proof"])
             project = leaf_project_context(store, original["acceptance"]["project"]["ancestor_specifications"])
         self.assertEqual(project["caller_constraints"], capture["caller_constraints"])
-        updated = copy.deepcopy(original)
+        updated = pickle_copy(original)
         updated["acceptance"]["project"] = project
         context = leaf_execution_context(MinecraftRequest.model_validate(updated))
         self.assertEqual(context["caller_constraints"], capture["caller_constraints"])
@@ -1308,7 +1309,7 @@ class GameplayTests(unittest.TestCase):
         characters = len(system) + len(json.dumps(compact, ensure_ascii=False, separators=(",", ":")))
         self.assertGreater(original["input_characters"], 122000)
         self.assertLess(characters, original["input_characters"])
-        differing = copy.deepcopy(payload)
+        differing = pickle_copy(payload)
         differing["feedback"] = "A later actual read invalidated the old review."
         differing["previous_site_survey"]["tool_contracts"][0]["description"] += " Original historical wording."
         projected = compact_plan_context(differing)
@@ -1438,7 +1439,7 @@ class GameplayTests(unittest.TestCase):
         old = {node.id: node for node in previous.nodes}
         reconstructed = {key: node for key, node in old.items() if key not in scoped["removed_nodes"]}
         for value in scoped["changed_nodes"]:
-            value = copy.deepcopy(value)
+            value = pickle_copy(value)
             for field in ("criteria", "assumptions"):
                 for index, row in enumerate(value.get(field, [])):
                     if "from_node" in row:
@@ -1712,8 +1713,8 @@ class GameplayTests(unittest.TestCase):
         entry = self.capture["search"]
         evidence = GameplayEvidence()
         evidence.consume({**entry["observation"], "time": 200}, entry["source"])
-        current = copy.deepcopy(evidence.observation)
-        older = copy.deepcopy(entry["observation"])
+        current = pickle_copy(evidence.observation)
+        older = pickle_copy(entry["observation"])
         older["time"] = 100
         older["result"]["player"]["health"] = 0
         evidence.consume(older, "old-planning-file")
@@ -1726,7 +1727,7 @@ class GameplayTests(unittest.TestCase):
             store = TreeStore(Path(directory))
             original = tree()
             store.revise(original)
-            revised = original.model_copy(deep=True)
+            revised = pickle_copy(original)
             leaf = next(node for node in revised.nodes if node.kind == "leaf")
             leaf.deferred, leaf.defer_reason = True, "The observed local route lacks support."
             store.revise(revised)

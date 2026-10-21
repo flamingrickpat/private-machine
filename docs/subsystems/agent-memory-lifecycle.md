@@ -46,7 +46,7 @@ The native runner awaits agent cleanup before listener shutdown.
 The caller then revokes the read session.
 During retrieval, the search detects a closed session, cancels its provider task, and awaits cleanup.
 It does not set the enclosing run's cancellation signal.
-Completed embedding cache entries can remain.
+Completed embedding vectors can remain on their records.
 Transport retries use the shared embedding client's bounded policy: five retries, with 30-second pauses.
 Cancellation interrupts retry waits and request I/O.
 Lexical queries perform no network work.

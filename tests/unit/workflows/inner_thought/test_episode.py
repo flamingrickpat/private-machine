@@ -216,7 +216,7 @@ class EpisodeLifecycleTests(unittest.TestCase):
     def test_episode_survives_checkpoint_reopen(self):
         ghost = small_ghost()
         with TemporaryDirectory() as tmp:
-            checkpoint = Path(tmp) / "ghost.json"
+            checkpoint = Path(tmp) / "ghost.pickle"
             ghost.checkpoint = checkpoint
             module, bus, errors, _ = _module(ghost, tmp, lambda: stage_reports())
             module.cognitive_control.generation = 7

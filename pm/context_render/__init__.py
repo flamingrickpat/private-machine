@@ -1,10 +1,11 @@
 """Render typed context as composable text and media for model turns."""
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 from enum import IntFlag, auto
 from functools import singledispatch
 from pathlib import Path
-import copy
 import json
 
 from pydantic import BaseModel
@@ -58,7 +59,7 @@ def render_context(value: object, kinds: ContextKind = ContextKind.All, *, schem
                 if len(versions) == 1 and raw == versions[0]:
                     return {"record_ref": record_id}
                 if not any(raw == previous for previous in versions):
-                    versions.append(copy.deepcopy(raw))
+                    versions.append(pickle_copy(raw))
         return item
 
     schema = json.loads(Path(schema_path or DEFAULT_SCHEMA).read_text(encoding="utf-8"))

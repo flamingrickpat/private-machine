@@ -1,5 +1,6 @@
 """Check world-event commit and cancellation with a retained real observation."""
-from copy import deepcopy
+
+from pm.records.copying import pickle_copy
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -23,7 +24,7 @@ class WorldEventTests(unittest.TestCase):
         self.clock, self.bus, self.ghost = ManualClock(), BusSystem(), small_ghost()
         self.events = Recorder(self.bus, "minecraft.world")
         self.module = WorldEvents("world_events", self.bus, self.fail, self.clock, 10,
-                                  ghost=self.ghost, observe=lambda: {"ok": True, "result": deepcopy(self.observation)},
+                                  ghost=self.ghost, observe=lambda: {"ok": True, "result": pickle_copy(self.observation)},
                                   journal=Path(self.tmp.name) / "events.jsonl", quiet_seconds=20)
 
     def test_silence_commits_observation_before_event_and_coalesces_backlog(self):
@@ -118,7 +119,7 @@ class WorldEventTests(unittest.TestCase):
         self.assertIn("during active game work", record.content)
 
     def test_world_time_and_camera_rotation_do_not_create_per_tick_events(self):
-        changed = deepcopy(self.observation)
+        changed = pickle_copy(self.observation)
         changed["camera"]["yaw"] += 90
         changed["player"]["time_of_day"] += 1
         self.assertEqual(world_conditions(changed), world_conditions(self.observation))

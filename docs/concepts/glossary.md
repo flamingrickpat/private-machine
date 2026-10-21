@@ -44,7 +44,7 @@ A rename changes Python identifiers only.
 
 ### checkpoint
 
-- Definition: the durable, versioned file of one memory store, for example `.runtime/ghost.json`.
+- Definition: the durable, versioned file of one memory store, for example `.runtime/ghost.pickle`.
 - Relations: written after each accepted **commit** and before public output.
 - Owner: `pm.memory.checkpoint`. Old names: `GhostCheckpoint`.
 

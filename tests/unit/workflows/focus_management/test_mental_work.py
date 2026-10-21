@@ -224,7 +224,7 @@ class ProposalCommitTests(unittest.TestCase):
         ghost = small_ghost()
         action = self._action(ghost)
         with TemporaryDirectory() as tmp:
-            ghost.checkpoint = Path(tmp) / "ghost.json"
+            ghost.checkpoint = Path(tmp) / "ghost.pickle"
             module, bus, _ = self._module(ghost, tmp)
             module.invocation_id = "recover-mental"
             module._action_id = action.id

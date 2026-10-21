@@ -1,8 +1,9 @@
 """Verify A05 classification, PM activation, and compatibility with real services."""
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 import argparse
-from copy import deepcopy
 from dataclasses import asdict
 from importlib import metadata
 import json
@@ -128,7 +129,7 @@ def main() -> None:
         assert absent or args.allow_laya_present, "Stop optional Laya before M1 acceptance."
         replies = []
         app = build_app(seed, out / "application", cognition="real", config_path=str(args.config),
-                        checkpoint_path=out / "ghost-checkpoint.json", emit_reply=replies.append)
+                        checkpoint_path=out / "ghost-checkpoint.pickle", emit_reply=replies.append)
         models = app.workflow_models
         models.live_test = True
         assert models.owner._ready == {}, "Construction contacted chat."
@@ -188,7 +189,7 @@ def main() -> None:
         receipt["cases"].append({"name": "stale-producer", "class": "INVALID", "primary_cause": "stale_output"})
         with socket.socket() as reserved:
             reserved.bind(("127.0.0.1", 0))
-            unavailable = deepcopy(config)
+            unavailable = pickle_copy(config)
             unavailable.chat["Default"] = unavailable.chat["Default"].model_copy(update={"base_url": f"http://127.0.0.1:{reserved.getsockname()[1]}/v1", "startup_script": None})
             result, classified = run_case(out, "unavailable", virtual, WorkflowModels(unavailable, ModelActivation(), live_test=True),
                 variant(out, "unavailable", binding={"input_file": expected_path}))
@@ -217,7 +218,7 @@ def main() -> None:
             # The explicit context belongs to the verified upstream service.
             with models.session("Default", False, Event(), receipt_path=out / "relay-activation.jsonl") as model:
                 with response_recorder(model, out / "overflow-http") as recorded_model:
-                    relayed = deepcopy(config)
+                    relayed = pickle_copy(config)
                     relayed.chat["Default"] = relayed.chat["Default"].model_copy(update={"base_url": recorded_model.base_url, "context_window": context, "startup_script": None})
                     relay_models = WorkflowModels(relayed, ModelActivation(), live_test=True)
                     result, classified = run_case(out, "overflow", virtual, relay_models, LONG_DEMO)

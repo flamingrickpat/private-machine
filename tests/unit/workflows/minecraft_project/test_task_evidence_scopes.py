@@ -1,7 +1,8 @@
 """Check scoped workflow boundaries against retained real gameplay captures."""
 from __future__ import annotations
 
-import copy
+from pm.records.copying import pickle_copy
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -28,7 +29,7 @@ class EvidenceScopeTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(contents.encode('utf-8'))
             store.state['planning_constraints'] = capture['contract_path']
-            before = copy.deepcopy(store.state)
+            before = pickle_copy(store.state)
             result = caller_plan_constraints(store)
             original = json.loads(capture['files'][capture['contract_path']])
             for key, value in original['result'].items():
@@ -53,7 +54,7 @@ class EvidenceScopeTests(unittest.TestCase):
                 path.write_bytes(contents.encode("utf-8"))
             for revision, tree in capture["specifications"].items():
                 store.write("planning/specs/" + revision + ".json", tree)
-            store.state = copy.deepcopy(capture["state"])
+            store.state = pickle_copy(capture["state"])
             store.save()
             proposal = RetentionProposal.model_validate(capture["native_proposal"])
             proposed = retention_tree(store, proposal)
@@ -115,7 +116,7 @@ class EvidenceScopeTests(unittest.TestCase):
             store, _ = self.retained_case(Path(folder))
             proposal = self.proposal(store)
             before = store.path.read_bytes()
-            original = copy.deepcopy(store.state)
+            original = pickle_copy(store.state)
             for altered in [proposal.model_copy(update={"renewals": []}),
                             proposal.model_copy(update={"restore_nodes": [key for key in proposal.restore_nodes
                                 if key != proposal.renewals[0].source_node_id]})]:
@@ -132,7 +133,7 @@ class EvidenceScopeTests(unittest.TestCase):
                           if len(row["certificate"]["dependencies"]) > 1 and not store.valid(row["specification"]["id"]))
             original = dependency_scope(tree, [target])
             names = {node.id: "arbitrary_" + str(index) for index, node in enumerate(tree.nodes)}
-            changed = tree.model_copy(deep=True)
+            changed = pickle_copy(tree)
             changed.goal_id = names[tree.goal_id]
             for node in changed.nodes:
                 node.id = names[node.id]
@@ -182,7 +183,7 @@ class EvidenceScopeTests(unittest.TestCase):
             tree = store.load()
             protect_accepted_specifications(store, tree)
             key = next(key for key in store.state["acceptances"] if key != tree.goal_id)
-            changed = tree.model_copy(deep=True)
+            changed = pickle_copy(tree)
             node = next(node for node in changed.nodes if node.id == key)
             node.instruction += " Repeat the original material work using current inventory."
             with self.assertRaises(ValueError):

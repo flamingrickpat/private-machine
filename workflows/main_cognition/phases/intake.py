@@ -11,6 +11,8 @@ latest dialogue in the shared story prefix.
 """
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 from pm.constants import WORKSPACE_TAIL_TOKENS
 from pm.records.cycle_records import StimulusGroup
 from pm.records.cycle_state import CycleState
@@ -72,7 +74,7 @@ def start(request: CycleRequest) -> CycleWork:
     """
     # Copy, so the request keeps the previous state for the appraise phase.
     previous = request.previous_state
-    state = previous.model_copy(deep=True) if previous is not None else CycleState(tick_id=0)
+    state = pickle_copy(previous) if previous is not None else CycleState(tick_id=0)
     state.csm.decay_step()
     decay_registry(state.codelets)
     state.stimulus_groups = group_stimuli(request)

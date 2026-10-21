@@ -101,11 +101,11 @@ def main() -> Path:
     config = json.loads((SITUATION / "situation.json").read_text(encoding="utf-8"))["config"]
     out = ROOT / ".runtime" / "alpha" / (datetime.now().strftime("%Y%m%d-%H%M%S") + "-a19f-groups")
     out.mkdir(parents=True)
-    shutil.copy2(SITUATION / "ghost.json", out / "ghost.json")
+    shutil.copy2(SITUATION / "ghost.pickle", out / "ghost.pickle")
     os.environ["PM_PROMPT_LOG_DIR"] = str(out / "llm-logs")
     receipt: dict = {"run_directory": str(out), "status": "started"}
     app = build_app(DEFAULT_SEED, out / "app", cognition="real", config_path=str(ROOT / config),
-                    checkpoint_path=out / "ghost.json", thought_period=3600, world_poll_seconds=None,
+                    checkpoint_path=out / "ghost.pickle", thought_period=3600, world_poll_seconds=None,
                     record_lifecycle=False, emit_reply=lambda text: None)
     published: list = []
     app.bus.subscribe("a19f-gate", lambda envelope: envelope.topic == "action.request", published.append)

@@ -1,6 +1,8 @@
 """Select workflow evidence by task dependencies and retain original sources."""
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 import hashlib
 import json
 from pathlib import Path
@@ -154,7 +156,7 @@ def retention_operation(store: TreeStore, choice: RetentionChoice) -> RetentionP
         while new_id in nodes:
             new_id = key + "_renewal_" + str(suffix)
             suffix += 1
-        node = nodes[key].model_copy(update={"id": new_id, "revision": 1}, deep=True)
+        node = pickle_copy(nodes[key]).model_copy(update={"id": new_id, "revision": 1})
         renewals.append(Renewal(source_node_id=key, node=node))
         nodes[new_id] = node
     return RetentionProposal(**choice.model_dump(mode="json"), renewals=renewals)
@@ -176,7 +178,7 @@ def retention_tree(store: TreeStore, proposal: RetentionProposal) -> TaskTree:
                   and key in candidates and node_digest(nodes[key]) != candidates[key]["certificate"]["spec_digest"]}
     if {row.source_node_id for row in proposal.renewals} != superseded or len(proposal.renewals) != len(superseded):
         raise ValueError("Every superseded valid prerequisite needs exactly one separate current renewal: " + ", ".join(sorted(superseded)))
-    proposed = tree.model_copy(deep=True)
+    proposed = pickle_copy(tree)
     proposed_nodes = {node.id: node for node in proposed.nodes}
     for renewal in proposal.renewals:
         original, node = nodes[renewal.source_node_id], renewal.node

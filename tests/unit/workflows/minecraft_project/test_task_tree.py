@@ -1,7 +1,8 @@
 """Task graph and evidence contracts. Live behavior has a separate real gate."""
 from __future__ import annotations
 
-import copy
+from pm.records.copying import pickle_copy
+
 import ctypes
 from graphlib import TopologicalSorter
 import json
@@ -33,7 +34,7 @@ def tree() -> TaskTree:
     nodes = [Node(id="goal", kind="goal", children=["gather", "craft", "build", "use"],
                   instruction="A usable structure.", criteria=[alive])]
     for key, dependencies in [("gather", []), ("craft", ["gather"]), ("build", ["craft"]), ("use", ["build"])]:
-        nodes.append(Node(id=key, kind="leaf", parent="goal", depends_on=dependencies, instruction=key, criteria=[alive.model_copy(deep=True)]))
+        nodes.append(Node(id=key, kind="leaf", parent="goal", depends_on=dependencies, instruction=key, criteria=[pickle_copy(alive)]))
     return TaskTree(goal_id="goal", nodes=nodes)
 
 
@@ -52,7 +53,7 @@ def retain_contract_node(store: TreeStore, node: Node) -> None:
     """Retain a generated certificate envelope around captured live body reads."""
     reads = []
     for condition in node.criteria:
-        original = copy.deepcopy(CAPTURED["reads"][0])
+        original = pickle_copy(CAPTURED["reads"][0])
         original["criterion_id"] = condition.id
         if condition.kind == "accepted":
             record = store.state["acceptances"][condition.node_id]
@@ -117,12 +118,12 @@ class TaskGraphTests(unittest.TestCase):
             proposed.nodes[2].criteria.append(Condition(id="gathered", description="Gathering passed.", kind="accepted", node_id="gather"))
             proposed.nodes[3].criteria.append(Condition(id="supplied", description="Crafting passed.", kind="accepted", node_id="craft"))
             first = store.revise(proposed)
-            refined = first.model_copy(deep=True)
+            refined = pickle_copy(first)
             refined.nodes[2].kind = "story"
             refined.nodes[2].children = ["craft_a", "craft_b"]
             for key in refined.nodes[2].children:
                 refined.nodes.append(Node(id=key, kind="leaf", parent="craft", instruction=key,
-                                          criteria=copy.deepcopy(refined.nodes[0].criteria)))
+                                          criteria=pickle_copy(refined.nodes[0].criteria)))
             revised = store.revise(refined, target="craft")
             self.assertEqual(revised.nodes[2].criteria, first.nodes[2].criteria)
             self.assertEqual(revised.nodes[3], first.nodes[3])
@@ -143,7 +144,7 @@ class TaskGraphTests(unittest.TestCase):
             proposed.nodes[2].kind = "story"
             proposed.nodes[2].children = ["craft_a"]
             proposed.nodes.append(Node(id="craft_a", kind="leaf", parent="craft", instruction="Craft supplies.",
-                                       criteria=copy.deepcopy(proposed.nodes[0].criteria)))
+                                       criteria=pickle_copy(proposed.nodes[0].criteria)))
             store.revise(proposed)
             for key in ("gather", "craft_a"):
                 retain_contract_node(store, next(node for node in store.load().nodes if node.id == key))
@@ -289,7 +290,7 @@ class TaskGraphTests(unittest.TestCase):
             store = TreeStore(Path(folder))
             first = store.revise(tree())
             before = (Path(folder) / "planning/specs/0001.json").read_bytes()
-            proposed = first.model_copy(deep=True)
+            proposed = pickle_copy(first)
             proposed.nodes[3].instruction = "Build the revised footprint."
             second = store.revise(proposed)
             self.assertEqual([n.revision for n in second.nodes], [1, 1, 1, 2, 1])
@@ -323,7 +324,7 @@ class TaskGraphTests(unittest.TestCase):
     def test_controlled_refinement_preserves_unrelated_specs(self):
         with TemporaryDirectory() as folder:
             store = TreeStore(Path(folder))
-            proposed = store.revise(tree()).model_copy(deep=True)
+            proposed = pickle_copy(store.revise(tree()))
             proposed.nodes[1].kind = "story"
             proposed.nodes[1].children = ["gather_a", "gather_b"]
             for key in proposed.nodes[1].children:
@@ -334,7 +335,7 @@ class TaskGraphTests(unittest.TestCase):
     def test_refinement_cannot_change_unrelated_node(self):
         with TemporaryDirectory() as folder:
             store = TreeStore(Path(folder))
-            proposed = store.revise(tree()).model_copy(deep=True)
+            proposed = pickle_copy(store.revise(tree()))
             proposed.nodes[2].instruction = "Different unrelated work."
             with self.assertRaisesRegex(ValueError, "unrelated"):
                 store.revise(proposed, target="gather")
@@ -342,7 +343,7 @@ class TaskGraphTests(unittest.TestCase):
     def test_refinement_cannot_weaken_acceptance(self):
         with TemporaryDirectory() as folder:
             store = TreeStore(Path(folder))
-            proposed = store.revise(tree()).model_copy(deep=True)
+            proposed = pickle_copy(store.revise(tree()))
             proposed.nodes[1].criteria[0].description = "Different requirement."
             with self.assertRaisesRegex(ValueError, "preserve"):
                 store.revise(proposed, target="gather")
@@ -425,14 +426,14 @@ class CapturedEvidenceTests(unittest.TestCase):
                               names=["birch_log"], positions=[point])
         nodes = tree().nodes
         nodes[0].criteria.append(condition)
-        nodes[1].criteria.append(condition.model_copy(deep=True))
+        nodes[1].criteria.append(pickle_copy(condition))
         queries = survey_conditions(nodes)
         self.assertEqual(len(queries), 2)
         self.assertEqual(queries[1].position.model_dump(), point)
         self.assertEqual(queries[1].positions, [])
 
     def test_scoped_survey_preserves_original_block_facts_and_digest(self):
-        original = copy.deepcopy(next(row for row in CAPTURED["reads"] if row["tool"] == "minecraft_inspect_block"))
+        original = pickle_copy(next(row for row in CAPTURED["reads"] if row["tool"] == "minecraft_inspect_block"))
         reduced = scoped_reads([original])[0]
         self.assertEqual(reduced["result"]["position"], original["result"]["position"])
         self.assertEqual(reduced["result"]["block_name"], original["result"]["block_name"])
@@ -440,8 +441,8 @@ class CapturedEvidenceTests(unittest.TestCase):
         self.assertEqual(reduced["original_digest"], digest(original["result"]))
 
     def test_clock_and_view_changes_do_not_count_as_yielded_progress(self):
-        original = copy.deepcopy(CAPTURED["reads"][0]["result"])
-        changed = copy.deepcopy(original)
+        original = pickle_copy(CAPTURED["reads"][0]["result"])
+        changed = pickle_copy(original)
         changed["player"]["time_of_day"] += 100
         changed["camera"]["yaw"] += 90
         self.assertEqual(progress_facts(original), progress_facts(changed))
@@ -457,7 +458,7 @@ class CapturedEvidenceTests(unittest.TestCase):
             Condition.model_validate(captured["condition"])
 
     def test_grouped_cells_require_every_original_read(self):
-        original = copy.deepcopy(next(row for row in CAPTURED["reads"] if row["tool"] == "minecraft_inspect_block"))
+        original = pickle_copy(next(row for row in CAPTURED["reads"] if row["tool"] == "minecraft_inspect_block"))
         original.update(criterion_id="trunk", observed_dimension="overworld")
         condition = Condition(id="trunk", description="The exact trunk cell exists.", kind="block",
                               names=["minecraft:birch_log"], positions=[original["result"]["position"]])
@@ -469,7 +470,7 @@ class CapturedEvidenceTests(unittest.TestCase):
         self.assertFalse(evaluate([condition], [{"criterion_id": "wood", "summary": "complete", "tool": "actor_report", "result": {}, "ok": True}])["wood"])
 
     def test_original_inventory_and_absent_item(self):
-        original = copy.deepcopy(CAPTURED["reads"][0])
+        original = pickle_copy(CAPTURED["reads"][0])
         original["criterion_id"] = "inventory"
         present = Condition(id="inventory", description="Birch logs exist.", kind="inventory", names=["birch_log"], minimum=1)
         absent = present.model_copy(update={"names": ["diamond_pickaxe"]})
@@ -477,7 +478,7 @@ class CapturedEvidenceTests(unittest.TestCase):
         self.assertFalse(evaluate([absent], [original])["inventory"])
 
     def test_block_coordinates_and_dimension_are_required(self):
-        original = copy.deepcopy(next(row for row in CAPTURED["reads"] if row["tool"] == "minecraft_inspect_block"))
+        original = pickle_copy(next(row for row in CAPTURED["reads"] if row["tool"] == "minecraft_inspect_block"))
         original.update(criterion_id="trunk", observed_dimension="overworld")
         condition = Condition(id="trunk", description="The inspected trunk exists.", kind="block",
                               names=["birch_log"], position=original["result"]["position"])
@@ -489,7 +490,7 @@ class CapturedEvidenceTests(unittest.TestCase):
         self.assertFalse(evaluate([condition], [original])["trunk"])
 
     def test_missing_or_duplicate_original_read_fails(self):
-        original = copy.deepcopy(CAPTURED["reads"][0])
+        original = pickle_copy(CAPTURED["reads"][0])
         original["criterion_id"] = "living"
         condition = Condition(id="living", description="Alive.", kind="alive")
         self.assertFalse(evaluate([condition], [])["living"])

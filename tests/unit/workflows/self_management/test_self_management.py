@@ -48,7 +48,7 @@ class SelfManagementTests(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.ghost = MemoryStore(
             PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
-            checkpoint=self.root / "ghost.json",
+            checkpoint=self.root / "ghost.pickle",
         )
         self.supervisor = ManagedRunSupervisor(
             self.ghost,
@@ -158,7 +158,7 @@ class SelfManagementModuleTests(unittest.TestCase):
             root = Path(tmp)
             ghost = MemoryStore(
                 PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
-                checkpoint=root / "ghost.json",
+                checkpoint=root / "ghost.pickle",
             )
             supervisor = ManagedRunSupervisor(
                 ghost, runtime_root=root / "runtime",
@@ -212,7 +212,7 @@ class ManagementMcpTests(unittest.TestCase):
             root = Path(tmp)
             ghost = MemoryStore(
                 PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
-                checkpoint=root / "ghost.json",
+                checkpoint=root / "ghost.pickle",
             )
             supervisor = ManagedRunSupervisor(
                 ghost, runtime_root=root / "runtime",

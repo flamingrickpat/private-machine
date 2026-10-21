@@ -117,14 +117,14 @@ def build_control_ghost(path: Path, root: Path) -> MemoryStore:
     """
     card = yaml.safe_load(path.read_text(encoding="utf-8"))
     config = PersonaConfig.model_validate(card)
-    return MemoryStore(config, checkpoint=root / "ghost.json")
+    return MemoryStore(config, checkpoint=root / "ghost.pickle")
 
 
 def run_sequence(seed_path: Path, root: Path, *, label: str, turns: list, replies: list, config: str, ghost=None) -> dict:
     app = build_app(
         seed_path=str(seed_path),
         runtime_root=root / "runtime",
-        checkpoint_path=None if ghost is not None else root / "ghost.json",
+        checkpoint_path=None if ghost is not None else root / "ghost.pickle",
         ghost=ghost,
         emit_reply=replies.append,
         cognition="real",

@@ -366,7 +366,7 @@ class CycleTests(unittest.TestCase):
 
     def test_affect_survives_a_checkpoint_restart(self):
         with TemporaryDirectory() as tmp:
-            checkpoint = Path(tmp) / "ghost.json"
+            checkpoint = Path(tmp) / "ghost.pickle"
             ghost = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"), checkpoint=checkpoint)
             stimulus_id = _store(ghost, "That failure was not your fault.")
             _cycle(ghost, _reports(stimulus_id, emotion={"sadness": 0.7}), stimulus_id)

@@ -7,6 +7,8 @@ request without a cycle and use the same helpers on the newest cycle state.
 """
 from __future__ import annotations
 
+from pm.records.copying import pickle_copy
+
 from collections.abc import Callable, Iterable
 
 from pm.records.workspace import SELF_SHARD, GlobalWorkspace, ShardKey
@@ -43,7 +45,7 @@ def request_shards(workspace: GlobalWorkspace, group: ShardKey, partner: ShardKe
             *([group] if group.kind == "workflow" else [])]
     shards = []
     for key in dict.fromkeys(keys):
-        shard = (workspace.shard(key).model_copy(deep=True) if workspace.has_shard(key)
+        shard = (pickle_copy(workspace.shard(key)) if workspace.has_shard(key)
                  else GlobalWorkspace().ensure_shard(key))
         shard.tail_ids = [record_id for record_id in shard.tail_ids if record_id not in left_out]
         shards.append(RequestShard(name=label(key), shard=shard))

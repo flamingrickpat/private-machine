@@ -167,7 +167,7 @@ class CognitiveControl(BusModule):
             if private_generation is not None and (self.waiting() or private_generation != self.generation):
                 raise GhostCancelled("New outside input superseded private cognition.")
             for key in wake_ids:
-                record = batch.view().get(key)
+                record = batch.view().get(key).copy_for_edit()
                 if record.metadata.get("wake_status") == "pending":
                     record.metadata.update(wake_status="consumed", consumed_by=batch.commit_id)
                     batch.replace(record)
@@ -226,7 +226,7 @@ class CognitiveControl(BusModule):
 
     def _wake(self, record: Feature, reason: str, *, timeout: bool, now: datetime) -> None:
         batch = self.ghost.begin_batch("wake-" + new_id(), cancel=self.stop_event)
-        accepted = batch.view().get(record.id)
+        accepted = batch.view().get(record.id).copy_for_edit()
         accepted.metadata.update(status="awake", wake_reason=reason, woke_at=now.isoformat())
         batch.replace(accepted)
         if timeout:

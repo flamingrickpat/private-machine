@@ -98,8 +98,6 @@ class CycleStateModel(BaseModel):
 
     def rebuild_knoxel_index(self) -> None:
         self._knoxel_index = {knoxel.id: knoxel for knoxel in self.knoxels}
-        for knoxel in self.knoxels:
-            knoxel._owner = self
 
     @property
     def all_knoxels(self) -> Dict[int, RecordBase]:

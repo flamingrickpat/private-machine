@@ -1,7 +1,7 @@
 """Prepare standalone Story with the shared context plan and public evidence.
 
 The operator's situation supplies one accepted user input in the trial MemoryStore.
-The ``story`` context plan uses the shared embedding cache. Capability discovery
+The ``story`` context plan reads vectors from the shared records. Capability discovery
 runs outside the async loop. The companion's earlier private thoughts can
 appear in the verbatim transcript as ``thinks: *...*`` lines; they guide the
 voice and are never published.

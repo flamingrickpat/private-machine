@@ -7,9 +7,11 @@ means an explicit in-memory session, not durable storage.
 """
 from __future__ import annotations
 
-from copy import deepcopy
+
 import hashlib
 from pathlib import Path
+import json
+import pickle
 from threading import Event, RLock
 from uuid import uuid4
 
@@ -17,22 +19,26 @@ from pm.memory.snapshot import GhostCancelled, GhostConflict, Snapshot
 from pm.memory.write_batch import WriteBatch
 from pm.memory.record_index import RecordIndex
 from pm.memory.references import check_references
-from pm.records.cycle_state import CycleStateModel, PersonaConfig
+from pm.records.cycle_state import CycleState, CycleStateModel, PersonaConfig
 from pm.records.global_workspace import GwtTurnRecord
 from pm.records.base import RecordBase
-from pm.memory.yaml_codec import _deserialize_knoxel, _serialize_knoxel, ghost_state_from_dict, load_ghost_state_from_yaml
+from pm.memory.yaml_codec import ghost_state_to_dict, load_ghost_state_from_yaml
+from pm.memory.vector_index import VectorIndex
+from pm.memory.embeddings import EmbeddingService, run_embedding_work
 from pm.memory.checkpoint import CommitReceipt, Checkpoint, read_checkpoint, write_checkpoint
 from pm.records.media import MEDIA_KEY, RecordImage, merge_alt_text, metadata_media
 
 
-serialize_knoxel = _serialize_knoxel
-
-
 class MemoryStore(RecordIndex):
+    """Own one central record map. Reads share records and writes use the store lock."""
     def __init__(self, config: PersonaConfig, *, checkpoint: Path | None = None):
-        super().__init__(None, config.model_copy(deep=True))
+        super().__init__(None, config)
         self.lock = RLock()
+        self.embedding_index = VectorIndex()
+        self.embeddings: EmbeddingService | None = None
         self.checkpoint = Path(checkpoint) if checkpoint is not None else None
+        if self.checkpoint is not None and self.checkpoint.suffix.lower() in {".json", ".yaml", ".yml"}:
+            self.checkpoint = self.checkpoint.with_suffix(".pickle")
         self.gwt_turns: dict[int, GwtTurnRecord] = {}
         self.revisions: dict[int, int] = {}
         self.applied_commits: dict[str, CommitReceipt] = {}
@@ -42,11 +48,29 @@ class MemoryStore(RecordIndex):
         self._reserved_tick_id = 0
 
     @classmethod
+    def load(cls, path: str | Path, *, checkpoint: Path | None = None) -> "MemoryStore":
+        """Load pickle, JSON, or a legacy YAML seed. Save future changes with pickle."""
+        from pm.memory.yaml_codec import ghost_state_from_dict
+        path = Path(path)
+        if path.suffix.lower() in {".yaml", ".yml"}:
+            return cls.from_yaml(path, checkpoint=checkpoint)
+        data = path.read_bytes()
+        if data.startswith(b"\x80"):
+            loaded = pickle.loads(data)
+            if isinstance(loaded, Checkpoint):
+                return cls._restore(loaded, checkpoint or path.with_suffix(".pickle"))
+            return cls.from_state(loaded, checkpoint=checkpoint or path.with_suffix(".pickle"))
+        loaded = json.loads(data)
+        if "schema_id" in loaded:
+            return cls._restore(Checkpoint.model_validate(loaded), checkpoint or path.with_suffix(".pickle"))
+        return cls.from_state(ghost_state_from_dict(loaded), checkpoint=checkpoint)
+
+    @classmethod
     def from_state(cls, state: CycleStateModel, *, checkpoint: Path | None = None) -> "MemoryStore":
         config = PersonaConfig.model_validate(state.model_dump(exclude={"knoxels", "cycles", "previous_emb_model"}))
         ghost = cls(config, checkpoint=checkpoint)
-        ghost.states = [cycle.model_copy(deep=True) for cycle in state.cycles]
-        ghost._all_knoxels = {knoxel.id: _deserialize_knoxel(_serialize_knoxel(knoxel)) for knoxel in state.knoxels}
+        ghost.states = state.cycles
+        ghost._all_knoxels = {knoxel.id: knoxel for knoxel in state.knoxels}
         if len(ghost._all_knoxels) != len(state.knoxels):
             raise ValueError("The seed contains duplicate knoxel IDs.")
         ghost.previous_emb_model = state.previous_emb_model
@@ -54,6 +78,7 @@ class MemoryStore(RecordIndex):
         ghost._reserved_tick_id = ghost.current_tick_id
         ghost.revisions = {record_id: 1 for record_id in ghost._all_knoxels}
         ghost.rebuild_knoxel_indexes()
+        ghost.embedding_index.rebuild(state.knoxels)
         return ghost
 
     @classmethod
@@ -87,7 +112,7 @@ class MemoryStore(RecordIndex):
 
     @classmethod
     def _restore(cls, data: Checkpoint, path: Path | None) -> "MemoryStore":
-        ghost = cls.from_state(ghost_state_from_dict(data.state), checkpoint=path)
+        ghost = cls.from_state(data.state, checkpoint=path)
         if set(data.revisions) != set(ghost._all_knoxels) or any(revision < 1 for revision in data.revisions.values()):
             raise ValueError("Checkpoint record revisions do not match stored memory.")
         if (data.current_knoxel_id < ghost.current_knoxel_id
@@ -102,28 +127,75 @@ class MemoryStore(RecordIndex):
         ghost.current_tick_id = data.current_tick_id
         ghost._reserved_tick_id = data.reserved_tick_id
         ghost.revisions = dict(data.revisions)
-        ghost.gwt_turns = {tick: record.model_copy(deep=True) for tick, record in data.gwt_turns.items()}
+        ghost.gwt_turns = data.gwt_turns
         ghost.applied_commits = dict(data.applied_commits)
-        ghost.managed_runs = deepcopy(data.managed_runs)
-        ghost.consolidations = deepcopy(data.consolidations)
+        ghost.managed_runs = data.managed_runs
+        ghost.consolidations = data.consolidations
         return ghost
 
+    def state(self, records: dict[int, RecordBase] | None = None, cycles: list[CycleState] | None = None) -> CycleStateModel:
+        """Return typed state with shared records. This method copies no record values."""
+        return CycleStateModel.model_construct(
+            **self.ghost_config.model_dump(), previous_emb_model=self.previous_emb_model,
+            cycles=self.states if cycles is None else cycles,
+            knoxels=list((self._all_knoxels if records is None else records).values()),
+        )
+
     def state_dict(self) -> dict:
+        """Render an explicit JSON export. Normal commits use typed pickle state."""
         with self.lock:
-            return {
-                **self.ghost_config.model_dump(mode="json"),
-                "previous_emb_model": self.previous_emb_model,
-                "cycles": [cycle.model_dump(mode="json") for cycle in self.states],
-                "knoxels": [_serialize_knoxel(knoxel) for knoxel in self._all_knoxels.values()],
-            }
+            return ghost_state_to_dict(self.state())
 
     def snapshot(self, visible_ids=None) -> Snapshot:
+        """Capture membership and revisions while sharing the central record instances."""
         with self.lock:
-            ids = set(self._all_knoxels) if visible_ids is None else set(visible_ids)
-            records = {record_id: _serialize_knoxel(self._all_knoxels[record_id]) for record_id in sorted(ids)}
-            gwt = {tick: record.model_dump(mode="json") for tick, record in self.gwt_turns.items()
-                   if set(record.knoxel_ids).issubset(ids)}
-            return Snapshot(records, gwt, {record_id: self.revisions[record_id] for record_id in ids})
+            ids = self._all_knoxels.keys() if visible_ids is None else visible_ids
+            records = {key: self._all_knoxels[key] for key in ids}
+            gwt = {tick: record for tick, record in self.gwt_turns.items()
+                   if set(record.knoxel_ids).issubset(records)}
+            return Snapshot(records, gwt, {key: self.revisions[key] for key in records}, self.embedding_index)
+
+    def index_embedding(self, record: RecordBase) -> None:
+        """Index a vector update only when this record is the accepted central instance."""
+        if self._all_knoxels.get(record.id) is not record:
+            return
+        with self.lock:
+            if self._all_knoxels.get(record.id) is record:
+                self.embedding_index.update(record)
+
+    def initialize_embeddings(self, embeddings: EmbeddingService) -> None:
+        """Embed all missing records on load. Save once when vectors or the format change."""
+        self.embeddings = embeddings
+        records = self.snapshot().all_knoxels
+        changed_model = bool(self.previous_emb_model and self.previous_emb_model != embeddings.config.model)
+        for record in records.values():
+            if changed_model or len(record.embedding) != embeddings.dimensions:
+                record.embedding = []
+        missing = any(not record.embedding for record in records.values())
+        run_embedding_work(embeddings.prepare_index(records))
+        self.previous_emb_model = embeddings.config.model
+        if self.checkpoint is not None:
+            migrate = self.checkpoint.suffix.lower() not in {".pkl", ".pickle"}
+            if migrate:
+                self.checkpoint = self.checkpoint.with_suffix(".pickle")
+            if missing or changed_model or migrate or not self.checkpoint.exists():
+                self.save()
+
+    def checkpoint_data(self) -> Checkpoint:
+        """Collect the full typed store for a pickle save."""
+        return Checkpoint(
+            state=self.state(), current_knoxel_id=self.current_knoxel_id,
+            current_tick_id=self.current_tick_id, reserved_tick_id=self._reserved_tick_id,
+            revisions=self.revisions, gwt_turns=self.gwt_turns,
+            applied_commits=self.applied_commits, managed_runs=self.managed_runs,
+            consolidations=self.consolidations,
+        )
+
+    def save(self) -> None:
+        """Save all records and vectors. Filesystem errors propagate."""
+        with self.lock:
+            if self.checkpoint is not None:
+                write_checkpoint(self.checkpoint, self.checkpoint_data(), lambda: None)
 
     def backup(self) -> Path | None:
         """Save accepted memory beside the checkpoint and return its backup path.
@@ -141,14 +213,8 @@ class MemoryStore(RecordIndex):
             return None
         with self.lock:
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-            path = self.checkpoint.with_name(f"ghost_{self.current_tick_id}_{stamp}_{uuid4().hex[:8]}.json")
-            data = Checkpoint(
-                state=self.state_dict(), current_knoxel_id=self.current_knoxel_id,
-                current_tick_id=self.current_tick_id, reserved_tick_id=self._reserved_tick_id,
-                revisions=dict(self.revisions), gwt_turns=dict(self.gwt_turns),
-                applied_commits=dict(self.applied_commits), managed_runs=dict(self.managed_runs),
-                consolidations=dict(self.consolidations),
-            )
+            path = self.checkpoint.with_name(f"ghost_{self.current_tick_id}_{stamp}_{uuid4().hex[:8]}.pickle")
+            data = self.checkpoint_data()
             write_checkpoint(path, data, lambda: None)
         logging.getLogger(__name__).info("Memory backup tick=%s path=%s", data.current_tick_id, path)
         return path
@@ -194,27 +260,23 @@ class MemoryStore(RecordIndex):
     async def search_memory(self, query: str, embeddings, *, visible_ids=None, limit: int = 50,
                             prepare: bool = False, cancel=None, progress=None,
                             record_type: str = "", subtype: str = "") -> dict:
-        """Search accepted text with the supplied embedding service.
+        """Search shared records with FAISS after embedding any missing vectors.
 
-        Search uses cached vectors and reports missing coverage. ``prepare``
-        explicitly embeds missing records before search. Network work never
-        holds the MemoryStore lock. Type and subtype filters apply before indexing and ranking.
-        Callers must pass their permitted record IDs.
+        Type and subtype filters apply before ranking. Pass the permitted
+        record IDs. The legacy ``prepare`` argument has no effect.
         """
         view = self.snapshot(visible_ids)
-        records = {key: raw for key, raw in view.serialize_knoxels().items()
-                   if (not record_type or raw["__type__"] == record_type)
-                   and (not subtype or subtype in [f"{field}: {value}"
-                        for field, value in raw["data"].items() if field.endswith("_type")])}
-        texts = {key: raw["data"]["content"] for key, raw in records.items() if raw["data"].get("content", "").strip()}
-        if prepare:
-            await embeddings.prepare_index(texts, cancel=cancel, progress=progress)
-        plan = embeddings.inspect_index(texts)
-        indexed = {key: texts[key] for key in plan.hits}
-        results = await embeddings.search(query, indexed, cancel=cancel) if indexed else []
-        return {"indexed": len(indexed), "total": len(texts), "missing": len(plan.missing),
+        records = {key: record for key, record in view.all_knoxels.items()
+                   if (not record_type or record.type.value == record_type)
+                   and (not subtype or subtype in [f"{field}: {getattr(record, field)}"
+                        for field in type(record).model_fields if field.endswith("_type")])}
+        missing = any(not record.embedding for record in records.values())
+        results = await embeddings.search(query, records, index=view.embedding_index, cancel=cancel)
+        if missing and self.checkpoint is not None:
+            self.save()
+        return {"indexed": len(records), "total": len(records), "missing": 0,
                 "model": embeddings.config.model,
-                "matches": [{"id": key, "score": score, "record": records[key],
+                "matches": [{"id": key, "score": score, "record": records[key].as_payload(include_embedding=False),
                              "revision": view.revisions[key]} for key, score in results[:max(1, min(limit, 250))]]}
 
     def gwt_turns_of(self, slot_id: str, limit: int = 8) -> list[GwtTurnRecord]:
@@ -244,6 +306,10 @@ class MemoryStore(RecordIndex):
         Repeated commit IDs return their original receipt. Revision conflicts
         raise GhostConflict. A cancellation before replacement raises GhostCancelled.
         """
+        if self.embeddings is not None and batch.commit_id not in self.applied_commits:
+            batch.check_cancelled()
+            run_embedding_work(self.embeddings.prepare_index(
+                {**batch._new, **batch._replacements}, cancel=batch.cancel))
         with self.lock:
             if batch._ghost is not self:
                 raise ValueError("The batch belongs to another Ghost.")
@@ -272,8 +338,8 @@ class MemoryStore(RecordIndex):
                     f"Stale consolidation receipts: {consolidation_conflicts}. Stale record families: {family_conflicts}."
                 )
             allowed_ids = set(batch._snapshot._records) | set(batch._new)
-            for raw in (*batch._new.values(), *batch._replacements.values()):
-                check_references(_deserialize_knoxel(raw), allowed_ids)
+            for record in (*batch._new.values(), *batch._replacements.values()):
+                check_references(record, allowed_ids)
             if batch._gwt is not None:
                 if batch.tick_id in self.gwt_turns:
                     raise GhostConflict(f"GWT tick {batch.tick_id} is already committed.")
@@ -283,21 +349,10 @@ class MemoryStore(RecordIndex):
                     raise GhostConflict(f"Cycle tick {batch.tick_id} is already committed.")
                 check_references(batch._cycle, allowed_ids)
 
-            state = self.state_dict()
-            records = {raw["data"]["id"]: raw for raw in state["knoxels"]}
-            records.update(deepcopy(batch._new))
-            for record_id, raw in batch._replacements.items():
-                replacement = deepcopy(raw)
-                # Alt text arrives after acceptance (annotate_alt_text). A
-                # replacement from an older view must not erase it.
-                merge_alt_text(replacement["data"]["metadata"], self._all_knoxels[record_id].metadata)
-                records[record_id] = replacement
-            # Semantic vectors belong in the shared cache, not each checkpoint.
-            for raw in records.values():
-                raw["data"]["embedding"] = []
-            state["knoxels"] = list(records.values())
-            if batch._cycle is not None:
-                state["cycles"].append(batch._cycle.model_dump(mode="json"))
+            records = {**self._all_knoxels, **batch._new, **batch._replacements}
+            for record_id, replacement in batch._replacements.items():
+                merge_alt_text(replacement.metadata, self._all_knoxels[record_id].metadata)
+            cycles = self.states if batch._cycle is None else [*self.states, batch._cycle]
             revisions = dict(self.revisions)
             for record_id in (*batch._new, *batch._replacements):
                 revisions[record_id] = revisions.get(record_id, 0) + 1
@@ -307,42 +362,32 @@ class MemoryStore(RecordIndex):
             if batch._gwt is not None:
                 gwt[batch.tick_id] = batch._gwt
             data = Checkpoint(
-                state=state, current_knoxel_id=self.current_knoxel_id,
+                state=self.state(records, cycles), current_knoxel_id=self.current_knoxel_id,
                 current_tick_id=max(self.current_tick_id, batch.tick_id), reserved_tick_id=self._reserved_tick_id,
                 revisions=revisions, gwt_turns=gwt,
                 applied_commits={**self.applied_commits, batch.commit_id: receipt},
                 managed_runs={**self.managed_runs, **batch._runs},
                 consolidations={**self.consolidations, **batch._consolidations},
             )
-            # Run receipts can change without changing any record or tick.
-            # Reuse validated records for that boundary. Rebuilding the entire
-            # persona for every run event delays both control and public replies.
-            metadata_only = (not batch._new and not batch._replacements
-                             and batch._cycle is None and batch._gwt is None
-                             and batch.tick_id == self.current_tick_id
-                             and all(not record.embedding for record in self._all_knoxels.values()))
-            if metadata_only:
-                metadata = {"managed_runs": deepcopy(data.managed_runs),
-                            "consolidations": deepcopy(data.consolidations),
-                            "applied_commits": dict(data.applied_commits)}
-                candidate = None
-            else:
-                candidate = self._restore(data, self.checkpoint)
             batch.check_cancelled()
             if self.checkpoint is not None:
                 write_checkpoint(self.checkpoint, data, batch.check_cancelled)
-            # All validation and I/O precede canonical installation.
-            if metadata_only:
-                for name, value in metadata.items():
-                    setattr(self, name, value)
-                batch._closed = True
-                return receipt
-            for name in ("ghost_config", "states", "_all_knoxels", "_knoxels_by_type", "_knoxels_by_subtype", "_knoxels_by_class",
-                         "current_knoxel_id", "current_tick_id", "_reserved_tick_id", "revisions", "gwt_turns",
-                         "applied_commits", "managed_runs", "consolidations", "previous_emb_model"):
-                setattr(self, name, getattr(candidate, name))
-            for knoxel in self._all_knoxels.values():
-                knoxel._owner = self
+            # Save before installation. A failed file replacement leaves proposals private.
+            for record_id, record in {**batch._new, **batch._replacements}.items():
+                previous = self._all_knoxels.get(record_id)
+                if previous is not None:
+                    self._deindex_knoxel(previous)
+                record._owner = self
+                self._all_knoxels[record_id] = record
+                self._index_knoxel(record)
+                self.embedding_index.update(record)
+            self.states = cycles
+            self.current_tick_id = data.current_tick_id
+            self.revisions = revisions
+            self.gwt_turns = gwt
+            self.applied_commits = data.applied_commits
+            self.managed_runs = data.managed_runs
+            self.consolidations = data.consolidations
             batch._closed = True
             import logging
             logging.getLogger(__name__).debug("Memory commit id=%s tick=%s added=%s updated=%s", receipt.commit_id,
@@ -390,32 +435,19 @@ class MemoryStore(RecordIndex):
                     record.metadata = {**record.metadata, MEDIA_KEY: media.model_dump(mode="json")}
                     changed.append(record_id)
             if changed and self.checkpoint is not None:
-                state = self.state_dict()
-                for raw in state["knoxels"]:
-                    raw["data"]["embedding"] = []
-                write_checkpoint(self.checkpoint, Checkpoint(
-                    state=state, current_knoxel_id=self.current_knoxel_id, current_tick_id=self.current_tick_id,
-                    reserved_tick_id=self._reserved_tick_id, revisions=dict(self.revisions), gwt_turns=dict(self.gwt_turns),
-                    applied_commits=dict(self.applied_commits), managed_runs=deepcopy(self.managed_runs),
-                    consolidations=deepcopy(self.consolidations)), lambda: None)
+                self.save()
         return changed
 
     def store_knoxel(self, knoxel: RecordBase) -> RecordBase:
         """Commit one trusted host input through the same batch boundary."""
-        with self.lock:
-            batch = self.begin_batch(uuid4().hex)
-            record = batch.create(knoxel)
-            self.commit(batch)
-            return self.get_knoxel_by_id(record.id)
+        batch = self.begin_batch(uuid4().hex)
+        record = batch.create(knoxel)
+        self.commit(batch)
+        return self.get_knoxel_by_id(record.id)
 
     def get_knoxel_by_id(self, knoxel_id: int) -> RecordBase | None:
         with self.lock:
-            original = self._all_knoxels.get(knoxel_id)
-            if original is None:
-                return None
-            record = _deserialize_knoxel(_serialize_knoxel(original))
-            record._owner = self
-            return record
+            return self._all_knoxels.get(knoxel_id)
 
     def add_knoxel(self, knoxel: RecordBase, generate_embedding: bool = True) -> RecordBase:
         raise NotImplementedError("Use store_knoxel or GhostWriteBatch.create to add memory.")

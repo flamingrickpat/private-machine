@@ -201,16 +201,15 @@ class MemoryAgentToolTests(unittest.TestCase):
             with self.assertRaises(Exception):
                 asyncio.run(closed())
 
-    def test_semantic_only_uses_shared_cache_and_reports_missing_service(self):
+    def test_semantic_only_uses_stored_vectors_and_reports_missing_service(self):
         source = self.say("Any timber is acceptable.")
         with TemporaryDirectory() as directory:
             service = EmbeddingService(EmbeddingConfig(base_url="http://127.0.0.1:1/v1", model="cache-test",
                 api_key="unused", dimensions=2, legacy_cache_dir=Path(directory) / "legacy",
                 cache_dir=Path(directory) / "cache"), live_test=True)
-            service.cache.put(source.content, [1.0, 0.0])
-            service.cache.put("building materials", [1.0, 0.0])
+            source.embedding = [1.0, 0.0]
             with MemoryReadSession(self.config(semantic=True, lexical=False, embeddings=service)) as memory:
-                result = asyncio.run(memory.search("building materials"))
+                result = asyncio.run(memory.search(source.content))
                 self.assertEqual(result["matches"][0]["record_id"], source.id)
                 self.assertEqual(result["trace"]["effective_method"], "semantic")
                 self.assertEqual(result["trace"]["coverage"]["indexed"], 1)
@@ -237,14 +236,13 @@ class MemoryAgentToolTests(unittest.TestCase):
                 cache_dir=Path(directory) / "cache"), live_test=True)
             for index, source in enumerate(sources):
                 if index != 20:
-                    service.cache.put(source.content, [1.0, 0.0])
-            service.cache.put("building supplies", [1.0, 0.0])
+                    source.embedding = [1.0, 0.0]
             with MemoryReadSession(self.config(semantic=True, embeddings=service)) as memory:
-                result = asyncio.run(memory.search("building supplies"))
+                result = asyncio.run(memory.search(sources[0].content))
                 self.assertEqual(result["trace"]["coverage"]["missing"], 1)
                 self.assertIn(sources[20].id, memory.records)
                 self.assertIn("Archived material", json.dumps(memory.get(sources[20].id)))
-                self.assertEqual(service.client.request_count, 0)
+                self.assertGreater(service.client.request_count, 0)
 
     def test_cancel_during_provider_retry_returns_no_search_result(self):
         self.say("A material report without a cached embedding.")

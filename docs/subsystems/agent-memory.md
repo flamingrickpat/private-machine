@@ -19,7 +19,7 @@ Query words rank relevance within that grant.
 
 [`pm.memory.agent_tools.MemoryToolConfig`][] selects semantic, lexical, and graph tools.
 At least one group must be enabled.
-Its optional embedding service uses the shared cache.
+Its optional embedding service reads vectors from the shared records and ranks them with FAISS.
 Construction performs no network work.
 
 [`pm.memory.agent_tools.MemoryReadSession`][] captures the accepted owner and constructs the read tools.
@@ -59,12 +59,11 @@ Its returned `next_offset` continues that exact representation.
 Source and graph offsets count entries.
 Unavailable IDs use one generic error.
 
-Each search prepares at most eight missing embedding chunks by default.
-The view can permit zero through 64 chunks.
-Cached semantic ranking considers every permitted indexed record.
+Startup embeds every missing record and saves its vector in the pickle checkpoint.
+Search prepares any remaining missing record vectors before FAISS ranking.
 Missing coverage does not hide records from lookup or lexical search.
 Provider errors produce an explicit lexical fallback.
-Cancellation and local cache errors propagate.
+Cancellation and index errors propagate.
 
 ## Evidence boundaries
 

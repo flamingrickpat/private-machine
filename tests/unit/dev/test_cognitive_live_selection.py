@@ -3,7 +3,8 @@
 Constructed scores test the live harness only. They do not establish model
 accuracy or companion quality. Test discovery does not run live cases.
 """
-from copy import deepcopy
+
+from pm.records.copying import pickle_copy
 import unittest
 
 from dev.work_items.a18b.policy import score_suite
@@ -94,7 +95,7 @@ class CognitiveSelectedResultTests(unittest.TestCase):
             with self.subTest(receipt=receipt), self.assertRaises(ValueError):
                 live_selection.validate_selected_result(1, receipt, self.case_id, self.ids)
         for field in self.receipt:
-            receipt = deepcopy(self.receipt)
+            receipt = pickle_copy(self.receipt)
             del receipt[field]
             if field in ("minecraft_cases", "human_review"):
                 continue
@@ -135,14 +136,14 @@ class CognitiveSelectedResultTests(unittest.TestCase):
     def test_incomplete_weak_or_below_floor_case_never_passes(self):
         for field in ("complete", "strong", "floor"):
             for value in (False, None, 1, "true"):
-                receipt = deepcopy(self.receipt)
+                receipt = pickle_copy(self.receipt)
                 receipt["cases"][0][field] = value
                 with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "complete, strong"):
                     self.validate(receipt)
 
     def test_critical_failures_and_review_errors_never_pass(self):
         for field in ("critical_failures", "review_errors"):
-            receipt = deepcopy(self.receipt)
+            receipt = pickle_copy(self.receipt)
             receipt["cases"][0][field] = ["Constructed harness rejection input."]
             with self.subTest(field=field), self.assertRaisesRegex(ValueError, "critical failures or review errors"):
                 self.validate(receipt)
@@ -151,7 +152,7 @@ class CognitiveSelectedResultTests(unittest.TestCase):
 
     def test_missing_case_fields_never_pass(self):
         for field in ("scenario", "complete", "strong", "floor", "critical_failures", "review_errors"):
-            receipt = deepcopy(self.receipt)
+            receipt = pickle_copy(self.receipt)
             del receipt["cases"][0][field]
             with self.subTest(field=field), self.assertRaises(ValueError):
                 self.validate(receipt)

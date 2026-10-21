@@ -79,7 +79,7 @@ def run(args) -> None:
                 or Path(previous["server"]).resolve() != server or previous["seed"] != properties["level-seed"]):
             raise ValueError("Resume requires the retained refused request, unchanged world, and no earlier marker.")
         import shutil
-        shutil.copy2(source / "ghost.json", out / "ghost.json")
+        shutil.copy2(source / "ghost.pickle", out / "ghost.pickle")
         shutil.copy2(source / "receipt.json", out / "previous-receipt.json")
     receipt = {"item": "A14", "case": args.case, "status": "running", "server": str(server),
                "seed": properties["level-seed"], "reset_world": False, "item_grants": False,
@@ -181,7 +181,7 @@ def run(args) -> None:
                 receipt["earlier_fixture_cleanup"]["removed"] = True
         receipt["initial_observation"] = initial = observe("initial-observation")
         app = build_app(seed, out / "app", cognition="real", config_path=str(args.config.resolve()),
-                        checkpoint_path=out / "ghost.json", record_lifecycle=False,
+                        checkpoint_path=out / "ghost.pickle", record_lifecycle=False,
                         world_poll_seconds=None if args.case in {"affect", "destructive"} else args.poll_seconds,
                         world_quiet_seconds=args.poll_seconds)
         # Record the real start without using it as the initiative trigger.
@@ -227,7 +227,7 @@ def run(args) -> None:
             record_shutdown(app.ghost, boot_id=app.lifecycle_boot["boot_id"], now=datetime.utcnow())
             time.sleep(3)
             app = build_app(seed, out / "app", cognition="real", config_path=str(args.config.resolve()),
-                            checkpoint_path=out / "ghost.json", record_lifecycle=True, world_poll_seconds=None)
+                            checkpoint_path=out / "ghost.pickle", record_lifecycle=True, world_poll_seconds=None)
             resumed = time.time()
             app.bus.subscribe("a14-evidence-resumed", lambda e: e.kind != "control", capture)
             app.run()

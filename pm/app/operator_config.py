@@ -46,9 +46,7 @@ def operator_config(config_path: str | None = None):
         embedding.update(api_key=SecretStr(values[embedding["api_key_env"]]), api_key_env=None)
     if values.get("OPENAI_EMBEDDING_DIMENSIONS"):
         embedding["dimensions"] = int(values["OPENAI_EMBEDDING_DIMENSIONS"])
-    previous_cache = config.embedding._previous_cache_dir
     config.embedding = type(config.embedding).model_validate(embedding)
-    config.embedding._previous_cache_dir = previous_cache
     return config, values, source
 
 

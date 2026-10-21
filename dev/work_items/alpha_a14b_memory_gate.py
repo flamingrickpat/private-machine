@@ -78,9 +78,9 @@ def trial(case: dict, mode: str, number: int, out: Path, models, embeddings, *, 
     target.mkdir()
     cancel = Event()
     source_ids = json.loads((out / "fixtures" / f"{case['id']}-sources.json").read_text(encoding="utf-8"))
-    shutil.copyfile(out / "fixtures" / f"{case['id']}.json", target / "checkpoint.json")
+    shutil.copyfile(out / "fixtures" / f"{case['id']}.json", target / "checkpoint.pickle")
     # Each trial restores its own stopped owner. No live checkpoint is reopened.
-    store = MemoryStore.from_checkpoint(target / "checkpoint.json")
+    store = MemoryStore.from_checkpoint(target / "checkpoint.pickle")
     config = project_memory_config(store, cancel, embeddings)
     traces = []
     before = store.state_dict()
@@ -94,8 +94,7 @@ def trial(case: dict, mode: str, number: int, out: Path, models, embeddings, *, 
                 "Do not claim that you wrote a note. This decision has no file or world effects.\nRequest: " + case["request"])
         with models.session("Default", False, cancel, receipt_path=target / "model.jsonl") as model:
             if mode == "preselected":
-                context = asyncio.run(retrieve(memory.snapshot, case["query"], embeddings, limit=8, cancel=cancel,
-                                               prepare_limit=memory.grant.embedding_batch_limit))
+                context = asyncio.run(retrieve(memory.snapshot, case["query"], embeddings, limit=8, cancel=cancel))
                 write(target / "retrieval.json", context)
                 connection = models.connections["Default"]
                 client = ChatClient(connection, models.owner, live_test=True)

@@ -1,4 +1,4 @@
-# Model connections and embedding cache
+# Model connections and record embeddings
 
 ## Summary
 
@@ -34,7 +34,7 @@ Use the environment variable on one machine and the `.env` file on another.
 ### Local models
 
 The example configuration uses chat on `http://127.0.0.1:8080/v1` and embeddings on `http://127.0.0.1:8081/v1`.
-Its aliases are `qwen` and `pplx-embed-v1-0.6b`, with 1,024 embedding dimensions.
+Its aliases are `qwen` and `embeddinggemma-300m`, with 768 embedding dimensions.
 Set those values to match your servers.
 The example requires no remote API credential.
 Existing local configuration takes precedence unless you select a file explicitly.
@@ -58,7 +58,7 @@ Credential resolution reads the process environment first, then the repository `
 `PM_ENV_FILE` selects another file.
 The live tests use `config.local.yaml` when it exists. Otherwise, they use the example config.
 Library code receives a config path explicitly.
-Relative script and cache paths resolve from that file's directory.
+Relative startup script paths resolve from that file's directory.
 Config parsing and connection resolution make no network requests.
 
 ### Endpoint behavior and context window
@@ -191,47 +191,41 @@ This [prompt-scope rule](work_items/alpha-plan/model-policy.md#prompt-scope-and-
 
 ## Embeddings and scoped retrieval
 
-The old cache remains read-only at `~/.pm/embeddings` by default.
-New entries use `~/.pm/private-machine/cache/embeddings/<modelname>/cache_emb_<hash>.json`.
-Completion entries use `~/.pm/private-machine/cache/<modelname>/cache_comp_<hash>_<count>.json`.
-`PM_CACHE_DIR` changes the shared cache root for an isolated run.
-Model configuration needs no cache paths.
-An old `embedding.cache_dir` remains a read source. A cache hit copies its valid vector into the shared cache.
-Old entries at the cache root remain readable too.
-Each JSON file has a readable Markdown file beside it.
-Requests appear before inference. Responses and provider statistics update the transcript after inference.
-Read [runtime files and recovery](subsystems/runtime-files.md) for paths, backups, diagnostics, and shutdown.
-Each new JSON entry contains its format version, endpoint, request model, exact input, dimensions, and vector.
-An atomic hard link publishes each complete new entry without overwriting an existing file.
-Atomic replacement repairs an incompatible old entry.
-The writable cache filesystem must support hard links.
-Valid cache entries remain immutable for the same input and model.
-Concurrent writers retain an existing valid publication instead of replacing an open Windows file.
-An unrelated filesystem error still propagates.
-[`pm.memory.embeddings.EmbeddingCache.put`][] owns this publication boundary.
+Every knoxel stores its embedding in `RecordBase.embedding`.
+The application embeds missing records at startup and saves the complete typed state with pickle.
+There is no embedding cache directory, text hash lookup, or legacy vector cache reader.
+Old cache options in model files are accepted and ignored.
+Completion response caching remains a separate model feature.
 
-Cache hits require the exact text, endpoint, model, dimensions, and valid vector values.
-The adapter preserves whitespace and reads the old little-endian float64 binary format.
-It rejects zero and nonfinite vectors.
-Cosine comparison divides by both vector norms.
+[`pm.memory.embeddings.EmbeddingService.record_embedding`][] reuses the vector on a record.
+An empty vector triggers inference and stores its result on that record.
+[`pm.memory.embeddings.EmbeddingService.embed`][] embeds temporary query text directly.
+Provider vectors must have the configured dimensions and finite, nonzero values.
+Image descriptions replace image tags before inference.
+
+[`pm.memory.vector_index.VectorIndex`][] owns an in-memory FAISS index.
+It normalizes its float32 index vectors and queries for cosine ranking.
+The original vectors remain on the records.
+Loading builds the index. Vector assignment updates it. Replacement removes the old indexed vector.
+Search returns only the caller's permitted record IDs.
+A lock protects native index searches and updates.
+The [FAISS metric guide](https://github.com/facebookresearch/faiss/wiki/MetricType-and-distances) describes this normalization.
 
 ```python
 from pm.memory.embeddings import EmbeddingService
 
 service = EmbeddingService(config.embedding, live_test=True)
-visible_text = {record.id: record.content for record in scoped_records}
-plan = service.inspect_index(visible_text)  # no network calls
-print(plan.hits, plan.missing)
-await service.prepare_index(visible_text)  # fetch only missing eligible text
-results = await service.search("a shared memory", visible_text)
+records = ghost.snapshot(permitted_ids).all_knoxels
+plan = service.inspect_index(records)
+await service.prepare_index(records)
+results = await service.search("a shared memory", records, index=ghost.embedding_index)
 ```
 
-The caller supplies already-scoped records.
-The service never enumerates Ghost or searches the whole cache for candidate memories.
-Search refuses an incomplete index instead of silently embedding every missing memory.
-Queries use the same embedding service.
-The real client exposes `request_count` for cache-hit evidence.
-The API uses OpenRouter's [embedding endpoint](https://openrouter.ai/docs/api/api-reference/embeddings/submit-an-embedding-request).
+Preparation embeds every missing record in batches of 32, with up to four concurrent requests.
+A provider error leaves completed vectors on their records and propagates.
+Retrieval can report a lexical fallback. Cancellation propagates through the shared HTTP client.
+The client retries temporary transport failures until cancellation. Permanent failures, including HTTP 401, raise `ModelError`.
+Read [memory ownership and persistence](ghost.md) for startup and restart behavior.
 
 ## Tests
 
@@ -243,7 +237,7 @@ Run these direct tests without a model endpoint:
 uv run --locked python -m unittest tests.unit.pm.llm.test_config tests.unit.pm.memory.test_embeddings tests.unit.pm.llm.test_activation -v -b
 ```
 
-These tests use real cache files and real finite subprocesses.
+These tests use the installed FAISS index, typed records, and real finite subprocesses.
 The cancellation tests do not substitute fake model responses.
 
 ### Required live checks
@@ -254,9 +248,9 @@ Run the model acceptance suite:
 uv run --locked python -m unittest tests.live.test_models -v -b
 ```
 
-The suite requires the generation endpoint, evaluator endpoint, embedding credentials, and compatible Spamuel cache.
+The suite requires the generation endpoint, evaluator endpoint, embedding credentials.
 Missing requirements fail. No test silently skips them.
-It performs generation, evaluation, three uncached embedding requests, and an exact legacy cache lookup.
+It performs generation, evaluation, embedding requests, FAISS retrieval, and a pickle restart that retains a Spamuel record vector.
 The retrieval check compares a Minecraft memory with unrelated chemistry text.
 Generation and evaluation run serially.
 Evidence stays under `.runtime/w1/<run-id>/`, outside Git.

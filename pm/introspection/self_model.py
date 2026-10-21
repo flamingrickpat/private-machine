@@ -52,6 +52,7 @@ def _supersede(batch, prior: list[BeliefRecord], belief: BeliefRecord, *, reason
     """Deactivate the prior beliefs and record one shift for each."""
     revised = []
     for old in prior:
+        old = old.copy_for_edit()
         old.active = False
         old.superseded_by_id = belief.id
         batch.replace(old)
@@ -125,6 +126,7 @@ def mark_stale_beliefs(batch, names: Iterable[str], *, revision: str, reason: st
     marked = []
     for name in names:
         for record in _active(view, capability_belief_key(name)):
+            record = record.copy_for_edit()
             record.metadata = {
                 **record.metadata, "stale": True, "stale_revision": revision,
                 "stale_since": _utcnow().isoformat(), "stale_reason": reason,

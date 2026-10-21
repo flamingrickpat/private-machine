@@ -1,6 +1,8 @@
 """Record real A02 decisions, limits, contention, and owned-service failures."""
 from __future__ import annotations
 
+from pm.memory.checkpoint import read_checkpoint
+
 import argparse
 import asyncio
 from importlib import metadata
@@ -27,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from dev.work_items.shared.evidence import save_json, sha256_bytes  # noqa: E402
 REPORT = ROOT / ".runtime/alpha/a01/console-spamuel/instances/fd71e4655da44430b9779eb6739d45f5/managed_tasks/dd8a80caec16462b97e0e85cbdf87346/outbox/report.yaml"
-CHECKPOINT = REPORT.parents[3] / "ghost.json"
+CHECKPOINT = REPORT.parents[3] / "ghost.pickle"
 CRITERIA = {"COMPLETE": "The task completed.", "FAILED": "The task failed.", "INVALID": "The report cannot establish completion or failure."}
 QUESTION = ChoiceQuestion(instructions="What is the task status in the final task report?", criteria=CRITERIA)
 
@@ -179,10 +181,10 @@ def main() -> None:
          "packages": {name: {"version": metadata.version(name), "origin": metadata.distribution(name).read_text("direct_url.json")} for name in ("pm-coder", "pm-workflows")}})
     seed = yaml.load(args.seed.read_text(encoding="utf-8"), Loader=yaml.CSafeLoader)
     report = args.report.read_text(encoding="utf-8")
-    checkpoint = json.loads(args.checkpoint.read_text(encoding="utf-8"))
+    checkpoint = read_checkpoint(args.checkpoint)
     # Bind the report to its actual producer instead of the first local task.
     run_id = args.report.parent.parent.name
-    run = checkpoint["managed_runs"][run_id]
+    run = checkpoint.managed_runs[run_id]
     if run["workflow_name"] != "local_task":
         raise ValueError("This gate expects a captured local_task report and its matching checkpoint.")
     task_report = json.dumps({"captured_run_state": run["state"], "report_yaml": report}, ensure_ascii=False)

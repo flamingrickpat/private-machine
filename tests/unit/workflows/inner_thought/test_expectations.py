@@ -86,7 +86,7 @@ class ExpectationLifecycleTests(unittest.TestCase):
         revision = ghost_.revisions[record.id]
         # Another writer replaces the record first.
         other = ghost_.begin_batch("other-writer")
-        replaced = record.model_copy(deep=True)
+        replaced = record.copy_for_edit()
         replaced.metadata = {"note": "changed elsewhere"}
         other.expect_revision(record.id, revision)
         other.replace(replaced)

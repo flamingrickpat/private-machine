@@ -47,7 +47,7 @@ class SingletonTests(unittest.TestCase):
             resumable=True, singleton=True, singleton_key='minecraft_body')
         self.events, self.errors = [], []
         self.ghost = MemoryStore(PersonaConfig(user_name='Jesse', companion_name='Spamuel'),
-                                 checkpoint=self.root / 'ghost.json')
+                                 checkpoint=self.root / 'ghost.pickle')
         self.supervisor = ManagedRunSupervisor(self.ghost, runtime_root=self.root / 'runtime',
             task_root=self.root / 'tasks', workflows={'minecraft': spec, 'minecraft_project': spec},
             clock=time.monotonic, event_sink=self.events.append, on_error=self.errors.append)

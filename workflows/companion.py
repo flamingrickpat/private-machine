@@ -331,10 +331,15 @@ def build_app(
 
     if ghost is None:
         checkpoint = Path(checkpoint_path) if checkpoint_path is not None else None
+        if checkpoint is not None:
+            if checkpoint.with_suffix(".pickle").exists():
+                checkpoint = checkpoint.with_suffix(".pickle")
+            elif not checkpoint.exists() and checkpoint.with_suffix(".json").exists():
+                checkpoint = checkpoint.with_suffix(".json")
         if checkpoint is not None and checkpoint.exists():
             ghost = MemoryStore.from_checkpoint(checkpoint)
         else:
-            ghost = MemoryStore.from_yaml(Path(seed_path), checkpoint=checkpoint)
+            ghost = MemoryStore.load(Path(seed_path), checkpoint=checkpoint)
     # Image tags in prompts and embeddings resolve through this store. Alt
     # text comes from the same stage model as cognition. Without a model
     # (dummy cognition), no lookup is installed and tags stay unresolved.
@@ -357,6 +362,7 @@ def build_app(
         from pm.memory.embeddings import EmbeddingService
         loaded = load_config(resolved_config)
         context_embeddings = EmbeddingService(loaded.embedding)
+        ghost.initialize_embeddings(context_embeddings)
         if tool_call is None:
             tool_call = loaded.tool_call
         if cognitive_control_config is None:

@@ -1,5 +1,6 @@
 """Check rendering rules without changing durable source data."""
-import copy
+
+from pm.records.copying import pickle_copy
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -22,7 +23,7 @@ class ObjectRenderingTests(unittest.TestCase):
                   "properties": {}, "collision_shapes": [], "verified": False,
                   "inventory": [{"name": "birch_planks", "count": n} for n in range(4)],
                   "required_certificates": {"gather": "b" * 64}, "unknown": "keep this field"}
-        original = copy.deepcopy(source)
+        original = pickle_copy(source)
         result = json.loads(render_object_for_llm(source, SCHEMA).split("\n", 1)[1])
         self.assertNotIn("original_digest", result)
         self.assertNotIn("properties", result)

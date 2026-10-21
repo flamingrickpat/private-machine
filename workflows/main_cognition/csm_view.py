@@ -2,8 +2,8 @@
 
 The CSM holds record ids. The phases render those records as story lines
 and embed them through the ``embed_texts`` tool of the run. The host grants
-that tool. The embedding service caches vectors by text, so the same record
-text gets the same vector in every cycle. Prompts never show embeddings.
+that tool. Loaded record views carry the vectors of their central knoxels.
+Prompts never show embeddings.
 
 The retrieve phase calls :func:`enter_retrieval`. It adds the current
 stimuli, the last dialogue turns, the memory candidates, the narratives, and
@@ -13,7 +13,7 @@ enters the CSM"). Prune keeps the items that the CSM requirements of
 """
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from pm.constants import (
@@ -49,36 +49,39 @@ _EMPTY_TOKENS = estimate_tokens("", [Turn(Role.User, "")])[0]
 class Embedder:
     """Embed record views and texts through the ``embed_texts`` tool.
 
-    One instance serves one phase. It caches vectors by text, so one text
-    costs one tool call per phase. ``records`` is the record view map of the
-    cycle. The embedder reads it at each call, so views that the phase adds
+    One instance serves one phase. Records retain their own vectors.
+    Temporary query vectors belong to the caller. ``records`` holds the
+    typed record views of the cycle. The embedder reads it at each call, so views that the phase adds
     later are found too. A record id without a view raises KeyError: that is
     a bug in the phase that added the id.
     """
 
     def __init__(self, context, records: dict[int, RecordView]):
-        self._tool = context.runtime.tools["embed_texts"]
+        self._tool: Callable[[list[str]], list[list[float]]] = context.runtime.tools["embed_texts"]
         self._records = records
-        self._cache: dict[str, list[float]] = {}
 
-    def prefetch(self, texts: Iterable[str]) -> None:
-        """Embed every text that is not cached yet, in one tool call."""
-        missing = [text for text in dict.fromkeys(texts) if text not in self._cache]
-        if missing:
-            self._cache.update(zip(missing, self._tool(missing), strict=True))
+    def prefetch(self, texts: Iterable[str]) -> dict[str, list[float]]:
+        """Return vectors for a group of query texts. The caller owns the results."""
+        texts = list(dict.fromkeys(texts))
+        return dict(zip(texts, self._tool(texts), strict=True)) if texts else {}
 
     def text(self, text: str) -> list[float]:
         """Return the embedding of ``text``."""
-        self.prefetch([text])
-        return self._cache[text]
+        return self._tool([text])[0]
 
     def record(self, record_id: int) -> list[float]:
-        """Return the embedding of the story line of one record."""
-        return self.text(self._records[record_id].story_line())
+        """Return the stored vector of one record. Embed its content only when missing."""
+        record = self._records[record_id]
+        if not record.embedding:
+            record.embedding = self.text(record.content)
+        return record.embedding
 
     def prefetch_records(self, record_ids: Iterable[int]) -> None:
-        """Embed the story lines of many records in one tool call."""
-        self.prefetch(self._records[record_id].story_line() for record_id in record_ids)
+        """Fill missing vectors on record views in one tool call."""
+        records = [self._records[key] for key in dict.fromkeys(record_ids) if not self._records[key].embedding]
+        if records:
+            for record, vector in zip(records, self._tool([record.content for record in records]), strict=True):
+                record.embedding = vector
 
 
 def _entity_facts(record, record_class: str) -> tuple[list[int], str]:
@@ -130,7 +133,7 @@ def record_view(record) -> RecordView:
     return RecordView(record_id=record.id, kind=kind, source=source, content=record.content,
                       timestamp=record.timestamp_world_begin, record_class=record_class,
                       entity_ids=entity_ids, category=category, feature_type=feature_type,
-                      addressee_entity_id=addressee)
+                      addressee_entity_id=addressee, embedding=record.embedding)
 
 
 def story_tokens(text: str) -> int:

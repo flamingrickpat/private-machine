@@ -88,6 +88,7 @@ def update_beliefs(batch, updates, *, user_name: str, permitted_source_ids: set[
         ))
         accepted.append(belief.id)
         for old in prior:
+            old = old.copy_for_edit()
             old.contradicting_knoxel_ids.append(source.id)
             if update.correction:
                 old.active = False

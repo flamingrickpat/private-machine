@@ -37,7 +37,7 @@ class StewardTests(unittest.TestCase):
         self.root = Path(self._tmp.name)
         self.ghost = MemoryStore(
             PersonaConfig(user_name="Jesse", companion_name="Spamuel"),
-            checkpoint=self.root / "ghost.json",
+            checkpoint=self.root / "ghost.pickle",
         )
         self.supervisor = ManagedRunSupervisor(
             self.ghost,

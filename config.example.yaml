@@ -13,9 +13,9 @@ chat:
     startup_script: ""
 embedding:
   base_url: http://127.0.0.1:8081/v1
-  model: pplx-embed-v1-0.6b
+  model: embeddinggemma-300m
   api_key: ""
-  dimensions: 1024
+  dimensions: 768
 # Optional MCP tools of the companion (docs/workflows/tool-call.md). Without servers, the
 # tool_call workflow is not registered. ${NAME} in a header reads the environment or .env.
 # tool_call:

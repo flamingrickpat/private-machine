@@ -1,29 +1,21 @@
-"""One embedding service with a read-only legacy cache.
-
-Missing or incompatible external cache entries count as misses. Invalid API
-vectors fail explicitly. Local write errors keep their tracebacks. Transport
-retry and cancellation use the shared model client. Constructors and index
-inspection never send requests. Only explicit embed/prepare/search calls do.
-"""
+"""Embed text directly. Records own durable vectors and FAISS owns search."""
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 import math
-import os
-import struct
-import tempfile
 from dataclasses import dataclass
-from pathlib import Path
+from collections.abc import Callable, Coroutine
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, TypeVar
+
+from pm.records.base import RecordBase
+from pm.memory.vector_index import VectorIndex
 from threading import Event
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
 from pm.llm.http_client import JsonClient, ModelError, cancellable
-from pm.llm.cache import cache_root, model_directory
-from pm.llm.prompt_log import write_embedding_cache_log
 from pm.llm.config import Connection, EmbeddingConfig
 from pm.llm.workflow_sessions import serving_context
 from pm.records.media import alt_text_view, image_ids, media_lookup
@@ -136,117 +128,6 @@ def parse_embedding_response(response: dict, config: EmbeddingConfig) -> list[fl
     return vector
 
 
-class EmbeddingCache:
-    def __init__(self, config: EmbeddingConfig):
-        self.model = config.model
-        self.endpoint = config.base_url
-        self.dimensions = config.dimensions
-        self.legacy_dir = config.legacy_cache_dir.expanduser().resolve()
-        cache_dir = config.cache_dir.expanduser().resolve()
-        if cache_dir == self.legacy_dir or self.legacy_dir in cache_dir.parents:
-            raise ValueError("Keep the writable application cache outside the read-only legacy cache.")
-        self.directory = model_directory(self.model, cache_dir)
-        previous = model_directory(self.model, config._previous_cache_dir) if config._previous_cache_dir else self.directory
-        self.previous_directories = tuple(dict.fromkeys((previous, model_directory(self.model, cache_root()))))
-        self.hits = 0
-        self.legacy_hits = 0
-        self.misses = 0
-
-    def content_key(self, text: str) -> str:
-        """Identify the source record text, endpoint, model, and dimensions.
-
-        A long record keeps its cache entry under the full text. The stored
-        vector comes from the prefix that fits the serving context.
-        """
-        return hashlib.sha256(json.dumps([self.endpoint, self.model, self.dimensions, text],
-                                        ensure_ascii=False).encode("utf-8")).hexdigest()
-
-    def _read(self, text: str, *, legacy: bool, directory: Path | None = None) -> list[float] | None:
-        key = hashlib.md5(text.encode("utf-8")).hexdigest() if legacy else self.content_key(text)
-        directory = directory or (self.legacy_dir if legacy else self.directory)
-        try:
-            filename = f"emb_hash_{key}.json" if legacy else f"cache_emb_{key}.json"
-            meta = json.loads((directory / filename).read_text(encoding="utf-8"))
-            if meta["input"] != text or meta["model"] != self.model or meta["dimensions"] != self.dimensions:
-                return None
-            if legacy:
-                data = (directory / f"emb_hash_{key}.bin").read_bytes()
-                count = struct.unpack_from("<Q", data)[0]
-                if count != self.dimensions or len(data) != 8 + count * 8:
-                    return None
-                vector = list(struct.unpack_from(f"<{count}d", data, 8))
-            else:
-                if meta["schema_version"] != 1:
-                    return None
-                if meta["endpoint"] != self.endpoint:
-                    return None
-                vector = meta["vector"]
-            return valid_vector(vector, self.dimensions)
-        except (FileNotFoundError, UnicodeError, ValueError, KeyError, TypeError, struct.error):
-            return None
-
-    def get(self, text: str) -> list[float] | None:
-        if self._read(text, legacy=False) is None:
-            for directory in self.previous_directories:
-                if directory == self.directory:
-                    continue
-                vector = self._read(text, legacy=False, directory=directory)
-                if vector is not None:
-                    self.put(text, vector)
-                    break
-        for legacy in (False, True):
-            vector = self._read(text, legacy=legacy)
-            if vector is not None:
-                self.hits += 1
-                self.legacy_hits += int(legacy)
-                if not legacy:
-                    write_embedding_cache_log(self.directory / f"cache_emb_{self.content_key(text)}.json")
-                return vector
-        self.misses += 1
-        return None
-
-    def put(self, text: str, vector: list[float]) -> None:
-        """Publish a validated cache entry, or keep another valid writer's entry.
-
-        A model and input identify immutable cached content. An atomic hard link
-        publishes new content once without replacing an open Windows file.
-        A concurrent valid publication wins. Invalid old entries can be replaced.
-        The cache filesystem must support hard links within one directory.
-        Other filesystem errors propagate. This method sends no model request.
-        """
-        valid_vector(vector, self.dimensions)
-        target = self.directory / f"cache_emb_{self.content_key(text)}.json"
-        if self._read(text, legacy=False) is not None:
-            write_embedding_cache_log(target)
-            return
-        payload = {
-            "schema_version": 1, "model": self.model, "input": text,
-            "dimensions": self.dimensions, "vector": vector, "endpoint": self.endpoint,
-        }
-        self.directory.mkdir(parents=True, exist_ok=True)
-        temporary = None
-        try:
-            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.directory, suffix=".tmp", delete=False) as stream:
-                temporary = Path(stream.name)
-                json.dump(payload, stream, ensure_ascii=False, allow_nan=False)
-                stream.flush()
-                os.fsync(stream.fileno())
-            try:
-                os.link(temporary, target)
-            except FileExistsError:
-                if self._read(text, legacy=False) is None:
-                    os.replace(temporary, target)
-            except PermissionError:
-                # Another writer can publish after the initial cache miss.
-                # Keep its complete entry instead of replacing an open file.
-                if self._read(text, legacy=False) is None:
-                    raise
-        finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
-        write_embedding_cache_log(target)
-
-
 @dataclass
 class IndexPlan:
     hits: list[int]
@@ -256,68 +137,116 @@ class IndexPlan:
 class EmbeddingService:
     def __init__(self, config: EmbeddingConfig, *, live_test: bool = False):
         self.config = config
-        self.cache = EmbeddingCache(config)
         self.client = JsonClient(config.resolve(), live_test=live_test)
         self.dimensions = config.dimensions
         self.last_response_model: str | None = None
 
     async def embed(self, text: str, *, cancel: Event | None = None) -> list[float]:
-        """Return the vector of ``text``, from the cache or from the endpoint.
+        """Embed text without a cache. Complete image alt text before inference.
 
-        Every embedding of record text passes here. If the text holds image
-        tags, the installed media lookup first writes the missing alt texts
-        (one multimodal model call per new image). The vector then belongs to
-        the text with the alt texts in place of the tags. Text that exceeds
-        the serving context is cut to the longest prefix that fits. The cache
-        entry keeps the full source text as its key.
+        The caller stores record vectors on their knoxels. Query vectors are
+        temporary. Provider errors and cancellation propagate.
         """
+        return (await self.embed_many([text], cancel=cancel))[0]
+
+    async def embed_many(self, texts: list[str], *, cancel: Event | None = None) -> list[list[float]]:
+        """Embed a batch in input order. Complete image descriptions before inference."""
+        if not texts:
+            return []
         if cancel is not None and cancel.is_set():
             raise asyncio.CancelledError
-        ids = image_ids(text)
+        ids = [key for text in texts for key in image_ids(text)]
         if ids:
             lookup = media_lookup()
             if lookup is not None:
                 await lookup.complete_alt_text(ids, cancel=cancel)
-            text = embedding_text(text)
-        cached = self.cache.get(text)
-        if cached is not None:
-            return cached
-        # Keep the cache key on the full record text. The vector then belongs
-        # to that record even when the endpoint sees only its prefix.
-        input_text = text
-        if len(text.encode("utf-8")) > _SHORT_TEXT_BYTES:
-            input_text, _ = await fit_embedding_text(self.client.connection, text, cancel)
+            texts = [embedding_text(text) for text in texts]
+        inputs = []
+        for text in texts:
+            if len(text.encode("utf-8")) > _SHORT_TEXT_BYTES:
+                text, _ = await fit_embedding_text(self.client.connection, text, cancel)
+            inputs.append(text)
         response = await self.client.request("POST", "embeddings", payload={
-            "model": self.client.connection.model, "input": input_text, "encoding_format": "float",
-        }, cancel=cancel, transcript_path=(self.cache.directory / f"cache_emb_{self.cache.content_key(text)}.md"))
-        vector = parse_embedding_response(response, self.config)
+            "model": self.client.connection.model, "input": inputs[0] if len(inputs) == 1 else inputs,
+            "encoding_format": "float",
+        }, cancel=cancel)
+        rows = sorted(response["data"], key=lambda row: row["index"])
+        if [row["index"] for row in rows] != list(range(len(inputs))):
+            raise ModelError("The embedding service returned an incomplete batch.")
+        vectors = [parse_embedding_response({"model": response["model"], "data": [{**row, "index": 0}]}, self.config)
+                   for row in rows]
         self.last_response_model = response["model"]
-        self.cache.put(text, vector)
-        return vector
+        return vectors
 
-    def inspect_index(self, visible_text: dict[int, str]) -> IndexPlan:
-        plan = IndexPlan(hits=[], missing=[])
-        for record_id, text in visible_text.items():
-            (plan.hits if self.cache.get(embedding_text(text)) is not None else plan.missing).append(record_id)
-        return plan
-
-    async def prepare_index(self, visible_text: dict[int, str], *, cancel: Event | None = None, progress=None) -> IndexPlan:
-        """Explicitly fetch only missing text from the caller's scoped input."""
-        plan = self.inspect_index(visible_text)
-        if progress is not None:
-            progress(len(plan.hits), len(visible_text))
-        for completed, record_id in enumerate(plan.missing, len(plan.hits) + 1):
-            await self.embed(visible_text[record_id], cancel=cancel)
-            if progress is not None:
-                progress(completed, len(visible_text))
-        return plan
-
-    async def search(self, query: str, visible_text: dict[int, str], *, cancel: Event | None = None) -> list[tuple[int, float]]:
-        vectors = {record_id: self.cache.get(embedding_text(text)) for record_id, text in visible_text.items()}
-        if any(vector is None for vector in vectors.values()):
-            raise ValueError("The scoped index is incomplete. Inspect and prepare it before search.")
-        query_vector = await self.embed(query, cancel=cancel)
-        return sorted(
-            ((record_id, cosine_similarity(query_vector, vector)) for record_id, vector in vectors.items()),
-            key=lambda item: (-item[1], item[0]),
+    def inspect_index(self, records: dict[int, RecordBase]) -> IndexPlan:
+        """Inspect vectors on records. This method performs no disk or network work."""
+        return IndexPlan(
+            hits=[key for key, record in records.items() if record.embedding],
+            missing=[key for key, record in records.items() if not record.embedding],
         )
+
+    async def record_embedding(self, record: RecordBase, *, cancel: Event | None = None) -> list[float]:
+        """Return the record's vector. A missing vector is stored and auto-indexed."""
+        if not record.embedding:
+            record.embedding = await self.embed(record.content or record.get_story_element(), cancel=cancel)
+        return record.embedding
+
+    async def prepare_index(self, records: dict[int, RecordBase], *, cancel: Event | None = None,
+                            progress: Callable[[int, int], None] | None = None) -> IndexPlan:
+        """Embed all missing records in batches of 32, with up to four requests at once."""
+        plan = self.inspect_index(records)
+        completed = len(plan.hits)
+        if progress is not None:
+            progress(completed, len(records))
+        gate = asyncio.Semaphore(4)
+
+        async def one(keys: list[int]) -> None:
+            nonlocal completed
+            async with gate:
+                vectors = await self.embed_many([records[key].content or records[key].get_story_element() for key in keys],
+                                                cancel=cancel)
+                for key, vector in zip(keys, vectors, strict=True):
+                    records[key].embedding = vector
+                completed += len(keys)
+                if progress is not None:
+                    progress(completed, len(records))
+
+        tasks = [asyncio.create_task(one(plan.missing[start:start + 32])) for start in range(0, len(plan.missing), 32)]
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            # Stop unfinished requests before a caller can save or discard this work.
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        return self.inspect_index(records)
+
+    async def search(self, query: str | list[float], records: dict[int, RecordBase], *, cancel: Event | None = None,
+                     index: VectorIndex | None = None) -> list[tuple[int, float]]:
+        """Search stored record vectors with FAISS after embedding missing records."""
+        if not records:
+            return []
+        await self.prepare_index(records, cancel=cancel)
+        if index is None:
+            index = VectorIndex()
+            index.rebuild(records.values())
+        if isinstance(query, str):
+            query_vector = next((record.embedding for record in records.values() if record.content == query), None)
+            if query_vector is None:
+                query_vector = await self.embed(query, cancel=cancel)
+        else:
+            query_vector = query
+        return index.search(query_vector, records)
+
+
+T = TypeVar("T")
+
+
+def run_embedding_work(work: Coroutine[Any, Any, T]) -> T:
+    """Run embedding work from a synchronous host, including hosts with an active event loop."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(work)
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        return worker.submit(asyncio.run, work).result()

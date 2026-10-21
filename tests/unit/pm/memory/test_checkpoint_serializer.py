@@ -1,35 +1,44 @@
-"""Verify exact checkpoint bytes and real atomic-file cancellation."""
+"""Read legacy JSON and save typed pickle state with atomic cancellation."""
 import json
 from pathlib import Path
 import tempfile
 import unittest
 
-from pm.memory.checkpoint import Checkpoint, CheckpointSerializer, JSON_SERIALIZER, read_checkpoint, write_checkpoint
+from pm.memory.checkpoint import JSON_SERIALIZER, PICKLE_SERIALIZER, read_checkpoint, write_checkpoint
+from pm.memory.store import MemoryStore
+from pm.records.cycle_state import PersonaConfig
+from pm.records.enums import FeatureType
+from pm.records.memory_records import Feature
 
 
 class SerializerTests(unittest.TestCase):
-    def test_json_bytes_keep_existing_format_and_schema(self):
-        checkpoint = Checkpoint(state={"text": "dandelions 🌼"}, current_knoxel_id=0,
-            current_tick_id=0, reserved_tick_id=0, revisions={}, gwt_turns={}, applied_commits={})
-        previous = json.dumps(checkpoint.model_dump(mode="json"), ensure_ascii=False, allow_nan=False).encode("utf-8")
-        self.assertIsInstance(JSON_SERIALIZER, CheckpointSerializer)
-        self.assertEqual(JSON_SERIALIZER.dumps(checkpoint), previous)
+    def store(self):
+        store = MemoryStore(PersonaConfig(user_name="Jesse", companion_name="Spamuel"))
+        store.store_knoxel(Feature(content="dandelions", feature_type=FeatureType.Dialogue, embedding=[1.0, 0.5]))
+        return store
+
+    def test_pickle_is_default_and_json_remains_an_explicit_export(self):
+        store = self.store()
+        checkpoint = store.checkpoint_data()
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "ghost.json"
+            path = Path(directory) / "ghost.pickle"
             write_checkpoint(path, checkpoint, lambda: None)
-            self.assertEqual(path.read_bytes(), previous)
-            self.assertEqual(read_checkpoint(path), checkpoint)
+            self.assertTrue(path.read_bytes().startswith(b"\x80"))
+            self.assertEqual(read_checkpoint(path).state.knoxels[0].embedding, [1.0, 0.5])
+            legacy = Path(directory) / "ghost.pickle"
+            write_checkpoint(legacy, checkpoint, lambda: None, serializer=JSON_SERIALIZER)
+            self.assertEqual(json.loads(legacy.read_bytes())["state"]["knoxels"][0]["__type__"], "Feature")
+            restored = MemoryStore.from_checkpoint(legacy)
+            self.assertEqual(restored.state_dict(), store.state_dict())
+            self.assertEqual(restored.checkpoint.suffix, ".pickle")
 
     def test_cancellation_before_replacement_preserves_old_file(self):
-        checkpoint = Checkpoint(state={}, current_knoxel_id=0, current_tick_id=0,
-            reserved_tick_id=0, revisions={}, gwt_turns={}, applied_commits={})
+        checkpoint = self.store().checkpoint_data()
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "ghost.json"
+            path = Path(directory) / "ghost.pickle"
             path.write_bytes(b"previous checkpoint")
-
             def cancelled():
                 raise RuntimeError("cancelled before replacement")
-
             with self.assertRaisesRegex(RuntimeError, "cancelled before replacement"):
                 write_checkpoint(path, checkpoint, cancelled)
             self.assertEqual(path.read_bytes(), b"previous checkpoint")

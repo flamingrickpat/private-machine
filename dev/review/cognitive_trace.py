@@ -97,7 +97,7 @@ def main() -> None:
     run = args.run.resolve()
     if not run.is_relative_to(ROOT / ".runtime"):
         raise ValueError("Captured review evidence belongs under .runtime.")
-    bundle = build_bundle(run / "ghost.json", run / "receipt.json", bundle_id=args.id)
+    bundle = build_bundle(run / "ghost.pickle", run / "receipt.json", bundle_id=args.id)
     path = run / "review-bundle.json"
     path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     for index, package in enumerate(bundle["items"][0]["packages"]):
