@@ -17,11 +17,14 @@ completes alt text before it embeds a text that holds image tags.
 from __future__ import annotations
 
 import asyncio
+import base64
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from threading import Event, Lock
 
 from pydantic import BaseModel
+
+from pm.llm.multimodal import _to_png
 
 from pm.constants import ALT_TEXT_ATTEMPTS, ALT_TEXT_MAX_CHARS, ALT_TEXT_TEMPERATURE
 from pm.llm.http_client import ModelError
@@ -46,13 +49,16 @@ def alt_text_prompts() -> AltTextPrompts:
 def alt_text_messages(image: RecordImage, prompts: AltTextPrompts) -> list[dict]:
     """Return the system message and one user message with the instruction and the image.
 
-    The messages use the OpenAI wire shape, like the reconsolidation calls,
-    because ``pm.memory`` does not import the turn types. The chat client
-    turns the ``image_url`` part into a typed image part.
+    The messages use the OpenAI wire shape. Image bytes are converted to PNG
+    when the original format (WebP, BMP, etc.) is not natively supported by
+    llama.cpp's stb_image loader.
     """
+    raw = image.data()
+    converted, mime_type = _to_png(raw)
+    data_url = f"data:{mime_type};base64,{base64.b64encode(converted).decode('ascii')}"
     return [{"role": "system", "content": prompts.system_prompt.strip()},
             {"role": "user", "content": [{"type": "text", "text": prompts.instruction.strip()},
-                                         {"type": "image_url", "image_url": {"url": image.data_url()}}]}]
+                                         {"type": "image_url", "image_url": {"url": data_url}}]}]
 
 
 def clean_alt_text(raw: str) -> str:

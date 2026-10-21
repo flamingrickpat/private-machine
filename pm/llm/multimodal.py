@@ -44,6 +44,47 @@ Resolver = Callable[[str], RecordImage | None]
 SAME_IMAGE = "the same image as shown earlier"
 
 
+def _to_png(raw: bytes) -> tuple[bytes, str]:
+    """Convert a WebP image to PNG; return unchanged data for native formats.
+
+    llama.cpp's stb_image loader cannot decode WebP or BMP. JPEG and PNG are
+    decoded natively. GIF also works natively but we convert to avoid the
+    slightly larger files and palette overhead that some encoders produce.
+
+    Returns ``(bytes, mime_type)`` — always ``PNG`` when a conversion was
+    needed so the caller knows what format is actually in the payload.
+    """
+    from io import BytesIO as _BI  # noqa: N813
+    from PIL import Image as _PILImage  # noqa: N813
+
+    # WebP — not supported by stb_image. Decode with Pillow and encode PNG.
+    if raw[:4] == b"RIFF" and len(raw) >= 12 and raw[8:12] == b"WEBP":
+        img = _PILImage.open(_BI(raw))
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+        buf = _BI()
+        img.save(buf, format="PNG")
+        return buf.getvalue(), "image/png"
+    # BMP — also unsupported by stb_image.
+    if raw[:2] == b"BM":
+        img = _PILImage.open(_BI(raw))
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+        buf = _BI()
+        img.save(buf, format="PNG")
+        return buf.getvalue(), "image/png"
+    # GIF — supported natively but convert to avoid palette issues.
+    if raw[:6] in (b"GIF87a", b"GIF89a"):
+        img = _PILImage.open(_BI(raw))
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+        buf = _BI()
+        img.save(buf, format="PNG")
+        return buf.getvalue(), "image/png"
+    # PNG and JPEG are natively supported — return unchanged.
+    return raw, "image/png" if raw[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
+
+
 @dataclass(frozen=True)
 class _Tag:
     """One tag occurrence: its turn, its text part, and its span in that part."""
@@ -63,7 +104,9 @@ def _tags(turns: list[Turn]) -> list[_Tag]:
 
 
 def _media(image: RecordImage) -> Media:
-    return Media(MediaKind.Image, image.media_type, data=image.data(), name=image.id)
+    raw = image.data()
+    converted, mime_type = _to_png(raw)
+    return Media(MediaKind.Image, mime_type, data=converted, name=image.id)
 
 
 def resolve_turns(messages: Sequence[TurnInput], resolve: Resolver = find_image,

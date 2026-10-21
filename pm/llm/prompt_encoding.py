@@ -3,12 +3,56 @@ from __future__ import annotations
 
 import base64
 from collections.abc import Mapping, Sequence
+from io import BytesIO as _BytesIO  # noqa: N813
 from typing import Any, Protocol, TypeAlias
 
 from pm.context_render.turns import Content, Media, MediaKind, Role, Text, ToolCall, Turn, VideoFrames
 
 
 TurnInput: TypeAlias = Turn | Mapping[str, Any]
+
+
+def _png_data_url(url: str) -> str:
+    """Convert a data URL image to PNG when the format is unsupported by llama.cpp.
+
+    Returns the unchanged URL for formats that stb_image can decode natively,
+    or a new data URL with PNG-encoded bytes when conversion was needed.
+    """
+    if not url.startswith("data:"):
+        return url
+    media_type = url.split(",")[0].split(":", 1)[1].split(";")[0]
+    b64_data = url.split(",", 1)[1]
+    raw = base64.b64decode(b64_data, validate=True)
+
+    # WebP — not supported by stb_image.
+    if raw[:4] == b"RIFF" and len(raw) >= 12 and raw[8:12] == b"WEBP":
+        from PIL import Image as _PILImage  # noqa: N813
+        img = _PILImage.open(_BytesIO(raw))
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+        buf = _BytesIO()
+        img.save(buf, format="PNG")
+        return f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode('ascii')}"
+    # BMP — also unsupported by stb_image.
+    if raw[:2] == b"BM":
+        from PIL import Image as _PILImage  # noqa: N813
+        img = _PILImage.open(_BytesIO(raw))
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+        buf = _BytesIO()
+        img.save(buf, format="PNG")
+        return f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode('ascii')}"
+    # GIF — convert to avoid palette issues.
+    if raw[:6] in (b"GIF87a", b"GIF89a"):
+        from PIL import Image as _PILImage  # noqa: N813
+        img = _PILImage.open(_BytesIO(raw))
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+        buf = _BytesIO()
+        img.save(buf, format="PNG")
+        return f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode('ascii')}"
+    # PNG and JPEG are natively supported.
+    return url
 
 
 class PromptEncoder(Protocol):
@@ -41,7 +85,8 @@ def normalize_turns(turns: Sequence[TurnInput]) -> list[Turn]:
                     parts.append(Text(part["text"]))
                 elif part["type"] == "image_url":
                     image = part["image_url"]
-                    parts.append(Media(MediaKind.Image, "image/*", url=image["url"], detail=image.get("detail", "auto")))
+                    url = _png_data_url(image["url"])
+                    parts.append(Media(MediaKind.Image, "image/*", url=url, detail=image.get("detail", "auto")))
                 elif part["type"] == "input_audio":
                     audio = part["input_audio"]
                     parts.append(Media.from_base64(MediaKind.Audio, audio["data"], "audio/" + audio["format"]))
