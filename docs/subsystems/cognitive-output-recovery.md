@@ -2,7 +2,7 @@
 
 ## Summary
 
-Malformed model JSON requests repair before a proposal can reach committed state.
+Malformed model JSON receives local repair before a proposal can reach committed state.
 Reviewer formatting faults remain separate from judgments about companion behavior.
 Unverifiable reviewer evidence requires human inspection and earns no automatic credit.
 Cancellation, provider failures, and ordinary Python errors retain their own boundaries.
@@ -14,12 +14,16 @@ Related: [private thought](private-loop.md), [review boundaries](cognitive-revie
 
 [`workflows.main_cognition.model_json.complete_json`][] validates syntax and the stage schema within the same repair loop.
 It delegates to the [shared runtime repair loop](../models.md#completion-replay-and-output-repair).
-Each repair retains the original task, all rejected answers, and their validation errors.
+Local syntax repair needs no extra model call when the result satisfies the stage schema.
+Between history resets, each repair retains the original task, rejected answers, and their validation errors.
+After nine consecutive rejections, the loop restores the original prompt and resets the attempt count.
 The repair instruction requests one corrected JSON object and escaped quotation marks.
 The selected model's input budget bounds the accumulated history and reserves output space.
+If each batch fits that budget, resets can continue until cancellation without a total attempt limit.
 The host never invents a valid answer.
 
-Each rejection retains its raw text, schema name, error, and attempt number in `scratch/model-output-rejection-NN.json`.
+Each rejection writes its raw text, schema name, error, and attempt number to `scratch/model-output-rejection-NN.json`.
+Reset attempt numbers can replace earlier rejection files in the same scratch directory.
 The model request logs also retain the actual inference calls.
 No stage report exists until validation succeeds.
 The stage owns no accepted state or external action, so repair repeats no committed effect.

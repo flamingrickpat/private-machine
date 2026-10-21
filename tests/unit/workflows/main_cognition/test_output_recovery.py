@@ -50,36 +50,39 @@ class StageOutputRecoveryTests(unittest.TestCase):
         return SimpleNamespace(runtime=SimpleNamespace(environment=self.environment, tools={"llm_complete": tool, "llm_measure_context":
             lambda turns, **settings: {"input_tokens": len(turns), "input_budget_tokens": 8}}))
 
-    def test_captured_unescaped_quote_recovers_without_changing_evidence(self):
+    def test_captured_unescaped_quote_recovers_locally_without_changing_evidence(self):
         quote = '"World\'s Okayest Employee."'
         escaped = self.raw.replace(quote, quote.replace('"', '\\"'))
-        replies = iter((self.raw, escaped))
-        calls = []
-
-        def replay(turns, **generation):
-            calls.append(turns)
-            return next(replies)
-
-        result = complete_json(self.context(replay), self.turns, ThoughtResult)
-        self.assertEqual(result.evidence_ids, [11323, 11374, 11387])
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[1][:2], self.turns)
-        rejected = json.loads(self.environment.read_text("scratch/model-output-rejection-01.json"))
-        self.assertEqual(rejected["raw"], self.raw)
-        self.assertIn("invalid JSON", rejected["error"])
-
-    def test_repeated_corruption_stops_at_context_budget_and_keeps_rejections(self):
         calls = []
 
         def replay(turns, **generation):
             calls.append(turns)
             return self.raw
 
+        result = complete_json(self.context(replay), self.turns, ThoughtResult)
+        self.assertEqual(result.evidence_ids, [11323, 11374, 11387])
+        self.assertEqual(result, ThoughtResult.model_validate(json.loads(escaped)))
+        self.assertEqual(calls, [self.turns])
+        self.assertEqual(self.environment.list_files("scratch"), [])
+
+    def test_repeated_invalid_field_stops_at_context_budget_and_keeps_rejections(self):
+        calls = []
+        # This derived case keeps the captured text but introduces an invalid field type.
+        raw = self.raw.replace('"uncertainty":0.15', '"uncertainty":{"invalid":true}')
+        self.assertNotEqual(raw, self.raw)
+
+        def replay(turns, **generation):
+            calls.append(turns)
+            return raw
+
         with self.assertRaises(ModelFormatError):
             complete_json(self.context(replay), self.turns, ThoughtResult)
         self.assertEqual(len(calls), 4)
         self.assertEqual([len(turns) for turns in calls], [2, 4, 6, 8])
-        self.assertEqual(json.loads(self.environment.read_text("scratch/model-output-rejection-04.json"))["attempt"], 4)
+        rejected = json.loads(self.environment.read_text("scratch/model-output-rejection-04.json"))
+        self.assertEqual(rejected["attempt"], 4)
+        self.assertEqual(rejected["raw"], raw)
+        self.assertIn("Expected number", rejected["error"])
 
     def test_cancellation_and_tool_errors_do_not_become_format_retries(self):
         for error in (asyncio.CancelledError(), TypeError("broken completion tool")):

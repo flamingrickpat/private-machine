@@ -632,6 +632,15 @@ wheels = [
 ]
 
 [[package]]
+name = "json-repair"
+version = "0.64.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/d8/aed287ba5549e07f9688e88ba3e531cb41c966c6c44980d05e5560020b7b/json_repair-0.64.1.tar.gz", hash = "sha256:7640f80e70c15862ad262cabe91d20afc3248f3187a9811b8c8d0fddd2d62f19", size = 54226, upload-time = "2026-10-19T09:38:37.711Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/14/ba/af2d648f80e4c6400c2e596a79c4fab71be8c0690d15c2c0ea3eac66df1e/json_repair-0.64.1-py3-none-any.whl", hash = "sha256:1e1022f8d9b5a24433f7e28c2ee5c4ef42256e11ff0eef8abf7cad17fc8b9e0a", size = 52649, upload-time = "2026-10-19T09:38:36.295Z" },
+]
+
+[[package]]
 name = "jsonref"
 version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -935,6 +944,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "fastmcp" },
     { name = "httpx" },
+    { name = "json-repair" },
     { name = "jsonschema" },
     { name = "pillow" },
     { name = "pm-coder" },
@@ -948,6 +958,7 @@ dependencies = [
 requires-dist = [
     { name = "fastmcp" },
     { name = "httpx", specifier = ">=0.27,<1" },
+    { name = "json-repair" },
     { name = "jsonschema", specifier = ">=4.26,<5" },
     { name = "pillow", specifier = ">=10.0,<12" },
     { name = "pm-coder", git = "https://github.com/flamingrickpat/pm-coder.git?rev=main" },

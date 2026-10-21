@@ -13,6 +13,8 @@ from functools import partial
 from threading import Event
 from typing import TypeVar
 
+from json_repair import json_repair
+from json_repair.schema_repair import SchemaDefinitionError, schema_from_input
 from pydantic import BaseModel, ValidationError
 
 from pm.llm.prompt_encoding import TurnInput
@@ -80,12 +82,26 @@ class _Repair:
         """Validate an answer or append its correction turn."""
         self.check_cancelled()
         self.attempt += 1
+        # Resolve model metadata before the repair boundary so schema errors propagate.
+        repair_schema = schema_from_input(self.schema)
         try:
-            payload = extract_json(raw)
+            try:
+                extracted = json.dumps(extract_json(raw))
+            except JsonOutputError:
+                extracted = raw
+            try:
+                payload = json_repair.loads(extracted, schema=repair_schema)
+            except SchemaDefinitionError:
+                raise
+            except ValueError as error:
+                # The library uses ValueError for malformed values and schema rejections.
+                raise JsonOutputError(str(error)) from error
             return (self.validate(payload, raw) if self.validate is not None else
                     self.schema.model_validate(payload, context=self.validation_context))
         except (JsonOutputError, ValidationError) as error:
             problem = str(error)
+        except SchemaDefinitionError:
+            raise
         except ValueError as error:
             if self.validate is None:
                 raise
@@ -112,12 +128,19 @@ class _Repair:
                 f"Last validation error: {self.last_error}")
 
 
+# Reset the repair history after more than this many rejected answers.
+RESET_STATE_LIMIT = 8
+
+
 def complete_json(complete: Callable, messages: Sequence[TurnInput], schema: type[T], *,
                   measure: Callable | None = None, validation_context: dict | None = None,
                   on_rejection: Callable[[int, str, str], None] | None = None,
                   validate: Callable[[dict, str], T] | None = None,
                   initial: object = _MISSING, cancel: Event | None = None, **generation) -> T:
-    """Return validated model output and append errors as repair turns.
+    """Repair local JSON syntax, then request corrections for rejected answers.
+
+    After nine consecutive rejections, start again with the original messages.
+    Each reset retains the validator, validation context, and cancellation event.
 
     ``initial`` validates an existing agent result before any new completion.
     ``measure`` returns input_tokens and input_budget_tokens with output space
@@ -129,6 +152,7 @@ def complete_json(complete: Callable, messages: Sequence[TurnInput], schema: typ
         cancel = complete.keywords.get("cancel")
     state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
     measure = measure or context_measure(complete)
+    cnt = 0
     while True:
         state.check_cancelled()
         if state.attempt:
@@ -141,6 +165,10 @@ def complete_json(complete: Callable, messages: Sequence[TurnInput], schema: typ
         result = state.accept(raw)
         if result is not None:
             return result
+        cnt += 1
+        if cnt > RESET_STATE_LIMIT:
+            state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+            cnt = 0
 
 
 async def complete_json_async(complete: Callable, messages: Sequence[TurnInput], schema: type[T], *,
@@ -157,6 +185,7 @@ async def complete_json_async(complete: Callable, messages: Sequence[TurnInput],
         cancel = complete.keywords.get("cancel")
     state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
     measure = measure or context_measure(complete)
+    cnt = 0
     while True:
         state.check_cancelled()
         if state.attempt:
@@ -173,6 +202,10 @@ async def complete_json_async(complete: Callable, messages: Sequence[TurnInput],
         result = state.accept(raw)
         if result is not None:
             return result
+        cnt += 1
+        if cnt > RESET_STATE_LIMIT:
+            state = _Repair(messages, schema, validation_context, on_rejection, validate, cancel)
+            cnt = 0
 
 
 def repair_agent_result(result, schema: type[T], model, *, instruction: str,

@@ -10,12 +10,14 @@ import unittest
 from unittest.mock import patch
 
 import httpx
+from pydantic import BaseModel, Field
 
 from pm.llm import cache
 from pm.llm.config import Connection
 from pm.llm.config import EmbeddingConfig
 from pm.memory.embeddings import EmbeddingService
 from pm.llm.http_client import JsonClient
+from pm.llm.structured import complete_json_async
 from pm.llm.concurrency import inference_admission, background_inference
 
 
@@ -92,10 +94,15 @@ class CacheTests(unittest.TestCase):
         original = httpx.AsyncClient
         connection = Connection(base_url="http://fixture/v1", model="fixture")
         payload = self.payload("abc")
-        with patch("pm.llm.http_client.httpx.AsyncClient", side_effect=lambda **kwargs:
+        logs = self.root / "logs"
+        transcript = self.root / "mirror.md"
+        with patch.dict(os.environ, {"PM_PROMPT_LOG_DIR": str(logs), "PM_PROMPT_LOG": "1"}), \
+             self.assertLogs("pm.llm.http_client", level="INFO") as captured, \
+             patch("pm.llm.http_client.httpx.AsyncClient", side_effect=lambda **kwargs:
                    original(transport=httpx.MockTransport(handle), **kwargs)):
             client = JsonClient(connection, retry_delay_seconds=0)
-            result = asyncio.run(client.request("POST", "chat/completions", payload=payload))
+            result = asyncio.run(client.request("POST", "chat/completions", payload=payload,
+                                               transcript_path=transcript))
             self.assertEqual(requests[0]["seed"], requests[1]["seed"])
             cache._COUNTERS.clear()
             replay = JsonClient(connection)
@@ -103,12 +110,77 @@ class CacheTests(unittest.TestCase):
             self.assertEqual(replay.request_count, 0)
             self.assertEqual(replay.cache_hits, 1)
         self.assertEqual(len(requests), 2)
-        self.assertEqual(len(list(self.root.rglob("cache_comp_*.json"))), 1)
+        cached = list(self.root.rglob("cache_comp_*.json"))
+        self.assertEqual(len(cached), 1)
+        self.assertFalse(cached[0].with_suffix(".md").exists())
+        self.assertFalse(transcript.exists())
+        self.assertEqual(len(list(logs.glob("*.md"))), 3)
+        self.assertFalse(list(logs.glob("*.json")))
+        starts = [line for line in captured.output if "Model request start" in line]
+        self.assertEqual(len(starts), 3)
+        self.assertIn("cache_hit=True", starts[-1])
+        self.assertTrue(all("transcript=" not in line for line in starts))
 
     def test_settings_and_endpoints_are_part_of_the_key(self):
         paths = [cache.completion_path(endpoint, self.payload("abc", temperature=temperature))
                  for endpoint, temperature in [("one", 0.1), ("one", 0.5), ("two", 0.1)]]
         self.assertEqual(len({path.stem.rsplit("_", 1)[0] for path in paths}), 3)
+
+    def test_json_repair_reset_advances_the_cache_counter_and_replays_in_order(self):
+        class Answer(BaseModel):
+            value: int = Field(ge=0)
+
+        requests = []
+
+        def handle(request):
+            requests.append(json.loads(request.content))
+            self.assertLessEqual(len(requests), 10)
+            content = '{"value": -1}' if len(requests) <= 9 else '{"value": 3}'
+            return httpx.Response(200, json={"choices": [{"message": {"content": content},
+                                                         "finish_reason": "stop"}]})
+
+        connection = Connection(base_url="http://repair-fixture/v1", model="repair-fixture")
+        messages = [{"role": "user", "content": "Return a nonnegative value."}]
+
+        async def run(client):
+            rejected = []
+
+            async def complete(turns, **settings):
+                response = await client.request("POST", "chat/completions", payload={
+                    "model": connection.model, "messages": turns}, cancel=settings.get("cancel"))
+                return response["choices"][0]["message"]["content"]
+
+            def reject(attempt, raw, problem):
+                rejected.append(attempt)
+                self.assertLessEqual(len(rejected), 9)
+
+            result = await complete_json_async(complete, messages, Answer, on_rejection=reject,
+                measure=lambda turns, **settings: {"input_tokens": len(json.dumps(turns)),
+                                                   "input_budget_tokens": 100000})
+            self.assertEqual(rejected, list(range(1, 10)))
+            return result
+
+        original = httpx.AsyncClient
+        with patch("pm.llm.http_client.httpx.AsyncClient", side_effect=lambda **kwargs:
+                   original(transport=httpx.MockTransport(handle), **kwargs)):
+            client = JsonClient(connection)
+            self.assertEqual(asyncio.run(run(client)).value, 3)
+            self.assertEqual(client.request_count, 10)
+            self.assertEqual(client.cache_hits, 0)
+            cache._COUNTERS.clear()
+            replay = JsonClient(connection)
+            self.assertEqual(asyncio.run(run(replay)).value, 3)
+            self.assertEqual(replay.request_count, 0)
+            self.assertEqual(replay.cache_hits, 10)
+
+        self.assertEqual(len(requests), 10)
+        self.assertEqual(requests[0]["messages"], requests[9]["messages"])
+        cached = list(self.root.rglob("cache_comp_*.json"))
+        self.assertEqual(len(cached), 10)
+        second = next(path for path in cached if path.name.endswith("_2.json"))
+        first = second.with_name(second.name.removesuffix("_2.json") + "_1.json")
+        self.assertEqual(json.loads(first.read_bytes())["choices"][0]["message"]["content"], '{"value": -1}')
+        self.assertEqual(json.loads(second.read_bytes())["choices"][0]["message"]["content"], '{"value": 3}')
 
     def test_embedding_miss_then_hit_uses_no_seed_or_completion_counter(self):
         requests = []

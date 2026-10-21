@@ -170,40 +170,7 @@ def _metadata(connection, generation: dict, response: dict | None, error: BaseEx
         lines.extend(wrap_text(raw_line, indent="  "))
     return lines
 
-
-def write_prompt_log(*, connection, messages: list[dict], generation: dict | None = None,
-                     response: dict | None = None, error: BaseException | None = None,
-                     elapsed: float = 0.0, request_count: int | None = None,
-                     directory: Path | None = None) -> Path | None:
-    """Write one prompt file. Return its path, or None when the log is off.
-
-    The caller must not depend on this function for correctness. A write
-    failure is reported on stderr and returns None.
-    """
-    if not logging_enabled():
-        return None
-    target_dir = directory or log_directory()
-    path = target_dir / f"{uuid.uuid4().hex}.md"
-    try:
-        target_dir.mkdir(parents=True, exist_ok=True)
-        body = [
-            "# Private-machine prompt log",
-            "",
-            "## Metadata",
-            "",
-            *_metadata(connection, generation or {}, response, error, elapsed, request_count),
-            "",
-            *_render_messages(messages),
-            *_render_response(response, error),
-        ]
-        path.write_text("\n".join(body), encoding="utf-8")
-        return path
-    except OSError as write_error:  # logging must never break a completion
-        print(f"Prompt log write failed: {type(write_error).__name__}: {write_error}", file=sys.stderr)
-        return None
-
-
-__all__ = ["DEFAULT_DIR", "MAX_LINE", "log_directory", "logging_enabled", "wrap_text", "write_prompt_log"]
+__all__ = ["DEFAULT_DIR", "MAX_LINE", "log_directory", "logging_enabled", "wrap_text"]
 
 
 def _event(path: Path, event: dict) -> None:
@@ -265,7 +232,8 @@ def finish_prompt_log(path: Path | None, *, response: dict | None = None,
                       replayed: bool = False) -> None:
     """Append provider usage and the response, or record an error or cancellation.
 
-    The raw receipt excludes embedding vectors but retains provider usage.
+    Usage events exclude embedding vectors but retain provider usage.
+    Completion removes the temporary request JSON and updates the Markdown file.
     An interrupted process leaves a pending prompt. HTTP success does not
     establish a valid workflow result. Write errors cannot mask model errors.
     """
@@ -273,6 +241,8 @@ def finish_prompt_log(path: Path | None, *, response: dict | None = None,
         return
     try:
         request = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        os.remove(path.with_suffix(".json"))
+
         response = response if isinstance(response, dict) else None
         usage = (response or {}).get("usage") or {}
         output_tokens = usage.get("completion_tokens")
@@ -288,9 +258,9 @@ def finish_prompt_log(path: Path | None, *, response: dict | None = None,
                        if not replayed and isinstance(output_tokens, (int, float)) and elapsed > 0 else None),
                    "finish_reason": choices[0].get("finish_reason") if choices else None,
                    "error": f"{type(error).__name__}: {error}" if error is not None else None}
-        raw_response = response if request["route"] == "chat/completions" else {"usage": usage}
-        path.with_suffix(".response.json").write_text(
-            json.dumps({**receipt, "response": raw_response}, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        #raw_response = response if request["route"] == "chat/completions" else {"usage": usage}
+        #path.with_suffix(".response.json").write_text(
+        #    json.dumps({**receipt, "response": raw_response}, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         lines = ["", "## Outcome", "", f"- status: {receipt['event']}",
                  *wrap_text(json.dumps(receipt, ensure_ascii=False, indent=2)), ""]
         if request["route"] == "chat/completions":
@@ -310,24 +280,13 @@ def finish_prompt_log(path: Path | None, *, response: dict | None = None,
             body.extend(["## user (embedding input)", "", _pretty(payload.get("input", ""))])
         body.extend(lines)
         path.write_text("\n".join(wrap_text("\n".join(body))), encoding="utf-8")
-        path.with_suffix(".response.md").write_text("\n".join(wrap_text("\n".join(lines))), encoding="utf-8")
+        #path.with_suffix(".response.md").write_text("\n".join(wrap_text("\n".join(lines))), encoding="utf-8")
         _event(path, receipt)
     except Exception as write_error:
         print(f"Prompt log write failed: {type(write_error).__name__}: {write_error}", file=sys.stderr)
 
 
 __all__ += ["start_prompt_log", "finish_prompt_log"]
-
-
-def mirror_prompt_log(source: Path | None, destination: Path | None) -> None:
-    """Copy the current transcript beside a cache JSON. Write errors only warn."""
-    if source is None or destination is None or source == destination:
-        return
-    try:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(source.read_bytes())
-    except OSError as error:
-        print(f"Cache transcript write failed: {error}", file=sys.stderr)
 
 
 def write_embedding_cache_log(path: Path) -> None:

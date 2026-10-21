@@ -21,6 +21,136 @@ def measure(turns, **settings):
     return {"input_tokens": len(json.dumps(turns)), "input_budget_tokens": 100000}
 
 
+def complete_json_via_async(complete, messages, schema, **settings):
+    """Run the async repair policy with the same completion as the sync policy."""
+    async def async_complete(*args, **kwargs):
+        return complete(*args, **kwargs)
+
+    return asyncio.run(complete_json_async(async_complete, messages, schema, **settings))
+
+
+class RepairPolicyTests(unittest.TestCase):
+    def test_local_syntax_repair_needs_no_extra_completion_or_measurement(self):
+        for run in (complete_json, complete_json_via_async):
+            for raw in ('{value: 3}', '```json\n{"value": 3,}\n```', '{"value": 3',
+                        'Answer: {"value": 3}'):
+                with self.subTest(policy=run.__name__, raw=raw):
+                    calls, rejected = [], []
+
+                    def complete(turns, **settings):
+                        calls.append(turns)
+                        return raw
+
+                    result = run(complete, [], Answer, on_rejection=lambda *row: rejected.append(row))
+                    self.assertEqual(result.value, 3)
+                    self.assertEqual(len(calls), 1)
+                    self.assertEqual(rejected, [])
+
+    def test_ninth_rejection_resets_history_and_attempts_each_time(self):
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                messages = [{"role": "system", "content": "Keep source 17."},
+                            {"role": "user", "content": "Return a nonnegative value."}]
+                original = [dict(turn) for turn in messages]
+                responses = iter(['{"value": -1}'] * 19 + ['{"value": 3}'])
+                calls, measured, rejected = [], [], []
+
+                def complete(turns, **settings):
+                    calls.append(turns)
+                    self.assertEqual(turns[:2], original)
+                    self.assertEqual(settings["temperature"], 0.2)
+                    return next(responses)
+
+                def measure_context(turns, **settings):
+                    measured.append(turns)
+                    self.assertEqual(settings["temperature"], 0.2)
+                    return measure(turns)
+
+                result = run(complete, messages, Answer, measure=measure_context, temperature=0.2,
+                             on_rejection=lambda *row: rejected.append(row))
+                self.assertEqual(result.value, 3)
+                self.assertEqual([len(turns) for turns in calls], [2 + 2 * (i % 9) for i in range(20)])
+                self.assertEqual([row[0] for row in rejected], list(range(1, 10)) * 2 + [1])
+                self.assertEqual(measured, [turns for i, turns in enumerate(calls) if i % 9])
+                self.assertEqual(messages, original)
+
+    def test_reset_keeps_validation_context(self):
+        class Cited(BaseModel):
+            source: int
+
+            @model_validator(mode="after")
+            def allowed(self, info):
+                if self.source not in info.context["allowed"]:
+                    raise ValueError("Cite an inspected source.")
+                return self
+
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                responses = iter(['{"source": 9}'] * 10 + ['{"source": 17}'])
+                result = run(lambda *args, **kwargs: next(responses), [], Cited, measure=measure,
+                             validation_context={"allowed": {17}})
+                self.assertEqual(result.source, 17)
+
+    def test_local_repair_keeps_raw_answer_for_custom_validation(self):
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                seen = []
+
+                def validate(payload, raw):
+                    seen.append((payload, raw))
+                    if payload["value"] == 2:
+                        raise ValueError("Keep the requested source.")
+                    return Answer.model_validate(payload)
+
+                responses = iter(['{value: 2}', '{value: 3}'])
+                result = run(lambda *args, **kwargs: next(responses), [], Answer,
+                             measure=measure, validate=validate)
+                self.assertEqual(result.value, 3)
+                self.assertEqual(seen, [({"value": 2}, '{value: 2}'), ({"value": 3}, '{value: 3}')])
+
+    def test_invalid_field_type_receives_another_repair_turn(self):
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                responses = iter(['{"value": {"invalid": true}}', '{"value": 3}'])
+                rejected = []
+                result = run(lambda *args, **kwargs: next(responses), [], Answer, measure=measure,
+                             on_rejection=lambda *row: rejected.append(row))
+                self.assertEqual(result.value, 3)
+                self.assertEqual(len(rejected), 1)
+                self.assertIn("Expected integer", rejected[0][2])
+
+    def test_cancellation_at_reset_stops_before_another_completion(self):
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                cancel, calls = Event(), []
+
+                def complete(turns, **settings):
+                    self.assertIs(settings["cancel"], cancel)
+                    calls.append(turns)
+                    self.assertLessEqual(len(calls), 9)
+                    return '{"value": -1}'
+
+                def reject(attempt, raw, problem):
+                    if attempt == 9:
+                        cancel.set()
+
+                with self.assertRaises(asyncio.CancelledError):
+                    run(complete, [], Answer, measure=measure, cancel=cancel, on_rejection=reject)
+                self.assertEqual(len(calls), 9)
+
+    def test_schema_programming_error_is_not_repaired(self):
+        class Broken(BaseModel):
+            @classmethod
+            def model_json_schema(cls, **settings):
+                raise ValueError("schema bug")
+
+        for run in (complete_json, complete_json_via_async):
+            for settings in ({}, {"validate": lambda payload, raw: Broken()}):
+                with self.subTest(policy=run.__name__, custom_validator=bool(settings)), \
+                     self.assertRaisesRegex(ValueError, "schema bug"):
+                    run(lambda *args, **kwargs: "{}", [], Broken, measure=measure, **settings)
+
+
 class StructuredTests(unittest.TestCase):
     def test_errors_accumulate_until_a_valid_schema_answer(self):
         responses = iter(["not json", '{"value": -2}', '{"value": 3}'])
@@ -34,7 +164,7 @@ class StructuredTests(unittest.TestCase):
             measure=measure, on_rejection=lambda *row: rejected.append(row))
         self.assertEqual(result.value, 3)
         self.assertEqual([len(row) for row in calls], [1, 3, 5])
-        self.assertIn("greater than or equal to 0", calls[-1][-1]["content"])
+        self.assertIn("minimum of 0", calls[-1][-1]["content"])
         self.assertEqual(calls[-1][1]["content"], "not json")
         self.assertEqual(len(rejected), 2)
 

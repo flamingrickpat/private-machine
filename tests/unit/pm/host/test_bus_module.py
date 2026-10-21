@@ -77,6 +77,30 @@ class ShellBusTests(unittest.TestCase):
         module = _EchoModule(bus)
         self.assertFalse(module.step(block=False))
 
+    def test_scheduler_and_empty_batches_stay_silent_and_still_run(self):
+        for module_id, batch in (("scheduler", [Envelope(
+                id=new_id(), source="x", kind="data", topic="ping", correlation_id="", payload={})]),
+                ("echo", [])):
+            with self.subTest(module_id=module_id):
+                module = _EchoModule(BusSystem())
+                module.module_id = module_id
+                with self.assertNoLogs("pm.host.application", level="DEBUG"):
+                    module._logged_batch(batch)
+                self.assertEqual(module.batch_sizes, [len(batch)])
+
+    def test_nonempty_work_logs_boundaries_without_private_input(self):
+        module = _EchoModule(BusSystem())
+        batch = [Envelope(id=new_id(), source="x", kind="data", topic="ping", correlation_id="corr-17",
+                          payload={"text": "private-input-marker"})]
+        with self.assertLogs("pm.host.application", level="DEBUG") as captured:
+            module._logged_batch(batch)
+        self.assertEqual(module.batch_sizes, [1])
+        self.assertEqual(len(captured.output), 2)
+        self.assertIn("Module work start module=echo", captured.output[0])
+        self.assertIn("corr-17", captured.output[0])
+        self.assertIn("Module work exit module=echo", captured.output[1])
+        self.assertNotIn("private-input-marker", "\n".join(captured.output))
+
     def test_fanout(self):
         bus = BusSystem()
         recorder_a = Recorder(bus, topic="data.topic")

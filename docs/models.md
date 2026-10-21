@@ -297,8 +297,12 @@ Embedding caching remains enabled. Cache hits do not establish that a model endp
 Native pm-coder sessions retain their own provider transport; the direct runtime cache does not intercept those sessions.
 
 [`pm.llm.structured.complete_json`][] and [`pm.llm.structured.complete_json_async`][] own generated JSON repair.
+Local syntax repair uses `json-repair` before validation and needs no extra model call when it succeeds.
 Each rejected answer adds an assistant turn and a user turn with its validation error.
-Repairs retain all earlier turns and continue while the model's input budget permits another attempt.
+After nine consecutive rejections, repair starts again with the original messages and resets the attempt count.
+Each reset retains the validator, validation context, and cancellation event.
+Between resets, repair retains earlier turns while the model's input budget permits another attempt.
+If each batch fits the input budget, resets can continue until cancellation without a total attempt limit.
 The budget reserves output space. Context exhaustion raises `ModelFormatError` without accepting an invalid answer.
 Cancellation and programming errors propagate.
 

@@ -26,7 +26,8 @@ class CacheLogTests(unittest.TestCase):
             self.assertNotIn("status: pending", text)
             self.assertIn('      "b": 1', text)
             self.assertIn("tokens_per_second: 10.0", text)
-            self.assertTrue(path.with_suffix(".response.md").exists())
+            self.assertEqual(list(Path(directory).glob("*.md")), [path])
+            self.assertFalse(path.with_suffix(".json").exists())
             self.assertTrue(all(len(line) <= 120 for line in text.splitlines()))
 
     def test_replay_records_no_fresh_generation_speed(self):
@@ -34,9 +35,11 @@ class CacheLogTests(unittest.TestCase):
             path = start_prompt_log(connection=Connection(base_url="http://local/v1", model="example"),
                 payload={"messages": []}, route="chat/completions", request_count=0, directory=Path(directory))
             finish_prompt_log(path, response={"usage": {"completion_tokens": 100}}, elapsed=.001, replayed=True)
-            receipt = json.loads(path.with_suffix(".response.json").read_text(encoding="utf-8"))
+            receipt = json.loads(next(Path(directory).glob("usage-*.jsonl")).read_text(
+                encoding="utf-8").splitlines()[-1])
             self.assertTrue(receipt["cache_hit"])
             self.assertIsNone(receipt["tokens_per_second"])
+            self.assertIn("- tokens_per_second: unknown", path.read_text(encoding="utf-8"))
 
     def test_backfill_preserves_exact_response_bytes(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"PM_CACHE_DIR": directory}):

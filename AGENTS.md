@@ -111,16 +111,25 @@ Do not change identifiers, commands, quoted errors, or preserved source document
 
 ## Required checks and HTML regeneration
 
-Run the root foundation suite and the selected item's relevant real gates.
+Run only the tests that cover the affected code by default.
+Use the smallest relevant selection that covers the changes and important related mechanics.
+The owner actively tests the application during this phase.
+Do not run the full unit suite, full contract suite, or all tests unless the user explicitly requests that run.
+Do not treat a request to update tests, commit, or push as a request for a full suite.
+Run the selected item's relevant real gates only when the current task requires them.
 Keep live evidence under a fresh `.runtime` directory.
 Record failures and unavailable endpoints without converting them into passes.
+
+Use these full-suite commands only after an explicit user request:
 
 ```powershell
 uv run --locked python -m unittest discover -s tests/unit -t . -b
 uv run --locked python -m unittest discover -s tests/contract -t . -b
 ```
 
-If the native-exit anomaly recurs, retain its evidence and repeat with the locked interpreter's diagnostics:
+If a requested full unit run has a native exit, retain its evidence.
+Do not start a full diagnostic repeat unless the user explicitly requests it.
+For a requested diagnostic repeat, use the locked interpreter's diagnostics:
 
 ```powershell
 .venv/Scripts/python.exe -X faulthandler -m unittest discover -s tests/unit -t . -v

@@ -12,6 +12,7 @@ dependencies = [
     "jsonschema>=4.26,<5",
     "tiktoken>=0.14,<1",
     "pillow>=10.0,<12",
+    "json-repair",
 ]
 
 [tool.uv.sources]

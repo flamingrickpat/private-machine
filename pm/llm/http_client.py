@@ -137,16 +137,14 @@ class JsonClient:
         Cancellation leaves the prompt and an error receipt. Logging failures
         cannot change the HTTP result. Readiness requests have no prompt log.
         """
-        from pm.llm.prompt_log import start_prompt_log, finish_prompt_log, mirror_prompt_log
+        from pm.llm.prompt_log import start_prompt_log, finish_prompt_log
         started = time.monotonic()
         replayed = replay_response(cache_path) if cache_path is not None else None
         path = start_prompt_log(connection=self.connection, payload=payload, route=route,
                                 request_count=self.request_count) if method == "POST" else None
-        transcript = transcript_path or (cache_path.with_suffix(".md") if cache_path is not None else None)
-        mirror_prompt_log(path, transcript)
         logger = logging.getLogger(__name__)
-        logger.info("Model request start route=%s model=%s cache_hit=%s transcript=%s",
-                    route, self.connection.model, replayed is not None, transcript or path)
+        logger.info("Model request start route=%s model=%s cache_hit=%s",
+                    route, self.connection.model, replayed is not None)
         if replayed is not None:
             self.cache_hits += 1
             response = replayed
@@ -158,7 +156,6 @@ class JsonClient:
                 ), cancel)
             except BaseException as error:
                 finish_prompt_log(path, error=error, elapsed=time.monotonic() - started)
-                mirror_prompt_log(path, transcript)
                 logger.info("Model request stopped route=%s error=%s", route, type(error).__name__)
                 raise
             self._store(cache_path, response)
@@ -169,7 +166,6 @@ class JsonClient:
         error = completion_error(data) if response.is_success else ModelError(f"HTTP {response.status_code}")
         finish_prompt_log(path, response=data, error=error, elapsed=time.monotonic() - started,
                           replayed=replayed is not None)
-        mirror_prompt_log(path, transcript)
         logger.info("Model request end route=%s status=%s seconds=%.3f", route, response.status_code,
                     time.monotonic() - started)
         return response

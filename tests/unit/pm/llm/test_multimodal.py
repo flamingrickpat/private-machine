@@ -1,7 +1,6 @@
 """The prompt encoder: tags become image parts under the last-N rule, or alt text."""
 from __future__ import annotations
 
-import json
 import os
 import socket
 import struct
@@ -19,6 +18,7 @@ from pm.llm.context_window import estimate_tokens
 from pm.llm.http_client import ModelError
 from pm.llm.multimodal import encode_messages
 from pm.llm.prompt_encoding import OpenAIChatEncoder
+from pm.llm.prompt_log import start_prompt_log
 from pm.records.media import image_from_bytes, install_media_lookup
 
 
@@ -119,10 +119,12 @@ class ChatClientHookTests(unittest.IsolatedAsyncioTestCase):
             owner = ModelActivation()
             owner._ready[connection.base_url] = connection.model
             client = ChatClient(connection, owner, live_test=True)
-            with mock.patch.dict(os.environ, {"PM_PROMPT_LOG_DIR": directory, "PM_PROMPT_LOG": "1"}):
+            with mock.patch.dict(os.environ, {"PM_PROMPT_LOG_DIR": directory, "PM_PROMPT_LOG": "1"}), \
+                 mock.patch("pm.llm.prompt_log.start_prompt_log", wraps=start_prompt_log) as log:
                 with self.assertRaises(ModelError):
                     await client.complete([Turn(Role.User, f"what is this?\n{image.tag}")])
-            payload = json.loads(next(Path(directory).glob("*.json")).read_text(encoding="utf-8"))["payload"]
+            payload = log.call_args.kwargs["payload"]
+            self.assertFalse(list(Path(directory).glob("*.json")))
         parts = payload["messages"][0]["content"]
         self.assertEqual(parts[0], {"type": "text", "text": "what is this?\n"})
         self.assertEqual(parts[1]["image_url"]["url"], image.data_url())

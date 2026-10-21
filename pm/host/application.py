@@ -102,11 +102,10 @@ class BusModule(ABC):
     def _logged_batch(self, batch: list[Envelope]) -> None:
         """Record work boundaries without copying private input into diagnostics.
 
-        Empty batches (timer ticks with no work) are processed silently so they
-        do not flood the debug log.  Only non-empty batches produce start/exit
-        entries.
+        Empty batches and scheduler batches run silently to limit log noise.
+        Other batches record their start and exit without private payloads.
         """
-        if not batch:
+        if not batch or str(self.module_id) == "scheduler":
             self.handle_batch(batch)
             return
         started = time.monotonic()

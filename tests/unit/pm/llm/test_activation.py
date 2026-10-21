@@ -26,10 +26,14 @@ class ActivationTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(ModelError):
                     await client.request("POST", "chat/completions", payload=payload)
             prompt = next(Path(directory).glob("*.md"))
-            logged = json.loads(prompt.with_suffix(".json").read_text())["payload"]
-            self.assertIsInstance(logged.pop("seed"), int)
-            self.assertEqual(logged, payload)
-            self.assertIn("error", json.loads(prompt.with_suffix(".response.json").read_text())["event"])
+            text = prompt.read_text(encoding="utf-8")
+            self.assertIn("- model: qwen", text)
+            self.assertIn("### 1. user\n\n  hello", text)
+            events = [json.loads(line) for line in next(Path(directory).glob("usage-*.jsonl")).read_text(
+                encoding="utf-8").splitlines()]
+            self.assertEqual([event["event"] for event in events], ["start", "error"])
+            self.assertEqual(events[-1]["call_id"], prompt.stem)
+            self.assertFalse(list(Path(directory).glob("*.json")))
             self.assertNotIn("private-credential-marker", "".join(
                 path.read_text() for path in Path(directory).iterdir()))
 

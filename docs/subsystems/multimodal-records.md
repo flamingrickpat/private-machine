@@ -106,7 +106,8 @@ A message without tags keeps its plain string content, so a text-only prompt has
 The OpenAI chat API accepts images only in user turns. The dialogue workflow puts its transcript into an assistant prefill, so its images move to the context turn before it.
 
 Context measurement adds `PROMPT_IMAGE_TOKENS` for each image part. The estimate label is `estimated.images_by_constant.<encoding>`.
-The prompt log shows an image part as `[image_url attachment; see request JSON]`. The JSON file beside it has the full request.
+The prompt log shows an image part as `[image_url attachment; see request JSON]`.
+While the call is pending, the adjacent JSON file contains the full request. Completion removes that JSON file.
 
 ### Agent sessions
 
