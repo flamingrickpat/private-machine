@@ -1,0 +1,1547 @@
+{
+  "scope": "Actual M3-36 support refusals, adjacent dirt gains, and repeated successful no-op dirt equip calls. Inspection now publishes real harvestability metadata. Projected hint and context checks do not establish M3 acceptance. No death, reset, or grants occurred in this run.",
+  "sources": {
+    "journal": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/attempts/actor-0022/scratch/actor-journal.jsonl",
+      "sha256": "caecfd24398715a4f458b3bf9c7efd89ef856c6bb09bf47df920bf04aa56e751"
+    }
+  },
+  "rows": [
+    {
+      "seq": 310,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 3,
+          "y": 118,
+          "z": 18
+        }
+      },
+      "revision": 0,
+      "time": 1791527596.7769005,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 3,
+          "y": 118,
+          "z": 18
+        },
+        "block_name": "iron_ore",
+        "display_name": "Iron Ore",
+        "is_solid": true,
+        "exposed_faces": [
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 3,
+              "y": 118,
+              "z": 17
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 3,
+              "y": 118,
+              "z": 19
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 4,
+              "y": 118,
+              "z": 18
+            },
+            "block_name": "iron_ore",
+            "solid": true
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 2,
+              "y": 118,
+              "z": 18
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 3,
+              "y": 119,
+              "z": 18
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 3,
+              "y": 117,
+              "z": 18
+            },
+            "block_name": "stone",
+            "solid": true
+          }
+        ],
+        "best_tools": [
+          "netherite_pickaxe",
+          "diamond_pickaxe",
+          "iron_pickaxe",
+          "stone_pickaxe"
+        ],
+        "can_harvest_with_held": false,
+        "drops": [
+          "raw_iron"
+        ],
+        "hardness": 3.0,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 318,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": -8,
+          "y": 118,
+          "z": 10
+        }
+      },
+      "revision": 0,
+      "time": 1791527614.3987994,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "unsafe_support",
+        "message": "No block was dug. Move to a supported side before mining below a column touched by your body.",
+        "block": {
+          "position": {
+            "x": -8,
+            "y": 118,
+            "z": 10
+          },
+          "block_name": "grass_block",
+          "display_name": "Grass Block"
+        },
+        "tool_used": null,
+        "can_harvest": true,
+        "pickup": null,
+        "inventory_delta": null,
+        "image": null,
+        "duration_ms": 0.0
+      },
+      "images": []
+    },
+    {
+      "seq": 322,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": -8,
+          "y": 118,
+          "z": 11
+        }
+      },
+      "revision": 0,
+      "time": 1791527626.6174874,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [
+          "Held item changed: slot 0 (empty); active hotbar slot: 0 (dirt)."
+        ],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": -8,
+            "y": 118,
+            "z": 11
+          },
+          "block_name": "grass_block",
+          "display_name": "Grass Block"
+        },
+        "tool_used": null,
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "dirt"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "dirt",
+              "before": 0,
+              "after": 1,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 0,
+          "total_items_after": 1
+        },
+        "image": {
+          "frame_id": "bebd036a6618f256d862c0bfd0afe489",
+          "captured_at": "2026-10-09T06:33:46.392431Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 1984.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00322-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 323,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": -8,
+          "y": 118,
+          "z": 10
+        }
+      },
+      "revision": 0,
+      "time": 1791527628.5499108,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "unsafe_support",
+        "message": "No block was dug. Move to a supported side before mining below a column touched by your body.",
+        "block": {
+          "position": {
+            "x": -8,
+            "y": 118,
+            "z": 10
+          },
+          "block_name": "grass_block",
+          "display_name": "Grass Block"
+        },
+        "tool_used": "dirt",
+        "can_harvest": true,
+        "pickup": null,
+        "inventory_delta": null,
+        "image": null,
+        "duration_ms": 0.0
+      },
+      "images": []
+    },
+    {
+      "seq": 324,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": -7,
+          "y": 118,
+          "z": 11
+        }
+      },
+      "revision": 0,
+      "time": 1791527632.7668924,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": -7,
+            "y": 118,
+            "z": 11
+          },
+          "block_name": "grass_block",
+          "display_name": "Grass Block"
+        },
+        "tool_used": "dirt",
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "dirt"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "dirt",
+              "before": 1,
+              "after": 2,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 1,
+          "total_items_after": 2
+        },
+        "image": {
+          "frame_id": "9365cb3eb3dfc07dd2b7a18ea16e0bb3",
+          "captured_at": "2026-10-09T06:33:52.576853Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 2016.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00324-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 325,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791527635.700073,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": -7.5,
+            "y": 119.0,
+            "z": 10.5
+          },
+          "eye_position": {
+            "x": -7.5,
+            "y": 120.62,
+            "z": 10.5
+          },
+          "block_position": {
+            "x": -8,
+            "y": 119,
+            "z": 10
+          },
+          "yaw": 225.0,
+          "pitch": -56.25,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.39,
+            "y": -0.83,
+            "z": -0.39
+          }
+        },
+        "player": {
+          "health": 20.0,
+          "max_health": 20.0,
+          "food": 20,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 1130,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "body_session": "4e2373fcc26f44fea61330d9da488203",
+        "death_count": 0,
+        "held_item": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2526,
+            "nearest": {
+              "x": -8,
+              "y": 119,
+              "z": 10
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 287,
+            "nearest": {
+              "x": -8,
+              "y": 118,
+              "z": 10
+            },
+            "distance": 1.22
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 51,
+            "nearest": {
+              "x": -9,
+              "y": 119,
+              "z": 11
+            },
+            "distance": 1.58
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 614,
+            "nearest": {
+              "x": -8,
+              "y": 117,
+              "z": 10
+            },
+            "distance": 2.12
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 10,
+            "nearest": {
+              "x": -6,
+              "y": 119,
+              "z": 8
+            },
+            "distance": 2.92
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1297,
+            "nearest": {
+              "x": -7,
+              "y": 116,
+              "z": 10
+            },
+            "distance": 3.08
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 109,
+            "nearest": {
+              "x": -11,
+              "y": 121,
+              "z": 12
+            },
+            "distance": 4.3
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 6,
+            "nearest": {
+              "x": -6,
+              "y": 115,
+              "z": 10
+            },
+            "distance": 4.3
+          },
+          {
+            "block_name": "poppy",
+            "display_name": "Poppy",
+            "count": 4,
+            "nearest": {
+              "x": -8,
+              "y": 118,
+              "z": 5
+            },
+            "distance": 5.61
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 5,
+            "nearest": {
+              "x": -13,
+              "y": 122,
+              "z": 14
+            },
+            "distance": 7.18
+          },
+          {
+            "block_name": "emerald_ore",
+            "display_name": "Emerald Ore",
+            "count": 2,
+            "nearest": {
+              "x": -7,
+              "y": 116,
+              "z": 17
+            },
+            "distance": 7.18
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 2,
+            "nearest": {
+              "x": -12,
+              "y": 112,
+              "z": 18
+            },
+            "distance": 11.2
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 354,
+            "entity_type": "item",
+            "display_name": "Item",
+            "position": {
+              "x": -11.3,
+              "y": 118.0,
+              "z": 7.94
+            },
+            "distance": 4.69,
+            "health": null,
+            "hostile": false
+          },
+          {
+            "entity_id": 356,
+            "entity_type": "item",
+            "display_name": "Item",
+            "position": {
+              "x": -11.9,
+              "y": 118.0,
+              "z": 7.56
+            },
+            "distance": 5.38,
+            "health": null,
+            "hostile": false
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 329,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": false,
+        "right": true
+      },
+      "revision": 0,
+      "time": 1791527652.605557,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": false,
+          "right": true,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 260.28,
+        "pose_before": {
+          "x": -7.5,
+          "y": 119.0,
+          "z": 10.5
+        },
+        "pose_after": {
+          "x": -8.09,
+          "y": 119.0,
+          "z": 11.09
+        },
+        "camera": {
+          "feet_position": {
+            "x": -8.09,
+            "y": 119.0,
+            "z": 11.09
+          },
+          "eye_position": {
+            "x": -8.09,
+            "y": 120.62,
+            "z": 11.09
+          },
+          "block_position": {
+            "x": -9,
+            "y": 119,
+            "z": 11
+          },
+          "yaw": 225.0,
+          "pitch": -56.25,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.39,
+            "y": -0.83,
+            "z": -0.39
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "6fa342aa1ba4f880bd9ff75e3d415fad",
+          "captured_at": "2026-10-09T06:34:12.444020Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00329-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 332,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": false,
+        "left": false,
+        "right": false,
+        "back": false,
+        "jump": false
+      },
+      "revision": 0,
+      "time": 1791527664.6894138,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 258.0,
+        "pose_before": {
+          "x": -8.09,
+          "y": 119.0,
+          "z": 11.09
+        },
+        "pose_after": {
+          "x": -8.09,
+          "y": 119.0,
+          "z": 11.09
+        },
+        "camera": {
+          "feet_position": {
+            "x": -8.09,
+            "y": 119.0,
+            "z": 11.09
+          },
+          "eye_position": {
+            "x": -8.09,
+            "y": 120.62,
+            "z": 11.09
+          },
+          "block_position": {
+            "x": -9,
+            "y": 119,
+            "z": 11
+          },
+          "yaw": 225.0,
+          "pitch": -56.25,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.39,
+            "y": -0.83,
+            "z": -0.39
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "500272df0293597dd9936b21a4345b45",
+          "captured_at": "2026-10-09T06:34:24.518375Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00332-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 335,
+      "event": "result",
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": -8,
+          "y": 118,
+          "z": 10
+        }
+      },
+      "revision": 0,
+      "time": 1791527676.87331,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": -8,
+            "y": 118,
+            "z": 10
+          },
+          "block_name": "grass_block",
+          "display_name": "Grass Block"
+        },
+        "tool_used": "dirt",
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "dirt"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "dirt",
+              "before": 1,
+              "after": 2,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 1,
+          "total_items_after": 2
+        },
+        "image": {
+          "frame_id": "6167e1a1beca3d32d513ae564150a85a",
+          "captured_at": "2026-10-09T06:34:36.689259Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 2015.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00335-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 336,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": false,
+        "left": true
+      },
+      "revision": 0,
+      "time": 1791527685.1615674,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": false,
+          "left": true,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 253.5,
+        "pose_before": {
+          "x": -7.5,
+          "y": 118.0,
+          "z": 11.68
+        },
+        "pose_after": {
+          "x": -7.7,
+          "y": 118.0,
+          "z": 11.68
+        },
+        "camera": {
+          "feet_position": {
+            "x": -7.7,
+            "y": 118.0,
+            "z": 11.68
+          },
+          "eye_position": {
+            "x": -7.7,
+            "y": 119.62,
+            "z": 11.68
+          },
+          "block_position": {
+            "x": -8,
+            "y": 118,
+            "z": 11
+          },
+          "yaw": 0.0,
+          "pitch": -43.65,
+          "cardinal": "south",
+          "look_vector": {
+            "x": -0.0,
+            "y": -0.69,
+            "z": 0.72
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "6a2ccae111537fc619d2036a23fb84bb",
+          "captured_at": "2026-10-09T06:34:45.008546Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00336-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 337,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true
+      },
+      "revision": 0,
+      "time": 1791527688.9124706,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": false,
+          "sprint": false
+        },
+        "duration_ms": 259.76,
+        "pose_before": {
+          "x": -7.7,
+          "y": 118.0,
+          "z": 11.68
+        },
+        "pose_after": {
+          "x": -7.7,
+          "y": 118.0,
+          "z": 11.05
+        },
+        "camera": {
+          "feet_position": {
+            "x": -7.7,
+            "y": 118.0,
+            "z": 11.05
+          },
+          "eye_position": {
+            "x": -7.7,
+            "y": 119.62,
+            "z": 11.05
+          },
+          "block_position": {
+            "x": -8,
+            "y": 118,
+            "z": 11
+          },
+          "yaw": 0.0,
+          "pitch": -43.65,
+          "cardinal": "south",
+          "look_vector": {
+            "x": -0.0,
+            "y": -0.69,
+            "z": 0.72
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "8331a620a6fa3018871678da1a444c01",
+          "captured_at": "2026-10-09T06:34:48.727415Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00337-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 348,
+      "event": "result",
+      "tool": "minecraft_equip_best_tool",
+      "arguments": {
+        "target": {
+          "x": -8,
+          "y": 117,
+          "z": 11
+        }
+      },
+      "revision": 0,
+      "time": 1791527787.5690188,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "requested": "dirt",
+        "equipped": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "previous_held": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "candidates": null,
+        "target_block": "grass_block",
+        "best_possible_tool": "dirt"
+      },
+      "images": []
+    },
+    {
+      "seq": 349,
+      "event": "result",
+      "tool": "minecraft_equip_best_tool",
+      "arguments": {
+        "target": {
+          "x": -8,
+          "y": 117,
+          "z": 11
+        }
+      },
+      "revision": 0,
+      "time": 1791527790.0711808,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "requested": "dirt",
+        "equipped": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "previous_held": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "candidates": null,
+        "target_block": "grass_block",
+        "best_possible_tool": "dirt"
+      },
+      "images": []
+    },
+    {
+      "seq": 350,
+      "event": "result",
+      "tool": "minecraft_equip_best_tool",
+      "arguments": {
+        "target": {
+          "x": -8,
+          "y": 117,
+          "z": 11
+        }
+      },
+      "revision": 0,
+      "time": 1791527792.4657135,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "requested": "dirt",
+        "equipped": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "previous_held": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "candidates": null,
+        "target_block": "grass_block",
+        "best_possible_tool": "dirt"
+      },
+      "images": []
+    },
+    {
+      "seq": 351,
+      "event": "result",
+      "tool": "minecraft_equip_best_tool",
+      "arguments": {
+        "target": {
+          "x": -8,
+          "y": 117,
+          "z": 11
+        }
+      },
+      "revision": 0,
+      "time": 1791527794.848296,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "requested": "dirt",
+        "equipped": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "previous_held": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "candidates": null,
+        "target_block": "grass_block",
+        "best_possible_tool": "dirt"
+      },
+      "images": []
+    },
+    {
+      "seq": 361,
+      "event": "result",
+      "tool": "minecraft_equip_best_tool",
+      "arguments": {
+        "target": {
+          "x": -8,
+          "y": 117,
+          "z": 12
+        }
+      },
+      "revision": 0,
+      "time": 1791527819.787166,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "requested": "dirt",
+        "equipped": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "previous_held": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "candidates": null,
+        "target_block": "dirt",
+        "best_possible_tool": "dirt"
+      },
+      "images": []
+    },
+    {
+      "seq": 362,
+      "event": "result",
+      "tool": "minecraft_equip_best_tool",
+      "arguments": {
+        "target": {
+          "x": -8,
+          "y": 117,
+          "z": 12
+        }
+      },
+      "revision": 0,
+      "time": 1791527822.1827886,
+      "epoch": 168,
+      "session": "63deea9247fd4e0bb1d850d244654a1c",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "requested": "dirt",
+        "equipped": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "previous_held": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "candidates": null,
+        "target_block": "dirt",
+        "best_possible_tool": "dirt"
+      },
+      "images": []
+    }
+  ]
+}

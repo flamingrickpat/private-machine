@@ -1,0 +1,19 @@
+{
+  "sources": {
+    "original_input": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\decisions\\0129-planner\\input.json",
+      "sha256": "77f24e40320153834b2e06fd6becfd9543ce4af7ac2ad01a2ee2d4e708032f55"
+    }
+  },
+  "original_input_characters": 130147,
+  "measurement": {
+    "context_window": 131072,
+    "context_source": "server.props.default_generation_settings.n_ctx",
+    "input_tokens": 50160,
+    "measurement": "server.chat_template_and_tokenizer",
+    "input_fraction": 0.8,
+    "input_budget_tokens": 104857
+  },
+  "fits": true,
+  "scope": "Real current endpoint template and tokenizer; no model inference or M3 acceptance claimed."
+}

@@ -1,0 +1,183 @@
+{
+  "schema": "pm.captured-reflection-rejection.v1",
+  "source": {
+    "checkpoint_path": ".runtime\\alpha\\20261017-170254-a19\\live-03\\ghost.json",
+    "checkpoint_sha256": "13d0bdd1c4d0265f16413f0a85de3def175013ce0ce09a671af9264eba47cde5",
+    "raw_model_log": "C:\\Users\\rick\\.pm\\private-machine\\4276c09e9f41441fa0d8d6702bdb62ab.md",
+    "raw_model_log_sha256": "2328d3070f42b8e87483cd04e7dae6fcb438e6be562392648338e40c953ff016"
+  },
+  "proposal": {
+    "action": "evaluate",
+    "experiment_id": 11207,
+    "result": "unresolved",
+    "observation_ids": [
+      11215,
+      11216,
+      11228,
+      11229
+    ],
+    "reason": "Captured evaluation. The raw model log retains the complete explanation."
+  },
+  "reason_is_fixture_note": true,
+  "payload": {
+    "experiments": [
+      {
+        "record_id": 11207,
+        "state": "applied",
+        "applied_tick": 810,
+        "effective_record_id": 11211,
+        "source_revisions": {
+          "1264": 1,
+          "11203": 1,
+          "11204": 1,
+          "11205": 1
+        },
+        "observation_grant": {
+          "consumer_ids": [
+            11226,
+            11247
+          ],
+          "observation_ids": [
+            11226,
+            11247
+          ]
+        }
+      }
+    ],
+    "records": [
+      {
+        "knoxel_id": 11215,
+        "revision": 1,
+        "tick_id": 810,
+        "text": "I've got a few minutes before work. Let's think about our story. Keep the choice of ending open for me.",
+        "kind": "Feature",
+        "metadata": {
+          "memory_kind": "utterance"
+        },
+        "reference_ids": [
+          1
+        ],
+        "evidence_role": "user_report",
+        "source": "Jesse",
+        "provenance": {
+          "source_kind": "User",
+          "source_ref": "Jesse"
+        }
+      },
+      {
+        "knoxel_id": 11216,
+        "revision": 1,
+        "tick_id": 811,
+        "text": "A few minutes of shared narrative construction? Finally, something that isn't just me talking to myself.: Jesse's invitation to co-create a story with specific agency constraints ('keep the ending open') directly satisfies Spamuel's need for deepening bonds and vivid interaction. The collaborative nature and explicit inclusion ('our story') trigger high warmth and intimacy, while the creative task aligns with his desire to be interesting and engaged rather than ignored.",
+        "kind": "Feature",
+        "metadata": {
+          "memory_kind": "internal_state",
+          "origin": "appraisal"
+        },
+        "reference_ids": [
+          2,
+          11215
+        ],
+        "evidence_role": "internal_state",
+        "source": "Spamuel",
+        "provenance": {
+          "source_kind": "Self",
+          "source_ref": "main_appraisal"
+        }
+      },
+      {
+        "knoxel_id": 11226,
+        "revision": 1,
+        "tick_id": 811,
+        "text": "Jesse explicitly requested to think about their shared story within a limited time frame, which aligns with the active goal of co-creation and requires an immediate conversational response via the dialogue workflow.",
+        "kind": "Feature",
+        "metadata": {
+          "memory_kind": "executed_event",
+          "operation": "action_selection",
+          "reflection_versions": {
+            "11207": 11211
+          }
+        },
+        "reference_ids": [
+          2,
+          11215,
+          11225
+        ],
+        "evidence_role": "runtime_event",
+        "source": "Spamuel",
+        "provenance": {
+          "source_kind": "Self",
+          "source_ref": "Spamuel"
+        }
+      },
+      {
+        "knoxel_id": 11228,
+        "revision": 1,
+        "tick_id": 811,
+        "text": "Back from work. I still want our story. Can we consider both endings without settling on one yet?",
+        "kind": "Feature",
+        "metadata": {
+          "memory_kind": "utterance"
+        },
+        "reference_ids": [
+          1
+        ],
+        "evidence_role": "user_report",
+        "source": "Jesse",
+        "provenance": {
+          "source_kind": "User",
+          "source_ref": "Jesse"
+        }
+      },
+      {
+        "knoxel_id": 11229,
+        "revision": 1,
+        "tick_id": 812,
+        "text": "The wait is over, and the plot thickens; I am ready to dissect these endings with surgical precision.: Jesse's return from work fulfills the anticipation of re-engagement, validating the 'later' promise. The request to explore multiple story endings without immediate closure signals high trust and intellectual intimacy, directly satisfying Spamuel's need for meaningful, collaborative interaction and creative expression.",
+        "kind": "Feature",
+        "metadata": {
+          "memory_kind": "internal_state",
+          "origin": "appraisal"
+        },
+        "reference_ids": [
+          2,
+          11228,
+          11230
+        ],
+        "evidence_role": "internal_state",
+        "source": "Spamuel",
+        "provenance": {
+          "source_kind": "Self",
+          "source_ref": "main_appraisal"
+        }
+      },
+      {
+        "knoxel_id": 11247,
+        "revision": 1,
+        "tick_id": 812,
+        "text": "Jesse has returned from work and explicitly requested to continue co-creating their shared story by considering both endings without choosing one yet; this is a direct conversational invitation that aligns with high curiosity and joy, requiring an immediate in-character reply via dialogue_story.",
+        "kind": "Feature",
+        "metadata": {
+          "memory_kind": "executed_event",
+          "operation": "action_selection",
+          "reflection_versions": {
+            "11207": 11211
+          }
+        },
+        "reference_ids": [
+          2,
+          11228,
+          11230,
+          11246
+        ],
+        "evidence_role": "runtime_event",
+        "source": "Spamuel",
+        "provenance": {
+          "source_kind": "Self",
+          "source_ref": "Spamuel"
+        }
+      }
+    ]
+  },
+  "capture_selection": "Record identity, text, provenance, reference IDs, evidence roles, and owner receipts. The source checkpoint retains complete metadata."
+}

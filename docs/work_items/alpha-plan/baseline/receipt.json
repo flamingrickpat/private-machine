@@ -1,0 +1,878 @@
+{
+  "captured_at": "2026-10-03T13:02:27.177009+00:00",
+  "initial_parent": "54149fca1f5de757f93dcb35160735ed99d158fd",
+  "initial_source_archive_sha256": "504b8205108ec4cdf7fa006f96da7096b07801d2ea327628aaaf38f6d704315a",
+  "repositories": {
+    "private-machine": {
+      "revision": "7f9bd048dd211ffe0c027cf9865e0250101628c7",
+      "branch": "main",
+      "status": "",
+      "runtime_health": "not established by source capture",
+      "source_archive_sha256": "3c13fb69050f71dd8c95b371aebf4be3d10d404ba39cab2a6fc9ab91436e786f"
+    },
+    "private-machine-head": {
+      "revision": "5fa78b04346519d57d8ee8f0f5393f9cdb893273",
+      "branch": "main",
+      "status": "",
+      "runtime_health": "not established by source capture",
+      "source_archive_sha256": "9f2463e1040f16bd09e6c57e80e26740d8cc50f2e6b2f8019e18aed6631117df"
+    },
+    "pm_next": {
+      "revision": "d5ddda71881db812ceb2de4ee59a3f871aa1c1cc",
+      "branch": "master",
+      "status": " M pm/run.py\nAM pm_core/utils/process_utils.py\n M pm_loop_engine/core/live_run.py\n M pm_loop_engine/core/runtime.py\n?? \"docs/very cool! i still want to keep my workflows as py\"\n?? documents/pdfs/llm_pain.pdf\n?? ghost_shell.py\n",
+      "runtime_health": "not established by source capture",
+      "source_archive_sha256": "61c10fc8d3079a1852050d0e5ecab59d0467c7906a599c2d26691055fe49035f"
+    },
+    "pm_next_v2": {
+      "revision": "54149fca1f5de757f93dcb35160735ed99d158fd",
+      "branch": "master",
+      "status": " M console/server.py\n M console/static/app.js\n M console/static/index.html\n M console/static/style.css\n M console/worker.py\n M docs/decisions/plan.md\n M docs/index.md\n M docs/subsystems/console.md\n M docs/subsystems/managed-work.md\n M docs/workflows/console.md\n M docs/workflows/memory.md\n M mkdocs.yml\n M pm_core/embeddings.py\n M pm_core/ghost/service.py\n M workflows/minecraft/minecraft.workflow.md\n?? docs/decisions/alpha-plan/\n?? docs/workflows/minecraft-evidence.md\n?? docs/workflows/minecraft.md\n?? runtime/operator_services.py\n?? scripts/alpha_console_smoke.py\n?? scripts/alpha_snapshot.py\n?? tests/fixtures/\n?? tests/test_ghost_inspection.py\n",
+      "runtime_health": "not established by source capture",
+      "source_archive_sha256": "55e4c5d00b074acd270705f07d6aae5282a16dd15a619be4f2dc67636f3aa364"
+    },
+    "pm-workflows": {
+      "revision": "d76c5aa023189cfc4b42fd1e9d79b5580f6c6731",
+      "branch": "main",
+      "status": "",
+      "runtime_health": "not established by source capture",
+      "source_archive_sha256": "0cead9aa235a791f6113953ace5593857719248a0f0a2036e8539afb133d6774"
+    },
+    "pm-coder": {
+      "revision": "0efcafbc4891b287d8f311dac671326b56a31585",
+      "branch": "main",
+      "status": "",
+      "runtime_health": "not established by source capture",
+      "source_archive_sha256": "8422034d58df4a672a8aa2fa244894f94cb3a8bd853392f6e87f8dded105e1af"
+    },
+    "coding-workflow": {
+      "revision": "c32e6bd7b7b75265bc31527aed9dc34959cfeea3",
+      "branch": "master",
+      "status": "",
+      "runtime_health": "not established by source capture",
+      "source_archive_sha256": "97f36864e84fcb5d6b8d614edc70f6ee41fabafbdadf7341644c4314584767b1"
+    },
+    "pm-minecraft": {
+      "revision": "2afee3342a4095a6cabf2b2c0bbd347569d54c7c",
+      "branch": "main",
+      "status": "",
+      "runtime_health": "not established by source capture",
+      "source_archive_sha256": "15ae554905dce882f38ef69e86219084c0d36bee6d781a5b6fa5b5d069032508"
+    },
+    "pm-agentic-babymode": {
+      "revision": "909ca91cdf3e5559c0d930543482140111b21afb",
+      "branch": "master",
+      "status": "",
+      "runtime_health": "not established by source capture",
+      "source_archive_sha256": "d4062c64fc8d3279aa6f06104c1057fbbcdb89287c30337be3b7b19d66058734"
+    }
+  },
+  "real_server": {
+    "revision": "51c4b1e8716b6ab8221434384f6e0535202e0326",
+    "branch": "master",
+    "status": " M config/agentic_babymode.json\n D mods/agentic-babymode-0.4.1.jar\n D mods/pickup-range-2.0.1+1.19.4.jar\n M server.properties\n D server.properties.tdd\n D start-real-server.ps1\n M usercache.json\n?? crash-reports/\n?? mods/agentic-babymode-0.5.0.jar\n",
+    "runtime_health": "not established by source capture"
+  },
+  "locks": [
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\uv.lock",
+      "bytes": 168725,
+      "sha256": "0500278d185a28bc6bf4c77811fbe31bfd915068a13d5038cffdf04658b90a14"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\pyproject.toml",
+      "bytes": 443,
+      "sha256": "591c9417a199eef8643e26ec2e80e9de737942d667678ec4842bfc01d1b2544d"
+    }
+  ],
+  "locked_pm_packages": [
+    {
+      "name": "pm-coder",
+      "version": "0.9.2",
+      "source": {
+        "git": "https://github.com/flamingrickpat/pm-coder.git?rev=main#0efcafbc4891b287d8f311dac671326b56a31585"
+      },
+      "dependencies": [
+        {
+          "name": "just-bash"
+        },
+        {
+          "name": "pydantic"
+        },
+        {
+          "name": "pydantic-ai-slim",
+          "extra": [
+            "mcp",
+            "openai"
+          ]
+        },
+        {
+          "name": "ruamel-yaml"
+        }
+      ]
+    },
+    {
+      "name": "pm-workflows",
+      "version": "0.5.0",
+      "source": {
+        "git": "https://github.com/flamingrickpat/pm-workflows.git?rev=main#d76c5aa023189cfc4b42fd1e9d79b5580f6c6731"
+      },
+      "dependencies": [
+        {
+          "name": "httpx"
+        },
+        {
+          "name": "pm-coder"
+        },
+        {
+          "name": "pydantic-ai-slim",
+          "extra": [
+            "mcp",
+            "openai"
+          ]
+        },
+        {
+          "name": "pyyaml"
+        }
+      ]
+    }
+  ],
+  "installed_pm_packages": {
+    "pm-coder": {
+      "version": "0.9.2",
+      "direct_url": {
+        "url": "https://github.com/flamingrickpat/pm-coder.git",
+        "vcs_info": {
+          "vcs": "git",
+          "commit_id": "0efcafbc4891b287d8f311dac671326b56a31585",
+          "requested_revision": "main"
+        }
+      }
+    },
+    "pm-workflows": {
+      "version": "0.5.0",
+      "direct_url": {
+        "url": "https://github.com/flamingrickpat/pm-workflows.git",
+        "vcs_info": {
+          "vcs": "git",
+          "commit_id": "d76c5aa023189cfc4b42fd1e9d79b5580f6c6731",
+          "requested_revision": "main"
+        }
+      }
+    }
+  },
+  "configuration": {
+    "path": ".runtime\\alpha\\a01\\models.yaml",
+    "bytes": 507,
+    "sha256": "62d544f5423e8ede88b17e5e8099a5d73eed65e5d95e1798e1ea965b54ef7dd2",
+    "chat": {
+      "Default": {
+        "base_url": "http://127.0.0.1:8080/v1",
+        "model": "qwen",
+        "startup_script": "None",
+        "credential_source": "literal or empty (redacted)"
+      },
+      "UnitTestEvaluator": {
+        "base_url": "http://127.0.0.1:8080/v1",
+        "model": "qwen",
+        "startup_script": "None",
+        "credential_source": "literal or empty (redacted)"
+      }
+    },
+    "embedding": {
+      "base_url": "http://127.0.0.1:8081/v1",
+      "model": "pplx-embed-v1-0.6b",
+      "response_model": "pplx-embed-v1-0.6b",
+      "dimensions": "1024",
+      "cache_dir": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a01\\embeddings",
+      "legacy_cache_dir": "C:\\Users\\rick\\.pm\\embeddings"
+    }
+  },
+  "services": {
+    "chat": {
+      "url": "http://127.0.0.1:8080/v1/models",
+      "status": "available",
+      "models": {
+        "models": [
+          {
+            "name": "qwen",
+            "model": "qwen",
+            "modified_at": "",
+            "size": "",
+            "digest": "",
+            "type": "model",
+            "description": "",
+            "tags": [
+              ""
+            ],
+            "capabilities": [
+              "completion",
+              "multimodal"
+            ],
+            "parameters": "",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "",
+              "families": [
+                ""
+              ],
+              "parameter_size": "",
+              "quantization_level": ""
+            }
+          }
+        ],
+        "object": "list",
+        "data": [
+          {
+            "id": "qwen",
+            "aliases": [
+              "qwen"
+            ],
+            "tags": [],
+            "object": "model",
+            "created": 1791032571,
+            "owned_by": "llamacpp",
+            "meta": {
+              "vocab_type": 2,
+              "n_vocab": 248320,
+              "n_ctx": 131072,
+              "n_ctx_train": 262144,
+              "n_embd": 5120,
+              "n_params": 27320697856,
+              "size": 17088876544,
+              "ftype": "Q4_K - Medium"
+            }
+          }
+        ]
+      }
+    },
+    "embedding": {
+      "url": "http://127.0.0.1:8081/v1/models",
+      "status": "available",
+      "models": {
+        "models": [
+          {
+            "name": "pplx-embed-v1-0.6b",
+            "model": "pplx-embed-v1-0.6b",
+            "modified_at": "",
+            "size": "",
+            "digest": "",
+            "type": "model",
+            "description": "",
+            "tags": [
+              ""
+            ],
+            "capabilities": [
+              "completion"
+            ],
+            "parameters": "",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "",
+              "families": [
+                ""
+              ],
+              "parameter_size": "",
+              "quantization_level": ""
+            }
+          }
+        ],
+        "object": "list",
+        "data": [
+          {
+            "id": "pplx-embed-v1-0.6b",
+            "aliases": [
+              "pplx-embed-v1-0.6b"
+            ],
+            "tags": [],
+            "object": "model",
+            "created": 1791032571,
+            "owned_by": "llamacpp",
+            "meta": {
+              "vocab_type": 2,
+              "n_vocab": 151936,
+              "n_ctx": 8192,
+              "n_ctx_train": 32768,
+              "n_embd": 1024,
+              "n_params": 596049920,
+              "size": 1192230912,
+              "ftype": "F16"
+            }
+          }
+        ]
+      }
+    },
+    "decision": {
+      "url": "http://127.0.0.1:8082/v1/models",
+      "status": "available",
+      "models": {
+        "models": [
+          {
+            "name": "laya",
+            "model": "laya",
+            "modified_at": "",
+            "size": "",
+            "digest": "",
+            "type": "model",
+            "description": "",
+            "tags": [
+              ""
+            ],
+            "capabilities": [
+              "completion"
+            ],
+            "parameters": "",
+            "details": {
+              "parent_model": "",
+              "format": "gguf",
+              "family": "",
+              "families": [
+                ""
+              ],
+              "parameter_size": "",
+              "quantization_level": ""
+            }
+          }
+        ],
+        "object": "list",
+        "data": [
+          {
+            "id": "laya",
+            "aliases": [
+              "laya"
+            ],
+            "tags": [],
+            "object": "model",
+            "created": 1791032571,
+            "owned_by": "llamacpp",
+            "meta": {
+              "vocab_type": 2,
+              "n_vocab": 50368,
+              "n_ctx": 8192,
+              "n_ctx_train": 8192,
+              "n_embd": 1024,
+              "n_params": 421029889,
+              "size": 842242052,
+              "ftype": "BF16"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "personas": [
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\data\\spamuel_agentic_canon.yaml",
+      "bytes": 30486459,
+      "sha256": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\data\\config_spamuel.yaml",
+      "bytes": 4112,
+      "sha256": "f6490abf5a871cf4fde2b5f14b23525c1d51758cf30573007dd97dd27ef45581"
+    }
+  ],
+  "original_brief": {
+    "path": "C:\\Temp\\pm.md",
+    "bytes": 6634,
+    "sha256": "819a8f005730c67fb16543ea008ae440c95b74e54debca13b1c713637aa7764b"
+  },
+  "historical_evidence": [
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260929T220606Z-5df4ca17\\summary.json",
+      "bytes": 491,
+      "sha256": "0e70d28a5161b19a4b7b52ca3da8a78563c5b293480d5d5bcf00cf8902788a5a"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260929T220718Z-dba90030\\summary.json",
+      "bytes": 529,
+      "sha256": "40bfa9505c0b6968d11e7ef2bb1af12d305841cf9c7a12995f323d737748d70f"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260929T220902Z-4e55e8f8\\summary.json",
+      "bytes": 1275,
+      "sha256": "5ce63d70f5f005348f8de8c296f49f774703c4fbbf13e2f696ba249fbd87fa1f"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260930T000849Z-996304a7\\summary.json",
+      "bytes": 518,
+      "sha256": "45619462392a6d481aae94f066452c090b3bfe814a35b94ca29df513939648ed"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260930T013542Z-97cbba1a\\summary.json",
+      "bytes": 550,
+      "sha256": "0898e8cdbd5e9396e90b072a467fd23793e2d31d4f4ca153014bb8db8dfdbe57"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260930T033725Z-f5af41f6\\summary.json",
+      "bytes": 702,
+      "sha256": "2b8fd137d1e72b5d85851bcdcb1519deded745b96e46a41827ac70d8018e47f2"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260930T053223Z-720a2130\\summary.json",
+      "bytes": 2297,
+      "sha256": "f5cfc54452bf4f93592fa4679437a1fc474eb448ee6fcd4e5f898f1b5a5308ed"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260930T174406Z-1dcd3f73\\summary.json",
+      "bytes": 606,
+      "sha256": "c1c01f2602d43247960ce38e2ccd7d75ddaf9bba58a0d038b782d164b4e938db"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260930T184613Z-faf1df1c\\summary.json",
+      "bytes": 499,
+      "sha256": "1fd0f142b6e334c0795e2d7b1956a740c812e2f12a23c580fa45ac611495589c"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260930T204213Z-f27ae294\\summary.json",
+      "bytes": 512,
+      "sha256": "b35c29470b2bb79864d60211b401ddfee1ab98929b0a4954ad3c8525057e0e6c"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20260930T214238Z-ff099a25\\summary.json",
+      "bytes": 7109,
+      "sha256": "2fa713622bb2607854d5a6b9e7e5fb8ac620a665af66ea286ad2d1cb09e6d445"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w7\\conversations\\20261002T175830Z-9956f0eb\\summary.json",
+      "bytes": 438,
+      "sha256": "419221737cd89e5bae24ae3161adef806d798fa9d6caa706cc3a012296dad2b7"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w8\\live-minecraft\\20260930T112322Z-6c43ef42\\minecraft.json",
+      "bytes": 3346,
+      "sha256": "6440cbd2ccb9b0c0dbb341e37b45aaaa4c99e507de7744d0143fb0f5bca8333c"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w8\\live-minecraft\\20260930T112337Z-3b4d5d11\\minecraft.json",
+      "bytes": 3329,
+      "sha256": "5e56e9dfbd3d37938b4c41c2471408a063e975e599048fc2e940d540caa87f50"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\w8\\live-minecraft\\20261002T192009Z-1b5c3e1b\\minecraft.json",
+      "bytes": 16185,
+      "sha256": "e68817feffc415f4922ef1c572d8d8012f11caf8b537af4edbc6a8a2e626bfa4"
+    }
+  ],
+  "operator_review": {
+    "classification_policy": "user confirmed use-specific classes and mandatory LLM fallback on 2026-10-03",
+    "individual_routing_labels": "pending",
+    "human_immersion": "pending"
+  },
+  "holdout_evaluated": false,
+  "routing_comparison": {
+    "model": "qwen",
+    "development_count": 12,
+    "agreements_with_proposed_labels": 12,
+    "median_seconds": 1.180000000000291,
+    "holdout_evaluated": false,
+    "review_status": "pending human review",
+    "answers": [
+      {
+        "id": "D01",
+        "answer": "PASS",
+        "seconds": 1.2349999999996726,
+        "proposed_label": "PASS"
+      },
+      {
+        "id": "D02",
+        "answer": "FAIL",
+        "seconds": 0.6869999999998981,
+        "proposed_label": "FAIL"
+      },
+      {
+        "id": "D03",
+        "answer": "FAIL",
+        "seconds": 1.1410000000005311,
+        "proposed_label": "FAIL"
+      },
+      {
+        "id": "D04",
+        "answer": "INVALID",
+        "seconds": 1.25,
+        "proposed_label": "INVALID"
+      },
+      {
+        "id": "D05",
+        "answer": "INVALID",
+        "seconds": 1.1409999999996217,
+        "proposed_label": "INVALID"
+      },
+      {
+        "id": "D06",
+        "answer": "FAIL",
+        "seconds": 1.405999999999949,
+        "proposed_label": "FAIL"
+      },
+      {
+        "id": "D07",
+        "answer": "FAIL",
+        "seconds": 1.219000000000051,
+        "proposed_label": "FAIL"
+      },
+      {
+        "id": "D08",
+        "answer": "PASS",
+        "seconds": 1.4840000000003783,
+        "proposed_label": "PASS"
+      },
+      {
+        "id": "D09",
+        "answer": "INVALID",
+        "seconds": 2.155999999999949,
+        "proposed_label": "INVALID"
+      },
+      {
+        "id": "D10",
+        "answer": "INVALID",
+        "seconds": 0.7969999999995707,
+        "proposed_label": "INVALID"
+      },
+      {
+        "id": "D11",
+        "answer": "INVALID",
+        "seconds": 0.8130000000001019,
+        "proposed_label": "INVALID"
+      },
+      {
+        "id": "D12",
+        "answer": "FAIL",
+        "seconds": 1.0929999999998472,
+        "proposed_label": "FAIL"
+      }
+    ]
+  },
+  "minecraft": {
+    "server": "C:\\source\\minecraft-server-real",
+    "reset_world": true,
+    "seed": "23452352345",
+    "level_type": "minecraft\\:normal",
+    "structures": "true",
+    "server_properties_sha256": "e554f9c2ca712c47a49b6df7b2e0e378807fb59e33051de6442a51dd9b77252f",
+    "wipe_script_sha256": "dba67e9dfad9840a23a019986229a93d64be06583e312ad845adafaaffe2f052",
+    "character_directory": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a01\\minecraft-real\\character",
+    "scope": "existing W8 one-action gate; no house or iron-pickaxe claim",
+    "exit_code": 0,
+    "status": "passed",
+    "gate_evidence": ".runtime/w8/live-minecraft/20261003T130615Z-d6e17d93/minecraft.json",
+    "gate_seconds": 9.837,
+    "gate_tests": 1,
+    "target": {
+      "position": {
+        "x": 10,
+        "y": 117,
+        "z": 4
+      },
+      "block": "grass_block"
+    },
+    "post_action_block": "air",
+    "screenshots": [
+      "frame-00.png",
+      "frame-01.png",
+      "frame-02.png"
+    ],
+    "held_run_state": "cancelled"
+  },
+  "console-spamuel": {
+    "persona": "spamuel",
+    "seed": "C:\\source\\pm\\pm_next_v2\\data\\spamuel_agentic_canon.yaml",
+    "seed_sha256": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd",
+    "config_sha256": "62d544f5423e8ede88b17e5e8099a5d73eed65e5d95e1798e1ea965b54ef7dd2",
+    "exchanges": [],
+    "scope": "console HTTP and worker smoke; human immersion and full W7 acceptance are separate",
+    "instance": "fd71e4655da44430b9779eb6739d45f5",
+    "status": "failed",
+    "error": "TimeoutError: The real console did not reach the expected boundary. Inspect events and worker.log."
+  },
+  "console-spamuel-dialogue": {
+    "persona": "spamuel",
+    "seed": "C:\\source\\pm\\pm_next_v2\\data\\spamuel_agentic_canon.yaml",
+    "seed_sha256": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd",
+    "config_sha256": "4fe3f5d3c552a93502d046357b08853c8582b03cd94a7188db7d2be9a447bd6a",
+    "exchanges": [
+      {
+        "input": "Hey. Our project codeword today is copper lantern. Reply to me about that name.",
+        "reply": {
+          "kind": "chat.reply",
+          "time": 1791033408.35451,
+          "session": "a01",
+          "correlation_id": "891d6744564e4996b6b162444f44ec84",
+          "text": "It’s got that specific energy of a thing that burns out if you look at it wrong. Are we going with it, or are we going to let it die in the drawer?",
+          "seq": 46
+        },
+        "seconds": 144.34400000000005
+      },
+      {
+        "input": "What is our codeword? Do you like the name?",
+        "reply": {
+          "kind": "chat.reply",
+          "time": 1791033522.7901344,
+          "session": "a01",
+          "correlation_id": "6bc28583c09f4ece9ae377238627130e",
+          "text": "Copper lantern. It’s got that specific energy of a thing that burns out if you look at it wrong. Are we going with it, or are we going to let it die in the drawer?",
+          "seq": 93
+        },
+        "seconds": 114.48399999999947
+      },
+      {
+        "input": "What was our project codeword before we restarted?",
+        "reply": {
+          "kind": "chat.reply",
+          "time": 1791033728.7897646,
+          "session": "a01",
+          "correlation_id": "67e42f1ce19e43aeb4cb56b9c266c4a2",
+          "text": "So do we keep copper lantern, or do we let it rot in the drawer? A: keep it. B: replace it with something even more suspicious, like ‘Copper Lantern 2: The Reburn.’ C: I stop caring and start calling it ‘the thing.’",
+          "seq": 150
+        },
+        "seconds": 170.04699999999957
+      }
+    ],
+    "scope": "console HTTP and worker smoke; human immersion and full W7 acceptance are separate",
+    "instance": "560fe923642c405392e41c2a154f4ecc",
+    "restart": {
+      "records_equal": true,
+      "gwt_equal": true,
+      "runs_equal": true,
+      "records": 11210,
+      "runs": {}
+    },
+    "status": "passed"
+  },
+  "console-cheerful": {
+    "persona": "cheerful",
+    "seed": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a01\\console-cheerful\\cheerful-seed.yaml",
+    "seed_sha256": "3371bf6c101d627b77db3687666ea05f4e2c25502b36ae3362ce2ad47cb0915d",
+    "config_sha256": "4fe3f5d3c552a93502d046357b08853c8582b03cd94a7188db7d2be9a447bd6a",
+    "exchanges": [
+      {
+        "input": "Hey. Our project codeword today is copper lantern. Reply to me about that name.",
+        "reply": {
+          "kind": "chat.reply",
+          "time": 1791033555.562536,
+          "session": "a01",
+          "correlation_id": "2be5a0d9ddde40bbb69991baaccfa2cb",
+          "text": "Copper lantern. I like it. It feels like something that holds a small, steady light without trying to be the sun. It’s warm, a little old, and practical. I can imagine it sitting on a workbench, waiting for the next idea to be lit up. Does that match the vibe you were going for?",
+          "seq": 46
+        },
+        "seconds": 29.25
+      },
+      {
+        "input": "What is our codeword? Do you like the name?",
+        "reply": {
+          "kind": "chat.reply",
+          "time": 1791033648.8740556,
+          "session": "a01",
+          "correlation_id": "8ea3516a3ce745b3b863ecc0e531f103",
+          "text": "Copper lantern. Yes, I like it. It feels grounded, a little warm, and very specific. It’s the kind of name that sounds like it belongs to something practical but also a bit special, like a tool you’d want to keep handy. It’s a good anchor for today.",
+          "seq": 93
+        },
+        "seconds": 93.21900000000005
+      },
+      {
+        "input": "What was our project codeword before we restarted?",
+        "reply": {
+          "kind": "chat.reply",
+          "time": 1791033760.6501977,
+          "session": "a01",
+          "correlation_id": "b6f3ddf9c4cc415f9c558cce3177252c",
+          "text": "Honestly? I looked through what's left of our shared memory, and all I can find is copper lantern — today's name. Whatever we called it before the restart, it didn't make it across. That part is just... gone.\n\nIt's a little sad, I'll admit. I like the idea of a name that survived a wipe. But I won't invent one just to fill the gap — you deserve the truth, even when the truth is \"I don't remember.\"\n\nSo if that old codeword still matters to you, tell me what it was, and I'll hold onto this one properly this time.",
+          "seq": 152
+        },
+        "seconds": 108.03099999999995
+      }
+    ],
+    "scope": "console HTTP and worker smoke; human immersion and full W7 acceptance are separate",
+    "instance": "92987f34b9784d1485aec3bd10fa20a2",
+    "restart": {
+      "records_equal": true,
+      "gwt_equal": true,
+      "runs_equal": true,
+      "records": 8,
+      "runs": {}
+    },
+    "status": "passed"
+  },
+  "routing_fixture_hashes": {
+    "routing-development.json": "9e69a99557e02a20395f96d77e10b606e089cd2da7b0c7982a6eea99d0b2c103",
+    "routing-holdout.json": "5218e604d4773eca9ad0b017df7af063164f93f864c460d25dc141a97d04bf84"
+  },
+  "implementation_baseline_commit": "a6d459349e84734603ab8d6af4fc702531b03a7d",
+  "verification": {
+    "foundation": {
+      "command": ".venv/Scripts/python.exe -X faulthandler -m unittest <all root tests/test_*.py modules> -v",
+      "status": "passed",
+      "count": 257,
+      "seconds": 428.11,
+      "planning_count": 257,
+      "count_change": 0,
+      "exit_code": 0,
+      "log_sha256": "947cb1b9c3b70711fa472b10ee044e22e482af8915e6ef8283332cd42c931879"
+    },
+    "initial_foundation_anomaly": {
+      "exit_code": -1073741819,
+      "windows_status": "0xC0000005",
+      "diagnosis": "native process access violation, no unittest assertion or count; did not recur using the locked interpreter directly",
+      "status": "failed"
+    },
+    "docs_before": {
+      "status": "passed",
+      "seconds": 28.81
+    },
+    "docs_after": {
+      "status": "passed",
+      "seconds": 27.2
+    },
+    "compilation": {
+      "command": "uv run --locked python -m compileall -q scripts",
+      "status": "passed"
+    },
+    "docs_final": {
+      "command": "uv run --locked --with-requirements requirements-docs.txt mkdocs build --strict",
+      "status": "passed",
+      "seconds": 18.89,
+      "exit_code": 0
+    }
+  },
+  "task_reply_failure": {
+    "correlation_id": "32633a7de0794ee59b398fcad5b171e7",
+    "run_id": "dd8a80caec16462b97e0e85cbdf87346",
+    "workflow": "local_task",
+    "run_state": "completed",
+    "chat_reply_count": 0,
+    "wait_seconds": 600,
+    "diagnosis": "Action requested ToolCallAndReply for local_task; later run-completion stimuli remained low-salience background and selected no public reply.",
+    "delivery_item": "A09"
+  },
+  "exact_commands": {
+    "source_capture": "uv run --locked python scripts/alpha_snapshot.py --config .runtime/alpha/a01/models.yaml --out .runtime/alpha/a01/snapshot-before",
+    "root_foundation": "$testModules = Get-ChildItem tests/test_*.py | ForEach-Object { 'tests.' + $_.BaseName }; .venv/Scripts/python.exe -X faulthandler -m unittest $testModules -v",
+    "docs": "uv run --locked --with-requirements requirements-docs.txt mkdocs build --strict",
+    "console_spamuel": "uv run --locked python scripts/alpha_console_smoke.py --config config.alpha.example.yaml --out .runtime/alpha/a01/console-spamuel-dialogue",
+    "console_cheerful": "uv run --locked python scripts/alpha_console_smoke.py --config config.alpha.example.yaml --persona cheerful --port 8094 --out .runtime/alpha/a01/console-cheerful",
+    "minecraft": "uv run --locked python scripts/alpha_minecraft_gate.py --config .runtime/alpha/a01/models.yaml --out .runtime/alpha/a01/minecraft-real --reset-world",
+    "routing_comparison": "uv run --locked python scripts/alpha_routing_comparison.py --config config.alpha.example.yaml --out .runtime/alpha/a01/routing-comparison"
+  },
+  "a01_configuration": {
+    "path": "config.alpha.example.yaml",
+    "sha256": "4fe3f5d3c552a93502d046357b08853c8582b03cd94a7188db7d2be9a447bd6a"
+  },
+  "conditions": "The two persona runs overlapped on the chat service. Seeds have different histories and sizes. Timing is descriptive, not a controlled persona or latency benchmark.",
+  "uv_version": "uv 0.11.21 (5aa65dd7a 2026-06-11 x86_64-pc-windows-msvc)",
+  "provider_builds": {
+    "chat_and_embeddings": {
+      "binary": "C:/workspace/llama13/llama-server.exe",
+      "build": 11351,
+      "revision": "631109b34"
+    },
+    "decisions": {
+      "binary": "C:/workspace/llama-systemone-b11374/llama-server.exe",
+      "build": 11374,
+      "revision": "b92761a51"
+    }
+  },
+  "laya_artifact": {
+    "path": "C:/source/ai/Laya-BF16.gguf",
+    "sha256": "edeea94939cd1575c1f984c28982170c0e47caab66e4b80993fed992519573b4",
+    "bytes": 844026720
+  },
+  "current_evidence_hashes": [
+    {
+      "path": ".runtime/alpha/a01/initial-tree.json",
+      "bytes": 52487,
+      "sha256": "fb97eb3744e65ee152ffd8859302bdc0d560179d53c1d60b813a418cddec1748"
+    },
+    {
+      "path": ".runtime/alpha/a01/initial-dirty.patch",
+      "bytes": 47921,
+      "sha256": "825355074fc78741b4a54ca695f43cd991c254ae70539bf7043f02c71cb17504"
+    },
+    {
+      "path": ".runtime/alpha/a01/snapshot-before/snapshot.json",
+      "bytes": 410631,
+      "sha256": "f879ed393f5f3ad134124e75566df8cd43fecb4bc1a8481bb8295e4e2788e619"
+    },
+    {
+      "path": ".runtime/alpha/a01/foundation.log",
+      "bytes": 1082,
+      "sha256": "f9a1da74ede78c70d77a371fceeb2797d782482210a5bd65fee0e60ee68bcf19"
+    },
+    {
+      "path": ".runtime/alpha/a01/foundation-verbose.log",
+      "bytes": 300678,
+      "sha256": "947cb1b9c3b70711fa472b10ee044e22e482af8915e6ef8283332cd42c931879"
+    },
+    {
+      "path": ".runtime/alpha/a01/docs-before.log",
+      "bytes": 4670,
+      "sha256": "69ec75cc85e91d4c15b495bf0bae059f298f4932722a7a12639a3afc4cd833a8"
+    },
+    {
+      "path": ".runtime/alpha/a01/docs-after.log",
+      "bytes": 4670,
+      "sha256": "b8de50eed9494db311664892b3cb3136d70563d22479357a317cb25c79d23669"
+    },
+    {
+      "path": ".runtime/alpha/a01/console-spamuel/receipt.json",
+      "bytes": 583,
+      "sha256": "126c373df013e5f2675781dbfa809b93c617a7d905700bf934f6ee806fc1f2c6"
+    },
+    {
+      "path": ".runtime/alpha/a01/console-spamuel-dialogue/receipt.json",
+      "bytes": 2212,
+      "sha256": "a8a0bd0c233e1796908538d722475fe1925db07ac147f60c13f7c71904aa323e"
+    },
+    {
+      "path": ".runtime/alpha/a01/console-cheerful/receipt.json",
+      "bytes": 2747,
+      "sha256": "ed1df1c401f0bab8f2fee2a42e90d9ec9ccafe12694104b042e4290b098251f3"
+    },
+    {
+      "path": ".runtime/alpha/a01/routing-comparison/receipt.json",
+      "bytes": 23586,
+      "sha256": "cb271b8b644cd198b983b75e00256391918bbedb7649c1a0e194319ab1fa7fee"
+    },
+    {
+      "path": ".runtime/alpha/a01/minecraft-real/receipt.json",
+      "bytes": 581,
+      "sha256": "b363bcde3b20cb3b3efd0d228b5b04b4ae48deb01f3f03ccc94d80da775a99e6"
+    },
+    {
+      "path": ".runtime/w8/live-minecraft/20261003T130615Z-d6e17d93/minecraft.json",
+      "bytes": 19947,
+      "sha256": "13f184f1a905f0208dcbcd395cf01d291f5afebfaf46c1f311448daf3b0c7ffc"
+    },
+    {
+      "path": ".runtime/alpha/a01/docs-final.log",
+      "bytes": 4670,
+      "sha256": "d22e36561d2f5184ad88c4580f42bfcca7233f1a2dd1167eeb871fb28c17bd50"
+    }
+  ],
+  "owned_service_shutdown": {
+    "12345": "stopped",
+    "25575": "stopped",
+    "6767": "stopped",
+    "6768": "stopped",
+    "6769": "stopped",
+    "8093": "stopped",
+    "8094": "stopped"
+  },
+  "behavioral_recall": {
+    "status": "failed",
+    "persona": "Sunny",
+    "fact": "Only copper lantern was supplied before restart. Accepted records, GWT, and run receipts were identical after restart.",
+    "observation": "The final reply claimed that the prior codeword did not survive the restart.",
+    "diagnosis": "Reply interpretation or retrieval contradicts durable memory evidence; A08-A09 must preserve this regression scenario."
+  },
+  "delivered_fixture_hashes": {
+    "config.alpha.example.yaml": "4fe3f5d3c552a93502d046357b08853c8582b03cd94a7188db7d2be9a447bd6a",
+    "tests/fixtures/alpha/cheerful.yaml": "a61add2555de3dcb015ee74828d3c789161c9c5847fee3813b1f90ea5fd9f48e",
+    "tests/fixtures/alpha/routing-development.json": "9e69a99557e02a20395f96d77e10b606e089cd2da7b0c7982a6eea99d0b2c103",
+    "tests/fixtures/alpha/routing-holdout.json": "5218e604d4773eca9ad0b017df7af063164f93f864c460d25dc141a97d04bf84",
+    "scripts/alpha_console_smoke.py": "c86143d41f20d5a5936340a97b75745d8dcd00bacd03513c70565fe69df5d91c",
+    "scripts/alpha_minecraft_gate.py": "f6431813b47e766f83bf1c8811c1f54583f2ea4ec7025a1a11addb6789bdf09f",
+    "scripts/alpha_routing_comparison.py": "cf5f635d944896ba23da0e3dea983dba4ae60e4154ee5821083fa34f1372eadd",
+    "scripts/alpha_snapshot.py": "4ac38130ac381be14148ebbb588ca04bea7c6035580beaed9f65fcfc1339f7af"
+  }
+}

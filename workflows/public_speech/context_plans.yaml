@@ -1,0 +1,55 @@
+# Context plans for public speech. See pm/memory/context_plan.py.
+#
+# A reply that main cognition chose reads the workspace shards of its cycle
+# (workflows/public_speech/shard_context.py) and uses no plan. Only a
+# standalone Story situation, which has no cycle, plans its context here.
+#
+# Each plan divides a token budget into lanes. "recent" lanes take the
+# newest contiguous records; "focus" lanes take the required ids; "score"
+# lanes rank their records against the focus texts.
+# Record types use the serialized names, for example MemoryClusterKnoxel.
+#
+# story: the companion writes prose for the other character to read.
+#   Verbatim dialogue and the companion's own earlier thoughts form the
+#   transcript in the assistant turn.
+
+story:
+  total_tokens: 9000
+  redistribution_rounds: 3
+  priority: [dialogue, history, facts, narratives]
+  lanes:
+    - name: dialogue
+      budget_share: 0.45
+      select: recent
+      record_types: [Feature]
+      feature_types: [Dialogue, Thought, InnerMonologue]
+    - name: focus
+      budget_share: 0.12
+      select: focus
+      record_types: [Feature, MemoryClusterKnoxel, DeclarativeFactKnoxel, Narrative, CauseEffectKnoxel, BeliefKnoxel]
+    - name: history
+      budget_share: 0.20
+      select: score
+      order: time
+      record_types: [MemoryClusterKnoxel]
+      before_lane: dialogue
+      max_similarity: 0.93
+      weights: {semantic: 1.0, lexical: 0.35}
+    - name: facts
+      budget_share: 0.10
+      select: score
+      order: score
+      record_types: [DeclarativeFactKnoxel, BeliefKnoxel]
+      max_similarity: 0.88
+      weights: {semantic: 1.0, lexical: 0.35, importance: 0.3}
+    - name: narratives
+      budget_share: 0.13
+      select: score
+      order: score
+      record_types: [Narrative]
+      latest_per: [narrative_type, entity_id]
+      weights: {semantic: 0.5, lexical: 0.2}
+
+# Bound on new record embeddings per planned reply. Records near the cut that
+# have no cached vector are embedded first; the rest score lexically.
+max_new_embeddings: 32

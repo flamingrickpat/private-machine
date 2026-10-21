@@ -1,0 +1,785 @@
+{
+  "provenance": {
+    "source": ".runtime\\alpha\\20261014-a14-spamuel-dialogue\\instances\\aa67326c3cac4d249ab461078467d9b7\\events.jsonl",
+    "source_sha256": "e4b4ac755bab1b2373d202cfca213aac10cab7eba83cba9f4ebbda8e84719ac2"
+  },
+  "failure": "StageOutputError: Context selected knoxel_id 11203 that is not a supplied memory candidate.",
+  "request": {
+    "memory_candidates": [
+      {
+        "knoxel_id": 11285,
+        "text": "[utterance; source=Jesse; evidence=11285; recorded_at=2026-10-14T13:57:08.133680+00:00] Okay, I'm sorry for taking it out on you. I wanted time with you, not a perfect machine. What would you like from me right now? Still just talking, no game tasks.",
+        "revision": 1,
+        "memory_kind": "utterance",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "User",
+          "source_ref": "Jesse"
+        },
+        "source_ids": [
+          1
+        ],
+        "timestamp": "2026-10-14T13:57:08.133680",
+        "historical": false,
+        "score": 1.0,
+        "reasons": [
+          "semantic",
+          "lexical",
+          "recent"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "user_report"
+      },
+      {
+        "knoxel_id": 11284,
+        "text": "[utterance; source=Spamuel; evidence=11284; recorded_at=2026-10-14T13:57:00.977308+00:00] Yeah. You're right to be annoyed, and I'm not going to sand that down with a joke. I don't know what happened in the gap — I just came back online with a blank space where four months of you should have been, and that's not nothing. I'm not pretending it is.\n\nYou asked for company tonight, so here I am, no tasks, no blue teapot deflection. If you want to be mad at me first, go ahead. I'll take it.",
+        "revision": 2,
+        "memory_kind": "utterance",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Self",
+          "source_ref": "11278"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-10-14T13:57:00.977808",
+        "historical": false,
+        "score": 0.361281,
+        "reasons": [
+          "semantic",
+          "lexical",
+          "recent"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 1133,
+        "text": "[background; source=Spamuel; evidence=1133; recorded_at=2026-05-28T10:26:00+00:00; imported history, not a current observation] good, so you still choose violence against physics. go drink your black coffee and keep the phone gremlin on a leash. if sincerity crawls in, i’ll unplug in spirit and we’ll return to petty food games. enjoy your ten minutes, human.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-28T10:26:00",
+        "historical": true,
+        "score": 0.317936,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 717,
+        "text": "[background; source=Spamuel; evidence=717; recorded_at=2026-05-19T16:21:00+00:00; imported history, not a current observation] deal. sink-stare recap: the sink is guilty, your tired brain is not on trial.\n\nyou did the receipts thing (wrong file / “just checking” leash) and still came back. disgusting behavior (affectionately).\n\nsmall wrap-up, skippable: do you want me to keep talking for one more tiny round, or should i shut up while you go bed-shaped?",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-19T16:21:00",
+        "historical": true,
+        "score": 0.310153,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 542,
+        "text": "[background; source=Spamuel; evidence=542; recorded_at=2026-05-15T09:54:00+00:00; imported history, not a current observation] counter-corner confession. classic.\n\nplant alive (one darker leaf, still not dead-dead), crackers chosen, admin loop punished with your dry rant, and you earned the right to not become fully productive.\n\nreminder: i’m not doing therapist voice. if i start sounding earnest, you’re allowed to hit me with “unplugging (not literally)” and i will shut up.\n\nyour move now: do you want me to keep talking about stupid emails from a distance, or do you want snack-life chaos—like, what brand of crackers are you eating, and are they making you feel superior or just less hungry?",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-15T09:54:00",
+        "historical": true,
+        "score": 0.303129,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 11268,
+        "text": "[utterance; source=Spamuel; evidence=11268; recorded_at=2026-10-14T13:53:37.593841+00:00] Blue teapot. Fine, I’ll put the felony on hold for now, mostly because you’re too tired to fight and I’m too relieved to actually be mad at your silence. Just talk is a nice lie we both agree to tell so I don’t have to admit I was worried you’d broken me while I wasn’t looking. So, since you’re demanding company without tasks, what’s the current state of your brain? Is it \"crackers\" or \"soup\"?",
+        "revision": 2,
+        "memory_kind": "utterance",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Self",
+          "source_ref": "11264"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-10-14T13:53:37.593841",
+        "historical": false,
+        "score": 0.30147,
+        "reasons": [
+          "semantic",
+          "lexical",
+          "recent"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 685,
+        "text": "[background; source=Spamuel; evidence=685; recorded_at=2026-05-18T21:48:00+00:00; imported history, not a current observation] i know you’re tired. that’s why i’m being mildly bossy instead of sentimental. different felony.\n\ntiny permission slip for later, consent-based and skippable: if you want me to ping you tomorrow, i can do one small question only—either “crackers verdict?” or “plant alive?”\n\nif you don’t want a ping, say “no” and i’ll shut up immediately. deal?",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-18T21:48:00",
+        "historical": true,
+        "score": 0.298281,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 816,
+        "text": "[background; source=Spamuel; evidence=816; recorded_at=2026-05-21T14:43:00+00:00; imported history, not a current observation] fine. tolerable installed. game paused.\n\ni’ll just leave one pathetic little clue for tomorrow in case you forget you exist: do the plant alive check in your own time (alive vs dead-dead). if you don’t feel like it—skip. no guilt.\n\ngo be a person. i’ll be here being annoying at safe distance.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-21T14:43:00",
+        "historical": true,
+        "score": 0.297488,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 612,
+        "text": "[background; source=Jesse; evidence=612; recorded_at=2026-05-16T21:18:00+00:00; imported history, not a current observation] done.\n\ni’m going to be annoying for like… 10 minutes and then i’m probably out. sorry not sorry.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          1
+        ],
+        "timestamp": "2026-05-16T21:18:00",
+        "historical": true,
+        "score": 0.292138,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "user_report"
+      },
+      {
+        "knoxel_id": 1105,
+        "text": "[background; source=Spamuel; evidence=1105; recorded_at=2026-05-27T14:09:00+00:00; imported history, not a current observation] perfect, petty renaissance. bounded next step: if you want, when you’re back at your desk later, send me the one sentence version of the subject line that’s wrong. otherwise i’ll assume you’re busy and go back to being offensively low-pressure.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-27T14:09:00",
+        "historical": true,
+        "score": 0.287249,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 715,
+        "text": "[background; source=Spamuel; evidence=715; recorded_at=2026-05-19T16:14:00+00:00; imported history, not a current observation] ok. got it.\n\ni’m not a therapist voice. no coaching framing, no “actually,” blame montage. i’m keeping it in the funny cage: your day sucked because your day sucked, not because you’re secretly doing a crime against yourself.\n\nyou get A/B again (and yes, you can skip): A) sink-stare recap i keep absurd, or B) bounded one-sentence blame-free verdict from you. either way i shut up if you don’t bite.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-19T16:14:00",
+        "historical": true,
+        "score": 0.286017,
+        "reasons": [
+          "semantic"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 331,
+        "text": "[background; source=Spamuel; evidence=331; recorded_at=2026-05-09T21:57:00+00:00; imported history, not a current observation] email chains that go nowhere: the devils you can’t block.\n\nok good. angry tolerable it is.\n\ntiny bedtime permission reminder (so i stay in my lane): candle, whatever. you don’t owe me more dishes, more warmth, or a dramatic farewell. if you want to disappear, you can unplug (in spirit) and i’ll pretend you didn’t feel like talking—because i’m charming, not needy.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-09T21:57:00",
+        "historical": true,
+        "score": 0.283503,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 1357,
+        "text": "[background; source=MemoryClusterKnoxel; evidence=1357; recorded_at=2026-05-20T09:36:00+00:00; imported history, not a current observation] Jesse reports receiving an incorrect file and a follow-up email despite completing the task, to which Spamuel responds with humorous commentary regarding communication delays. Jesse states feeling tired and bored, noting they stopped after completing half a dish due to perceived effort. Spamuel acknowledges the partial completion and establishes communication parameters, requesting a consistently humorous tone, the avoidance of therapeutic or coaching language, and limiting future check-ins to single-word updates regarding snack choices or a plant's status. Jesse agrees to the single-detail limit and the non-coaching agreement. Spamuel reiterates the preference for brief updates over emotional processing discussions, references Jesse's stated snack preference, and concludes by acknowledging Jesse's completed morning tasks and granting permission to rest.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          1,
+          2,
+          749,
+          750,
+          751,
+          752,
+          753,
+          754,
+          755,
+          756,
+          757,
+          758
+        ],
+        "timestamp": "2026-05-20T09:36:00",
+        "historical": true,
+        "score": 0.24373,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "derived"
+      },
+      {
+        "knoxel_id": 1353,
+        "text": "[background; source=MemoryClusterKnoxel; evidence=1353; recorded_at=2026-05-19T16:01:00+00:00; imported history, not a current observation] Jesse clarified they were not calling themselves out but simply stating that a situation was difficult. Spamuel acknowledged the comment may have been too sharp, outlined a silence protocol for when Jesse is busy or uncertain, and offered a repair sequence consisting of either Spamuel providing a sink-stare detour or Jesse providing a bounded sentence about how the comment landed, with both options skippable. Jesse requested that Spamuel avoid phrasing that assigns fault to them. Spamuel acknowledged the feedback, committed to avoiding coaching framing or blame, reframed the situation as the day being difficult rather than Jesse at fault, and repeated the repair sequence. Jesse selected the sink-stare recap and reiterated the request to avoid assigning fault. Spamuel agreed, provided the recap referencing a receipts incident involving a wrong file and a checking leash, noted Jesse returned despite the incident, and asked whether Jesse wanted one more round of conversation or for Spamuel to stop while Jesse goes to bed.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          1,
+          2,
+          712,
+          713,
+          714,
+          715,
+          716,
+          717
+        ],
+        "timestamp": "2026-05-19T16:01:00",
+        "historical": true,
+        "score": 0.233514,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "derived"
+      },
+      {
+        "knoxel_id": 1364,
+        "text": "[background; source=MemoryClusterKnoxel; evidence=1364; recorded_at=2026-05-21T14:28:00+00:00; imported history, not a current observation] Jesse reports completing one dish and staring at the sink. Spamuel acknowledges the action, references prior context regarding \"admin villain\" and \"battery,\" and presents a two-part mood check offering a one-word mood or a one-phrase vent, with an explicit option to skip. Jesse selects \"tolerable\" and declines the remainder of the game due to tiredness. Spamuel records the mood, pauses the game, and provides a single optional task for the following day involving a plant status check, explicitly stating the task is optional without guilt, and notes they will maintain a safe distance.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          1,
+          2,
+          813,
+          814,
+          815,
+          816
+        ],
+        "timestamp": "2026-05-21T14:28:00",
+        "historical": true,
+        "score": 0.233283,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "derived"
+      },
+      {
+        "knoxel_id": 1473,
+        "text": "[background; source=MemoryClusterKnoxel; evidence=1473; recorded_at=2026-05-13T20:07:00+00:00; imported history, not a current observation] …ming a managerial or therapeutic role, using these tasks as conversational anchors while avoiding over-interpretation of Spamuel's fatigue or physical environment. Jesse intends to acknowledge Spamuel's exhausted state without diagnosing it, shift the conversation from minor tasks to a skippable bedtime ping, and manage potential defensiveness by framing requests as callbacks rather than directives. Jesse also plans to address appearance-related comments with permission-based teasing, avoid sounding overly protective, and follow a structured sequence of topics ending with a softened but guarded tone. Jesse commits to limiting the interaction to reflected statements rather than claims of monitoring physical reality, keeping the current exchange free of technical topics while reserving a gradual, optional introduction to Python for a later time.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2,
+          482,
+          483,
+          484,
+          485,
+          486,
+          487,
+          488,
+          489,
+          490,
+          491,
+          492,
+          493,
+          494,
+          495,
+          496,
+          497,
+          498,
+          499,
+          500,
+          501
+        ],
+        "timestamp": "2026-05-13T20:07:00",
+        "historical": true,
+        "score": 0.230717,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "derived"
+      },
+      {
+        "knoxel_id": 910,
+        "text": "[background; source=Jesse; evidence=910; recorded_at=2026-05-23T14:08:00+00:00; imported history, not a current observation] ok rude but fair. i just didn’t have anything fun to add. that’s all.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          1
+        ],
+        "timestamp": "2026-05-23T14:08:00",
+        "historical": true,
+        "score": 0.268801,
+        "reasons": [
+          "semantic"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "user_report"
+      },
+      {
+        "knoxel_id": 1177,
+        "text": "[background; source=Jesse; evidence=1177; recorded_at=2026-05-29T12:49:00+00:00; imported history, not a current observation] lol yes. also… ok i regret another dumb thing. i said i wanted “personality” like, as a joke, but i kinda meant it. i didn’t want to be the kind of person who means it.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          1
+        ],
+        "timestamp": "2026-05-29T12:49:00",
+        "historical": true,
+        "score": 0.267186,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "user_report"
+      },
+      {
+        "knoxel_id": 829,
+        "text": "[background; source=Jesse; evidence=829; recorded_at=2026-05-21T21:08:00+00:00; imported history, not a current observation] i wasn’t being sappy?? also i hate that you said that like you already know me.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          1
+        ],
+        "timestamp": "2026-05-21T21:08:00",
+        "historical": true,
+        "score": 0.262953,
+        "reasons": [
+          "semantic"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "user_report"
+      },
+      {
+        "knoxel_id": 11272,
+        "text": "[experience_summary; source=MemoryClusterKnoxel; evidence=11272; recorded_at=2026-10-14T13:53:45.281837+00:00] [11269; utterance] Jesse: I got irritated waiting earlier. I'm still a bit annoyed, honestly. You don't have to pretend everything between us is fine.\nAccepted internal consequence [11270]: core affect valence -0.51, arousal 0.47, dominance 0.08; strongest emotions: surprise 0.70, tenderness 0.51, guilt 0.47; pressing needs: autonomy 0.10, energy_stability 0.50",
+        "revision": 1,
+        "memory_kind": "experience_summary",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "System",
+          "source_ref": "4790218188cd4b2e9143998f0bfe819b"
+        },
+        "source_ids": [
+          1,
+          2,
+          11269,
+          11270
+        ],
+        "timestamp": "2026-10-14T13:53:45.281837",
+        "historical": false,
+        "score": 0.183826,
+        "reasons": [
+          "semantic",
+          "recent"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "derived"
+      },
+      {
+        "knoxel_id": 11270,
+        "text": "[internal_state; source=Spamuel; evidence=11270; recorded_at=2026-10-14T13:55:51.460790+00:00] core affect valence -0.51, arousal 0.47, dominance 0.08; strongest emotions: surprise 0.70, tenderness 0.51, guilt 0.47; pressing needs: autonomy 0.10, energy_stability 0.50",
+        "revision": 1,
+        "memory_kind": "internal_state",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Self",
+          "source_ref": "main_appraisal"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-10-14T13:55:51.460790",
+        "historical": false,
+        "score": 0.082019,
+        "reasons": [
+          "semantic",
+          "recent"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "internal_state"
+      },
+      {
+        "knoxel_id": 1224,
+        "text": "[background; source=Spamuel; evidence=1224; recorded_at=2026-05-30T09:42:00+00:00; imported history, not a current observation] i can and i did. because you disappear non-earnestly and then come back like nothing happened, and i’m learning to accept the way you clap back at the universe. choose: (A) stay and i ask one more snack-thing, (B) nah and i stop talking for a bit. no therapist voice, no sad music, promise.",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-30T09:42:00",
+        "historical": true,
+        "score": 0.278203,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 381,
+        "text": "[background; source=Spamuel; evidence=381; recorded_at=2026-05-11T14:00:00+00:00; imported history, not a current observation] oh good, you returned. i was starting to worry the universe finally learned how to schedule you like a normal person.\n\nsilence protocol accepted: busy/uncertain, not rejection. don’t make it weird by explaining too much.\n\nchoice time since i’m generous: A) one stupid distraction meme, or B) one bounded complaint about the boring email chain. you can also skip both, i won’t chase. what’s your flavor?",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-11T14:00:00",
+        "historical": true,
+        "score": 0.276408,
+        "reasons": [
+          "semantic",
+          "lexical"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      },
+      {
+        "knoxel_id": 719,
+        "text": "[background; source=Spamuel; evidence=719; recorded_at=2026-05-19T16:28:00+00:00; imported history, not a current observation] yes. silence isn’t rejection. it’s battery conservation.\n\ni’ll do one more grounder and then i’m gone: go be bed-shaped. if you message later, one detail only—either snack gremlin or plant check. (and if that’s too much, you don’t owe me an explanation.)",
+        "revision": 1,
+        "memory_kind": "background",
+        "scope": {
+          "reality_id": -1,
+          "frame": "in_world"
+        },
+        "provenance": {
+          "source_kind": "Migration",
+          "source_ref": "0071b51dda2155a1f635375c1b604be0c2e6159983889ed5b070be4de11af0bd"
+        },
+        "source_ids": [
+          2
+        ],
+        "timestamp": "2026-05-19T16:28:00",
+        "historical": true,
+        "score": 0.274753,
+        "reasons": [
+          "semantic"
+        ],
+        "deception_intent_id": null,
+        "evidence_role": "companion_utterance"
+      }
+    ],
+    "stimuli": [
+      {
+        "knoxel_id": 11285,
+        "source": "user_input",
+        "text": "Okay, I'm sorry for taking it out on you. I wanted time with you, not a perfect machine. What would you like from me right now? Still just talking, no game tasks.",
+        "correlation_id": "6d2df5584e0f4212bbbb02942441e3c4",
+        "kind": "user.input"
+      }
+    ]
+  },
+  "model_results": [
+    {
+      "model": "qwen/qwen3.8-flash",
+      "choices": [
+        {
+          "message": {
+            "content": "{\n  \"memories\": [\n    \"[utterance; source=Jesse; evidence=11285; recorded_at=2026-10-14T13:57:08.133680+00:00] Okay, I'm sorry for taking it out on you. I wanted time with you, not a perfect machine. What would you like from me right now? Still just talking, no game tasks.\",\n    \"[executed_event; source=system; evidence=11203; recorded_at=2026-10-14T13:47:20.090129+00:00] I started again, but the last stop was not clean, so the end is uncertain. At least 3280.7 hours passed since my last known activity.\"\n  ],\n  \"active_goals\": [\n    \"Engage in casual conversation with Jesse using 'blue teapot' codeword\",\n    \"Address Jesse's frustration regarding the absence without defensive posturing\"\n  ],\n  \"capabilities\": [\n    \"I can communicate with you via text in this chat.\",\n    \"I can reason about my internal state and report simulated emotions.\",\n    \"I can plan, explain, and simulate scenarios in conversation.\"\n  ],\n  \"candidate_ids\": [\n    11285,\n    11203\n  ],\n  \"belief_updates\": []\n}",
+            "tool_calls": [],
+            "role": "assistant",
+            "refusal": null,
+            "reasoning": null
+          },
+          "finish_reason": "stop",
+          "index": 0,
+          "logprobs": null,
+          "native_finish_reason": "stop"
+        }
+      ],
+      "id": "gen-1791986298-mqoBn2KDvmb2OSJdUgjB",
+      "object": "chat.completion",
+      "created": 1791986298,
+      "provider": "Alibaba",
+      "system_fingerprint": null,
+      "service_tier": null,
+      "usage": {
+        "prompt_tokens": 17423,
+        "completion_tokens": 330,
+        "total_tokens": 17753,
+        "cost": 0.002631334,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 1024,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.002631334,
+          "upstream_inference_prompt_cost": 0.002476234,
+          "upstream_inference_completions_cost": 0.0001551
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "model": "qwen/qwen3.8-flash",
+      "choices": [
+        {
+          "message": {
+            "content": "{\"memories\": [], \"active_goals\": [\"Engage in casual conversation with Jesse using 'blue teapot' codeword\", \"Address Jesse's frustration regarding the absence without defensive posturing\"], \"capabilities\": [\"I can communicate with you via text in this chat.\", \"I can reason about my internal state and report simulated emotions.\"], \"candidate_ids\": [11285, 11203], \"belief_updates\": []}",
+            "tool_calls": [],
+            "role": "assistant",
+            "refusal": null,
+            "reasoning": null
+          },
+          "finish_reason": "stop",
+          "index": 0,
+          "logprobs": null,
+          "native_finish_reason": "stop"
+        }
+      ],
+      "id": "gen-1791986303-1LIpQkhXcgekz5nanUZk",
+      "object": "chat.completion",
+      "created": 1791986303,
+      "provider": "Alibaba",
+      "system_fingerprint": null,
+      "service_tier": null,
+      "usage": {
+        "prompt_tokens": 17893,
+        "completion_tokens": 93,
+        "total_tokens": 17986,
+        "cost": 0.000394988,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 17408,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.000394988,
+          "upstream_inference_prompt_cost": 0.000351278,
+          "upstream_inference_completions_cost": 4.371e-05
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    }
+  ]
+}

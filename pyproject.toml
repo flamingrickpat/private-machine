@@ -1,0 +1,19 @@
+[project]
+name = "pm-next-v2"
+version = "0.10.1"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "pm-workflows>=0.7.1",
+    "pm-coder @ git+https://github.com/flamingrickpat/pm-coder.git@main",
+    "pydantic>=2.9,<3",
+    "PyYAML>=6,<7",
+    "fastmcp",
+    "httpx>=0.27,<1",
+    "jsonschema>=4.26,<5",
+    "tiktoken>=0.14,<1",
+    "pillow>=10.0,<12",
+    "json-repair",
+]
+
+[tool.uv.sources]
+pm-workflows = { git = "https://github.com/flamingrickpat/pm-workflows.git", branch = "main" }

@@ -1,0 +1,855 @@
+{
+  "source": ".runtime\\alpha\\20261005-a10-wood-07\\receipt.json",
+  "scope": "Captured A10 observations; no new world actions or model inference.",
+  "reads": [
+    {
+      "seq": 1,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": true
+      },
+      "revision": 0,
+      "time": 1791235830.8607981,
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": -11.72,
+            "y": 112.0,
+            "z": -8.3
+          },
+          "eye_position": {
+            "x": -11.72,
+            "y": 113.62,
+            "z": -8.3
+          },
+          "block_position": {
+            "x": -12,
+            "y": 112,
+            "z": -9
+          },
+          "yaw": 137.25,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.68,
+            "y": -0.0,
+            "z": -0.73
+          }
+        },
+        "player": {
+          "health": 18.93,
+          "max_health": 20.0,
+          "food": 5,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 2470,
+          "is_day": true,
+          "is_raining": true,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 1,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "birch_log",
+            "count": 64
+          },
+          {
+            "slot": 2,
+            "item": "birch_log",
+            "count": 32
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 96,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 289,
+            "nearest": {
+              "x": -12,
+              "y": 112,
+              "z": -8
+            },
+            "distance": 0.41
+          },
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2455,
+            "nearest": {
+              "x": -12,
+              "y": 112,
+              "z": -9
+            },
+            "distance": 0.75
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 737,
+            "nearest": {
+              "x": -12,
+              "y": 111,
+              "z": -8
+            },
+            "distance": 1.08
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 31,
+            "nearest": {
+              "x": -13,
+              "y": 113,
+              "z": -8
+            },
+            "distance": 1.65
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 77,
+            "nearest": {
+              "x": -14,
+              "y": 113,
+              "z": -9
+            },
+            "distance": 2.58
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1290,
+            "nearest": {
+              "x": -10,
+              "y": 111,
+              "z": -6
+            },
+            "distance": 3.04
+          },
+          {
+            "block_name": "tall_grass",
+            "display_name": "Tall Grass",
+            "count": 12,
+            "nearest": {
+              "x": -8,
+              "y": 112,
+              "z": -11
+            },
+            "distance": 4.6
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 3,
+            "nearest": {
+              "x": -16,
+              "y": 113,
+              "z": -11
+            },
+            "distance": 5.16
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 18,
+            "nearest": {
+              "x": -15,
+              "y": 107,
+              "z": -5
+            },
+            "distance": 6.83
+          },
+          {
+            "block_name": "emerald_ore",
+            "display_name": "Emerald Ore",
+            "count": 1,
+            "nearest": {
+              "x": -4,
+              "y": 106,
+              "z": -10
+            },
+            "distance": 9.93
+          }
+        ],
+        "nearby_entities": [],
+        "image": {
+          "frame_id": "9163791d520c12817b139b5d890dd92b",
+          "captured_at": "2026-10-05T21:30:30.627757Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00001-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 6,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 1,
+      "time": 1791235949.8937874,
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": -15.5,
+            "y": 111.0,
+            "z": -10.46
+          },
+          "eye_position": {
+            "x": -15.5,
+            "y": 112.62,
+            "z": -10.46
+          },
+          "block_position": {
+            "x": -16,
+            "y": 111,
+            "z": -11
+          },
+          "yaw": 0.0,
+          "pitch": 87.45,
+          "cardinal": "south",
+          "look_vector": {
+            "x": -0.0,
+            "y": 1.0,
+            "z": 0.04
+          }
+        },
+        "player": {
+          "health": 18.93,
+          "max_health": 20.0,
+          "food": 4,
+          "oxygen": 19,
+          "xp_level": 0,
+          "biome": "birch_forest",
+          "dimension": "overworld",
+          "time_of_day": 4850,
+          "is_day": true,
+          "is_raining": true,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 1,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "birch_log",
+            "count": 64
+          },
+          {
+            "slot": 2,
+            "item": "birch_log",
+            "count": 33
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 97,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 279,
+            "nearest": {
+              "x": -16,
+              "y": 111,
+              "z": -10
+            },
+            "distance": 0.68
+          },
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2556,
+            "nearest": {
+              "x": -16,
+              "y": 111,
+              "z": -11
+            },
+            "distance": 0.74
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 737,
+            "nearest": {
+              "x": -16,
+              "y": 110,
+              "z": -10
+            },
+            "distance": 1.21
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 18,
+            "nearest": {
+              "x": -16,
+              "y": 112,
+              "z": -9
+            },
+            "distance": 1.84
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 176,
+            "nearest": {
+              "x": -16,
+              "y": 113,
+              "z": -10
+            },
+            "distance": 2.11
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 19,
+            "nearest": {
+              "x": -16,
+              "y": 114,
+              "z": -11
+            },
+            "distance": 3.09
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1114,
+            "nearest": {
+              "x": -16,
+              "y": 107,
+              "z": -10
+            },
+            "distance": 4.06
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 10,
+            "nearest": {
+              "x": -15,
+              "y": 107,
+              "z": -5
+            },
+            "distance": 6.79
+          },
+          {
+            "block_name": "tall_grass",
+            "display_name": "Tall Grass",
+            "count": 4,
+            "nearest": {
+              "x": -8,
+              "y": 112,
+              "z": -11
+            },
+            "distance": 7.59
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 10,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": -8,
+          "y": 108,
+          "z": -18
+        },
+        "include_image": false
+      },
+      "revision": 1,
+      "time": 1791235998.6099315,
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": -8,
+          "y": 108,
+          "z": -18
+        },
+        "block_name": "birch_log",
+        "display_name": "Birch Log",
+        "is_solid": true,
+        "exposed_faces": [
+          "north",
+          "south",
+          "east",
+          "west"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": -8,
+              "y": 108,
+              "z": -19
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": -8,
+              "y": 108,
+              "z": -17
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": -7,
+              "y": 108,
+              "z": -18
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": -9,
+              "y": 108,
+              "z": -18
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": -8,
+              "y": 109,
+              "z": -18
+            },
+            "block_name": "birch_log",
+            "solid": true
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": -8,
+              "y": 107,
+              "z": -18
+            },
+            "block_name": "birch_log",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 13,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 1,
+      "time": 1791236115.102582,
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": -13.33,
+            "y": 102.0,
+            "z": -24.55
+          },
+          "eye_position": {
+            "x": -13.33,
+            "y": 103.62,
+            "z": -24.55
+          },
+          "block_position": {
+            "x": -14,
+            "y": 102,
+            "z": -25
+          },
+          "yaw": 92.7,
+          "pitch": -43.65,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -0.72,
+            "y": -0.69,
+            "z": -0.03
+          }
+        },
+        "player": {
+          "health": 18.93,
+          "max_health": 20.0,
+          "food": 1,
+          "oxygen": 19,
+          "xp_level": 0,
+          "biome": "birch_forest",
+          "dimension": "overworld",
+          "time_of_day": 8150,
+          "is_day": true,
+          "is_raining": true,
+          "on_ground": true,
+          "in_water": false
+        },
+        "held_item": {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 1,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "dirt",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "birch_log",
+            "count": 64
+          },
+          {
+            "slot": 2,
+            "item": "birch_log",
+            "count": 55
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 119,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 1992,
+            "nearest": {
+              "x": -13,
+              "y": 102,
+              "z": -25
+            },
+            "distance": 0.55
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 280,
+            "nearest": {
+              "x": -13,
+              "y": 101,
+              "z": -25
+            },
+            "distance": 1.14
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 684,
+            "nearest": {
+              "x": -13,
+              "y": 101,
+              "z": -23
+            },
+            "distance": 1.88
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 399,
+            "nearest": {
+              "x": -13,
+              "y": 104,
+              "z": -25
+            },
+            "distance": 2.08
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 41,
+            "nearest": {
+              "x": -15,
+              "y": 104,
+              "z": -25
+            },
+            "distance": 2.65
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 3,
+            "nearest": {
+              "x": -13,
+              "y": 99,
+              "z": -23
+            },
+            "distance": 3.39
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 17,
+            "nearest": {
+              "x": -13,
+              "y": 102,
+              "z": -28
+            },
+            "distance": 3.46
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1447,
+            "nearest": {
+              "x": -13,
+              "y": 98,
+              "z": -25
+            },
+            "distance": 4.04
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 42,
+            "nearest": {
+              "x": -9,
+              "y": 100,
+              "z": -19
+            },
+            "distance": 7.32
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 8,
+            "nearest": {
+              "x": -15,
+              "y": 98,
+              "z": -17
+            },
+            "distance": 8.71
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 95,
+            "entity_type": "spider",
+            "display_name": "Spider",
+            "position": {
+              "x": -17.5,
+              "y": 103.0,
+              "z": -20.5
+            },
+            "distance": 5.9,
+            "health": null,
+            "hostile": true
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    }
+  ]
+}

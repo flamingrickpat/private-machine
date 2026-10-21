@@ -1,0 +1,41 @@
+# Copy to config.local.yaml for machine-specific paths or literal credentials.
+# The existing Qwen launcher loops forever. Do not put that script here directly.
+chat:
+  Default:
+    base_url: http://127.0.0.1:8080/v1
+    model: qwen
+    api_key: ""
+    startup_script: ""
+  UnitTestEvaluator:
+    base_url: http://127.0.0.1:8080/v1
+    model: qwen
+    api_key: ""
+    startup_script: ""
+embedding:
+  base_url: http://127.0.0.1:8081/v1
+  model: pplx-embed-v1-0.6b
+  api_key: ""
+  dimensions: 1024
+# Optional MCP tools of the companion (docs/workflows/tool-call.md). Without servers, the
+# tool_call workflow is not registered. ${NAME} in a header reads the environment or .env.
+# tool_call:
+#   mcp_servers:
+#     - name: image_gen
+#       url: http://127.0.0.1:9877/mcp
+#       headers:
+#         Authorization: Bearer ${IMAGE_MCP_TOKEN}
+# The Minecraft body of this character (docs/subsystems/body-leases.md). Without this section the
+# companion has no body: no world poll, no live inventory read, and no Minecraft route. With it the
+# assembly asks the endpoint once at startup and exits when nothing answers, so a wrong URL fails
+# before the first cycle instead of ending every Minecraft task unverified.
+# minecraft:
+#   mcp_url: http://127.0.0.1:6767/mcp
+#   request_timeout_seconds: 660
+#   probe_timeout_seconds: 5
+
+# Operator limits for deliberate mental control (docs/subsystems/inference-wait.md).
+# Empty means the defaults. post_reply_seconds is the quiet window after a spoken reply:
+# she waits that long for an answer before her next thought cycle. Zero disables it.
+# cognitive_control:
+#   post_reply_seconds: 600
+#   wait_seconds: 1800

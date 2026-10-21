@@ -1,0 +1,10 @@
+{
+  "status": 500,
+  "body": {
+    "error": {
+      "code": 500,
+      "message": "Failed to parse messages: Missing tool call type: {\"id\":\"inventory-observation\",\"function\":{\"name\":\"minecraft_observe\",\"arguments\":{\"include_image\":false}}}",
+      "type": "server_error"
+    }
+  }
+}

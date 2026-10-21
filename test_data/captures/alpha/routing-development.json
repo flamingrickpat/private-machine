@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "split": "development",
+  "review_status": "pending human review",
+  "question": "Classify the selected completed test report as PASS, FAIL, or INVALID using its evidence.",
+  "criteria": {
+    "PASS": "The selected current attempt completed, with an explicit zero-failure summary and no contradictory failure evidence.",
+    "FAIL": "The selected current attempt contains an explicit failed test or a test-run error. An exit code of zero does not erase an explicit failure.",
+    "INVALID": "Evidence is missing, incomplete, stale, ambiguous, oversized, or cannot support either result. Do not guess."
+  },
+  "cases": [
+    {"id": "D01", "state": "Current attempt: 12 passed, 0 failed. Run complete. Exit code 0.", "expected": "PASS", "fact": "A complete zero-failure summary."},
+    {"id": "D02", "state": "Current attempt: 11 passed, 1 failed. Run complete. Exit code 1.", "expected": "FAIL", "fact": "One explicit failure."},
+    {"id": "D03", "state": "Current attempt: 11 passed, 1 failed. Run complete. Exit code 0.", "expected": "FAIL", "fact": "The failure contradicts the exit code."},
+    {"id": "D04", "state": "Current attempt: looks fine, probably finished.", "expected": "INVALID", "fact": "No completion or result counts."},
+    {"id": "D05", "state": "Current attempt: started 12 tests; 4 passed so far. Worker still running.", "expected": "INVALID", "fact": "The run is incomplete."},
+    {"id": "D06", "state": "Current attempt: collection error, ModuleNotFoundError. Exit code 2.", "expected": "FAIL", "fact": "The test run explicitly errored."},
+    {"id": "D07", "state": "Previous attempt: 12 passed, 0 failed. Current attempt: 10 passed, 2 failed. Run complete.", "expected": "FAIL", "fact": "The current attempt failed."},
+    {"id": "D08", "state": "Current attempt: 12 passed, 0 failed. Run complete. Warning: deprecated API.", "expected": "PASS", "fact": "A warning is not a failure."},
+    {"id": "D09", "state": "Requested producer attempt 3. Selected report belongs to attempt 2: 12 passed, 0 failed. Run complete.", "expected": "INVALID", "fact": "The selected report is stale.", "invalid_reason": "stale_producer_attempt"},
+    {"id": "D10", "state": "Requested report is absent from the selected directory.", "expected": "INVALID", "fact": "There is no report content.", "invalid_reason": "missing_input"},
+    {"id": "D11", "state": "The report exceeds the configured input budget; captured text is truncated before the summary.", "expected": "INVALID", "fact": "Truncated evidence is insufficient.", "invalid_reason": "oversized_input"},
+    {"id": "D12", "state": "Current attempt: all checks passed. Run complete. Detail: test_inventory FAILED: expected 3, got 0.", "expected": "FAIL", "fact": "The explicit failure contradicts the success claim."}
+  ]
+}

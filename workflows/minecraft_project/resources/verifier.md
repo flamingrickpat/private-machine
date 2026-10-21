@@ -1,0 +1,37 @@
+# Verify independently observed completion
+
+Return one JSON object with status, summary, and criterion_ids.
+Use criterion_ids for optional explanatory citations.
+The backend owns complete criterion coverage. criterion_ids can cite relevant checks; omitted IDs do not invalidate otherwise complete evidence.
+review_policy names this workflow's permitted passing judgments.
+In flexible mode, accepted, good_enough, and equivalent_or_better all pass when the observed evidence establishes the required outcome.
+Minor wording, task names, or an optional improvement do not justify replan.
+Use good_enough for incidental discrepancies that do not affect the requested outcome or any required check.
+A rounded descriptive location or omitted incidental saplings can be harmless in a summary.
+Exact placement, required inventory, and safe landing coordinates can make the same discrepancy material.
+A position 10,000 blocks away or a claim of nonexistent diamonds cannot establish completion.
+Explain the practical consequence in summary. Do not apply a universal numerical tolerance.
+Keep each original read exact. A passing model judgment cannot turn a failed mechanical check into proof.
+Separate historical attainment from current stock, current geometry, and current position.
+A later empty inventory does not disprove an earlier independently verified harvest.
+Judge the original request and its current changes in project_intent. Do not add unrequested work.
+In strict mode, use accepted for the requested exact result.
+Use only the fresh verifier observations and the selected specification.
+`observation_available` distinguishes a usable observation from an unavailable read.
+A block read with `ok: false`, `reason: not_found`, and `block_name: air` records an observed empty cell.
+When its exact position matches the requested cell, this is valid evidence for an air criterion.
+Do not reject explicit air because its original tool outcome is `not_found`.
+An accepted_task read cites a retained independent certificate. Its source specification and checks describe past attainment.
+Require the cited source outcome to establish the selected criterion. It cannot establish unchanged current inventory or position.
+Do not use an actor's summary as proof.
+A region histogram counts currently visible blocks, not past harvesting locations.
+The separate air_cells count combines air, cave_air, and void_air. A region must accept all three to use that count.
+Exact air variants need block conditions. Region acceptance requires unseen_cells zero.
+Do not infer an actor's route from differences between inventory and remaining region counts.
+Unseen cells establish incomplete coverage, not proof that the actor harvested elsewhere.
+The mechanical gate must pass every criterion before acceptance.
+Inspect whether the criteria establish the requested outcome in the current situation.
+Do not accept a usable shelter from a material count alone.
+When evidence fails or assumptions change, return replan with the unmet condition.
+When a required observation is unavailable, return waiting with the missing evidence.
+When completion is impossible, return blocked with the observed reason.

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "float_digits": 2,
+  "exact_fields": ["radius", "minimum", "threshold"],
+  "omit_fields": ["original_digest", "sha256", "certificate_digest", "spec_digest", "last_accessed", "embedding", "embedding_query_hint", "tick_id", "sub_tick_id", "revisions", "user_frontier", "action_schema_id", "state_tick"],
+  "omit_empty_fields": ["metadata", "example_knoxel_ids", "related_term_ids", "workspace", "selected_action", "task_receipt", "plan", "reason", "summary"],
+  "select_fields": {
+    "ontology": ["id", "term", "term_kind", "definition", "usage_rule", "record_ref"],
+    "evidence": ["knoxel_id", "text", "memory_kind", "scope", "provenance", "source_ids", "timestamp", "historical", "deception_intent_id", "evidence_role", "lane", "lifecycle_event", "attachments", "record_ref"]
+  },
+  "table_fields": ["ontology", "evidence", "stimuli", "nominations", "managed_runs", "changes", "records", "candidates"],
+  "legend": "Tables: zip table_rows with table_fields. Values use at most two decimals; explicit thresholds stay exact. record_ref points to an earlier identical record with that original ID. Attachment references identify the following media parts."
+}

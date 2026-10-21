@@ -1,0 +1,927 @@
+{
+  "scope": "Actual M3-33 staircase reported eight steps while dropping from Y29 to Y0, followed by same-body death and empty inventory. Native text incorrectly called missing items consumed as blocks. Captured and projected boundary checks do not establish a safe live descent or healing.",
+  "sources": {
+    "journal": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/attempts/actor-0018/scratch/actor-journal.jsonl",
+      "sha256": "793c152c175d3b1185d434460b0b022a3074168a676731f412aeb8779ba6c753"
+    },
+    "native_plan": {
+      "path": ".runtime/alpha/a13-m3-20/app/managed_tasks/ad5f4b4094a14bf6bcfe9caeead2770a/decisions/0108-planner/output.json",
+      "sha256": "dffddda3b4af7c84cdb19ed1c3052aa979cff263b450d6f98045d68d1b141d55"
+    }
+  },
+  "rows": [
+    {
+      "seq": 41,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791523902.4151976,
+      "epoch": 164,
+      "session": "0d433e10a0aa43d4a8ffbc3f065613bb",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 29.4,
+            "y": 29.0,
+            "z": 1.56
+          },
+          "eye_position": {
+            "x": 29.4,
+            "y": 30.62,
+            "z": 1.56
+          },
+          "block_position": {
+            "x": 29,
+            "y": 29,
+            "z": 1
+          },
+          "yaw": 279.46,
+          "pitch": 0.0,
+          "cardinal": "east",
+          "look_vector": {
+            "x": 0.99,
+            "y": 0.0,
+            "z": 0.16
+          }
+        },
+        "player": {
+          "health": 5.0,
+          "max_health": 20.0,
+          "food": 17,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "lush_caves",
+          "dimension": "overworld",
+          "time_of_day": 16737,
+          "is_day": false,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "body_session": "6209fda0bbcc405a968e12e104cc4618",
+        "death_count": 0,
+        "held_item": {
+          "name": "stone_pickaxe",
+          "display_name": "Stone Pickaxe",
+          "count": 1,
+          "slot": null,
+          "durability": 111,
+          "max_durability": 131
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "stone_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 1,
+            "item": "crafting_table",
+            "count": 1
+          },
+          {
+            "slot": 2,
+            "item": "cobblestone",
+            "count": 64
+          },
+          {
+            "slot": 3,
+            "item": "raw_iron",
+            "count": 2
+          },
+          {
+            "slot": 4,
+            "item": "dandelion",
+            "count": 1
+          },
+          {
+            "slot": 5,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 6,
+            "item": "moss_block",
+            "count": 7
+          },
+          {
+            "slot": 7,
+            "item": "wooden_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 8,
+            "item": "cobblestone",
+            "count": 64
+          }
+        ],
+        "inventory": [
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 134,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 60,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 17,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 15,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stick",
+            "display_name": "Stick",
+            "count": 8,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "moss_block",
+            "display_name": "Moss Block",
+            "count": 7,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "raw_iron",
+            "display_name": "Raw Iron",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "wooden_pickaxe",
+            "display_name": "Wooden Pickaxe",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_sapling",
+            "display_name": "Birch Sapling",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 96,
+            "nearest": {
+              "x": 29,
+              "y": 29,
+              "z": 2
+            },
+            "distance": 0.6
+          },
+          {
+            "block_name": "moss_block",
+            "display_name": "Moss Block",
+            "count": 262,
+            "nearest": {
+              "x": 29,
+              "y": 28,
+              "z": 2
+            },
+            "distance": 1.16
+          },
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2410,
+            "nearest": {
+              "x": 29,
+              "y": 30,
+              "z": 2
+            },
+            "distance": 1.16
+          },
+          {
+            "block_name": "tall_grass",
+            "display_name": "Tall Grass",
+            "count": 48,
+            "nearest": {
+              "x": 28,
+              "y": 29,
+              "z": 2
+            },
+            "distance": 1.47
+          },
+          {
+            "block_name": "moss_carpet",
+            "display_name": "Moss Carpet",
+            "count": 43,
+            "nearest": {
+              "x": 28,
+              "y": 29,
+              "z": 1
+            },
+            "distance": 1.51
+          },
+          {
+            "block_name": "flowering_azalea",
+            "display_name": "Flowering Azalea",
+            "count": 12,
+            "nearest": {
+              "x": 28,
+              "y": 29,
+              "z": 3
+            },
+            "distance": 2.01
+          },
+          {
+            "block_name": "andesite",
+            "display_name": "Andesite",
+            "count": 283,
+            "nearest": {
+              "x": 29,
+              "y": 27,
+              "z": 2
+            },
+            "distance": 2.09
+          },
+          {
+            "block_name": "azalea",
+            "display_name": "Azalea",
+            "count": 13,
+            "nearest": {
+              "x": 32,
+              "y": 28,
+              "z": 3
+            },
+            "distance": 3.13
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1337,
+            "nearest": {
+              "x": 31,
+              "y": 27,
+              "z": -1
+            },
+            "distance": 3.62
+          },
+          {
+            "block_name": "cave_vines",
+            "display_name": "Cave Vines",
+            "count": 7,
+            "nearest": {
+              "x": 27,
+              "y": 30,
+              "z": -1
+            },
+            "distance": 3.65
+          },
+          {
+            "block_name": "cave_vines_plant",
+            "display_name": "Cave Vines Plant",
+            "count": 26,
+            "nearest": {
+              "x": 27,
+              "y": 31,
+              "z": -1
+            },
+            "distance": 4.04
+          },
+          {
+            "block_name": "lapis_ore",
+            "display_name": "Lapis Lazuli Ore",
+            "count": 1,
+            "nearest": {
+              "x": 31,
+              "y": 27,
+              "z": -2
+            },
+            "distance": 4.38
+          },
+          {
+            "block_name": "vine",
+            "display_name": "Vines",
+            "count": 23,
+            "nearest": {
+              "x": 27,
+              "y": 31,
+              "z": 5
+            },
+            "distance": 4.65
+          },
+          {
+            "block_name": "water",
+            "display_name": "Water",
+            "count": 39,
+            "nearest": {
+              "x": 30,
+              "y": 28,
+              "z": -3
+            },
+            "distance": 4.71
+          },
+          {
+            "block_name": "clay",
+            "display_name": "Clay",
+            "count": 196,
+            "nearest": {
+              "x": 30,
+              "y": 27,
+              "z": -3
+            },
+            "distance": 5.02
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 86,
+            "nearest": {
+              "x": 33,
+              "y": 25,
+              "z": 2
+            },
+            "distance": 5.4
+          },
+          {
+            "block_name": "big_dripleaf_stem",
+            "display_name": "Big Dripleaf Stem",
+            "count": 3,
+            "nearest": {
+              "x": 31,
+              "y": 29,
+              "z": -4
+            },
+            "distance": 5.79
+          },
+          {
+            "block_name": "big_dripleaf",
+            "display_name": "Big Dripleaf",
+            "count": 4,
+            "nearest": {
+              "x": 28,
+              "y": 28,
+              "z": -4
+            },
+            "distance": 5.82
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 20,
+            "nearest": {
+              "x": 25,
+              "y": 25,
+              "z": 2
+            },
+            "distance": 5.97
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 4,
+            "nearest": {
+              "x": 35,
+              "y": 23,
+              "z": 6
+            },
+            "distance": 9.33
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 405,
+            "entity_type": "zombie",
+            "display_name": "Zombie",
+            "position": {
+              "x": 36.5,
+              "y": 28.0,
+              "z": 2.5
+            },
+            "distance": 7.23,
+            "health": null,
+            "hostile": true
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 44,
+      "event": "result",
+      "tool": "minecraft_staircase_down",
+      "arguments": {
+        "depth": 8,
+        "torch": true
+      },
+      "revision": 0,
+      "time": 1791523964.2237124,
+      "epoch": 164,
+      "session": "0d433e10a0aa43d4a8ffbc3f065613bb",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "depth_requested": 8,
+        "depth_achieved": 8,
+        "end_position": {
+          "x": 38.7,
+          "y": 0.0,
+          "z": 1.5
+        },
+        "blocks_dug": 22,
+        "hazards_found": [],
+        "torches_placed": 0,
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "birch_door",
+              "before": 3,
+              "after": 0,
+              "delta": -3
+            },
+            {
+              "item": "birch_log",
+              "before": 15,
+              "after": 0,
+              "delta": -15
+            },
+            {
+              "item": "birch_planks",
+              "before": 60,
+              "after": 0,
+              "delta": -60
+            },
+            {
+              "item": "birch_sapling",
+              "before": 1,
+              "after": 0,
+              "delta": -1
+            },
+            {
+              "item": "cobblestone",
+              "before": 134,
+              "after": 0,
+              "delta": -134
+            },
+            {
+              "item": "crafting_table",
+              "before": 1,
+              "after": 0,
+              "delta": -1
+            },
+            {
+              "item": "dandelion",
+              "before": 1,
+              "after": 0,
+              "delta": -1
+            },
+            {
+              "item": "dirt",
+              "before": 17,
+              "after": 0,
+              "delta": -17
+            },
+            {
+              "item": "moss_block",
+              "before": 7,
+              "after": 0,
+              "delta": -7
+            },
+            {
+              "item": "raw_iron",
+              "before": 2,
+              "after": 0,
+              "delta": -2
+            },
+            {
+              "item": "stick",
+              "before": 8,
+              "after": 0,
+              "delta": -8
+            },
+            {
+              "item": "stone_pickaxe",
+              "before": 1,
+              "after": 0,
+              "delta": -1
+            },
+            {
+              "item": "wooden_pickaxe",
+              "before": 2,
+              "after": 0,
+              "delta": -2
+            }
+          ],
+          "total_items_before": 252,
+          "total_items_after": 0
+        },
+        "image": {
+          "frame_id": "b0a4b22957ef9a8f5de4074c9a17ef05",
+          "captured_at": "2026-10-09T05:32:43.941653Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00044-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 45,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791523968.683728,
+      "epoch": 164,
+      "session": "0d433e10a0aa43d4a8ffbc3f065613bb",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 9.5,
+            "y": 115.0,
+            "z": 0.5
+          },
+          "eye_position": {
+            "x": 9.5,
+            "y": 116.62,
+            "z": 0.5
+          },
+          "block_position": {
+            "x": 9,
+            "y": 115,
+            "z": 0
+          },
+          "yaw": 180.0,
+          "pitch": 0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.0,
+            "y": 0.0,
+            "z": -1.0
+          }
+        },
+        "player": {
+          "health": 20.0,
+          "max_health": 20.0,
+          "food": 20,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 18017,
+          "is_day": false,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "body_session": "6209fda0bbcc405a968e12e104cc4618",
+        "death_count": 1,
+        "held_item": null,
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 1,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 2,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 3,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 4,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 5,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 6,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 7,
+            "item": null,
+            "count": 0
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [],
+        "nearby_blocks": [
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 273,
+            "nearest": {
+              "x": 9,
+              "y": 115,
+              "z": 1
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2702,
+            "nearest": {
+              "x": 9,
+              "y": 115,
+              "z": 0
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 314,
+            "nearest": {
+              "x": 9,
+              "y": 114,
+              "z": 1
+            },
+            "distance": 1.22
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 48,
+            "nearest": {
+              "x": 9,
+              "y": 116,
+              "z": 1
+            },
+            "distance": 1.22
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1535,
+            "nearest": {
+              "x": 9,
+              "y": 113,
+              "z": 1
+            },
+            "distance": 2.12
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 14,
+            "nearest": {
+              "x": 10,
+              "y": 117,
+              "z": 3
+            },
+            "distance": 3.24
+          },
+          {
+            "block_name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 1,
+            "nearest": {
+              "x": 7,
+              "y": 112,
+              "z": -6
+            },
+            "distance": 7.58
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 22,
+            "nearest": {
+              "x": 16,
+              "y": 111,
+              "z": 5
+            },
+            "distance": 8.86
+          },
+          {
+            "block_name": "tall_grass",
+            "display_name": "Tall Grass",
+            "count": 4,
+            "nearest": {
+              "x": 3,
+              "y": 113,
+              "z": -8
+            },
+            "distance": 10.89
+          }
+        ],
+        "nearby_entities": [],
+        "image": null
+      },
+      "images": []
+    }
+  ],
+  "native_plan": {
+    "status": "planned",
+    "summary": "Recovery is active after the player died during staircase_down. The body respawned at (9, 115, 0) with full health (20/20) and full food (20/20), but the inventory is empty. All 252 inventory items were consumed as blocks during the failed staircase. The recovery_exit leaf must be updated to reflect the current respawn position and the empty inventory. The body is on a grass_block floor at (9, 114, 0) with air clearance above. The recovery criteria are already met (health 20 >= 11, food 20 >= 7, alive, dry landing), but the leaf's floor and air criteria reference the old position (18, 30, 3) which no longer applies. The recovery leaf must be repaired to use the current body cells. All other nodes remain unchanged. The house construction, iron mining, smelting, and pickaxe crafting leaves are preserved. The prep_wood and stone_pickaxe leaves are accepted and their materials are gone from inventory, but the accepted certificates remain valid. The craft_table leaf is accepted. The site_survey leaf is accepted. The house_build story and its children are unchanged. The home_usable story and its children are unchanged. The iron_mine, iron_smelt, and iron_pickaxe leaves are unchanged. The save_tested leaf is unchanged. The root goal criteria are unchanged.",
+    "updates": [
+      {
+        "id": "recovery_exit",
+        "revision": 1,
+        "kind": "leaf",
+        "parent": "wooden_home_iron_pickaxe",
+        "children": [],
+        "depends_on": [],
+        "instruction": "Recover from the death by confirming a dry stable landing at the current respawn position (9, 115, 0) and verifying the body is alive with sufficient health and food. The body respawned with full health (20/20) and full food (20/20) but an empty inventory. The body is standing on a grass_block floor at (9, 114, 0) with air clearance above at (9, 116, 0) and (9, 117, 0).",
+        "specialist": "recovery",
+        "deferred": false,
+        "defer_reason": "",
+        "criteria": [
+          {
+            "id": "rec_alive",
+            "description": "The body is alive",
+            "kind": "alive",
+            "node_id": "",
+            "names": [],
+            "minimum": 1,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "rec_health",
+            "description": "The body has health above 10",
+            "kind": "health",
+            "node_id": "",
+            "names": [],
+            "minimum": 11,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "rec_food",
+            "description": "The body has sufficient food for recovery",
+            "kind": "food",
+            "node_id": "",
+            "names": [],
+            "minimum": 7,
+            "position": null,
+            "positions": [],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "rec_floor",
+            "description": "The body is standing on a solid block",
+            "kind": "block",
+            "node_id": "",
+            "names": [
+              "grass_block",
+              "dirt",
+              "stone",
+              "cobblestone",
+              "moss_block"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 9,
+                "y": 114,
+                "z": 0
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          },
+          {
+            "id": "rec_air",
+            "description": "The body has air clearance above",
+            "kind": "block",
+            "node_id": "",
+            "names": [
+              "air"
+            ],
+            "minimum": 1,
+            "position": null,
+            "positions": [
+              {
+                "x": 9,
+                "y": 116,
+                "z": 0
+              },
+              {
+                "x": 9,
+                "y": 117,
+                "z": 0
+              }
+            ],
+            "end": null,
+            "radius": 2.0,
+            "dimension": "overworld"
+          }
+        ],
+        "assumptions": []
+      }
+    ],
+    "queries": [],
+    "recipe_queries": []
+  }
+}

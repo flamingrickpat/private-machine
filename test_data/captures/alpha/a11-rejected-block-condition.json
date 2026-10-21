@@ -1,0 +1,26 @@
+{
+  "source": ".runtime\\alpha\\20261006-a11-plan-01\\app\\managed_tasks\\2b9b75d2b9e04950a33e6c8fbce962e3\\decisions\\0001-planner\\output.json",
+  "scope": "Captured real planner output; the block operands cannot establish the described volume.",
+  "condition": {
+    "id": "root_house_materials",
+    "description": "At least 55 birch plank or birch door blocks exist in the 4x4x4 house bounding box from floor y=111 to roof y=114.",
+    "kind": "block",
+    "names": [
+      "minecraft:birch_planks",
+      "minecraft:birch_door"
+    ],
+    "minimum": 55,
+    "position": {
+      "x": -14,
+      "y": 111,
+      "z": -12
+    },
+    "end": {
+      "x": -11,
+      "y": 114,
+      "z": -9
+    },
+    "radius": 0.0,
+    "dimension": "minecraft:overworld"
+  }
+}

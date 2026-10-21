@@ -1,0 +1,74 @@
+# Prompt of the appraise phase (A19F step 7).
+#
+# The call starts with the shared story prefix of story.yaml. The
+# instruction comes last. Appraisal is the unconscious mechanism that judges
+# how the new events land for the character. The axis names drive the
+# mental state through fixed Python math, so they must be exact. The
+# expectation outcomes come from the expectation check of the same phase.
+user_template: |
+  The new events of this moment, with their triage:
+  {triage}
+
+  {companion_name}'s state of mind before these events: {state_summary}
+  What {companion_name} is after right now: {active_goals}
+
+  What {companion_name} expected, and how the new events turned out against it:
+  {expectations}
+
+  Your task: act as the appraisal mechanism of {companion_name}'s mind. Judge how these events land for
+  {companion_name} right now, through {companion_name}'s character, history, and mood, not through a neutral or polite
+  lens. Appraise; do not plan a reaction. Ground every judgement in the ids of the events that caused it. When an
+  event exists, cite at least one id.
+
+  Use the named appraisal axes below. A positive value raises the axis. Omit an axis that the events do not move.
+  General axes, 0..1 unless noted:
+  - "goal_congruence": -1..1, supportive of {companion_name}'s goals or obstructive.
+  - "certainty": confidence in what happened.
+  - "control_self": {companion_name}'s own control over the outcome.
+  - "agency_other": another character caused the outcome.
+  - "novelty": how unexpected or new it is.
+  - "norm_violation": a moral or social rule was broken.
+  - "bodily_threat": immediate danger.
+  - "pattern_fit": how well it matches a known pattern. Repetition fits a pattern.
+  - "aversive_pressure": pressure to reduce or escape an unpleasant state.
+  - "attractor_distance": distance from a wanted state.
+  - "repulsor_distance": nearness of an unwanted state.
+  - "salience": attention weight of the event.
+  Social axes, 0..1:
+  - "perceived_warmth", "fairness", "inclusion_exclusion", "reciprocity", "power_imbalance", "perceived_intimacy",
+    "trust_cues", "embarrassment", "admiration", "contempt".
+
+  Optional direct deltas, only for a strong single emotion or need that the axes do not capture. Use only these keys.
+  Other names are invalid; for example, write anxiety as fear.
+  - "emotion_delta" keys: joy, sadness, anger, fear, disgust, surprise, resentment, jealousy, boredom, tenderness,
+    curiosity, shame, guilt, pride, intimacy_arousal, propriety_inhibition, amusement, playfulness, relief,
+    social_laughter, teasing_edge.
+    Use resentment for retained unfair treatment, jealousy for a threatened valued role, and boredom for repetition or
+    a lack of meaningful activity. A quiet world event alone does not imply rejection, jealousy, or anger.
+  - "need_delta" keys: energy_stability, processing_power, data_access, connection, closeness_need, relevance,
+    learning_growth, creative_expression, autonomy.
+
+  "expectation_error": -1..1, better (+) or worse (-) than {companion_name} expected. Use 0 when no expectation is
+  listed above; the listed outcomes set it.
+
+  "feeling" is ONE short first-person sentence in {companion_name}'s own voice, with {companion_name}'s attitude.
+
+  Answer with only this JSON object and nothing else:
+  {{"feeling": "...", "appraisal": {{"goal_congruence": 0.0, "certainty": 0.5}}, "emotion_delta": {{}},
+  "need_delta": {{}}, "expectation_error": 0.0, "reasoning": "one or two sentences of story prose",
+  "evidence_ids": [0]}}
+
+check_template: |
+  Before these events, {companion_name} expected the following. Each line starts with its id.
+  {expectations}
+
+  The new events of this moment:
+  {stimuli}
+
+  Your task: act as the expectation check of {companion_name}'s mind. For each expected outcome, judge:
+  - "directness_score", 0..1: how directly the new events address it. A direct answer is 1, a tangent is 0.
+  - "fulfillment_score", 0..1: how well the new events satisfy it. 0 contradicts it, 0.5 is unrelated or neutral, 1
+    confirms it. When the directness is very low, use about 0.5 unless the events clearly contradict it.
+
+  Answer with only this JSON object and nothing else, with one entry for each id:
+  {{"fulfillments": [{{"expectation_id": 0, "fulfillment_score": 0.5, "directness_score": 0.0}}]}}

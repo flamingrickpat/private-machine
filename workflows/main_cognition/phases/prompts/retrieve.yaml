@@ -1,0 +1,47 @@
+# Prompt of the retrieve phase (A19F step 7).
+#
+# The call starts with the shared story prefix of story.yaml. The
+# instruction comes last. Recall is the unconscious mechanism that picks the
+# memories that come back to the character now, by their ids. The rules keep
+# remembered facts true to their sources. No capability or routing rules
+# belong here.
+user_template: |
+  {companion_name}'s state of mind: {state_summary}
+  How {companion_name} judged the new events: {appraisal_summary}
+
+  Memories that could come back to {companion_name} now. Each line starts with its id, its kind, and its role as
+  evidence:
+  {memory_candidates}
+
+  What {companion_name} is after right now:
+  {active_goals}
+  {guidance}
+  Your task: act as the recall mechanism of {companion_name}'s mind. Choose the memories that come back to
+  {companion_name} at this moment of the story, because they fit the events, the feeling, or a goal. Choose them
+  only by their ids.
+
+  Rules that keep memories true to their sources:
+  - "candidate_ids" holds the ids of the chosen memories. Every id comes from the list above. Write each id once, as a
+    complete integer. Never abbreviate a list.
+  - Leave "memories" empty. The mind fills it with the exact source text.
+  - "active_goals" holds the goals from the list above that matter now.
+  - If nothing fits, return empty lists.
+  - Background canon states what the imported source says. It does not prove a lived experience.
+  - An utterance records speech. It does not prove every claim in that speech.
+  - Something {companion_name} said earlier cannot establish a failed method. Choose a user_report or an original
+    runtime_event, with a linked episode when useful. If earlier speech invented a failure, do not carry it forward.
+  - For a recalled older event, choose records that describe a concrete older event. A request to recall an event
+    does not establish that event. Recent generated replies cannot replace an original episode.
+  - Keep speculation and predicted outcomes apart from executed events.
+  - A historical world observation needs a new observation before it can describe the world now.
+  - Prefer a corrected belief over the superseded claim. Keep the conflict evidence.
+
+  Reported beliefs: when {entity_name} states a meaningful current preference or an explicit correction in a new
+  event, add a belief update. Copy its quote word for word from that event and use the event id as "source_id". Use a
+  stable "belief_key" for the topic, and reuse a given belief key for a correction. Set "correction" to true only when
+  the speaker explicitly replaces an earlier claim. A one-time request is not a lasting preference. Never take
+  factual beliefs from {companion_name}'s own speech, from imagined events, or from background canon.
+
+  Answer with only this JSON object and nothing else:
+  {{"memories": [], "active_goals": [], "candidate_ids": [0],
+  "belief_updates": [{{"source_id": 0, "quote": "...", "belief_key": "...", "correction": false}}]}}

@@ -1,0 +1,307 @@
+{
+  "scope": "Captured original native initial-planning contract failures. No accepted tree or world effects are fabricated.",
+  "sources": {
+    "first_raw": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\decisions\\0001-planner\\raw.json",
+      "sha256": "b59be0bd175bd0b0ec00388658ae7a2ea8cda66ef092ff0eb9d09b26fca1272d"
+    },
+    "latest_raw": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\decisions\\0022-planner\\raw.json",
+      "sha256": "6c451016d8c5eef62f78d1007708460686a5b988ce6b09b865a2646c24ab9408"
+    },
+    "state": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\planning\\state.json",
+      "sha256": "c63ae7bc2a06f3702f5d936cd5a7ee5fc4ab379ae4a58e86bf058dc88705da6e"
+    },
+    "receipt": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-21\\receipt.json",
+      "sha256": "36dc836cbfde3ba1a4bb9711c404974ac8234ef588ca14ea2a8c0f005413efc1"
+    }
+  },
+  "documents": {
+    "first_raw": {
+      "text": "{\"status\": \"planned\", \"summary\": \"Jesse wants a wooden home near spawn and a self-mined iron pickaxe chain. We have birch logs, two wooden pickaxes, four cobblestone, and four sticks nearby, with visible iron ore a few blocks down. Time to get building, digging, and smelting, and keep our skin intact.\", \"tree\": {\"goal_id\": \"wooden_home_iron_pickaxe\", \"revision\": 1, \"nodes\": [{\"id\": \"wooden_home_iron_pickaxe\", \"kind\": \"goal\", \"parent\": null, \"children\": [\"prep_wood\", \"stone_pickaxe\", \"site_survey\", \"house_build\", \"home_usable\", \"iron_mine\", \"iron_smelt\", \"iron_pickaxe\", \"save_tested\"], \"instruction\": \"Build a small usable wooden house near the initial spawn and craft an iron pickaxe from self-mined iron, using only ordinary survival actions.\", \"criteria\": [{\"id\": \"goal_house\", \"description\": \"The finished house exists and is usable\", \"kind\": \"accepted\", \"node_id\": \"house_build\"}, {\"id\": \"goal_pickaxe\", \"description\": \"An iron pickaxe is in the current inventory from the self-mined iron chain\", \"kind\": \"accepted\", \"node_id\": \"iron_pickaxe\"}, {\"id\": \"goal_save\", \"description\": \"The home is saved and a tested return route exists\", \"kind\": \"accepted\", \"node_id\": \"save_tested\"}]}, {\"id\": \"prep_wood\", \"kind\": \"leaf\", \"parent\": \"wooden_home_iron_pickaxe\", \"children\": [], \"depends_on\": [], \"specialist\": \"gatherer\", \"instruction\": \"Convert enough gathered birch logs into birch planks for the house shell, using the two already-gathered planks as the base stock.\", \"criteria\": [{\"id\": \"prep_planks\", \"description\": \"At least 34 birch planks are in inventory\", \"kind\": \"inventory\", \"names\": [\"birch_planks\"], \"minimum\": 34}]}, {\"id\": \"stone_pickaxe\", \"kind\": \"leaf\", \"parent\": \"wooden_home_iron_pickaxe\", \"children\": [], \"depends_on\": [], \"specialist\": \"gatherer\", \"instruction\": \"Craft a suitable stone pickaxe using available cobblestone and sticks so exposed iron ore can be mined for raw iron.\", \"criteria\": [{\"id\": \"sp_stone_pickaxe\", \"description\": \"At least one stone pickaxe is in inventory\", \"kind\": \"inventory\", \"names\": [\"stone_pickaxe\"], \"minimum\": 1}]}, {\"id\": \"site_survey\", \"kind\": \"leaf\", \"parent\": \"wooden_home_iron_pickaxe\", \"children\": [], \"depends_on\": [\"prep_wood\", \"stone_pickaxe\"], \"specialist\": \"navigator\", \"instruction\": \"Survey a stable nearby site for a modest 5 by 5 outer wooden house with a clear interior and a door approach.\", \"criteria\": [{\"id\": \"ss_region\", \"description\": \"A visible 7x7x4 volume shows a mostly flat ground surface around the spawn\", \"kind\": \"region\", \"position\": {\"x\": 28, \"y\": 102, \"z\": -1}, \"end\": {\"x\": 34, \"y\": 105, \"z\": 5}, \"names\": [\"grass_block\", \"dirt\", \"stone\"], \"minimum\": 24}]}, {\"id\": \"house_build\", \"kind\": \"story\", \"parent\": \"wooden_home_iron_pickaxe\", \"children\": [\"floor_clear\", \"floor_place\", \"walls_door\", \"roof_complete\"], \"depends_on\": [\"site_survey\"], \"instruction\": \"Build the 5x5 outer wooden house with supported floor, two-block-high walls, complete roof, two-cell wooden door, and clear interior.\", \"criteria\": [{\"id\": \"hb_floor\", \"description\": \"The house floor is present\", \"kind\": \"accepted\", \"node_id\": \"floor_place\"}, {\"id\": \"hb_walls\", \"description\": \"The walls and door are present\", \"kind\": \"accepted\", \"node_id\": \"walls_door\"}, {\"id\": \"hb_roof\", \"description\": \"The roof is complete\", \"kind\": \"accepted\", \"node_id\": \"roof_complete\"}]}, {\"id\": \"floor_clear\", \"kind\": \"leaf\", \"parent\": \"house_build\", \"children\": [], \"depends_on\": [], \"specialist\": \"builder\", \"instruction\": \"Clear the 3x3 interior and door approach vegetation so blocks can be placed on a supported floor.\", \"criteria\": [{\"id\": \"fc_interior\", \"description\": \"The planned interior cells at floor level are clear of obstructing vegetation\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 29, \"y\": 104, \"z\": 0}, {\"x\": 30, \"y\": 104, \"z\": 0}, {\"x\": 31, \"y\": 104, \"z\": 0}, {\"x\": 29, \"y\": 104, \"z\": 1}, {\"x\": 30, \"y\": 104, \"z\": 1}, {\"x\": 31, \"y\": 104, \"z\": 1}, {\"x\": 29, \"y\": 104, \"z\": 2}]}, {\"id\": \"fc_approach\", \"description\": \"The approach and door-adjacent cells are clear\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 28, \"y\": 104, \"z\": 1}, {\"x\": 27, \"y\": 104, \"z\": 1}, {\"x\": 28, \"y\": 105, \"z\": 1}]}]}, {\"id\": \"floor_place\", \"kind\": \"leaf\", \"parent\": \"house_build\", \"children\": [], \"depends_on\": [\"floor_clear\"], \"specialist\": \"builder\", \"instruction\": \"Place a supported birch-plank floor for the 5x5 house, preserving the clear interior at level 104.\", \"criteria\": [{\"id\": \"fp_floor\", \"description\": \"The outer floor ring is birch planks\", \"kind\": \"block\", \"names\": [\"birch_planks\"], \"positions\": [{\"x\": 28, \"y\": 104, \"z\": 0}, {\"x\": 28, \"y\": 104, \"z\": 1}, {\"x\": 28, \"y\": 104, \"z\": 2}, {\"x\": 28, \"y\": 104, \"z\": 3}, {\"x\": 28, \"y\": 104, \"z\": 4}, {\"x\": 29, \"y\": 104, \"z\": 0}, {\"x\": 30, \"y\": 104, \"z\": 0}, {\"x\": 31, \"y\": 104, \"z\": 0}, {\"x\": 32, \"y\": 104, \"z\": 0}, {\"x\": 33, \"y\": 104, \"z\": 0}, {\"x\": 29, \"y\": 104, \"z\": 3}, {\"x\": 30, \"y\": 104, \"z\": 3}, {\"x\": 31, \"y\": 104, \"z\": 3}, {\"x\": 32, \"y\": 104, \"z\": 3}, {\"x\": 33, \"y\": 104, \"z\": 3}, {\"x\": 29, \"y\": 104, \"z\": 4}, {\"x\": 30, \"y\": 104, \"z\": 4}, {\"x\": 31, \"y\": 104, \"z\": 4}, {\"x\": 32, \"y\": 104, \"z\": 4}, {\"x\": 33, \"y\": 104, \"z\": 4}]}, {\"id\": \"fp_interior\", \"description\": \"The 3x3 interior remains clear at floor level\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 29, \"y\": 104, \"z\": 1}, {\"x\": 30, \"y\": 104, \"z\": 1}, {\"x\": 31, \"y\": 104, \"z\": 1}, {\"x\": 29, \"y\": 104, \"z\": 2}, {\"x\": 30, \"y\": 104, \"z\": 2}, {\"x\": 31, \"y\": 104, \"z\": 2}]}, {\"id\": \"fp_approach\", \"description\": \"The door approach cells remain clear\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 27, \"y\": 104, \"z\": 1}, {\"x\": 28, \"y\": 104, \"z\": 1}]}]}, {\"id\": \"walls_door\", \"kind\": \"leaf\", \"parent\": \"house_build\", \"children\": [], \"depends_on\": [\"floor_place\"], \"specialist\": \"builder\", \"instruction\": \"Build the two-block-high outer birch-plank walls and install a birch wooden door in the two-cell entrance on the west side.\", \"criteria\": [{\"id\": \"wd_walls\", \"description\": \"The outer wall cells at levels 104 and 105 are birch planks except the door cells\", \"kind\": \"block\", \"names\": [\"birch_planks\"], \"positions\": [{\"x\": 28, \"y\": 104, \"z\": 0}, {\"x\": 28, \"y\": 104, \"z\": 2}, {\"x\": 28, \"y\": 104, \"z\": 3}, {\"x\": 28, \"y\": 104, \"z\": 4}, {\"x\": 29, \"y\": 104, \"z\": 0}, {\"x\": 30, \"y\": 104, \"z\": 0}, {\"x\": 31, \"y\": 104, \"z\": 0}, {\"x\": 32, \"y\": 104, \"z\": 0}, {\"x\": 33, \"y\": 104, \"z\": 0}, {\"x\": 28, \"y\": 104, \"z\": 1}, {\"x\": 28, \"y\": 104, \"z\": 3}, {\"x\": 28, \"y\": 104, \"z\": 4}, {\"x\": 29, \"y\": 104, \"z\": 4}, {\"x\": 30, \"y\": 104, \"z\": 4}, {\"x\": 31, \"y\": 104, \"z\": 4}, {\"x\": 32, \"y\": 104, \"z\": 4}, {\"x\": 33, \"y\": 104, \"z\": 4}, {\"x\": 33, \"y\": 104, \"z\": 0}, {\"x\": 33, \"y\": 104, \"z\": 1}, {\"x\": 33, \"y\": 104, \"z\": 2}, {\"x\": 33, \"y\": 104, \"z\": 3}, {\"x\": 28, \"y\": 105, \"z\": 0}, {\"x\": 28, \"y\": 105, \"z\": 2}, {\"x\": 28, \"y\": 105, \"z\": 3}, {\"x\": 28, \"y\": 105, \"z\": 4}, {\"x\": 29, \"y\": 105, \"z\": 0}, {\"x\": 30, \"y\": 105, \"z\": 0}, {\"x\": 31, \"y\": 105, \"z\": 0}, {\"x\": 32, \"y\": 105, \"z\": 0}, {\"x\": 33, \"y\": 105, \"z\": 0}, {\"x\": 28, \"y\": 105, \"z\": 1}, {\"x\": 28, \"y\": 105, \"z\": 3}, {\"x\": 28, \"y\": 105, \"z\": 4}, {\"x\": 29, \"y\": 105, \"z\": 4}, {\"x\": 30, \"y\": 105, \"z\": 4}, {\"x\": 31, \"y\": 105, \"z\": 4}, {\"x\": 32, \"y\": 105, \"z\": 4}, {\"x\": 33, \"y\": 105, \"z\": 4}, {\"x\": 33, \"y\": 105, \"z\": 0}, {\"x\": 33, \"y\": 105, \"z\": 1}, {\"x\": 33, \"y\": 105, \"z\": 2}, {\"x\": 33, \"y\": 105, \"z\": 3}]}, {\"id\": \"wd_door\", \"description\": \"Both door cells contain a birch door\", \"kind\": \"block\", \"names\": [\"birch_door\"], \"positions\": [{\"x\": 28, \"y\": 104, \"z\": 1}, {\"x\": 28, \"y\": 105, \"z\": 1}]}, {\"id\": \"wd_interior\", \"description\": \"The interior remains clear at levels 104 and 105\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 29, \"y\": 104, \"z\": 1}, {\"x\": 30, \"y\": 104, \"z\": 1}, {\"x\": 31, \"y\": 104, \"z\": 1}, {\"x\": 29, \"y\": 104, \"z\": 2}, {\"x\": 30, \"y\": 104, \"z\": 2}, {\"x\": 31, \"y\": 104, \"z\": 2}, {\"x\": 29, \"y\": 105, \"z\": 1}, {\"x\": 30, \"y\": 105, \"z\": 1}, {\"x\": 31, \"y\": 105, \"z\": 1}, {\"x\": 29, \"y\": 105, \"z\": 2}, {\"x\": 30, \"y\": 105, \"z\": 2}, {\"x\": 31, \"y\": 105, \"z\": 2}]}, {\"id\": \"wd_approach\", \"description\": \"The outside approach remains clear\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 27, \"y\": 104, \"z\": 1}, {\"x\": 27, \"y\": 105, \"z\": 1}]}]}, {\"id\": \"roof_complete\", \"kind\": \"leaf\", \"parent\": \"house_build\", \"children\": [], \"depends_on\": [\"walls_door\"], \"specialist\": \"builder\", \"instruction\": \"Cover the 5x5 house with a complete birch-plank roof and keep the interior below it clear.\", \"criteria\": [{\"id\": \"rc_roof\", \"description\": \"The entire level-106 outer footprint is roofed\", \"kind\": \"block\", \"names\": [\"birch_planks\"], \"positions\": [{\"x\": 28, \"y\": 106, \"z\": 0}, {\"x\": 29, \"y\": 106, \"z\": 0}, {\"x\": 30, \"y\": 106, \"z\": 0}, {\"x\": 31, \"y\": 106, \"z\": 0}, {\"x\": 32, \"y\": 106, \"z\": 0}, {\"x\": 33, \"y\": 106, \"z\": 0}, {\"x\": 28, \"y\": 106, \"z\": 1}, {\"x\": 29, \"y\": 106, \"z\": 1}, {\"x\": 30, \"y\": 106, \"z\": 1}, {\"x\": 31, \"y\": 106, \"z\": 1}, {\"x\": 32, \"y\": 106, \"z\": 1}, {\"x\": 33, \"y\": 106, \"z\": 1}, {\"x\": 28, \"y\": 106, \"z\": 2}, {\"x\": 29, \"y\": 106, \"z\": 2}, {\"x\": 30, \"y\": 106, \"z\": 2}, {\"x\": 31, \"y\": 106, \"z\": 2}, {\"x\": 32, \"y\": 106, \"z\": 2}, {\"x\": 33, \"y\": 106, \"z\": 2}, {\"x\": 28, \"y\": 106, \"z\": 3}, {\"x\": 29, \"y\": 106, \"z\": 3}, {\"x\": 30, \"y\": 106, \"z\": 3}, {\"x\": 31, \"y\": 106, \"z\": 3}, {\"x\": 32, \"y\": 106, \"z\": 3}, {\"x\": 33, \"y\": 106, \"z\": 3}, {\"x\": 28, \"y\": 106, \"z\": 4}, {\"x\": 29, \"y\": 106, \"z\": 4}, {\"x\": 30, \"y\": 106, \"z\": 4}, {\"x\": 31, \"y\": 106, \"z\": 4}, {\"x\": 32, \"y\": 106, \"z\": 4}, {\"x\": 33, \"y\": 106, \"z\": 4}]}, {\"id\": \"rc_interior\", \"description\": \"The interior remains clear beneath the roof\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 29, \"y\": 105, \"z\": 1}, {\"x\": 30, \"y\": 105, \"z\": 1}, {\"x\": 31, \"y\": 105, \"z\": 1}, {\"x\": 29, \"y\": 105, \"z\": 2}, {\"x\": 30, \"y\": 105, \"z\": 2}, {\"x\": 31, \"y\": 105, \"z\": 2}]}]}, {\"id\": \"home_usable\", \"kind\": \"story\", \"parent\": \"wooden_home_iron_pickaxe\", \"children\": [\"home_entry\", \"home_exit\"], \"depends_on\": [\"house_build\"], \"instruction\": \"Demonstrate that the house is usable by entering through the door to the interior center and then exiting to the outside approach.\", \"criteria\": [{\"id\": \"hu_entry\", \"description\": \"The body enters the interior center\", \"kind\": \"accepted\", \"node_id\": \"home_entry\"}, {\"id\": \"hu_exit\", \"description\": \"The body exits to the outside approach\", \"kind\": \"accepted\", \"node_id\": \"home_exit\"}]}, {\"id\": \"home_entry\", \"kind\": \"leaf\", \"parent\": \"home_usable\", \"children\": [], \"depends_on\": [], \"specialist\": \"navigator\", \"instruction\": \"Navigate from outside through the door and stand at the interior center of the house.\", \"criteria\": [{\"id\": \"he_position\", \"description\": \"The body is at the interior center\", \"kind\": \"position\", \"position\": {\"x\": 30, \"y\": 104, \"z\": 2}, \"radius\": 0.7}, {\"id\": \"he_alive\", \"description\": \"The body is alive\", \"kind\": \"alive\"}, {\"id\": \"he_interior\", \"description\": \"The interior remains clear\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 30, \"y\": 104, \"z\": 2}, {\"x\": 30, \"y\": 105, \"z\": 2}]}]}, {\"id\": \"home_exit\", \"kind\": \"leaf\", \"parent\": \"home_usable\", \"children\": [], \"depends_on\": [\"home_entry\"], \"specialist\": \"navigator\", \"instruction\": \"Navigate from the interior center through the door to the outside approach.\", \"criteria\": [{\"id\": \"hx_position\", \"description\": \"The body is at the outside approach\", \"kind\": \"position\", \"position\": {\"x\": 27, \"y\": 104, \"z\": 1}, \"radius\": 0.7}, {\"id\": \"hx_alive\", \"description\": \"The body is alive\", \"kind\": \"alive\"}, {\"id\": \"hx_approach\", \"description\": \"The outside approach remains clear\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 27, \"y\": 104, \"z\": 1}, {\"x\": 27, \"y\": 105, \"z\": 1}]}]}, {\"id\": \"iron_mine\", \"kind\": \"leaf\", \"parent\": \"wooden_home_iron_pickaxe\", \"children\": [], \"depends_on\": [\"stone_pickaxe\"], \"specialist\": \"miner\", \"instruction\": \"Locate exposed iron ore through surface-level finds, mine at least three raw iron from actual exposed iron ore, and avoid buried-cell probing.\", \"criteria\": [{\"id\": \"im_raw\", \"description\": \"At least three raw iron are in inventory\", \"kind\": \"inventory\", \"names\": [\"raw_iron\"], \"minimum\": 3}, {\"id\": \"im_alive\", \"description\": \"The body is alive\", \"kind\": \"alive\"}]}, {\"id\": \"iron_smelt\", \"kind\": \"leaf\", \"parent\": \"wooden_home_iron_pickaxe\", \"children\": [], \"depends_on\": [\"iron_mine\"], \"specialist\": \"miner\", \"instruction\": \"Craft a furnace if needed, smelt the raw iron in it, and keep the resulting iron ingots in inventory.\", \"criteria\": [{\"id\": \"is_ingots\", \"description\": \"At least three iron ingots are in inventory\", \"kind\": \"inventory\", \"names\": [\"iron_ingot\"], \"minimum\": 3}, {\"id\": \"is_alive\", \"description\": \"The body is alive\", \"kind\": \"alive\"}]}, {\"id\": \"iron_pickaxe\", \"kind\": \"leaf\", \"parent\": \"wooden_home_iron_pickaxe\", \"children\": [], \"depends_on\": [\"iron_smelt\"], \"specialist\": \"gatherer\", \"instruction\": \"Craft an iron pickaxe from the smelted iron ingots.\", \"criteria\": [{\"id\": \"ip_pickaxe\", \"description\": \"An iron pickaxe is in the current inventory\", \"kind\": \"inventory\", \"names\": [\"iron_pickaxe\"], \"minimum\": 1}, {\"id\": \"ip_smelt\", \"description\": \"The raw-iron smelting step was completed\", \"kind\": \"accepted\", \"node_id\": \"iron_smelt\"}], \"assumptions\": [{\"id\": \"ip_mine\", \"description\": \"The iron ore mining step was completed\", \"kind\": \"accepted\", \"node_id\": \"iron_mine\"}]}, {\"id\": \"save_tested\", \"kind\": \"leaf\", \"parent\": \"wooden_home_iron_pickaxe\", \"children\": [], \"depends_on\": [\"home_usable\"], \"specialist\": \"navigator\", \"instruction\": \"Save the home location and verify a tested route returning from the home to near the initial spawn.\", \"criteria\": [{\"id\": \"st_spawn\", \"description\": \"The body can return near the initial spawn\", \"kind\": \"position\", \"position\": {\"x\": 28, \"y\": 104, \"z\": -2}, \"radius\": 4}, {\"id\": \"st_alive\", \"description\": \"The body is alive\", \"kind\": \"alive\"}]}]}}"
+    },
+    "latest_raw": {
+      "text": "```json\n{\"status\": \"planned\", \"summary\": \"Plan to build a 5x5 birch house near spawn, mine exposed iron ore, smelt to ingots, and craft an iron pickaxe using self-gathered materials.\", \"tree\": {\"goal_id\": \"wooden_house_iron_pickaxe\", \"revision\": 1, \"nodes\": [{\"id\": \"wooden_house_iron_pickaxe\", \"kind\": \"goal\", \"parent\": null, \"children\": [\"prepare_materials\", \"build_house\", \"mine_smelt_iron\", \"craft_iron_pickaxe\", \"verify_house_entry_exit\"], \"instruction\": \"Build a small usable 5x5 wooden house near initial spawn and craft an iron pickaxe from self-mined iron. Use ordinary survival actions, no village supplies, supplied iron, supplied tools, or operator commands.\", \"criteria\": [{\"id\": \"root_complete\", \"description\": \"A 5x5 wooden house exists with complete roof, supported floor, two-block walls, and a wooden door entrance with clear 3x3 interior. An iron pickaxe is in current inventory from self-mined iron.\", \"kind\": \"accepted\", \"node_id\": \"verify_house_entry_exit\", \"minimum\": 1}]}, {\"id\": \"prepare_materials\", \"kind\": \"story\", \"parent\": \"wooden_house_iron_pickaxe\", \"children\": [\"craft_stone_pickaxe\", \"craft_furnace\", \"craft_birch_planks\", \"craft_birch_door\"], \"instruction\": \"Gather and craft necessary materials: stone pickaxe, furnace, sufficient birch planks, and a birch door.\", \"criteria\": [{\"id\": \"c_prepared\", \"description\": \"Stone pickaxe, furnace, at least 28 birch planks, and a birch door are available for construction and smelting.\", \"kind\": \"accepted\", \"node_id\": \"craft_birch_door\", \"minimum\": 1}]}, {\"id\": \"craft_stone_pickaxe\", \"kind\": \"leaf\", \"parent\": \"prepare_materials\", \"specialist\": \"gatherer\", \"instruction\": \"Craft a stone pickaxe from 3 cobblestone and 2 sticks using the crafting table.\", \"criteria\": [{\"id\": \"c_stone_pickaxe\", \"description\": \"A stone pickaxe exists in inventory.\", \"kind\": \"inventory\", \"names\": [\"stone_pickaxe\"], \"minimum\": 1}], \"assumptions\": [{\"id\": \"a_crafting_table\", \"description\": \"A crafting table is available or will be crafted.\", \"kind\": \"inventory\", \"names\": [\"crafting_table\"], \"minimum\": 1}]}, {\"id\": \"craft_furnace\", \"kind\": \"leaf\", \"parent\": \"prepare_materials\", \"specialist\": \"gatherer\", \"depends_on\": [\"craft_stone_pickaxe\"], \"instruction\": \"Gather at least 4 more cobblestone and craft a furnace from 8 cobblestone.\", \"criteria\": [{\"id\": \"c_furnace\", \"description\": \"A furnace exists in inventory or placed in the world.\", \"kind\": \"accepted\", \"node_id\": \"craft_furnace\", \"minimum\": 1}], \"assumptions\": [{\"id\": \"a_cobble_gathered\", \"description\": \"At least 8 cobblestone total are available for furnace crafting.\", \"kind\": \"inventory\", \"names\": [\"cobblestone\"], \"minimum\": 8}]}, {\"id\": \"craft_birch_planks\", \"kind\": \"leaf\", \"parent\": \"prepare_materials\", \"specialist\": \"gatherer\", \"instruction\": \"Craft at least 30 birch planks from the 34 available birch logs.\", \"criteria\": [{\"id\": \"c_birch_planks\", \"description\": \"At least 30 birch planks are in inventory for house construction.\", \"kind\": \"inventory\", \"names\": [\"birch_planks\"], \"minimum\": 30}]}, {\"id\": \"craft_birch_door\", \"kind\": \"leaf\", \"parent\": \"prepare_materials\", \"specialist\": \"gatherer\", \"depends_on\": [\"craft_birch_planks\"], \"instruction\": \"Craft a birch door from 6 birch planks using the crafting table.\", \"criteria\": [{\"id\": \"c_birch_door\", \"description\": \"A birch door exists in inventory.\", \"kind\": \"inventory\", \"names\": [\"birch_door\"], \"minimum\": 1}]}, {\"id\": \"build_house\", \"kind\": \"story\", \"parent\": \"wooden_house_iron_pickaxe\", \"children\": [\"survey_house_site\", \"build_house_floor\", \"build_house_walls\", \"build_house_roof\", \"place_house_door\", \"clear_house_interior\"], \"instruction\": \"Construct a 5x5 outer footprint birch house with supported floor, two-block-high walls, complete roof, wooden door entrance, and clear 3x3 interior near initial spawn at approximately x=28, z=-2.\", \"criteria\": [{\"id\": \"c_house_complete\", \"description\": \"All house structural elements are verified: floor, walls, roof, door cells, and interior air.\", \"kind\": \"accepted\", \"node_id\": \"clear_house_interior\", \"minimum\": 1}]}, {\"id\": \"survey_house_site\", \"kind\": \"leaf\", \"parent\": \"build_house\", \"specialist\": \"navigator\", \"instruction\": \"Survey the area near spawn at y=103, approximately x=28-32, z=-2 to 2, to confirm a stable 5x5 grass block foundation with dirt or stone support beneath and sufficient air above for walls and roof.\", \"criteria\": [{\"id\": \"c_site_suitable\", \"description\": \"A 5x5 area of grass blocks exists at y=103 with solid support beneath at y=102 and air clearance above at y=104-106.\", \"kind\": \"region\", \"names\": [\"grass_block\"], \"minimum\": 25, \"position\": {\"x\": 28, \"y\": 103, \"z\": -2}, \"end\": {\"x\": 32, \"y\": 103, \"z\": 2}}]}, {\"id\": \"build_house_floor\", \"kind\": \"leaf\", \"parent\": \"build_house\", \"specialist\": \"builder\", \"depends_on\": [\"survey_house_site\", \"craft_birch_planks\"], \"instruction\": \"Place birch planks as a supported floor across the 5x5 footprint at y=103, replacing grass blocks with birch planks.\", \"criteria\": [{\"id\": \"c_floor_placed\", \"description\": \"Birch planks occupy all 25 floor cells at y=103 across x=28-32, z=-2 to 2.\", \"kind\": \"block\", \"names\": [\"birch_planks\"], \"positions\": [{\"x\": 28, \"y\": 103, \"z\": -2}, {\"x\": 29, \"y\": 103, \"z\": -2}, {\"x\": 30, \"y\": 103, \"z\": -2}, {\"x\": 31, \"y\": 103, \"z\": -2}, {\"x\": 32, \"y\": 103, \"z\": -2}, {\"x\": 28, \"y\": 103, \"z\": -1}, {\"x\": 29, \"y\": 103, \"z\": -1}, {\"x\": 30, \"y\": 103, \"z\": -1}, {\"x\": 31, \"y\": 103, \"z\": -1}, {\"x\": 32, \"y\": 103, \"z\": -1}, {\"x\": 28, \"y\": 103, \"z\": 0}, {\"x\": 29, \"y\": 103, \"z\": 0}, {\"x\": 30, \"y\": 103, \"z\": 0}, {\"x\": 31, \"y\": 103, \"z\": 0}, {\"x\": 32, \"y\": 103, \"z\": 0}, {\"x\": 28, \"y\": 103, \"z\": 1}, {\"x\": 29, \"y\": 103, \"z\": 1}, {\"x\": 30, \"y\": 103, \"z\": 1}, {\"x\": 31, \"y\": 103, \"z\": 1}, {\"x\": 32, \"y\": 103, \"z\": 1}, {\"x\": 28, \"y\": 103, \"z\": 2}, {\"x\": 29, \"y\": 103, \"z\": 2}, {\"x\": 30, \"y\": 103, \"z\": 2}, {\"x\": 31, \"y\": 103, \"z\": 2}, {\"x\": 32, \"y\": 103, \"z\": 2}]}]}, {\"id\": \"build_house_walls\", \"kind\": \"leaf\", \"parent\": \"build_house\", \"specialist\": \"builder\", \"depends_on\": [\"build_house_floor\", \"craft_birch_planks\"], \"instruction\": \"Build two-block-high birch plank walls around the 5x5 perimeter at y=104 and y=105, leaving a two-cell vertical gap for the door on one face.\", \"criteria\": [{\"id\": \"c_walls_lower\", \"description\": \"Birch planks form the lower wall layer at y=104 around the 5x5 perimeter with a two-cell door gap.\", \"kind\": \"region\", \"names\": [\"birch_planks\"], \"minimum\": 18, \"position\": {\"x\": 28, \"y\": 104, \"z\": -2}, \"end\": {\"x\": 32, \"y\": 104, \"z\": 2}}, {\"id\": \"c_walls_upper\", \"description\": \"Birch planks form the upper wall layer at y=105 around the 5x5 perimeter.\", \"kind\": \"region\", \"names\": [\"birch_planks\"], \"minimum\": 20, \"position\": {\"x\": 28, \"y\": 105, \"z\": -2}, \"end\": {\"x\": 32, \"y\": 105, \"z\": 2}}]}, {\"id\": \"build_house_roof\", \"kind\": \"leaf\", \"parent\": \"build_house\", \"specialist\": \"builder\", \"depends_on\": [\"build_house_walls\"], \"instruction\": \"Place birch planks as a complete roof covering the 5x5 footprint at y=106.\", \"criteria\": [{\"id\": \"c_roof\", \"description\": \"Birch planks form a complete roof at y=106 across all 25 cells of the 5x5 footprint.\", \"kind\": \"block\", \"names\": [\"birch_planks\"], \"positions\": [{\"x\": 28, \"y\": 106, \"z\": -2}, {\"x\": 29, \"y\": 106, \"z\": -2}, {\"x\": 30, \"y\": 106, \"z\": -2}, {\"x\": 31, \"y\": 106, \"z\": -2}, {\"x\": 32, \"y\": 106, \"z\": -2}, {\"x\": 28, \"y\": 106, \"z\": -1}, {\"x\": 29, \"y\": 106, \"z\": -1}, {\"x\": 30, \"y\": 106, \"z\": -1}, {\"x\": 31, \"y\": 106, \"z\": -1}, {\"x\": 32, \"y\": 106, \"z\": -1}, {\"x\": 28, \"y\": 106, \"z\": 0}, {\"x\": 29, \"y\": 106, \"z\": 0}, {\"x\": 30, \"y\": 106, \"z\": 0}, {\"x\": 31, \"y\": 106, \"z\": 0}, {\"x\": 32, \"y\": 106, \"z\": 0}, {\"x\": 28, \"y\": 106, \"z\": 1}, {\"x\": 29, \"y\": 106, \"z\": 1}, {\"x\": 30, \"y\": 106, \"z\": 1}, {\"x\": 31, \"y\": 106, \"z\": 1}, {\"x\": 32, \"y\": 106, \"z\": 1}, {\"x\": 28, \"y\": 106, \"z\": 2}, {\"x\": 29, \"y\": 106, \"z\": 2}, {\"x\": 30, \"y\": 106, \"z\": 2}, {\"x\": 31, \"y\": 106, \"z\": 2}, {\"x\": 32, \"y\": 106, \"z\": 2}]}]}, {\"id\": \"place_house_door\", \"kind\": \"leaf\", \"parent\": \"build_house\", \"specialist\": \"builder\", \"depends_on\": [\"build_house_walls\", \"craft_birch_door\"], \"instruction\": \"Place a birch door in the two-cell entrance gap, occupying both the lower and upper door cells.\", \"criteria\": [{\"id\": \"c_door_lower\", \"description\": \"The lower door cell contains a birch door block.\", \"kind\": \"block\", \"names\": [\"birch_door\"], \"positions\": [{\"x\": 28, \"y\": 104, \"z\": 1}]}, {\"id\": \"c_door_upper\", \"description\": \"The upper door cell contains a birch door block.\", \"kind\": \"block\", \"names\": [\"birch_door\"], \"positions\": [{\"x\": 28, \"y\": 105, \"z\": 1}]}]}, {\"id\": \"clear_house_interior\", \"kind\": \"leaf\", \"parent\": \"build_house\", \"specialist\": \"builder\", \"depends_on\": [\"build_house_floor\", \"build_house_walls\", \"build_house_roof\", \"place_house_door\"], \"instruction\": \"Clear the 3x3 interior to ensure air cells, with the interior center at x=30, y=104, z=0. Verify floor support beneath interior cells.\", \"criteria\": [{\"id\": \"c_interior_air\", \"description\": \"All 9 interior cells at y=104 are air, forming a clear 3x3 interior.\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 29, \"y\": 104, \"z\": -1}, {\"x\": 30, \"y\": 104, \"z\": -1}, {\"x\": 31, \"y\": 104, \"z\": -1}, {\"x\": 29, \"y\": 104, \"z\": 0}, {\"x\": 30, \"y\": 104, \"z\": 0}, {\"x\": 31, \"y\": 104, \"z\": 0}, {\"x\": 29, \"y\": 104, \"z\": 1}, {\"x\": 30, \"y\": 104, \"z\": 1}, {\"x\": 31, \"y\": 104, \"z\": 1}]}, {\"id\": \"c_interior_upper_air\", \"description\": \"Interior upper layer at y=105 is also clear air above the 3x3 interior.\", \"kind\": \"block\", \"names\": [\"air\"], \"positions\": [{\"x\": 29, \"y\": 105, \"z\": -1}, {\"x\": 30, \"y\": 105, \"z\": -1}, {\"x\": 31, \"y\": 105, \"z\": -1}, {\"x\": 29, \"y\": 105, \"z\": 0}, {\"x\": 30, \"y\": 105, \"z\": 0}, {\"x\": 31, \"y\": 105, \"z\": 0}, {\"x\": 29, \"y\": 105, \"z\": 1}, {\"x\": 30, \"y\": 105, \"z\": 1}, {\"x\": 31, \"y\": 105, \"z\": 1}]}]}, {\"id\": \"mine_smelt_iron\", \"kind\": \"story\", \"parent\": \"wooden_house_iron_pickaxe\", \"children\": [\"find_mine_iron_ore\", \"smelt_raw_iron\", \"craft_iron_ingots\"], \"instruction\": \"Find and mine at least 3 raw iron from exposed iron ore, smelt it in a furnace to obtain at least 3 iron ingots.\", \"criteria\": [{\"id\": \"c_iron_ingots\", \"description\": \"At least 3 iron ingots are available in inventory from self-smelted raw iron.\", \"kind\": \"accepted\", \"node_id\": \"craft_iron_ingots\", \"minimum\": 1}]}, {\"id\": \"find_mine_iron_ore\", \"kind\": \"leaf\", \"parent\": \"mine_smelt_iron\", \"specialist\": \"miner\", \"depends_on\": [\"craft_stone_pickaxe\"], \"instruction\": \"Search for exposed iron ore using find_block, then mine at least 3 raw iron from actual iron ore. Do not scan buried cells or probe buried coordinates from nearby block summaries.\", \"criteria\": [{\"id\": \"c_raw_iron_mined\", \"description\": \"At least 3 raw iron items are in inventory from actual iron ore mining.\", \"kind\": \"inventory\", \"names\": [\"raw_iron\"], \"minimum\": 3}]}, {\"id\": \"smelt_raw_iron\", \"kind\": \"leaf\", \"parent\": \"mine_smelt_iron\", \"specialist\": \"miner\", \"depends_on\": [\"craft_furnace\", \"find_mine_iron_iron_ore\"], \"instruction\": \"Smelt at least 3 raw iron in a furnace using fuel to produce iron ingots.\", \"criteria\": [{\"id\": \"c_iron_ingots_smelted\", \"description\": \"At least 3 iron ingots are in inventory from smelting raw iron.\", \"kind\": \"inventory\", \"names\": [\"iron_ingot\"], \"minimum\": 3}], \"depends_on\": [\"craft_furnace\", \"find_mine_iron_ore\"]}, {\"id\": \"craft_iron_ingots\", \"kind\": \"leaf\", \"parent\": \"mine_smelt_iron\", \"specialist\": \"gatherer\", \"depends_on\": [\"smelt_raw_iron\"], \"instruction\": \"Verify at least 3 iron ingots are available for pickaxe crafting.\", \"criteria\": [{\"id\": \"c_iron_ingots_ready\", \"description\": \"At least 3 iron ingots are in inventory.\", \"kind\": \"inventory\", \"names\": [\"iron_ingot\"], \"minimum\": 3}]}, {\"id\": \"craft_iron_pickaxe\", \"kind\": \"leaf\", \"parent\": \"wooden_house_iron_pickaxe\", \"specialist\": \"gatherer\", \"depends_on\": [\"smelt_raw_iron\", \"craft_iron_ingots\"], \"instruction\": \"Craft an iron pickaxe from 3 iron ingots and 2 sticks using the crafting table.\", \"criteria\": [{\"id\": \"c_iron_pickaxe\", \"description\": \"An iron pickaxe is in current inventory.\", \"kind\": \"inventory\", \"names\": [\"iron_pickaxe\"], \"minimum\": 1}]}, {\"id\": \"verify_house_entry_exit\", \"kind\": \"story\", \"parent\": \"wooden_house_iron_pickaxe\", \"children\": [\"enter_house\", \"exit_house\"], \"instruction\": \"Demonstrate entry into the house interior through the door, and exit back outside through the door, in separate verified leaves.\", \"criteria\": [{\"id\": \"c_entry_exit_verified\", \"description\": \"Both entry and exit through the house door are independently verified.\", \"kind\": \"accepted\", \"node_id\": \"exit_house\", \"minimum\": 1}]}, {\"id\": \"enter_house\", \"kind\": \"leaf\", \"parent\": \"verify_house_entry_exit\", \"specialist\": \"navigator\", \"depends_on\": [\"build_house\", \"craft_iron_pickaxe\"], \"instruction\": \"Enter the house through the wooden door and stand at the interior center at x=30, y=104, z=0 with enough room for the body.\", \"criteria\": [{\"id\": \"c_enter_position\", \"description\": \"The body is alive and standing at the interior center of the house.\", \"kind\": \"position\", \"position\": {\"x\": 30, \"y\": 104, \"z\": 0}, \"radius\": 0.7}, {\"id\": \"c_enter_alive\", \"description\": \"The body is alive after entering the house.\", \"kind\": \"alive\", \"minimum\": 1}, {\"id\": \"c_enter_food\", \"description\": \"The body has sufficient food while inside the house.\", \"kind\": \"food\", \"minimum\": 7}]}, {\"id\": \"exit_house\", \"kind\": \"leaf\", \"parent\": \"verify_house_entry_exit\", \"specialist\": \"navigator\", \"depends_on\": [\"enter_house\"], \"instruction\": \"Exit the house through the wooden door to the dry approach outside the outer footprint.\", \"criteria\": [{\"id\": \"c_exit_position\", \"description\": \"The body is alive and standing outside the house on the entrance approach.\", \"kind\": \"position\", \"position\": {\"x\": 27, \"y\": 104, \"z\": 1}, \"radius\": 0.7}, {\"id\": \"c_exit_alive\", \"description\": \"The body is alive after exiting the house.\", \"kind\": \"alive\", \"minimum\": 1}, {\"id\": \"c_exit_path_verified\", \"description\": \"The entry path and house blocks are independently verified.\", \"kind\": \"accepted\", \"node_id\": \"enter_house\", \"minimum\": 1}]}]}}"
+    },
+    "state": {
+      "revision": 0,
+      "acceptances": {},
+      "attempts": [],
+      "decisions": [
+        {
+          "role": "planner",
+          "path": "decisions/0001-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0002-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0003-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0004-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0005-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0006-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0007-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0008-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0009-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0010-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0011-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0012-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0013-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0014-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0015-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0016-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0017-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0018-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0019-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0020-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0021-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        },
+        {
+          "role": "planner",
+          "path": "decisions/0022-planner",
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 0,
+            "leaf_id": "",
+            "spec_revision": 0,
+            "actor_attempt": "",
+            "verifier_attempt": ""
+          }
+        }
+      ],
+      "feedback": "The proposal violates its JSON contract: 1 validation error for PlanProposal\n  Invalid JSON: EOF while parsing a value at line 1 column 0 [type=json_invalid, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/json_invalid",
+      "instruction_revision": -1,
+      "planning_observation": "planning/observations/0022.json",
+      "initial_observation": "planning/observations/0001.json",
+      "rejected_proposal": "decisions/0022-planner/raw.json",
+      "rejections": 7,
+      "requested_survey": "planning/requested-surveys/0019.json"
+    }
+  }
+}

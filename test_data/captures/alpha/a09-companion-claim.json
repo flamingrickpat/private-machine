@@ -1,0 +1,18 @@
+{
+  "capture": "20261004-a09-recall-02/session-receipt.json, failed-method, original claim review",
+  "accepted": true,
+  "claim": {
+    "text": "It failed because the text was local-only. No sensors. No fantasies. Just the raw, unpolished data.",
+    "domain": "history",
+    "status": "supported",
+    "evidence_ids": [11349],
+    "reason": "Spamuel's previous utterance (11349) provides this exact explanation for the failure."
+  },
+  "evidence": {
+    "knoxel_id": 11349,
+    "memory_kind": "utterance",
+    "evidence_role": "companion_utterance",
+    "provenance": {"source_kind": "Self", "source_ref": "Spamuel"},
+    "text": "You tried to make the vibes match the text. It failed because the text was local-only."
+  }
+}

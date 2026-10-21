@@ -1,0 +1,977 @@
+{
+  "scope": "Actual caller contract was unavailable to the trusted planner role; no gameplay repair occurred.",
+  "planner_tools": [
+    "minecraft_call",
+    "minecraft_tool_schemas",
+    "minecraft_endpoint",
+    "minecraft_reason",
+    "minecraft_context_measure",
+    "managed_instructions",
+    "minecraft_evidence_sources",
+    "minecraft_decision_generation"
+  ],
+  "reviewer_tools": [
+    "minecraft_call",
+    "minecraft_tool_schemas",
+    "minecraft_endpoint",
+    "minecraft_reason",
+    "minecraft_context_measure",
+    "managed_instructions",
+    "minecraft_plan_constraints",
+    "minecraft_evidence_sources",
+    "minecraft_decision_generation"
+  ],
+  "generation": {
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "temperature": 0.1,
+    "response_format": {
+      "type": "json_schema",
+      "json_schema": {
+        "name": "RevisionProposal",
+        "strict": true,
+        "schema": {
+          "$defs": {
+            "Condition": {
+              "additionalProperties": false,
+              "description": "A fact that an independent read can establish.\n\nInventory uses an item-name glob. Regions require complete visible coverage.\nBlock conditions permit explicit air cells. Position distances use blocks.\nAcceptance records past attainment; assumptions require current truth.\nAccepted references require an original independent node certificate.",
+              "properties": {
+                "id": {
+                  "minLength": 1,
+                  "title": "Id",
+                  "type": "string"
+                },
+                "description": {
+                  "minLength": 1,
+                  "title": "Description",
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "inventory",
+                    "block",
+                    "region",
+                    "position",
+                    "alive",
+                    "food",
+                    "health",
+                    "accepted"
+                  ],
+                  "title": "Kind",
+                  "type": "string"
+                },
+                "node_id": {
+                  "default": "",
+                  "title": "Node Id",
+                  "type": "string"
+                },
+                "names": {
+                  "description": "Exact MCP block names or inventory globs. The vanilla minecraft: prefix is optional.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Names",
+                  "type": "array"
+                },
+                "minimum": {
+                  "default": 1,
+                  "description": "Inclusive count, food, or health threshold. Food and health use the observed 0..20 scale. A block condition requires every specified cell.",
+                  "minimum": 0,
+                  "title": "Minimum",
+                  "type": "integer"
+                },
+                "position": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Point"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                },
+                "positions": {
+                  "items": {
+                    "$ref": "#/$defs/Point"
+                  },
+                  "title": "Positions",
+                  "type": "array"
+                },
+                "end": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Point"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Inclusive opposite corner for region only. For exact blocks, use positions instead."
+                },
+                "radius": {
+                  "default": 2.0,
+                  "minimum": 0,
+                  "title": "Radius",
+                  "type": "number"
+                },
+                "dimension": {
+                  "default": "overworld",
+                  "title": "Dimension",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "description",
+                "kind"
+              ],
+              "title": "Condition",
+              "type": "object"
+            },
+            "EvidenceRead": {
+              "additionalProperties": false,
+              "description": "Read a window from an original source in the workflow evidence catalog.",
+              "properties": {
+                "source": {
+                  "title": "Source",
+                  "type": "string"
+                },
+                "start_line": {
+                  "default": 1,
+                  "minimum": 1,
+                  "title": "Start Line",
+                  "type": "integer"
+                },
+                "line_count": {
+                  "default": 100,
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "title": "Line Count",
+                  "type": "integer"
+                },
+                "query": {
+                  "default": "",
+                  "title": "Query",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source"
+              ],
+              "title": "EvidenceRead",
+              "type": "object"
+            },
+            "Node": {
+              "additionalProperties": false,
+              "description": "A goal, story, or meaningful leaf outcome with stable identity.",
+              "properties": {
+                "id": {
+                  "pattern": "^[A-Za-z0-9_-]+$",
+                  "title": "Id",
+                  "type": "string"
+                },
+                "revision": {
+                  "default": 1,
+                  "minimum": 1,
+                  "title": "Revision",
+                  "type": "integer"
+                },
+                "kind": {
+                  "enum": [
+                    "goal",
+                    "story",
+                    "leaf"
+                  ],
+                  "title": "Kind",
+                  "type": "string"
+                },
+                "parent": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null,
+                  "description": "Containing goal or story ID. Only the root goal uses null; copy the actual parent in a replacement node.",
+                  "title": "Parent"
+                },
+                "children": {
+                  "description": "Every contained child ID. Leaves use an empty list; replacement parents retain their actual child references.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Children",
+                  "type": "array"
+                },
+                "depends_on": {
+                  "description": "Explicit prerequisite node IDs. A leaf citing an accepted node certificate must include that source ID directly, even when another prerequisite also depends on it.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Depends On",
+                  "type": "array"
+                },
+                "instruction": {
+                  "minLength": 1,
+                  "title": "Instruction",
+                  "type": "string"
+                },
+                "specialist": {
+                  "default": "gatherer",
+                  "enum": [
+                    "gatherer",
+                    "navigator",
+                    "recovery",
+                    "builder",
+                    "miner"
+                  ],
+                  "title": "Specialist",
+                  "type": "string"
+                },
+                "deferred": {
+                  "default": false,
+                  "description": "Keep this unfinished leaf and its effects while other useful work proceeds.",
+                  "title": "Deferred",
+                  "type": "boolean"
+                },
+                "defer_reason": {
+                  "default": "",
+                  "title": "Defer Reason",
+                  "type": "string"
+                },
+                "criteria": {
+                  "items": {
+                    "$ref": "#/$defs/Condition"
+                  },
+                  "minItems": 1,
+                  "title": "Criteria",
+                  "type": "array"
+                },
+                "assumptions": {
+                  "items": {
+                    "$ref": "#/$defs/Condition"
+                  },
+                  "title": "Assumptions",
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "parent",
+                "children",
+                "depends_on",
+                "instruction",
+                "specialist",
+                "deferred",
+                "defer_reason",
+                "criteria",
+                "assumptions"
+              ],
+              "title": "Node",
+              "type": "object"
+            },
+            "Point": {
+              "additionalProperties": false,
+              "description": "An integer block cell in the named game dimension.",
+              "properties": {
+                "x": {
+                  "title": "X",
+                  "type": "integer"
+                },
+                "y": {
+                  "title": "Y",
+                  "type": "integer"
+                },
+                "z": {
+                  "title": "Z",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
+              ],
+              "title": "Point",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false,
+          "description": "Revise a retained tree through explicit node updates only.",
+          "properties": {
+            "evidence_requests": {
+              "items": {
+                "$ref": "#/$defs/EvidenceRead"
+              },
+              "title": "Evidence Requests",
+              "type": "array"
+            },
+            "status": {
+              "enum": [
+                "planned",
+                "survey",
+                "waiting",
+                "blocked"
+              ],
+              "title": "Status",
+              "type": "string"
+            },
+            "summary": {
+              "title": "Summary",
+              "type": "string"
+            },
+            "updates": {
+              "description": "Complete replacements or additions by stable ID. Omitted nodes remain unchanged. Retain every existing root child when replacing its parent.",
+              "items": {
+                "$ref": "#/$defs/Node"
+              },
+              "title": "Updates",
+              "type": "array"
+            },
+            "restore_nodes": {
+              "description": "Explicitly restore these retained_acceptance_candidates, including their changed dependencies. Use IDs rather than copying or paraphrasing historical specifications.",
+              "items": {
+                "type": "string"
+              },
+              "title": "Restore Nodes",
+              "type": "array"
+            },
+            "queries": {
+              "items": {
+                "$ref": "#/$defs/Condition"
+              },
+              "title": "Queries",
+              "type": "array"
+            },
+            "recipe_queries": {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 10,
+              "title": "Recipe Queries",
+              "type": "array"
+            }
+          },
+          "required": [
+            "status",
+            "summary"
+          ],
+          "title": "RevisionProposal",
+          "type": "object"
+        }
+      }
+    },
+    "reasoning": {
+      "enabled": true
+    }
+  },
+  "plan_constraints": {
+    "errors": [],
+    "requirements": {
+      "scope": "Caller M3 contract operands, not evidence that the world is complete. Preserve accepted materials and tools.",
+      "house": {
+        "errors": [],
+        "bounds": {
+          "x": [
+            28,
+            32
+          ],
+          "z": [
+            -1,
+            3
+          ],
+          "feet_y": 104
+        },
+        "entry": [
+          30,
+          104,
+          1
+        ],
+        "exit": [
+          27,
+          104,
+          1
+        ],
+        "cells": {
+          "floor": [
+            [
+              28,
+              103,
+              -1
+            ],
+            [
+              28,
+              103,
+              0
+            ],
+            [
+              28,
+              103,
+              1
+            ],
+            [
+              28,
+              103,
+              2
+            ],
+            [
+              28,
+              103,
+              3
+            ],
+            [
+              29,
+              103,
+              -1
+            ],
+            [
+              29,
+              103,
+              0
+            ],
+            [
+              29,
+              103,
+              1
+            ],
+            [
+              29,
+              103,
+              2
+            ],
+            [
+              29,
+              103,
+              3
+            ],
+            [
+              30,
+              103,
+              -1
+            ],
+            [
+              30,
+              103,
+              0
+            ],
+            [
+              30,
+              103,
+              1
+            ],
+            [
+              30,
+              103,
+              2
+            ],
+            [
+              30,
+              103,
+              3
+            ],
+            [
+              31,
+              103,
+              -1
+            ],
+            [
+              31,
+              103,
+              0
+            ],
+            [
+              31,
+              103,
+              1
+            ],
+            [
+              31,
+              103,
+              2
+            ],
+            [
+              31,
+              103,
+              3
+            ],
+            [
+              32,
+              103,
+              -1
+            ],
+            [
+              32,
+              103,
+              0
+            ],
+            [
+              32,
+              103,
+              1
+            ],
+            [
+              32,
+              103,
+              2
+            ],
+            [
+              32,
+              103,
+              3
+            ]
+          ],
+          "walls": [
+            [
+              28,
+              104,
+              -1
+            ],
+            [
+              28,
+              104,
+              0
+            ],
+            [
+              28,
+              104,
+              2
+            ],
+            [
+              28,
+              104,
+              3
+            ],
+            [
+              28,
+              105,
+              -1
+            ],
+            [
+              28,
+              105,
+              0
+            ],
+            [
+              28,
+              105,
+              2
+            ],
+            [
+              28,
+              105,
+              3
+            ],
+            [
+              29,
+              104,
+              -1
+            ],
+            [
+              29,
+              104,
+              3
+            ],
+            [
+              29,
+              105,
+              -1
+            ],
+            [
+              29,
+              105,
+              3
+            ],
+            [
+              30,
+              104,
+              -1
+            ],
+            [
+              30,
+              104,
+              3
+            ],
+            [
+              30,
+              105,
+              -1
+            ],
+            [
+              30,
+              105,
+              3
+            ],
+            [
+              31,
+              104,
+              -1
+            ],
+            [
+              31,
+              104,
+              3
+            ],
+            [
+              31,
+              105,
+              -1
+            ],
+            [
+              31,
+              105,
+              3
+            ],
+            [
+              32,
+              104,
+              -1
+            ],
+            [
+              32,
+              104,
+              0
+            ],
+            [
+              32,
+              104,
+              1
+            ],
+            [
+              32,
+              104,
+              2
+            ],
+            [
+              32,
+              104,
+              3
+            ],
+            [
+              32,
+              105,
+              -1
+            ],
+            [
+              32,
+              105,
+              0
+            ],
+            [
+              32,
+              105,
+              1
+            ],
+            [
+              32,
+              105,
+              2
+            ],
+            [
+              32,
+              105,
+              3
+            ]
+          ],
+          "roof": [
+            [
+              28,
+              106,
+              -1
+            ],
+            [
+              28,
+              106,
+              0
+            ],
+            [
+              28,
+              106,
+              1
+            ],
+            [
+              28,
+              106,
+              2
+            ],
+            [
+              28,
+              106,
+              3
+            ],
+            [
+              29,
+              106,
+              -1
+            ],
+            [
+              29,
+              106,
+              0
+            ],
+            [
+              29,
+              106,
+              1
+            ],
+            [
+              29,
+              106,
+              2
+            ],
+            [
+              29,
+              106,
+              3
+            ],
+            [
+              30,
+              106,
+              -1
+            ],
+            [
+              30,
+              106,
+              0
+            ],
+            [
+              30,
+              106,
+              1
+            ],
+            [
+              30,
+              106,
+              2
+            ],
+            [
+              30,
+              106,
+              3
+            ],
+            [
+              31,
+              106,
+              -1
+            ],
+            [
+              31,
+              106,
+              0
+            ],
+            [
+              31,
+              106,
+              1
+            ],
+            [
+              31,
+              106,
+              2
+            ],
+            [
+              31,
+              106,
+              3
+            ],
+            [
+              32,
+              106,
+              -1
+            ],
+            [
+              32,
+              106,
+              0
+            ],
+            [
+              32,
+              106,
+              1
+            ],
+            [
+              32,
+              106,
+              2
+            ],
+            [
+              32,
+              106,
+              3
+            ]
+          ],
+          "door": [
+            [
+              28,
+              104,
+              1
+            ],
+            [
+              28,
+              105,
+              1
+            ]
+          ],
+          "interior": [
+            [
+              29,
+              104,
+              0
+            ],
+            [
+              29,
+              104,
+              1
+            ],
+            [
+              29,
+              104,
+              2
+            ],
+            [
+              29,
+              105,
+              0
+            ],
+            [
+              29,
+              105,
+              1
+            ],
+            [
+              29,
+              105,
+              2
+            ],
+            [
+              30,
+              104,
+              0
+            ],
+            [
+              30,
+              104,
+              1
+            ],
+            [
+              30,
+              104,
+              2
+            ],
+            [
+              30,
+              105,
+              0
+            ],
+            [
+              30,
+              105,
+              1
+            ],
+            [
+              30,
+              105,
+              2
+            ],
+            [
+              31,
+              104,
+              0
+            ],
+            [
+              31,
+              104,
+              1
+            ],
+            [
+              31,
+              104,
+              2
+            ],
+            [
+              31,
+              105,
+              0
+            ],
+            [
+              31,
+              105,
+              1
+            ],
+            [
+              31,
+              105,
+              2
+            ]
+          ],
+          "approach_air": [
+            [
+              27,
+              104,
+              1
+            ],
+            [
+              27,
+              105,
+              1
+            ]
+          ],
+          "approach_support": [
+            [
+              27,
+              103,
+              1
+            ]
+          ]
+        }
+      },
+      "iron_leaves": {
+        "mining": [
+          "iron_mine"
+        ],
+        "smelting": [
+          "iron_smelt"
+        ]
+      },
+      "durable_home_and_route": "Save a home waypoint at the house or entrance. In one actor attempt, observe at home, walk outside the footprint by at least one block and observe, then walk back and observe. All three observations must show healthy grounded dry positions in the same body life. Then save the actual tested route with minecraft_remember(kind='routes'). These effects are checked before project publication."
+    },
+    "original_receipt": "planning/constraints/0069.json",
+    "original_digest": "af67d7b70a49f7d8daa9836758567c2b20aac5a7c6a7556cf07d7a5952c42535"
+  },
+  "latest_project_check": {
+    "errors": [
+      "In one actor attempt and body life, observe at home, walk outside the footprint by at least one block and observe, then return home and observe. Record healthy grounded dry positions, then save the tested route with minecraft_remember(kind='routes'). The original receipt must match its durable note."
+    ],
+    "checks": {
+      "iron_chain": true,
+      "saved_home": true,
+      "tested_saved_route": false
+    },
+    "identity": {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 47,
+      "leaf_id": "",
+      "spec_revision": 0,
+      "actor_attempt": "",
+      "verifier_attempt": ""
+    },
+    "original_receipt": "verification/project-check-0003.json",
+    "original_digest": "546d4d071ed6970131c3489142379f288decfcb71c7e14bb0724ad3fa090d24c"
+  },
+  "sources": [
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\decisions\\0305-planner\\input.json",
+      "sha256": "3e8d68ecc8de49e69a9d0a256ac2487578cb2dfc3389037dc0ae9b996ca6d22f"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-62\\minecraft_tasks.workflow.md",
+      "sha256": "061860cc8788d38ce673987796bd4602343bde9e8ee981b36aa6f6af95ea3e5d"
+    }
+  ]
+}

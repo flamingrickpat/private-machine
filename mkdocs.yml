@@ -1,0 +1,267 @@
+site_name: private-machine engineering manual
+site_url: ""
+use_directory_urls: false
+theme:
+  name: material
+  font: false
+  palette:
+    scheme: default
+    primary: grey
+    accent: green
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - dev/tools/gen_reference.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["."]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_signature_annotations: true
+            show_if_no_docstring: true
+            members: true
+            docstring_style: null
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+nav:
+  - Overview: index.md
+  - Workflows:
+      - Example characters: workflows/example-characters.md
+      - Jesse quickstart: workflows/jesse-quickstart.md
+      - Operator console: workflows/console.md
+      - Development loop: workflows/development.md
+      - One exchange: workflows/exchange.md
+      - Memory experiment: workflows/memory.md
+      - Artifact classification demo: workflows/classification-demo.md
+      - Minecraft run: workflows/minecraft.md
+      - Minecraft evidence and cleanup: workflows/minecraft-evidence.md
+      - MCP tools for one goal: workflows/tool-call.md
+  - Concepts:
+      - System map: concepts/architecture.md
+      - Evidence and quality: concepts/evidence.md
+      - Glossary: concepts/glossary.md
+      - Naming rules: concepts/naming.md
+  - Subsystems:
+      - Runtime files and recovery: subsystems/runtime-files.md
+      - Cognition: subsystems/cognition.md
+      - Inference settings and parallel calls: subsystems/inference-settings.md
+      - Accepted cognition state: subsystems/cognition-state.md
+      - Emotional dynamics: subsystems/emotional-dynamics.md
+      - Cooperative survival: subsystems/cooperative-survival.md
+      - Observed world events: subsystems/world-events.md
+      - Codelets: subsystems/codelets.md
+      - Structures, attention, and the workspace: subsystems/workspace.md
+      - Decisions, routing, and expectations: subsystems/decisions-and-routing.md
+      - Codelet pathways: subsystems/codelet-pathways.md
+      - The private thought loop: subsystems/private-loop.md
+      - Private reflection experiments: subsystems/reflection.md
+      - Experiment lifecycle and recovery: subsystems/reflection-lifecycle.md
+      - Wait for a stimulus: subsystems/inference-wait.md
+      - Implementation inspection and the self-model: subsystems/introspection.md
+      - Story speech: subsystems/story-speech.md
+      - The private ontology: subsystems/private-ontology.md
+      - Context planning: subsystems/context-planning.md
+      - Experienced memory: subsystems/experienced-memory.md
+      - Direct agent memory: subsystems/agent-memory.md
+      - Deliberate mental work: subsystems/deliberate-mental-work.md
+      - Managed memory lifecycle: subsystems/agent-memory-lifecycle.md
+      - Experience consolidation: subsystems/memory-consolidation.md
+      - Character import and memory reconsolidation: subsystems/character-import.md
+      - Images in records: subsystems/multimodal-records.md
+      - Public dialogue: subsystems/public-dialogue.md
+      - Public publication and recovery: subsystems/public-publication.md
+      - Asynchronous conversation review: subsystems/async-conversation-review.md
+      - Runtime record packages: subsystems/record-packages.md
+      - Cognitive evaluation:
+          - Run and inspect: subsystems/cognitive-evaluation.md
+          - Blinded review boundaries: subsystems/cognitive-review-boundaries.md
+          - Output recovery: subsystems/cognitive-output-recovery.md
+          - Add scenarios: subsystems/cognitive-evaluation-authoring.md
+      - Sustained Minecraft actor: subsystems/minecraft-actor.md
+      - Minecraft actor controls: subsystems/minecraft-actor-controls.md
+      - Native gameplay provider protocol: subsystems/gameplay-provider-protocol.md
+      - Durable Minecraft projects: subsystems/minecraft-tasks.md
+      - Minecraft task evidence: subsystems/minecraft-task-evidence.md
+      - Scoped project decisions: subsystems/gameplay-decision-scopes.md
+      - Body interruption and recovery: subsystems/body-recovery.md
+      - Durable body leases: subsystems/body-leases.md
+      - Intent and progress recovery: subsystems/recovery-publication.md
+      - Expected gameplay failures: subsystems/gameplay-recovery.md
+      - Gameplay history and cognition: subsystems/gameplay-evidence.md
+      - Operator service: subsystems/console.md
+      - Web chat: subsystems/web-chat.md
+      - Ghost and bus: ghost.md
+      - Models:
+          - Connections and embeddings: models.md
+          - Python chat and agent context: subsystems/llm-context.md
+          - Prompt log: subsystems/prompt-log.md
+      - Optional typed decisions:
+          - Client boundary: subsystems/decisions/index.md
+          - Local deployment: subsystems/decisions/operation.md
+          - Model observations and limits: subsystems/decisions/quality.md
+      - Workflow runtime:
+          - Invocation and grants: runtime.md
+          - Tool-backed draft sessions: subsystems/draft-sessions.md
+          - Workflow review modes: subsystems/workflow-reviews.md
+          - Review materiality: subsystems/review-materiality.md
+          - Scoped inputs: subsystems/workflow-inputs/index.md
+          - Binding syntax: subsystems/workflow-inputs/bindings.md
+          - Versions and replay: subsystems/workflow-inputs/versions.md
+          - Classification contract: subsystems/workflow-inputs/classification.md
+          - Classification recovery and context: subsystems/workflow-inputs/classification-recovery.md
+          - PM classification connections: subsystems/workflow-inputs/pm-connections.md
+          - PM classification diagnosis: subsystems/workflow-inputs/pm-failures.md
+      - Managed work: subsystems/managed-work.md
+      - Singleton managed workflows: subsystems/managed-singletons.md
+  - Work items:
+      - Development process: work_items/process.md
+      - Structural refactor:
+          - Plan: work_items/refactor/index.md
+          - Relocation map: work_items/refactor/relocation-map.md
+      - Plan and implementation: work_items/plan.md
+      - Companion alpha plan:
+          - Overview and order: work_items/alpha-plan/index.md
+          - Companion development priorities: work_items/alpha-plan/companion-development.md
+          - Curated cognitive sources: work_items/alpha-plan/cognitive-sources.md
+          - Model selection and reliability: work_items/alpha-plan/model-policy.md
+          - Current implementation audit: work_items/alpha-plan/current-state.md
+          - Previous PM attempts: work_items/alpha-plan/previous-attempts.md
+          - Cognitive architecture: work_items/alpha-plan/cognition.md
+          - Private ontology and expression: work_items/alpha-plan/ontology.md
+          - Scoped memory tools: work_items/alpha-plan/memory-tools.md
+          - Memory-tool evidence and lifecycle: work_items/alpha-plan/memory-tool-evidence.md
+          - Second conscious loop: work_items/alpha-plan/private-loop.md
+          - Deliberate mental control: work_items/alpha-plan/deliberate-control.md
+          - Felt-state projections: work_items/alpha-plan/felt-state.md
+          - Self-model and reflection: work_items/alpha-plan/reflection.md
+          - Pre-trial memory consolidation: work_items/alpha-plan/memory-consolidation.md
+          - Atomic consolidation windows: work_items/alpha-plan/consolidation-commits.md
+          - Personal trial across real days: work_items/alpha-plan/personal-trial.md
+          - Models and workflow inputs: work_items/alpha-plan/decisions.md
+          - Classification inputs and INVALID: work_items/alpha-plan/workflow-inputs.md
+          - Minecraft architecture: work_items/alpha-plan/minecraft.md
+          - Minecraft body operation: work_items/alpha-plan/minecraft-operations.md
+          - Manual milestones: work_items/alpha-plan/verification.md
+          - Inner-loop milestones: work_items/alpha-plan/cognition-verification.md
+          - Evaluation and session evidence: work_items/alpha-plan/evaluation.md
+          - Decision register: work_items/alpha-plan/decision-register.md
+          - A01 baseline:
+              - Snapshot and boundaries: work_items/alpha-plan/baseline/index.md
+              - Baseline receipts: work_items/alpha-plan/baseline/receipts.md
+              - Scenario matrix: work_items/alpha-plan/baseline/scenarios.md
+              - Repeatable local commands: work_items/alpha-plan/baseline/commands.md
+              - Session handoff: work_items/alpha-plan/baseline/handoff.md
+              - Original brief: work_items/alpha-plan/baseline/original-brief.md
+          - Work items:
+              - A01 Baseline and scenarios: work_items/alpha-plan/work-items/a01.md
+              - A02 Public pm-coder decision client: work_items/alpha-plan/work-items/a02.md
+              - A03 Files and folder metadata: work_items/alpha-plan/work-items/a03.md
+              - A04 Classification and INVALID: work_items/alpha-plan/work-items/a04.md
+              - A05 PM classification wiring: work_items/alpha-plan/work-items/a05.md
+              - A06 Accepted affect and goals: work_items/alpha-plan/work-items/a06.md
+              - A07 Emotional dynamics: work_items/alpha-plan/work-items/a07.md
+              - A08 Experienced memory: work_items/alpha-plan/work-items/a08.md
+              - A09 Public voice: work_items/alpha-plan/work-items/a09.md
+              - A09R Agentic public voice: work_items/alpha-plan/work-items/a09r.md
+              - A10 Sustained Minecraft actor: work_items/alpha-plan/work-items/a10.md
+              - A11 Durable task tree: work_items/alpha-plan/work-items/a11.md
+              - A12 Interruption and recovery: work_items/alpha-plan/work-items/a12.md
+              - A13 Adaptive replanning: work_items/alpha-plan/work-items/a13.md
+              - A14 Cooperative play and initiative: work_items/alpha-plan/work-items/a14.md
+              - A14B Editable drafts and scoped memory: work_items/alpha-plan/work-items/a14b.md
+              - A15 Codelet engine: work_items/alpha-plan/work-items/a15.md
+              - A16 Codelet repertoire: work_items/alpha-plan/work-items/a16.md
+              - A17 Second conscious loop: work_items/alpha-plan/work-items/a17.md
+              - A18 Source-grounded self-model: work_items/alpha-plan/work-items/a18.md
+              - A18B Cognitive evaluation: work_items/alpha-plan/work-items/a18b.md
+              - A18C Deliberate mental control: work_items/alpha-plan/work-items/a18c.md
+              - A19 Effective reflection: work_items/alpha-plan/work-items/a19.md
+              - A19F Main cognition rebuild: work_items/alpha-plan/work-items/a19f.md
+              - A19G Inner loop on the shared cycle: work_items/alpha-plan/work-items/a19g.md
+              - A19B Memory consolidation and needs: work_items/alpha-plan/work-items/a19b.md
+              - A19C Daily-use interface: work_items/alpha-plan/work-items/a19c.md
+              - A19D Working container agent: work_items/alpha-plan/work-items/a19d.md
+              - A20 Integrated alpha trial: work_items/alpha-plan/work-items/a20.md
+      - Verification:
+          - Companion cognition plan revision: work_items/verification/cognition-plan-revision.md
+          - A02 decisions: work_items/verification/a02-decisions.md
+          - D3 System One comparison: work_items/verification/d3-systemone.md
+          - A03 workflow inputs: work_items/verification/a03-workflow-inputs.md
+          - A04 classification: work_items/verification/a04-classification.md
+          - A05 PM classification: work_items/verification/a05-pm-classification.md
+          - A06 cognition state: work_items/verification/a06-cognition-state.md
+          - A07 emotional dynamics: work_items/verification/a07-emotional-dynamics.md
+          - A08 experienced memory: work_items/verification/a08-experienced-memory.md
+          - A09 public dialogue: work_items/verification/a09-public-dialogue.md
+          - A09R private ontology: work_items/verification/a09r-private-ontology.md
+          - A09R OpenRouter delivery: work_items/verification/a09r-openrouter-delivery.md
+          - A14B agent memory: work_items/verification/a14b-agent-memory.md
+          - A10 Minecraft actor: work_items/verification/a10-minecraft-actor.md
+          - A11 Minecraft projects: work_items/verification/a11-minecraft-projects.md
+          - A12 body recovery: work_items/verification/a12-body-recovery.md
+          - A13 gameplay:
+              - Overview: work_items/verification/a13/index.md
+              - Failure fixtures: work_items/verification/a13/failure-fixtures.md
+              - M3 house and iron: work_items/verification/a13/m3-house-and-iron.md
+              - Concrete replanning: work_items/verification/a13/replanning.md
+              - Task and gate review: work_items/verification/a13/task-gate-review.md
+              - Gate contract proposal: work_items/verification/a13/gate-contract-proposal.md
+              - Scoped acceptance evidence: work_items/verification/a13/scoped-acceptance-evidence.md
+              - Block interaction evidence: work_items/verification/a13/block-interaction.md
+              - Earlier evidence:
+                  - Fixture receipts: work_items/verification/a13/history/fixture-receipts.md
+                  - Hazard diagnoses: work_items/verification/a13/history/hazard-diagnoses.md
+                  - Tool repairs: work_items/verification/a13/history/tool-repairs.md
+                  - Plan context: work_items/verification/a13/history/plan-context.md
+                  - Review repairs: work_items/verification/a13/history/review-repairs.md
+                  - Engineering checks: work_items/verification/a13/history/engineering-checks.md
+          - A14 cooperation: work_items/verification/a14-cooperation.md
+          - A15 codelets: work_items/verification/a15-codelets.md
+          - A16 codelet repertoire: work_items/verification/a16-codelets.md
+          - A17 private loop: work_items/verification/a17-private-loop.md
+          - A17/A18 hardening: work_items/verification/a17-a18-hardening.md
+          - Inference speed: work_items/verification/inference-speed.md
+          - A18B cognitive evaluation: work_items/verification/a18b-cognitive-evaluation.md
+          - A18C wait and control: work_items/verification/a18c-control.md
+          - A18B singleton admission: work_items/verification/a18b-singleton.md
+          - A18B review materiality: work_items/verification/a18b-review-materiality.md
+          - A19 reflection experiments:
+              - Verification: work_items/verification/a19-reflection.md
+              - Live evidence: work_items/verification/a19/live-evidence.md
+          - A19F main cognition rebuild: work_items/verification/a19f.md
+          - A18B error analysis:
+              - Overview: work_items/verification/a18b-errors-20261016.md
+              - Missing reply: work_items/verification/a18b-errors/stall.md
+              - Provider rejection: work_items/verification/a18b-errors/provider.md
+              - Body conflict: work_items/verification/a18b-errors/body-conflict.md
+              - Speech review: work_items/verification/a18b-errors/reviewers.md
+              - Evaluation review: work_items/verification/a18b-errors/evaluation-review.md
+          - A18 self-model:
+              - Verification: work_items/verification/a18-self-model.md
+              - Live evidence: work_items/verification/a18/live-evidence-20261015.md
+              - Persona comparison: work_items/verification/a18/persona-comparison.md
+              - Engineering baseline: work_items/verification/a18/engineering-baseline.md
+          - Console: work_items/verification/console.md
+      - Next experiments: work_items/experiments.md
+      - Beta idea items:
+          - Overview: work_items/beta-ideas/index.md
+          - Workspace momentum: work_items/beta-ideas/workspace-momentum.md
+          - Agentic generalization: work_items/beta-ideas/agentic-generalization.md
+          - Codelet discovery: work_items/beta-ideas/codelet-discovery.md
+          - Deeper qualia and ontology: work_items/beta-ideas/deeper-qualia-ontology.md
+          - Multi-persona deployment: work_items/beta-ideas/multi-persona-deployment.md
+          - Sandboxed host access: work_items/beta-ideas/sandboxed-host-access.md
+          - Companions and factions: work_items/beta-ideas/companions-and-factions.md
+          - Source self-modification: work_items/beta-ideas/source-self-modification.md
+          - System One decision uses: work_items/beta-ideas/system-one-uses.md
+  - API reference: reference/

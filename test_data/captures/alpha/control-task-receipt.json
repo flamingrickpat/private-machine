@@ -1,0 +1,96 @@
+{
+  "source": ".runtime\\alpha\\20261013-a09r-console-release\\instances\\7f4fbe7665e44726960205ef57f4aa66\\events.jsonl",
+  "task_receipt": {
+    "run_id": "b84f928eaeca4a8992e54b6bde143e58",
+    "action_id": "action-99ef6919a9ec",
+    "workflow_name": "local_task",
+    "parent_correlation": "37b10d7fe25e4302bd1b69a3e56ea0b5",
+    "state": "completed",
+    "latest_event": "completed",
+    "artifact_path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\20261013-a09r-console-release\\instances\\7f4fbe7665e44726960205ef57f4aa66\\managed_tasks\\b84f928eaeca4a8992e54b6bde143e58",
+    "instructions": "Execute the local_task control worker with the instruction 'write a note containing exactly copper lantern' and report what its actual receipt verifies, adhering to the constraint of not starting note_task.",
+    "revision": 0,
+    "applied_revision": 0,
+    "updates_open": false,
+    "question_id": "",
+    "answer": "",
+    "request_ids": [],
+    "arguments": {
+      "instruction": "write a note containing exactly copper lantern",
+      "_public_reply_requested": true,
+      "_public_action_schema_id": 11428,
+      "_public_original_request": "Run only local_task with instruction: write a note containing exactly copper lantern. Tell me what its actual receipt verifies. Do not start note_task for this request.",
+      "_public_original_request_id": 11418
+    },
+    "evidence": [
+      "outbox/report.yaml",
+      "scratch/observations.md",
+      "scratch/result.md",
+      "scratch/started.md"
+    ],
+    "created_at": 93266.484,
+    "updated_at": 93355.437,
+    "execution_epoch": 1,
+    "control_version": 9,
+    "interrupted_from": "",
+    "events": [
+      {
+        "message": {
+          "run_id": "b84f928eaeca4a8992e54b6bde143e58",
+          "event": "started",
+          "event_id": "b84f928eaeca4a8992e54b6bde143e58:1:1",
+          "execution_epoch": 1,
+          "receipt": {
+            "run_id": "b84f928eaeca4a8992e54b6bde143e58",
+            "action_id": "action-99ef6919a9ec",
+            "workflow_name": "local_task",
+            "parent_correlation": "37b10d7fe25e4302bd1b69a3e56ea0b5",
+            "state": "accepted",
+            "latest_event": "accepted",
+            "artifact_path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\20261013-a09r-console-release\\instances\\7f4fbe7665e44726960205ef57f4aa66\\managed_tasks\\b84f928eaeca4a8992e54b6bde143e58",
+            "instructions": "Execute the local_task control worker with the instruction 'write a note containing exactly copper lantern' and report what its actual receipt verifies, adhering to the constraint of not starting note_task.",
+            "revision": 0,
+            "applied_revision": -1,
+            "updates_open": true,
+            "question_id": "",
+            "answer": "",
+            "request_ids": [],
+            "arguments": {
+              "instruction": "write a note containing exactly copper lantern",
+              "_public_reply_requested": true,
+              "_public_action_schema_id": 11428,
+              "_public_original_request": "Run only local_task with instruction: write a note containing exactly copper lantern. Tell me what its actual receipt verifies. Do not start note_task for this request.",
+              "_public_original_request_id": 11418
+            },
+            "evidence": [
+              "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\20261013-a09r-console-release\\instances\\7f4fbe7665e44726960205ef57f4aa66\\managed_tasks\\b84f928eaeca4a8992e54b6bde143e58"
+            ],
+            "created_at": 93266.484,
+            "updated_at": 93266.484,
+            "execution_epoch": 1,
+            "control_version": 1,
+            "interrupted_from": "",
+            "resume_requests": []
+          }
+        },
+        "published": true
+      },
+      {
+        "message": {
+          "run_id": "b84f928eaeca4a8992e54b6bde143e58",
+          "event": "completed",
+          "event_id": "b84f928eaeca4a8992e54b6bde143e58:1:2",
+          "execution_epoch": 1
+        },
+        "published": true
+      }
+    ],
+    "resume_requests": [],
+    "report": {
+      "answer": "",
+      "instruction": "Execute the local_task control worker with the instruction 'write a note containing exactly copper lantern' and report what its actual receipt verifies, adhering to the constraint of not starting note_task.",
+      "summary": "local task finished: Execute the local_task control worker with the instruction 'write a note containing exactly copper lantern' and report what its actual receipt verifies, adhering to the constraint of not starting note_task."
+    },
+    "task_verified": false
+  }
+}

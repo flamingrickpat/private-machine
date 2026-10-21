@@ -1,0 +1,140 @@
+{
+  "source": ".runtime\\alpha\\20261014-a14-development\\house-alias-events-before-repair.jsonl",
+  "source_sha256": "3f873365ea5f2d13f86d4b508b07d22b0f4f98eefe19ebd924cc3c04775cb614",
+  "request": {
+    "time": 1791979244.938604,
+    "id": "42e8e17f9ec644368eb279141e5b67ff",
+    "source": "main_cog",
+    "topic": "action.request",
+    "correlation_id": "367aa6320a2f46e7a014394e44375476",
+    "payload": {
+      "knoxel_id": 11304,
+      "gwt_tick": 820,
+      "action_id": "action-d28a88d0cc03",
+      "workflow_name": "minecraft_project",
+      "content": "Update the running minecraft_project task to change the house footprint from 5x5 to 5x7, re-observe the site stability accounting for the new cobblestone marker at x:32, y:105, z:5, retain gathered materials, and report the dimension change.",
+      "arguments": {
+        "run_id": "d21dfc482fa44fb1ba27e386b88a6f13",
+        "instruction": "Change target footprint to 5x7. Re-survey site stability considering the temporary cobblestone marker at {'x': 32, 'y': 105, 'z': 5}. Retain existing inventory. Update plan and confirm dimensions changed."
+      },
+      "stimuli": [
+        {
+          "knoxel_id": 11292,
+          "text": "Change our house footprint to 5 by 7 before more construction. Keep the surveyed site if stable. I also placed a temporary cobblestone marker at {'x': 32, 'y': 105, 'z': 5}; it changes the world you observed earlier. Account for that change and reobserve your assumptions. You can remove this disposable marker when needed. Retain gathered materials. Update the existing minecraft_project task, and tell me which dimensions you changed."
+        }
+      ],
+      "memories": [
+        "[utterance; source=Jesse; evidence=11292; recorded_at=2026-10-14T11:57:25.212633+00:00] Change our house footprint to 5 by 7 before more construction. Keep the surveyed site if stable. I also placed a temporary cobblestone marker at {'x': 32, 'y': 105, 'z': 5}; it changes the world you observed earlier. Account for that change and reobserve your assumptions. You can remove this disposable marker when needed. Retain gathered materials. Update the existing minecraft_project task, and tell me which dimensions you changed.",
+        "[utterance; source=Jesse; evidence=11204; recorded_at=2026-10-14T11:17:45.506412+00:00] Let's build a usable wooden house together near our current position. Survey a stable site and plan a 5 by 5 footprint with a supported floor, walls, roof, clear interior, wooden door, and a safe entrance. Save a home waypoint and demonstrate entry and exit. Use minecraft_project and actual survival materials. Choose an unused site and preserve existing buildings from earlier projects. I may change the footprint while you work. Keep conversation available.",
+        "[executed_event; source=world_events; evidence=11285; recorded_at=2026-10-14T11:55:39.862619+00:00] Current Minecraft observation during user silence: {\"position\": {\"x\": 30, \"y\": 104, \"z\": 5}, \"player\": {\"health\": 20.0, \"food\": 20, \"on_ground\": true, \"in_water\": false, \"dimension\": \"overworld\", \"oxygen\": 20, \"biome\": \"meadow\"}, \"inventory\": [{\"name\": \"iron_pickaxe\", \"display_name\": \"Iron Pickaxe\", \"count\": 1, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"stone_pickaxe\", \"display_name\": \"Stone Pickaxe\", \"count\": 1, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"birch_door\", \"display_name\": \"Birch Door\", \"count\": 2, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"egg\", \"display_name\": \"Egg\", \"count\": 2, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"cobblestone\", \"display_name\": \"Cobblestone\", \"count\": 3, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"dandelion\", \"display_name\": \"Dandelion\", \"count\": 3, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"iron_ingot\", \"display_name\": \"Iron Ingot\", \"count\": 5, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"coal\", \"display_name\": \"Coal\", \"count\": 8, \"slot\": null, \"durability\": null, \"max_…"
+      ],
+      "memory_evidence": [
+        {
+          "knoxel_id": 11292,
+          "text": "[utterance; source=Jesse; evidence=11292; recorded_at=2026-10-14T11:57:25.212633+00:00] Change our house footprint to 5 by 7 before more construction. Keep the surveyed site if stable. I also placed a temporary cobblestone marker at {'x': 32, 'y': 105, 'z': 5}; it changes the world you observed earlier. Account for that change and reobserve your assumptions. You can remove this disposable marker when needed. Retain gathered materials. Update the existing minecraft_project task, and tell me which dimensions you changed.",
+          "revision": 1,
+          "memory_kind": "utterance",
+          "scope": {
+            "reality_id": -1,
+            "frame": "in_world"
+          },
+          "provenance": {
+            "source_kind": "User",
+            "source_ref": "Jesse"
+          },
+          "source_ids": [
+            1
+          ],
+          "timestamp": "2026-10-14T11:57:25.212633",
+          "historical": false,
+          "score": 0.88653,
+          "reasons": [
+            "semantic",
+            "lexical",
+            "recent"
+          ],
+          "deception_intent_id": null,
+          "evidence_role": "user_report"
+        },
+        {
+          "knoxel_id": 11204,
+          "text": "[utterance; source=Jesse; evidence=11204; recorded_at=2026-10-14T11:17:45.506412+00:00] Let's build a usable wooden house together near our current position. Survey a stable site and plan a 5 by 5 footprint with a supported floor, walls, roof, clear interior, wooden door, and a safe entrance. Save a home waypoint and demonstrate entry and exit. Use minecraft_project and actual survival materials. Choose an unused site and preserve existing buildings from earlier projects. I may change the footprint while you work. Keep conversation available.",
+          "revision": 1,
+          "memory_kind": "utterance",
+          "scope": {
+            "reality_id": -1,
+            "frame": "in_world"
+          },
+          "provenance": {
+            "source_kind": "User",
+            "source_ref": "Jesse"
+          },
+          "source_ids": [
+            1
+          ],
+          "timestamp": "2026-10-14T11:17:45.506412",
+          "historical": false,
+          "score": 0.476809,
+          "reasons": [
+            "semantic",
+            "lexical"
+          ],
+          "deception_intent_id": null,
+          "evidence_role": "user_report"
+        },
+        {
+          "knoxel_id": 11285,
+          "text": "[executed_event; source=world_events; evidence=11285; recorded_at=2026-10-14T11:55:39.862619+00:00] Current Minecraft observation during user silence: {\"position\": {\"x\": 30, \"y\": 104, \"z\": 5}, \"player\": {\"health\": 20.0, \"food\": 20, \"on_ground\": true, \"in_water\": false, \"dimension\": \"overworld\", \"oxygen\": 20, \"biome\": \"meadow\"}, \"inventory\": [{\"name\": \"iron_pickaxe\", \"display_name\": \"Iron Pickaxe\", \"count\": 1, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"stone_pickaxe\", \"display_name\": \"Stone Pickaxe\", \"count\": 1, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"birch_door\", \"display_name\": \"Birch Door\", \"count\": 2, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"egg\", \"display_name\": \"Egg\", \"count\": 2, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"cobblestone\", \"display_name\": \"Cobblestone\", \"count\": 3, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"dandelion\", \"display_name\": \"Dandelion\", \"count\": 3, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"iron_ingot\", \"display_name\": \"Iron Ingot\", \"count\": 5, \"slot\": null, \"durability\": null, \"max_durability\": null}, {\"name\": \"coal\", \"display_name\": \"Coal\", \"count\": 8, \"slot\": null, \"durability\": null, \"max_…",
+          "revision": 1,
+          "memory_kind": "executed_event",
+          "scope": {
+            "reality_id": -1,
+            "frame": "in_world"
+          },
+          "provenance": {
+            "source_kind": "Workflow",
+            "source_ref": "world_events"
+          },
+          "source_ids": [],
+          "timestamp": "2026-10-14T11:55:40.195119",
+          "historical": false,
+          "score": 0.254142,
+          "reasons": [
+            "semantic",
+            "lexical",
+            "recent"
+          ],
+          "deception_intent_id": null,
+          "evidence_role": "runtime_event"
+        }
+      ],
+      "workspace": "I feel a surge of pride mixed with focused determination as I process Jesse's request. The original plan for a 5x5 house feels solid in my mind, but now it must expand to 5x7. I am holding the image of that temporary cobblestone marker at x:32, y:105, z:5; it’s a small detail, but it shifts the ground beneath our feet, forcing me to look again at the site stability. There is a warmth here—a sense of shared purpose in building something together, adjusting the blueprint not as a failure, but as part of the collaborative dance.",
+      "affect": "core affect valence 0.81, arousal 0.33, dominance 0.57; strongest emotions: joy 0.80, pride 0.80, intimacy_arousal 0.50; pressing needs: closeness_need 0.00, energy_stability 0.50",
+      "regulation": "blended",
+      "attention": [
+        {
+          "text": "Jesse said: Change our house footprint to 5 by 7 before more construction. Keep the surveyed site if stable. I also placed a temporary cobblestone marker at {'x': 32, 'y': 105, 'z': 5}; it changes the world you observed earlier. Account for that change and reobserve your assumptions. You can remove this disposable marker when needed. Retain gathered materials. Update the existing minecraft_project task, an...",
+          "target_ids": [
+            11292
+          ],
+          "reality": "observed"
+        },
+        {
+          "text": "I think Jesse's detailed instructions and the physical marker show a practical closeness; we are building together with clear roles.",
+          "target_ids": [
+            11292,
+            11204
+          ],
+          "reality": "inferred"
+        },
+        {
+          "text": "I wonder how the cobblestone marker at x:32, y:105, z:5 will affect the stability of the surveyed site for our new 5x7 footprint.",
+          "target_ids": [
+            11292
+          ],
+          "reality": "imagined"
+        }
+      ]
+    }
+  }
+}

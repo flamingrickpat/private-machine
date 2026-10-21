@@ -1,0 +1,47 @@
+# Prompts of the attention phase (A19F step 6).
+#
+# Port of _simulate_attention_on_coalitions from
+# private-machine-head/pm/ghosts/ghost_lida.py. One call for each updated
+# workspace shard rates every structure for that shard. Each call starts
+# with the shared story prefix of story.yaml, which already holds the
+# character card. The instruction comes last. It holds the AttentionFocus
+# narrative, the state of mind, the structures, and the mental aperture
+# instruction of the old code. Python then fills the shards
+# (workflows/main_cognition/workspace_selection.py).
+user_template: |
+  This is how {companion_name} tends to focus, in {companion_name}'s own story:
+  {attention_narrative}
+
+  {companion_name}'s state of mind right now:
+  {mental_state}
+
+  Below awareness, these structures compete to become conscious in {companion_name}'s awareness of {shard_focus}.
+  Each structure starts with its label and says why its lines belong together.
+  {structures}
+
+  Your task: act as the attention mechanism of {companion_name}'s mind. Awareness is small. Of these {count}
+  structures, at most {winners} can become conscious in {companion_name}'s awareness of {shard_focus} right now. The
+  rest stay below awareness in this moment, even when they are true and important. Choose what {companion_name}
+  actually notices now, for this moment of the story and for {companion_name}'s traits and feelings, not what would be
+  useful or balanced. {aperture}
+  Rate from 0 to 1 and spread the ratings. Give a rating above 0.6 only to the structures that {companion_name}
+  notices now, and the highest rating to the one that grabs {companion_name} first. Give 0.3 or less to the
+  structures that stay below awareness. Do not give two structures the same rating. Give a short reason for each
+  rating, as story prose.
+
+  Answer with only this JSON object and nothing else, with exactly one entry for each label:
+  {{"ratings": [{{"structure": "S1", "reasoning": "...", "rating": 0.0}}]}}
+
+# Old aperture texts. The phase picks one by the mental aperture of the state.
+aperture_narrow: >-
+  {companion_name}'s mental aperture is low. Focus very narrowly on the single most important theme. Structures with
+  a central theme score higher than structures with balanced content.
+aperture_broad: >-
+  {companion_name}'s mental aperture is high. Keep a broad awareness and select structures with a diverse range of
+  themes. Structures with balanced content score higher than structures with a central theme.
+aperture_default: "Select the most relevant content for the current situation."
+
+shard_labels:
+  self_focus: "themself: who {companion_name} is, how {companion_name} feels, and what {companion_name} wants"
+  entity_focus: "{entity_name} and the relationship with {entity_name}"
+  workflow_focus: "the world of {workflow_name} and the work in it"

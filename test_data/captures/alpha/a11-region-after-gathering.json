@@ -1,0 +1,121 @@
+{
+  "provenance": {
+    "gate": ".runtime/alpha/a11h8",
+    "original_receipt": ".runtime\\alpha\\a11h8\\app\\managed_tasks\\c5dd26b5022c408dae158035b16552f6\\verification\\verifier-0007-gather_logs.json",
+    "scope": "Captured original region reads after gathering, not simulated world behavior."
+  },
+  "condition": {
+    "id": "gather_region",
+    "description": "The gathering happens near the current start position in the overworld",
+    "kind": "region",
+    "node_id": "",
+    "names": [
+      "air"
+    ],
+    "minimum": 1,
+    "position": {
+      "x": -16,
+      "y": 100,
+      "z": -24
+    },
+    "positions": [],
+    "end": {
+      "x": 24,
+      "y": 128,
+      "z": 24
+    },
+    "radius": 2.0,
+    "dimension": "overworld"
+  },
+  "reads": [
+    {
+      "criterion_id": "gather_region",
+      "tool": "minecraft_analyze_area",
+      "arguments": {
+        "start": {
+          "x": -16,
+          "y": 100,
+          "z": -24
+        },
+        "end": {
+          "x": 24,
+          "y": 128,
+          "z": 24
+        }
+      },
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "bounds": {
+          "min": {
+            "x": -16,
+            "y": 100,
+            "z": -24
+          },
+          "max": {
+            "x": 24,
+            "y": 128,
+            "z": 24
+          }
+        },
+        "blocks": [
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 1947
+          },
+          {
+            "block_name": "birch_leaves",
+            "display_name": "Birch Leaves",
+            "count": 336
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 285
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 96
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 58
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 58
+          },
+          {
+            "block_name": "tall_grass",
+            "display_name": "Tall Grass",
+            "count": 36
+          },
+          {
+            "block_name": "birch_log",
+            "display_name": "Birch Log",
+            "count": 13
+          },
+          {
+            "block_name": "poppy",
+            "display_name": "Poppy",
+            "count": 4
+          }
+        ],
+        "total_cells": 58261,
+        "solid_cells": 2412,
+        "air_cells": 31802,
+        "unseen_cells": 23626,
+        "entities": []
+      },
+      "ok": true,
+      "time": 1791352604.118388,
+      "observed_dimension": "overworld"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "provenance": {
+    "source": ".runtime/a18b-resume/saved-review/ordinary_project/reviews/editor-1/citation-repair-input.json",
+    "sha256": "2cea822c5922a9ac8ea472f461a2f82a519cdd355da9de5f5b09b6679d188ea8",
+    "scope": "Selected quotations from an actual reviewer request, not fixed model responses."
+  },
+  "quotations": [
+    {
+      "index": 0,
+      "source": "at least the goose has commitment. i’m just holding a pencil like it’s a tiny wooden hostage and waiting for it to tell me what happens next.",
+      "attempted_quote": "i'm just holding a pencil like it's a tiny wooden hostage"
+    },
+    {
+      "index": 1,
+      "source": "i’m going to do the scream. but if i draw a stick figure with no limbs and call it ‘protagonist,’ you have to promise not to laugh.",
+      "attempted_quote": "i'm going to do the scream"
+    },
+    {
+      "index": 2,
+      "source": "don’t worry, i’m already laughing internally. the limbs are optional; it’s the existential dread in that single head that counts.",
+      "attempted_quote": "don't worry, i'm already laughing internally"
+    },
+    {
+      "index": 3,
+      "source": "the trumpet loses to the pencil, obviously. one of you is at least making an honest attempt at a crime scene.\n\ngo with the goose model: scream once into the page so it knows who’s in charge, then write something terrible on purpose. blank pages only judge people who care about their opinion.",
+      "attempted_quote": "go with the goose model: scream once into the page so it knows who's in charge"
+    },
+    {
+      "index": 4,
+      "source": "i’m going to do the scream. but if i draw a stick figure with no limbs and call it ‘protagonist,’ you have to promise not to laugh.",
+      "attempted_quote": "if i draw a stick figure with no limbs and call it 'protagonist'"
+    },
+    {
+      "index": 5,
+      "source": "don’t worry, i’m already laughing internally. the limbs are optional; it’s the existential dread in that single head that counts.",
+      "attempted_quote": "it's the existential dread in that single head that counts"
+    }
+  ]
+}

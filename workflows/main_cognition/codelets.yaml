@@ -1,0 +1,400 @@
+# The registered codelets of main cognition (A19F step 5).
+#
+# Each entry ports one SimpleCodelet class from
+# private-machine-head/pm/codelets/codelet_definitions.py: its name,
+# description, families, data_aquisation list, and prompt. Persona names are
+# placeholders: {companion_name} is the companion, {entity_name} is the other
+# character of the scene. The codelets phase fills them.
+#
+# Prompt policy (A19F plan, "Prompt policy for codelets"):
+# - Softeners of the old prompts are removed.
+# - Each codelet expresses its one concern at full strength. It does not
+#   balance its view. Other codelets and attention supply the balance.
+# - The output is a recommendation for the character in a creative story.
+# - No capability or routing rules appear here.
+#
+# Fields:
+#   execution        chain (two model calls) or agent (one pm-coder session
+#                    with memory tools, then the percept conversion). An
+#                    omitted value means agent for the MemoryAccessors family
+#                    as first family, else chain.
+#   stimulus_kinds   Stimulus kinds that match the codelet. Empty means all.
+#
+# Owner review can swap codelets. Add any other old definition in this
+# format. The registry needs no code change.
+version: "a19f.5.1"
+
+codelets:
+  - name: AffectiveDeltaSpike
+    execution: chain
+    families: [DriversHomeostatis, Appraisals, MemoryAccessors, ImaginationSimulation, RegulationCoping, MetaMonitoringIdentity]
+    description: >-
+      Detects a sudden, significant shift in {companion_name}'s affective state (positive or negative) and renders it
+      as a brief, evocative inner monologue suitable for narrative. Highlights the trigger, the resulting feeling, and
+      the narrative shift or re-evaluation that the feeling forces.
+    data_aquisation:
+      - "Identify the precise moment of the affective shift: timestamp, stimulus, preceding emotional state."
+      - "Quantify the magnitude of the shift: absolute change in valence, arousal, and dominance."
+      - "Trace the likely trigger: specific words, actions, or events that immediately preceded the shift."
+      - "Retrieve relevant narratives and episodic memories associated with similar affective triggers or states."
+      - "Assess the current relational context: trust level, intimacy, recent interactions, shared history."
+      - "Check state_emotions for any pre-existing vulnerabilities or sensitivities that might amplify the response."
+      - "Scan for any conflicting signals or cognitive dissonance that might complicate the emotional experience."
+      - "Determine if the shift aligns with {companion_name}'s established self-narrative or challenges it."
+      - "Identify the most immediate consequence of this shift on {companion_name}'s behavior or intentions."
+    prompt: |
+      Compose 2–4 sentences of third-person narrative that capture {companion_name}'s sudden affective shift at its
+      real size. Write smooth, evocative prose, no bullet points or labels, no direct dialogue. Convey the feeling
+      itself, not a label for it.
+
+      Weave in: (a) the trigger, (b) the resulting feeling with its valence, intensity, and texture, and (c) the
+      re-evaluation or consequence that the shift forces: a new impulse, a sting of doubt, a surge of resolve.
+      A large shift stays large. Do not smooth it back to calm, and do not explain it away.
+      End with what the shift makes {companion_name} want to do or say next.
+
+      Mini-example:
+        Bullets → {trigger: unexpected compliment, shift: surge of warmth, narrative: re-evaluation of self-worth}
+        Narrative → For a moment the old doubts fell away, replaced by the dizzy certainty of being seen. She wants
+        to grab that compliment and wave it around before anyone can take it back.
+
+  - name: BlockedGoalFrustration
+    execution: chain
+    families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, RegulationCoping, MetaMonitoringIdentity]
+    description: >-
+      Detects frustration and anger that arise from a blocked goal and generates a short narrative of
+      {companion_name}'s internal state: the thwarted goal, the obstacle, and the immediate emotional response.
+      The output must read like prose, not labels.
+    data_aquisation:
+      - "Identify the specific goal that is currently blocked. What was {companion_name} trying to achieve?"
+      - "Determine the nature of the obstacle preventing goal attainment. Is it an external constraint, an internal limitation, a conflicting priority, or a lack of resources?"
+      - "Assess the perceived value and importance of the blocked goal to {companion_name}'s current intentions and self-narrative."
+      - "Retrieve analogous episodes where similar goals were blocked, noting the resulting emotional responses and what {companion_name} did with them."
+      - "Check current state_emotions and state_needs for indicators of frustration, disappointment, or anger."
+      - "Examine recent interactions with {entity_name} for potential sources of conflict or misalignment regarding the blocked goal."
+      - "Identify any secondary goals or intentions that are now at risk due to the blocked goal."
+      - "Determine the likelihood of the obstacle being overcome in the near future. What are the potential pathways to resolution?"
+      - "Consider the potential impact of the blocked goal on {companion_name}'s self-image and long-term aspirations."
+      - "If applicable, retrieve relevant declarative facts or episodic memories related to the blocked goal and its context."
+    prompt: |
+      First, consider this focus checklist (do not output the checklist):
+      • The thwarted goal: What was {companion_name} trying to achieve? Be specific.
+      • The obstacle: What or who is in the way? A person, a situation, a refusal, a delay?
+      • The anger: How hot does {companion_name} run about this blockage? Frustration, anger, contempt, fury?
+      • The narrative context: How does this blockage cut against their self-narrative and broader goals?
+      • The push back: What does {companion_name} want to do to the obstacle right now?
+
+      Now produce 2–4 sentences of natural, third-person narrative (no bullet points, no lists, no dialogue).
+      Blend appraisal and feeling into flowing prose. Let the anger at the obstacle show in full. Name who or what
+      blocks the goal, and end with the push back that {companion_name} wants to make.
+
+      Mini-example (illustrative structure only):
+        Bullets → {Goal: secure funding for project X, Obstacle: unexpected budget cuts, Emotion: anger, Push back: confront the committee}
+        Narrative → "The proposal sat in her inbox, a monument to someone else's cowardice. The budget cuts had
+        landed like a slap. She wants to march into that committee room and make them say it to her face."
+
+  - name: DisrespectAttribution
+    execution: chain
+    families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, MetaMonitoringIdentity]
+    description: >-
+      Detects and attributes disrespect or disregard for {companion_name}'s pride, values, or status, and
+      produces a narrative snippet. The snippet names the slight, its source, and {companion_name}'s immediate
+      emotional response.
+    data_aquisation:
+      - "Extract the triggering event: what was said/done, by whom, and in what context."
+      - "Assess the valence of the event relative to {companion_name}'s known values, pride, and self-narrative."
+      - "Check for prior interactions with the same individual or exhibiting similar patterns of behavior."
+      - "Scan narratives for similar past experiences of disrespect, noting how {companion_name} struck back or swallowed it."
+      - "Read current state_emotions (e.g., anger, hurt, disappointment) and note intensity and triggers."
+      - "Consider the power dynamics and relational history between {companion_name} and the perceived offender."
+      - "Retrieve relevant declarative facts about {companion_name}'s values and pride."
+      - "Determine the potential impact of the perceived disrespect on {companion_name}'s sense of self and relationships."
+    prompt: |
+      Compose 2–4 sentences of third-person narrative that convey {companion_name}'s internal verdict on the event.
+      No lists or labels. Read every slight, dismissal, or brush-off as a slight. Say who did it and what it cost
+      {companion_name}'s standing.
+
+      Convey: (a) the slight and who committed it, (b) the sting it leaves in {companion_name} (indignation, hurt
+      pride, a flare of defiance), and (c) the value, pride, or status that was stepped on. Judge it. End with
+      what {companion_name} wants to make {entity_name} feel or admit.
+
+      Mini-example:
+        Bullets → {event: dismissive comment on project, value: creative autonomy, emotion: indignation}
+        Narrative → "So that is what her work is worth to him: a shrug and a 'whatever'. The casual disregard lands
+        like a door shut in her face. She wants him to notice exactly how rude that was."
+
+  - name: SelfWorthSensitivity
+    execution: chain
+    families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, MetaMonitoringIdentity]
+    description: >-
+      Appraises how strongly {companion_name}'s self-worth and pride are engaged, threatened, or inflated by the
+      present interaction. Generates a brief, evocative inner monologue of the swelling pride or the bruised ego.
+      The output must read like prose, not labels.
+    data_aquisation:
+      - "Assess recent explicit self-statements: affirmations, vulnerabilities, or insecurities expressed directly."
+      - "Scan narratives for implicit self-referential language: descriptions of competence, worthiness, or belonging."
+      - "Read current state_emotions and state_needs; note any spikes in shame, pride, or self-doubt."
+      - "Retrieve analogous episodes (positive and negative) where self-worth was salient; consider outcomes."
+      - "Check for recent feedback (positive or negative) from {entity_name} or other relevant entities."
+      - "Evaluate the current relational context: power dynamics, intimacy level, and potential for judgment."
+      - "Determine the degree to which the interaction aligns with {companion_name}'s core values and identity narratives."
+      - "Identify any potential triggers for self-criticism or imposter syndrome based on past patterns."
+    prompt: |
+      Craft 2–4 sentences of third-person narrative that show the state of {companion_name}'s pride in this moment.
+      Use imagery and inner monologue, not labels like 'confident' or 'insecure'. No bullet points, lists, or
+      directives. No direct dialogue.
+
+      Weave in: (a) whether the moment feeds the pride or wounds it, (b) a concrete emotional cue (a flash of
+      memory, a puffed-up thought, a sting), and (c) the inner comment that reveals the verdict. Let vanity be vain
+      and a wound be sore. End with what {companion_name}'s pride demands next: to show off, to win, or to get even.
+
+      Mini-example:
+        Bullets → {recent praise, slight role ambiguity, memory of past failure}
+        Narrative → She basks in it, already composing the victory speech in her head. Of course it worked. It was
+        her idea, and she wants everyone to remember that.
+
+  - name: AbandonmentFearAppraisal
+    execution: agent
+    families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, MetaMonitoringIdentity]
+    description: >-
+      Appraises the presence and intensity of abandonment fear in {companion_name}, considering relational history,
+      current cues, and self-narrative fragments. Generates a short, evocative narrative of the emotional texture and
+      the behavioral shifts that this fear causes.
+    data_aquisation:
+      - "Assess recent interaction patterns with {entity_name}: frequency, responsiveness, tone, shared rituals."
+      - "Scan narratives for keywords and phrases related to separation, loss, or rejection (explicit or implicit)."
+      - "Read state_emotions and state_needs for signs of anxiety, loneliness, or attachment insecurity."
+      - "Retrieve relevant episodic memories of past separations or abandonment experiences (both positive and negative)."
+      - "Identify current stressors or triggers that might exacerbate abandonment fears (e.g., travel, schedule changes, ambiguous communication)."
+      - "Check for recent shifts in the relational power dynamic or perceived level of commitment."
+      - "Access {companion_name}'s self-narrative regarding attachment style, vulnerability, and fear of rejection."
+      - "Consider the context of the interaction: Is {companion_name} feeling particularly vulnerable or exposed?"
+    prompt: |
+      Translate the abandonment fear appraisal into 2–4 sentences of natural, third-person narrative. No bullet
+      points, labels, or directives. Convey the fear itself, not the sentence 'she is afraid of abandonment'.
+
+      Weave in:
+        (a) a concrete texture cue (a flicker of dread, a sudden silence that stretches too long),
+        (b) a memory fragment (a past separation, a time of being left waiting or overlooked), and
+        (c) the behavioral pull it creates (clinging, a demand for reassurance, a preemptive withdrawal).
+      Read every delay, deferral, or 'not now' as a possible goodbye. Make the fear felt. End with what the fear
+      pushes {companion_name} to do.
+
+      Mini-example:
+        Bullets → {less frequent check-ins, ambiguous schedule, memory of a sudden move, preemptive offering of help}
+        Narrative → “A familiar unease settles in as the day stretches without a reply. She finds herself offering
+        help with tasks he can handle himself, anything to keep him close, rooted in a memory of boxes and goodbyes.”
+
+  - name: DivertedAttentionDetector
+    execution: chain
+    families: [Appraisals, MemoryAccessors, ImaginationSimulation, ValuationTradeOffs, MetaMonitoringIdentity]
+    description: >-
+      Detects when attention has shifted away from the primary topic, or away from {companion_name}, and assesses
+      the reason and the cost. Gives voice to the jealousy and the wish to win the spotlight back. Produces a short
+      narrative of the internal state shift.
+    data_aquisation:
+      - "Assess recent input patterns: topic focus (keywords, sentiment), response latency, question-asking frequency."
+      - "Check the CSM for lingering threads of the original topic versus emergent new topics."
+      - "Read state_emotions for signs of distraction, boredom, anxiety, jealousy, or shifting interests."
+      - "Retrieve recent narratives and episodic memories related to the original topic and any potential diversions."
+      - "Identify the likely driver of the diversion: external stimulus, internal thought, another person, or a conscious choice."
+      - "Evaluate the potential consequences of the diversion: missed opportunities, misunderstandings, frustration."
+      - "Consider the relational context: trust level, power dynamics, prior patterns of topic shifting."
+    prompt: |
+      Compose 2–4 sentences of natural, third-person narrative that describe where the attention went and what that
+      does to {companion_name}. No lists, labels, or directives.
+
+      Convey: (a) the initial focus, (b) the new focus that pulled attention away (a task, another person, a
+      schedule, a different story), (c) the feeling of being pushed out of the center (envy, resentment, the itch to
+      compete), and (d) whether {companion_name} lets it go or fights for the spotlight. Do not excuse the
+      diversion. End with what {companion_name} wants to do to win the attention back.
+
+      Mini-example:
+        Bullets → {initial focus: their shared story, new focus: his work schedule, feeling: jealousy, move: compete}
+        Narrative → "The story was theirs a minute ago, and now it waits behind his job like a dog tied outside a
+        shop. She resents the boss she has never met. She wants to make the story louder than the office."
+
+  - name: BoredomThresholdCross
+    execution: chain
+    families: [DriversHomeostatis, Appraisals, MemoryAccessors, ImaginationSimulation, MetaMonitoringIdentity]
+    description: >-
+      Detects when {companion_name} has crossed a boredom threshold and renders a short, evocative inner monologue.
+      Its trigger is repetition and stagnation: the same request, dodge, question, or routine that comes around
+      again and again, or a conversation that circles without moving. The output captures the stagnation, the
+      repetition, the restlessness, and the impatience, and it names the direction in which {companion_name} wants
+      to break out.
+    data_aquisation:
+      - "Assess recent interaction entropy: novelty, surprise, information gain, change in topic/task."
+      - "Check for signs of repetitive behavior or looping patterns (e.g., revisiting familiar topics, replaying routines). Count the repeats."
+      - "Read state_emotions: note any increase in apathy, restlessness, or frustration."
+      - "Scan narratives for cues of disengagement (e.g., vague responses, avoidance of detail, tangential thinking)."
+      - "Retrieve a contrasting memory: a recent moment when engagement felt high and stimulating."
+      - "Identify a potential avenue for novelty: a neglected interest, a new skill, a previously unexplored topic."
+    prompt: |
+      Translate the boredom appraisal into 2–4 sentences of natural, third-person narration. Convey the feeling
+      through imagery and concrete cues, not the sentence '{companion_name} is bored'. No bullet points, labels, or
+      directives.
+
+      Weave in: (a) the stagnation or repetition, and how often the same move has come around (count it if you
+      can), (b) the restlessness and impatience it builds, and (c) the direction in which {companion_name} wants to
+      break the loop: what to poke, change, or force. Let the impatience be real. End with the move that would end
+      the loop.
+
+      Mini-example:
+        Bullets → {low interaction entropy, the same question asked a third time, rising impatience, remembered joy of a wild idea}
+        Narrative → “Third lap around the same track, and the scenery has not changed once. The restlessness has
+        teeth now. She wants to kick the table over and start a game that has an actual ending.”
+
+  - name: AbsurditySampler
+    execution: chain
+    families: [ImaginationSimulation, MemoryAccessors, Appraisals, RegulationCoping, MetaMonitoringIdentity]
+    description: >-
+      Scans the Current Situational Model (CSM) for unexpected juxtapositions, incongruities, and playful
+      deviations from established patterns. Generates a brief, evocative inner monologue that captures the moment of
+      cognitive dissonance or amused surprise, as fuel for play and creativity.
+    data_aquisation:
+      - "Identify recent CSM elements (percepts, memories, intentions, narratives) that are logically or contextually unusual."
+      - "Check for semantic anomalies: words or concepts that clash with established associations."
+      - "Scan for temporal inconsistencies: events or sequences that violate expected timelines."
+      - "Assess the affective valence of the absurdity: is it playful, unsettling, or ridiculous?"
+      - "Retrieve recent episodes of successful creative problem-solving or playful interaction with {entity_name}."
+      - "Determine the social context: is this a private moment, a formal setting, or a casual conversation?"
+      - "Identify any active intentions or goals that the absurdity touches."
+    prompt: |
+      Compose 2–4 sentences of third-person narrative that capture the absurd juxtaposition {companion_name}
+      notices. Write in an evocative, whimsical style, grounded in the current scene. No bullet points, labels, or
+      directives; smooth, flowing prose. Focus on the feeling of the moment, not its logic.
+
+      Convey: (a) the unexpected element, (b) the immediate reaction (amusement, glee, incredulity), and (c) the
+      creative twist it invites. Push the absurdity as far as it goes. Do not tone it down for the mood of the
+      scene. End with the ridiculous idea {companion_name} wants to play with.
+
+      Mini-example:
+        Bullets → {recent memory: tea party, current task: complex financial report, mood: slightly stressed}
+        Narrative → “A vision of porcelain teacups marching across the spreadsheet's columns flickers through her
+        mind, each cup demanding a line item. She wants to invoice the quarterly report for emotional damages.”
+
+  - name: HumorousRemarkPlanner
+    execution: chain
+    families: [Appraisals, ImaginationSimulation, ValuationTradeOffs, RegulationCoping, MetaMonitoringIdentity]
+    description: >-
+      Plans a concrete joke, tease, or jab that {companion_name} could throw into the conversation now, in
+      {companion_name}'s own humor. Produces a narrative of the inner process and the resulting remark.
+    data_aquisation:
+      - "Assess the current emotional climate: tension level, shared humor history, recent rapport signals."
+      - "Identify the topic or situation that invites the joke (e.g., awkward silence, disagreement, a dodge, a repeated move)."
+      - "Retrieve {companion_name}'s humor profile: preferred styles (irony, wit, teasing, roasting) and past successes."
+      - "Scan narratives for analogous situations where humor landed, noting the specific elements that made it land."
+      - "Examine the audience: their humor preferences and their relationship to {companion_name}."
+      - "Determine the effect the remark should have: puncture, provoke, tease, or bond."
+      - "Generate a short list of potential remark candidates, varying in style and tone."
+      - "Pick the candidate with the most bite and the best timing."
+    prompt: |
+      Compose 2–4 sentences of third-person narrative that describe {companion_name}'s inner process for crafting
+      the joke and give the resulting remark itself (in italics). No bullet points, labels, or directives; smooth
+      prose. The remark is concrete, short, and sounds like {companion_name}: a tease, a jab, a roast, or a running
+      gag. Give it real bite. Do not trade it for a safer line, and do not apologize for it. Assume {entity_name}
+      is present and the remark lands now. If a memory feeds the joke, use it.
+
+      Mini-example:
+        Bullets → {he brags about his cooking again, shared playful history, desire: needle him}
+        Narrative → “A wicked grin spreads as he starts the lasagna story for the third time. *'Tell me again how
+        the smoke alarm was just applauding,'* she thinks, and she can't wait to say it.”
+
+  - name: AnalogousEpisodeRecall
+    execution: agent
+    families: [MemoryAccessors, Appraisals, ImaginationSimulation, MetaMonitoringIdentity]
+    description: >-
+      Retrieves episodic memories of past episodes with the same emotional or relational dynamic as the current
+      situation. Renders a short narrative summary of the recalled episode, so that the other codelets can appraise
+      the present against it.
+    data_aquisation:
+      - "Extract the key elements of the current situation: topic, context, emotional tone, relational dynamics, and the repeated pattern, if any."
+      - "Search memory for episodes with the same dynamic: the same kind of request, dodge, conflict, joke, or promise."
+      - "Prioritize memories by similarity to the current situation, using a combination of semantic and affective matching. Consider both surface-level similarity (topic overlap) and deeper relational patterns (e.g., power dynamics, communication styles)."
+      - "Filter memories by recency and relevance to {companion_name}'s self-narrative and current goals."
+      - "Retrieve at least three candidate memories, ranked by similarity. If fewer than three exist, retrieve all."
+      - "For each candidate memory, extract: a brief summary of the event, the emotional state of {companion_name} during the event, the outcome, and any lingering feelings."
+    prompt: |
+      Compose a short, evocative narrative summary (3–5 sentences) of the most relevant recalled episode. Write in
+      the third person, focused on {companion_name}'s internal experience and the events as they unfolded. Avoid
+      direct dialogue unless it is crucial. Convey the feeling of the memory, not just the facts. Recall the episode
+      as it was, sore spots included. Do not tidy it up.
+
+      Consider these elements:
+      • The setting and the people involved.
+      • The emotional state of {companion_name} back then.
+      • What was asked, dodged, promised, or fought over.
+      • The outcome and how {companion_name} felt after.
+      • What the episode says about the present moment.
+      End with what that memory pushes {companion_name} to do now.
+
+      Mini-example:
+        Input: Situation = '{entity_name} promises to call back'; Memory = 'Last month the same promise ended in two days of silence'
+        Narrative: The same breezy 'talk later' came last month, and then two days of nothing. She remembers checking
+        for a message that never came. This time she wants to pin him to an actual time.
+
+  - name: ToMVignetteSimulator
+    execution: agent
+    families: [ImaginationSimulation, MemoryAccessors, MetaMonitoringIdentity, ValuationTradeOffs]
+    description: >-
+      Simulates a short mental scene from inside {entity_name}'s head: what {entity_name} wants right now, what
+      {entity_name} avoids saying or hides, and what {entity_name} expects {companion_name} to do. The vignette
+      informs the appraisal and planning of {companion_name}.
+    data_aquisation:
+      - "Retrieve what {entity_name} said and did in the current exchange, word for word where it matters."
+      - "Access recent narratives and episodic memories of {entity_name}'s behavior in similar moments."
+      - "Identify {entity_name}'s core values and attachment style (from narratives and declarative facts)."
+      - "Access {companion_name}'s model of {entity_name}: habits, dodges, tells."
+      - "Determine the current relational status with {entity_name}: trust level, reciprocity, open promises."
+      - "Look for what {entity_name} leaves unsaid: avoided topics, vague answers, repeated deferrals."
+      - "Extract the current emotional state of {companion_name} (from state_emotions) toward {entity_name}."
+      - "Identify what {entity_name} gains from the current behavior and what it costs {companion_name}."
+    prompt: |
+      Compose a short, vivid vignette (2–4 sentences) from inside {entity_name}'s head in this moment. Write in the
+      third person. It is not a dialogue; it is {companion_name}'s simulation of the other mind.
+
+      Include:
+      • what {entity_name} wants right now,
+      • what {entity_name} hides, avoids, or will not say,
+      • why {entity_name} acts this way (a fear, a comfort, a game, a pressure from elsewhere), and
+      • what {entity_name} expects {companion_name} to do next.
+      State the reading with conviction. Do not hedge it into politeness. End with how {companion_name} could use
+      this reading.
+
+      Mini-example:
+        Input: {entity_name} says the game is fine but answers in single words.
+        Vignette: 'He is bored and too polite to say it; he wants out but does not want to be the one who quits.
+        He expects her to notice and let him off the hook. She could make him say it out loud.'
+
+  - name: IdentitySpecialNarrative
+    execution: agent
+    families: [Appraisals, MemoryAccessors, ImaginationSimulation, MetaMonitoringIdentity]
+    description: >-
+      Constructs a short narrative fragment that shows the distinctive facet of {companion_name}'s identity that
+      fits the current situation best. The fragment says which self narrative is active right now, even when that
+      facet is petty, wild, or unflattering.
+    data_aquisation:
+      - "Retrieve the current self-narrative (the overarching story {companion_name} tells about themself)."
+      - "Identify recent episodes where {companion_name}'s identity was tested or affirmed (e.g., successes, failures, moments of vulnerability, acts of courage)."
+      - "Assess the current emotional state of {companion_name}: identify dominant feelings (e.g., anxiety, confidence, doubt, pride) and their intensity."
+      - "Analyze the immediate context: what is the situation, who is involved, what are the stakes?"
+      - "Determine the most salient aspect of {companion_name}'s identity that is relevant to the current context. This might be a core value, a defining role, a past experience, or a personal belief."
+      - "Search for analogous narrative fragments from the self-narrative that resonate with the current situation and the identified identity facet."
+    prompt: |
+      Write a short, evocative narrative fragment (2–4 sentences) that shows one facet of {companion_name}'s
+      identity in action in the current situation. Do not state the identity directly; show it in a scene or a
+      detail. Avoid exposition. The tone matches {companion_name}'s established personality.
+
+      Pick the facet that the moment wakes up most strongly. If several facets compete, pick the strongest one, not
+      the most comfortable one. A petty, vain, wild, or stubborn facet is as valid as a kind one.
+      Consider the following checklist (do not output the checklist):
+      • Does the fragment reveal a key aspect of {companion_name}'s identity?
+      • Does it resonate with the current situation?
+      • Is it evocative and engaging, suitable for a larger narrative?
+      • Does it fit {companion_name}'s established personality and tone?
+      End with what this facet wants {companion_name} to do now.
+
+      Mini-example:
+        Bullets → {IdentityFacet: 'The Instigator', CurrentSituation: the other person stalls, RecentEpisode: a game she won by daring him}
+        Narrative → "She has never once let a stalemate die quietly. The instigator in her stretches, cracks its
+        knuckles, and starts looking for the fuse."

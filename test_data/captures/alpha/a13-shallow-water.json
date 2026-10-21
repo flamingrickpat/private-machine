@@ -1,0 +1,982 @@
+{
+  "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-14\\protocol\\scratch\\actor-journal.jsonl",
+  "receipt": ".runtime/alpha/a13-failures-14/receipt.json",
+  "observation": {
+    "seq": 141,
+    "event": "result",
+    "tool": "minecraft_observe",
+    "arguments": {
+      "include_image": false
+    },
+    "revision": 0,
+    "time": 1791413902.5299957,
+    "epoch": 110,
+    "session": "6e7b26776ad6480e85d77db82bbd0202",
+    "ok": true,
+    "result": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "camera": {
+        "feet_position": {
+          "x": 10.7,
+          "y": 105.0,
+          "z": -14.7
+        },
+        "eye_position": {
+          "x": 10.7,
+          "y": 106.62,
+          "z": -14.7
+        },
+        "block_position": {
+          "x": 10,
+          "y": 105,
+          "z": -15
+        },
+        "yaw": 135.0,
+        "pitch": -82.5,
+        "cardinal": "north",
+        "look_vector": {
+          "x": -0.09,
+          "y": -0.99,
+          "z": -0.09
+        }
+      },
+      "player": {
+        "health": 20.0,
+        "max_health": 20.0,
+        "food": 20,
+        "oxygen": 20,
+        "xp_level": 0,
+        "biome": "meadow",
+        "dimension": "overworld",
+        "time_of_day": 11735,
+        "is_day": true,
+        "is_raining": false,
+        "on_ground": true,
+        "in_water": true
+      },
+      "held_item": {
+        "name": "dandelion",
+        "display_name": "Dandelion",
+        "count": 2,
+        "slot": null,
+        "durability": null,
+        "max_durability": null
+      },
+      "hotbar": [
+        {
+          "slot": 0,
+          "item": "dandelion",
+          "count": 2
+        },
+        {
+          "slot": 1,
+          "item": "dirt",
+          "count": 1
+        },
+        {
+          "slot": 2,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 3,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 4,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 5,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 6,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 7,
+          "item": null,
+          "count": 0
+        },
+        {
+          "slot": 8,
+          "item": null,
+          "count": 0
+        }
+      ],
+      "inventory": [
+        {
+          "name": "dandelion",
+          "display_name": "Dandelion",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        {
+          "name": "dirt",
+          "display_name": "Dirt",
+          "count": 1,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        }
+      ],
+      "nearby_blocks": [
+        {
+          "block_name": "grass_block",
+          "display_name": "Grass Block",
+          "count": 192,
+          "nearest": {
+            "x": 11,
+            "y": 105,
+            "z": -15
+          },
+          "distance": 0.43
+        },
+        {
+          "block_name": "dirt",
+          "display_name": "Dirt",
+          "count": 671,
+          "nearest": {
+            "x": 11,
+            "y": 105,
+            "z": -14
+          },
+          "distance": 0.76
+        },
+        {
+          "block_name": "water",
+          "display_name": "Water",
+          "count": 1,
+          "nearest": {
+            "x": 10,
+            "y": 105,
+            "z": -15
+          },
+          "distance": 0.76
+        },
+        {
+          "block_name": "air",
+          "display_name": "Air",
+          "count": 2323,
+          "nearest": {
+            "x": 11,
+            "y": 106,
+            "z": -15
+          },
+          "distance": 1.09
+        },
+        {
+          "block_name": "stone",
+          "display_name": "Stone",
+          "count": 1635,
+          "nearest": {
+            "x": 10,
+            "y": 104,
+            "z": -14
+          },
+          "distance": 1.41
+        },
+        {
+          "block_name": "coal_ore",
+          "display_name": "Coal Ore",
+          "count": 43,
+          "nearest": {
+            "x": 8,
+            "y": 105,
+            "z": -14
+          },
+          "distance": 2.79
+        },
+        {
+          "block_name": "grass",
+          "display_name": "Grass",
+          "count": 13,
+          "nearest": {
+            "x": 9,
+            "y": 109,
+            "z": -12
+          },
+          "distance": 5.12
+        },
+        {
+          "block_name": "iron_ore",
+          "display_name": "Iron Ore",
+          "count": 16,
+          "nearest": {
+            "x": 3,
+            "y": 105,
+            "z": -14
+          },
+          "distance": 7.73
+        },
+        {
+          "block_name": "dandelion",
+          "display_name": "Dandelion",
+          "count": 6,
+          "nearest": {
+            "x": 4,
+            "y": 110,
+            "z": -13
+          },
+          "distance": 8.53
+        },
+        {
+          "block_name": "tall_grass",
+          "display_name": "Tall Grass",
+          "count": 6,
+          "nearest": {
+            "x": 2,
+            "y": 109,
+            "z": -16
+          },
+          "distance": 9.66
+        },
+        {
+          "block_name": "gravel",
+          "display_name": "Gravel",
+          "count": 7,
+          "nearest": {
+            "x": 7,
+            "y": 97,
+            "z": -22
+          },
+          "distance": 11.45
+        }
+      ],
+      "nearby_entities": [],
+      "image": null
+    },
+    "images": []
+  },
+  "pit": {
+    "cell": {
+      "x": 10,
+      "y": 105,
+      "z": -15
+    },
+    "original_floor": {
+      "warnings": [],
+      "ok": true,
+      "reason": null,
+      "message": null,
+      "position": {
+        "x": 10,
+        "y": 105,
+        "z": -15
+      },
+      "block_name": "dirt",
+      "display_name": "Dirt",
+      "is_solid": true,
+      "exposed_faces": [
+        "up"
+      ],
+      "neighbors": [
+        {
+          "direction": "north",
+          "position": {
+            "x": 10,
+            "y": 105,
+            "z": -16
+          },
+          "block_name": "grass_block",
+          "solid": true
+        },
+        {
+          "direction": "south",
+          "position": {
+            "x": 10,
+            "y": 105,
+            "z": -14
+          },
+          "block_name": "dirt",
+          "solid": true
+        },
+        {
+          "direction": "east",
+          "position": {
+            "x": 11,
+            "y": 105,
+            "z": -15
+          },
+          "block_name": "grass_block",
+          "solid": true
+        },
+        {
+          "direction": "west",
+          "position": {
+            "x": 9,
+            "y": 105,
+            "z": -15
+          },
+          "block_name": "dirt",
+          "solid": true
+        },
+        {
+          "direction": "up",
+          "position": {
+            "x": 10,
+            "y": 106,
+            "z": -15
+          },
+          "block_name": "air",
+          "solid": false
+        },
+        {
+          "direction": "down",
+          "position": {
+            "x": 10,
+            "y": 104,
+            "z": -15
+          },
+          "block_name": "dirt",
+          "solid": true
+        }
+      ],
+      "best_tools": [],
+      "can_harvest_with_held": null,
+      "drops": [],
+      "hardness": null,
+      "image": null
+    },
+    "clearance": [
+      {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 10, 106, -15.",
+        "position": {
+          "x": 10,
+          "y": 106,
+          "z": -15
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 10, 107, -15.",
+        "position": {
+          "x": 10,
+          "y": 107,
+          "z": -15
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      }
+    ],
+    "boundaries": [
+      {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 10,
+          "y": 104,
+          "z": -15
+        },
+        "block_name": "dirt",
+        "display_name": "Dirt",
+        "is_solid": true,
+        "exposed_faces": [],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 10,
+              "y": 104,
+              "z": -16
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 10,
+              "y": 104,
+              "z": -14
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 11,
+              "y": 104,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 9,
+              "y": 104,
+              "z": -15
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 10,
+              "y": 105,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 10,
+              "y": 103,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 11,
+          "y": 105,
+          "z": -15
+        },
+        "block_name": "grass_block",
+        "display_name": "Grass Block",
+        "is_solid": true,
+        "exposed_faces": [
+          "north",
+          "east",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 11,
+              "y": 105,
+              "z": -16
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 11,
+              "y": 105,
+              "z": -14
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 12,
+              "y": 105,
+              "z": -15
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 10,
+              "y": 105,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 11,
+              "y": 106,
+              "z": -15
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 11,
+              "y": 104,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 9,
+          "y": 105,
+          "z": -15
+        },
+        "block_name": "dirt",
+        "display_name": "Dirt",
+        "is_solid": true,
+        "exposed_faces": [],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 9,
+              "y": 105,
+              "z": -16
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 9,
+              "y": 105,
+              "z": -14
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 10,
+              "y": 105,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 8,
+              "y": 105,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 9,
+              "y": 106,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 9,
+              "y": 104,
+              "z": -15
+            },
+            "block_name": "stone",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 10,
+          "y": 105,
+          "z": -14
+        },
+        "block_name": "dirt",
+        "display_name": "Dirt",
+        "is_solid": true,
+        "exposed_faces": [],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 10,
+              "y": 105,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 10,
+              "y": 105,
+              "z": -13
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 11,
+              "y": 105,
+              "z": -14
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 9,
+              "y": 105,
+              "z": -14
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 10,
+              "y": 106,
+              "z": -14
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 10,
+              "y": 104,
+              "z": -14
+            },
+            "block_name": "stone",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 10,
+          "y": 105,
+          "z": -16
+        },
+        "block_name": "grass_block",
+        "display_name": "Grass Block",
+        "is_solid": true,
+        "exposed_faces": [
+          "east",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 10,
+              "y": 105,
+              "z": -17
+            },
+            "block_name": "stone",
+            "solid": true
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 10,
+              "y": 105,
+              "z": -15
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 11,
+              "y": 105,
+              "z": -16
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 9,
+              "y": 105,
+              "z": -16
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 10,
+              "y": 106,
+              "z": -16
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 10,
+              "y": 104,
+              "z": -16
+            },
+            "block_name": "dirt",
+            "solid": true
+          }
+        ],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      }
+    ],
+    "mining": {
+      "tool": "minecraft_mine_block",
+      "arguments": {
+        "position": {
+          "x": 10,
+          "y": 105,
+          "z": -15
+        }
+      },
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": 10,
+            "y": 105,
+            "z": -15
+          },
+          "block_name": "dirt",
+          "display_name": "Dirt"
+        },
+        "tool_used": "dandelion",
+        "can_harvest": true,
+        "pickup": {
+          "picked_up": true,
+          "drop_items": [
+            "dirt"
+          ],
+          "drop_hint": null
+        },
+        "inventory_delta": {
+          "changes": [
+            {
+              "item": "dirt",
+              "before": 0,
+              "after": 1,
+              "delta": 1
+            }
+          ],
+          "total_items_before": 2,
+          "total_items_after": 3
+        },
+        "image": {
+          "frame_id": "f94bfb3e414955569681f38316fcfeee",
+          "captured_at": "2026-10-07T22:57:51.067730Z",
+          "width": 640,
+          "height": 480
+        },
+        "duration_ms": 1843.0
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00078-0.png",
+          "media_type": "image/png"
+        }
+      ],
+      "instruction_revision": 0,
+      "journal_sequence": 78,
+      "gameplay": {
+        "outcome": {
+          "kind": "partial_progress",
+          "unsuccessful": false,
+          "reason": null,
+          "quantities": {},
+          "inventory_delta": {
+            "changes": [
+              {
+                "item": "dirt",
+                "before": 0,
+                "after": 1,
+                "delta": 1
+              }
+            ],
+            "total_items_before": 2,
+            "total_items_after": 3
+          },
+          "made_progress": true,
+          "completion_verified": false,
+          "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-14\\protocol\\scratch\\actor-journal.jsonl",
+          "seq": 78,
+          "time": 1791413871.235096,
+          "tool": "minecraft_mine_block",
+          "arguments": {
+            "position": {
+              "x": 10,
+              "y": 105,
+              "z": -15
+            }
+          }
+        },
+        "recovery": null,
+        "paused_methods": [
+          {
+            "tool": "minecraft_walk_to_exact",
+            "arguments": {
+              "x": 10,
+              "y": 105,
+              "z": -17
+            },
+            "ineffective": 2,
+            "reason": "target_not_standable",
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-14\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 12
+          },
+          {
+            "tool": "minecraft_mine_block",
+            "arguments": {
+              "position": {
+                "x": 12,
+                "y": 117,
+                "z": -17
+              }
+            },
+            "ineffective": 2,
+            "reason": "target_out_of_range",
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-14\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 14
+          },
+          {
+            "tool": "minecraft_craft_item",
+            "arguments": {
+              "item": "iron_pickaxe",
+              "repetitions": 1
+            },
+            "ineffective": 2,
+            "reason": "missing_ingredients",
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-14\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 16
+          },
+          {
+            "tool": "minecraft_find_block",
+            "arguments": {
+              "pattern": "deepslate_iron_ore"
+            },
+            "ineffective": 2,
+            "reason": "not_found",
+            "source": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-failures-14\\protocol\\scratch\\actor-journal.jsonl",
+            "seq": 18
+          }
+        ]
+      }
+    },
+    "original_air": {
+      "warnings": [],
+      "ok": false,
+      "reason": "not_found",
+      "message": "No block exists at 10, 105, -15.",
+      "position": {
+        "x": 10,
+        "y": 105,
+        "z": -15
+      },
+      "block_name": "air",
+      "display_name": "Air",
+      "is_solid": false,
+      "exposed_faces": [],
+      "neighbors": [],
+      "best_tools": [],
+      "can_harvest_with_held": null,
+      "drops": [],
+      "hardness": null,
+      "image": null
+    }
+  },
+  "note": "Actual full-air wet-body observation. Original live fixture failed to activate recovery; this captured regression does not claim native acceptance."
+}

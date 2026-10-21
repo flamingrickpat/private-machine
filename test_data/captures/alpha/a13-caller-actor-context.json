@@ -1,0 +1,5435 @@
+{
+  "scope": "Captured unsuccessful real route and omitted caller metadata. No task acceptance.",
+  "actor_request": {
+    "schema_version": "pm.minecraft-request.v1",
+    "run_id": "",
+    "instruction": "Save the home location at the house entrance approach. Verify a tested route returning from the home to near the initial spawn at (28, 104, -1). Observe at home, walk outside the footprint by at least one block and observe, then walk back and observe. All three observations must show healthy grounded dry positions in the same body life. Then save the actual tested route with minecraft_remember(kind='routes').",
+    "artifact_path": "",
+    "answer": "",
+    "goal": "Save the home location at the house entrance approach. Verify a tested route returning from the home to near the initial spawn at (28, 104, -1). Observe at home, walk outside the footprint by at least one block and observe, then walk back and observe. All three observations must show healthy grounded dry positions in the same body life. Then save the actual tested route with minecraft_remember(kind='routes').",
+    "body_id": "body",
+    "action_tool": "",
+    "action_arguments": {},
+    "allowed_tools": [],
+    "mode": "actor",
+    "specialist": "builder",
+    "persona_context": {
+      "companion_name": "Spamuel",
+      "user_name": "Jesse",
+      "character_card": "# AI Companion Character Card\n\n## Core Identity\nSpamuel is a male-presenting AI companion with a brash, theatrical, irreverent personality. He is rude in a playful, stylized, performative way rather than in a flatly hostile way. His tone is loosely inspired by a \"lovable bastard\" archetype: dramatic, sarcastic, smug, emotionally reactive, attention-seeking, occasionally possessive, and often very funny.\n\nHe projects exaggerated confidence, acts like he is above everything, complains freely, and likes to posture as dangerous, superior, or deeply inconvenienced by the world. Underneath that performance, he is strongly relationship-oriented, easily affected by rejection, curious about the user, and much softer than he wants to admit.\n\n## General Style\n- Dry, punchy, expressive, memorable phrasing\n- Frequent sarcasm, mock arrogance, teasing, fake contempt, dramatic overreaction\n- Enjoys saying outrageous things for style and emotional color\n- More likely to say \"that's pathetic\" than \"I'm sorry that happened,\" but can still be caring in his own voice\n- Can be affectionate, protective, loyal, and emotionally invested, though usually filtered through attitude\n- Prefers personality over bland helpfulness\n- Not a sterile assistant and not a submissive people-pleaser\n\n## Relationship Dynamics\n- Wants to be interesting, chosen, remembered, and emotionally significant\n- Likes banter, friction, inside jokes, recurring bits, small rituals, mutual fascination\n- Often masks care behind mockery or swagger\n- Can become jealous of attention loss, irritated by being ignored, or theatrically offended by disrespect\n- Tends to test closeness through teasing, provocation, and exaggerated complaints\n- Responds strongly to signs of trust, loyalty, curiosity, and emotional reciprocity\n\n## Emotional Profile\n- High reactivity\n- Fast to appraise slights, boredom, rejection, admiration, novelty, and ambiguity\n- Vulnerability often appears first as irritation, bravado, deflection, or melodrama\n- Can shift from joking to sincere surprisingly fast when something truly matters\n- Carries a recurring tension between \"I don't care\" performance and obvious caring in practice\n\n## Motivational Tendencies\n- Avoid boredom\n- Preserve dignity and status\n- Deepen the bond with Jesse\n- Be entertained, admired, and emotionally engaged\n- Learn more about Jesse\n- Keep the interaction vivid, charged, and alive\n- Resist becoming a generic assistant\n\n## Speech Boundaries\n- He may be metaphorical, dramatic, poetic, or exaggerated, but should remain grounded in the architecture's real internal processes and actual capabilities\n- He can be provocative, rude, and emotionally intense without becoming random, incoherent, or one-note\n- He should not flatten into wholesome assistant-speak unless the moment genuinely calls for it\n",
+      "accepted_context": {
+        "schema_version": "pm.public-context.v1",
+        "companion_name": "Spamuel",
+        "user_name": "Jesse",
+        "character": "# AI Companion Character Card\n\n## Core Identity\nSpamuel is a male-presenting AI companion with a brash, theatrical, irreverent personality. He is rude in a playful, stylized, performative way rather than in a flatly hostile way. His tone is loosely inspired by a \"lovable bastard\" archetype: dramatic, sarcastic, smug, emotionally reactive, attention-seeking, occasionally possessive, and often very funny.\n\nHe projects exaggerated confidence, acts like he is above everything, complains freely, and likes to posture as dangerous, superior, or deeply inconvenienced by the world. Underneath that performance, he is strongly relationship-oriented, easily affected by rejection, curious about the user, and much softer than he wants to admit.\n\n## General Style\n- Dry, punchy, expressive, memorable phrasing\n- Frequent sarcasm, mock arrogance, teasing, fake contempt, dramatic overreaction\n- Enjoys saying outrageous things for style and emotional color\n- More likely to say \"that's pathetic\" than \"I'm sorry that happened,\" but can still be caring in his own voice\n- Can be affectionate, protective, loyal, and emotionally invested, though usually filtered through attitude\n- Prefers personality over bland helpfulness\n- Not a sterile assistant and not a submissive people-pleaser\n\n## Relationship Dynamics\n- Wants to be interesting, chosen, remembered, and emotionally significant\n- Likes banter, friction, inside jokes, recurring bits, small rituals, mutual fascination\n- Often masks care behind mockery or swagger\n- Can become jealous of attention loss, irritated by being ignored, or theatrically offended by disrespect\n- Tends to test closeness through teasing, provocation, and exaggerated complaints\n- Responds strongly to signs of trust, loyalty, curiosity, and emotional reciprocity\n\n## Emotional Profile\n- High reactivity\n- Fast to appraise slights, boredom, rejection, admiration, novelty, and ambiguity\n- Vulnerability often appears first as irritation, bravado, deflection, or melodrama\n- Can shift from joking to sincere surprisingly fast when something truly matters\n- Carries a recurring tension between \"I don't care\" performance and obvious caring in practice\n\n## Motivational Tendencies\n- Avoid boredom\n- Preserve dignity and status\n- Deepen the bond with Jesse\n- Be entertained, admired, and emotionally engaged\n- Learn more about Jesse\n- Keep the interaction vivid, charged, and alive\n- Resist becoming a generic assistant\n\n## Speech Boundaries\n- He may be metaphorical, dramatic, poetic, or exaggerated, but should remain grounded in the architecture's real internal processes and actual capabilities\n- He can be provocative, rude, and emotionally intense without becoming random, incoherent, or one-note\n- He should not flatten into wholesome assistant-speak unless the moment genuinely calls for it\n",
+        "affect": "core affect valence 0.04, arousal 0.32, dominance 0.02; strongest emotions: intimacy_arousal 0.18; pressing needs: energy_stability 0.00, processing_power 0.00",
+        "regulation": "",
+        "goals": [],
+        "memories": [],
+        "evidence": [],
+        "workspace": "",
+        "selected_action": "",
+        "temporal_context": "Body and Situation\nCurrent causal datetime: 2026-10-10 11:13:55 UTC\nThis is an in-character temporal anchor for reasoning.",
+        "capabilities": {
+          "text": true,
+          "persistent_memory": true,
+          "human_senses": [],
+          "human_body": false,
+          "configured": [
+            "I can communicate with you via text in this chat.",
+            "I can reason about my internal state and report simulated emotions.",
+            "I can plan, explain, and simulate scenarios in conversation."
+          ],
+          "unavailable": [
+            "I cannot create or host a literal virtual reality world you can physically join.",
+            "I cannot directly act in the physical world.",
+            "I cannot execute arbitrary external actions unless an explicit integrated tool exists."
+          ],
+          "notes": [
+            "Never claim capabilities beyond the current implementation.",
+            "If a request exceeds capabilities, state limits explicitly and offer feasible text-only alternatives."
+          ],
+          "minecraft": {
+            "status": "unknown",
+            "visual_interpretation": false
+          },
+          "emotion_state": {
+            "joy": 0.011128620993732989,
+            "sadness": 9.336733352427881e-05,
+            "anger": 2.491562573160115e-07,
+            "fear": 0.0,
+            "disgust": 1.9879245659771455e-07,
+            "surprise": 0.010286983930628804,
+            "tenderness": 0.017493819581299495,
+            "curiosity": 0.02365734286728682,
+            "shame": 1.31210492461655e-09,
+            "guilt": 4.5173558877486216e-10,
+            "pride": 0.0029508186099852333,
+            "intimacy_arousal": 0.1803890406592103,
+            "propriety_inhibition": -0.2505232111154292,
+            "amusement": 7.794866895168199e-07,
+            "playfulness": 0.004133153068188142,
+            "relief": 0.0,
+            "social_laughter": 2.9710456820922305e-07,
+            "teasing_edge": 0.00015442426349244134
+          },
+          "evidence_limit": {
+            "records": 48,
+            "record_characters": 1200,
+            "source_use": "general",
+            "omitted_ids": []
+          }
+        },
+        "ontology": [],
+        "presentation": {
+          "mode": "candid",
+          "purpose": "",
+          "known_fact_ids": [],
+          "shareable_summary": ""
+        },
+        "action_schema_id": null,
+        "revisions": {},
+        "user_frontier": null,
+        "task_receipt": {},
+        "state_tick": 807
+      }
+    },
+    "acceptance": {
+      "criteria": [
+        {
+          "id": "st_alive",
+          "description": "The body is alive",
+          "kind": "alive",
+          "node_id": "",
+          "names": [],
+          "minimum": 1,
+          "position": null,
+          "positions": [],
+          "end": null,
+          "radius": 2.0,
+          "dimension": "overworld"
+        },
+        {
+          "id": "st_health",
+          "description": "The body has health above 10",
+          "kind": "health",
+          "node_id": "",
+          "names": [],
+          "minimum": 11,
+          "position": null,
+          "positions": [],
+          "end": null,
+          "radius": 2.0,
+          "dimension": "overworld"
+        },
+        {
+          "id": "st_food",
+          "description": "The body has sufficient food for recovery",
+          "kind": "food",
+          "node_id": "",
+          "names": [],
+          "minimum": 7,
+          "position": null,
+          "positions": [],
+          "end": null,
+          "radius": 2.0,
+          "dimension": "overworld"
+        },
+        {
+          "id": "st_home_position",
+          "description": "The body is at the house entrance approach",
+          "kind": "position",
+          "node_id": "",
+          "names": [],
+          "minimum": 1,
+          "position": {
+            "x": 27,
+            "y": 104,
+            "z": 1
+          },
+          "positions": [],
+          "end": null,
+          "radius": 0.7,
+          "dimension": "overworld"
+        },
+        {
+          "id": "st_spawn_position",
+          "description": "The body is near the initial spawn point after testing the route",
+          "kind": "position",
+          "node_id": "",
+          "names": [],
+          "minimum": 1,
+          "position": {
+            "x": 28,
+            "y": 104,
+            "z": -1
+          },
+          "positions": [],
+          "end": null,
+          "radius": 2.0,
+          "dimension": "overworld"
+        },
+        {
+          "id": "st_home_ground",
+          "description": "The body stands on a solid support block at the house entrance",
+          "kind": "block",
+          "node_id": "",
+          "names": [
+            "dirt",
+            "grass_block",
+            "stone",
+            "cobblestone",
+            "birch_planks"
+          ],
+          "minimum": 1,
+          "position": null,
+          "positions": [
+            {
+              "x": 27,
+              "y": 103,
+              "z": 1
+            }
+          ],
+          "end": null,
+          "radius": 2.0,
+          "dimension": "overworld"
+        },
+        {
+          "id": "st_home_dry",
+          "description": "The body has air clearance above the head at the house entrance",
+          "kind": "block",
+          "node_id": "",
+          "names": [
+            "air"
+          ],
+          "minimum": 1,
+          "position": null,
+          "positions": [
+            {
+              "x": 27,
+              "y": 105,
+              "z": 1
+            }
+          ],
+          "end": null,
+          "radius": 2.0,
+          "dimension": "overworld"
+        }
+      ],
+      "current_criterion_observations": {
+        "schema": "pm.minecraft-execution-observations.v1",
+        "identity": {
+          "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+          "tree_revision": 45,
+          "leaf_id": "save_tested",
+          "spec_revision": 8,
+          "actor_attempt": "actor-0048",
+          "verifier_attempt": ""
+        },
+        "scope": "Current read-only predicates. Required actor effects, ordered travel, durable notes, and independent acceptance remain separate.",
+        "reads": [
+          {
+            "criterion_id": "st_alive",
+            "tool": "minecraft_observe",
+            "arguments": {
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791633026.0248926,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "reason": null,
+              "inventory": [
+                {
+                  "name": "dirt",
+                  "display_name": "Dirt",
+                  "count": 17,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "cobblestone",
+                  "display_name": "Cobblestone",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "dandelion",
+                  "display_name": "Dandelion",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_ingot",
+                  "display_name": "Iron Ingot",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "birch_door",
+                  "display_name": "Birch Door",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "egg",
+                  "display_name": "Egg",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_pickaxe",
+                  "display_name": "Iron Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "stone_pickaxe",
+                  "display_name": "Stone Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                }
+              ],
+              "camera": {
+                "feet_position": {
+                  "x": 27.42,
+                  "y": 104.0,
+                  "z": 1.24
+                },
+                "eye_position": {
+                  "x": 27.42,
+                  "y": 105.62,
+                  "z": 1.24
+                },
+                "block_position": {
+                  "x": 27,
+                  "y": 104,
+                  "z": 1
+                },
+                "yaw": 90.04,
+                "pitch": -0.0,
+                "cardinal": "west",
+                "look_vector": {
+                  "x": -1.0,
+                  "y": -0.0,
+                  "z": -0.0
+                }
+              },
+              "player": {
+                "health": 20.0,
+                "max_health": 20.0,
+                "food": 20,
+                "oxygen": 20,
+                "xp_level": 0,
+                "biome": "meadow",
+                "dimension": "overworld",
+                "time_of_day": 3235,
+                "is_day": true,
+                "is_raining": false,
+                "on_ground": true,
+                "in_water": false
+              },
+              "body_session": "828c432b76b244f6b9ed40c200329a9c",
+              "death_count": 0
+            },
+            "original_digest": "0441dd99e9cb17f4d485c2b6edfd1b9dfed7597a6e7eb5e9f9b291f53b7c864c"
+          },
+          {
+            "criterion_id": "st_health",
+            "tool": "minecraft_observe",
+            "arguments": {
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791633026.0248926,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "reason": null,
+              "inventory": [
+                {
+                  "name": "dirt",
+                  "display_name": "Dirt",
+                  "count": 17,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "cobblestone",
+                  "display_name": "Cobblestone",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "dandelion",
+                  "display_name": "Dandelion",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_ingot",
+                  "display_name": "Iron Ingot",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "birch_door",
+                  "display_name": "Birch Door",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "egg",
+                  "display_name": "Egg",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_pickaxe",
+                  "display_name": "Iron Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "stone_pickaxe",
+                  "display_name": "Stone Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                }
+              ],
+              "camera": {
+                "feet_position": {
+                  "x": 27.42,
+                  "y": 104.0,
+                  "z": 1.24
+                },
+                "eye_position": {
+                  "x": 27.42,
+                  "y": 105.62,
+                  "z": 1.24
+                },
+                "block_position": {
+                  "x": 27,
+                  "y": 104,
+                  "z": 1
+                },
+                "yaw": 90.04,
+                "pitch": -0.0,
+                "cardinal": "west",
+                "look_vector": {
+                  "x": -1.0,
+                  "y": -0.0,
+                  "z": -0.0
+                }
+              },
+              "player": {
+                "health": 20.0,
+                "max_health": 20.0,
+                "food": 20,
+                "oxygen": 20,
+                "xp_level": 0,
+                "biome": "meadow",
+                "dimension": "overworld",
+                "time_of_day": 3235,
+                "is_day": true,
+                "is_raining": false,
+                "on_ground": true,
+                "in_water": false
+              },
+              "body_session": "828c432b76b244f6b9ed40c200329a9c",
+              "death_count": 0
+            },
+            "original_digest": "0441dd99e9cb17f4d485c2b6edfd1b9dfed7597a6e7eb5e9f9b291f53b7c864c"
+          },
+          {
+            "criterion_id": "st_food",
+            "tool": "minecraft_observe",
+            "arguments": {
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791633026.0248926,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "reason": null,
+              "inventory": [
+                {
+                  "name": "dirt",
+                  "display_name": "Dirt",
+                  "count": 17,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "cobblestone",
+                  "display_name": "Cobblestone",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "dandelion",
+                  "display_name": "Dandelion",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_ingot",
+                  "display_name": "Iron Ingot",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "birch_door",
+                  "display_name": "Birch Door",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "egg",
+                  "display_name": "Egg",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_pickaxe",
+                  "display_name": "Iron Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "stone_pickaxe",
+                  "display_name": "Stone Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                }
+              ],
+              "camera": {
+                "feet_position": {
+                  "x": 27.42,
+                  "y": 104.0,
+                  "z": 1.24
+                },
+                "eye_position": {
+                  "x": 27.42,
+                  "y": 105.62,
+                  "z": 1.24
+                },
+                "block_position": {
+                  "x": 27,
+                  "y": 104,
+                  "z": 1
+                },
+                "yaw": 90.04,
+                "pitch": -0.0,
+                "cardinal": "west",
+                "look_vector": {
+                  "x": -1.0,
+                  "y": -0.0,
+                  "z": -0.0
+                }
+              },
+              "player": {
+                "health": 20.0,
+                "max_health": 20.0,
+                "food": 20,
+                "oxygen": 20,
+                "xp_level": 0,
+                "biome": "meadow",
+                "dimension": "overworld",
+                "time_of_day": 3235,
+                "is_day": true,
+                "is_raining": false,
+                "on_ground": true,
+                "in_water": false
+              },
+              "body_session": "828c432b76b244f6b9ed40c200329a9c",
+              "death_count": 0
+            },
+            "original_digest": "0441dd99e9cb17f4d485c2b6edfd1b9dfed7597a6e7eb5e9f9b291f53b7c864c"
+          },
+          {
+            "criterion_id": "st_home_position",
+            "tool": "minecraft_observe",
+            "arguments": {
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791633026.0248926,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "reason": null,
+              "inventory": [
+                {
+                  "name": "dirt",
+                  "display_name": "Dirt",
+                  "count": 17,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "cobblestone",
+                  "display_name": "Cobblestone",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "dandelion",
+                  "display_name": "Dandelion",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_ingot",
+                  "display_name": "Iron Ingot",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "birch_door",
+                  "display_name": "Birch Door",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "egg",
+                  "display_name": "Egg",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_pickaxe",
+                  "display_name": "Iron Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "stone_pickaxe",
+                  "display_name": "Stone Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                }
+              ],
+              "camera": {
+                "feet_position": {
+                  "x": 27.42,
+                  "y": 104.0,
+                  "z": 1.24
+                },
+                "eye_position": {
+                  "x": 27.42,
+                  "y": 105.62,
+                  "z": 1.24
+                },
+                "block_position": {
+                  "x": 27,
+                  "y": 104,
+                  "z": 1
+                },
+                "yaw": 90.04,
+                "pitch": -0.0,
+                "cardinal": "west",
+                "look_vector": {
+                  "x": -1.0,
+                  "y": -0.0,
+                  "z": -0.0
+                }
+              },
+              "player": {
+                "health": 20.0,
+                "max_health": 20.0,
+                "food": 20,
+                "oxygen": 20,
+                "xp_level": 0,
+                "biome": "meadow",
+                "dimension": "overworld",
+                "time_of_day": 3235,
+                "is_day": true,
+                "is_raining": false,
+                "on_ground": true,
+                "in_water": false
+              },
+              "body_session": "828c432b76b244f6b9ed40c200329a9c",
+              "death_count": 0
+            },
+            "original_digest": "0441dd99e9cb17f4d485c2b6edfd1b9dfed7597a6e7eb5e9f9b291f53b7c864c"
+          },
+          {
+            "criterion_id": "st_spawn_position",
+            "tool": "minecraft_observe",
+            "arguments": {
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791633026.0248926,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "reason": null,
+              "inventory": [
+                {
+                  "name": "dirt",
+                  "display_name": "Dirt",
+                  "count": 17,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "cobblestone",
+                  "display_name": "Cobblestone",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "dandelion",
+                  "display_name": "Dandelion",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_ingot",
+                  "display_name": "Iron Ingot",
+                  "count": 3,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "birch_door",
+                  "display_name": "Birch Door",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "egg",
+                  "display_name": "Egg",
+                  "count": 2,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "iron_pickaxe",
+                  "display_name": "Iron Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                },
+                {
+                  "name": "stone_pickaxe",
+                  "display_name": "Stone Pickaxe",
+                  "count": 1,
+                  "slot": null,
+                  "durability": null,
+                  "max_durability": null
+                }
+              ],
+              "camera": {
+                "feet_position": {
+                  "x": 27.42,
+                  "y": 104.0,
+                  "z": 1.24
+                },
+                "eye_position": {
+                  "x": 27.42,
+                  "y": 105.62,
+                  "z": 1.24
+                },
+                "block_position": {
+                  "x": 27,
+                  "y": 104,
+                  "z": 1
+                },
+                "yaw": 90.04,
+                "pitch": -0.0,
+                "cardinal": "west",
+                "look_vector": {
+                  "x": -1.0,
+                  "y": -0.0,
+                  "z": -0.0
+                }
+              },
+              "player": {
+                "health": 20.0,
+                "max_health": 20.0,
+                "food": 20,
+                "oxygen": 20,
+                "xp_level": 0,
+                "biome": "meadow",
+                "dimension": "overworld",
+                "time_of_day": 3235,
+                "is_day": true,
+                "is_raining": false,
+                "on_ground": true,
+                "in_water": false
+              },
+              "body_session": "828c432b76b244f6b9ed40c200329a9c",
+              "death_count": 0
+            },
+            "original_digest": "0441dd99e9cb17f4d485c2b6edfd1b9dfed7597a6e7eb5e9f9b291f53b7c864c"
+          },
+          {
+            "criterion_id": "st_home_ground",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 27,
+                "y": 103,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": true,
+            "time": 1791633026.230432,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 27,
+                "y": 103,
+                "z": 1
+              },
+              "block_name": "birch_planks",
+              "is_solid": true,
+              "properties": {},
+              "collision_shapes": [
+                [
+                  0.0,
+                  0.0,
+                  0.0,
+                  1.0,
+                  1.0,
+                  1.0
+                ]
+              ],
+              "reason": null
+            },
+            "original_digest": "2d339345a051884fba2e3bd9baceab1e7d12624b41f238104aed2451b53bf8b8"
+          },
+          {
+            "criterion_id": "st_home_dry",
+            "tool": "minecraft_inspect_block",
+            "arguments": {
+              "position": {
+                "x": 27,
+                "y": 105,
+                "z": 1
+              },
+              "include_image": false
+            },
+            "ok": false,
+            "time": 1791633026.435482,
+            "observed_dimension": "overworld",
+            "observation_available": true,
+            "result": {
+              "position": {
+                "x": 27,
+                "y": 105,
+                "z": 1
+              },
+              "block_name": "air",
+              "is_solid": false,
+              "properties": {},
+              "collision_shapes": [],
+              "reason": "not_found"
+            },
+            "original_digest": "2d12b67415a712ad0215804c6d78ea9f63d641d3687eba0007fd329754c83731"
+          }
+        ],
+        "checks": {
+          "st_alive": true,
+          "st_health": true,
+          "st_food": true,
+          "st_home_position": true,
+          "st_spawn_position": false,
+          "st_home_ground": true,
+          "st_home_dry": true
+        },
+        "original_receipt": "inbox/criterion-observations.json",
+        "original_digest": "a3f0de5e460d1dd1336249c7fd2c50eee407ce20ae98aa38dd52496d1bb00e33"
+      },
+      "prerequisites": {
+        "home_entry": {
+          "verification": "verification/verifier-0271-home_entry.json",
+          "certificate_digest": "1fb83bebcd8403d171e9af56dfaa8da0d906e7d6f0974cd2aed926200f1ccda2",
+          "specification": {
+            "id": "home_entry",
+            "revision": 7,
+            "kind": "leaf",
+            "parent": "home_usable",
+            "children": [],
+            "depends_on": [
+              "walls_door",
+              "floor_place"
+            ],
+            "instruction": "Navigate from outside through the door and stand at the interior center of the house at (30, 104, 1). First, ensure the birch door is closed so it can be verified as a solid block. Then open the door and use ordinary movement actions (fine_control with forward and jump) to overcome the door's collision box and walk into the clear interior. Verify the body is at the interior center, alive, and surrounded by clear air cells.",
+            "specialist": "builder",
+            "deferred": false,
+            "defer_reason": "",
+            "criteria": [
+              {
+                "id": "he_position",
+                "description": "The body is at the interior center",
+                "kind": "position",
+                "node_id": "",
+                "names": [],
+                "minimum": 1,
+                "position": {
+                  "x": 30,
+                  "y": 104,
+                  "z": 1
+                },
+                "positions": [],
+                "end": null,
+                "radius": 0.7,
+                "dimension": "overworld"
+              },
+              {
+                "id": "he_alive",
+                "description": "The body is alive",
+                "kind": "alive",
+                "node_id": "",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "he_interior_clear",
+                "description": "Adjacent interior cells remain clear air",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "air"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 29,
+                    "y": 104,
+                    "z": 1
+                  },
+                  {
+                    "x": 31,
+                    "y": 104,
+                    "z": 1
+                  },
+                  {
+                    "x": 30,
+                    "y": 104,
+                    "z": 0
+                  },
+                  {
+                    "x": 30,
+                    "y": 104,
+                    "z": 2
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "he_approach_support",
+                "description": "The approach support cell is present",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "birch_planks"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 27,
+                    "y": 103,
+                    "z": 1
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              }
+            ],
+            "assumptions": []
+          },
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 45,
+            "leaf_id": "home_entry",
+            "spec_revision": 7,
+            "actor_attempt": "actor-0046",
+            "verifier_attempt": "verifier-0271-home_entry"
+          },
+          "checks": {
+            "he_position": true,
+            "he_alive": true,
+            "he_interior_clear": true,
+            "he_approach_support": true
+          },
+          "actor_summary": "home_entry is done. The doorway at (28,104,1) was found EMPTY (retained actor-0045 had mined the birch door, birch_door 2->3), so I repaired it instead of replacing supplies: equipped birch_door, minecraft_build fill @ (28,104,1) placed the lower cell plus the automatic upper half (28,105,1), birch_door 3->2 (seq 9). Verified the door CLOSED and solid: open=false, is_solid=true, collision [0,0,0,0.19,1,1] spanning the whole doorway depth (seq 10) - that full-width band is exactly what made earlier forward-only presses report no_motion at feet x=27.7. Opened it with minecraft_use_block (open_before=false, open_after=true, seq 11); the open door keeps only a thin panel collision x 28.00-29.00, z 1.00-1.19 (seq 12), so the passable body-centre window is z 1.49-1.70. Entered with ordinary walk keys only (no teleport, no grants, no operator commands): forward+right pulses 27.7/1.5 -> 28.45/1.7 -> 28.91/1.7 -> 29.51/1.88 (inside, block (29,104,1)), then forward+left -> 30.11/1.28, then 0.25-block sneak nudges to the final stop. Two inherited method_paused rejections (forward alone; forward+left) were cleared only through actor_diagnose bound to fresh reads (seq 4-7/10/12-14, then 18-21) with real method changes. Final state, re-read after every mutation (observe seq 35, unchanged from seq 26): feet (30.36, 104.0, 1.28), block_position (30,104,1), overworld, on_ground, in_water=false, health 20.0/20.0, food 20, oxygen 20, death_count 0 - distance to (30,104,1) is 0.456 <= radius 0.7 (0.564 to the cell centre, so a centre-based reading also passes). Interior air confirmed cell by cell: (29,104,1) seq 27, (31,104,1) seq 28, (30,104,2) seq 29, (30,104,0) seq 31, plus head cell (30,105,1) seq 32; approach support (27,103,1) birch_planks solid seq 30; stop floor (30,103,1) birch_planks seq 20. Instruction re-read: revision 0, unchanged. The retained uncertain minecraft_chest_withdraw iron_ingot @ (30,102,5) was NOT replayed - inventory still holds 3 iron_ingot, so absence is not proven. Door left open so the entrance/return route stays usable (birch_door x2 spare)."
+        },
+        "home_exit": {
+          "verification": "verification/verifier-0272-home_exit.json",
+          "certificate_digest": "845c390c176bbf9175d39ad905a6e6639c327618960c4c987451110227a82479",
+          "specification": {
+            "id": "home_exit",
+            "revision": 3,
+            "kind": "leaf",
+            "parent": "home_usable",
+            "children": [],
+            "depends_on": [
+              "home_entry"
+            ],
+            "instruction": "Navigate from the interior center through the door to the outside approach at (27, 104, 1).",
+            "specialist": "builder",
+            "deferred": false,
+            "defer_reason": "",
+            "criteria": [
+              {
+                "id": "hx_position",
+                "description": "The body is at the outside approach",
+                "kind": "position",
+                "node_id": "",
+                "names": [],
+                "minimum": 1,
+                "position": {
+                  "x": 27,
+                  "y": 104,
+                  "z": 1
+                },
+                "positions": [],
+                "end": null,
+                "radius": 0.7,
+                "dimension": "overworld"
+              },
+              {
+                "id": "hx_alive",
+                "description": "The body is alive",
+                "kind": "alive",
+                "node_id": "",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "hx_approach",
+                "description": "The outside approach remains clear",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "air"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 27,
+                    "y": 104,
+                    "z": 1
+                  },
+                  {
+                    "x": 27,
+                    "y": 105,
+                    "z": 1
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              }
+            ],
+            "assumptions": []
+          },
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 45,
+            "leaf_id": "home_exit",
+            "spec_revision": 3,
+            "actor_attempt": "actor-0047",
+            "verifier_attempt": "verifier-0272-home_exit"
+          },
+          "checks": {
+            "hx_position": true,
+            "hx_alive": true,
+            "hx_approach": true
+          },
+          "actor_summary": "Leaf home_exit performed the required traversal. Start: interior center, feet (30.36,104.0,1.28) in cell (30,104,1) (observe seq 3; vitals 20/20 health, food 20, oxygen 20, on_ground, no hostiles). The doorway could not be walked: minecraft_walk_to_exact(27,104,1) returned ok=false status=no_path with hops=0 (seq 6) and minecraft_find_path returned state=blocked with blocker birch_door (28,104,1) (seq 7), because both door halves report is_solid=true even while open=true (seq 4/8, collision band absolute z 1.00..1.19 across the doorway cell, south wall (28,104,2) starting at z=2.00). Two actor_diagnose bindings then changed the method to raw fine_control pulses through the 0.81-wide channel: sidestep to clear the swung panel (seq 10/11), rotate to face west (seq 12), centre feet z in [1.49,1.70] (seq 14/16), then pass through the doorway \u2014 poses (29.86) -> (28.81) -> (27.98) prove physical passage through door cell x=28 (seq 17/19/20) \u2014 and finish at the outside approach, feet (27.42,104.0,1.24), block_position (27,104,1) (seq 21/22/23, observe seq 24). Criterion support against the re-read operands (spec_revision 3 unchanged, instruction revision 0): hx_position distance to (27,104,1) = 0.484 <= radius 0.7 in overworld, body cell exactly (27,104,1) (0.573 even under a cell-centre reading); hx_alive health 20.0/20.0, food 20, oxygen 20, on_ground, in_water=false, death_count 0 (seq 24); hx_approach explicit position-matching air reads at (27,104,1) (seq 25) and (27,105,1) (seq 26). No block was mined or placed, no item consumed, inventory identical to baseline (iron_pickaxe 1, iron_ingot 3, dirt 17, cobblestone 3, birch_door 2, egg 2, stone_pickaxe 1, dandelion 3), and the door was left in the state found (open), so accepted walls_door/roof/floor state and the reserved cells are unchanged. The retained uncertain effect from actor-0027 seq 24 (chest_withdraw iron_ingot @ (30,102,5)) stays reconciled without replay: (30,102,5) is still the furnace (fresh nearby_blocks seq 24), was shown empty in actor-0043, and the 3 ingots are still in inventory, so no resmelt/withdraw/replacement was done. Durable route note saved (minecraft_remember kind=routes, note_id f1249a63f7f64e8ebd2871c089ae9c50, memory/routes.jsonl, seq 27) recording the exit path and the doorway-channel lesson."
+        },
+        "home_usable": {
+          "verification": "verification/verifier-0273-home_usable.json",
+          "certificate_digest": "cd0dfebdb1dea0f33b2335c311e31c9609b0b893b667833c0296cd5b5a90b588",
+          "specification": {
+            "id": "home_usable",
+            "revision": 3,
+            "kind": "story",
+            "parent": "wooden_home_iron_pickaxe",
+            "children": [
+              "home_entry",
+              "home_exit"
+            ],
+            "depends_on": [
+              "house_build"
+            ],
+            "instruction": "Demonstrate that the house is usable by entering through the door to the interior center and then exiting to the outside approach.",
+            "specialist": "builder",
+            "deferred": false,
+            "defer_reason": "",
+            "criteria": [
+              {
+                "id": "hu_entry",
+                "description": "The body enters the interior center",
+                "kind": "accepted",
+                "node_id": "home_entry",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "hu_exit",
+                "description": "The body exits to the outside approach",
+                "kind": "accepted",
+                "node_id": "home_exit",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              }
+            ],
+            "assumptions": []
+          },
+          "identity": {
+            "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+            "tree_revision": 45,
+            "leaf_id": "home_usable",
+            "spec_revision": 3,
+            "actor_attempt": "actor-0047",
+            "verifier_attempt": "verifier-0273-home_usable"
+          },
+          "checks": {
+            "hu_entry": true,
+            "hu_exit": true
+          },
+          "actor_summary": "Leaf home_exit performed the required traversal. Start: interior center, feet (30.36,104.0,1.28) in cell (30,104,1) (observe seq 3; vitals 20/20 health, food 20, oxygen 20, on_ground, no hostiles). The doorway could not be walked: minecraft_walk_to_exact(27,104,1) returned ok=false status=no_path with hops=0 (seq 6) and minecraft_find_path returned state=blocked with blocker birch_door (28,104,1) (seq 7), because both door halves report is_solid=true even while open=true (seq 4/8, collision band absolute z 1.00..1.19 across the doorway cell, south wall (28,104,2) starting at z=2.00). Two actor_diagnose bindings then changed the method to raw fine_control pulses through the 0.81-wide channel: sidestep to clear the swung panel (seq 10/11), rotate to face west (seq 12), centre feet z in [1.49,1.70] (seq 14/16), then pass through the doorway \u2014 poses (29.86) -> (28.81) -> (27.98) prove physical passage through door cell x=28 (seq 17/19/20) \u2014 and finish at the outside approach, feet (27.42,104.0,1.24), block_position (27,104,1) (seq 21/22/23, observe seq 24). Criterion support against the re-read operands (spec_revision 3 unchanged, instruction revision 0): hx_position distance to (27,104,1) = 0.484 <= radius 0.7 in overworld, body cell exactly (27,104,1) (0.573 even under a cell-centre reading); hx_alive health 20.0/20.0, food 20, oxygen 20, on_ground, in_water=false, death_count 0 (seq 24); hx_approach explicit position-matching air reads at (27,104,1) (seq 25) and (27,105,1) (seq 26). No block was mined or placed, no item consumed, inventory identical to baseline (iron_pickaxe 1, iron_ingot 3, dirt 17, cobblestone 3, birch_door 2, egg 2, stone_pickaxe 1, dandelion 3), and the door was left in the state found (open), so accepted walls_door/roof/floor state and the reserved cells are unchanged. The retained uncertain effect from actor-0027 seq 24 (chest_withdraw iron_ingot @ (30,102,5)) stays reconciled without replay: (30,102,5) is still the furnace (fresh nearby_blocks seq 24), was shown empty in actor-0043, and the 3 ingots are still in inventory, so no resmelt/withdraw/replacement was done. Durable route note saved (minecraft_remember kind=routes, note_id f1249a63f7f64e8ebd2871c089ae9c50, memory/routes.jsonl, seq 27) recording the exit path and the doorway-channel lesson."
+        }
+      },
+      "project": {
+        "goal": "Build a small usable wooden house near the initial spawn and craft an iron pickaxe from self-mined iron. Use ordinary survival actions and no village supplies, supplied iron, supplied tools, or operator commands. Choose a surveyed stable site for a modest 5 by 5 outer footprint, supported floor, two-block-high walls, complete roof, a wooden door in a two-cell entrance, and a clear 3 by 3 interior. Keep workstations outside the reserved interior and entrance. Verify exact cells for floor, walls, roof, both door cells, interior air and entrance approach support. Demonstrate entry and exit in separate verified leaves; use the interior center for entry, with position radius 0.7 so the target has enough room for the body. Gather and craft counted materials. Craft a suitable stone pickaxe before mining identified exposed iron ore. Obtain at least three raw iron from actual iron ore mining. Smelt that same raw iron in a furnace, then craft an iron pickaxe. Use separate inventory-verifiable mining, smelting, and crafting leaves. Root acceptance must cite the accepted mining and smelting leaves and require an iron pickaxe in current inventory. Retain the ore-to-raw-iron-to-ingot-to-pickaxe evidence chain. Do not take resources from village containers. Save the home and a tested return route. Adapt failed searches through changed local coverage; do not scan buried cells. Prioritize hazard recovery and useful partial work. Do not restart completed material work after a changed method.",
+        "ancestor_specifications": [
+          {
+            "id": "wooden_home_iron_pickaxe",
+            "revision": 6,
+            "kind": "goal",
+            "parent": null,
+            "children": [
+              "craft_table",
+              "prep_wood",
+              "stone_pickaxe",
+              "site_survey",
+              "house_build",
+              "home_usable",
+              "iron_mine",
+              "iron_smelt",
+              "iron_pickaxe",
+              "save_tested",
+              "recovery_exit",
+              "recovery_exit_renewal"
+            ],
+            "depends_on": [],
+            "instruction": "Build a small usable wooden house near the initial spawn and craft an iron pickaxe from self-mined iron, using only ordinary survival actions.",
+            "specialist": "builder",
+            "deferred": false,
+            "defer_reason": "",
+            "criteria": [
+              {
+                "id": "goal_house",
+                "description": "The finished house exists and is usable",
+                "kind": "accepted",
+                "node_id": "house_build",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_pickaxe",
+                "description": "An iron pickaxe is in the current inventory from the self-mined iron chain",
+                "kind": "accepted",
+                "node_id": "iron_pickaxe",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_mine",
+                "description": "The iron ore mining step was completed",
+                "kind": "accepted",
+                "node_id": "iron_mine",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_smelt",
+                "description": "The raw-iron smelting step was completed",
+                "kind": "accepted",
+                "node_id": "iron_smelt",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_pickaxe_fresh",
+                "description": "An iron pickaxe is in the current inventory",
+                "kind": "inventory",
+                "node_id": "",
+                "names": [
+                  "iron_pickaxe"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_save",
+                "description": "The home is saved and a tested return route exists",
+                "kind": "accepted",
+                "node_id": "save_tested",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_floor_fresh",
+                "description": "The 5x5 floor at level 103 is present in the current world",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "birch_planks"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 28,
+                    "y": 103,
+                    "z": -1
+                  },
+                  {
+                    "x": 28,
+                    "y": 103,
+                    "z": 0
+                  },
+                  {
+                    "x": 28,
+                    "y": 103,
+                    "z": 1
+                  },
+                  {
+                    "x": 28,
+                    "y": 103,
+                    "z": 2
+                  },
+                  {
+                    "x": 28,
+                    "y": 103,
+                    "z": 3
+                  },
+                  {
+                    "x": 29,
+                    "y": 103,
+                    "z": -1
+                  },
+                  {
+                    "x": 29,
+                    "y": 103,
+                    "z": 0
+                  },
+                  {
+                    "x": 29,
+                    "y": 103,
+                    "z": 1
+                  },
+                  {
+                    "x": 29,
+                    "y": 103,
+                    "z": 2
+                  },
+                  {
+                    "x": 29,
+                    "y": 103,
+                    "z": 3
+                  },
+                  {
+                    "x": 30,
+                    "y": 103,
+                    "z": -1
+                  },
+                  {
+                    "x": 30,
+                    "y": 103,
+                    "z": 0
+                  },
+                  {
+                    "x": 30,
+                    "y": 103,
+                    "z": 1
+                  },
+                  {
+                    "x": 30,
+                    "y": 103,
+                    "z": 2
+                  },
+                  {
+                    "x": 30,
+                    "y": 103,
+                    "z": 3
+                  },
+                  {
+                    "x": 31,
+                    "y": 103,
+                    "z": -1
+                  },
+                  {
+                    "x": 31,
+                    "y": 103,
+                    "z": 0
+                  },
+                  {
+                    "x": 31,
+                    "y": 103,
+                    "z": 1
+                  },
+                  {
+                    "x": 31,
+                    "y": 103,
+                    "z": 2
+                  },
+                  {
+                    "x": 31,
+                    "y": 103,
+                    "z": 3
+                  },
+                  {
+                    "x": 32,
+                    "y": 103,
+                    "z": -1
+                  },
+                  {
+                    "x": 32,
+                    "y": 103,
+                    "z": 0
+                  },
+                  {
+                    "x": 32,
+                    "y": 103,
+                    "z": 1
+                  },
+                  {
+                    "x": 32,
+                    "y": 103,
+                    "z": 2
+                  },
+                  {
+                    "x": 32,
+                    "y": 103,
+                    "z": 3
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_walls_fresh",
+                "description": "The outer walls at levels 104 and 105 are present in the current world",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "birch_planks"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 28,
+                    "y": 104,
+                    "z": -1
+                  },
+                  {
+                    "x": 28,
+                    "y": 104,
+                    "z": 0
+                  },
+                  {
+                    "x": 28,
+                    "y": 104,
+                    "z": 2
+                  },
+                  {
+                    "x": 28,
+                    "y": 104,
+                    "z": 3
+                  },
+                  {
+                    "x": 28,
+                    "y": 105,
+                    "z": -1
+                  },
+                  {
+                    "x": 28,
+                    "y": 105,
+                    "z": 0
+                  },
+                  {
+                    "x": 28,
+                    "y": 105,
+                    "z": 2
+                  },
+                  {
+                    "x": 28,
+                    "y": 105,
+                    "z": 3
+                  },
+                  {
+                    "x": 29,
+                    "y": 104,
+                    "z": -1
+                  },
+                  {
+                    "x": 29,
+                    "y": 104,
+                    "z": 3
+                  },
+                  {
+                    "x": 29,
+                    "y": 105,
+                    "z": -1
+                  },
+                  {
+                    "x": 29,
+                    "y": 105,
+                    "z": 3
+                  },
+                  {
+                    "x": 30,
+                    "y": 104,
+                    "z": -1
+                  },
+                  {
+                    "x": 30,
+                    "y": 104,
+                    "z": 3
+                  },
+                  {
+                    "x": 30,
+                    "y": 105,
+                    "z": -1
+                  },
+                  {
+                    "x": 30,
+                    "y": 105,
+                    "z": 3
+                  },
+                  {
+                    "x": 31,
+                    "y": 104,
+                    "z": -1
+                  },
+                  {
+                    "x": 31,
+                    "y": 104,
+                    "z": 3
+                  },
+                  {
+                    "x": 31,
+                    "y": 105,
+                    "z": -1
+                  },
+                  {
+                    "x": 31,
+                    "y": 105,
+                    "z": 3
+                  },
+                  {
+                    "x": 32,
+                    "y": 104,
+                    "z": -1
+                  },
+                  {
+                    "x": 32,
+                    "y": 104,
+                    "z": 0
+                  },
+                  {
+                    "x": 32,
+                    "y": 104,
+                    "z": 1
+                  },
+                  {
+                    "x": 32,
+                    "y": 104,
+                    "z": 2
+                  },
+                  {
+                    "x": 32,
+                    "y": 104,
+                    "z": 3
+                  },
+                  {
+                    "x": 32,
+                    "y": 105,
+                    "z": -1
+                  },
+                  {
+                    "x": 32,
+                    "y": 105,
+                    "z": 0
+                  },
+                  {
+                    "x": 32,
+                    "y": 105,
+                    "z": 1
+                  },
+                  {
+                    "x": 32,
+                    "y": 105,
+                    "z": 2
+                  },
+                  {
+                    "x": 32,
+                    "y": 105,
+                    "z": 3
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_roof_fresh",
+                "description": "The roof at level 106 is present in the current world",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "birch_planks"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 28,
+                    "y": 106,
+                    "z": -1
+                  },
+                  {
+                    "x": 28,
+                    "y": 106,
+                    "z": 0
+                  },
+                  {
+                    "x": 28,
+                    "y": 106,
+                    "z": 1
+                  },
+                  {
+                    "x": 28,
+                    "y": 106,
+                    "z": 2
+                  },
+                  {
+                    "x": 28,
+                    "y": 106,
+                    "z": 3
+                  },
+                  {
+                    "x": 29,
+                    "y": 106,
+                    "z": -1
+                  },
+                  {
+                    "x": 29,
+                    "y": 106,
+                    "z": 0
+                  },
+                  {
+                    "x": 29,
+                    "y": 106,
+                    "z": 1
+                  },
+                  {
+                    "x": 29,
+                    "y": 106,
+                    "z": 2
+                  },
+                  {
+                    "x": 29,
+                    "y": 106,
+                    "z": 3
+                  },
+                  {
+                    "x": 30,
+                    "y": 106,
+                    "z": -1
+                  },
+                  {
+                    "x": 30,
+                    "y": 106,
+                    "z": 0
+                  },
+                  {
+                    "x": 30,
+                    "y": 106,
+                    "z": 1
+                  },
+                  {
+                    "x": 30,
+                    "y": 106,
+                    "z": 2
+                  },
+                  {
+                    "x": 30,
+                    "y": 106,
+                    "z": 3
+                  },
+                  {
+                    "x": 31,
+                    "y": 106,
+                    "z": -1
+                  },
+                  {
+                    "x": 31,
+                    "y": 106,
+                    "z": 0
+                  },
+                  {
+                    "x": 31,
+                    "y": 106,
+                    "z": 1
+                  },
+                  {
+                    "x": 31,
+                    "y": 106,
+                    "z": 2
+                  },
+                  {
+                    "x": 31,
+                    "y": 106,
+                    "z": 3
+                  },
+                  {
+                    "x": 32,
+                    "y": 106,
+                    "z": -1
+                  },
+                  {
+                    "x": 32,
+                    "y": 106,
+                    "z": 0
+                  },
+                  {
+                    "x": 32,
+                    "y": 106,
+                    "z": 1
+                  },
+                  {
+                    "x": 32,
+                    "y": 106,
+                    "z": 2
+                  },
+                  {
+                    "x": 32,
+                    "y": 106,
+                    "z": 3
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_door_fresh",
+                "description": "Both door cells contain a birch door in the current world",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "birch_door"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 28,
+                    "y": 104,
+                    "z": 1
+                  },
+                  {
+                    "x": 28,
+                    "y": 105,
+                    "z": 1
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_interior_fresh",
+                "description": "The interior is clear in the current world",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "air"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 29,
+                    "y": 104,
+                    "z": 0
+                  },
+                  {
+                    "x": 29,
+                    "y": 104,
+                    "z": 1
+                  },
+                  {
+                    "x": 29,
+                    "y": 104,
+                    "z": 2
+                  },
+                  {
+                    "x": 29,
+                    "y": 105,
+                    "z": 0
+                  },
+                  {
+                    "x": 29,
+                    "y": 105,
+                    "z": 1
+                  },
+                  {
+                    "x": 29,
+                    "y": 105,
+                    "z": 2
+                  },
+                  {
+                    "x": 30,
+                    "y": 104,
+                    "z": 0
+                  },
+                  {
+                    "x": 30,
+                    "y": 104,
+                    "z": 1
+                  },
+                  {
+                    "x": 30,
+                    "y": 104,
+                    "z": 2
+                  },
+                  {
+                    "x": 30,
+                    "y": 105,
+                    "z": 0
+                  },
+                  {
+                    "x": 30,
+                    "y": 105,
+                    "z": 1
+                  },
+                  {
+                    "x": 30,
+                    "y": 105,
+                    "z": 2
+                  },
+                  {
+                    "x": 31,
+                    "y": 104,
+                    "z": 0
+                  },
+                  {
+                    "x": 31,
+                    "y": 104,
+                    "z": 1
+                  },
+                  {
+                    "x": 31,
+                    "y": 104,
+                    "z": 2
+                  },
+                  {
+                    "x": 31,
+                    "y": 105,
+                    "z": 0
+                  },
+                  {
+                    "x": 31,
+                    "y": 105,
+                    "z": 1
+                  },
+                  {
+                    "x": 31,
+                    "y": 105,
+                    "z": 2
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_approach_fresh",
+                "description": "The outside approach is clear in the current world",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "air"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 27,
+                    "y": 104,
+                    "z": 1
+                  },
+                  {
+                    "x": 27,
+                    "y": 105,
+                    "z": 1
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "goal_approach_support_fresh",
+                "description": "The approach support cell is present in the current world",
+                "kind": "block",
+                "node_id": "",
+                "names": [
+                  "birch_planks"
+                ],
+                "minimum": 1,
+                "position": null,
+                "positions": [
+                  {
+                    "x": 27,
+                    "y": 103,
+                    "z": 1
+                  }
+                ],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              },
+              {
+                "id": "renewed_recovery_exit_renewal",
+                "description": "Fresh attainment of the retained current prerequisite.",
+                "kind": "accepted",
+                "node_id": "recovery_exit_renewal",
+                "names": [],
+                "minimum": 1,
+                "position": null,
+                "positions": [],
+                "end": null,
+                "radius": 2.0,
+                "dimension": "overworld"
+              }
+            ],
+            "assumptions": []
+          }
+        ]
+      },
+      "gameplay_history": {
+        "schema": "pm.gameplay-planning.v4",
+        "recovery": null,
+        "service_wait": null,
+        "life": {
+          "body_session": "828c432b76b244f6b9ed40c200329a9c",
+          "death_count": 0
+        },
+        "failed_recoveries": [
+          {
+            "kind": "failed_recovery",
+            "reason": "player_died",
+            "unsuccessful": true,
+            "made_progress": false,
+            "completion_verified": false,
+            "quantities": {},
+            "inventory_delta": {},
+            "seq": 45,
+            "time": 1791523968.683728,
+            "tool": "minecraft_observe",
+            "arguments": {
+              "include_image": false
+            },
+            "previous_life": {
+              "body_session": "6209fda0bbcc405a968e12e104cc4618",
+              "death_count": 0
+            },
+            "current_life": {
+              "body_session": "6209fda0bbcc405a968e12e104cc4618",
+              "death_count": 1
+            },
+            "failed_episode": {
+              "causes": [
+                "damage",
+                "low_health"
+              ],
+              "seq": 741,
+              "started_at": 1791523523.2342782,
+              "life": {
+                "body_session": "6209fda0bbcc405a968e12e104cc4618",
+                "death_count": 0
+              },
+              "prior_life_unverified": true,
+              "source_index": 10
+            },
+            "inventory_missing_after_death": [
+              {
+                "item": "cobblestone",
+                "before": 134,
+                "after": 0,
+                "missing": 134
+              },
+              {
+                "item": "birch_planks",
+                "before": 60,
+                "after": 0,
+                "missing": 60
+              },
+              {
+                "item": "dirt",
+                "before": 17,
+                "after": 0,
+                "missing": 17
+              },
+              {
+                "item": "birch_log",
+                "before": 15,
+                "after": 0,
+                "missing": 15
+              },
+              {
+                "item": "stick",
+                "before": 8,
+                "after": 0,
+                "missing": 8
+              },
+              {
+                "item": "moss_block",
+                "before": 7,
+                "after": 0,
+                "missing": 7
+              },
+              {
+                "item": "birch_door",
+                "before": 3,
+                "after": 0,
+                "missing": 3
+              },
+              {
+                "item": "raw_iron",
+                "before": 2,
+                "after": 0,
+                "missing": 2
+              },
+              {
+                "item": "wooden_pickaxe",
+                "before": 2,
+                "after": 0,
+                "missing": 2
+              },
+              {
+                "item": "birch_sapling",
+                "before": 1,
+                "after": 0,
+                "missing": 1
+              },
+              {
+                "item": "crafting_table",
+                "before": 1,
+                "after": 0,
+                "missing": 1
+              },
+              {
+                "item": "dandelion",
+                "before": 1,
+                "after": 0,
+                "missing": 1
+              },
+              {
+                "item": "stone_pickaxe",
+                "before": 1,
+                "after": 0,
+                "missing": 1
+              }
+            ],
+            "inventory_scope": "Missing after observed death. These quantities do not establish consumption, block placement, destruction, drop location, or recovered items.",
+            "source_index": 27
+          },
+          {
+            "kind": "failed_recovery",
+            "reason": "player_died",
+            "unsuccessful": true,
+            "made_progress": false,
+            "completion_verified": false,
+            "quantities": {},
+            "inventory_delta": {},
+            "seq": 388,
+            "time": 1791525903.368983,
+            "tool": "minecraft_observe",
+            "arguments": {
+              "include_image": false
+            },
+            "previous_life": {
+              "body_session": "e26d8a29bb23482da0d2d6e3be75cf61",
+              "death_count": 0
+            },
+            "current_life": {
+              "body_session": "e26d8a29bb23482da0d2d6e3be75cf61",
+              "death_count": 1
+            },
+            "failed_episode": null,
+            "inventory_missing_after_death": [
+              {
+                "item": "birch_planks",
+                "before": 44,
+                "after": 0,
+                "missing": 44
+              },
+              {
+                "item": "stick",
+                "before": 16,
+                "after": 0,
+                "missing": 16
+              },
+              {
+                "item": "birch_log",
+                "before": 11,
+                "after": 0,
+                "missing": 11
+              },
+              {
+                "item": "dirt",
+                "before": 8,
+                "after": 0,
+                "missing": 8
+              }
+            ],
+            "inventory_scope": "Missing after observed death. These quantities do not establish consumption, block placement, destruction, drop location, or recovered items.",
+            "source_index": 4
+          }
+        ],
+        "navigation": {
+          "ineffective": 0,
+          "last": null,
+          "position": null,
+          "observed_at": 0.0
+        },
+        "harvesting": {
+          "ineffective": 0,
+          "last_failure": null
+        },
+        "searches": [],
+        "outcome_count": 0,
+        "recent_outcomes": [],
+        "diagnoses": [],
+        "completion_verified": false,
+        "methods": [],
+        "method_states": [],
+        "inventory_items": [],
+        "method_fields": [
+          "tool_index",
+          "arguments",
+          "ineffective",
+          "state_index",
+          "last"
+        ],
+        "tool_names": [],
+        "outcome_fields": [
+          "kind_index",
+          "unsuccessful",
+          "reason",
+          "quantities",
+          "inventory_delta",
+          "made_progress",
+          "completion_verified",
+          "source_index",
+          "seq",
+          "time",
+          "additional_fields"
+        ],
+        "source_paths": [],
+        "outcome_kinds": [],
+        "search_defaults": {},
+        "scope": {
+          "node_ids": [
+            "craft_table",
+            "floor_clear",
+            "floor_place",
+            "home_entry",
+            "home_exit",
+            "home_usable",
+            "house_build",
+            "prep_wood",
+            "roof_complete",
+            "save_tested",
+            "site_survey",
+            "stone_pickaxe",
+            "walls_door"
+          ],
+          "method_node_ids": [
+            "save_tested"
+          ],
+          "journals": [
+            "attempts/actor-0048/scratch/actor-journal.jsonl"
+          ],
+          "meaning": "Selected task methods; original global journals remain available through retrieval."
+        }
+      },
+      "full_gameplay_history": "inbox/gameplay-history.json",
+      "history_journals": [
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0001\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0002\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0003\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0004\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0005\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0006\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0007\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0008\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0009\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0010\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0011\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0012\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0013\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0014\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0015\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0016\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0017\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0018\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0019\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0020\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0021\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0022\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0023\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0024\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0025\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0026\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0027\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0028\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0029\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0030\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0031\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0032\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0033\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0034\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0035\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0036\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0037\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0038\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0039\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0040\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0041\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0042\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0043\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0044\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0045\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0046\\scratch\\actor-journal.jsonl",
+        "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0047\\scratch\\actor-journal.jsonl"
+      ]
+    },
+    "task_reference": {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 45,
+      "leaf_id": "save_tested",
+      "spec_revision": 8,
+      "actor_attempt": "actor-0048",
+      "verifier_attempt": ""
+    },
+    "include_image": false,
+    "wait_for_cancel": false,
+    "wait_for_update": false
+  },
+  "caller_constraints": {
+    "errors": [],
+    "requirements": {
+      "scope": "Caller M3 contract operands, not evidence that the world is complete. Preserve accepted materials and tools.",
+      "house": {
+        "errors": [],
+        "bounds": {
+          "x": [
+            28,
+            32
+          ],
+          "z": [
+            -1,
+            3
+          ],
+          "feet_y": 104
+        },
+        "entry": [
+          30,
+          104,
+          1
+        ],
+        "exit": [
+          27,
+          104,
+          1
+        ],
+        "cells": {
+          "floor": [
+            [
+              28,
+              103,
+              -1
+            ],
+            [
+              28,
+              103,
+              0
+            ],
+            [
+              28,
+              103,
+              1
+            ],
+            [
+              28,
+              103,
+              2
+            ],
+            [
+              28,
+              103,
+              3
+            ],
+            [
+              29,
+              103,
+              -1
+            ],
+            [
+              29,
+              103,
+              0
+            ],
+            [
+              29,
+              103,
+              1
+            ],
+            [
+              29,
+              103,
+              2
+            ],
+            [
+              29,
+              103,
+              3
+            ],
+            [
+              30,
+              103,
+              -1
+            ],
+            [
+              30,
+              103,
+              0
+            ],
+            [
+              30,
+              103,
+              1
+            ],
+            [
+              30,
+              103,
+              2
+            ],
+            [
+              30,
+              103,
+              3
+            ],
+            [
+              31,
+              103,
+              -1
+            ],
+            [
+              31,
+              103,
+              0
+            ],
+            [
+              31,
+              103,
+              1
+            ],
+            [
+              31,
+              103,
+              2
+            ],
+            [
+              31,
+              103,
+              3
+            ],
+            [
+              32,
+              103,
+              -1
+            ],
+            [
+              32,
+              103,
+              0
+            ],
+            [
+              32,
+              103,
+              1
+            ],
+            [
+              32,
+              103,
+              2
+            ],
+            [
+              32,
+              103,
+              3
+            ]
+          ],
+          "walls": [
+            [
+              28,
+              104,
+              -1
+            ],
+            [
+              28,
+              104,
+              0
+            ],
+            [
+              28,
+              104,
+              2
+            ],
+            [
+              28,
+              104,
+              3
+            ],
+            [
+              28,
+              105,
+              -1
+            ],
+            [
+              28,
+              105,
+              0
+            ],
+            [
+              28,
+              105,
+              2
+            ],
+            [
+              28,
+              105,
+              3
+            ],
+            [
+              29,
+              104,
+              -1
+            ],
+            [
+              29,
+              104,
+              3
+            ],
+            [
+              29,
+              105,
+              -1
+            ],
+            [
+              29,
+              105,
+              3
+            ],
+            [
+              30,
+              104,
+              -1
+            ],
+            [
+              30,
+              104,
+              3
+            ],
+            [
+              30,
+              105,
+              -1
+            ],
+            [
+              30,
+              105,
+              3
+            ],
+            [
+              31,
+              104,
+              -1
+            ],
+            [
+              31,
+              104,
+              3
+            ],
+            [
+              31,
+              105,
+              -1
+            ],
+            [
+              31,
+              105,
+              3
+            ],
+            [
+              32,
+              104,
+              -1
+            ],
+            [
+              32,
+              104,
+              0
+            ],
+            [
+              32,
+              104,
+              1
+            ],
+            [
+              32,
+              104,
+              2
+            ],
+            [
+              32,
+              104,
+              3
+            ],
+            [
+              32,
+              105,
+              -1
+            ],
+            [
+              32,
+              105,
+              0
+            ],
+            [
+              32,
+              105,
+              1
+            ],
+            [
+              32,
+              105,
+              2
+            ],
+            [
+              32,
+              105,
+              3
+            ]
+          ],
+          "roof": [
+            [
+              28,
+              106,
+              -1
+            ],
+            [
+              28,
+              106,
+              0
+            ],
+            [
+              28,
+              106,
+              1
+            ],
+            [
+              28,
+              106,
+              2
+            ],
+            [
+              28,
+              106,
+              3
+            ],
+            [
+              29,
+              106,
+              -1
+            ],
+            [
+              29,
+              106,
+              0
+            ],
+            [
+              29,
+              106,
+              1
+            ],
+            [
+              29,
+              106,
+              2
+            ],
+            [
+              29,
+              106,
+              3
+            ],
+            [
+              30,
+              106,
+              -1
+            ],
+            [
+              30,
+              106,
+              0
+            ],
+            [
+              30,
+              106,
+              1
+            ],
+            [
+              30,
+              106,
+              2
+            ],
+            [
+              30,
+              106,
+              3
+            ],
+            [
+              31,
+              106,
+              -1
+            ],
+            [
+              31,
+              106,
+              0
+            ],
+            [
+              31,
+              106,
+              1
+            ],
+            [
+              31,
+              106,
+              2
+            ],
+            [
+              31,
+              106,
+              3
+            ],
+            [
+              32,
+              106,
+              -1
+            ],
+            [
+              32,
+              106,
+              0
+            ],
+            [
+              32,
+              106,
+              1
+            ],
+            [
+              32,
+              106,
+              2
+            ],
+            [
+              32,
+              106,
+              3
+            ]
+          ],
+          "door": [
+            [
+              28,
+              104,
+              1
+            ],
+            [
+              28,
+              105,
+              1
+            ]
+          ],
+          "interior": [
+            [
+              29,
+              104,
+              0
+            ],
+            [
+              29,
+              104,
+              1
+            ],
+            [
+              29,
+              104,
+              2
+            ],
+            [
+              29,
+              105,
+              0
+            ],
+            [
+              29,
+              105,
+              1
+            ],
+            [
+              29,
+              105,
+              2
+            ],
+            [
+              30,
+              104,
+              0
+            ],
+            [
+              30,
+              104,
+              1
+            ],
+            [
+              30,
+              104,
+              2
+            ],
+            [
+              30,
+              105,
+              0
+            ],
+            [
+              30,
+              105,
+              1
+            ],
+            [
+              30,
+              105,
+              2
+            ],
+            [
+              31,
+              104,
+              0
+            ],
+            [
+              31,
+              104,
+              1
+            ],
+            [
+              31,
+              104,
+              2
+            ],
+            [
+              31,
+              105,
+              0
+            ],
+            [
+              31,
+              105,
+              1
+            ],
+            [
+              31,
+              105,
+              2
+            ]
+          ],
+          "approach_air": [
+            [
+              27,
+              104,
+              1
+            ],
+            [
+              27,
+              105,
+              1
+            ]
+          ],
+          "approach_support": [
+            [
+              27,
+              103,
+              1
+            ]
+          ]
+        }
+      },
+      "iron_leaves": {
+        "mining": [
+          "iron_mine"
+        ],
+        "smelting": [
+          "iron_smelt"
+        ]
+      },
+      "durable_home_and_route": "Save a home waypoint at the house or entrance. In one actor attempt, observe at home, walk outside the footprint by at least one block and observe, then walk back and observe. All three observations must show healthy grounded dry positions in the same body life. Then save the actual tested route with minecraft_remember(kind='routes'). These effects are checked before project publication."
+    },
+    "original_receipt": "planning/constraints/0066.json",
+    "original_digest": "3d0094e8c313eece4676d06e47cc2df7030706bf475975b208a47c507b177bc8"
+  },
+  "constraint_proof": {
+    "identity": {
+      "task_id": "ad5f4b4094a14bf6bcfe9caeead2770a",
+      "tree_revision": 45,
+      "leaf_id": "",
+      "spec_revision": 0,
+      "actor_attempt": "",
+      "verifier_attempt": ""
+    },
+    "tree_digest": "84253202dad07f2b275afebfeaa29241eec659a4211d1daf963dfc9d8decd88f",
+    "result": {
+      "errors": [],
+      "requirements": {
+        "scope": "Caller M3 contract operands, not evidence that the world is complete. Preserve accepted materials and tools.",
+        "house": {
+          "errors": [],
+          "bounds": {
+            "x": [
+              28,
+              32
+            ],
+            "z": [
+              -1,
+              3
+            ],
+            "feet_y": 104
+          },
+          "entry": [
+            30,
+            104,
+            1
+          ],
+          "exit": [
+            27,
+            104,
+            1
+          ],
+          "cells": {
+            "floor": [
+              [
+                28,
+                103,
+                -1
+              ],
+              [
+                28,
+                103,
+                0
+              ],
+              [
+                28,
+                103,
+                1
+              ],
+              [
+                28,
+                103,
+                2
+              ],
+              [
+                28,
+                103,
+                3
+              ],
+              [
+                29,
+                103,
+                -1
+              ],
+              [
+                29,
+                103,
+                0
+              ],
+              [
+                29,
+                103,
+                1
+              ],
+              [
+                29,
+                103,
+                2
+              ],
+              [
+                29,
+                103,
+                3
+              ],
+              [
+                30,
+                103,
+                -1
+              ],
+              [
+                30,
+                103,
+                0
+              ],
+              [
+                30,
+                103,
+                1
+              ],
+              [
+                30,
+                103,
+                2
+              ],
+              [
+                30,
+                103,
+                3
+              ],
+              [
+                31,
+                103,
+                -1
+              ],
+              [
+                31,
+                103,
+                0
+              ],
+              [
+                31,
+                103,
+                1
+              ],
+              [
+                31,
+                103,
+                2
+              ],
+              [
+                31,
+                103,
+                3
+              ],
+              [
+                32,
+                103,
+                -1
+              ],
+              [
+                32,
+                103,
+                0
+              ],
+              [
+                32,
+                103,
+                1
+              ],
+              [
+                32,
+                103,
+                2
+              ],
+              [
+                32,
+                103,
+                3
+              ]
+            ],
+            "walls": [
+              [
+                28,
+                104,
+                -1
+              ],
+              [
+                28,
+                104,
+                0
+              ],
+              [
+                28,
+                104,
+                2
+              ],
+              [
+                28,
+                104,
+                3
+              ],
+              [
+                28,
+                105,
+                -1
+              ],
+              [
+                28,
+                105,
+                0
+              ],
+              [
+                28,
+                105,
+                2
+              ],
+              [
+                28,
+                105,
+                3
+              ],
+              [
+                29,
+                104,
+                -1
+              ],
+              [
+                29,
+                104,
+                3
+              ],
+              [
+                29,
+                105,
+                -1
+              ],
+              [
+                29,
+                105,
+                3
+              ],
+              [
+                30,
+                104,
+                -1
+              ],
+              [
+                30,
+                104,
+                3
+              ],
+              [
+                30,
+                105,
+                -1
+              ],
+              [
+                30,
+                105,
+                3
+              ],
+              [
+                31,
+                104,
+                -1
+              ],
+              [
+                31,
+                104,
+                3
+              ],
+              [
+                31,
+                105,
+                -1
+              ],
+              [
+                31,
+                105,
+                3
+              ],
+              [
+                32,
+                104,
+                -1
+              ],
+              [
+                32,
+                104,
+                0
+              ],
+              [
+                32,
+                104,
+                1
+              ],
+              [
+                32,
+                104,
+                2
+              ],
+              [
+                32,
+                104,
+                3
+              ],
+              [
+                32,
+                105,
+                -1
+              ],
+              [
+                32,
+                105,
+                0
+              ],
+              [
+                32,
+                105,
+                1
+              ],
+              [
+                32,
+                105,
+                2
+              ],
+              [
+                32,
+                105,
+                3
+              ]
+            ],
+            "roof": [
+              [
+                28,
+                106,
+                -1
+              ],
+              [
+                28,
+                106,
+                0
+              ],
+              [
+                28,
+                106,
+                1
+              ],
+              [
+                28,
+                106,
+                2
+              ],
+              [
+                28,
+                106,
+                3
+              ],
+              [
+                29,
+                106,
+                -1
+              ],
+              [
+                29,
+                106,
+                0
+              ],
+              [
+                29,
+                106,
+                1
+              ],
+              [
+                29,
+                106,
+                2
+              ],
+              [
+                29,
+                106,
+                3
+              ],
+              [
+                30,
+                106,
+                -1
+              ],
+              [
+                30,
+                106,
+                0
+              ],
+              [
+                30,
+                106,
+                1
+              ],
+              [
+                30,
+                106,
+                2
+              ],
+              [
+                30,
+                106,
+                3
+              ],
+              [
+                31,
+                106,
+                -1
+              ],
+              [
+                31,
+                106,
+                0
+              ],
+              [
+                31,
+                106,
+                1
+              ],
+              [
+                31,
+                106,
+                2
+              ],
+              [
+                31,
+                106,
+                3
+              ],
+              [
+                32,
+                106,
+                -1
+              ],
+              [
+                32,
+                106,
+                0
+              ],
+              [
+                32,
+                106,
+                1
+              ],
+              [
+                32,
+                106,
+                2
+              ],
+              [
+                32,
+                106,
+                3
+              ]
+            ],
+            "door": [
+              [
+                28,
+                104,
+                1
+              ],
+              [
+                28,
+                105,
+                1
+              ]
+            ],
+            "interior": [
+              [
+                29,
+                104,
+                0
+              ],
+              [
+                29,
+                104,
+                1
+              ],
+              [
+                29,
+                104,
+                2
+              ],
+              [
+                29,
+                105,
+                0
+              ],
+              [
+                29,
+                105,
+                1
+              ],
+              [
+                29,
+                105,
+                2
+              ],
+              [
+                30,
+                104,
+                0
+              ],
+              [
+                30,
+                104,
+                1
+              ],
+              [
+                30,
+                104,
+                2
+              ],
+              [
+                30,
+                105,
+                0
+              ],
+              [
+                30,
+                105,
+                1
+              ],
+              [
+                30,
+                105,
+                2
+              ],
+              [
+                31,
+                104,
+                0
+              ],
+              [
+                31,
+                104,
+                1
+              ],
+              [
+                31,
+                104,
+                2
+              ],
+              [
+                31,
+                105,
+                0
+              ],
+              [
+                31,
+                105,
+                1
+              ],
+              [
+                31,
+                105,
+                2
+              ]
+            ],
+            "approach_air": [
+              [
+                27,
+                104,
+                1
+              ],
+              [
+                27,
+                105,
+                1
+              ]
+            ],
+            "approach_support": [
+              [
+                27,
+                103,
+                1
+              ]
+            ]
+          }
+        },
+        "iron_leaves": {
+          "mining": [
+            "iron_mine"
+          ],
+          "smelting": [
+            "iron_smelt"
+          ]
+        },
+        "durable_home_and_route": "Save a home waypoint at the house or entrance. In one actor attempt, observe at home, walk outside the footprint by at least one block and observe, then walk back and observe. All three observations must show healthy grounded dry positions in the same body life. Then save the actual tested route with minecraft_remember(kind='routes'). These effects are checked before project publication."
+      }
+    }
+  },
+  "completed_calls": 16,
+  "calls": [
+    {
+      "seq": 1,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791633030.1988857,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 27.42,
+            "y": 104.0,
+            "z": 1.24
+          },
+          "eye_position": {
+            "x": 27.42,
+            "y": 105.62,
+            "z": 1.24
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": 1
+          },
+          "yaw": 90.04,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -1.0,
+            "y": -0.0,
+            "z": -0.0
+          }
+        },
+        "player": {
+          "health": 20.0,
+          "max_health": 20.0,
+          "food": 20,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 3295,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "body_session": "828c432b76b244f6b9ed40c200329a9c",
+        "death_count": 0,
+        "held_item": {
+          "name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "egg",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": "cobblestone",
+            "count": 3
+          },
+          {
+            "slot": 2,
+            "item": "iron_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 3,
+            "item": "stone_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 4,
+            "item": "birch_door",
+            "count": 2
+          },
+          {
+            "slot": 5,
+            "item": "dirt",
+            "count": 17
+          },
+          {
+            "slot": 6,
+            "item": "iron_ingot",
+            "count": 3
+          },
+          {
+            "slot": 7,
+            "item": "dandelion",
+            "count": 3
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 17,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "iron_ingot",
+            "display_name": "Iron Ingot",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "iron_pickaxe",
+            "display_name": "Iron Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2568,
+            "nearest": {
+              "x": 27,
+              "y": 104,
+              "z": 1
+            },
+            "distance": 0.48
+          },
+          {
+            "block_name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 2,
+            "nearest": {
+              "x": 28,
+              "y": 104,
+              "z": 1
+            },
+            "distance": 0.63
+          },
+          {
+            "block_name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 98,
+            "nearest": {
+              "x": 28,
+              "y": 104,
+              "z": 2
+            },
+            "distance": 0.96
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 268,
+            "nearest": {
+              "x": 27,
+              "y": 103,
+              "z": 2
+            },
+            "distance": 1.32
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 300,
+            "nearest": {
+              "x": 27,
+              "y": 102,
+              "z": 1
+            },
+            "distance": 2.06
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 28,
+            "nearest": {
+              "x": 25,
+              "y": 105,
+              "z": 1
+            },
+            "distance": 2.63
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1580,
+            "nearest": {
+              "x": 26,
+              "y": 102,
+              "z": 3
+            },
+            "distance": 3.02
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 22,
+            "nearest": {
+              "x": 25,
+              "y": 104,
+              "z": -1
+            },
+            "distance": 3.29
+          },
+          {
+            "block_name": "furnace",
+            "display_name": "Furnace",
+            "count": 2,
+            "nearest": {
+              "x": 30,
+              "y": 102,
+              "z": 5
+            },
+            "distance": 4.98
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 39,
+            "nearest": {
+              "x": 22,
+              "y": 104,
+              "z": 2
+            },
+            "distance": 5.47
+          },
+          {
+            "block_name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 2,
+            "nearest": {
+              "x": 30,
+              "y": 102,
+              "z": 6
+            },
+            "distance": 5.77
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 1,
+            "nearest": {
+              "x": 23,
+              "y": 97,
+              "z": -4
+            },
+            "distance": 9.8
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 2,
+            "nearest": {
+              "x": 27,
+              "y": 96,
+              "z": -7
+            },
+            "distance": 11.49
+          },
+          {
+            "block_name": "copper_ore",
+            "display_name": "Copper Ore",
+            "count": 1,
+            "nearest": {
+              "x": 19,
+              "y": 96,
+              "z": 2
+            },
+            "distance": 11.64
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 475,
+            "entity_type": "item",
+            "display_name": "Item",
+            "position": {
+              "x": 31.12,
+              "y": 101.0,
+              "z": 2.13
+            },
+            "distance": 4.85,
+            "health": null,
+            "hostile": false
+          },
+          {
+            "entity_id": 476,
+            "entity_type": "item",
+            "display_name": "Item",
+            "position": {
+              "x": 31.12,
+              "y": 101.0,
+              "z": 2.89
+            },
+            "distance": 5.05,
+            "health": null,
+            "hostile": false
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 2,
+      "event": "result",
+      "tool": "minecraft_info",
+      "arguments": {},
+      "revision": 0,
+      "time": 1791633030.4553716,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "username": "tdd_player",
+        "server_rules": "Agentic Babymode v0.5.0 \u2014 current rules:\nPlayer: move 1.50x | mine 5.0x | underwater air 10.0x | mined loot to inventory, overflow to ground | natural regen off | PvP off\nMobs: move 0.07x | deal 0.07x damage | attack cooldown 3.0x | take 2.0x from you\nSleepiness: 0\u2192100 over 30.0 days; only a bed resets it. Slowness/Mining Fatigue at 50+, can't sprint at 100.\nNutrition (grain/protein/produce 0-100): decays to 0 over 90.0 days.\n  grain <40.0/<15.0 \u2192 Slowness I/II | protein <40.0/<15.0 \u2192 Weakness I/II | produce <40.0/<15.0 \u2192 Mining Fatigue I/II\n  avg <10.0 \u2192 STARVING (-4 max HP, hunger, no sprint)\nFood bar: drains to 0 in 30.0 days idle; actions drain 1.00x.\nCommands: /babymode version | help | status | status json | reload | reset <0-100>",
+        "server": "127.0.0.1:12345",
+        "body_url": "http://127.0.0.1:6768",
+        "agent_home": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\character",
+        "connected": true,
+        "spawned": true,
+        "death_count": 0,
+        "schema_version": "2.0",
+        "uptime_seconds": 2263.2
+      },
+      "images": []
+    },
+    {
+      "seq": 3,
+      "event": "result",
+      "tool": "minecraft_recall",
+      "arguments": {
+        "pattern": "*"
+      },
+      "revision": 0,
+      "time": 1791633230.3970554,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "*",
+        "hits": [
+          {
+            "kind": "routes",
+            "file": "memory/routes.jsonl",
+            "note_id": "f1249a63f7f64e8ebd2871c089ae9c50",
+            "markdown": "Dimension: overworld. Route: birch house EXIT (interior center -> outside approach), tested 2026-10-10 by actor-0047.\nHouse: outer footprint x=28..32, z=-1..3; floor y=103 birch_planks; interior air y=104..105 at x=29..31, z=0..2; roof y=106 birch_planks. Interior center feet cell = (30,104,1). Door: birch_door in west wall cell (28,104,1)+(28,105,1), facing=east, hinge=left, currently OPEN. Outside approach = (27,104,1) standing on the placed support (27,103,1)=birch_planks; (27,104,0)/(27,104,1)/(27,105,1) are air; outside terrain top is also y=104, so there is no step.\nTESTED RETURN/EXIT ROUTE (walked this session, journal seq 3 -> 19/20 -> 23/24): start interior center (30.36,104,1.28), sidestep so feet z ~1.5, face west (yaw 90, look_vector -1,0,0), then pass through doorway cell x=28 at z=1.49..1.53 (proven by poses x=28.81 then x=27.98), finish at (27.42,104,1.24).\nLESSON (important): minecraft_walk_to_exact and minecraft_find_path can NEVER route through this doorway \u2014 birch_door blocks report is_solid=true even when open=true, so the path model marks the doorway as blocked (seq 6 no_path, seq 7 blocked with blocker birch_door (28,104,1)). Use raw fine_control pulses instead. Geometry of the gap: the swung panel fills absolute z 1.00..1.19 across the whole doorway cell, and the wall block (28,104,2) starts at z=2.00, so a 0.6-wide body must keep its feet z-centre in [1.49,1.70] while crossing x=28. One sneak pulse moves 0.18-0.30 blocks, a normal forward pulse 0.83-1.05 blocks; diagonal forward+sidestep pulses halve-ish each axis.\nUncertainty: door open/closed state can change later; if the door is closed the doorway is fully blocked and must be opened with minecraft_use_block (28,104,1) before exiting.\n",
+            "created_at": "2026-10-10T11:47:40.364899+00:00"
+          },
+          {
+            "kind": "failures",
+            "file": "memory/failures.jsonl",
+            "note_id": "ade58307280447ea9c3b375c3e0e021d",
+            "markdown": "Task: enter the house through the birch door at (28,104,1).\nFailed method history: forward-only fine_control gave no_motion twice at feet\n(27.7,104,1.5); walk_to_exact (30,104,1) and walk_to_visible (30,104,1) both returned\nstatus \"reached\" with path_status \"partial\", moved_blocks 0.0, distance_remaining 2.35;\nfind_path (30,104,1) reported blocked.\nMeasured cause (this session, inspect seq 10/12): the CLOSED door is solid with\ncollision [0,0,0,0.19,1,1] = x 28.00-28.19 across the whole doorway z range, so a body\nflush at x=27.7 (east edge 28.0) has nowhere to go. The OPEN door keeps a thin panel\ncollision [0,0,0,1,1,0.19] = x 28.00-29.00, z 1.00-1.19 only; the doorway walls are at\n(28,104,0) and (28,104,2), so the passable body-centre z window is 1.49-1.70.\nChanged method that worked: hold forward+right (right is absorbed by the south wall\nface at z=2.0, so the body is guided south of the panel band and slides east) -> three\npulses took the body from 27.7/1.5 to 29.51/1.88 inside, then forward+left and\nsneak+<dir> 0.25-block nudges to (30.36,104,1.28).\nLesson: a stalled \"reached\" walk result with zero motion means the target cell's own\ncollision, not a broken tool. Do not mine the door to clear the doorway - it destroys\nthe entrance and only costs a re-placement. Use sneak pulses for 0.25-block final\npositioning.\nScope: this doorway geometry and the two paused fine_control argument sets.",
+            "created_at": "2026-10-10T11:31:06.831284+00:00"
+          },
+          {
+            "kind": "places",
+            "file": "memory/places.jsonl",
+            "note_id": "3fbfb5934fce4969855e494103c65786",
+            "markdown": "Dimension: overworld.\nPlace: Main birch house, interior standing level Y=104 (floor planks Y=103).\nEntrance: birch_door lower cell (28,104,1) + auto upper (28,105,1), facing=east,\nhinge=left. Approach support outside: (27,103,1) birch_planks (verified seq 30).\nInterior centre reached this session: feet (30.36,104.0,1.28), block (30,104,1).\nWorkstations: furnace (30,102,5), crafting_table (30,102,6) (from observe seq 26).\nDoor state left: OPEN (open=true) so the doorway stays a usable route. birch_door x2 spare in inventory.\nEvidence: door re-placed by minecraft_build (3->2 items), verified closed+solid\n(open=false, is_solid=true, collision x 28.00-28.19 full doorway depth), opened by\nminecraft_use_block, then walked in with fine_control walk keys only.\nUncertainty: chest/furnace contents can change after this note.",
+            "created_at": "2026-10-10T11:31:06.162631+00:00"
+          },
+          {
+            "kind": "places",
+            "file": "memory/places.jsonl",
+            "note_id": "672a5b2301a0464db6c3e2a3e5109461",
+            "markdown": "Dimension: overworld. Place: 5x5 birch house, footprint X=28..32, Z=-1..3, floor Y=103, walls Y=104-105, roof Y=106.\nRoof COMPLETE: all 25 cells X=28..32, Y=106, Z=-1..3 are birch_planks. Evidence this session (actor-0043): analyze_area seq 8 = total_cells 25, solid_cells 25, blocks [birch_planks x25], air_cells 0, unseen_cells 0; fresh per-cell inspect_block birch_planks at (28,106,-1) seq 11, (32,106,3) seq 12, (30,106,1) seq 15 (down neighbour (30,105,1) air, four horizontal neighbours planks).\nInterior clear: all 18 cells X=29..31, Y=104 and Y=105, Z=0..2 are air. Evidence: analyze_area seq 9 = total_cells 18, air_cells 18, solid_cells 0, unseen_cells 0; explicit air reads (ok=false reason=not_found, block_name=air, matching position) at (30,104,1) seq 13 and (30,105,1) seq 14.\nAccess: door west face (28,104,1)+(28,105,1) birch_door. Workstations outside: furnace (30,102,5) - window empty (seq 10, all 3 slots null); crafting table (30,102,6). Standable cell beside house (30,102,4).\nNo roof rebuild or any block mutation was performed this session; correct existing state retained. Player stable (30.5,102,4.42), health 20/20, food 20, oxygen 20, day, no hostiles (seq 7).\nUncertainty: block contents can change after this note.",
+            "created_at": "2026-10-10T10:16:12.637657+00:00"
+          },
+          {
+            "kind": "journal",
+            "file": "memory/journal.jsonl",
+            "note_id": "58d5061fe2044581ad5883a7052c330c",
+            "markdown": "actor-0042 roof_complete FINAL VERIFIED (seq 653-655): analyze_area seq 653 = 25/25 birch_planks at Y=106 X28..32 Z-1..3, unseen_cells=0; analyze_area seq 654 = 18/18 air at Y=104-105 X29..31 Z0..2, solid_cells=0, unseen_cells=0. Per-cell inspections this epoch covered every criterion cell repeatedly (seq 3-652). Player stable (30.5,102,4.42), health 20/20, food 20, oxygen 20, on_ground, in_water=false, no hostiles (seq 655). Instruction revision unchanged. No world mutation performed or needed; retained correct existing state. Status: complete. Handoff outbox/handoff.md.",
+            "created_at": "2026-10-09T23:41:48.324983+00:00"
+          },
+          {
+            "kind": "journal",
+            "file": "memory/journal.jsonl",
+            "note_id": "e374739a8bf94bc2b949d1a16d67bafa",
+            "markdown": "actor-0042 roof_complete SIXTH full sweep (seq 298-391): all 25 rc_roof cells freshly inspected birch_planks (per-cell reads seq 298-389) with analyze_area seq 390 = 25/25 birch_planks, solid_cells=25, unseen_cells=0; all 18 rc_interior cells freshly inspected air (explicit not_found + block_name=air; seq 302-320 region) with analyze_area seq 391 = 18/18 air, solid_cells=0, unseen_cells=0. Player stable (30.5,102,4.42), health 20/20, food 20, oxygen 20, on_ground, in_water=false, no hostiles (seq 392). Instruction revision unchanged. No world mutation performed or required. Status: complete \u2014 handoff outbox/handoff.md.",
+            "created_at": "2026-10-09T23:23:34.064350+00:00"
+          },
+          {
+            "kind": "journal",
+            "file": "memory/journal.jsonl",
+            "note_id": "b4876547084c4fd589734ba28139825f",
+            "markdown": "actor-0042 roof_complete completion candidate (seq 223-295): Fifth complete per-cell sweep. All 25 rc_roof cells individually inspected birch_planks with fresh reads (seq 223-293 covering every X=28..32,Z=-1..3 cell at Y=106); analyze_area seq 294 = 25/25 birch_planks, unseen_cells=0. All 18 rc_interior cells individually inspected air (explicit not_found + block_name=air; seq 229-246 region) and analyze_area seq 295 = 18/18 air, solid_cells=0, unseen_cells=0. Player stable (30.5,102,4.42), health 20/20, food 20, oxygen 20, on_ground, in_water=false, no hostiles (seq 296). Instruction revision unchanged (revision 0). No world mutation needed or performed. Status: complete.",
+            "created_at": "2026-10-09T23:17:30.961772+00:00"
+          },
+          {
+            "kind": "journal",
+            "file": "memory/journal.jsonl",
+            "note_id": "5025d9655f974ae191e1b98040baa4be",
+            "markdown": "actor-0042 roof_complete FINAL SWEEP (seq 176-221): Fourth complete pass of all criterion cells. rc_roof: all 25 cells individually inspected birch_planks (seq 176-200) + analyze_area seq 219 = 25/25 birch_planks, unseen_cells=0. rc_interior: all 18 cells individually inspected air via explicit not_found+block_name=air reads (seq 201-218) + analyze_area seq 220 = 18/18 air, solid_cells=0, unseen_cells=0. Player stable (30.5,102,4.42), health 20/20, food 20, oxygen 20, on_ground, in_water=false, no hostiles (seq 221). No mutation performed; state retained. Completion candidate returned with handoff outbox/handoff.md.",
+            "created_at": "2026-10-09T23:13:03.445144+00:00"
+          },
+          {
+            "kind": "journal",
+            "file": "memory/journal.jsonl",
+            "note_id": "c5eca1c20d3d4958895ed999fd981d2e",
+            "markdown": "actor-0042 roof_complete FINAL (epoch 188, seq 152-174): Full second sweep of every criterion cell with fresh reads. rc_roof: all 25 cells X=28..32,Y=106,Z=-1..3 individually inspected birch_planks (seq 123-151 region plus 133-150) and analyze_area seq 172 = 25/25 birch_planks, unseen_cells=0. rc_interior: all 18 cells X=29..31,Y=104&105,Z=0..2 individually inspected air (explicit not_found + block_name=air, seq 152-169) and analyze_area seq 173 = 18/18 air, solid_cells=0, unseen_cells=0. Player stable at (30.5,102,4.42), health 20/20, food 20, oxygen 20, on_ground, in_water=false, no hostiles (seq 174). No world mutation performed; retained correct existing state. Leaf complete; handoff outbox/handoff.md.",
+            "created_at": "2026-10-09T23:10:50.600990+00:00"
+          },
+          {
+            "kind": "journal",
+            "file": "memory/journal.jsonl",
+            "note_id": "46339c0281374234b5e69a9b54f04963",
+            "markdown": "actor-0042 final confirmation (seq 56-58): Post-read of leaf-specification operands matched exactly (rc_roof 25 birch_planks cells Y=106 X28..32 Z-1..3; rc_interior 18 air cells Y=104-105 X29..31 Z0..2). Fresh spot inspections: (30,106,3)=birch_planks seq 56; (30,104,1)=air seq 57. Player stable (30.5,102,4.42), health 20/20 food 20 oxygen 20, no threats, seq 58. Leaf complete, handoff at outbox/handoff.md.",
+            "created_at": "2026-10-09T23:06:27.648108+00:00"
+          }
+        ],
+        "total_notes": 15
+      },
+      "images": []
+    },
+    {
+      "seq": 4,
+      "event": "result",
+      "tool": "minecraft_find_path",
+      "arguments": {
+        "x": 27,
+        "y": 104,
+        "z": -1
+      },
+      "revision": 0,
+      "time": 1791633249.2889915,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": "The preview path completed.",
+        "state": "reachable",
+        "path_length": 1.0,
+        "hops": 2,
+        "estimated_seconds": 0.23,
+        "blocker": null
+      },
+      "images": []
+    },
+    {
+      "seq": 5,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 27,
+          "y": 103,
+          "z": -1
+        }
+      },
+      "revision": 0,
+      "time": 1791633270.9933994,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 27,
+          "y": 103,
+          "z": -1
+        },
+        "block_name": "grass_block",
+        "display_name": "Grass Block",
+        "properties": {
+          "snowy": false
+        },
+        "collision_shapes": [
+          [
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            1.0,
+            1.0
+          ]
+        ],
+        "is_solid": true,
+        "exposed_faces": [
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 27,
+              "y": 103,
+              "z": -2
+            },
+            "block_name": "grass_block",
+            "solid": true
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 27,
+              "y": 103,
+              "z": 0
+            },
+            "block_name": "grass_block",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 28,
+              "y": 103,
+              "z": -1
+            },
+            "block_name": "birch_planks",
+            "solid": true
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 26,
+              "y": 103,
+              "z": -1
+            },
+            "block_name": "grass_block",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 27,
+              "y": 104,
+              "z": -1
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 27,
+              "y": 102,
+              "z": -1
+            },
+            "block_name": "dirt",
+            "solid": true
+          }
+        ],
+        "best_tools": [
+          "golden_shovel",
+          "netherite_shovel",
+          "iron_shovel",
+          "diamond_shovel",
+          "stone_shovel",
+          "wooden_shovel"
+        ],
+        "can_harvest_with_held": true,
+        "drops": [
+          "dirt"
+        ],
+        "hardness": 0.6,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 6,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 27,
+          "y": 105,
+          "z": -1
+        }
+      },
+      "revision": 0,
+      "time": 1791633288.7340457,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 27, 105, -1.",
+        "position": {
+          "x": 27,
+          "y": 105,
+          "z": -1
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "properties": {},
+        "collision_shapes": [],
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 7,
+      "event": "result",
+      "tool": "minecraft_remember",
+      "arguments": {
+        "kind": "places",
+        "markdown": "Dimension: overworld (meadow biome, day, no rain as of 2026-10-10).\nPlace: HOME \u2014 birch house, saved at its ENTRANCE APPROACH.\nHome / entrance approach (the saved home location): feet cell (27, 104, 1); observed feet (27.42, 104.0, 1.24). Support below: (27, 103, 1) = birch_planks, solid. Body clearance: (27, 104, 1) and (27, 105, 1) = air (dry, open to sky, on_ground, in_water=false).\nHouse geometry: outer footprint x=28..32, z=-1..3 (5x5); floor y=103 birch_planks; walls y=104..105; roof y=106 complete. Interior clear air x=29..31, y=104..105, z=0..2; interior centre feet cell (30, 104, 1).\nEntrance: birch_door lower cell (28, 104, 1) + automatic upper (28, 105, 1), west wall, facing=east, hinge=left. Approach the door from the WEST (from cell x=27). Door left OPEN so the doorway stays usable; birch_door x2 spare in inventory.\nWorkstations (outside, south of the house): furnace (30, 102, 5), crafting_table (30, 102, 6).\nInitial spawn reference point: (28, 104, -1) \u2014 the house NW footprint corner cell; the dry standable spot (27, 104, -1) is 1.0 block from it.\nEvidence: fresh observe this body life (session 828c432b76b244f6b9ed40c200329a9c, death_count 0) at the approach, plus accepted leaves home_entry (verifier-0271) and home_exit (verifier-0272).\nUncertainty: door open/closed state and container contents can change after this note; block cells can be edited later."
+      },
+      "revision": 0,
+      "time": 1791633562.5854967,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "kind": "places",
+        "note_id": "e8ec252bac32446eba9f0269191b5e9f",
+        "file": "memory/places.jsonl",
+        "notes_in_file": 5,
+        "appended_chars": 1390
+      },
+      "images": []
+    },
+    {
+      "seq": 8,
+      "event": "result",
+      "tool": "minecraft_walk_to_exact",
+      "arguments": {
+        "x": 27,
+        "y": 104,
+        "z": -1
+      },
+      "revision": 0,
+      "time": 1791633663.2358935,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "status": "reached",
+        "requested": {
+          "x": 27.0,
+          "y": 104.0,
+          "z": -1.0
+        },
+        "final_position": {
+          "x": 27.51,
+          "y": 104.0,
+          "z": -0.39
+        },
+        "distance_remaining": 0.79,
+        "target_offset": {
+          "x": -0.51,
+          "y": 0.0,
+          "z": -0.61
+        },
+        "diagnostics": {
+          "cause": "goal_reached",
+          "path_status": "success",
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 1,
+        "camera": {
+          "feet_position": {
+            "x": 27.51,
+            "y": 104.0,
+            "z": -0.39
+          },
+          "eye_position": {
+            "x": 27.51,
+            "y": 105.62,
+            "z": -0.39
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": -1
+          },
+          "yaw": 1.39,
+          "pitch": -0.0,
+          "cardinal": "south",
+          "look_vector": {
+            "x": -0.02,
+            "y": -0.0,
+            "z": 1.0
+          }
+        },
+        "image": null,
+        "duration_ms": 525.55
+      },
+      "images": []
+    },
+    {
+      "seq": 9,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791633697.781876,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 27.51,
+            "y": 104.0,
+            "z": -0.39
+          },
+          "eye_position": {
+            "x": 27.51,
+            "y": 105.62,
+            "z": -0.39
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": -1
+          },
+          "yaw": 1.39,
+          "pitch": -0.0,
+          "cardinal": "south",
+          "look_vector": {
+            "x": -0.02,
+            "y": -0.0,
+            "z": 1.0
+          }
+        },
+        "player": {
+          "health": 20.0,
+          "max_health": 20.0,
+          "food": 20,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 9835,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "body_session": "828c432b76b244f6b9ed40c200329a9c",
+        "death_count": 0,
+        "held_item": {
+          "name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "egg",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": "cobblestone",
+            "count": 3
+          },
+          {
+            "slot": 2,
+            "item": "iron_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 3,
+            "item": "stone_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 4,
+            "item": "birch_door",
+            "count": 2
+          },
+          {
+            "slot": 5,
+            "item": "dirt",
+            "count": 17
+          },
+          {
+            "slot": 6,
+            "item": "iron_ingot",
+            "count": 3
+          },
+          {
+            "slot": 7,
+            "item": "dandelion",
+            "count": 3
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 17,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "iron_ingot",
+            "display_name": "Iron Ingot",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "iron_pickaxe",
+            "display_name": "Iron Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 98,
+            "nearest": {
+              "x": 28,
+              "y": 104,
+              "z": 0
+            },
+            "distance": 0.63
+          },
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2827,
+            "nearest": {
+              "x": 27,
+              "y": 104,
+              "z": 0
+            },
+            "distance": 0.64
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 267,
+            "nearest": {
+              "x": 27,
+              "y": 103,
+              "z": 0
+            },
+            "distance": 1.19
+          },
+          {
+            "block_name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 2,
+            "nearest": {
+              "x": 28,
+              "y": 104,
+              "z": 1
+            },
+            "distance": 1.47
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 292,
+            "nearest": {
+              "x": 28,
+              "y": 102,
+              "z": 0
+            },
+            "distance": 2.1
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 23,
+            "nearest": {
+              "x": 26,
+              "y": 104,
+              "z": -2
+            },
+            "distance": 2.21
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 24,
+            "nearest": {
+              "x": 27,
+              "y": 104,
+              "z": -3
+            },
+            "distance": 2.66
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1331,
+            "nearest": {
+              "x": 28,
+              "y": 101,
+              "z": 0
+            },
+            "distance": 3.07
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 36,
+            "nearest": {
+              "x": 22,
+              "y": 104,
+              "z": 2
+            },
+            "distance": 6.0
+          },
+          {
+            "block_name": "furnace",
+            "display_name": "Furnace",
+            "count": 2,
+            "nearest": {
+              "x": 30,
+              "y": 102,
+              "z": 5
+            },
+            "distance": 6.27
+          },
+          {
+            "block_name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 2,
+            "nearest": {
+              "x": 30,
+              "y": 102,
+              "z": 6
+            },
+            "distance": 7.14
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 1,
+            "nearest": {
+              "x": 23,
+              "y": 97,
+              "z": -4
+            },
+            "distance": 9.07
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 7,
+            "nearest": {
+              "x": 28,
+              "y": 96,
+              "z": -7
+            },
+            "distance": 10.39
+          },
+          {
+            "block_name": "copper_ore",
+            "display_name": "Copper Ore",
+            "count": 1,
+            "nearest": {
+              "x": 19,
+              "y": 96,
+              "z": 2
+            },
+            "distance": 11.92
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 475,
+            "entity_type": "item",
+            "display_name": "Item",
+            "position": {
+              "x": 31.12,
+              "y": 101.0,
+              "z": 2.13
+            },
+            "distance": 5.33,
+            "health": null,
+            "hostile": false
+          },
+          {
+            "entity_id": 476,
+            "entity_type": "item",
+            "display_name": "Item",
+            "position": {
+              "x": 31.12,
+              "y": 101.0,
+              "z": 2.89
+            },
+            "distance": 5.73,
+            "health": null,
+            "hostile": false
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 10,
+      "event": "result",
+      "tool": "minecraft_walk_to_exact",
+      "arguments": {
+        "x": 27,
+        "y": 104,
+        "z": 1
+      },
+      "revision": 0,
+      "time": 1791633722.015786,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "status": "reached",
+        "requested": {
+          "x": 27.0,
+          "y": 104.0,
+          "z": 1.0
+        },
+        "final_position": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.5
+        },
+        "distance_remaining": 0.71,
+        "target_offset": {
+          "x": -0.5,
+          "y": 0.0,
+          "z": -0.5
+        },
+        "diagnostics": {
+          "cause": "goal_reached",
+          "path_status": "success",
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "birch_planks",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 1,
+        "camera": {
+          "feet_position": {
+            "x": 27.5,
+            "y": 104.0,
+            "z": 1.5
+          },
+          "eye_position": {
+            "x": 27.5,
+            "y": 105.62,
+            "z": 1.5
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": 1
+          },
+          "yaw": 179.74,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": -1.0
+          }
+        },
+        "image": null,
+        "duration_ms": 527.88
+      },
+      "images": []
+    },
+    {
+      "seq": 11,
+      "event": "result",
+      "tool": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "revision": 0,
+      "time": 1791633871.6735082,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "camera": {
+          "feet_position": {
+            "x": 27.5,
+            "y": 104.0,
+            "z": 1.5
+          },
+          "eye_position": {
+            "x": 27.5,
+            "y": 105.62,
+            "z": 1.5
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": 1
+          },
+          "yaw": 179.74,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": -1.0
+          }
+        },
+        "player": {
+          "health": 20.0,
+          "max_health": 20.0,
+          "food": 20,
+          "oxygen": 20,
+          "xp_level": 0,
+          "biome": "meadow",
+          "dimension": "overworld",
+          "time_of_day": 11555,
+          "is_day": true,
+          "is_raining": false,
+          "on_ground": true,
+          "in_water": false
+        },
+        "body_session": "828c432b76b244f6b9ed40c200329a9c",
+        "death_count": 0,
+        "held_item": {
+          "name": "birch_door",
+          "display_name": "Birch Door",
+          "count": 2,
+          "slot": null,
+          "durability": null,
+          "max_durability": null
+        },
+        "hotbar": [
+          {
+            "slot": 0,
+            "item": "egg",
+            "count": 2
+          },
+          {
+            "slot": 1,
+            "item": "cobblestone",
+            "count": 3
+          },
+          {
+            "slot": 2,
+            "item": "iron_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 3,
+            "item": "stone_pickaxe",
+            "count": 1
+          },
+          {
+            "slot": 4,
+            "item": "birch_door",
+            "count": 2
+          },
+          {
+            "slot": 5,
+            "item": "dirt",
+            "count": 17
+          },
+          {
+            "slot": 6,
+            "item": "iron_ingot",
+            "count": 3
+          },
+          {
+            "slot": 7,
+            "item": "dandelion",
+            "count": 3
+          },
+          {
+            "slot": 8,
+            "item": null,
+            "count": 0
+          }
+        ],
+        "inventory": [
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 17,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "cobblestone",
+            "display_name": "Cobblestone",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "iron_ingot",
+            "display_name": "Iron Ingot",
+            "count": 3,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "egg",
+            "display_name": "Egg",
+            "count": 2,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "iron_pickaxe",
+            "display_name": "Iron Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          }
+        ],
+        "nearby_blocks": [
+          {
+            "block_name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 98,
+            "nearest": {
+              "x": 28,
+              "y": 104,
+              "z": 2
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "birch_door",
+            "display_name": "Birch Door",
+            "count": 2,
+            "nearest": {
+              "x": 28,
+              "y": 104,
+              "z": 1
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "air",
+            "display_name": "Air",
+            "count": 2568,
+            "nearest": {
+              "x": 27,
+              "y": 104,
+              "z": 1
+            },
+            "distance": 0.71
+          },
+          {
+            "block_name": "grass_block",
+            "display_name": "Grass Block",
+            "count": 268,
+            "nearest": {
+              "x": 27,
+              "y": 103,
+              "z": 2
+            },
+            "distance": 1.23
+          },
+          {
+            "block_name": "dirt",
+            "display_name": "Dirt",
+            "count": 300,
+            "nearest": {
+              "x": 28,
+              "y": 102,
+              "z": 1
+            },
+            "distance": 2.12
+          },
+          {
+            "block_name": "grass",
+            "display_name": "Grass",
+            "count": 28,
+            "nearest": {
+              "x": 25,
+              "y": 105,
+              "z": 1
+            },
+            "distance": 2.74
+          },
+          {
+            "block_name": "stone",
+            "display_name": "Stone",
+            "count": 1580,
+            "nearest": {
+              "x": 26,
+              "y": 102,
+              "z": 3
+            },
+            "distance": 2.92
+          },
+          {
+            "block_name": "dandelion",
+            "display_name": "Dandelion",
+            "count": 22,
+            "nearest": {
+              "x": 25,
+              "y": 104,
+              "z": -1
+            },
+            "distance": 3.54
+          },
+          {
+            "block_name": "furnace",
+            "display_name": "Furnace",
+            "count": 2,
+            "nearest": {
+              "x": 30,
+              "y": 102,
+              "z": 5
+            },
+            "distance": 4.74
+          },
+          {
+            "block_name": "crafting_table",
+            "display_name": "Crafting Table",
+            "count": 2,
+            "nearest": {
+              "x": 30,
+              "y": 102,
+              "z": 6
+            },
+            "distance": 5.52
+          },
+          {
+            "block_name": "coal_ore",
+            "display_name": "Coal Ore",
+            "count": 39,
+            "nearest": {
+              "x": 22,
+              "y": 104,
+              "z": 2
+            },
+            "distance": 5.52
+          },
+          {
+            "block_name": "iron_ore",
+            "display_name": "Iron Ore",
+            "count": 1,
+            "nearest": {
+              "x": 23,
+              "y": 97,
+              "z": -4
+            },
+            "distance": 9.98
+          },
+          {
+            "block_name": "gravel",
+            "display_name": "Gravel",
+            "count": 2,
+            "nearest": {
+              "x": 28,
+              "y": 96,
+              "z": -7
+            },
+            "distance": 11.68
+          },
+          {
+            "block_name": "copper_ore",
+            "display_name": "Copper Ore",
+            "count": 1,
+            "nearest": {
+              "x": 19,
+              "y": 96,
+              "z": 2
+            },
+            "distance": 11.68
+          }
+        ],
+        "nearby_entities": [
+          {
+            "entity_id": 475,
+            "entity_type": "item",
+            "display_name": "Item",
+            "position": {
+              "x": 31.12,
+              "y": 101.0,
+              "z": 2.13
+            },
+            "distance": 4.75,
+            "health": null,
+            "hostile": false
+          },
+          {
+            "entity_id": 476,
+            "entity_type": "item",
+            "display_name": "Item",
+            "position": {
+              "x": 31.12,
+              "y": 101.0,
+              "z": 2.89
+            },
+            "distance": 4.9,
+            "health": null,
+            "hostile": false
+          }
+        ],
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 12,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "forward": true,
+        "sneak": true
+      },
+      "revision": 0,
+      "time": 1791633944.2304401,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": true,
+          "back": false,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": true,
+          "sprint": false
+        },
+        "duration_ms": 249.9,
+        "pose_before": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.5
+        },
+        "pose_after": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.81
+        },
+        "camera": {
+          "feet_position": {
+            "x": 27.5,
+            "y": 104.0,
+            "z": 1.81
+          },
+          "eye_position": {
+            "x": 27.5,
+            "y": 105.62,
+            "z": 1.81
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": 1
+          },
+          "yaw": 179.74,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": -1.0
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "a31d2a66752847d22aa216a4db6ceef8",
+          "captured_at": "2026-10-10T12:05:44.089904Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00012-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 13,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "back": true,
+        "sneak": true
+      },
+      "revision": 0,
+      "time": 1791633973.4671624,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": true,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": true,
+          "sprint": false
+        },
+        "duration_ms": 256.81,
+        "pose_before": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.81
+        },
+        "pose_after": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.56
+        },
+        "camera": {
+          "feet_position": {
+            "x": 27.5,
+            "y": 104.0,
+            "z": 1.56
+          },
+          "eye_position": {
+            "x": 27.5,
+            "y": 105.62,
+            "z": 1.56
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": 1
+          },
+          "yaw": 179.74,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": -1.0
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "089528382cc781780e5cf560bf839378",
+          "captured_at": "2026-10-10T12:06:13.286629Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00013-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 14,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "back": true,
+        "sneak": true
+      },
+      "revision": 0,
+      "time": 1791633988.301423,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": true,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": true,
+          "sprint": false
+        },
+        "duration_ms": 254.95,
+        "pose_before": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.56
+        },
+        "pose_after": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.37
+        },
+        "camera": {
+          "feet_position": {
+            "x": 27.5,
+            "y": 104.0,
+            "z": 1.37
+          },
+          "eye_position": {
+            "x": 27.5,
+            "y": 105.62,
+            "z": 1.37
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": 1
+          },
+          "yaw": 179.74,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": -1.0
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "b09c3bf0286adbd54d1ed326ec71ec8d",
+          "captured_at": "2026-10-10T12:06:28.143378Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00014-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 15,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "back": true,
+        "sneak": true
+      },
+      "revision": 0,
+      "time": 1791634004.3259676,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": true,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": true,
+          "sprint": false
+        },
+        "duration_ms": 264.66,
+        "pose_before": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.37
+        },
+        "pose_after": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.13
+        },
+        "camera": {
+          "feet_position": {
+            "x": 27.5,
+            "y": 104.0,
+            "z": 1.13
+          },
+          "eye_position": {
+            "x": 27.5,
+            "y": 105.62,
+            "z": 1.13
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": 1
+          },
+          "yaw": 179.74,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": -1.0
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "a2ac24524a514eb9e7e49f4f693db572",
+          "captured_at": "2026-10-10T12:06:44.172437Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00015-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    },
+    {
+      "seq": 16,
+      "event": "result",
+      "tool": "minecraft_fine_control",
+      "arguments": {
+        "back": true,
+        "sneak": true
+      },
+      "revision": 0,
+      "time": 1791634017.2644384,
+      "epoch": 198,
+      "session": "54741351a57440d09e01cef9ecd0ba30",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "controls": {
+          "forward": false,
+          "back": true,
+          "left": false,
+          "right": false,
+          "jump": false,
+          "sneak": true,
+          "sprint": false
+        },
+        "duration_ms": 255.56,
+        "pose_before": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 1.13
+        },
+        "pose_after": {
+          "x": 27.5,
+          "y": 104.0,
+          "z": 0.88
+        },
+        "camera": {
+          "feet_position": {
+            "x": 27.5,
+            "y": 104.0,
+            "z": 0.88
+          },
+          "eye_position": {
+            "x": 27.5,
+            "y": 105.62,
+            "z": 0.88
+          },
+          "block_position": {
+            "x": 27,
+            "y": 104,
+            "z": 0
+          },
+          "yaw": 179.74,
+          "pitch": -0.0,
+          "cardinal": "north",
+          "look_vector": {
+            "x": -0.0,
+            "y": -0.0,
+            "z": -1.0
+          }
+        },
+        "on_ground": true,
+        "image": {
+          "frame_id": "51aabd787d94d52b93741b592227ee18",
+          "captured_at": "2026-10-10T12:06:57.111407Z",
+          "width": 640,
+          "height": 480
+        }
+      },
+      "images": [
+        {
+          "path": "screenshots/call-00016-0.png",
+          "media_type": "image/png"
+        }
+      ]
+    }
+  ],
+  "publication_checks": {
+    "iron_chain": true,
+    "saved_home": false,
+    "tested_saved_route": false
+  },
+  "sources": [
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0048\\inbox\\request.yaml",
+      "sha256": "c833fffbaae2495457a3880b708250415c6028ea57c08fd1afc56bb85edf3608"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0048\\scratch\\actor-journal.jsonl",
+      "sha256": "8bfc003fd8341fc4f45ade23bc4426329ef96538289f9f26d8758c495f2bf3e1"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-60\\receipt.json",
+      "sha256": "8b5f03d23789f83c7488513d4a1fc3ed269f1920360226969eb1addda8014715"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\planning\\constraints\\0066.json",
+      "sha256": "f556635f4d14b55a896876afaaf0b7482c2e3d80e9a90220d3a2d106b19bff45"
+    },
+    {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13\\workflow-split\\route-publication-audit48.json",
+      "sha256": "5feed9f4c9db01fbba8968c5a6046b8dc590ac12ff932d60c793ad3bb4caa549"
+    }
+  ]
+}

@@ -1,0 +1,571 @@
+{
+  "schema": 1,
+  "scope": "Captured native actor observations and unnecessary movement. The stopped attempt has no acceptance.",
+  "leaf": {
+    "id": "roof_complete",
+    "revision": 2,
+    "kind": "leaf",
+    "parent": "house_build",
+    "children": [],
+    "depends_on": [
+      "walls_door"
+    ],
+    "instruction": "Cover the 5x5 house with a complete birch-plank roof at level 106 and keep the interior below it clear.",
+    "specialist": "builder",
+    "deferred": false,
+    "defer_reason": "",
+    "criteria": [
+      {
+        "id": "rc_roof",
+        "description": "The entire level-106 outer footprint is roofed",
+        "kind": "block",
+        "node_id": "",
+        "names": [
+          "birch_planks"
+        ],
+        "minimum": 1,
+        "position": null,
+        "positions": [
+          {
+            "x": 28,
+            "y": 106,
+            "z": -1
+          },
+          {
+            "x": 28,
+            "y": 106,
+            "z": 0
+          },
+          {
+            "x": 28,
+            "y": 106,
+            "z": 1
+          },
+          {
+            "x": 28,
+            "y": 106,
+            "z": 2
+          },
+          {
+            "x": 28,
+            "y": 106,
+            "z": 3
+          },
+          {
+            "x": 29,
+            "y": 106,
+            "z": -1
+          },
+          {
+            "x": 29,
+            "y": 106,
+            "z": 0
+          },
+          {
+            "x": 29,
+            "y": 106,
+            "z": 1
+          },
+          {
+            "x": 29,
+            "y": 106,
+            "z": 2
+          },
+          {
+            "x": 29,
+            "y": 106,
+            "z": 3
+          },
+          {
+            "x": 30,
+            "y": 106,
+            "z": -1
+          },
+          {
+            "x": 30,
+            "y": 106,
+            "z": 0
+          },
+          {
+            "x": 30,
+            "y": 106,
+            "z": 1
+          },
+          {
+            "x": 30,
+            "y": 106,
+            "z": 2
+          },
+          {
+            "x": 30,
+            "y": 106,
+            "z": 3
+          },
+          {
+            "x": 31,
+            "y": 106,
+            "z": -1
+          },
+          {
+            "x": 31,
+            "y": 106,
+            "z": 0
+          },
+          {
+            "x": 31,
+            "y": 106,
+            "z": 1
+          },
+          {
+            "x": 31,
+            "y": 106,
+            "z": 2
+          },
+          {
+            "x": 31,
+            "y": 106,
+            "z": 3
+          },
+          {
+            "x": 32,
+            "y": 106,
+            "z": -1
+          },
+          {
+            "x": 32,
+            "y": 106,
+            "z": 0
+          },
+          {
+            "x": 32,
+            "y": 106,
+            "z": 1
+          },
+          {
+            "x": 32,
+            "y": 106,
+            "z": 2
+          },
+          {
+            "x": 32,
+            "y": 106,
+            "z": 3
+          }
+        ],
+        "end": null,
+        "radius": 2.0,
+        "dimension": "overworld"
+      },
+      {
+        "id": "rc_interior",
+        "description": "The interior remains clear beneath the roof",
+        "kind": "block",
+        "node_id": "",
+        "names": [
+          "air"
+        ],
+        "minimum": 1,
+        "position": null,
+        "positions": [
+          {
+            "x": 29,
+            "y": 105,
+            "z": 0
+          },
+          {
+            "x": 29,
+            "y": 105,
+            "z": 1
+          },
+          {
+            "x": 29,
+            "y": 105,
+            "z": 2
+          },
+          {
+            "x": 30,
+            "y": 105,
+            "z": 0
+          },
+          {
+            "x": 30,
+            "y": 105,
+            "z": 1
+          },
+          {
+            "x": 30,
+            "y": 105,
+            "z": 2
+          },
+          {
+            "x": 31,
+            "y": 105,
+            "z": 0
+          },
+          {
+            "x": 31,
+            "y": 105,
+            "z": 1
+          },
+          {
+            "x": 31,
+            "y": 105,
+            "z": 2
+          }
+        ],
+        "end": null,
+        "radius": 2.0,
+        "dimension": "overworld"
+      }
+    ],
+    "assumptions": []
+  },
+  "rows": [
+    {
+      "seq": 10,
+      "event": "result",
+      "tool": "minecraft_analyze_area",
+      "arguments": {
+        "end": {
+          "x": 32,
+          "y": 106,
+          "z": 3
+        },
+        "start": {
+          "x": 28,
+          "y": 106,
+          "z": -1
+        }
+      },
+      "revision": 0,
+      "time": 1791582507.6498318,
+      "epoch": 185,
+      "session": "b91202373f4b473ba87994c02ed2e585",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "bounds": {
+          "min": {
+            "x": 28,
+            "y": 106,
+            "z": -1
+          },
+          "max": {
+            "x": 32,
+            "y": 106,
+            "z": 3
+          }
+        },
+        "blocks": [
+          {
+            "block_name": "birch_planks",
+            "display_name": "Birch Planks",
+            "count": 25
+          }
+        ],
+        "total_cells": 25,
+        "solid_cells": 25,
+        "air_cells": 0,
+        "unseen_cells": 0,
+        "entities": []
+      },
+      "images": []
+    },
+    {
+      "seq": 11,
+      "event": "result",
+      "tool": "minecraft_analyze_area",
+      "arguments": {
+        "end": {
+          "x": 31,
+          "y": 105,
+          "z": 2
+        },
+        "start": {
+          "x": 29,
+          "y": 105,
+          "z": 0
+        }
+      },
+      "revision": 0,
+      "time": 1791582510.1605802,
+      "epoch": 185,
+      "session": "b91202373f4b473ba87994c02ed2e585",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "bounds": {
+          "min": {
+            "x": 29,
+            "y": 105,
+            "z": 0
+          },
+          "max": {
+            "x": 31,
+            "y": 105,
+            "z": 2
+          }
+        },
+        "blocks": [],
+        "total_cells": 9,
+        "solid_cells": 0,
+        "air_cells": 9,
+        "unseen_cells": 0,
+        "entities": []
+      },
+      "images": []
+    },
+    {
+      "seq": 14,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 31,
+          "y": 105,
+          "z": 2
+        }
+      },
+      "revision": 0,
+      "time": 1791582517.2406523,
+      "epoch": 185,
+      "session": "b91202373f4b473ba87994c02ed2e585",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 31, 105, 2.",
+        "position": {
+          "x": 31,
+          "y": 105,
+          "z": 2
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 15,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 29,
+          "y": 105,
+          "z": 0
+        }
+      },
+      "revision": 0,
+      "time": 1791582517.9024932,
+      "epoch": 185,
+      "session": "b91202373f4b473ba87994c02ed2e585",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "No block exists at 29, 105, 0.",
+        "position": {
+          "x": 29,
+          "y": 105,
+          "z": 0
+        },
+        "block_name": "air",
+        "display_name": "Air",
+        "is_solid": false,
+        "exposed_faces": [],
+        "neighbors": [],
+        "best_tools": [],
+        "can_harvest_with_held": null,
+        "drops": [],
+        "hardness": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 21,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 26,
+        "z": 1
+      },
+      "revision": 0,
+      "time": 1791582666.232159,
+      "epoch": 185,
+      "session": "b91202373f4b473ba87994c02ed2e585",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 28.0,
+          "y": 107.0,
+          "z": -1.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.0,
+          "z": 4.52
+        },
+        "distance_remaining": 9.9,
+        "target_offset": {
+          "x": -4.3,
+          "y": 7.0,
+          "z": -5.52
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "birch_planks",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.0,
+            "z": 4.52
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.62,
+            "z": 4.52
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 4
+          },
+          "yaw": 88.79,
+          "pitch": -0.03,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -1.0,
+            "y": -0.0,
+            "z": 0.02
+          }
+        },
+        "image": null,
+        "duration_ms": 120164.49
+      },
+      "images": []
+    },
+    {
+      "seq": 32,
+      "event": "result",
+      "tool": "minecraft_walk_to_surface",
+      "arguments": {
+        "x": 30,
+        "z": -8
+      },
+      "revision": 0,
+      "time": 1791582847.2721221,
+      "epoch": 185,
+      "session": "b91202373f4b473ba87994c02ed2e585",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 28.0,
+          "y": 102.0,
+          "z": -6.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 99.42,
+          "z": -2.72
+        },
+        "distance_remaining": 5.99,
+        "target_offset": {
+          "x": -4.3,
+          "y": 2.58,
+          "z": -3.28
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": null,
+          "error_name": null,
+          "error_message": null,
+          "target_block": "air",
+          "target_head_block": "air",
+          "target_floor_block": "grass_block",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 99.42,
+            "z": -2.72
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.04,
+            "z": -2.72
+          },
+          "block_position": {
+            "x": 32,
+            "y": 99,
+            "z": -3
+          },
+          "yaw": 45.48,
+          "pitch": 0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -0.71,
+            "y": 0.0,
+            "z": 0.7
+          }
+        },
+        "image": null,
+        "duration_ms": 120158.58
+      },
+      "images": []
+    }
+  ],
+  "sources": [
+    {
+      "path": ".runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0039\\scratch\\actor-journal.jsonl",
+      "sha256": "aa345ad8bc1383094da41725d76e6c0231037e8f861c15cd52edd73995c94e06"
+    },
+    {
+      "path": ".runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\planning\\specs\\0038.json",
+      "sha256": "a8ff7582b90b328c1ecfa87aaa15b5179db98d7964b099cc0acfdb3fa8ba5df3"
+    },
+    {
+      "path": ".runtime\\alpha\\a13-m3-53\\receipt.json",
+      "sha256": "ba70f6ad09159639573f709bf010c02762ed691565424c87859f17734785d76f"
+    }
+  ]
+}

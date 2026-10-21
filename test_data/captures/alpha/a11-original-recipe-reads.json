@@ -1,0 +1,100 @@
+{
+  "provenance": {
+    "source": ".runtime/alpha/a11h9/app/managed_tasks/c417ae791ecb4eda883ca77cda2dfb71/attempts/actor-0002/scratch/actor-journal.jsonl",
+    "source_sha256": "30a12f04d6dd7339e5879c9d57e06504deb75ab26b924fc333b64e338236384d",
+    "scope": "Original real recipe lookup results before crafting. Inventory counts are historical; these reads do not establish a new action."
+  },
+  "reads": [
+    {
+      "seq": 2,
+      "event": "result",
+      "tool": "minecraft_recipe_search",
+      "arguments": {
+        "pattern": "birch_planks"
+      },
+      "revision": 0,
+      "time": 1791355749.972136,
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "birch_planks",
+        "matches": [
+          {
+            "item_name": "birch_planks",
+            "display_name": "Birch Planks",
+            "grid": "A",
+            "legend": {
+              "A": "birch_log"
+            },
+            "ingredients": [
+              {
+                "item": "birch_log",
+                "display_name": "birch log",
+                "required": 1,
+                "have": 55,
+                "missing": 0
+              }
+            ],
+            "output_count": 4,
+            "needs_crafting_table": false,
+            "craftable_now": true
+          }
+        ],
+        "total_recipes": 667,
+        "duration_ms": 0.0
+      },
+      "images": []
+    },
+    {
+      "seq": 3,
+      "event": "result",
+      "tool": "minecraft_recipe_search",
+      "arguments": {
+        "pattern": "birch_door"
+      },
+      "revision": 0,
+      "time": 1791355750.9531713,
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "pattern": "birch_door",
+        "matches": [
+          {
+            "item_name": "birch_door",
+            "display_name": "Birch Door",
+            "grid": "AB\nCD\nEF",
+            "legend": {
+              "A": "birch_planks",
+              "B": "birch_planks",
+              "C": "birch_planks",
+              "D": "birch_planks",
+              "E": "birch_planks",
+              "F": "birch_planks"
+            },
+            "ingredients": [
+              {
+                "item": "birch_planks",
+                "display_name": "birch planks",
+                "required": 6,
+                "have": 0,
+                "missing": 6
+              }
+            ],
+            "output_count": 3,
+            "needs_crafting_table": true,
+            "craftable_now": false
+          }
+        ],
+        "total_recipes": 667,
+        "duration_ms": 0.0
+      },
+      "images": []
+    }
+  ]
+}

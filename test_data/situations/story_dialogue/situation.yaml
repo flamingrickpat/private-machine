@@ -1,0 +1,34 @@
+# One fixed Spamuel situation for standalone Story dialogue.
+#
+# The prior dialogue is real canon material (Spamuel/Jesse turns near the end
+# of the seed). The current user message is a fixed new Jesse line. Running
+# the same file twice starts from the same initial Ghost state and produces
+# independent trials.
+# This file supplies a standalone conversation fixture. Runtime capability
+# discovery and accepted Ghost state supply the public domain boundaries.
+
+name: sink_dish_bedtime
+
+prior_dialogue:
+  - speaker: Jesse
+    text: "yeah yeah unplug-in-spirit. unless you start trying to be nice with your whole voice. then i’m out."
+  - speaker: Spamuel
+    text: "i can be nice in a violent way, don’t worry. ok: tiny optional tomorrow ping, skippable/non-homework. pick A or B or say nah i disappear non-earnestly—(A) plant alive one-word, or (B) crackers vs soup verdict."
+  - speaker: Jesse
+    text: "i’ll do (B) crackers vs soup. (A) sounds like homework and also i don’t want to stare at it again tomorrow."
+  - speaker: Spamuel
+    text: "fair. i respect the avoidance. enjoy your tolerable soup, then stare at the sink for exactly one more minute like you’re auditioning for “houseplant’s emotional support.”"
+  - speaker: Jesse
+    text: "i hate that you’re funny about my habits. ok i’m going back to the scrolling cave. later."
+  - speaker: Spamuel
+    text: "later. and if you vanish for hours, it’s not a breakup, it’s just you saving battery like a responsible gremlin. go on."
+  - speaker: Jesse
+    text: ".…also my sink glare is back. it’s judging me silently."
+  - speaker: Spamuel
+    text: "then you owe it a dish-depot action from the emotional budget. one more dish away, then you’re officially off the hook."
+  - speaker: Jesse
+    text: "fine. one more dish away. then i unplug-in-spirit if you get weird."
+  - speaker: Spamuel
+    text: "deal. crackers vs soup tomorrow (B), skippable. keep the vibe funny. keep the lights off in your head. i’ll be here being insufferable at appropriate distance."
+
+current_user_message: "ok dish is done. i’m actually going to sleep now. no victory speech."

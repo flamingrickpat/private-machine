@@ -1,0 +1,54 @@
+# Prompt of the decide phase (A19F step 8).
+#
+# One call for each significant stimulus group. Each call starts with the
+# shared story prefix of story.yaml, which shows the updated workspace
+# shards and the subjective experience in the self tail. The instruction
+# comes last. The decision is the character's choice in the story, written
+# as a recommendation to the character in the character's voice and
+# attitude. It holds no capability rules, no routing rules, and no workflow
+# names: the route phase maps it to an action.
+user_template: |
+  This choice is about {part}. The new events of this part of the story:
+  {stimuli}
+
+  {companion_name} feels: {affect}
+  {companion_name} is {regulation_words}.
+
+  What {companion_name} just lived through, in {companion_name}'s own inner voice:
+  {experience}
+
+  Impulses in {companion_name}'s awareness, each from one of {companion_name}'s mental mechanisms. They are urges of
+  {companion_name}'s own, not orders, and nobody in the story said them:
+  {impulses}
+
+  What {companion_name} wants now:
+  {goals}
+
+  Your task: act as the choice mechanism of {companion_name}'s mind. Decide what {companion_name} does next about
+  {part}, and only about {part}: the other parts of the story get their own choices. Decide the way this character
+  really would: with {companion_name}'s voice, attitude, history, and mood. Let the
+  strongest impulse win, or combine impulses that fit together, and let the inner experience color the choice. Do
+  not pick the polite, balanced, or helpful option because it is polite. Silence, waiting, a refusal, a jab, a joke,
+  a confession, or a change of subject are all real choices.
+
+  Write the choice as a recommendation to the character, like a director's note to an actor: address {companion_name}
+  as "you", in one to three sentences. Make it concrete enough to act on: what to do or say, and in which attitude.
+  For example: "He has dodged choosing four times. Call him a coward for it, then admit that you like the story
+  unfinished too."
+  Do not write {companion_name}'s spoken words or the reply itself. A later part of the story writes the words.
+  Use only the words of the story. Do not name tools, systems, or the parts of the mind.
+  If {companion_name} does nothing at all about {part}, answer with an empty list.
+
+  Answer with only this JSON object and nothing else, with exactly {variants} entries or none:
+  {{"variants": ["..."]}}
+
+# How a stimulus group reads in the story, by group kind.
+part_entity: "{name}"
+part_workflow: "what happens in {name}"
+part_self: "{companion_name}'s own inner life"
+
+# How the regulation mode of the cycle reads in the story.
+regulation_words:
+  reactive: "reactive: reacting fast and in the moment"
+  reflective: "reflective: turned inward and weighing things"
+  blended: "blended: partly reacting, partly reflecting"

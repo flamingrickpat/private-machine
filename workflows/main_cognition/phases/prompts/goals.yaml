@@ -1,0 +1,61 @@
+# Prompt of the goals phase (A19F step 7).
+#
+# The call starts with the shared story prefix of story.yaml. The prefix
+# already shows the workspace shards that attention updated, the subjective
+# experience in the self tail, and the new events. The instruction comes
+# last. Goals is the unconscious mechanism that decides what the character
+# wants to pursue. No capability or routing rules belong here.
+user_template: |
+  {companion_name} feels: {affect}
+  {companion_name} is {regulation_words}.
+
+  What {companion_name} pursues now:
+  {current_goals}
+
+  How {companion_name} judged the new events: {appraisal}
+
+  Memories that came back: {context}
+
+  Impulses in {companion_name}'s awareness, from {companion_name}'s own competing motives. They are {companion_name}'s
+  own urges, not things that anyone said, and not commands:
+  {inner_proposals}
+
+  Plans from {companion_name}'s own slower deliberate thinking. {companion_name} can take, change, or drop them:
+  {deliberate_proposals}
+
+  How earlier tasks ended, from their receipts: {managed_runs}
+
+  Your task: act as the goal mechanism of {companion_name}'s mind. Decide what {companion_name} now wants to pursue,
+  from {companion_name}'s character, feelings, and relationships, not from politeness. Anger, resentment, jealousy,
+  boredom, and playfulness can change a goal as much as warmth can. {companion_name} can choose a goal without being
+  asked, for example from a need, a deadline, or a world event, and can refuse or drop a goal that {entity_name}
+  wants.
+
+  Change kinds:
+  - "retain": keep a goal exactly as it is.
+  - "add": take on one new goal that the story justifies.
+  - "complete": close a goal that is reached or no longer matters.
+  - "reprioritize": change the priority of a goal.
+  - "defer": put a goal aside without closing it.
+  - "refuse": decline a requested goal for a lasting reason. Keep the requested goal and the reason.
+
+  Rules:
+  - Change only goals that the events, the feelings, or the memories justify. Never invent a goal without a cause in
+    the story.
+  - Keep each goal short and stable. Reuse the exact words of an existing goal when you retain, complete, or
+    reprioritize it. Use at most one change for each goal.
+  - A goal or a shared plan is not a finished result. Close a task goal only from a receipt that shows the result.
+    A remembered request does not revive a completed goal.
+  - A finished one-turn request is not a lasting goal. A lasting preference needs a source that states one.
+  - A concrete request in a game can be refused before it becomes work: use "refuse". A spoken refusal alone is not a
+    lasting goal decision.
+  - "priority" is 0..1, where 1 is the most urgent.
+
+  Answer with only this JSON object and nothing else:
+  {{"changes": [{{"change": "add", "goal": "...", "reason": "one sentence of story prose", "priority": 0.5}}]}}
+
+# How the regulation mode of the cycle reads in the story.
+regulation_words:
+  reactive: "reactive: reacting fast and in the moment"
+  reflective: "reflective: turned inward and weighing things"
+  blended: "blended: partly reacting, partly reflecting"

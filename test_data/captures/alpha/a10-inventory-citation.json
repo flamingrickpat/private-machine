@@ -1,0 +1,363 @@
+{
+  "source": ".runtime/alpha/20261005-a10-wood-05/receipt.json inventory_reply.reports[-1]",
+  "candidate": "Fresh read: fifty-nine birch logs and one dirt block, held dirt. The wood task is still running, so Iâ€™m not touching the job.",
+  "claim_review": {
+    "schema_version": "pm.public-claims.v1",
+    "accepted": false,
+    "public_form": "speech",
+    "claims": [
+      {
+        "text": "Fresh read: fifty-nine birch logs and one dirt block, held dirt.",
+        "domain": "minecraft",
+        "status": "unsupported",
+        "evidence_ids": [
+          11203,
+          11204
+        ],
+        "evidence_use": "event",
+        "verification_claim": true,
+        "time_scope": "current",
+        "external_physical_state": true,
+        "reason": "The claim cites evidence outside the supplied snapshot."
+      },
+      {
+        "text": "The wood task is still running",
+        "domain": "task",
+        "status": "unsupported",
+        "evidence_ids": [
+          11203,
+          11204
+        ],
+        "evidence_use": "state",
+        "verification_claim": true,
+        "time_scope": "current",
+        "external_physical_state": false,
+        "reason": "The claim cites evidence outside the supplied snapshot."
+      },
+      {
+        "text": "Iâ€™m not touching the job",
+        "domain": "task",
+        "status": "figurative",
+        "evidence_ids": [],
+        "evidence_use": "none",
+        "verification_claim": false,
+        "time_scope": "current",
+        "external_physical_state": false,
+        "reason": "This is an idiomatic statement of not interfering with the running task, not a literal task operation or verified execution result; the utterance establishes the speech act, not a separate verified task state."
+      }
+    ],
+    "reason": "The utterance is public speech. The inventory claim is supported by the fresh minecraft_observe receipt, and the task-running claim is supported by the managed_run state. The 'not touching' clause is an idiomatic compliance statement rather than a literal verified task effect, so it is treated as figurative. No private content is disclosed.",
+    "literal_conditions": [
+      {
+        "text": "Fresh read: fifty-nine birch logs and one dirt block, held dirt.",
+        "time_scope": "current"
+      }
+    ],
+    "citation_checks": []
+  },
+  "tool_receipts": [
+    {
+      "tool_call_id": "inventory-observation",
+      "name": "minecraft_observe",
+      "arguments": {
+        "include_image": false
+      },
+      "executed": true,
+      "result": {
+        "tool": "minecraft_observe",
+        "arguments": {
+          "include_image": false
+        },
+        "ok": true,
+        "result": {
+          "warnings": [],
+          "ok": true,
+          "reason": null,
+          "message": null,
+          "camera": {
+            "feet_position": {
+              "x": -14.5,
+              "y": 120.0,
+              "z": 26.42
+            },
+            "eye_position": {
+              "x": -14.5,
+              "y": 121.62,
+              "z": 26.42
+            },
+            "block_position": {
+              "x": -15,
+              "y": 120,
+              "z": 26
+            },
+            "yaw": 183.3,
+            "pitch": 84.6,
+            "cardinal": "north",
+            "look_vector": {
+              "x": 0.01,
+              "y": 1.0,
+              "z": -0.09
+            }
+          },
+          "player": {
+            "health": 18.93,
+            "max_health": 20.0,
+            "food": 13,
+            "oxygen": 2,
+            "xp_level": 0,
+            "biome": "birch_forest",
+            "dimension": "overworld",
+            "time_of_day": 3504,
+            "is_day": true,
+            "is_raining": false,
+            "on_ground": true,
+            "in_water": false
+          },
+          "held_item": {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "count": 1,
+            "slot": null,
+            "durability": null,
+            "max_durability": null
+          },
+          "hotbar": [
+            {
+              "slot": 0,
+              "item": "dirt",
+              "count": 1
+            },
+            {
+              "slot": 1,
+              "item": "birch_log",
+              "count": 59
+            },
+            {
+              "slot": 2,
+              "item": null,
+              "count": 0
+            },
+            {
+              "slot": 3,
+              "item": null,
+              "count": 0
+            },
+            {
+              "slot": 4,
+              "item": null,
+              "count": 0
+            },
+            {
+              "slot": 5,
+              "item": null,
+              "count": 0
+            },
+            {
+              "slot": 6,
+              "item": null,
+              "count": 0
+            },
+            {
+              "slot": 7,
+              "item": null,
+              "count": 0
+            },
+            {
+              "slot": 8,
+              "item": null,
+              "count": 0
+            }
+          ],
+          "inventory": [
+            {
+              "name": "birch_log",
+              "display_name": "Birch Log",
+              "count": 59,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            },
+            {
+              "name": "dirt",
+              "display_name": "Dirt",
+              "count": 1,
+              "slot": null,
+              "durability": null,
+              "max_durability": null
+            }
+          ],
+          "nearby_blocks": [
+            {
+              "block_name": "air",
+              "display_name": "Air",
+              "count": 2382,
+              "nearest": {
+                "x": -15,
+                "y": 120,
+                "z": 26
+              },
+              "distance": 0.65
+            },
+            {
+              "block_name": "grass",
+              "display_name": "Grass",
+              "count": 31,
+              "nearest": {
+                "x": -14,
+                "y": 120,
+                "z": 27
+              },
+              "distance": 0.77
+            },
+            {
+              "block_name": "dirt",
+              "display_name": "Dirt",
+              "count": 837,
+              "nearest": {
+                "x": -15,
+                "y": 119,
+                "z": 26
+              },
+              "distance": 1.19
+            },
+            {
+              "block_name": "grass_block",
+              "display_name": "Grass Block",
+              "count": 285,
+              "nearest": {
+                "x": -14,
+                "y": 119,
+                "z": 26
+              },
+              "distance": 1.2
+            },
+            {
+              "block_name": "birch_log",
+              "display_name": "Birch Log",
+              "count": 28,
+              "nearest": {
+                "x": -15,
+                "y": 123,
+                "z": 26
+              },
+              "distance": 3.07
+            },
+            {
+              "block_name": "birch_leaves",
+              "display_name": "Birch Leaves",
+              "count": 288,
+              "nearest": {
+                "x": -14,
+                "y": 123,
+                "z": 26
+              },
+              "distance": 3.07
+            },
+            {
+              "block_name": "dandelion",
+              "display_name": "Dandelion",
+              "count": 5,
+              "nearest": {
+                "x": -10,
+                "y": 120,
+                "z": 27
+              },
+              "distance": 4.54
+            },
+            {
+              "block_name": "stone",
+              "display_name": "Stone",
+              "count": 1030,
+              "nearest": {
+                "x": -13,
+                "y": 116,
+                "z": 24
+              },
+              "distance": 4.91
+            },
+            {
+              "block_name": "iron_ore",
+              "display_name": "Iron Ore",
+              "count": 8,
+              "nearest": {
+                "x": -14,
+                "y": 113,
+                "z": 26
+              },
+              "distance": 7.03
+            },
+            {
+              "block_name": "coal_ore",
+              "display_name": "Coal Ore",
+              "count": 17,
+              "nearest": {
+                "x": -15,
+                "y": 112,
+                "z": 21
+              },
+              "distance": 9.67
+            },
+            {
+              "block_name": "poppy",
+              "display_name": "Poppy",
+              "count": 1,
+              "nearest": {
+                "x": -21,
+                "y": 119,
+                "z": 19
+              },
+              "distance": 9.91
+            },
+            {
+              "block_name": "gravel",
+              "display_name": "Gravel",
+              "count": 1,
+              "nearest": {
+                "x": -23,
+                "y": 112,
+                "z": 18
+              },
+              "distance": 14.39
+            }
+          ],
+          "nearby_entities": [],
+          "image": null
+        },
+        "body_owner": "7413bdab3a594208ab088377ee087e09",
+        "managed_run": {
+          "run_id": "7413bdab3a594208ab088377ee087e09",
+          "action_id": "a10-five-trees",
+          "workflow_name": "minecraft",
+          "parent_correlation": "",
+          "state": "running",
+          "latest_event": "instruction revision 0 consumed at boundary",
+          "artifact_path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\20261005-a10-wood-05\\app\\managed_tasks\\7413bdab3a594208ab088377ee087e09",
+          "instructions": "Gather wood from five distinct trees and return to your starting position. Use ordinary survival tools. Retain collected logs. Observe your position at each worksite. Travel at least 16 blocks from the start. Inspect inventory and final progress.",
+          "revision": 0,
+          "applied_revision": 0,
+          "updates_open": true,
+          "question_id": "",
+          "answer": "",
+          "request_ids": [
+            "a10-update-1"
+          ],
+          "arguments": {
+            "acceptance": {
+              "kind": "wood_return",
+              "trees": 5,
+              "minimum_travel": 16,
+              "return_radius": 3
+            }
+          },
+          "evidence": [
+            "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\20261005-a10-wood-05\\app\\managed_tasks\\7413bdab3a594208ab088377ee087e09"
+          ],
+          "created_at": 206715.531,
+          "updated_at": 206734.234
+        }
+      },
+      "error": "",
+      "transport": "python"
+    }
+  ]
+}

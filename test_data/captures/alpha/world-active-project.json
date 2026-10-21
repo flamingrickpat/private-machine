@@ -1,0 +1,41 @@
+{
+  "origin": ".runtime\\alpha\\20261014-a14-away-current\\events.jsonl",
+  "origin_sha256": "1ed6c9d7a0bda68b0201bc2b36c67baf11a506af871c06b1e9e15297ac8c359a",
+  "run_receipt": {
+    "run_id": "1b8af481cf034845a23cb10a43865840",
+    "action_id": "action-1ff2e298f89f",
+    "workflow_name": "minecraft_project",
+    "parent_correlation": "world-event:022e1cb2c42249d89037f5a2cb992149",
+    "state": "accepted",
+    "latest_event": "accepted",
+    "artifact_path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\20261014-a14-away-current\\app\\managed_tasks\\1b8af481cf034845a23cb10a43865840",
+    "instructions": "Smelt the 2 raw iron in inventory into ingots using the nearby furnace at (30, 102, 5) to alleviate boredom and create a sense of progress during user silence.",
+    "revision": 0,
+    "applied_revision": -1,
+    "updates_open": true,
+    "question_id": "",
+    "answer": "",
+    "request_ids": [],
+    "arguments": {
+      "goal_description": "Walk to the furnace at coordinates x=30, y=102, z=5. Open it. Place the 2 raw_iron items from inventory into the input slot. Place coal into the fuel slot. Wait for smelting to complete. Collect the resulting iron_ingot items back into inventory.",
+      "acceptance_contract": {
+        "type": "inventory_change",
+        "item": "iron_ingot",
+        "expected_delta": "+2"
+      },
+      "_public_reply_requested": false,
+      "_public_action_schema_id": 11209,
+      "_public_original_request": "",
+      "_public_original_request_id": null
+    },
+    "evidence": [
+      "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\20261014-a14-away-current\\app\\managed_tasks\\1b8af481cf034845a23cb10a43865840"
+    ],
+    "created_at": 13325.156,
+    "updated_at": 13325.156,
+    "execution_epoch": 1,
+    "control_version": 1,
+    "interrupted_from": "",
+    "resume_requests": []
+  }
+}

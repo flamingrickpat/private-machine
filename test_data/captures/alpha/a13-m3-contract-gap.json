@@ -1,0 +1,1543 @@
+{
+  "scope": "Actual native plan approved by model review but missing M3 contract coverage. No M3 pass is claimed.",
+  "sources": {
+    "tree": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\planning\\specs\\0002.json",
+      "sha256": "0d8f806cc7c3b3bbbeffc845cad8a2d0805a5aa9bfdb3cf3b06e56fc89ba0116"
+    },
+    "review": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\decisions\\0048-reviewer\\output.json",
+      "sha256": "37c0b73cbc83bdd41f60ad4ed5f18eb7757d02325ab36d11c8e1919c7ab40003"
+    }
+  },
+  "documents": {
+    "tree": {
+      "schema_version": "pm.minecraft-task-tree.v1",
+      "goal_id": "wooden_home_iron_pickaxe",
+      "revision": 2,
+      "nodes": [
+        {
+          "id": "wooden_home_iron_pickaxe",
+          "revision": 2,
+          "kind": "goal",
+          "parent": null,
+          "children": [
+            "craft_table",
+            "prep_wood",
+            "stone_pickaxe",
+            "site_survey",
+            "house_build",
+            "home_usable",
+            "iron_mine",
+            "iron_smelt",
+            "iron_pickaxe",
+            "save_tested"
+          ],
+          "depends_on": [],
+          "instruction": "Build a small usable wooden house near the initial spawn and craft an iron pickaxe from self-mined iron, using only ordinary survival actions.",
+          "specialist": "gatherer",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "goal_house",
+              "description": "The finished house exists and is usable",
+              "kind": "accepted",
+              "node_id": "house_build",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "goal_pickaxe",
+              "description": "An iron pickaxe is in the current inventory from the self-mined iron chain",
+              "kind": "accepted",
+              "node_id": "iron_pickaxe",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "goal_save",
+              "description": "The home is saved and a tested return route exists",
+              "kind": "accepted",
+              "node_id": "save_tested",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "prep_wood",
+          "revision": 2,
+          "kind": "leaf",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [],
+          "depends_on": [
+            "craft_table"
+          ],
+          "instruction": "Convert enough gathered birch logs into birch planks for the house shell, using the two already-gathered planks as the base stock.",
+          "specialist": "gatherer",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "prep_planks",
+              "description": "At least 67 birch planks are in inventory",
+              "kind": "inventory",
+              "node_id": "",
+              "names": [
+                "birch_planks"
+              ],
+              "minimum": 67,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "stone_pickaxe",
+          "revision": 2,
+          "kind": "leaf",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [],
+          "depends_on": [
+            "craft_table"
+          ],
+          "instruction": "Craft a suitable stone pickaxe using available cobblestone and sticks so exposed iron ore can be mined for raw iron.",
+          "specialist": "gatherer",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "sp_stone_pickaxe",
+              "description": "At least one stone pickaxe is in inventory",
+              "kind": "inventory",
+              "node_id": "",
+              "names": [
+                "stone_pickaxe"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "site_survey",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [],
+          "depends_on": [
+            "prep_wood",
+            "stone_pickaxe"
+          ],
+          "instruction": "Survey a stable nearby site for a modest 5 by 5 outer wooden house with a clear interior and a door approach.",
+          "specialist": "navigator",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "ss_region",
+              "description": "A visible 5x5x4 volume shows a flat foundation and clear air above the proposed 5x5 house shell.",
+              "kind": "region",
+              "node_id": "",
+              "names": [
+                "grass_block",
+                "dirt",
+                "stone",
+                "air"
+              ],
+              "minimum": 65,
+              "position": {
+                "x": 28,
+                "y": 103,
+                "z": -1
+              },
+              "positions": [],
+              "end": {
+                "x": 32,
+                "y": 106,
+                "z": 3
+              },
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "house_build",
+          "revision": 1,
+          "kind": "story",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [
+            "floor_clear",
+            "floor_place",
+            "walls_door",
+            "roof_complete"
+          ],
+          "depends_on": [
+            "site_survey"
+          ],
+          "instruction": "Build the 5x5 outer wooden house with supported floor, two-block-high walls, complete roof, two-cell wooden door, and clear interior.",
+          "specialist": "gatherer",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "hb_floor",
+              "description": "The house floor is present",
+              "kind": "accepted",
+              "node_id": "floor_place",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "hb_walls",
+              "description": "The walls and door are present",
+              "kind": "accepted",
+              "node_id": "walls_door",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "hb_roof",
+              "description": "The roof is complete",
+              "kind": "accepted",
+              "node_id": "roof_complete",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "floor_clear",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "house_build",
+          "children": [],
+          "depends_on": [],
+          "instruction": "Clear the 3x3 interior and door approach vegetation so blocks can be placed on a supported floor.",
+          "specialist": "builder",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "fc_interior",
+              "description": "The planned interior and door approach cells at floor level are clear",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "air"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": 3
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "floor_place",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "house_build",
+          "children": [],
+          "depends_on": [
+            "floor_clear"
+          ],
+          "instruction": "Place a supported birch-plank floor for the 5x5 house, preserving the clear interior and door approach at level 104.",
+          "specialist": "builder",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "fp_floor",
+              "description": "The outer floor ring is birch planks",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "birch_planks"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": 3
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "fp_interior",
+              "description": "The 3x3 interior remains clear at floor level",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "air"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 2
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "fp_approach",
+              "description": "The door approach cells remain clear",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "air"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 27,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 1
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "walls_door",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "house_build",
+          "children": [],
+          "depends_on": [
+            "floor_place"
+          ],
+          "instruction": "Build the two-block-high outer birch-plank walls and install a birch wooden door in the two-cell entrance on the west side.",
+          "specialist": "builder",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "wd_walls",
+              "description": "The outer wall cells at levels 104 and 105 are birch planks except the door cells",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "birch_planks"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": -1
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": 3
+                },
+                {
+                  "x": 28,
+                  "y": 105,
+                  "z": -1
+                },
+                {
+                  "x": 28,
+                  "y": 105,
+                  "z": 2
+                },
+                {
+                  "x": 28,
+                  "y": 105,
+                  "z": 3
+                },
+                {
+                  "x": 29,
+                  "y": 105,
+                  "z": -1
+                },
+                {
+                  "x": 30,
+                  "y": 105,
+                  "z": -1
+                },
+                {
+                  "x": 31,
+                  "y": 105,
+                  "z": -1
+                },
+                {
+                  "x": 32,
+                  "y": 105,
+                  "z": -1
+                },
+                {
+                  "x": 29,
+                  "y": 105,
+                  "z": 3
+                },
+                {
+                  "x": 30,
+                  "y": 105,
+                  "z": 3
+                },
+                {
+                  "x": 31,
+                  "y": 105,
+                  "z": 3
+                },
+                {
+                  "x": 32,
+                  "y": 105,
+                  "z": 3
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 32,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 32,
+                  "y": 105,
+                  "z": 0
+                },
+                {
+                  "x": 32,
+                  "y": 105,
+                  "z": 1
+                },
+                {
+                  "x": 32,
+                  "y": 105,
+                  "z": 2
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "wd_door",
+              "description": "Both door cells contain a birch door",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "birch_door"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 28,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 28,
+                  "y": 105,
+                  "z": 1
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "wd_interior",
+              "description": "The interior remains clear at levels 104 and 105",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "air"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 0
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 29,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 31,
+                  "y": 104,
+                  "z": 2
+                },
+                {
+                  "x": 29,
+                  "y": 105,
+                  "z": 0
+                },
+                {
+                  "x": 30,
+                  "y": 105,
+                  "z": 0
+                },
+                {
+                  "x": 31,
+                  "y": 105,
+                  "z": 0
+                },
+                {
+                  "x": 29,
+                  "y": 105,
+                  "z": 1
+                },
+                {
+                  "x": 30,
+                  "y": 105,
+                  "z": 1
+                },
+                {
+                  "x": 31,
+                  "y": 105,
+                  "z": 1
+                },
+                {
+                  "x": 29,
+                  "y": 105,
+                  "z": 2
+                },
+                {
+                  "x": 30,
+                  "y": 105,
+                  "z": 2
+                },
+                {
+                  "x": 31,
+                  "y": 105,
+                  "z": 2
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "wd_approach",
+              "description": "The outside approach remains clear",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "air"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 27,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 27,
+                  "y": 105,
+                  "z": 1
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "roof_complete",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "house_build",
+          "children": [],
+          "depends_on": [
+            "walls_door"
+          ],
+          "instruction": "Cover the 5x5 house with a complete birch-plank roof and keep the interior below it clear.",
+          "specialist": "builder",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "rc_roof",
+              "description": "The entire level-106 outer footprint is roofed",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "birch_planks"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 28,
+                  "y": 106,
+                  "z": -1
+                },
+                {
+                  "x": 29,
+                  "y": 106,
+                  "z": -1
+                },
+                {
+                  "x": 30,
+                  "y": 106,
+                  "z": -1
+                },
+                {
+                  "x": 31,
+                  "y": 106,
+                  "z": -1
+                },
+                {
+                  "x": 32,
+                  "y": 106,
+                  "z": -1
+                },
+                {
+                  "x": 28,
+                  "y": 106,
+                  "z": 0
+                },
+                {
+                  "x": 29,
+                  "y": 106,
+                  "z": 0
+                },
+                {
+                  "x": 30,
+                  "y": 106,
+                  "z": 0
+                },
+                {
+                  "x": 31,
+                  "y": 106,
+                  "z": 0
+                },
+                {
+                  "x": 32,
+                  "y": 106,
+                  "z": 0
+                },
+                {
+                  "x": 28,
+                  "y": 106,
+                  "z": 1
+                },
+                {
+                  "x": 29,
+                  "y": 106,
+                  "z": 1
+                },
+                {
+                  "x": 30,
+                  "y": 106,
+                  "z": 1
+                },
+                {
+                  "x": 31,
+                  "y": 106,
+                  "z": 1
+                },
+                {
+                  "x": 32,
+                  "y": 106,
+                  "z": 1
+                },
+                {
+                  "x": 28,
+                  "y": 106,
+                  "z": 2
+                },
+                {
+                  "x": 29,
+                  "y": 106,
+                  "z": 2
+                },
+                {
+                  "x": 30,
+                  "y": 106,
+                  "z": 2
+                },
+                {
+                  "x": 31,
+                  "y": 106,
+                  "z": 2
+                },
+                {
+                  "x": 32,
+                  "y": 106,
+                  "z": 2
+                },
+                {
+                  "x": 28,
+                  "y": 106,
+                  "z": 3
+                },
+                {
+                  "x": 29,
+                  "y": 106,
+                  "z": 3
+                },
+                {
+                  "x": 30,
+                  "y": 106,
+                  "z": 3
+                },
+                {
+                  "x": 31,
+                  "y": 106,
+                  "z": 3
+                },
+                {
+                  "x": 32,
+                  "y": 106,
+                  "z": 3
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "rc_interior",
+              "description": "The interior remains clear beneath the roof",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "air"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 29,
+                  "y": 105,
+                  "z": 0
+                },
+                {
+                  "x": 30,
+                  "y": 105,
+                  "z": 0
+                },
+                {
+                  "x": 31,
+                  "y": 105,
+                  "z": 0
+                },
+                {
+                  "x": 29,
+                  "y": 105,
+                  "z": 1
+                },
+                {
+                  "x": 30,
+                  "y": 105,
+                  "z": 1
+                },
+                {
+                  "x": 31,
+                  "y": 105,
+                  "z": 1
+                },
+                {
+                  "x": 29,
+                  "y": 105,
+                  "z": 2
+                },
+                {
+                  "x": 30,
+                  "y": 105,
+                  "z": 2
+                },
+                {
+                  "x": 31,
+                  "y": 105,
+                  "z": 2
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "home_usable",
+          "revision": 1,
+          "kind": "story",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [
+            "home_entry",
+            "home_exit"
+          ],
+          "depends_on": [
+            "house_build"
+          ],
+          "instruction": "Demonstrate that the house is usable by entering through the door to the interior center and then exiting to the outside approach.",
+          "specialist": "gatherer",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "hu_entry",
+              "description": "The body enters the interior center",
+              "kind": "accepted",
+              "node_id": "home_entry",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "hu_exit",
+              "description": "The body exits to the outside approach",
+              "kind": "accepted",
+              "node_id": "home_exit",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "home_entry",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "home_usable",
+          "children": [],
+          "depends_on": [],
+          "instruction": "Navigate from outside through the door and stand at the interior center of the house.",
+          "specialist": "navigator",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "he_position",
+              "description": "The body is at the interior center",
+              "kind": "position",
+              "node_id": "",
+              "names": [],
+              "minimum": 1,
+              "position": {
+                "x": 30,
+                "y": 104,
+                "z": 1
+              },
+              "positions": [],
+              "end": null,
+              "radius": 0.7,
+              "dimension": "overworld"
+            },
+            {
+              "id": "he_alive",
+              "description": "The body is alive",
+              "kind": "alive",
+              "node_id": "",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "he_interior",
+              "description": "The interior remains clear",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "air"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 30,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 30,
+                  "y": 105,
+                  "z": 1
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "home_exit",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "home_usable",
+          "children": [],
+          "depends_on": [
+            "home_entry"
+          ],
+          "instruction": "Navigate from the interior center through the door to the outside approach.",
+          "specialist": "navigator",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "hx_position",
+              "description": "The body is at the outside approach",
+              "kind": "position",
+              "node_id": "",
+              "names": [],
+              "minimum": 1,
+              "position": {
+                "x": 27,
+                "y": 104,
+                "z": 1
+              },
+              "positions": [],
+              "end": null,
+              "radius": 0.7,
+              "dimension": "overworld"
+            },
+            {
+              "id": "hx_alive",
+              "description": "The body is alive",
+              "kind": "alive",
+              "node_id": "",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "hx_approach",
+              "description": "The outside approach remains clear",
+              "kind": "block",
+              "node_id": "",
+              "names": [
+                "air"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [
+                {
+                  "x": 27,
+                  "y": 104,
+                  "z": 1
+                },
+                {
+                  "x": 27,
+                  "y": 105,
+                  "z": 1
+                }
+              ],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "iron_mine",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [],
+          "depends_on": [
+            "stone_pickaxe"
+          ],
+          "instruction": "Locate exposed iron ore through surface-level finds, mine at least three raw iron from actual exposed iron ore, and avoid buried-cell probing.",
+          "specialist": "miner",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "im_raw",
+              "description": "At least three raw iron are in inventory",
+              "kind": "inventory",
+              "node_id": "",
+              "names": [
+                "raw_iron"
+              ],
+              "minimum": 3,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "im_alive",
+              "description": "The body is alive",
+              "kind": "alive",
+              "node_id": "",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "iron_smelt",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [],
+          "depends_on": [
+            "iron_mine"
+          ],
+          "instruction": "Craft a furnace if needed, smelt the raw iron in it, and keep the resulting iron ingots in inventory.",
+          "specialist": "miner",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "is_ingots",
+              "description": "At least three iron ingots are in inventory",
+              "kind": "inventory",
+              "node_id": "",
+              "names": [
+                "iron_ingot"
+              ],
+              "minimum": 3,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "is_alive",
+              "description": "The body is alive",
+              "kind": "alive",
+              "node_id": "",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "iron_pickaxe",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [],
+          "depends_on": [
+            "iron_smelt",
+            "iron_mine"
+          ],
+          "instruction": "Craft an iron pickaxe from the smelted iron ingots.",
+          "specialist": "gatherer",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "ip_pickaxe",
+              "description": "An iron pickaxe is in the current inventory",
+              "kind": "inventory",
+              "node_id": "",
+              "names": [
+                "iron_pickaxe"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "ip_smelt",
+              "description": "The raw-iron smelting step was completed",
+              "kind": "accepted",
+              "node_id": "iron_smelt",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "ip_mine",
+              "description": "The iron ore mining step was completed",
+              "kind": "accepted",
+              "node_id": "iron_mine",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "save_tested",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [],
+          "depends_on": [
+            "home_usable"
+          ],
+          "instruction": "Save the home location and verify a tested route returning from the home to near the initial spawn.",
+          "specialist": "navigator",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "st_spawn",
+              "description": "The body can return near the initial spawn",
+              "kind": "position",
+              "node_id": "",
+              "names": [],
+              "minimum": 1,
+              "position": {
+                "x": 28,
+                "y": 104,
+                "z": -1
+              },
+              "positions": [],
+              "end": null,
+              "radius": 4.0,
+              "dimension": "overworld"
+            },
+            {
+              "id": "st_alive",
+              "description": "The body is alive",
+              "kind": "alive",
+              "node_id": "",
+              "names": [],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        },
+        {
+          "id": "craft_table",
+          "revision": 1,
+          "kind": "leaf",
+          "parent": "wooden_home_iron_pickaxe",
+          "children": [],
+          "depends_on": [],
+          "instruction": "Craft a crafting table from available wood to enable 3x3 recipes.",
+          "specialist": "gatherer",
+          "deferred": false,
+          "defer_reason": "",
+          "criteria": [
+            {
+              "id": "ct_table",
+              "description": "At least one crafting table is in inventory",
+              "kind": "inventory",
+              "node_id": "",
+              "names": [
+                "crafting_table"
+              ],
+              "minimum": 1,
+              "position": null,
+              "positions": [],
+              "end": null,
+              "radius": 2.0,
+              "dimension": "overworld"
+            }
+          ],
+          "assumptions": []
+        }
+      ]
+    },
+    "review": {
+      "status": "accepted",
+      "summary": "The tree correctly sequences the house construction and iron pickaxe crafting. The site survey is supported by the provided observations, and the house layout (5x5 footprint, 2-block walls, roof, door) is consistent with the coordinates. The iron chain (mine -> smelt -> craft) is properly structured with separate leaves and accepted references. The root criteria correctly cite the finished house, the iron pickaxe, and the saved/tested route.",
+      "target_id": ""
+    }
+  }
+}

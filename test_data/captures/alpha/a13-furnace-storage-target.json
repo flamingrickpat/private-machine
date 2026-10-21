@@ -1,0 +1,499 @@
+{
+  "scope": "Actual M3-39 live furnace inspection and opening, then incorrect chest withdrawals and body API error. Test storage alternatives are explicit projections.",
+  "sources": {
+    "journal": {
+      "path": "C:\\source\\pm\\pm_next_v2\\.runtime\\alpha\\a13-m3-20\\app\\managed_tasks\\ad5f4b4094a14bf6bcfe9caeead2770a\\attempts\\actor-0027\\scratch\\actor-journal.jsonl",
+      "sha256": "430dcb83074f779ae133fe490850bfd855c8bb913a0d9a50dc14a11a6095858d"
+    }
+  },
+  "rows": [
+    {
+      "seq": 18,
+      "event": "dispatch",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791544620.1090188,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6"
+    },
+    {
+      "seq": 18,
+      "event": "result",
+      "tool": "minecraft_inspect_block",
+      "arguments": {
+        "position": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791544620.5601065,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "position": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        },
+        "block_name": "furnace",
+        "display_name": "Furnace",
+        "is_solid": true,
+        "exposed_faces": [
+          "north",
+          "east",
+          "up"
+        ],
+        "neighbors": [
+          {
+            "direction": "north",
+            "position": {
+              "x": 30,
+              "y": 102,
+              "z": 4
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "south",
+            "position": {
+              "x": 30,
+              "y": 102,
+              "z": 6
+            },
+            "block_name": "crafting_table",
+            "solid": true
+          },
+          {
+            "direction": "east",
+            "position": {
+              "x": 31,
+              "y": 102,
+              "z": 5
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "west",
+            "position": {
+              "x": 29,
+              "y": 102,
+              "z": 5
+            },
+            "block_name": "dirt",
+            "solid": true
+          },
+          {
+            "direction": "up",
+            "position": {
+              "x": 30,
+              "y": 103,
+              "z": 5
+            },
+            "block_name": "air",
+            "solid": false
+          },
+          {
+            "direction": "down",
+            "position": {
+              "x": 30,
+              "y": 101,
+              "z": 5
+            },
+            "block_name": "dirt",
+            "solid": true
+          }
+        ],
+        "best_tools": [
+          "golden_pickaxe",
+          "netherite_pickaxe",
+          "diamond_pickaxe",
+          "iron_pickaxe",
+          "stone_pickaxe",
+          "wooden_pickaxe"
+        ],
+        "can_harvest_with_held": true,
+        "drops": [
+          "furnace"
+        ],
+        "hardness": 3.5,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 19,
+      "event": "dispatch",
+      "tool": "minecraft_use_block",
+      "arguments": {
+        "position": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791544652.6045563,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6"
+    },
+    {
+      "seq": 19,
+      "event": "result",
+      "tool": "minecraft_use_block",
+      "arguments": {
+        "position": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791544652.9861672,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "out_of_range",
+        "message": "The block is outside interaction range.",
+        "block": {
+          "position": {
+            "x": 30,
+            "y": 102,
+            "z": 5
+          },
+          "block_name": "furnace",
+          "display_name": "Furnace"
+        },
+        "action": null,
+        "window": null,
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 20,
+      "event": "dispatch",
+      "tool": "minecraft_walk_to_visible",
+      "arguments": {
+        "x": 30,
+        "y": 102,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791544654.5635128,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6"
+    },
+    {
+      "seq": 20,
+      "event": "result",
+      "tool": "minecraft_walk_to_visible",
+      "arguments": {
+        "x": 30,
+        "y": 102,
+        "z": 5
+      },
+      "revision": 0,
+      "time": 1791544715.2604725,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "timeout",
+        "message": "The walk time limit expired.",
+        "status": "timeout",
+        "requested": {
+          "x": 30.0,
+          "y": 102.0,
+          "z": 5.0
+        },
+        "final_position": {
+          "x": 32.3,
+          "y": 100.0,
+          "z": 4.42
+        },
+        "distance_remaining": 3.1,
+        "target_offset": {
+          "x": -2.3,
+          "y": 2.0,
+          "z": 0.58
+        },
+        "diagnostics": {
+          "cause": "movement_timeout",
+          "path_status": "success",
+          "error_name": "WalkTimeout",
+          "error_message": "The walk time limit expired.",
+          "target_block": "furnace",
+          "target_head_block": "air",
+          "target_floor_block": "dirt",
+          "feet_block": "air",
+          "head_block": "air"
+        },
+        "hops": 0,
+        "camera": {
+          "feet_position": {
+            "x": 32.3,
+            "y": 100.0,
+            "z": 4.42
+          },
+          "eye_position": {
+            "x": 32.3,
+            "y": 101.62,
+            "z": 4.42
+          },
+          "block_position": {
+            "x": 32,
+            "y": 100,
+            "z": 4
+          },
+          "yaw": 95.75,
+          "pitch": -0.0,
+          "cardinal": "west",
+          "look_vector": {
+            "x": -0.99,
+            "y": -0.0,
+            "z": -0.1
+          }
+        },
+        "image": null,
+        "duration_ms": 60155.71
+      },
+      "images": []
+    },
+    {
+      "seq": 21,
+      "event": "dispatch",
+      "tool": "minecraft_use_block",
+      "arguments": {
+        "position": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791544717.2427828,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6"
+    },
+    {
+      "seq": 21,
+      "event": "result",
+      "tool": "minecraft_use_block",
+      "arguments": {
+        "position": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791544718.016974,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6",
+      "ok": true,
+      "result": {
+        "warnings": [],
+        "ok": true,
+        "reason": null,
+        "message": null,
+        "block": {
+          "position": {
+            "x": 30,
+            "y": 102,
+            "z": 5
+          },
+          "block_name": "furnace",
+          "display_name": "Furnace"
+        },
+        "action": "furnace_opened",
+        "window": {
+          "kind": "furnace",
+          "position": {
+            "x": 30,
+            "y": 102,
+            "z": 5
+          },
+          "slots": [
+            {
+              "slot": 0,
+              "item": "raw_iron",
+              "count": 2
+            },
+            {
+              "slot": 1,
+              "item": null,
+              "count": 0
+            },
+            {
+              "slot": 2,
+              "item": "iron_ingot",
+              "count": 1
+            }
+          ]
+        },
+        "image": null
+      },
+      "images": []
+    },
+    {
+      "seq": 22,
+      "event": "dispatch",
+      "tool": "minecraft_count_inventory",
+      "arguments": {
+        "pattern": "*iron*"
+      },
+      "revision": 0,
+      "time": 1791544719.7853968,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6"
+    },
+    {
+      "seq": 22,
+      "event": "result",
+      "tool": "minecraft_count_inventory",
+      "arguments": {
+        "pattern": "*iron*"
+      },
+      "revision": 0,
+      "time": 1791544720.1504946,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "not_found",
+        "message": "The inventory item was not found: *iron*",
+        "pattern": "*iron*",
+        "matches": [],
+        "total_matching_items": 0,
+        "candidates": [
+          {
+            "name": "dirt",
+            "display_name": "Dirt",
+            "similarity": 0.4,
+            "match_kind": "fuzzy"
+          },
+          {
+            "name": "birch_log",
+            "display_name": "Birch Log",
+            "similarity": 0.4,
+            "match_kind": "fuzzy"
+          },
+          {
+            "name": "dandelion",
+            "display_name": "Dandelion",
+            "similarity": 0.4,
+            "match_kind": "fuzzy"
+          },
+          {
+            "name": "birch_planks",
+            "display_name": "Birch Planks",
+            "similarity": 0.33,
+            "match_kind": "fuzzy"
+          },
+          {
+            "name": "stone_pickaxe",
+            "display_name": "Stone Pickaxe",
+            "similarity": 0.21,
+            "match_kind": "fuzzy"
+          }
+        ]
+      },
+      "images": []
+    },
+    {
+      "seq": 23,
+      "event": "dispatch",
+      "tool": "minecraft_chest_withdraw",
+      "arguments": {
+        "item": "iron_ingot"
+      },
+      "revision": 0,
+      "time": 1791544721.8638964,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6"
+    },
+    {
+      "seq": 23,
+      "event": "result",
+      "tool": "minecraft_chest_withdraw",
+      "arguments": {
+        "item": "iron_ingot"
+      },
+      "revision": 0,
+      "time": 1791544722.2539861,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6",
+      "ok": false,
+      "result": {
+        "warnings": [],
+        "ok": false,
+        "reason": "no_chest_window",
+        "message": "Open a chest first or provide its position.",
+        "item": null,
+        "moved_count": 0,
+        "window": null,
+        "inventory_delta": null,
+        "candidates": null
+      },
+      "images": []
+    },
+    {
+      "seq": 24,
+      "event": "dispatch",
+      "tool": "minecraft_chest_withdraw",
+      "arguments": {
+        "item": "iron_ingot",
+        "chest": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791544724.096403,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6"
+    },
+    {
+      "seq": 24,
+      "event": "uncertain",
+      "tool": "minecraft_chest_withdraw",
+      "arguments": {
+        "item": "iron_ingot",
+        "chest": {
+          "x": 30,
+          "y": 102,
+          "z": 5
+        }
+      },
+      "revision": 0,
+      "time": 1791544724.096403,
+      "epoch": 173,
+      "session": "0d46a1bf74524ae28d51d46f83e0a6d6",
+      "error": "ToolError: Error calling tool 'minecraft_body_call': Player body Error: containerToOpen is neither a block nor an entity"
+    }
+  ]
+}
