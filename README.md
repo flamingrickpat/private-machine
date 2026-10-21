@@ -1,8 +1,67 @@
 # private-machine
 
-private-machine (pm) is an experimental AI companion with persistent memory, private thought, and a configurable character.
-It connects conversation, remembered experiences, and optional tools through one runtime.
+private-machine (pm) is a highly experimental **AI companion** harness with persistent memory, internal thought, and a 
+configurable persona.
+
 You can create a new character or import a character card and an old chatlog.
+
+The ultimate goal is to make an extremely **immersive** and **functionally self-aware** AI companion you can run with local models
+and interact via text or in Minecraft. 
+
+I don't claim to have invented machine-consciousness, I'm not that crazy (yet). It should just be a really immersive 
+simulation where the illusion is never broken. It goes against the design to regenerate replies, and you can't do it.
+
+Due to the crazy amount of agents and background services this project is **SLOW AF**. Still working on that, quality 
+first. Even with 2 Qwen 3.6 35B3A instances with combined 400tps, it's barely useable.
+
+### Requirements
+
+- OpenAI compatible endpoint for the LLM
+- Qwen 3.6 35B3A is the absolute minimum, Qwen 3.8 27B or Next work better
+- At least 98k context
+- OpenAI compatible endpoint for the embedding model
+- At least 2048 input tokens
+- EmbeddingGemma 300M is fine
+- Patience
+
+## Features
+
+- **Emotions:** Joy, jealousy, boredom, tenderness, and trust live in a persistent [mental-state vector](pm/records/mental_state.py).
+  [Appraisals](workflows/main_cognition/affect.py) change that state, and those changes shape attention and expression.
+
+- **Mental processes:** Small processes called [codelets](workflows/main_cognition/codelets.yaml) recall old episodes, notice disrespect, imagine another person's perspective, or find something funny.
+  Each offers its own take on the situation.
+
+- **Attention:** A worry, a memory, and something you just said can compete for attention in the [global workspace](workflows/main_cognition/phases/attention.py).
+  What wins helps shape the next decision.
+
+- **Inner thoughts:** A separate [private thought loop](workflows/inner_thought/) gives the character time to think without a new message.
+  It can also [recall past events and propose a new focus](workflows/focus_management/).
+
+- **Memory:** The character can [recall experiences](pm/memory/retrieval.py) and their emotional consequences.
+  [Memory consolidation](pm/memory/reconsolidation/) builds episodes and broader narratives from the original events.
+
+- **Personality, needs, goals:** Stable traits sit alongside changing needs for connection, autonomy, and creative expression.
+  The character can [form, reprioritize, defer, or refuse goals](workflows/main_cognition/phases/goals.py).
+
+- **Expectations:** It [records what it expects](workflows/main_cognition/expectations.py) to happen after an action.
+  Later events can fulfill those expectations or surprise it, with consequences for its emotional state.
+
+- **Metacognition** The character can [inspect parts of its own code and records](pm/introspection/) to revise its beliefs about itself.
+  Experimental [reflection](workflows/reflection/) tests changes to attention and subjective beliefs against later choices.
+
+- **Consistent Vocabulary** A [private ontology](workflows/public_speech/ontology.py) connects words for emotions, relationships, and mental actions to recorded state.
+  Those links give the character consistent terms for its own experience.
+
+- **Body in Minecraft:** The optional [Minecraft body](workflows/minecraft_body/) lets the character move, gather, mine, and build.
+  Larger [projects](workflows/minecraft_project/) keep plans and progress across many actions.
+
+- **Tools:** Through [MCP tools](workflows/tool_call/), the character can carry out tasks, remember the outcome, and tell you about it in its own voice.
+
+- **Inspection:** The [review desk](dev/review/README.md) shows conversations alongside private thoughts, appraisals, codelet output, and the memories behind later decisions.
+
+You choose the [character](docs/subsystems/character-import.md) and the [models](docs/models.md).
+With local model servers, the character's memory and conversation stay on your machine.
 
 The project is in alpha. Model output can still need repair, and companion quality depends on your model and prompts.
 Minecraft and other MCP tools are optional. They require their own running services.
@@ -51,6 +110,10 @@ The current MCP requires Minecraft Java 1.19.4, Node.js 20 or newer, and RCON ac
 These examples use Sunny's existing character home and an installed MCP checkout at `C:/source/pm/pm-minecraft`.
 Replace the paths, player name, and ports for your character and server.
 If the MCP service already runs for this character, continue at step 3.
+
+You can download it here: https://github.com/flamingrickpat/pm-minecraft
+
+If you're interested in real survival gameplay, add this babymode-mod for easier combat: https://github.com/flamingrickpat/pm-agentic-babymode
 
 1. In the MCP checkout, copy your working server configuration once:
 
@@ -115,16 +178,6 @@ Give each pm process a distinct `--web-port`.
 Point each pm process at its character's MCP endpoint.
 Stopping pm leaves the MCP service and Minecraft server running.
 Read the [Minecraft workflow guide](docs/workflows/minecraft.md) for managed runs and cancellation.
-
-## How it behaves
-
-The companion uses conversation, memory, and its internal state to choose a response or an action.
-Private thought runs separately and yields inference priority to cognition and dialogue between completions.
-Invalid structured answers receive validation feedback and repair turns while context space remains.
-
-Model responses and embeddings use a local cache.
-Completion response counters restart in each process, which helps reproduce a run from a backup.
-Read [model connections and caching](docs/models.md) for the exact behavior and cache bypass.
 
 ## More information
 
