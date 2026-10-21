@@ -1,9 +1,9 @@
 [project]
 name = "pm-next-v2"
-version = "1.0.0"
+version = "1.0.1"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "pm-workflows>=0.7.1",
+    "pm-workflows>=0.7.2",
     "pm-coder @ git+https://github.com/flamingrickpat/pm-coder.git@main",
     "pydantic>=2.9,<3",
     "PyYAML>=6,<7",

@@ -27,6 +27,7 @@ from pm_workflows.runtime import WorkflowTerminated
 
 from pm.llm.http_client import ModelError
 from pm.llm.structured import repair_agent_result
+from pm.llm.multimodal import agent_images
 from pm.llm.mcp_config import ToolCallConfig
 from pm.records.media import IMAGE_TYPES
 from pm.runs.errors import TaskServiceError
@@ -210,6 +211,19 @@ def session_prompt(request: ToolCallRequest, instruction: str, servers: list[str
     return "\n".join(lines)
 
 
+def session_images(request: ToolCallRequest) -> list[tuple[bytes, str]]:
+    """Return the ``(bytes, media_type)`` pictures of the moment that started this session.
+
+    The session prompt carries the alt text of each stimulus. The session is
+    the companion acting on what it saw, so the pictures themselves ride on
+    its first turn. A moment with no image tags gets no attachments.
+    """
+    source = request.tool_call_context.source_action
+    if source is None:
+        return []
+    return agent_images("\n".join(item.text for item in source.stimuli))
+
+
 def _session_mcp_file(path: Path, config: ToolCallConfig) -> None:
     """Write the native MCP file of the session, with resolved headers.
 
@@ -296,6 +310,7 @@ def _execute(context: Any, report: ToolCallReport) -> None:
             driver = PmCoderDriver(log_root=log_root, timeout_seconds=config.timeout_seconds)
             result = driver.run_session(
                 run_id=session_name, attempt=1, skill=str(SKILL), prompt=prompt,
+                images=session_images(request),
                 work_dir=context.workspace, runtime=agent_runtime, mcp_config=mcp_file,
                 trace_file=Path(report.trace_path), result_file=context.kernel_data / "tool-call-agent-result.json")
     except WorkflowTerminated:

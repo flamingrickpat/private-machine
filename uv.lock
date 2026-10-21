@@ -965,8 +965,8 @@ wheels = [
 
 [[package]]
 name = "pm-coder"
-version = "0.10.0"
-source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=main#1e96e03c536bd6744b33afdc521f40985af5ff08" }
+version = "0.10.2"
+source = { git = "https://github.com/flamingrickpat/pm-coder.git?rev=main#d9c9ca4915428991dbcb40fae623466ae6b9ed8a" }
 dependencies = [
     { name = "httpx" },
     { name = "just-bash" },
@@ -1012,8 +1012,8 @@ requires-dist = [
 
 [[package]]
 name = "pm-workflows"
-version = "0.7.1"
-source = { git = "https://github.com/flamingrickpat/pm-workflows.git?branch=main#47e24d8e1dadd97e20b2143e374be8f6b29240bb" }
+version = "0.7.2"
+source = { git = "https://github.com/flamingrickpat/pm-workflows.git?branch=main#073e988721f2907eb0e9d0d3bffa703fb3f15e9d" }
 dependencies = [
     { name = "httpx" },
     { name = "pm-coder" },

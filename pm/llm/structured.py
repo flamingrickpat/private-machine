@@ -117,14 +117,27 @@ class _Repair:
         return None
 
     def check_budget(self, measurement: dict) -> None:
-        """Reject a repair that exceeds the reserved input budget."""
+        """Reject a repair that exceeds the reserved input budget.
+
+        A prompt that holds an image has no exact token count: the provider
+        bills image tiles, and no route returns that count before inference.
+        Measurement therefore adds ``PROMPT_IMAGE_TOKENS`` for each image part
+        and labels the result (``measurement_complete`` is False). The repair
+        loop uses that estimate. An image in the prompt is not a reason to
+        stop: the estimate already carries the image, and a repair turn is
+        small text. Stopping on the label alone killed every cycle that held a
+        photo, because one invalid answer ended the cycle with no reply.
+
+        A provider that rejects an oversized image answers with a transport
+        error. That keeps its ``ModelError`` boundary, and the owning module
+        retries the whole cycle from fresh state.
+        """
         self.check_cancelled()
-        if measurement.get("measurement_complete") is False:
-            raise ModelFormatError("Cannot establish the repair budget for unmeasured media.")
         if measurement["input_tokens"] > measurement["input_budget_tokens"]:
             raise ModelFormatError(
                 f"JSON repair exhausted the input context after {self.attempt} invalid answers "
-                f"({measurement['input_tokens']} input tokens; budget {measurement['input_budget_tokens']}). "
+                f"({measurement['input_tokens']} input tokens; budget {measurement['input_budget_tokens']}; "
+                f"measurement={measurement.get('measurement', 'unknown')}). "
                 f"Last validation error: {self.last_error}")
 
 

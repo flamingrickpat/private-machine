@@ -209,4 +209,33 @@ def prompt_image_count(messages: Sequence[TurnInput], resolve: Resolver = find_i
                for part in turn.content.parts)
 
 
-__all__ = ["encode_messages", "prompt_image_count", "resolve_turns"]
+def agent_images(text: str, resolve: Resolver = find_image,
+                 limit: int = PROMPT_MAX_IMAGES) -> list[tuple[bytes, str]]:
+    """Return ``(bytes, media_type)`` for the image tags of one plain-text prompt.
+
+    A pm-coder session sends its prompt through its own model client, which
+    does not resolve tags. The session therefore gets the pictures as
+    attachments on its first turn, and the text keeps the alt text of each tag
+    (see :func:`~pm.records.media.alt_text_view`). The two describe the same
+    image, so the model can read the record text and still see the pixels.
+
+    The selection matches :func:`resolve_turns`: the newest ``limit`` distinct
+    ids, counted from the end of the text, in text order. WebP, BMP, and GIF
+    bytes become PNG, because the local image loader cannot decode them. An id
+    that no record holds is skipped.
+    """
+    chosen: list[str] = []
+    for image_id in reversed(IMAGE_TAG.findall(text)):
+        if len(chosen) < limit and image_id not in chosen and resolve(image_id) is not None:
+            chosen.append(image_id)
+    parts = []
+    for image_id in reversed(chosen):
+        image = resolve(image_id)
+        if image is None:
+            continue
+        converted, mime_type = _to_png(image.data())
+        parts.append((converted, mime_type))
+    return parts
+
+
+__all__ = ["agent_images", "encode_messages", "prompt_image_count", "resolve_turns"]

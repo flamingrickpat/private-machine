@@ -16,7 +16,7 @@ from pm.llm.activation import ChatClient, ModelActivation
 from pm.llm.config import resolve_connection
 from pm.llm.context_window import estimate_tokens
 from pm.llm.http_client import ModelError
-from pm.llm.multimodal import encode_messages
+from pm.llm.multimodal import agent_images, encode_messages
 from pm.llm.prompt_encoding import OpenAIChatEncoder
 from pm.llm.prompt_log import start_prompt_log
 from pm.records.media import image_from_bytes, install_media_lookup
@@ -105,6 +105,37 @@ class EncoderTests(unittest.TestCase):
         self.assertGreaterEqual(tagged - plain, PROMPT_MAX_IMAGES * PROMPT_IMAGE_TOKENS)
         self.assertLess(tagged - plain, (PROMPT_MAX_IMAGES + 1) * PROMPT_IMAGE_TOKENS)
         self.assertTrue(label.startswith("estimated.images_by_constant."))
+
+
+class AgentImageTests(unittest.TestCase):
+    """A pm-coder session gets the pictures of its prompt as attachments.
+
+    The session sends its prompt through its own model client, which does not
+    resolve image tags. ``agent_images`` returns the bytes for the tags the
+    text carries, so the session reads the record text and still sees pixels.
+    """
+
+    def setUp(self):
+        self.images = [image_from_bytes(png(index), alt_text=f"picture {index}", alt_text_source="model")
+                       for index in range(1, 5)]
+        self.lookup = {image.id: image for image in self.images}.get
+
+    def test_tags_become_attachments_in_text_order(self):
+        text = "\n".join(f'Jesse says: "look [{image.alt_text}]" {image.tag}' for image in self.images[:2])
+        parts = agent_images(text, resolve=self.lookup)
+        self.assertEqual([part[1] for part in parts], ["image/png", "image/png"])
+        self.assertEqual(parts[0][0], self.images[0].data())
+        self.assertEqual(parts[1][0], self.images[1].data())
+
+    def test_only_the_newest_images_are_kept(self):
+        """The rule matches a direct call: newest ids, counted from the end."""
+        text = "\n".join(image.tag for image in self.images)
+        parts = agent_images(text, resolve=self.lookup, limit=2)
+        self.assertEqual(parts, [(self.images[2].data(), "image/png"), (self.images[3].data(), "image/png")])
+
+    def test_prompt_without_a_resolvable_tag_gets_nothing(self):
+        self.assertEqual(agent_images("Jesse says: hello", resolve=self.lookup), [])
+        self.assertEqual(agent_images("[image: img-gone]", resolve=self.lookup), [])
 
 
 class ChatClientHookTests(unittest.IsolatedAsyncioTestCase):

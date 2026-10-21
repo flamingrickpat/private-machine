@@ -186,6 +186,38 @@ class StructuredTests(unittest.TestCase):
                           {"input_tokens": 101, "input_budget_tokens": 100})
         self.assertEqual(len(calls), 1)
 
+    def test_prompt_media_repairs_on_the_estimate(self):
+        """An image in the prompt costs an estimate, not the whole cycle.
+
+        No route counts image tiles before inference, so measurement reports
+        ``measurement_complete=False`` with a per-image allowance. Repair must
+        continue on that estimate. Refusing it stopped every cycle that held a
+        photo before a reply was ever routed.
+        """
+        for run in (complete_json, complete_json_via_async):
+            with self.subTest(policy=run.__name__):
+                calls = []
+                responses = iter(['{"value": -1}', '{"value": 3}'])
+
+                def complete(turns, **settings):
+                    calls.append(turns)
+                    return next(responses)
+
+                result = run(complete, [], Answer, measure=lambda *args, **kwargs: {
+                    "input_tokens": 9000, "input_budget_tokens": 100000,
+                    "measurement": "estimated.images_by_constant.o200k_base",
+                    "measurement_complete": False})
+                self.assertEqual(result.value, 3)
+                self.assertEqual(len(calls), 2)
+
+    def test_media_estimate_over_budget_names_the_estimate(self):
+        """The stop reason keeps the measurement label, so an estimate reads as one."""
+        with self.assertRaisesRegex(ModelFormatError, "estimated.images_by_constant"):
+            complete_json(lambda *args, **kwargs: "invalid", [], Answer, measure=lambda *args, **kwargs: {
+                "input_tokens": 101, "input_budget_tokens": 100,
+                "measurement": "estimated.images_by_constant.o200k_base",
+                "measurement_complete": False})
+
     def test_cancellation_and_programming_errors_keep_their_boundary(self):
         cancel = Event()
 

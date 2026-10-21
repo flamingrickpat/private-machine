@@ -13,6 +13,7 @@ from pm_workflows.inputs import InputError
 from pm_coder import PermanentProviderError
 from pm.llm.http_client import ModelError
 from pm.llm.structured import repair_agent_result, ModelFormatError
+from pm.llm.multimodal import agent_images
 from pm.host.mcp_listeners import serve_services
 from pm.llm.prompt_log import log_directory
 from workflows.cognitive_control.schemas import MentalPlan
@@ -68,6 +69,7 @@ def run_mental_work(context) -> dict:
         result = driver.run_session(run_id=context.task_id + "-mental", attempt=1,
             skill=str(Path(__file__).with_name("agent.md")),
             prompt=mental_prompt(request),
+            images=agent_images(request.workspace),
             work_dir=context.workspace, runtime=replace(runtime, agent_model=replace(model, enable_thinking=True),
                 mcp_servers=servers), mcp_config=config, trace_file=context.kernel_data / "mental-agent.jsonl")
         runtime.check_cancelled()

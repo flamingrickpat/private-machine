@@ -25,6 +25,12 @@ async def measure_context(connection: Connection, messages: Sequence[TurnInput],
     Other endpoints use an explicitly labelled tiktoken estimate and require
     configured serving capacity. Cancellation closes every discovery request.
     Transport and invalid protocol errors raise ModelError without prompt text.
+
+    ``measurement_complete`` says whether the count is exact. It is False when
+    the prompt holds media, because no route counts image tiles before
+    inference. Callers treat that count as a planning estimate, not as a
+    reason to refuse the call. See
+    :meth:`pm.llm.structured._Repair.check_budget`.
     """
     if cancel.is_set():
         raise asyncio.CancelledError

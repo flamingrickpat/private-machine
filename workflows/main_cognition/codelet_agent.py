@@ -39,6 +39,7 @@ from pm_workflows.drivers import PmCoderDriver
 
 from pm.constants import CODELET_AGENT_ATTEMPTS, CODELET_AGENT_TIMEOUT_SECONDS
 from pm.host.mcp_listeners import serve_services
+from pm.llm.multimodal import agent_images
 from pm.llm.prompt_log import log_directory
 from pm.memory.agent_tools import MemoryReadSession, MemoryToolConfig, MemoryView
 from pm.records.media import alt_text_view
@@ -58,14 +59,26 @@ def prompt_text(job: AgentCodeletJob, problems: list[str]) -> str:
     ``problems`` holds the reasons why earlier sessions of this job failed.
     The new session reads them last, so it can avoid the same mistake.
 
-    A pm-coder session sends this text through its own model client, which
-    does not resolve image tags. Each tag therefore becomes its alt text here.
+    The text carries the alt text of every image tag (see
+    :func:`~pm.records.media.alt_text_view`). The pictures themselves ride on
+    the session's first turn as attachments (:func:`prompt_images`), so the
+    session reads the record text and still sees the pixels.
     """
     plan = "\n".join(f"- {item}" for item in job.retrieval_plan) or "- (no plan; use your judgment)"
     text = f"{job.story}\n\n{job.view}\n\n{job.instruction}\n\nRetrieval plan:\n{plan}"
     if problems:
         text += "\n\nEarlier attempts of this task failed:\n" + "\n".join(f"- {item}" for item in problems)
     return alt_text_view(text)
+
+
+def prompt_images(job: AgentCodeletJob) -> list[tuple[bytes, str]]:
+    """Return the ``(bytes, media_type)`` pictures this session should see.
+
+    The codelet reads the story of the moment, so it gets the same images that
+    a direct call of the cycle would see: the newest ``PROMPT_MAX_IMAGES``
+    distinct tags of the story, view, and instruction, in text order.
+    """
+    return agent_images(f"{job.story}\n\n{job.view}\n\n{job.instruction}")
 
 
 def build_codelet_agent(ghost, environment, embeddings, cancel: threading.Event) -> CodeletAgent:
@@ -109,6 +122,7 @@ def build_codelet_agent(ghost, environment, embeddings, cancel: threading.Event)
                         result = driver.run_session(
                             run_id=f"{context.task_id}-{job.codelet}", attempt=attempt, skill=str(SKILL),
                             prompt=prompt_text(job, problems), work_dir=context.workspace,
+                            images=prompt_images(job),
                             runtime=replace(runtime, agent_model=replace(model, enable_thinking=True),
                                             mcp_servers=servers),
                             mcp_config=config,
@@ -134,4 +148,4 @@ def build_codelet_agent(ghost, environment, embeddings, cancel: threading.Event)
     return run
 
 
-__all__ = ["CodeletAgent", "SKILL", "build_codelet_agent", "prompt_text"]
+__all__ = ["CodeletAgent", "SKILL", "build_codelet_agent", "prompt_images", "prompt_text"]
