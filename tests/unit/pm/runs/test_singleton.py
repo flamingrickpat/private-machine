@@ -164,7 +164,7 @@ class SingletonTests(unittest.TestCase):
         self.supervisor.shutdown()
         app = build_app(REPO_ROOT / 'test_data/personas/spamuel/canon.yaml',
             ghost=self.ghost, cognition='real', runtime_root=self.root / 'app',
-            config_path=str(REPO_ROOT / 'config.alpha.openrouter.yaml'),
+            config_path=str(REPO_ROOT / 'config.example.yaml'),
             record_lifecycle=False, world_poll_seconds=None)
         self.supervisor = app.supervisor
         self.supervisor.workflows = configured

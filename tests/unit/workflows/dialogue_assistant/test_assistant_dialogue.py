@@ -244,13 +244,13 @@ class AssistantModuleTests(unittest.TestCase):
         script = list(responses)
 
         class FakeModel:
-            def build_async_tool(self):
+            def build_async_tool(self, *, cancel=None):
                 async def review(messages, **generation):
                     # Boundary fixture: the agentic review finds nothing.
                     return '{"judgment": "accept", "reason": "grounded", "false_task_result": false, "findings": []}'
                 return review
 
-            def build_tool_completion(self):
+            def build_tool_completion(self, *, cancel=None):
                 async def complete(messages, tools=None, **generation):
                     return script.pop(0)
 

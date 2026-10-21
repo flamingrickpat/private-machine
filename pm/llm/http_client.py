@@ -16,6 +16,7 @@ import os
 import secrets
 import sys
 import time
+import logging
 from pathlib import Path
 from threading import Event
 
@@ -127,7 +128,8 @@ class JsonClient:
         self.cache_hits = 0
 
     async def _send(self, client, method: str, route: str, headers: dict,
-                    payload: dict | None, cancel: Event | None, cache_path: Path | None = None):
+                    payload: dict | None, cancel: Event | None, cache_path: Path | None = None,
+                    transcript_path: Path | None = None):
         """Log each inference attempt before dispatch, including retries.
 
         The caller reserves the cache position before transport retries.
@@ -135,11 +137,16 @@ class JsonClient:
         Cancellation leaves the prompt and an error receipt. Logging failures
         cannot change the HTTP result. Readiness requests have no prompt log.
         """
-        from pm.llm.prompt_log import start_prompt_log, finish_prompt_log
+        from pm.llm.prompt_log import start_prompt_log, finish_prompt_log, mirror_prompt_log
         started = time.monotonic()
         replayed = replay_response(cache_path) if cache_path is not None else None
         path = start_prompt_log(connection=self.connection, payload=payload, route=route,
                                 request_count=self.request_count) if method == "POST" else None
+        transcript = transcript_path or (cache_path.with_suffix(".md") if cache_path is not None else None)
+        mirror_prompt_log(path, transcript)
+        logger = logging.getLogger(__name__)
+        logger.info("Model request start route=%s model=%s cache_hit=%s transcript=%s",
+                    route, self.connection.model, replayed is not None, transcript or path)
         if replayed is not None:
             self.cache_hits += 1
             response = replayed
@@ -151,6 +158,8 @@ class JsonClient:
                 ), cancel)
             except BaseException as error:
                 finish_prompt_log(path, error=error, elapsed=time.monotonic() - started)
+                mirror_prompt_log(path, transcript)
+                logger.info("Model request stopped route=%s error=%s", route, type(error).__name__)
                 raise
             self._store(cache_path, response)
         try:
@@ -158,7 +167,11 @@ class JsonClient:
         except ValueError:
             data = None
         error = completion_error(data) if response.is_success else ModelError(f"HTTP {response.status_code}")
-        finish_prompt_log(path, response=data, error=error, elapsed=time.monotonic() - started)
+        finish_prompt_log(path, response=data, error=error, elapsed=time.monotonic() - started,
+                          replayed=replayed is not None)
+        mirror_prompt_log(path, transcript)
+        logger.info("Model request end route=%s status=%s seconds=%.3f", route, response.status_code,
+                    time.monotonic() - started)
         return response
 
     @staticmethod
@@ -173,7 +186,8 @@ class JsonClient:
         if isinstance(data, dict) and "error" not in data and completion_error(data) is None:
             store_response(path, response.content)
 
-    async def request(self, method: str, route: str, *, payload: dict | None = None, cancel: Event | None = None) -> dict:
+    async def request(self, method: str, route: str, *, payload: dict | None = None, cancel: Event | None = None,
+                      transcript_path: Path | None = None) -> dict:
         """Wait through temporary failures until recovery or cancellation.
 
         Production waits have no retry quota. An explicit transient_retries
@@ -203,9 +217,9 @@ class JsonClient:
                             if cached_chat and cache_path is None:
                                 # Queue cancellation must not advance the response counter.
                                 cache_path = completion_path(self.connection.base_url, payload or {})
-                            response = await self._send(client, method, route, headers, payload, cancel, cache_path)
+                            response = await self._send(client, method, route, headers, payload, cancel, cache_path, transcript_path)
                     else:
-                        response = await self._send(client, method, route, headers, payload, cancel, cache_path)
+                        response = await self._send(client, method, route, headers, payload, cancel, cache_path, transcript_path)
                 except httpx.TransportError:
                     failure = "Model connection failed. Check the endpoint."
                 else:
@@ -229,6 +243,8 @@ class JsonClient:
                 if self.transient_retries is not None and retries >= self.transient_retries:
                     raise ModelError(failure) from None
                 retries += 1
+                logging.getLogger(__name__).warning("Model request retry route=%s attempt=%s delay_seconds=%s",
+                                                    route, retries, self.retry_delay_seconds)
                 limit = str(self.transient_retries) if self.transient_retries is not None else "until cancellation"
                 print(f"{failure} Retrying in {self.retry_delay_seconds:g} seconds "
                       f"({retries}/{limit}).", file=sys.stderr)

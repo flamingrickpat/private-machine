@@ -529,7 +529,7 @@ def build_app(
                  "preference, name, or plan; use utterance when recalling what someone previously said. "
                  "Return only JSON with query and evidence_use."},
                 {"role": "user", "content": text},
-            ], temperature=Sampler.TempInstruct, enable_thinking=False)
+            ], temperature=Sampler.TempInstruct, enable_thinking=False, cancel=main_cog.run_stop)
             try:
                 result = extract_json(raw)
             except StageOutputError:

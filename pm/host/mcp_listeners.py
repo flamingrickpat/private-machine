@@ -11,6 +11,7 @@ from __future__ import annotations
 import socket
 import threading
 import time
+import logging
 from contextlib import contextmanager
 from typing import Iterator, Mapping
 
@@ -35,6 +36,8 @@ class _Listener:
 
     def _run(self) -> None:
         import asyncio
+        logger = logging.getLogger(__name__)
+        logger.info("MCP listener start name=%s port=%s", self.name, self.port)
 
         async def serve() -> None:
             import uvicorn
@@ -50,6 +53,9 @@ class _Listener:
             asyncio.run(serve())
         except BaseException as exc:  # the listener thread must record its fault
             self.error = exc
+            logger.exception("MCP listener failed name=%s", self.name)
+        finally:
+            logger.info("MCP listener stopped name=%s", self.name)
 
     def wait_ready(self, timeout: float) -> None:
         deadline = time.monotonic() + timeout
@@ -66,12 +72,15 @@ class _Listener:
         raise TimeoutError(f"MCP service '{self.name}' did not become ready")
 
     def close(self) -> None:
+        logging.getLogger(__name__).info("MCP listener close requested name=%s", self.name)
         # Stop the accept loop before closing the held socket. Closing only
         # the socket leaves the server thread and its MCP sessions alive.
         if self.http_server is not None:
             self.http_server.should_exit = True
         if self.thread is not None:
             self.thread.join(timeout=5)
+            if self.thread.is_alive():
+                logging.getLogger(__name__).warning("MCP listener remains active name=%s", self.name)
         try:
             self.socket.close()
         except OSError:

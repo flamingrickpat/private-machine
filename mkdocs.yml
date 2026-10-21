@@ -52,6 +52,7 @@ nav:
       - Glossary: concepts/glossary.md
       - Naming rules: concepts/naming.md
   - Subsystems:
+      - Runtime files and recovery: subsystems/runtime-files.md
       - Cognition: subsystems/cognition.md
       - Inference settings and parallel calls: subsystems/inference-settings.md
       - Accepted cognition state: subsystems/cognition-state.md

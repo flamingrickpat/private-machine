@@ -6,11 +6,16 @@ Termination wakes the mailbox and runs cleanup once.
 from __future__ import annotations
 
 import threading
+import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Callable
 
 from pm.bus.bus import BusSystem, Mailbox
 from pm.bus.envelopes import Envelope, new_id
+from pm.host.diagnostics import join_thread
+
+logger = logging.getLogger(__name__)
 
 
 class BusModule(ABC):
@@ -72,13 +77,16 @@ class BusModule(ABC):
 
     def join(self) -> None:
         if self._thread is not None:
-            self._thread.join()
+            join_thread(self._thread)
 
     def stop(self) -> None:
+        if not self.stop_event.is_set():
+            logger.info("Module stop requested module=%s invocation=%s", self.module_id, self.invocation_id)
         self.stop_event.set()
         self.mailbox.wake()
 
     def _run_loop(self) -> None:
+        logger.info("Module thread started module=%s native_id=%s", self.module_id, threading.get_native_id())
         try:
             try:
                 while not self.stop_event.is_set():
@@ -86,7 +94,24 @@ class BusModule(ABC):
             finally:
                 self._finish_termination()
         except BaseException as exc:  # a crash must reach the application
+            logger.exception("Module thread crashed module=%s invocation=%s", self.module_id, self.invocation_id)
             self.on_error(exc)
+        finally:
+            logger.info("Module thread stopped module=%s invocation=%s", self.module_id, self.invocation_id)
+
+    def _logged_batch(self, batch: list[Envelope]) -> None:
+        """Record work boundaries without copying private input into diagnostics."""
+        if not batch and not hasattr(self, "workflow"):
+            self.handle_batch(batch)
+            return
+        started = time.monotonic()
+        logger.debug("Module work start module=%s topics=%s correlations=%s", self.module_id,
+                     [item.topic for item in batch], [item.correlation_id for item in batch])
+        try:
+            self.handle_batch(batch)
+        finally:
+            logger.debug("Module work exit module=%s invocation=%s seconds=%.3f", self.module_id,
+                         self.invocation_id, time.monotonic() - started)
 
     def _finish_termination(self) -> None:
         if self._termination_done:
@@ -125,13 +150,13 @@ class BusModule(ABC):
             return False
 
         if batch:
-            self.handle_batch(batch)
+            self._logged_batch(batch)
             return True
 
         now = self.clock()
         if self._next_tick is not None and now >= self._next_tick:
             self._next_tick = now + self.tick_seconds
-            self.handle_batch([])
+            self._logged_batch([])
             return True
 
         return False
@@ -155,6 +180,7 @@ class Application:
         self.join_workers: Callable[[], None] | None = None
 
     def on_error(self, exc: BaseException) -> None:
+        logger.error("Application failure", exc_info=(type(exc), exc, exc.__traceback__))
         with self._error_lock:
             if self.error is None:
                 self.error = exc
@@ -162,6 +188,8 @@ class Application:
 
     def shutdown(self) -> None:
         """Signal every module and owned worker without joining their threads."""
+        if not self.shutdown_event.is_set():
+            logger.info("Application shutdown requested")
         self.shutdown_event.set()
         for module in self.modules:
             module.stop()
@@ -169,6 +197,7 @@ class Application:
             self.stop_workers()
 
     def run(self) -> None:
+        logger.info("Application starting modules=%s", [module.module_id for module in self.modules])
         for module in self.modules:
             module.run()
 
@@ -178,6 +207,7 @@ class Application:
             module.join()
         if self.join_workers is not None:
             self.join_workers()
+        logger.info("Application shutdown complete")
 
     def raise_if_error(self) -> None:
         if self.error is not None:

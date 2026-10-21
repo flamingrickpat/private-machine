@@ -45,10 +45,13 @@ Without it, the home gets the default lists of `pm.constants`.
 | `character.yaml` | The `PersonaConfig` fields without `personality_profile`: names, timestamp format, cards, and capabilities. Unknown keys fail. |
 | `personality.json` | User-written traits: `{"<PersonalityProfile field>": 0..1}`. An unknown key fails and names the allowed keys. A missing key keeps 0.5. |
 | `ghost.json` | The accepted memory store checkpoint. `init` creates it. The app loads it and saves to it. |
-| `runtime/` | The runtime root of the app: logs, kernel folders, and prompt logs (`runtime/llm_logs`). |
+| `ghost_<tick>_<UTC datetime>_<suffix>.json` | A stable backup before each main cognition attempt. Backups have no retention limit. |
+| `logs/` | Process logs with UTC time, process ID, thread ID, thread name, and crash traces. |
+| `runtime/` | Kernel folders, managed tasks, and other runtime artifacts. |
 | `import/` | A copy of each imported CSV and one JSON receipt for each import run. |
 
 `pm.app.character_home.CharacterHome` holds the paths and the loaders.
+The shared cache and inference transcripts live outside the home. Read [runtime files and recovery](runtime-files.md).
 `load_persona()` merges `personality.json` into the persona.
 `open_store()` loads `ghost.json` and applies the persona files, so an edited card takes effect at the next start.
 A changed companion or user name fails, because the stored entities and dialogue name the old speakers.

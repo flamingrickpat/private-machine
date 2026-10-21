@@ -22,7 +22,8 @@ from urllib.parse import urlsplit, urlunsplit
 import httpx
 
 from pm.llm.http_client import JsonClient, ModelError, cancellable
-from pm.llm.cache import model_directory
+from pm.llm.cache import cache_root, model_directory
+from pm.llm.prompt_log import write_embedding_cache_log
 from pm.llm.config import Connection, EmbeddingConfig
 from pm.llm.workflow_sessions import serving_context
 from pm.records.media import alt_text_view, image_ids, media_lookup
@@ -145,6 +146,8 @@ class EmbeddingCache:
         if cache_dir == self.legacy_dir or self.legacy_dir in cache_dir.parents:
             raise ValueError("Keep the writable application cache outside the read-only legacy cache.")
         self.directory = model_directory(self.model, cache_dir)
+        previous = model_directory(self.model, config._previous_cache_dir) if config._previous_cache_dir else self.directory
+        self.previous_directories = tuple(dict.fromkeys((previous, model_directory(self.model, cache_root()))))
         self.hits = 0
         self.legacy_hits = 0
         self.misses = 0
@@ -158,9 +161,9 @@ class EmbeddingCache:
         return hashlib.sha256(json.dumps([self.endpoint, self.model, self.dimensions, text],
                                         ensure_ascii=False).encode("utf-8")).hexdigest()
 
-    def _read(self, text: str, *, legacy: bool) -> list[float] | None:
+    def _read(self, text: str, *, legacy: bool, directory: Path | None = None) -> list[float] | None:
         key = hashlib.md5(text.encode("utf-8")).hexdigest() if legacy else self.content_key(text)
-        directory = self.legacy_dir if legacy else self.directory
+        directory = directory or (self.legacy_dir if legacy else self.directory)
         try:
             filename = f"emb_hash_{key}.json" if legacy else f"cache_emb_{key}.json"
             meta = json.loads((directory / filename).read_text(encoding="utf-8"))
@@ -183,11 +186,21 @@ class EmbeddingCache:
             return None
 
     def get(self, text: str) -> list[float] | None:
+        if self._read(text, legacy=False) is None:
+            for directory in self.previous_directories:
+                if directory == self.directory:
+                    continue
+                vector = self._read(text, legacy=False, directory=directory)
+                if vector is not None:
+                    self.put(text, vector)
+                    break
         for legacy in (False, True):
             vector = self._read(text, legacy=legacy)
             if vector is not None:
                 self.hits += 1
                 self.legacy_hits += int(legacy)
+                if not legacy:
+                    write_embedding_cache_log(self.directory / f"cache_emb_{self.content_key(text)}.json")
                 return vector
         self.misses += 1
         return None
@@ -202,7 +215,9 @@ class EmbeddingCache:
         Other filesystem errors propagate. This method sends no model request.
         """
         valid_vector(vector, self.dimensions)
+        target = self.directory / f"cache_emb_{self.content_key(text)}.json"
         if self._read(text, legacy=False) is not None:
+            write_embedding_cache_log(target)
             return
         payload = {
             "schema_version": 1, "model": self.model, "input": text,
@@ -217,7 +232,6 @@ class EmbeddingCache:
                 stream.flush()
                 os.fsync(stream.fileno())
             try:
-                target = self.directory / f"cache_emb_{self.content_key(text)}.json"
                 os.link(temporary, target)
             except FileExistsError:
                 if self._read(text, legacy=False) is None:
@@ -230,6 +244,7 @@ class EmbeddingCache:
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
+        write_embedding_cache_log(target)
 
 
 @dataclass
@@ -274,7 +289,7 @@ class EmbeddingService:
             input_text, _ = await fit_embedding_text(self.client.connection, text, cancel)
         response = await self.client.request("POST", "embeddings", payload={
             "model": self.client.connection.model, "input": input_text, "encoding_format": "float",
-        }, cancel=cancel)
+        }, cancel=cancel, transcript_path=(self.cache.directory / f"cache_emb_{self.cache.content_key(text)}.md"))
         vector = parse_embedding_response(response, self.config)
         self.last_response_model = response["model"]
         self.cache.put(text, vector)

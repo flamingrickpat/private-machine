@@ -14,7 +14,8 @@ from urllib.parse import urlsplit
 import yaml
 
 from pm.utils import yaml_util
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, StrictInt, field_validator, model_validator
+from pm.llm.cache import cache_root
 
 from pm.llm.mcp_config import MinecraftConfig, ToolCallConfig
 
@@ -79,8 +80,9 @@ class ConnectionConfig(Connection):
 class EmbeddingConfig(ConnectionConfig):
     dimensions: int = Field(gt=0)
     response_model: str | None = None
-    legacy_cache_dir: Path
-    cache_dir: Path
+    legacy_cache_dir: Path = Path("~/.pm/embeddings")
+    cache_dir: Path = Field(default_factory=lambda: cache_root() / "embeddings")
+    _previous_cache_dir: Path | None = PrivateAttr(default=None)
 
     @model_validator(mode="after")
     def remote_lifetime(self):
@@ -138,10 +140,13 @@ def load_config(path: str | Path) -> ModelConfig:
         if connection.startup_script is not None:
             script = connection.startup_script.expanduser()
             config.chat[preset] = connection.model_copy(update={"startup_script": (path.parent / script).resolve()})
+    previous = (path.parent / config.embedding.cache_dir.expanduser()).resolve()
     config.embedding = config.embedding.model_copy(update={
-        name: (path.parent / getattr(config.embedding, name).expanduser()).resolve()
-        for name in ("legacy_cache_dir", "cache_dir")
+        "legacy_cache_dir": (path.parent / config.embedding.legacy_cache_dir.expanduser()).resolve(),
+        "cache_dir": (cache_root() / "embeddings").resolve(),
     })
+    # Old configuration paths remain readable. All new entries share one root.
+    config.embedding._previous_cache_dir = previous
     return config
 
 

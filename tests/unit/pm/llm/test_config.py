@@ -92,15 +92,18 @@ class ModelConfigTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ModelConfig.model_validate({**self.config.model_dump(), "embedding_overrides": {}})
 
-    def test_relative_script_and_cache_paths_use_config_directory(self):
+    def test_relative_script_and_old_cache_use_config_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "models.yaml"
-            text = Path("config.example.yaml").read_text(encoding="utf-8").replace("cache_dir: ~/.pm/private-machine/cache", "cache_dir: .runtime/embeddings")
+            text = Path("config.example.yaml").read_text(encoding="utf-8").replace(
+                "embedding:\n", "embedding:\n  cache_dir: .runtime/embeddings\n")
             text = text.replace('startup_script: ""', 'startup_script: "start.ps1"')
             path.write_text(text, encoding="utf-8")
             config = load_config(path)
             self.assertEqual(resolve_connection(config).startup_script, Path(directory) / "start.ps1")
-            self.assertEqual(config.embedding.cache_dir, Path(directory) / ".runtime" / "embeddings")
+            from pm.llm.cache import cache_root
+            self.assertEqual(config.embedding.cache_dir, (cache_root() / "embeddings").resolve())
+            self.assertEqual(config.embedding._previous_cache_dir, Path(directory) / ".runtime" / "embeddings")
 
     def test_cognitive_control_section_stays_a_plain_mapping(self):
         # The runtime must not import workflows, so it keeps the section as it

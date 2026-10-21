@@ -19,6 +19,12 @@ from pm.llm.activation import ChatClient
 
 def run(settings: dict, root: Path) -> None:
     """Own one runtime, with serialized chat submission and durable edits."""
+    from pm.host.diagnostics import configure_logging
+    from pm.host.processes import ensure_process_cleanup
+    configure_logging(root)
+    ensure_process_cleanup()
+    from pm.llm.prompt_log import backfill_cache_logs
+    backfill_cache_logs()
     output = sys.stdout
     sys.stdout = sys.stderr  # Dependency output must not corrupt the event stream.
     lock = threading.Lock()
@@ -128,10 +134,6 @@ def run(settings: dict, root: Path) -> None:
                      invocation_id=module.invocation_id, correlation_id=context.correlation)
 
         module.handle_batch = handle
-    app.run()
-    emit("ready", nodes=[{"id": m.module_id, "topics": sorted(m.DATA_TOPICS),
-                          "workflow": str(getattr(m, "workflow", ""))} for m in app.modules])
-
     def monitor():
         while not app.shutdown_event.wait(.2):
             pass
@@ -139,7 +141,6 @@ def run(settings: dict, root: Path) -> None:
             search_cancel.set()
             emit("application.error", error=str(app.error))
 
-    threading.Thread(target=monitor, daemon=True).start()
 
     def snapshot():
         view = app.ghost.snapshot()
@@ -152,8 +153,8 @@ def run(settings: dict, root: Path) -> None:
              companion_name=app.ghost.get_companion_name(),
              cycle=app.ghost.states[-1].model_dump(mode="json") if app.ghost.states else None)
 
-    snapshot()
     search_active = threading.Event()
+    search_thread = None
 
     def search(command):
         try:
@@ -170,6 +171,11 @@ def run(settings: dict, root: Path) -> None:
             search_active.clear()
 
     try:
+        app.run()
+        emit("ready", nodes=[{"id": m.module_id, "topics": sorted(m.DATA_TOPICS),
+                              "workflow": str(getattr(m, "workflow", ""))} for m in app.modules])
+        threading.Thread(target=monitor, name="console-monitor", daemon=True).start()
+        snapshot()
         for line in sys.stdin:
             command = json.loads(line)
             request_id = command["request_id"]
@@ -196,7 +202,8 @@ def run(settings: dict, root: Path) -> None:
                         raise ValueError("Enter a search query.")
                     search_active.set()
                     search_cancel.clear()
-                    threading.Thread(target=search, args=(command,), daemon=True).start()
+                    search_thread = threading.Thread(target=search, args=(command,), name="memory-search", daemon=False)
+                    search_thread.start()
                 elif action == "cancel_search":
                     search_cancel.set()
                 elif action == "memory":
@@ -243,6 +250,9 @@ def run(settings: dict, root: Path) -> None:
                 app.supervisor.terminate(run_id)
         app.join()
         app.supervisor.join_all()
+        if search_thread is not None:
+            from pm.host.diagnostics import join_thread
+            join_thread(search_thread)
         app.raise_if_error()
 
 
@@ -250,5 +260,10 @@ if __name__ == "__main__":
     try:
         run(json.loads(Path(sys.argv[1]).read_text(encoding="utf-8")), Path(sys.argv[1]).parent)
     except BaseException:
+        import logging
+        logging.getLogger(__name__).exception("Console worker failed")
         traceback.print_exc()
         raise
+    finally:
+        from pm.host.diagnostics import close_logging
+        close_logging()

@@ -16,8 +16,6 @@ embedding:
   model: pplx-embed-v1-0.6b
   api_key: ""
   dimensions: 1024
-  legacy_cache_dir: ~/.pm/embeddings
-  cache_dir: ~/.pm/private-machine/cache
 # Optional MCP tools of the companion (docs/workflows/tool-call.md). Without servers, the
 # tool_call workflow is not registered. ${NAME} in a header reads the environment or .env.
 # tool_call:

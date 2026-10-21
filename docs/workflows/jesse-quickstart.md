@@ -134,13 +134,15 @@ Use its actual configured context size, rather than the model's advertised maxim
 Embeddings are the model calls that support memory search.
 The copied configuration uses OpenRouter embeddings, even though chat uses your local LLM.
 
-In the `embedding` entry, change the cache path:
+Chat and embeddings share one cache root. Model configuration needs no cache paths.
+For an isolated cache during this test, set:
 
-```yaml
-cache_dir: ./embeddings
+```powershell
+$env:PM_CACHE_DIR = Join-Path (Get-Location) '.runtime/jesse-trial-cache'
 ```
 
-This path resolves beside `model.yaml` and keeps new cache files inside your test directory.
+This changes the whole cache root for this PowerShell session.
+Without this variable, the root is `~/.pm/private-machine/cache`.
 
 Before starting the console, supply your OpenRouter key in that PowerShell window:
 

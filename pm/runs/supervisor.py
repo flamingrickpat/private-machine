@@ -185,7 +185,10 @@ class ManagedRunSupervisor:
             current.updated_at = self.clock()
             for name, value in changes.items():
                 setattr(current, name, value)
-            return self._persist(current)
+            result = self._persist(current)
+            import logging
+            logging.getLogger(__name__).info("Managed run transition run=%s state=%s event=%s", run_id, state, latest_event)
+            return result
 
     # ------------------------------------------------------------ start
 
@@ -782,7 +785,11 @@ class ManagedRunSupervisor:
         with self._lock:
             thread = self._threads.get(run_id)
         if thread is not None:
-            thread.join(timeout)
+            if timeout is None:
+                from pm.host.diagnostics import join_thread
+                join_thread(thread)
+            else:
+                thread.join(timeout)
 
     def join_all(self, timeout: float | None = None) -> None:
         for run_id in list(self._threads):

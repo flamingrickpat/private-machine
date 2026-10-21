@@ -346,6 +346,7 @@ class MainCogLoop(CognitiveWorkflow):
         delay = CYCLE_RETRY_DELAY_SECONDS
         while not self.stop_event.is_set():
             try:
+                self.ghost.backup()
                 super().handle_batch(batch)
                 return
             except (ModelFormatError, ModelError) as error:

@@ -183,7 +183,7 @@ BEHAVIOR_PRESSING = 0.5  # Expression tendency at which the text names the urge.
 ATTENTION_DRIFT_THRESHOLD = 0.2  # Valence focus bias at which attention drifts toward threat (-) or reward (+).
 
 # Web chat (pm.app.web_chat). The server binds to loopback only.
-WEB_CHAT_HOST = "0.0.0.0"  # Bind address. Other machines cannot connect.
+WEB_CHAT_HOST = "0.0.0.0"  # Bind address. The browser URL uses loopback.
 WEB_CHAT_PORT = 8770  # Default TCP port. `--web-port` changes it.
 WEB_CHAT_POLL_MS = 1500  # Milliseconds between two browser polls for new messages.
 WEB_CHAT_MAX_BODY_BYTES = 64_000  # Largest accepted POST body, in bytes.

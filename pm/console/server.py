@@ -80,7 +80,8 @@ class Instance:
         with self.command_lock:
             if self.info()["state"] == "running":
                 raise ValueError("The instance already runs.")
-            error_log = (self.root / "worker.log").open("a", encoding="utf-8")
+            (self.root / "logs").mkdir(exist_ok=True)
+            error_log = (self.root / "logs" / "worker.log").open("a", encoding="utf-8")
             try:
                 self.process = subprocess.Popen(
                     [sys.executable, "-u", "-m", "pm.console.worker", str(self.root / "instance.json")],
@@ -215,8 +216,8 @@ def serve(root: Path, port: int = 8090):
                         return self.respond({"instance": instance.info(), "events": events,
                                              "snapshot": instance.snapshot if instance.snapshot.get("seq", 0) > after else None,
                                              "nodes": instance.nodes,
-                                             "log": (instance.root / "worker.log").read_text(encoding="utf-8", errors="replace")[-20000:]
-                                             if (instance.root / "worker.log").exists() else ""})
+                                             "log": (instance.root / "logs" / "worker.log").read_text(encoding="utf-8", errors="replace")[-20000:]
+                                             if (instance.root / "logs" / "worker.log").exists() else ""})
                 assets = {"/": "index.html", "/app.js": "app.js", "/style.css": "style.css"}
                 filename = assets.get(path.path)
                 if filename is None:

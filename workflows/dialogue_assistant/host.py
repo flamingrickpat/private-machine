@@ -26,8 +26,9 @@ def build_assistant_tools(model, supervisor, *, cancel_provider=None, minecraft_
     """Return ``tools_factory(environment, batch)`` for Assistant dialogue."""
 
     def factory(environment, batch) -> dict:
-        tools = {"assistant_complete": model.build_tool_completion()}
-        tools["public_complete"] = model.build_async_tool()
+        cancel = cancel_provider() if cancel_provider is not None else None
+        tools = {"assistant_complete": model.build_tool_completion(cancel=cancel)}
+        tools["public_complete"] = model.build_async_tool(cancel=cancel)
         if cancel_provider is not None:
             cancel = cancel_provider()
             tools["assistant_complete"] = partial(tools["assistant_complete"], cancel=cancel)

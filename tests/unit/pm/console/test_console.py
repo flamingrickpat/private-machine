@@ -22,7 +22,7 @@ class ConsoleTests(unittest.TestCase):
                 if predicate(list(instance.events)):
                     return
             if instance.process.poll() is not None:
-                self.fail((instance.root / "worker.log").read_text(encoding="utf-8"))
+                self.fail((instance.root / "logs" / "worker.log").read_text(encoding="utf-8"))
             time.sleep(.05)
         self.fail("The worker did not produce the expected event.")
 

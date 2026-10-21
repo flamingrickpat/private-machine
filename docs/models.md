@@ -192,8 +192,15 @@ This [prompt-scope rule](work_items/alpha-plan/model-policy.md#prompt-scope-and-
 ## Embeddings and scoped retrieval
 
 The old cache remains read-only at `~/.pm/embeddings` by default.
-The example writes new entries to `~/.pm/private-machine/cache/<modelname>/cache_emb_<hash>.json`.
-`embedding.cache_dir` can select another root.
+New entries use `~/.pm/private-machine/cache/embeddings/<modelname>/cache_emb_<hash>.json`.
+Completion entries use `~/.pm/private-machine/cache/<modelname>/cache_comp_<hash>_<count>.json`.
+`PM_CACHE_DIR` changes the shared cache root for an isolated run.
+Model configuration needs no cache paths.
+An old `embedding.cache_dir` remains a read source. A cache hit copies its valid vector into the shared cache.
+Old entries at the cache root remain readable too.
+Each JSON file has a readable Markdown file beside it.
+Requests appear before inference. Responses and provider statistics update the transcript after inference.
+Read [runtime files and recovery](subsystems/runtime-files.md) for paths, backups, diagnostics, and shutdown.
 Each new JSON entry contains its format version, endpoint, request model, exact input, dimensions, and vector.
 An atomic hard link publishes each complete new entry without overwriting an existing file.
 Atomic replacement repairs an incompatible old entry.

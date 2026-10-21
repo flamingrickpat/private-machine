@@ -113,12 +113,12 @@ class ReconciliationTests(unittest.TestCase):
             def measure_context(self, messages, **generation):
                 raise AssertionError("idle ticks must not measure inference")
 
-            def build_async_tool(self):
+            def build_async_tool(self, *, cancel=None):
                 async def complete_async(messages, **generation):
                     return "{}"
                 return complete_async
 
-            def build_tool_completion(self):
+            def build_tool_completion(self, *, cancel=None):
                 async def complete_tool(messages, tools=None, **generation):
                     return {"choices": [{"message": {"content": "{}"}}]}
                 return complete_tool

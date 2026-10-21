@@ -36,7 +36,7 @@ def load_suite(path: Path = HERE / "scenarios.yaml") -> Suite:
 
 
 def case_config(source: Path, root: Path) -> Path:
-    """Keep each case's writable embedding cache inside its evidence directory.
+    """Capture effective model settings while retaining the shared cache root.
 
     Model settings and credential references stay unchanged. Relative startup
     scripts and the read-only legacy cache retain their resolved source paths.
@@ -45,7 +45,7 @@ def case_config(source: Path, root: Path) -> Path:
     from pm.llm.config import load_config
     resolved = load_config(source)
     data = yaml.safe_load(source.read_text(encoding="utf-8"))
-    data["embedding"].update(cache_dir=str(root / "embedding-cache"),
+    data["embedding"].update(cache_dir=str(resolved.embedding._previous_cache_dir or resolved.embedding.cache_dir),
                              legacy_cache_dir=str(resolved.embedding.legacy_cache_dir))
     for preset, connection in resolved.chat.items():
         if connection.startup_script is not None:
@@ -53,8 +53,8 @@ def case_config(source: Path, root: Path) -> Path:
     path = root / "model-config.yaml"
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     save_json(root / "effective-config-origin.json", {"source_sha256": sha256_file(source),
-        "effective_sha256": sha256_file(path), "embedding_cache": str(root / "embedding-cache"),
-        "scope": "Only the writable cache location changes; source-relative paths are resolved."})
+        "effective_sha256": sha256_file(path), "embedding_cache": str(resolved.embedding.cache_dir),
+        "scope": "Model settings and the shared cache root stay unchanged; source-relative paths are resolved."})
     return path
 
 

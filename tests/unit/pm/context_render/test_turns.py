@@ -65,5 +65,5 @@ class TurnTests(unittest.TestCase):
         large = Turn(Role.User, Content("image") + Content(Media(MediaKind.Image, "image/png", data=b"a" * 100000)))
         count, label = estimate_tokens("test", [small])
         self.assertEqual(count, estimate_tokens("test", [large])[0])
-        self.assertIn("media_unmeasured", label)
+        self.assertIn("images_by_constant", label)
 

@@ -124,7 +124,8 @@ class WriteTests(unittest.TestCase):
     def test_default_directory_is_the_private_machine_home(self):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("PM_PROMPT_LOG_DIR", None)
-            self.assertEqual(log_directory(), Path.home() / ".pm" / "private-machine")
+            from pm.llm.cache import cache_root
+            self.assertEqual(log_directory(), cache_root())
 
 
 if __name__ == "__main__":

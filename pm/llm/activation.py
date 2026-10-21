@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import logging
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Event, Lock
@@ -73,6 +74,8 @@ class ModelActivation:
             return not self._switching and self._ready.get(connection.base_url) == connection.model
 
     async def activate(self, connection: Connection, *, cancel: Event | None = None, live_test: bool = False):
+        logger = logging.getLogger(__name__)
+        logger.info("Model activation start model=%s endpoint=%s", connection.model, connection.base_url)
         with self._lock:
             if self._active_calls or self._switching:
                 raise ModelError("A model is in use. Finish active calls before activation.")
@@ -96,6 +99,7 @@ class ModelActivation:
         finally:
             with self._lock:
                 self._switching = False
+            logger.info("Model activation exit model=%s ready=%s", connection.model, self.is_ready(connection))
 
     @contextmanager
     def use(self, connection: Connection):

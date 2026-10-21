@@ -16,11 +16,11 @@ Two ways to start:
 from __future__ import annotations
 
 import argparse
-import os
 import signal
 import sys
 import threading
 import time
+import logging
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -91,16 +91,6 @@ def launch_plan(argv, default_seed: Path) -> LaunchPlan:
     )
 
 
-def set_prompt_log_dir(plan: LaunchPlan) -> None:
-    """Point prompt logs at ``<runtime-root>/llm_logs`` unless the environment says otherwise.
-
-    Without this, ``--home`` writes prompt logs to the default folder next to
-    the current directory instead of the home folder of the character. An
-    explicit ``PM_PROMPT_LOG_DIR`` always wins, so a caller can redirect logs.
-    """
-    os.environ.setdefault("PM_PROMPT_LOG_DIR", str(plan.runtime_root / "llm_logs"))
-
-
 def build_from_plan(plan: LaunchPlan, *, assembly):
     """Build the application of ``plan`` without starting it.
 
@@ -108,7 +98,6 @@ def build_from_plan(plan: LaunchPlan, *, assembly):
     ``FileNotFoundError`` when ``ghost.json`` is missing. Every accepted
     commit of that store saves ``ghost.json``.
     """
-    set_prompt_log_dir(plan)
     if plan.home is not None:
         from pm.app.character_home import CharacterHome
 
@@ -124,29 +113,37 @@ def build_from_plan(plan: LaunchPlan, *, assembly):
 
 
 def main(argv=None, *, assembly) -> int:
+    """Own diagnostics and child cleanup for the full terminal session."""
+    from pm.host.diagnostics import configure_logging, close_logging
+    from pm.host.processes import ensure_process_cleanup
+
+    plan = launch_plan(argv, assembly.DEFAULT_SEED)
+    configure_logging(plan.home or plan.runtime_root)
+    ensure_process_cleanup()
+    try:
+        from pm.llm.prompt_log import backfill_cache_logs
+        backfill_cache_logs()
+        return _run_session(plan, assembly=assembly)
+    except BaseException:
+        logging.getLogger(__name__).exception("Terminal session stopped with an error")
+        raise
+    finally:
+        close_logging()
+
+
+def _run_session(plan: LaunchPlan, *, assembly) -> int:
     """Run one session of ``assembly`` until stdin closes (terminal mode), Ctrl+C, or an error.
 
-    Shutdown order: the web chat stops first, so no new message arrives;
-    then the modules stop and join. A clean stop records a shutdown event.
+    Shutdown signals modules and workers, closes the web chat, and joins work.
+    A clean stop records a shutdown event.
     Every accepted commit already saved the checkpoint, so Ctrl+C loses no
     accepted state. A cycle that has not committed is not accepted state.
     """
-    plan = launch_plan(argv, assembly.DEFAULT_SEED)
     app = build_from_plan(plan, assembly=assembly)
     print(assembly.BANNER if plan.cognition == "dummy" else assembly.REAL_BANNER, flush=True)
     if plan.home is not None:
         print(f"Character home: {plan.home}", flush=True)
     web = None
-    if plan.web:
-        from pm.app.web_chat import WebChatServer
-
-        # Bind before the modules start: a busy port fails while no module
-        # thread runs, so the process exits instead of hanging.
-        web = WebChatServer(app.ghost, app.user_input.submit, port=plan.web_port, on_error=app.on_error)
-    app.run()
-    if web is not None:
-        web.start()
-        print(f"Web chat: {web.url}", flush=True)
 
     def read_stdin() -> None:
         try:
@@ -162,29 +159,49 @@ def main(argv=None, *, assembly) -> int:
             if web is None:
                 app.shutdown()
 
-    reader = threading.Thread(target=read_stdin, daemon=True)
-    reader.start()
-
     # SIGTERM and, on Windows, Ctrl+Break or a closed console window stop
-    # the session like Ctrl+C. The handler only signals; the join below
-    # does the clean stop. Windows ends the process about 5 seconds after
+    # the session like Ctrl+C. A second signal forces exit after a thread dump.
+    # Windows ends the process about 5 seconds after
     # a console window closes, so a long model call can still cut the stop.
+    stop_signals = 0
+
     def stop_on_signal(signum, frame) -> None:
+        nonlocal stop_signals
+        stop_signals += 1
+        if stop_signals > 1:
+            from pm.host.diagnostics import exit_after_repeated_signal
+            exit_after_repeated_signal()
         app.shutdown()
 
-    signal.signal(signal.SIGTERM, stop_on_signal)
+    previous = {signal.SIGINT: signal.signal(signal.SIGINT, stop_on_signal),
+                signal.SIGTERM: signal.signal(signal.SIGTERM, stop_on_signal)}
     if sys.platform == "win32":
-        signal.signal(signal.SIGBREAK, stop_on_signal)
+        previous[signal.SIGBREAK] = signal.signal(signal.SIGBREAK, stop_on_signal)
 
     try:
+        if plan.web:
+            from pm.app.web_chat import WebChatServer
+            web = WebChatServer(app.ghost, app.user_input.submit, port=plan.web_port, on_error=app.on_error)
+        app.run()
+        if web is not None:
+            web.start()
+            print(f"Web chat: {web.url}", flush=True)
+        reader = threading.Thread(target=read_stdin, name="stdin", daemon=True)
+        reader.start()
         while not app.shutdown_event.is_set():
             time.sleep(0.1)
     except KeyboardInterrupt:
         pass
     finally:
-        if web is not None:
-            web.stop()
         app.shutdown()
-        app.join()
+        try:
+            if web is not None:
+                web.stop()
+        finally:
+            try:
+                app.join()
+            finally:
+                for signum, handler in previous.items():
+                    signal.signal(signum, handler)
         app.raise_if_error()
     return 0

@@ -165,11 +165,6 @@ def build_models(config_path: str):
     return stage, EmbeddingService(config.embedding)
 
 
-def _log_dir(home: CharacterHome) -> None:
-    """Keep the prompt logs of the run in the home, unless the caller chose a directory."""
-    os.environ.setdefault("PM_PROMPT_LOG_DIR", str(home.runtime_root / "llm_logs"))
-
-
 def _print(message: str) -> None:
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}", flush=True)
 
@@ -185,7 +180,6 @@ def import_chat(home: CharacterHome, csv_path: Path, config_path: str, *, limit:
     """
     from pm.app.chat_import import (add_transfer_records, file_sha256, group_exchanges, import_exchanges,
                                     read_chat_csv, synthesize_times)
-    _log_dir(home)
     started = time.monotonic()
     now = now or datetime.utcnow()
     sha = file_sha256(csv_path)
@@ -273,7 +267,6 @@ def reconsolidate_home(home: CharacterHome, config_path: str) -> Reconsolidation
 
     The report goes to ``runtime/reconsolidation-<run_id>.json``.
     """
-    _log_dir(home)
     store = home.open_store()
     stage, embeddings = build_models(config_path)
     report = reconsolidate(store, complete=stage.complete, embeddings=embeddings, force=True, log=_print)
@@ -311,6 +304,25 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    from pm.host.diagnostics import configure_logging, close_logging
+    from pm.host.processes import ensure_process_cleanup
+    # Initialization must check the destination before creating its log folder.
+    if args.command == "init":
+        return _run_command(args)
+    configure_logging(args.home)
+    ensure_process_cleanup()
+    try:
+        return _run_command(args)
+    except BaseException:
+        import logging
+        logging.getLogger(__name__).exception("Character command failed")
+        raise
+    finally:
+        close_logging()
+
+
+def _run_command(args) -> int:
+    """Run the parsed character command under the caller's diagnostics."""
     home = CharacterHome(args.home)
     if args.command == "init":
         init_home(home, companion_name=args.companion_name, user_name=args.user_name, card=args.card,

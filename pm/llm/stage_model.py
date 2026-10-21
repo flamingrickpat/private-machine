@@ -14,7 +14,7 @@ cleanup. An empty response is retried at most once.
 from __future__ import annotations
 
 import asyncio
-from threading import BoundedSemaphore, Lock
+from threading import BoundedSemaphore, Event, Lock
 from contextlib import asynccontextmanager
 from collections.abc import Sequence
 
@@ -135,13 +135,14 @@ class LazyStageModel:
         with self.owner.use(self.connection):
             return asyncio.run(measure_context(self.connection, messages, cancel if cancel is not None else Event(), **generation))
 
-    def build_async_tool(self) -> AsyncTextCompletion:
+    def build_async_tool(self, *, cancel: Event | None = None) -> AsyncTextCompletion:
         """Return an async completion callable for roles that run their own loop.
 
         Activation happens now, when the tool is built on the module thread,
-        so the tool body only awaits an already-activated client.
+        so the tool body only awaits an already-activated client. ``cancel``
+        also stops readiness waits before the tool exists.
         """
-        self.ensure_client()
+        self.ensure_client(cancel=cancel)
 
         async def complete_async(messages: Sequence[TurnInput], **generation: object) -> str:
             return await self._complete(messages, generation)
@@ -149,13 +150,14 @@ class LazyStageModel:
         complete_async.measure_context = self.measure_context
         return complete_async
 
-    def build_tool_completion(self) -> ToolCompletion:
+    def build_tool_completion(self, *, cancel: Event | None = None) -> ToolCompletion:
         """Return an async tool-calling completion that preserves tool_calls.
 
         Assistant dialogue needs the full assistant message, including any
         requested tool calls. Activation happens when the tool is built.
+        ``cancel`` stops that activation when the owning workflow stops.
         """
-        client = self.ensure_client()
+        client = self.ensure_client(cancel=cancel)
 
         async def complete_tool(messages: Sequence[TurnInput], tools=None, **generation: object) -> Completion:
             if tools:

@@ -125,6 +125,33 @@ class MemoryStore(RecordIndex):
                    if set(record.knoxel_ids).issubset(ids)}
             return Snapshot(records, gwt, {record_id: self.revisions[record_id] for record_id in ids})
 
+    def backup(self) -> Path | None:
+        """Save accepted memory beside the checkpoint before a cognition attempt.
+
+        The commit lock keeps all fields at one stable revision. Backups have
+        no retention limit. An I/O error stops the attempt before it changes
+        memory. An ephemeral store returns None and writes no file.
+        """
+        from datetime import datetime, timezone
+        from uuid import uuid4
+        import logging
+
+        if self.checkpoint is None:
+            return None
+        with self.lock:
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+            path = self.checkpoint.with_name(f"ghost_{self.current_tick_id}_{stamp}_{uuid4().hex[:8]}.json")
+            data = Checkpoint(
+                state=self.state_dict(), current_knoxel_id=self.current_knoxel_id,
+                current_tick_id=self.current_tick_id, reserved_tick_id=self._reserved_tick_id,
+                revisions=dict(self.revisions), gwt_turns=dict(self.gwt_turns),
+                applied_commits=dict(self.applied_commits), managed_runs=dict(self.managed_runs),
+                consolidations=dict(self.consolidations),
+            )
+            write_checkpoint(path, data, lambda: None)
+        logging.getLogger(__name__).info("Memory backup tick=%s path=%s", data.current_tick_id, path)
+        return path
+
     def dialogue_history(self, *, visible_ids=None, user: str | None = None) -> list[dict]:
         """Return public dialogue from accepted memory, ordered by world time.
 
@@ -316,6 +343,9 @@ class MemoryStore(RecordIndex):
             for knoxel in self._all_knoxels.values():
                 knoxel._owner = self
             batch._closed = True
+            import logging
+            logging.getLogger(__name__).debug("Memory commit id=%s tick=%s added=%s updated=%s", receipt.commit_id,
+                                              receipt.tick_id, len(receipt.added_ids), len(receipt.updated_ids))
             return receipt
 
     def find_image(self, image_id: str) -> RecordImage | None:

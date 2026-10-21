@@ -8,6 +8,7 @@ be resumed by writing a durable answer receipt and invoking again.
 from dataclasses import dataclass
 from enum import StrEnum
 import json
+import logging
 from pathlib import Path
 import time
 from typing import Any
@@ -96,6 +97,9 @@ class WorkflowRunner:
         so a bounded retry resumes from the journal instead of repeating a
         completed phase or an external effect.
         """
+        logger = logging.getLogger(__name__)
+        started = time.monotonic()
+        logger.info("Workflow start namespace=%s run=%s resume=%s", self.namespace, request.run_id, resume)
         if self.models is not None:
             runtime = self.models.bind(runtime, self.runtime_root / "kernel" / request.run_id / "model-sessions.jsonl")
         environment = runtime.environment
@@ -139,6 +143,8 @@ class WorkflowRunner:
                     raise
                 time.sleep(0.25 * (attempt + 1))
         status = _status(summary, self.success_status, runtime.stop_event.is_set())
+        logger.info("Workflow end namespace=%s run=%s status=%s seconds=%.3f", self.namespace,
+                    request.run_id, status.value, time.monotonic() - started)
         report = None
         question = question_id = resume_phase = None
         if status is WorkflowStatus.Completed:

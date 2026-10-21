@@ -225,6 +225,9 @@ class WebChatServer:
     @property
     def url(self) -> str:
         host, port = self._httpd.server_address[:2]
+        # Windows cannot connect to an unspecified bind address.
+        if host == "0.0.0.0":
+            host = "127.0.0.1"
         return f"http://{host}:{port}/"
 
     def start(self) -> None:
@@ -232,9 +235,11 @@ class WebChatServer:
 
     def stop(self) -> None:
         """Stop serving. New messages cannot arrive after this returns."""
-        self._httpd.shutdown()
+        if self._thread.is_alive():
+            self._httpd.shutdown()
         self._httpd.server_close()
-        self._thread.join()
+        if self._thread.ident is not None:
+            self._thread.join()
 
     def session(self) -> ChatSession:
         return ChatSession(companion_name=self.store.get_companion_name(),
