@@ -81,7 +81,7 @@ A new user input or a different request correlation can choose further work.
 Completion releases this request boundary.
 The [A13 gate review](../work_items/verification/a13/task-gate-review.md) records remaining generalization limits in this path.
 
-Direct inventory questions use Assistant's current inventory observation and start no managed task.
+A direct Assistant inventory observation starts no managed task when a caller invokes it explicitly.
 Task journals and progress events enter [experienced memory](experienced-memory.md).
 Return conversation uses that evidence through [public dialogue](public-dialogue.md) and [A09R speech](story-speech.md).
 A shared plan, started worker, or completed workflow cannot alone establish a finished house or expedition.

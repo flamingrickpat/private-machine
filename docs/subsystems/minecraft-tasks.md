@@ -25,7 +25,7 @@ A11 does not activate the private loop.
 The supervisor adds the current companion identity, character card, and accepted public context.
 Specialists remain private parts of that companion.
 Only the existing public-dialogue pathway speaks to the user.
-An inventory question retains its direct Assistant observation path.
+A direct Assistant observation stays available when a caller invokes it explicitly.
 
 ## Input and result
 

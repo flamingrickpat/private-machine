@@ -9,6 +9,7 @@ import re
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 from pydantic import ValidationError
 
@@ -31,10 +32,11 @@ from tests.unit.workflows.main_cognition.cycle_support import ScriptedModel, las
 from workflows.dialogue_story.host import StoryDialogue
 from workflows.main_cognition.expectations import outcome_of
 from workflows.main_cognition.host import MainCogLoop, dialogue_partner
+from workflows.main_cognition.phases.decide import available_workflows
 from workflows.main_cognition.phases.experience import continuation, load_experience_prompts, seed_phrases
 from workflows.main_cognition.phases.route import body_lease, resolve_conflicts
 from workflows.main_cognition.schemas import (ActionDispatch, ActionRequest, DecisionAnswer, DecisionCheck,
-                                              OpenExpectation)
+                                              OpenExpectation, WorkflowOption)
 
 MANIFEST = PROJECT_ROOT / "workflows" / "main_cognition" / "main_cognition.workflow.md"
 STORY_MANIFEST = PROJECT_ROOT / "workflows" / "dialogue_story" / "dialogue_story.workflow.md"
@@ -434,6 +436,15 @@ class DecisionTextTests(unittest.TestCase):
         self.assertEqual(DecisionAnswer.model_validate({"variants": []}, context=self.CHECK).variants, [])
         with self.assertRaises(ValidationError):
             DecisionAnswer.model_validate({"variants": ["one", "two"]}, context=self.CHECK)
+
+
+class ActionSpaceTests(unittest.TestCase):
+    def test_assistant_dialogue_is_not_offered(self):
+        work = SimpleNamespace(request=SimpleNamespace(available_workflows=[
+            WorkflowOption(name="dialogue_story", description="speak"),
+            WorkflowOption(name="dialogue_assistant", description="assistant"),
+        ]))
+        self.assertEqual([item.name for item in available_workflows(work)], ["dialogue_story"])
 
 
 if __name__ == "__main__":

@@ -114,7 +114,9 @@ def _cognition_workflow_options(supervisor, tool_catalogue=None) -> list[dict]:
 
     Dialogue and self-management are always available. Managed workflow names
     come from the supervisor, so a configured workflow can steer work without
-    a code change. ``tool_catalogue`` (a ``ToolCatalogue``) lists the MCP
+    a code change. The assistant entry stays in this catalogue for task reply
+    recovery; the decide phase removes disabled workflows from the action
+    space. ``tool_catalogue`` (a ``ToolCatalogue``) lists the MCP
     tools in the ``tool_call`` description. Only the route prompt shows the
     descriptions; the decide prompt never names tools.
     """
@@ -129,7 +131,7 @@ def _cognition_workflow_options(supervisor, tool_catalogue=None) -> list[dict]:
                         "note_task": "Real pm-coder note writer. Exact UTF-8 byte verification. Optional arguments.note_spec has path and text; path stays in outbox/.",
                         "memory_reconsolidation": "Sort through memories and sleep on them: builds topic and day summaries, facts, and updated self and relationship narratives from the stored history. Slow; runs in the background. Use ToolCall when the character decides to sort through memories, sleep on what happened, or reflect on the past days.",
                         "minecraft": "One sustained survival specialist leaf. Standalone completion requires an explicit supported verifier, currently wood_return. Use minecraft_project for other goals that need verified completion.",
-                        "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals. Inventory questions use direct Assistant observation."}
+                        "minecraft_project": "Generic Minecraft project planner. Durable subtasks, verified prerequisites, fresh specialists, and independent world verification. Use for multi-step goals."}
         description = descriptions.get(name, f"Managed workflow {name}.")
         if name == "tool_call":
             from workflows.tool_call.host import WORKFLOW_DESCRIPTION

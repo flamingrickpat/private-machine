@@ -79,11 +79,13 @@ The external Minecraft and MCP services remain owned by their operator or live h
 
 ## Direct inventory dialogue
 
-Action selection uses the normal LLM.
-A clear inventory question selects `dialogue_assistant` with `arguments.minecraft_read: inventory`.
-A current position, health, or surroundings question uses `arguments.minecraft_read: state`.
+Assistant dialogue is not part of the action selection set.
+Cognition does not route ordinary questions to it.
+It stays wired for direct requests and task reply recovery.
+A direct request with `arguments.minecraft_read: inventory` asks for inventory.
+A direct request with `arguments.minecraft_read: state` asks for position, health, or surroundings.
 Both values select the same structured observation boundary.
-It does not select the managed `minecraft` workflow or require Laya.
+They do not select the managed `minecraft` workflow or require Laya.
 [`workflows.dialogue_assistant.host.AssistantDialogue.prepare_input`][] retains that argument in the typed request.
 
 [`workflows.dialogue_assistant.steps.run`][] performs exactly one `minecraft_observe` call for this route.

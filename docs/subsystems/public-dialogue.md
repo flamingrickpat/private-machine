@@ -79,6 +79,7 @@ Story uses three messages: a story-writer system message, a user message with al
 Earlier generated speech cannot independently establish its described event.
 
 Assistant preserves normal user, assistant, and tool messages.
+The action selection set does not offer it, so it answers direct requests and recovered task replies.
 Its derived context has a separate turn. The final user turn contains the current message verbatim.
 The review receives that message and the same spoken history as generation.
 An automatic terminal reply reports existing work and receives only tools marked `read_only`.

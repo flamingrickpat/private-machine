@@ -76,6 +76,7 @@ Each published action carries the correlation of its stimulus group. So the grou
 
 Story dialogue produces character speech.
 Assistant dialogue can call scoped tools.
+It is not offered as an action and serves direct requests and reply recovery.
 SelfManagement operates managed runs.
 These paths have separate contracts and prompts.
 They share the [public context and grounding contract](public-dialogue.md).

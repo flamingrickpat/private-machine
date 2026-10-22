@@ -39,16 +39,21 @@ from workflows.main_cognition.story_prefix import StoryPrefix, shard_label
 #: The action space when the configuration names no workflows.
 DEFAULT_WORKFLOWS = [
     WorkflowOption(name="dialogue_story", description="Speak in character, in the story voice."),
-    WorkflowOption(name="dialogue_assistant", description="Speak with scoped tools, for example a game observation."),
     WorkflowOption(name="self_management", description="Start, check, update, or stop a managed run."),
     WorkflowOption(name="local_task", description="Run one small real local task."),
     WorkflowOption(name="minecraft", description="Run a sustained Minecraft specialist with exclusive body ownership."),
 ]
 
+#: Workflows that stay wired but are not offered as actions.
+#: Assistant dialogue is disabled as a user-facing route. It still serves
+#: task reply recovery, so remove a name here to offer it again.
+DISABLED_WORKFLOWS = frozenset({"dialogue_assistant"})
+
 
 def available_workflows(work: CycleWork) -> list[WorkflowOption]:
-    """Return the configured workflows, or the default action space."""
-    return work.request.available_workflows or DEFAULT_WORKFLOWS
+    """Return the configured workflows, or the default action space, without the disabled workflows."""
+    workflows = work.request.available_workflows or DEFAULT_WORKFLOWS
+    return [item for item in workflows if item.name not in DISABLED_WORKFLOWS]
 
 
 def group_part(work: CycleWork, prompts: PhasePrompts, prefix: StoryPrefix, group: StimulusGroup) -> str:
@@ -133,6 +138,7 @@ def run(context, work: CycleWork) -> CycleWork:
 
 __all__ = [
     "DEFAULT_WORKFLOWS",
+    "DISABLED_WORKFLOWS",
     "available_workflows",
     "build_messages",
     "decide",

@@ -89,26 +89,22 @@ user_template: |
   - The control worker local_task cannot execute arbitrary note instructions. Use note_task for a real note. Its host
     verifies exact UTF-8 file bytes.
   - No workflow edits code, prompts, configuration, or hidden files.
-  - A clear Minecraft inventory question routes to dialogue_assistant with arguments.minecraft_read set to inventory.
-  - A question about the current Minecraft position, health, or surroundings routes to dialogue_assistant with
-    arguments.minecraft_read set to state. This makes one read-only observation. It does not need a managed gameplay
-    task and starts none. Structured observations do not grant pixel vision. A screenshot request needs its own
-    actual capture and cannot become a claim of visual interpretation. Conversation alone cannot establish game
-    status.
   - Use minecraft for a sustained standalone leaf with an explicit supported acceptance contract. Its standalone
     terminal verifier currently supports wood_return. An empty acceptance contract cannot establish completion. One
     specialist keeps the body lease for the whole leaf.
   - Use minecraft_project for open-ended work with several dependent outcomes, such as a usable house. Its planner
     creates durable subtasks, and independent world verification releases each prerequisite. Use this generic goal
     workflow for other self-chosen game goals too, even a small mining or exploration goal. The specialist's own
-    complete status cannot replace independent acceptance. A running Minecraft task does not prevent conversation or
-    a direct inventory observation.
+    complete status cannot replace independent acceptance.
+  - Observing current game state needs an observation tool in the workflow list. Conversation alone cannot establish
+    game status. Structured observations do not grant pixel vision. A screenshot request needs its own actual capture
+    and cannot become a claim of visual interpretation.
   - Anger, resentment, jealousy, and boredom can change game choices, including permitted destruction. Never infer
     permission to destroy another player's property from an emotion alone.
   - An observed need, deadline, or world change can justify self-chosen work during silence. Choose within the full
     set of workflows. Do not require a new instruction for each action.
   - Keep an already running goal with its worker. Do not start another body worker for the same work. Use
-    dialogue_assistant management tools to update or cancel an existing task when instructions change.
+    self_management to update or cancel an existing task when instructions change.
   - A world observation is dated evidence, not a new request. World changes by others can invalidate earlier
     assumptions. Observe again before acting on those assumptions. Report away activity only from actual task and
     world receipts. No activity occurs while the process is stopped.
